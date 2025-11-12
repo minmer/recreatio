@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "gzt9NlqJkBc=",
+  "dgSpecHash": "Y+8rTxXxrRM=",
   "success": true,
-  "projectFilePath": "C:\\Users\\AKM.LAPTOP-AKM\\Documents\\recreatio\\recreatio\\backend\\ReCreatio.Api\\Recreatio.Api.csproj",
+  "projectFilePath": "C:\\Users\\AKM.LAPTOP-AKM\\Documents\\recreatio\\recreatio\\backend\\Recreatio.Api\\Recreatio.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\AKM.LAPTOP-AKM\\.nuget\\packages\\microsoft.extensions.apidescription.server\\9.0.0\\microsoft.extensions.apidescription.server.9.0.0.nupkg.sha512",
     "C:\\Users\\AKM.LAPTOP-AKM\\.nuget\\packages\\microsoft.openapi\\2.3.0\\microsoft.openapi.2.3.0.nupkg.sha512",

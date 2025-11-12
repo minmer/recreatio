@@ -36,6 +36,8 @@ jobs:
       - name: Build
         working-directory: ./frontend/recreatio-frontend
         run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api.recreatio.pl
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

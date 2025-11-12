@@ -8,15 +8,18 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS – pozwalamy na połączenia z frontu Vite (localhost:5173)
+// CORS – wczytanie źródeł z konfiguracji (fallback na localhost do dev)
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? Array.Empty<string>();
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: FrontendCorsPolicy, policy =>
     {
         policy
-            .WithOrigins("http://localhost:5173", "https://localhost:5173")
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -32,6 +35,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseRouting();
 
 // CORS musi być PRZED UseAuthorization / MapControllers
 app.UseCors(FrontendCorsPolicy);

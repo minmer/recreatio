@@ -8,8 +8,11 @@ type Parish = {
   city: string;
 };
 
-// ⚠️ USTAW tutaj adres backendu – port sprawdź w konsoli `dotnet run`
-const API_BASE_URL = 'http://localhost:5217'; // jeśli u Ciebie jest np. 5000, zmień na ten port
+/**
+ * Prefer environment variable when available (set during CI/CD),
+ * fall back to the dev HTTPS port so `npm run dev` still works out-of-the-box.
+ */
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5217';
 const PARISHES_URL = `${API_BASE_URL}/api/parishes`;
 
 function App() {
