@@ -1,0 +1,161 @@
+-- ReCreatio initial schema (SQL Server)
+-- Replace database name if needed before executing.
+
+IF DB_ID(N'minmer_zap_25') IS NULL
+BEGIN
+    CREATE DATABASE [minmer_zap_25];
+END
+GO
+
+USE [minmer_zap_25];
+GO
+
+IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
+IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL DROP TABLE dbo.Roles;
+IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
+IF OBJECT_ID(N'dbo.Keys', N'U') IS NOT NULL DROP TABLE dbo.Keys;
+IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
+IF OBJECT_ID(N'dbo.Sessions', N'U') IS NOT NULL DROP TABLE dbo.Sessions;
+IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
+IF OBJECT_ID(N'dbo.AuthLedger', N'U') IS NOT NULL DROP TABLE dbo.AuthLedger;
+IF OBJECT_ID(N'dbo.KeyLedger', N'U') IS NOT NULL DROP TABLE dbo.KeyLedger;
+IF OBJECT_ID(N'dbo.BusinessLedger', N'U') IS NOT NULL DROP TABLE dbo.BusinessLedger;
+GO
+
+CREATE TABLE dbo.Roles
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    RoleType NVARCHAR(128) NOT NULL,
+    EncryptedRoleBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL
+);
+GO
+
+CREATE TABLE dbo.UserAccounts
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LoginId NVARCHAR(256) NOT NULL,
+    UserSalt VARBINARY(512) NOT NULL,
+    StoredH4 VARBINARY(64) NOT NULL,
+    State INT NOT NULL,
+    FailedLoginCount INT NOT NULL,
+    LockedUntilUtc DATETIMEOFFSET NULL,
+    MasterRoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_UserAccounts_MasterRole FOREIGN KEY (MasterRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_UserAccounts_LoginId ON dbo.UserAccounts(LoginId);
+GO
+
+CREATE TABLE dbo.RoleEdges
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParentRoleId UNIQUEIDENTIFIER NOT NULL,
+    ChildRoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE TABLE dbo.KeyLedger
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TimestampUtc DATETIMEOFFSET NOT NULL,
+    EventType NVARCHAR(64) NOT NULL,
+    Actor NVARCHAR(128) NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    PreviousHash VARBINARY(64) NOT NULL,
+    Hash VARBINARY(64) NOT NULL
+);
+GO
+
+CREATE TABLE dbo.AuthLedger
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TimestampUtc DATETIMEOFFSET NOT NULL,
+    EventType NVARCHAR(64) NOT NULL,
+    Actor NVARCHAR(128) NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    PreviousHash VARBINARY(64) NOT NULL,
+    Hash VARBINARY(64) NOT NULL
+);
+GO
+
+CREATE TABLE dbo.BusinessLedger
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TimestampUtc DATETIMEOFFSET NOT NULL,
+    EventType NVARCHAR(64) NOT NULL,
+    Actor NVARCHAR(128) NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    PreviousHash VARBINARY(64) NOT NULL,
+    Hash VARBINARY(64) NOT NULL
+);
+GO
+
+CREATE TABLE dbo.Keys
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    KeyType INT NOT NULL,
+    OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+    Version INT NOT NULL,
+    EncryptedKeyBlob VARBINARY(MAX) NOT NULL,
+    MetadataJson NVARCHAR(256) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_Keys_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Keys_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
+);
+GO
+
+CREATE TABLE dbo.Memberships
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
+    CONSTRAINT FK_Memberships_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Memberships_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
+);
+GO
+
+CREATE TABLE dbo.Sessions
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    SessionId NVARCHAR(128) NOT NULL,
+    IsSecureMode BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    LastActivityUtc DATETIMEOFFSET NOT NULL,
+    DeviceInfo NVARCHAR(256) NULL,
+    IsRevoked BIT NOT NULL,
+    CONSTRAINT FK_Sessions_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_Sessions_SessionId ON dbo.Sessions(SessionId);
+GO
+
+CREATE TABLE dbo.SharedViews
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+    ViewRoleId UNIQUEIDENTIFIER NOT NULL,
+    EncViewRoleKey VARBINARY(MAX) NOT NULL,
+    SharedViewSecretHash VARBINARY(64) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    RevokedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_SharedViews_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_SharedViews_ViewRole FOREIGN KEY (ViewRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
