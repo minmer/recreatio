@@ -1,0 +1,12 @@
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Recreatio.Api.exe
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\appsettings.Development.json
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\appsettings.json
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Recreatio.Api.dll
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Recreatio.Api.deps.json
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Recreatio.Api.runtimeconfig.json
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Recreatio.Api.pdb
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Microsoft.AspNetCore.OpenApi.dll
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Microsoft.OpenApi.dll
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Swashbuckle.AspNetCore.Swagger.dll
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Swashbuckle.AspNetCore.SwaggerGen.dll
+C:\Users\AKM.LAPTOP-AKM\recreatio\backend\Recreatio.Api\obj\Release\net8.0\PubTmp\Out\Swashbuckle.AspNetCore.SwaggerUI.dll
