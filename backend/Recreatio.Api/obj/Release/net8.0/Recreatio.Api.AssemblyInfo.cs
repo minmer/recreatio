@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("4daf5463-ef25-42a2-b3b0-c2eb770951d9")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0f5afbd1d1790f0985b1892070d76d267c8c6557")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b9ac923f9c51a4ef60877812b16024e8f6dd7618")]
 [assembly: System.Reflection.AssemblyProductAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

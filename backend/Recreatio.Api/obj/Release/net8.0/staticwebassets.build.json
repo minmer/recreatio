@@ -1,11 +1,12 @@
 {
   "Version": 1,
-  "Hash": "FskpRjO4eGIAXgcr7wZgjP4d4H7exNsWykeog4SzDFA=",
+  "Hash": "CKD9SRMuYJIHpvIjA9NlfLQ2DwWJcI/ne5P6ZC4e8a0=",
   "Source": "Recreatio.Api",
   "BasePath": "_content/Recreatio.Api",
   "Mode": "Default",
   "ManifestType": "Build",
   "ReferencedProjectsConfiguration": [],
   "DiscoveryPatterns": [],
-  "Assets": []
+  "Assets": [],
+  "Endpoints": []
 }
