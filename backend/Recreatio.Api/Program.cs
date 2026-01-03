@@ -25,7 +25,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("RecreatioWeb", policy =>
     {
-        policy.WithOrigins("https://recreatio.pl", "http://localhost:5173")
+        policy.WithOrigins("https://recreatio.pl", "http://localhost:5173", "https://localhost:5173")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });

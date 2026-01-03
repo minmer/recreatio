@@ -1,6 +1,6 @@
 import { loadToken } from './storage';
 
-const apiBase = import.meta.env.VITE_API_BASE ?? 'http://recreatio.hostingasp.pl';
+const apiBase = import.meta.env.VITE_API_BASE ?? 'https://recreatio.hostingasp.pl';
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
   const token = loadToken();
