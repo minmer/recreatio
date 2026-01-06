@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+61cb1a5afc9c7c3d04acb8aa67147a3a5906171d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3d169ba6bd66201582a6cd2ce191751c0ed5aaf0")]
 [assembly: System.Reflection.AssemblyProductAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Recreatio.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
