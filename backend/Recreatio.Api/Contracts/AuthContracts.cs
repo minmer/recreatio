@@ -15,7 +15,7 @@ public sealed record LoginRequest(
 );
 
 public sealed record LoginResponse(
-    string Token,
+    Guid UserId,
     string SessionId,
     bool SecureMode
 );
@@ -27,4 +27,12 @@ public sealed record PasswordChangeRequest(
 
 public sealed record SessionModeRequest(
     bool SecureMode
+);
+
+public sealed record SaltResponse(
+    string UserSaltBase64
+);
+
+public sealed record AvailabilityResponse(
+    bool IsAvailable
 );

@@ -1,14 +1,22 @@
-import { loadToken } from './storage';
-
 const apiBase = import.meta.env.VITE_API_BASE ?? 'https://recreatio.hostingasp.pl';
 
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getCsrfToken(): string | null {
+  return getCookie('XSRF-TOKEN');
+}
+
 async function request<T>(path: string, options: RequestInit): Promise<T> {
-  const token = loadToken();
+  const csrfToken = getCsrfToken();
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
       ...(options.headers ?? {})
     }
   });
@@ -38,13 +46,33 @@ export function register(payload: {
   });
 }
 
+export function issueCsrf() {
+  return request<{ token: string }>('/auth/csrf', {
+    method: 'GET'
+  });
+}
+
+export function getSalt(loginId: string) {
+  const query = new URLSearchParams({ loginId });
+  return request<{ userSaltBase64: string }>(`/auth/salt?${query.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function checkAvailability(loginId: string) {
+  const query = new URLSearchParams({ loginId });
+  return request<{ isAvailable: boolean }>(`/auth/availability?${query.toString()}`, {
+    method: 'GET'
+  });
+}
+
 export function login(payload: {
   loginId: string;
   h3Base64: string;
   secureMode: boolean;
   deviceInfo?: string | null;
 }) {
-  return request<{ token: string; sessionId: string; secureMode: boolean }>('/auth/login', {
+  return request<{ userId: string; sessionId: string; secureMode: boolean }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({
       loginId: payload.loginId,

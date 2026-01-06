@@ -15,6 +15,8 @@ public interface IAuthService
     Task<Guid> RegisterAsync(RegisterRequest request, CancellationToken ct);
     Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct);
     Task ChangePasswordAsync(Guid userId, PasswordChangeRequest request, CancellationToken ct);
+    Task<SaltResponse> GetSaltAsync(string loginId, CancellationToken ct);
+    Task<AvailabilityResponse> CheckAvailabilityAsync(string loginId, CancellationToken ct);
 }
 
 public sealed class AuthService : IAuthService
@@ -24,7 +26,6 @@ public sealed class AuthService : IAuthService
     private readonly IMasterKeyService _masterKeyService;
     private readonly IEncryptionService _encryptionService;
     private readonly ISessionSecretCache _sessionSecretCache;
-    private readonly ITokenService _tokenService;
     private readonly ILedgerService _ledgerService;
     private readonly AuthOptions _authOptions;
 
@@ -34,7 +35,6 @@ public sealed class AuthService : IAuthService
         IMasterKeyService masterKeyService,
         IEncryptionService encryptionService,
         ISessionSecretCache sessionSecretCache,
-        ITokenService tokenService,
         ILedgerService ledgerService,
         IOptions<AuthOptions> authOptions)
     {
@@ -43,7 +43,6 @@ public sealed class AuthService : IAuthService
         _masterKeyService = masterKeyService;
         _encryptionService = encryptionService;
         _sessionSecretCache = sessionSecretCache;
-        _tokenService = tokenService;
         _ledgerService = ledgerService;
         _authOptions = authOptions.Value;
     }
@@ -51,7 +50,7 @@ public sealed class AuthService : IAuthService
     public async Task<Guid> RegisterAsync(RegisterRequest request, CancellationToken ct)
     {
         var loginId = request.LoginId.Trim();
-        if (string.IsNullOrWhiteSpace(loginId))
+        if (!IsLoginIdValid(loginId))
         {
             throw new InvalidOperationException("LoginId is required.");
         }
@@ -115,6 +114,11 @@ public sealed class AuthService : IAuthService
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         var loginId = request.LoginId.Trim();
+        if (!IsLoginIdValid(loginId))
+        {
+            throw new InvalidOperationException("LoginId is required.");
+        }
+
         var account = await _dbContext.UserAccounts
             .Include(x => x.MasterRole)
             .FirstOrDefaultAsync(x => x.LoginId == loginId, ct);
@@ -187,7 +191,7 @@ public sealed class AuthService : IAuthService
 
         await _ledgerService.AppendAuthAsync("LoginSuccess", account.Id.ToString(), JsonSerializer.Serialize(new { sessionId }), ct);
 
-        return new LoginResponse(_tokenService.CreateToken(account.Id, sessionId), sessionId, request.SecureMode);
+        return new LoginResponse(account.Id, sessionId, request.SecureMode);
     }
 
     public async Task ChangePasswordAsync(Guid userId, PasswordChangeRequest request, CancellationToken ct)
@@ -241,6 +245,45 @@ public sealed class AuthService : IAuthService
         await _dbContext.SaveChangesAsync(ct);
         await _ledgerService.AppendAuthAsync("PasswordChanged", account.Id.ToString(), "{}", ct);
         await _ledgerService.AppendKeyAsync("MasterRoleReEncrypted", account.Id.ToString(), JsonSerializer.Serialize(new { RoleId = account.MasterRoleId }), ct);
+    }
+
+    public async Task<SaltResponse> GetSaltAsync(string loginId, CancellationToken ct)
+    {
+        var normalized = loginId.Trim();
+        if (!IsLoginIdValid(normalized))
+        {
+            throw new InvalidOperationException("LoginId is required.");
+        }
+
+        var salt = await _dbContext.UserAccounts
+            .Where(x => x.LoginId == normalized)
+            .Select(x => x.UserSalt)
+            .FirstOrDefaultAsync(ct);
+
+        if (salt is null || salt.Length == 0)
+        {
+            throw new InvalidOperationException("LoginId not found.");
+        }
+
+        return new SaltResponse(Convert.ToBase64String(salt));
+    }
+
+    public async Task<AvailabilityResponse> CheckAvailabilityAsync(string loginId, CancellationToken ct)
+    {
+        var normalized = loginId.Trim();
+        if (!IsLoginIdValid(normalized))
+        {
+            return new AvailabilityResponse(false);
+        }
+
+        var exists = await _dbContext.UserAccounts.AsNoTracking()
+            .AnyAsync(x => x.LoginId == normalized, ct);
+        return new AvailabilityResponse(!exists);
+    }
+
+    private static bool IsLoginIdValid(string loginId)
+    {
+        return !string.IsNullOrWhiteSpace(loginId) && loginId.Length <= 256;
     }
 
     private static string CreateSessionId()

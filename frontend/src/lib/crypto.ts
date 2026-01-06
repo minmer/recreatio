@@ -1,7 +1,8 @@
 const textEncoder = new TextEncoder();
 
-export function toBase64(bytes: ArrayBuffer): string {
-  const bin = String.fromCharCode(...new Uint8Array(bytes));
+export function toBase64(bytes: ArrayBuffer | Uint8Array): string {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const bin = String.fromCharCode(...view);
   return btoa(bin);
 }
 
@@ -24,6 +25,7 @@ async function sha256(data: ArrayBuffer): Promise<ArrayBuffer> {
 }
 
 async function pbkdf2(password: string, salt: Uint8Array, iterations: number, length: number): Promise<ArrayBuffer> {
+  const saltView = new Uint8Array(salt.buffer as ArrayBuffer, salt.byteOffset, salt.byteLength);
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     textEncoder.encode(password),
@@ -35,7 +37,7 @@ async function pbkdf2(password: string, salt: Uint8Array, iterations: number, le
   return crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt,
+      salt: saltView,
       iterations,
       hash: 'SHA-256'
     },
