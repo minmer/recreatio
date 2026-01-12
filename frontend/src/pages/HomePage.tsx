@@ -20,7 +20,9 @@ export function HomePage({
   onLanguageChange,
   onNavigate,
   onOpenPanel,
-  panelOpen
+  panelOpen,
+  activeSectionId,
+  onSectionChange
 }: {
   copy: Copy;
   language: 'pl' | 'en' | 'de';
@@ -28,6 +30,8 @@ export function HomePage({
   onNavigate: (route: RouteKey) => void;
   onOpenPanel: (panel: PanelType) => void;
   panelOpen: boolean;
+  activeSectionId?: string;
+  onSectionChange?: (sectionId: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -106,36 +110,20 @@ export function HomePage({
 
   useEffect(() => {
     if (panelOpen) return;
-    const hash = `#${slides[activeIndex]?.id ?? 'section-1'}`;
-    window.history.replaceState(null, '', hash);
-  }, [activeIndex, panelOpen, slides]);
+    const id = slides[activeIndex]?.id ?? 'section-1';
+    onSectionChange?.(id);
+  }, [activeIndex, onSectionChange, panelOpen, slides]);
 
   useEffect(() => {
+    if (panelOpen) return;
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const hash = window.location.hash.replace('#', '');
-    const index = slides.findIndex((slide) => slide.id === hash);
+    const index = slides.findIndex((slide) => slide.id === (activeSectionId ?? 'section-1'));
     if (index >= 0) {
       viewport.scrollTo({ top: index * viewport.clientHeight, behavior: 'smooth' });
       setActiveIndex(index);
     }
-  }, [slides]);
-
-  useEffect(() => {
-    const onHashChange = () => {
-      if (panelOpen) return;
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      const hash = window.location.hash.replace('#', '');
-      const index = slides.findIndex((slide) => slide.id === hash);
-      if (index >= 0) {
-        viewport.scrollTo({ top: index * viewport.clientHeight, behavior: 'smooth' });
-        setActiveIndex(index);
-      }
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, [panelOpen, slides]);
+  }, [activeSectionId, panelOpen, slides]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -40,10 +40,12 @@ export default function App() {
   const [loginCardContext, setLoginCardContext] = useState<RouteKey>('home');
   const { session, status, register, login, logout, refresh, setSecureMode: updateMode, setStatus } = useAuth();
   const t = copy[language];
-  const lastHomeHashRef = useRef('#section-1');
+  const lastHomePathRef = useRef('/section-1');
   const panelTouchRef = useRef<number | null>(null);
 
   const pathname = location.pathname;
+  const isHomePath = pathname === '/' || pathname.startsWith('/section-');
+  const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
     pathname === '/faq' || pathname === '/legal' || pathname === '/login'
       ? (pathname.slice(1) as PanelType)
@@ -60,7 +62,7 @@ export default function App() {
       else if (next === 'legal') navigate('/legal');
       else if (next === 'login') navigate('/login');
       else if (next === 'account') navigate('/account');
-      else navigate('/');
+      else navigate(lastHomePathRef.current || '/section-1');
     };
   }, [navigate]);
 
@@ -193,10 +195,16 @@ export default function App() {
     ? `${t.access.sessionLabel} ${session.sessionId} (${session.secureMode ? 'Secure' : 'Normal'} mode)`
     : null;
 
+  useEffect(() => {
+    if (isHomePath) {
+      lastHomePathRef.current = pathname === '/' ? '/section-1' : pathname;
+    }
+  }, [isHomePath, pathname]);
+
   const openPanel = (next: PanelType) => {
     if (!next) return;
-    lastHomeHashRef.current = window.location.hash || '#section-1';
-    navigate({ pathname: `/${next}`, hash: lastHomeHashRef.current });
+    lastHomePathRef.current = isHomePath ? (pathname === '/' ? '/section-1' : pathname) : '/section-1';
+    navigate(`/${next}`);
     setPanelState('opening');
   };
 
@@ -204,7 +212,7 @@ export default function App() {
     if (!panel) return;
     setPanelState('closing');
     window.setTimeout(() => {
-      navigate({ pathname: '/', hash: lastHomeHashRef.current });
+      navigate(lastHomePathRef.current || '/section-1');
       setPanelState('closed');
     }, 220);
   };
@@ -222,7 +230,7 @@ export default function App() {
     }
   }, [panel, panelState]);
 
-  const showHome = pathname === '/' || panel !== null;
+  const showHome = isHomePath || panel !== null;
 
   return (
     <div className={`app ${panel ? 'panel-open' : ''}`}>
@@ -234,6 +242,14 @@ export default function App() {
           onNavigate={navigateRoute}
           onOpenPanel={openPanel}
           panelOpen={panel !== null}
+          activeSectionId={sectionFromPath}
+          onSectionChange={(nextSection) => {
+            if (!isHomePath) return;
+            const nextPath = `/${nextSection}`;
+            if (pathname !== nextPath) {
+              navigate(nextPath, { replace: true });
+            }
+          }}
         />
       )}
 
