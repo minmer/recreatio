@@ -6,7 +6,7 @@ export const en: Copy = {
     parish: 'Parish',
     cogita: 'Cogita',
     faq: 'FAQ',
-    legal: 'Legal',
+    legal: 'Privacy & Terms',
     login: 'Sign in',
     account: 'Profile'
   },

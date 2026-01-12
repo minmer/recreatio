@@ -11,30 +11,30 @@ export const de: Copy = {
     account: 'Profil'
   },
   hero: {
-    headline: 'ReCreatio — Plattform fuer Vertrauen und gemeinsames Wissen.',
+    headline: 'ReCreatio — Plattform für Vertrauen und gemeinsames Wissen.',
     subtitle:
-      'Wir verbinden Bildung, Pfarreien und Gemeinschaften in einem Oekosystem, in dem der Datenzugriff kryptografisch gesteuert wird.',
+      'Wir verbinden Bildung, Pfarreien und Gemeinschaften in einem Ökosystem, in dem der Datenzugriff kryptografisch gesteuert wird.',
     ctaPrimary: 'Zum Login',
     ctaSecondary: 'Portale entdecken'
   },
   modules: {
-    title: 'Oeffentliche Portale und kommende Module',
+    title: 'Öffentliche Portale und kommende Module',
     items: [
       {
         title: 'Pfarrei',
-        desc: 'Intentionen, Bekanntmachungen, Kalender und Spenden — oeffentlich und sicher.',
-        tag: 'oeffentlich',
+        desc: 'Intentionen, Bekanntmachungen, Kalender und Spenden — öffentlich und sicher.',
+        tag: 'öffentlich',
         route: 'parish'
       },
       {
         title: 'Cogita',
         desc: 'Wissensraum, Quiz und gemeinsames Erstellen von Bildungsinhalten.',
-        tag: 'oeffentlich',
+        tag: 'öffentlich',
         route: 'cogita'
       },
       {
         title: 'Benutzerbereich',
-        desc: 'Profileinstellungen, Rollen, Zugangsschluessel und Aktivitaetsverlauf.',
+        desc: 'Profileinstellungen, Rollen, Zugangsschlüssel und Aktivitaetsverlauf.',
         tag: 'bald',
         route: 'account'
       }
@@ -42,14 +42,14 @@ export const de: Copy = {
   },
   access: {
     title: 'Zugang zu ReCreatio',
-    subtitle: 'Login ermoeglicht Verwaltung, oeffentliche Portale bleiben ohne Konto zugaenglich.',
+    subtitle: 'Login ermoeglicht Verwaltung, öffentliche Portale bleiben ohne Konto zugänglich.',
     login: 'Anmelden',
     register: 'Registrieren',
     loginId: 'Login (E-Mail oder Name)',
     password: 'Passwort',
     confirm: 'Passwort bestaetigen',
     displayName: 'Name (optional)',
-    secureMode: 'Sicherer Modus (kein Schluessel-Cache)',
+    secureMode: 'Sicherer Modus (kein Schlüssel-Cache)',
     create: 'Konto erstellen',
     signIn: 'Anmelden',
     statusTitle: 'Status',
@@ -58,7 +58,7 @@ export const de: Copy = {
     loginError: 'Anmeldung fehlgeschlagen.',
     registerError: 'Registrierung fehlgeschlagen.',
     loginTaken: 'Login ist bereits vergeben.',
-    passwordMismatch: 'Passwoerter stimmen nicht ueberein.',
+    passwordMismatch: 'Passwoerter stimmen nicht überein.',
     loadingLogin: 'Anmeldung…',
     loadingRegister: 'Registrierung…',
     sessionLabel: 'Sitzung',
@@ -93,19 +93,19 @@ export const de: Copy = {
   parish: {
     title: 'Pfarrportal',
     subtitle:
-      'Oeffentliche Informationen sind ohne Login zugaenglich. Konten sind fuer Bearbeitung und Verwaltung erforderlich.',
+      'Öffentliche Informationen sind ohne Login zugänglich. Konten sind für Bearbeitung und Verwaltung erforderlich.',
     items: [
       'Intentionen und Spenden — sicher und auditiert.',
       'Bekanntmachungen und Veranstaltungskalender.',
-      'Oeffentliche Zusammenfassungen und geschuetzte Finanzdaten.'
+      'Öffentliche Zusammenfassungen und geschuetzte Finanzdaten.'
     ],
-    note: 'Oeffentliche Inhalte sind bereits sichtbar. Adminfunktionen erscheinen nach Login.',
+    note: 'Öffentliche Inhalte sind bereits sichtbar. Adminfunktionen erscheinen nach Login.',
     loginCta: 'Mit ReCreatio anmelden'
   },
   cogita: {
     title: 'Cogita Portal',
     subtitle:
-      'Wissensbereich und gemeinsames Erstellen von Inhalten. Oeffentliches Lesen, Konto fuer Bearbeitung.',
+      'Wissensbereich und gemeinsames Erstellen von Inhalten. Öffentliches Lesen, Konto für Bearbeitung.',
     items: [
       'Live-Quiz und interaktive Module.',
       'Wissensbibliothek und Bildungstools.',
@@ -118,8 +118,8 @@ export const de: Copy = {
     title: 'FAQ und Sicherheit',
     items: [
       {
-        q: 'Sind meine Daten verschluesselt?',
-        a: 'Ja. Daten sind mit Rollen-Schluesseln verschluesselt.\nOhne Schluessel kein Zugriff, auch nicht fuer Administratoren.'
+        q: 'Sind meine Daten verschlüsselt?',
+        a: 'Ja. Daten sind mit Rollen-Schlüsseln verschlüsselt.\nOhne Schlüssel kein Zugriff, auch nicht für Administratoren.'
       },
       {
         q: 'Kennt der Server mein Passwort?',
@@ -127,11 +127,11 @@ export const de: Copy = {
       },
       {
         q: 'Kann ich ohne Konto nutzen?',
-        a: 'Ja. Oeffentliche Portale (Pfarrei und Cogita) sind ohne Login verfuegbar.'
+        a: 'Ja. Öffentliche Portale (Pfarrei und Cogita) sind ohne Login verfuegbar.'
       },
       {
         q: 'Was ist der sichere Modus?',
-        a: 'Im sicheren Modus ist der Schluessel-Cache deaktiviert.\nSchluessel werden pro Anfrage rekonstruiert und sofort verworfen.'
+        a: 'Im sicheren Modus ist der Schlüssel-Cache deaktiviert.\nSchlüssel werden pro Anfrage rekonstruiert und sofort verworfen.'
       },
       {
         q: 'Gibt es einen klassischen Passwort-Reset?',
@@ -139,15 +139,15 @@ export const de: Copy = {
       },
       {
         q: 'Welche Kontozustaende gibt es?',
-        a: 'Konten koennen Pending, Active, Locked, Disabled oder Deleted sein.\nAenderungen werden im Auth Ledger protokolliert.'
+        a: 'Konten können Pending, Active, Locked, Disabled oder Deleted sein.\nAenderungen werden im Auth Ledger protokolliert.'
       },
       {
         q: 'Was passiert nach dem Login?',
-        a: 'Es wird eine SessionId und ein Zugriffstoken erstellt.\nTokens enthalten keine Schluessel oder sensible Daten.'
+        a: 'Es wird eine SessionId und ein Zugriffstoken erstellt.\nTokens enthalten keine Schlüssel oder sensible Daten.'
       },
       {
         q: 'Werden Aenderungen protokolliert?',
-        a: 'Ja. Wichtige Ereignisse werden im Auth Ledger erfasst.\nDas sorgt fuer Nachvollziehbarkeit und Kontrolle.'
+        a: 'Ja. Wichtige Ereignisse werden im Auth Ledger erfasst.\nDas sorgt für Nachvollziehbarkeit und Kontrolle.'
       }
     ]
   },
@@ -162,7 +162,7 @@ export const de: Copy = {
       {
         title: 'Zwecke und Rechtsgrundlagen',
         desc:
-          'Zwecke: Kontoverwaltung, oeffentliche Portale, Kommunikation, Sicherheit und Audits.\nRechtsgrundlagen: Einwilligung, Vertragserfuellung, berechtigtes Interesse, gesetzliche Pflichten.'
+          'Zwecke: Kontoverwaltung, öffentliche Portale, Kommunikation, Sicherheit und Audits.\nRechtsgrundlagen: Einwilligung, Vertragserfuellung, berechtigtes Interesse, gesetzliche Pflichten.'
       },
       {
         title: 'Datenkategorien',
@@ -172,12 +172,12 @@ export const de: Copy = {
       {
         title: 'Empfaenger und Auftragsverarbeiter',
         desc:
-          'Hosting und Infrastruktur: Webio (Hosting Webio).\nIT-Unterstuetzung nur soweit fuer den Betrieb erforderlich.\nDaten werden nicht verkauft.'
+          'Hosting und Infrastruktur: Webio (Hosting Webio).\nIT-Unterstuetzung nur soweit für den Betrieb erforderlich.\nDaten werden nicht verkauft.'
       },
       {
         title: 'Sicherheitsmassnahmen',
         desc:
-          'Verschluesselung, rollenbasierte Zugriffe, Audit-Logs und eingeschraenkter Admin-Zugang.\nKontinuierliche Ueberwachung und Sicherheitsprotokolle.'
+          'Verschlüsselung, rollenbasierte Zugriffe, Audit-Logs und eingeschraenkter Admin-Zugang.\nKontinuierliche Überwachung und Sicherheitsprotokolle.'
       },
       {
         title: 'Regeln',
@@ -191,12 +191,12 @@ export const de: Copy = {
       {
         title: 'Speicherdauer',
         desc:
-          'Kontodaten werden fuer die Dauer des Kontos und gemaess gesetzlichen Pflichten gespeichert.\nSicherheits- und Audit-Logs koennen laenger aufbewahrt werden.'
+          'Kontodaten werden für die Dauer des Kontos und gemäß gesetzlichen Pflichten gespeichert.\nSicherheits- und Audit-Logs können länger aufbewahrt werden.'
       },
       {
-        title: 'Datenuebermittlung',
+        title: 'Datenübermittlung',
         desc:
-          'Keine Uebermittlung ausserhalb des Europaeischen Wirtschaftsraums.\nKeine automatisierten Entscheidungen oder Profiling.'
+          'Keine Übermittlung ausserhalb des Europaeischen Wirtschaftsraums.\nKeine automatisierten Entscheidungen oder Profiling.'
       },
       {
         title: 'Datenschutzbeauftragter',
@@ -209,23 +209,23 @@ export const de: Copy = {
       {
         title: 'Ihre Rechte',
         desc:
-          'Recht auf Auskunft, Berichtigung, Loeschung, Einschraenkung und Datenuebertragbarkeit.\nRecht auf Widerspruch und Beschwerde bei der Aufsichtsbehoerde.'
+          'Recht auf Auskunft, Berichtigung, Loeschung, Einschraenkung und Datenübertragbarkeit.\nRecht auf Widerspruch und Beschwerde bei der Aufsichtsbehoerde.'
       }
     ]
   },
   account: {
     title: 'Profileinstellungen',
     subtitle: 'Nur nach Login verfuegbar.',
-    placeholder: 'Bald: persoenliche Daten, Rollen, Schluessel und Verlauf.'
+    placeholder: 'Bald: persoenliche Daten, Rollen, Schlüssel und Verlauf.'
   },
   footer: {
-    headline: 'ReCreatio — gemeinsames Oekosystem fuer Wissen und Vertrauen',
+    headline: 'ReCreatio — gemeinsames Ökosystem für Wissen und Vertrauen',
     contact: 'Kontakt: kontakt@recreatio.pl',
     imprint: 'Impressum & DSGVO',
     security: 'Sicherheitsdokumentation'
   },
   loginCard: {
     title: 'ReCreatio',
-    contextDefault: 'Zugang ueber ReCreatio'
+    contextDefault: 'Zugang über ReCreatio'
   }
 };
