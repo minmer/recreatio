@@ -1,5 +1,8 @@
 .home {
   position: relative;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
 }
 
 .home-header {
@@ -112,6 +115,7 @@
 
 .home-viewport {
   height: 100vh;
+  height: 100svh;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
@@ -123,6 +127,7 @@
 
 .home-section {
   height: 100vh;
+  height: 100svh;
   scroll-snap-align: start;
   display: flex;
   align-items: center;

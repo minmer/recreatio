@@ -34,7 +34,12 @@ export function HomePage({
   onSectionChange?: (sectionId: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const getViewportHeight = () => {
+    const viewport = viewportRef.current;
+    const height = viewport?.clientHeight ?? 0;
+    if (Number.isFinite(height) && height > 1) return height;
+    return window.innerHeight || 1;
+  };
 
   const slides = useMemo<Slide[]>(() => {
     const faqText = copy.faq.items[0]?.a ?? copy.hero.subtitle;
@@ -81,6 +86,13 @@ export function HomePage({
     ];
   }, [copy, onNavigate, onOpenPanel]);
 
+  const initialIndex = useMemo(() => {
+    const id = activeSectionId ?? 'section-1';
+    const found = slides.findIndex((slide) => slide.id === id);
+    return found >= 0 ? found : 0;
+  }, [activeSectionId, slides]);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+
   useEffect(() => {
     document.body.style.overflow = panelOpen ? 'hidden' : '';
     return () => {
@@ -96,7 +108,9 @@ export function HomePage({
     const onScroll = () => {
       if (timeout) window.clearTimeout(timeout);
       timeout = window.setTimeout(() => {
-        const index = Math.round(viewport.scrollTop / viewport.clientHeight);
+        const height = getViewportHeight();
+        if (!Number.isFinite(height) || height <= 1) return;
+        const index = Math.round(viewport.scrollTop / height);
         setActiveIndex(Math.max(0, Math.min(index, slides.length - 1)));
       }, 40);
     };
@@ -111,8 +125,9 @@ export function HomePage({
   useEffect(() => {
     if (panelOpen) return;
     const id = slides[activeIndex]?.id ?? 'section-1';
+    if (activeSectionId === id) return;
     onSectionChange?.(id);
-  }, [activeIndex, onSectionChange, panelOpen, slides]);
+  }, [activeIndex, activeSectionId, onSectionChange, panelOpen, slides]);
 
   useEffect(() => {
     if (panelOpen) return;
@@ -120,8 +135,20 @@ export function HomePage({
     if (!viewport) return;
     const index = slides.findIndex((slide) => slide.id === (activeSectionId ?? 'section-1'));
     if (index >= 0) {
-      viewport.scrollTo({ top: index * viewport.clientHeight, behavior: 'smooth' });
-      setActiveIndex(index);
+      const height = getViewportHeight();
+      if (Number.isFinite(height) && height > 1) {
+        viewport.scrollTo({ top: index * height, behavior: 'smooth' });
+        setActiveIndex(index);
+      } else {
+        const raf = window.requestAnimationFrame(() => {
+          const nextHeight = getViewportHeight();
+          if (Number.isFinite(nextHeight) && nextHeight > 1) {
+            viewport.scrollTo({ top: index * nextHeight, behavior: 'smooth' });
+            setActiveIndex(index);
+          }
+        });
+        return () => window.cancelAnimationFrame(raf);
+      }
     }
   }, [activeSectionId, panelOpen, slides]);
 
@@ -129,16 +156,17 @@ export function HomePage({
     const onKeyDown = (event: KeyboardEvent) => {
       if (panelOpen) return;
       const viewport = viewportRef.current;
-      const height = viewport?.clientHeight ?? window.innerHeight;
+      const height = getViewportHeight();
+      if (!viewport || !Number.isFinite(height) || height <= 1) return;
       if (['ArrowDown', 'PageDown'].includes(event.key)) {
         event.preventDefault();
         const next = Math.min(activeIndex + 1, slides.length - 1);
-        viewport?.scrollTo({ top: next * height, behavior: 'auto' });
+        viewport.scrollTo({ top: next * height, behavior: 'auto' });
       }
       if (['ArrowUp', 'PageUp'].includes(event.key)) {
         event.preventDefault();
         const next = Math.max(activeIndex - 1, 0);
-        viewport?.scrollTo({ top: next * height, behavior: 'auto' });
+        viewport.scrollTo({ top: next * height, behavior: 'auto' });
       }
     };
     window.addEventListener('keydown', onKeyDown);

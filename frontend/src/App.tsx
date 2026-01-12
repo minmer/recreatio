@@ -248,6 +248,7 @@ export default function App() {
             const nextPath = `/${nextSection}`;
             if (pathname !== nextPath) {
               navigate(nextPath, { replace: true });
+              lastHomePathRef.current = nextPath;
             }
           }}
         />
