@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { checkAvailability } from './lib/api';
 import { useAuth } from './lib/authContext';
 import { checkPasswordStrength } from './lib/passwordPolicy';
 import { copy } from './content';
 import type { RouteKey, Mode } from './types/navigation';
-import { useRoute } from './routes/useRoute';
 import { LoginCard } from './components/LoginCard';
 import { AuthPanel } from './components/AuthPanel';
 import { FaqPage } from './pages/FaqPage';
@@ -27,7 +27,8 @@ export default function App() {
     if (stored === 'en' || stored === 'de') return stored;
     return 'pl';
   });
-  const { route, navigate, setRoute } = useRoute();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [loginId, setLoginId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -42,10 +43,26 @@ export default function App() {
   const lastHomeHashRef = useRef('#section-1');
   const panelTouchRef = useRef<number | null>(null);
 
-  const panel: PanelType = route === 'faq' || route === 'legal' || route === 'login' ? route : null;
+  const pathname = location.pathname;
+  const panel: PanelType =
+    pathname === '/faq' || pathname === '/legal' || pathname === '/login'
+      ? (pathname.slice(1) as PanelType)
+      : null;
   const [panelState, setPanelState] = useState<'closed' | 'opening' | 'open' | 'closing'>(() =>
     panel ? 'open' : 'closed'
   );
+
+  const navigateRoute = useMemo(() => {
+    return (next: RouteKey) => {
+      if (next === 'parish') navigate('/parish');
+      else if (next === 'cogita') navigate('/cogita');
+      else if (next === 'faq') navigate('/faq');
+      else if (next === 'legal') navigate('/legal');
+      else if (next === 'login') navigate('/login');
+      else if (next === 'account') navigate('/account');
+      else navigate('/');
+    };
+  }, [navigate]);
 
   useEffect(() => {
     if (!password) {
@@ -179,7 +196,7 @@ export default function App() {
   const openPanel = (next: PanelType) => {
     if (!next) return;
     lastHomeHashRef.current = window.location.hash || '#section-1';
-    navigate(next);
+    navigate({ pathname: `/${next}`, hash: lastHomeHashRef.current });
     setPanelState('opening');
   };
 
@@ -187,8 +204,7 @@ export default function App() {
     if (!panel) return;
     setPanelState('closing');
     window.setTimeout(() => {
-      setRoute('home');
-      window.history.pushState({}, '', `/${lastHomeHashRef.current}`);
+      navigate({ pathname: '/', hash: lastHomeHashRef.current });
       setPanelState('closed');
     }, 220);
   };
@@ -206,7 +222,7 @@ export default function App() {
     }
   }, [panel, panelState]);
 
-  const showHome = route === 'home' || panel !== null;
+  const showHome = pathname === '/' || panel !== null;
 
   return (
     <div className={`app ${panel ? 'panel-open' : ''}`}>
@@ -215,26 +231,26 @@ export default function App() {
           copy={t}
           language={language}
           onLanguageChange={setLanguage}
-          onNavigate={navigate}
+          onNavigate={navigateRoute}
           onOpenPanel={openPanel}
           panelOpen={panel !== null}
         />
       )}
 
-      {route === 'parish' && (
+      {pathname === '/parish' && (
         <ParishPage
           copy={t}
           onLogin={() => openLoginCard('parish')}
-          onNavigate={navigate}
+          onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
         />
       )}
-      {route === 'cogita' && (
+      {pathname === '/cogita' && (
         <CogitaPage
           copy={t}
           onLogin={() => openLoginCard('cogita')}
-          onNavigate={navigate}
+          onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
         />
