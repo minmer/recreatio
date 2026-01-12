@@ -119,15 +119,35 @@ export const pl: Copy = {
     items: [
       {
         q: 'Czy moje dane są szyfrowane?',
-        a: 'Tak. Dane są szyfrowane kluczami, które wynikają z ról użytkowników. Bez kluczy nie ma dostępu.'
+        a: 'Tak. Dane są szyfrowane kluczami wynikającymi z ról użytkowników.\nBez kluczy nie ma dostępu, nawet dla administratora.'
       },
       {
         q: 'Czy serwer zna moje hasło?',
-        a: 'Nie. Hasło jest przekształcane lokalnie, a serwer przechowuje tylko bezpieczny weryfikator.'
+        a: 'Nie. Hasło jest przekształcane lokalnie, a serwer przechowuje tylko bezpieczny weryfikator.\nW bazie nie ma H1/H2/H3, tylko weryfikator H4.'
       },
       {
         q: 'Czy mogę korzystać bez konta?',
         a: 'Tak. Portale publiczne (Parafia i Cogita) mają treści dostępne bez logowania.'
+      },
+      {
+        q: 'Jak działa tryb bezpieczny?',
+        a: 'W trybie bezpiecznym klucze nie są przechowywane w pamięci sesji.\nSą odtwarzane wyłącznie na czas jednego żądania.'
+      },
+      {
+        q: 'Czy jest klasyczny reset hasła?',
+        a: 'Nie. Odzyskiwanie dostępu wymaga procedury wieloosobowej i audytu.\nTo chroni przed cichym resetem przez osoby trzecie.'
+      },
+      {
+        q: 'Jakie są stany konta?',
+        a: 'Konta mogą być w stanie Pending, Active, Locked, Disabled lub Deleted.\nZmiany stanu są zapisywane w Auth Ledger.'
+      },
+      {
+        q: 'Jak wygląda sesja po zalogowaniu?',
+        a: 'Po zalogowaniu tworzony jest SessionId oraz token dostępu.\nToken nie zawiera kluczy szyfrujących ani danych wrażliwych.'
+      },
+      {
+        q: 'Czy zmiany są rejestrowane?',
+        a: 'Tak. Najważniejsze zdarzenia zapisywane są w Auth Ledger.\nUmożliwia to audyt i kontrolę zmian.'
       }
     ]
   },
@@ -137,26 +157,62 @@ export const pl: Copy = {
       {
         title: 'RODO i polityka prywatności',
         desc:
-          'Administratorem danych jest Parafia Rzymskokatolicka pw. św. Jana Chrzciciela w Krakowie, ul. Dobrego Pasterza 117, 31-416 Kraków, Polska, NIP 9451520798, REGON 040098025, e-mail: parafia@janchrzciciel.eu, tel. +48 12 412 58 50.'
+          'Administratorem danych jest Parafia Rzymskokatolicka pw. św. Jana Chrzciciela w Krakowie.\nAdres: ul. Dobrego Pasterza 117, 31-416 Kraków, Polska.\nNIP 9451520798, REGON 040098025.\nKontakt: parafia@janchrzciciel.eu, tel. +48 12 412 58 50.'
+      },
+      {
+        title: 'Cele i podstawy przetwarzania',
+        desc:
+          'Cele: prowadzenie kont użytkowników, obsługa portali publicznych, komunikacja, bezpieczeństwo i audyt.\nPodstawy: zgoda, realizacja usług, uzasadniony interes administratora, obowiązki prawne.'
+      },
+      {
+        title: 'Kategorie danych',
+        desc:
+          'Identyfikacyjne: login, e-mail, imię i nazwisko (jeśli podane).\nTechniczne: identyfikatory sesji, informacje o urządzeniu, logi bezpieczeństwa.\nTreści portali: dane przekazane dobrowolnie przez użytkownika.'
+      },
+      {
+        title: 'Odbiorcy i podmioty przetwarzające',
+        desc:
+          'Hosting i infrastruktura: Webio (Hosting Webio).\nPodmioty wspierające administrację IT tylko w zakresie niezbędnym do utrzymania usług.\nDane nie są sprzedawane.'
+      },
+      {
+        title: 'Środki bezpieczeństwa',
+        desc:
+          'Szyfrowanie danych, kontrola ról, rejestry audytu oraz ograniczony dostęp administracyjny.\nStałe monitorowanie i rejestrowanie zdarzeń bezpieczeństwa.'
       },
       {
         title: 'Regulamin',
-        desc: 'Zasady korzystania z platformy, roli administratorów i odpowiedzialności użytkowników.'
+        desc:
+          'Zasady korzystania z platformy, role administratorów oraz odpowiedzialność użytkowników.\nZakaz działań niezgodnych z prawem i nadużyć.'
       },
       {
         title: 'Impressum',
         desc:
-          'Kontakt techniczny: ks. Michael Mleczek, mleczek_pradnik@outlook.com. Hosting: Webio (Hosting Webio), ul. Gwiaździsta 8/52, 66-400 Gorzów Wielkopolski, Polska, NIP 5992688099, REGON 080265578, e-mail: sprzedaz@webio.pl.'
+          'Kontakt techniczny: ks. Michael Mleczek, mleczek_pradnik@outlook.com.\nHosting: Webio (Hosting Webio), ul. Gwiaździsta 8/52, 66-400 Gorzów Wielkopolski, Polska.\nNIP 5992688099, REGON 080265578, e-mail: sprzedaz@webio.pl.'
+      },
+      {
+        title: 'Okres przechowywania',
+        desc:
+          'Dane konta przechowujemy przez okres aktywności konta i przez czas wymagany przepisami.\nLogi bezpieczeństwa i audytu mogą być przechowywane dłużej dla zgodności i bezpieczeństwa.'
+      },
+      {
+        title: 'Przekazywanie danych',
+        desc:
+          'Dane nie są przekazywane poza Europejski Obszar Gospodarczy.\nNie stosujemy zautomatyzowanego podejmowania decyzji ani profilowania.'
       },
       {
         title: 'Inspektor Ochrony Danych',
         desc:
-          'IOD: rodo@diecezja.krakow.pl, tel. +48 12 628 81 00, ul. Franciszkańska 3, 31-004 Kraków, Polska.'
+          'IOD: rodo@diecezja.krakow.pl, tel. +48 12 628 81 00.\nAdres: ul. Franciszkańska 3, 31-004 Kraków, Polska.'
       },
       {
         title: 'Organ nadzoru',
         desc:
-          'Kościelny Inspektor Ochrony Danych (KIOD), Skwer kard. Stefana Wyszyńskiego 6, 01–015 Warszawa, e-mail: kiod@episkopat.pl.'
+          'Kościelny Inspektor Ochrony Danych (KIOD).\nAdres: Skwer kard. Stefana Wyszyńskiego 6, 01–015 Warszawa.\nE-mail: kiod@episkopat.pl.'
+      },
+      {
+        title: 'Prawa osób, których dane dotyczą',
+        desc:
+          'Prawo dostępu, sprostowania, usunięcia, ograniczenia przetwarzania oraz przenoszenia danych.\nPrawo sprzeciwu i prawo wniesienia skargi do organu nadzoru.'
       }
     ]
   },

@@ -54,7 +54,7 @@ export function AuthForm({
       </div>
 
       {mode === 'register' ? (
-        <form onSubmit={onSubmit} className={`panel ${compact ? 'compact' : ''}`.trim()}>
+        <form onSubmit={onSubmit} className={`auth-form ${compact ? 'compact' : ''}`.trim()}>
           <label>
             {copy.access.loginId}
             <input type="text" value={loginId} onChange={(event) => onLoginIdChange(event.target.value)} />
@@ -82,7 +82,7 @@ export function AuthForm({
           </button>
         </form>
       ) : (
-        <form onSubmit={onSubmit} className={`panel ${compact ? 'compact' : ''}`.trim()}>
+        <form onSubmit={onSubmit} className={`auth-form ${compact ? 'compact' : ''}`.trim()}>
           <label>
             {copy.access.loginId}
             <input type="text" value={loginId} onChange={(event) => onLoginIdChange(event.target.value)} />

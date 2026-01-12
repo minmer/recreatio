@@ -6,10 +6,12 @@ export function FaqPage({ copy }: { copy: Copy }) {
       <h2>{copy.faq.title}</h2>
       <div className="faq-grid">
         {copy.faq.items.map((item) => (
-          <article key={item.q}>
-            <h4>{item.q}</h4>
-            <p>{item.a}</p>
-          </article>
+          <details key={item.q} className="faq-item">
+            <summary>{item.q}</summary>
+            {item.a.split('\n').map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </details>
         ))}
       </div>
     </section>

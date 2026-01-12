@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+:root {
+  --ink: #131311;
+  --muted: #4b4b47;
+  --bg: #f7f4ef;
+  --bg-alt: #ece4da;
+  --accent: #ff6b3d;
+  --accent-deep: #1b3552;
+  --card: #fffdf8;
+  --line: rgba(19, 19, 17, 0.12);
+  --shadow: rgba(15, 13, 10, 0.2);
+  --header-h: 64px;
+  --footer-h: 54px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top, #ffffff 0%, var(--bg) 45%, #e7ded2 100%);
+  min-height: 100vh;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+}
+
+.app {
+  min-height: 100vh;
+}

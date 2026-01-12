@@ -1,0 +1,71 @@
+.portal-page {
+  min-height: 100vh;
+  background: #f7f4ef;
+}
+
+.portal-page.cogita {
+  background: #f1f5f7;
+}
+
+.portal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 6vw;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.9);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.portal-brand {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.portal-brand img {
+  width: 160px;
+}
+
+.portal {
+  padding: 3rem 6vw 5rem;
+}
+
+.portal-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.portal-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 1.6rem;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
+}
+
+.portal-card ul {
+  padding-left: 1.2rem;
+}
+
+.portal-footer {
+  padding: 1.2rem 6vw 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.portal-login {
+  transition: opacity 160ms ease;
+}
+
+.portal-login:active {
+  opacity: 0.65;
+}

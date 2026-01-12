@@ -1,0 +1,42 @@
+.tag {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.lead {
+  font-size: 1.05rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cta {
+  border: none;
+  background: var(--accent-deep);
+  color: white;
+  padding: 0.65rem 1.2rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cta.ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}

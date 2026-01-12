@@ -6,6 +6,7 @@ export function routeFromPath(pathname: string): RouteKey {
   if (pathname.startsWith('/cogita')) return 'cogita';
   if (pathname.startsWith('/faq')) return 'faq';
   if (pathname.startsWith('/legal')) return 'legal';
+  if (pathname.startsWith('/login')) return 'login';
   if (pathname.startsWith('/account')) return 'account';
   return 'home';
 }
@@ -15,6 +16,7 @@ export function pathFromRoute(route: RouteKey): string {
   if (route === 'cogita') return '/cogita';
   if (route === 'faq') return '/faq';
   if (route === 'legal') return '/legal';
+  if (route === 'login') return '/login';
   if (route === 'account') return '/account';
   return '/';
 }
@@ -30,7 +32,9 @@ export function useRoute() {
 
   const navigate = (next: RouteKey) => {
     setRoute(next);
-    window.history.pushState({}, '', pathFromRoute(next));
+    const base = pathFromRoute(next);
+    const hash = next === 'home' ? window.location.hash : '';
+    window.history.pushState({}, '', `${base}${hash}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

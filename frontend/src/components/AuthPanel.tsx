@@ -2,7 +2,7 @@ import type { Copy } from '../content/types';
 import type { Mode } from '../types/navigation';
 import { AuthForm } from './AuthForm';
 
-export function AccessPanel({
+export function AuthPanel({
   copy,
   mode,
   onModeChange,
@@ -23,7 +23,9 @@ export function AccessPanel({
   onCheckSession,
   onToggleMode,
   onLogout,
-  sessionInfo
+  sessionInfo,
+  compact = false,
+  showSessionActions = true
 }: {
   copy: Copy;
   mode: Mode;
@@ -42,13 +44,15 @@ export function AccessPanel({
   passwordHint: string | null;
   status: { type: 'idle' | 'working' | 'success' | 'error'; message?: string };
   onSubmit: (event: React.FormEvent) => void;
-  onCheckSession: () => void;
-  onToggleMode: () => void;
-  onLogout: () => void;
-  sessionInfo: string | null;
+  onCheckSession?: () => void;
+  onToggleMode?: () => void;
+  onLogout?: () => void;
+  sessionInfo?: string | null;
+  compact?: boolean;
+  showSessionActions?: boolean;
 }) {
   return (
-    <div className="access-panel">
+    <div className={`auth-panel ${compact ? 'auth-panel-compact' : ''}`.trim()}>
       <AuthForm
         copy={copy}
         mode={mode}
@@ -66,6 +70,7 @@ export function AccessPanel({
         availability={availability}
         passwordHint={passwordHint}
         onSubmit={onSubmit}
+        compact={compact}
       />
 
       <div className={`status ${status.type}`}>
@@ -73,17 +78,19 @@ export function AccessPanel({
         <span>{status.message ?? copy.access.statusReady}</span>
       </div>
 
-      <div className="session-actions">
-        <button type="button" onClick={onCheckSession}>
-          {copy.access.checkSession}
-        </button>
-        <button type="button" onClick={onToggleMode}>
-          {copy.access.toggleMode}
-        </button>
-        <button type="button" onClick={onLogout}>
-          {copy.access.logout}
-        </button>
-      </div>
+      {showSessionActions && onCheckSession && onToggleMode && onLogout && (
+        <div className="session-actions">
+          <button type="button" onClick={onCheckSession}>
+            {copy.access.checkSession}
+          </button>
+          <button type="button" onClick={onToggleMode}>
+            {copy.access.toggleMode}
+          </button>
+          <button type="button" onClick={onLogout}>
+            {copy.access.logout}
+          </button>
+        </div>
+      )}
 
       {sessionInfo && <p className="session-info">{sessionInfo}</p>}
     </div>

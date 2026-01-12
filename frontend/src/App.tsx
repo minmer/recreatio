@@ -1,29 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { checkAvailability } from './lib/api';
 import { useAuth } from './lib/authContext';
 import { checkPasswordStrength } from './lib/passwordPolicy';
 import { copy } from './content';
 import type { RouteKey, Mode } from './types/navigation';
 import { useRoute } from './routes/useRoute';
-import { Topbar } from './components/Topbar';
-import { Footer } from './components/Footer';
 import { LoginCard } from './components/LoginCard';
-import { AccessPanel } from './components/AccessPanel';
-import { Dashboard } from './components/Dashboard';
-import { HomePage } from './pages/HomePage';
-import { ParishPage } from './pages/ParishPage';
-import { CogitaPage } from './pages/CogitaPage';
+import { AuthPanel } from './components/AuthPanel';
 import { FaqPage } from './pages/FaqPage';
 import { LegalPage } from './pages/LegalPage';
-import { AccountPage } from './pages/AccountPage';
+import { HomePage } from './pages/HomePage';
+import { ParishPage } from './pages/parish/ParishPage';
+import { CogitaPage } from './pages/cogita/CogitaPage';
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
+const languages = ['pl', 'en', 'de'] as const;
+
+type Language = (typeof languages)[number];
+
+type PanelType = 'faq' | 'legal' | 'login' | null;
 
 export default function App() {
   const [mode, setMode] = useState<Mode>('login');
-  const [language, setLanguage] = useState<'pl' | 'en'>(() => {
+  const [language, setLanguage] = useState<Language>(() => {
     const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('recreatio.lang') : null;
-    return stored === 'en' ? 'en' : 'pl';
+    if (stored === 'en' || stored === 'de') return stored;
+    return 'pl';
   });
   const { route, navigate, setRoute } = useRoute();
   const [loginId, setLoginId] = useState('');
@@ -37,20 +39,13 @@ export default function App() {
   const [loginCardContext, setLoginCardContext] = useState<RouteKey>('home');
   const { session, status, register, login, logout, refresh, setSecureMode: updateMode, setStatus } = useAuth();
   const t = copy[language];
+  const lastHomeHashRef = useRef('#section-1');
+  const panelTouchRef = useRef<number | null>(null);
 
-  const isCogitaHost = useMemo(() => window.location.hostname.includes('cogita'), []);
-  const isParishHost = useMemo(() => window.location.hostname.includes('parish'), []);
-
-  useEffect(() => {
-    if (isCogitaHost && route === 'home') {
-      setRoute('cogita');
-      window.history.replaceState({}, '', '/cogita');
-    }
-    if (isParishHost && route === 'home') {
-      setRoute('parish');
-      window.history.replaceState({}, '', '/parish');
-    }
-  }, [isCogitaHost, isParishHost, route, setRoute]);
+  const panel: PanelType = route === 'faq' || route === 'legal' || route === 'login' ? route : null;
+  const [panelState, setPanelState] = useState<'closed' | 'opening' | 'open' | 'closing'>(() =>
+    panel ? 'open' : 'closed'
+  );
 
   useEffect(() => {
     if (!password) {
@@ -78,7 +73,7 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [loginId, mode, t.access.loginId]);
+  }, [loginId, mode, t.access.loginId, t.access.loginTaken]);
 
   useEffect(() => {
     if (session) {
@@ -181,63 +176,127 @@ export default function App() {
     ? `${t.access.sessionLabel} ${session.sessionId} (${session.secureMode ? 'Secure' : 'Normal'} mode)`
     : null;
 
+  const openPanel = (next: PanelType) => {
+    if (!next) return;
+    lastHomeHashRef.current = window.location.hash || '#section-1';
+    navigate(next);
+    setPanelState('opening');
+  };
+
+  const closePanel = () => {
+    if (!panel) return;
+    setPanelState('closing');
+    window.setTimeout(() => {
+      setRoute('home');
+      window.history.pushState({}, '', `/${lastHomeHashRef.current}`);
+      setPanelState('closed');
+    }, 220);
+  };
+
+  useEffect(() => {
+    if (panel && panelState === 'opening') {
+      const raf = window.requestAnimationFrame(() => setPanelState('open'));
+      return () => window.cancelAnimationFrame(raf);
+    }
+    if (panel && panelState === 'closed') {
+      setPanelState('opening');
+    }
+    if (!panel && panelState !== 'closed') {
+      setPanelState('closed');
+    }
+  }, [panel, panelState]);
+
+  const showHome = route === 'home' || panel !== null;
+
   return (
-    <div className="app">
-      <Topbar
-        copy={t}
-        onNavigate={navigate}
-        onToggleLanguage={() => setLanguage(language === 'pl' ? 'en' : 'pl')}
-        language={language}
-        showAccountLabel={Boolean(session)}
-      />
+    <div className={`app ${panel ? 'panel-open' : ''}`}>
+      {showHome && (
+        <HomePage
+          copy={t}
+          language={language}
+          onLanguageChange={setLanguage}
+          onNavigate={navigate}
+          onOpenPanel={openPanel}
+          panelOpen={panel !== null}
+        />
+      )}
 
-      <main>
-        {route === 'home' && (
-          <HomePage
-            copy={t}
-            onNavigate={navigate}
-            onPrimary={() => navigate('home')}
-            onSecondary={() => navigate('parish')}
-            accessMain={session ? <Dashboard copy={t} onNavigate={navigate} /> : null}
-            accessPanel={
-              <AccessPanel
-                copy={t}
-                mode={mode}
-                onModeChange={setMode}
-                loginId={loginId}
-                onLoginIdChange={setLoginId}
-                displayName={displayName}
-                onDisplayNameChange={setDisplayName}
-                password={password}
-                onPasswordChange={setPassword}
-                passwordConfirm={passwordConfirm}
-                onPasswordConfirmChange={setPasswordConfirm}
-                secureMode={secureMode}
-                onSecureModeChange={setSecureMode}
-                availability={availability}
-                passwordHint={passwordHint}
-                status={status}
-                onSubmit={mode === 'login' ? handleLogin : handleRegister}
-                onCheckSession={handleCheckSession}
-                onToggleMode={handleToggleMode}
-                onLogout={handleLogout}
-                sessionInfo={sessionInfo}
-              />
-            }
+      {route === 'parish' && (
+        <ParishPage
+          copy={t}
+          onLogin={() => openLoginCard('parish')}
+          onNavigate={navigate}
+          language={language}
+          onLanguageChange={setLanguage}
+        />
+      )}
+      {route === 'cogita' && (
+        <CogitaPage
+          copy={t}
+          onLogin={() => openLoginCard('cogita')}
+          onNavigate={navigate}
+          language={language}
+          onLanguageChange={setLanguage}
+        />
+      )}
+
+      {panelState !== 'closed' && (
+        <div
+          className={`panel-overlay ${panelState === 'open' ? 'is-open' : ''} ${
+            panelState === 'closing' ? 'is-closing' : ''
+          }`}
+        >
+          <button type="button" className="panel-scrim" onClick={closePanel} aria-label={t.nav.home} />
+          <div
+            className={`side-panel side-panel-${panel}`}
+            onTouchStart={(event) => {
+              panelTouchRef.current = event.touches[0]?.clientX ?? null;
+            }}
+            onTouchEnd={(event) => {
+              const start = panelTouchRef.current;
+              const end = event.changedTouches[0]?.clientX ?? null;
+              if (start === null || end === null) return;
+              if (end - start > 80) closePanel();
+              panelTouchRef.current = null;
+            }}
           >
-          </HomePage>
-        )}
-
-        {route === 'parish' && <ParishPage copy={t} onLogin={() => openLoginCard('parish')} />}
-        {route === 'cogita' && <CogitaPage copy={t} onLogin={() => openLoginCard('cogita')} />}
-        {route === 'faq' && <FaqPage copy={t} />}
-        {route === 'legal' && <LegalPage copy={t} />}
-        {route === 'account' && (
-          <AccountPage copy={t} showLogin={!session ? () => openLoginCard('account') : undefined} />
-        )}
-      </main>
-
-      <Footer copy={t} onNavigate={navigate} />
+            <div className="panel-handle">
+              <button type="button" className="ghost" onClick={closePanel}>
+                {t.nav.home}
+              </button>
+            </div>
+            <div className="panel-content">
+              {panel === 'faq' && <FaqPage copy={t} />}
+              {panel === 'legal' && <LegalPage copy={t} />}
+              {panel === 'login' && (
+                <AuthPanel
+                  copy={t}
+                  mode={mode}
+                  onModeChange={setMode}
+                  loginId={loginId}
+                  onLoginIdChange={setLoginId}
+                  displayName={displayName}
+                  onDisplayNameChange={setDisplayName}
+                  password={password}
+                  onPasswordChange={setPassword}
+                  passwordConfirm={passwordConfirm}
+                  onPasswordConfirmChange={setPasswordConfirm}
+                  secureMode={secureMode}
+                  onSecureModeChange={setSecureMode}
+                  availability={availability}
+                  passwordHint={passwordHint}
+                  status={status}
+                  onSubmit={mode === 'login' ? handleLogin : handleRegister}
+                  onCheckSession={handleCheckSession}
+                  onToggleMode={handleToggleMode}
+                  onLogout={handleLogout}
+                  sessionInfo={sessionInfo}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <LoginCard
         copy={t}
@@ -258,6 +317,7 @@ export default function App() {
         onSecureModeChange={setSecureMode}
         availability={availability}
         passwordHint={passwordHint}
+        status={status}
         onSubmit={mode === 'login' ? handleLogin : handleRegister}
       />
     </div>

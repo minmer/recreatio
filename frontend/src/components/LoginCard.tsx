@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import type { Copy } from '../content/types';
 import type { Mode, RouteKey } from '../types/navigation';
-import { AuthForm } from './AuthForm';
+import { AuthPanel } from './AuthPanel';
 
 export function LoginCard({
   copy,
@@ -19,6 +20,7 @@ export function LoginCard({
   availability,
   passwordHint,
   onSubmit,
+  status,
   open,
   onClose,
   context
@@ -39,11 +41,29 @@ export function LoginCard({
   availability: string | null;
   passwordHint: string | null;
   onSubmit: (event: React.FormEvent) => void;
+  status: { type: 'idle' | 'working' | 'success' | 'error'; message?: string };
   open: boolean;
   onClose: () => void;
   context: RouteKey;
 }) {
-  if (!open) return null;
+  const [mounted, setMounted] = useState(open);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      setActive(false);
+      const raf = window.requestAnimationFrame(() => setActive(true));
+      return () => window.cancelAnimationFrame(raf);
+    }
+    if (!open && mounted) {
+      setActive(false);
+      const timeout = window.setTimeout(() => setMounted(false), 720);
+      return () => window.clearTimeout(timeout);
+    }
+  }, [open, mounted]);
+
+  if (!mounted) return null;
 
   const contextLabel =
     context === 'parish'
@@ -53,14 +73,14 @@ export function LoginCard({
         : copy.loginCard.contextDefault;
 
   return (
-    <div className="login-overlay" onClick={onClose}>
+    <div className={`login-overlay ${active ? 'is-active' : ''}`} onClick={onClose}>
       <div className="login-card" onClick={(event) => event.stopPropagation()}>
         <div className="login-card-header">
           <img src="/logo_new.png" alt={copy.loginCard.title} />
           <span>{copy.loginCard.title}</span>
         </div>
         <p className="login-card-note">{contextLabel}</p>
-        <AuthForm
+        <AuthPanel
           copy={copy}
           mode={mode}
           onModeChange={onModeChange}
@@ -77,7 +97,9 @@ export function LoginCard({
           availability={availability}
           passwordHint={passwordHint}
           onSubmit={onSubmit}
+          status={status}
           compact
+          showSessionActions={false}
         />
       </div>
     </div>

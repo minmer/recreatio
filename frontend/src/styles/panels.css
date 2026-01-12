@@ -1,0 +1,132 @@
+.panel-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.panel-scrim {
+  border: none;
+  background: rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  padding: 0;
+  backdrop-filter: blur(8px);
+  flex: 0 0 100%;
+  transition: opacity 160ms ease, flex-basis 220ms ease;
+}
+
+.side-panel {
+  height: 100vh;
+  width: 100%;
+  background: #fdfaf6;
+  box-shadow: -20px 0 50px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  flex: 0 0 0%;
+  transition: transform 220ms ease, flex-basis 220ms ease;
+}
+
+.panel-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  animation: overlayFade 160ms ease;
+}
+
+.panel-overlay.is-open .side-panel {
+  transform: translateX(0);
+  animation: panelSlide 220ms ease;
+  flex-basis: 90%;
+}
+
+.panel-overlay.is-open .panel-scrim {
+  flex-basis: 10%;
+  opacity: 1;
+}
+
+.panel-overlay.is-closing {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.panel-overlay.is-closing .panel-scrim {
+  flex-basis: 100%;
+  opacity: 0;
+}
+
+.panel-overlay.is-closing .side-panel {
+  flex-basis: 0%;
+  transform: translateX(100%);
+}
+
+.panel-handle {
+  padding: 1.2rem 1.6rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-start;
+}
+
+.panel-content {
+  padding: 2rem 1.8rem 3rem;
+  overflow-y: auto;
+}
+
+.faq,
+.legal {
+  display: grid;
+  gap: 1.6rem;
+}
+
+.faq-grid,
+.legal-grid {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.faq-grid details,
+.legal-grid details {
+  background: white;
+  border-radius: 16px;
+  padding: 1.2rem 1.4rem;
+  border: 1px solid var(--line);
+}
+
+.faq-grid summary,
+.legal-grid summary {
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+
+.faq-grid summary::-webkit-details-marker,
+.legal-grid summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-grid details p,
+.legal-grid details p {
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@keyframes overlayFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes panelSlide {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

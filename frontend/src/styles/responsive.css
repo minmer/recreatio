@@ -1,0 +1,29 @@
+@media (max-width: 900px) {
+  .home-header {
+    padding: 0 4vw;
+  }
+
+  .home-nav {
+    display: none;
+  }
+
+  .home-section {
+    padding: calc(var(--header-h) + 5vh) 6vw calc(var(--footer-h) + 5vh);
+  }
+
+  .home-footer {
+    padding: 0 4vw;
+  }
+
+  .home-dots {
+    right: 4vw;
+  }
+
+  .portal-header {
+    padding: 1.2rem 4vw;
+  }
+
+  .portal {
+    padding: 2.5rem 4vw 4rem;
+  }
+}
