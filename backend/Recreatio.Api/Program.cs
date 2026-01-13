@@ -66,6 +66,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.None;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.Partitioned = true;
         var cookieDomain = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieDomain");
         if (!string.IsNullOrWhiteSpace(cookieDomain))
         {

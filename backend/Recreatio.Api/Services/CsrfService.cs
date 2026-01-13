@@ -31,7 +31,8 @@ public sealed class CsrfService : ICsrfService
             Secure = true,
             SameSite = SameSiteMode.None,
             Path = "/",
-            Domain = string.IsNullOrWhiteSpace(_options.CookieDomain) ? null : _options.CookieDomain
+            Domain = string.IsNullOrWhiteSpace(_options.CookieDomain) ? null : _options.CookieDomain,
+            Partitioned = true
         });
         return token;
     }
