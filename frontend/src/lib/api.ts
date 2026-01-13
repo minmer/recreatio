@@ -1,4 +1,5 @@
 const apiBase = import.meta.env.VITE_API_BASE ?? 'https://recreatio.hostingasp.pl';
+let csrfTokenCache: string | null = null;
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -6,7 +7,17 @@ function getCookie(name: string): string | null {
 }
 
 function getCsrfToken(): string | null {
-  return getCookie('XSRF-TOKEN');
+  return getCookie('XSRF-TOKEN') ?? csrfTokenCache;
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = 'ApiError';
+  }
 }
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
@@ -23,7 +34,7 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || response.statusText);
+    throw new ApiError(response.status, text || response.statusText);
   }
 
   return response.json() as Promise<T>;
@@ -49,6 +60,9 @@ export function register(payload: {
 export function issueCsrf() {
   return request<{ token: string }>('/auth/csrf', {
     method: 'GET'
+  }).then((response) => {
+    csrfTokenCache = response.token;
+    return response;
   });
 }
 

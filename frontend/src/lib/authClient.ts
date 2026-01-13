@@ -1,5 +1,11 @@
 import { deriveH3, randomSalt } from './crypto';
-import { checkAvailability, getSalt, login, register } from './api';
+import { ApiError, checkAvailability, getSalt, login, register } from './api';
+
+const primaryIterations = Number.parseInt(import.meta.env.VITE_H3_ITERATIONS ?? '', 10) || 150000;
+const legacyIterations = (import.meta.env.VITE_H3_LEGACY_ITERATIONS ?? '')
+  .split(',')
+  .map((value: string) => Number.parseInt(value.trim(), 10))
+  .filter((value: number) => Number.isFinite(value) && value > 0);
 
 export async function registerWithPassword(options: {
   loginId: string;
@@ -12,7 +18,7 @@ export async function registerWithPassword(options: {
   }
 
   const salt = randomSalt(32);
-  const h3 = await deriveH3(options.password, salt);
+  const h3 = await deriveH3(options.password, salt, primaryIterations);
 
   return register({
     loginId: options.loginId,
@@ -28,13 +34,26 @@ export async function loginWithPassword(options: {
   secureMode: boolean;
   deviceInfo?: string;
 }) {
-  const saltResponse = await getSalt(options.loginId);
-  const h3 = await deriveH3(options.password, saltResponse.userSaltBase64);
+  const iterationsToTry = [primaryIterations, ...legacyIterations];
 
-  return login({
-    loginId: options.loginId,
-    h3Base64: h3,
-    secureMode: options.secureMode,
-    deviceInfo: options.deviceInfo ?? null
-  });
+  for (let index = 0; index < iterationsToTry.length; index += 1) {
+    const saltResponse = await getSalt(options.loginId);
+    const h3 = await deriveH3(options.password, saltResponse.userSaltBase64, iterationsToTry[index]);
+
+    try {
+      return await login({
+        loginId: options.loginId,
+        h3Base64: h3,
+        secureMode: options.secureMode,
+        deviceInfo: options.deviceInfo ?? null
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401 && index < iterationsToTry.length - 1) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('Login failed.');
 }

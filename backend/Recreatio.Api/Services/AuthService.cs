@@ -28,6 +28,7 @@ public sealed class AuthService : IAuthService
     private readonly ISessionSecretCache _sessionSecretCache;
     private readonly ILedgerService _ledgerService;
     private readonly AuthOptions _authOptions;
+    private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         RecreatioDbContext dbContext,
@@ -36,7 +37,8 @@ public sealed class AuthService : IAuthService
         IEncryptionService encryptionService,
         ISessionSecretCache sessionSecretCache,
         ILedgerService ledgerService,
-        IOptions<AuthOptions> authOptions)
+        IOptions<AuthOptions> authOptions,
+        ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _hashingService = hashingService;
@@ -45,6 +47,7 @@ public sealed class AuthService : IAuthService
         _sessionSecretCache = sessionSecretCache;
         _ledgerService = ledgerService;
         _authOptions = authOptions.Value;
+        _logger = logger;
     }
 
     public async Task<Guid> RegisterAsync(RegisterRequest request, CancellationToken ct)
@@ -124,6 +127,7 @@ public sealed class AuthService : IAuthService
             .FirstOrDefaultAsync(x => x.LoginId == loginId, ct);
         if (account is null)
         {
+            _logger.LogWarning("Login failed: account not found for {LoginId}.", loginId);
             await _ledgerService.AppendAuthAsync("LoginFailed", "unknown", JsonSerializer.Serialize(new { LoginId = loginId }), ct);
             throw new InvalidOperationException("Invalid credentials.");
         }
@@ -136,14 +140,21 @@ public sealed class AuthService : IAuthService
 
         if (account.State != AccountState.Active)
         {
+            _logger.LogWarning("Login rejected for {LoginId} due to state {State}.", loginId, account.State);
             await _ledgerService.AppendAuthAsync("LoginRejected", account.Id.ToString(), JsonSerializer.Serialize(new { account.State }), ct);
             throw new InvalidOperationException("Account not active.");
         }
 
         var h3 = Convert.FromBase64String(request.H3Base64);
+        if (h3.Length != 32)
+        {
+            _logger.LogWarning("Login failed: H3 length {Length} for {LoginId}.", h3.Length, loginId);
+            throw new InvalidOperationException("Invalid credentials.");
+        }
         var h4 = _hashingService.Hash(h3);
         if (!CryptographicOperations.FixedTimeEquals(h4, account.StoredH4))
         {
+            _logger.LogWarning("Login failed: H4 mismatch for {LoginId}.", loginId);
             account.FailedLoginCount += 1;
             if (account.FailedLoginCount >= _authOptions.MaxFailedLoginAttempts)
             {
