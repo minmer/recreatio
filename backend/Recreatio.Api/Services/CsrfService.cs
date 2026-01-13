@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.Options;
+using Recreatio.Api.Options;
 
 namespace Recreatio.Api.Services;
 
@@ -12,6 +14,12 @@ public sealed class CsrfService : ICsrfService
 {
     private const string CookieName = "XSRF-TOKEN";
     private const string HeaderName = "X-XSRF-TOKEN";
+    private readonly CsrfOptions _options;
+
+    public CsrfService(IOptions<CsrfOptions> options)
+    {
+        _options = options.Value;
+    }
 
     public string IssueToken(HttpContext context)
     {
@@ -22,7 +30,8 @@ public sealed class CsrfService : ICsrfService
             HttpOnly = false,
             Secure = true,
             SameSite = SameSiteMode.None,
-            Path = "/"
+            Path = "/",
+            Domain = string.IsNullOrWhiteSpace(_options.CookieDomain) ? null : _options.CookieDomain
         });
         return token;
     }

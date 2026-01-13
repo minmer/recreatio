@@ -18,6 +18,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.Configure<CryptoOptions>(builder.Configuration.GetSection("Crypto"));
 builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection("Auth"));
+builder.Services.Configure<CsrfOptions>(builder.Configuration.GetSection("Csrf"));
 
 builder.Services.AddDbContext<RecreatioDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -65,6 +66,11 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.None;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        var cookieDomain = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieDomain");
+        if (!string.IsNullOrWhiteSpace(cookieDomain))
+        {
+            options.Cookie.Domain = cookieDomain;
+        }
         options.SlidingExpiration = true;
         options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
         options.Events = new CookieAuthenticationEvents
