@@ -17,7 +17,7 @@ export const pl: Copy = {
     logout: 'Wyloguj'
   },
   hero: {
-    headline: 'ReCreatio — platforma zaufania i wiedzy wspólnotowej.',
+    headline: 'REcreatio — platforma zaufania i wiedzy wspólnotowej.',
     subtitle:
       'Łączymy edukację, parafie i społeczności w jednym ekosystemie, gdzie dostęp do danych jest kontrolowany kryptograficznie — a nie tylko hasłami.',
     ctaPrimary: 'Wejdź do systemu',
@@ -47,7 +47,7 @@ export const pl: Copy = {
     ]
   },
   access: {
-    title: 'Dostęp do ReCreatio',
+    title: 'Dostęp do REcreatio',
     subtitle: 'Logowanie daje dostęp do funkcji zarządzania, ale portale publiczne są dostępne bez konta.',
     login: 'Logowanie',
     register: 'Rejestracja',
@@ -110,7 +110,7 @@ export const pl: Copy = {
       'Publiczne zestawienia oraz prywatne dane finansowe.'
     ],
     note: 'Już teraz możesz przeglądać publiczne treści. Funkcje administracyjne pojawią się po zalogowaniu.',
-    loginCta: 'Zaloguj się przez ReCreatio'
+    loginCta: 'Zaloguj się przez REcreatio'
   },
   cogita: {
     title: 'Portal Cogita',
@@ -122,7 +122,7 @@ export const pl: Copy = {
       'Udostępnianie materiałów z kontrolą dostępu.'
     ],
     note: 'Cogita będzie mogła działać również jako osobna domena, np. cogita.pl — bez zmiany backendu.',
-    loginCta: 'Zaloguj się przez ReCreatio'
+    loginCta: 'Zaloguj się przez REcreatio'
   },
   faq: {
     title: 'FAQ i bezpieczeństwo',
@@ -263,13 +263,13 @@ export const pl: Copy = {
     logoutAction: 'Wyloguj'
   },
   footer: {
-    headline: 'ReCreatio — wspólny ekosystem wiedzy i zaufania',
+    headline: 'REcreatio — wspólny ekosystem wiedzy i zaufania',
     contact: 'Kontakt: kontakt@recreatio.pl',
     imprint: 'Impressum i RODO',
     security: 'Dokumentacja bezpieczeństwa'
   },
   loginCard: {
-    title: 'ReCreatio',
-    contextDefault: 'Dostęp przez ReCreatio'
+    title: 'REcreatio',
+    contextDefault: 'Dostęp przez REcreatio'
   }
 };

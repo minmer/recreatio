@@ -195,6 +195,10 @@ export default function App() {
         deviceInfo
       });
       setStatus({ type: 'success', message: t.access.statusReady });
+      setLoginCardOpen(false);
+      if (pathname === '/login') {
+        closePanel();
+      }
     } catch (error) {
       setStatus({ type: 'error', message: t.access.loginError });
     }

@@ -37,7 +37,16 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
     throw new ApiError(response.status, text || response.statusText);
   }
 
-  return response.json() as Promise<T>;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
 
 export function register(payload: {

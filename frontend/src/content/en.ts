@@ -17,7 +17,7 @@ export const en: Copy = {
     logout: 'Sign out'
   },
   hero: {
-    headline: 'ReCreatio — trust and knowledge infrastructure for communities.',
+    headline: 'REcreatio — trust and knowledge infrastructure for communities.',
     subtitle:
       'We connect education, parishes, and communities in one ecosystem where access is enforced cryptographically, not just by passwords.',
     ctaPrimary: 'Access the system',
@@ -47,7 +47,7 @@ export const en: Copy = {
     ]
   },
   access: {
-    title: 'Access ReCreatio',
+    title: 'Access REcreatio',
     subtitle: 'Login unlocks management features. Public portals remain available without an account.',
     login: 'Sign in',
     register: 'Register',
@@ -110,7 +110,7 @@ export const en: Copy = {
       'Public summaries with private financial details protected.'
     ],
     note: 'You can browse public content now. Admin features appear after login.',
-    loginCta: 'Sign in via ReCreatio'
+    loginCta: 'Sign in via REcreatio'
   },
   cogita: {
     title: 'Cogita portal',
@@ -121,8 +121,8 @@ export const en: Copy = {
       'Knowledge library and teaching tools.',
       'Controlled sharing of resources.'
     ],
-    note: 'Cogita can also run under a separate domain, e.g. cogita.pl, while still using ReCreatio backend.',
-    loginCta: 'Sign in via ReCreatio'
+    note: 'Cogita can also run under a separate domain, e.g. cogita.pl, while still using REcreatio backend.',
+    loginCta: 'Sign in via REcreatio'
   },
   faq: {
     title: 'FAQ and security',
@@ -262,13 +262,13 @@ export const en: Copy = {
     logoutAction: 'Sign out'
   },
   footer: {
-    headline: 'ReCreatio — shared ecosystem of trust and knowledge',
+    headline: 'REcreatio — shared ecosystem of trust and knowledge',
     contact: 'Contact: kontakt@recreatio.pl',
     imprint: 'Imprint & privacy',
     security: 'Security documentation'
   },
   loginCard: {
-    title: 'ReCreatio',
-    contextDefault: 'Access via ReCreatio'
+    title: 'REcreatio',
+    contextDefault: 'Access via REcreatio'
   }
 };
