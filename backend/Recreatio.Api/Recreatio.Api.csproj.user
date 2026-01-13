@@ -2,6 +2,6 @@
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ActiveDebugProfile>https</ActiveDebugProfile>
-    <NameOfLastUsedPublishProfile>C:\Users\AKM.LAPTOP-AKM\source\repos\minmer\recreatio\backend\Recreatio.Api\Properties\PublishProfiles\recreatio.hostingasp.pl - Web Deploy.pubxml</NameOfLastUsedPublishProfile>
+    <NameOfLastUsedPublishProfile>C:\Users\AKM.LAPTOP-AKM\source\repos\minmer\recreatio\backend\Recreatio.Api\Properties\PublishProfiles\recreatio - Web Deploy.pubxml</NameOfLastUsedPublishProfile>
   </PropertyGroup>
 </Project>
