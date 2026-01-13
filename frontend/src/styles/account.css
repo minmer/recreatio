@@ -130,12 +130,19 @@
 
   .account-nav {
     position: relative;
+    background: transparent;
+    border: none;
+    padding: 0;
+    top: 0;
   }
 
   .account-menu-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    background: white;
+    margin-bottom: 0.6rem;
   }
 
   .account-nav nav {
@@ -145,6 +152,10 @@
   }
 
   .account-nav.open nav {
-    max-height: 240px;
+    max-height: 320px;
+  }
+
+  .account-content {
+    margin-top: 0.6rem;
   }
 }
