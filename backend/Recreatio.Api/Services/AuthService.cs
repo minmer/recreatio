@@ -95,6 +95,7 @@ public sealed class AuthService : IAuthService
         {
             Id = userId,
             LoginId = loginId,
+            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName.Trim(),
             UserSalt = userSalt,
             StoredH4 = storedH4,
             State = _authOptions.RequireEmailConfirmation ? AccountState.PendingEmailConfirmation : AccountState.Active,

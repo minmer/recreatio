@@ -10,6 +10,12 @@ export type Copy = {
     login: string;
     account: string;
   };
+  accountMenu: {
+    profile: string;
+    secureModeOn: string;
+    secureModeOff: string;
+    logout: string;
+  };
   hero: {
     headline: string;
     subtitle: string;
@@ -85,7 +91,36 @@ export type Copy = {
   account: {
     title: string;
     subtitle: string;
-    placeholder: string;
+    overviewTitle: string;
+    overviewLead: string;
+    sections: {
+      overview: string;
+      profile: string;
+      security: string;
+    };
+    menuLabel: string;
+    loginIdLabel: string;
+    loginIdHint: string;
+    nicknameLabel: string;
+    nicknameHint: string;
+    nicknamePlaceholder: string;
+    nicknameAction: string;
+    nicknameWorking: string;
+    nicknameSuccess: string;
+    nicknameError: string;
+    passwordTitle: string;
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+    passwordAction: string;
+    passwordWorking: string;
+    passwordSuccess: string;
+    passwordError: string;
+    secureModeTitle: string;
+    secureModeNote: string;
+    secureModeEnable: string;
+    secureModeDisable: string;
+    logoutAction: string;
   };
   footer: {
     headline: string;

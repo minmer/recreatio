@@ -116,3 +116,23 @@ export function setSessionMode(secureMode: boolean) {
     body: JSON.stringify({ secureMode })
   });
 }
+
+export function changePassword(payload: { h3OldBase64: string; h3NewBase64: string }) {
+  return request<void>('/auth/password-change', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getProfile() {
+  return request<{ loginId: string; displayName?: string | null }>('/account/profile', {
+    method: 'GET'
+  });
+}
+
+export function updateProfile(payload: { displayName?: string | null }) {
+  return request<{ loginId: string; displayName?: string | null }>('/account/profile', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}

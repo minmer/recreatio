@@ -10,6 +10,12 @@ export const en: Copy = {
     login: 'Sign in',
     account: 'Profile'
   },
+  accountMenu: {
+    profile: 'User settings',
+    secureModeOn: 'Enable secure mode',
+    secureModeOff: 'Disable secure mode',
+    logout: 'Sign out'
+  },
   hero: {
     headline: 'ReCreatio — trust and knowledge infrastructure for communities.',
     subtitle:
@@ -45,10 +51,10 @@ export const en: Copy = {
     subtitle: 'Login unlocks management features. Public portals remain available without an account.',
     login: 'Sign in',
     register: 'Register',
-    loginId: 'Login ID (email or username)',
+    loginId: 'Login ID (username or email)',
     password: 'Password',
     confirm: 'Confirm password',
-    displayName: 'Full name (optional)',
+    displayName: 'Public nickname (optional)',
     secureMode: 'Secure mode (no key cache)',
     create: 'Create account',
     signIn: 'Sign in',
@@ -220,9 +226,38 @@ export const en: Copy = {
     ]
   },
   account: {
-    title: 'Profile settings',
-    subtitle: 'Available after login.',
-    placeholder: 'Coming soon: personal data, roles, keys, and activity history.'
+    title: 'User settings',
+    subtitle: 'Manage your public profile and security.',
+    overviewTitle: 'Overview',
+    overviewLead: 'Your login does not have to be an email. The nickname is public.',
+    sections: {
+      overview: 'Overview',
+      profile: 'Public profile',
+      security: 'Security'
+    },
+    menuLabel: 'Sections',
+    loginIdLabel: 'Login ID',
+    loginIdHint: 'This identifier can be a username or email and cannot be changed.',
+    nicknameLabel: 'Public nickname',
+    nicknameHint: 'Visible to other users. Avoid private data.',
+    nicknamePlaceholder: 'Choose a public nickname',
+    nicknameAction: 'Save nickname',
+    nicknameWorking: 'Saving nickname…',
+    nicknameSuccess: 'Nickname updated.',
+    nicknameError: 'Nickname update failed.',
+    passwordTitle: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    passwordAction: 'Update password',
+    passwordWorking: 'Updating password…',
+    passwordSuccess: 'Password updated.',
+    passwordError: 'Password update failed.',
+    secureModeTitle: 'Secure mode',
+    secureModeNote: 'Secure mode disables key cache on the server.',
+    secureModeEnable: 'Enable secure mode',
+    secureModeDisable: 'Disable secure mode',
+    logoutAction: 'Sign out'
   },
   footer: {
     headline: 'ReCreatio — shared ecosystem of trust and knowledge',

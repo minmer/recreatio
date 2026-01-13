@@ -1,11 +1,17 @@
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';
+import { AuthAction } from '../../components/AuthAction';
 
 export function CogitaPage({
   copy,
   onAuthAction,
   authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
   onNavigate,
   language,
   onLanguageChange
@@ -13,6 +19,11 @@ export function CogitaPage({
   copy: Copy;
   onAuthAction: () => void;
   authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
@@ -24,9 +35,17 @@ export function CogitaPage({
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
         </button>
         <LanguageSelect value={language} onChange={onLanguageChange} />
-        <button type="button" className="ghost portal-login" onClick={onAuthAction}>
-          {authLabel}
-        </button>
+        <AuthAction
+          copy={copy}
+          label={authLabel}
+          isAuthenticated={showProfileMenu}
+          secureMode={secureMode}
+          onLogin={onAuthAction}
+          onProfileNavigate={onProfileNavigate}
+          onToggleSecureMode={onToggleSecureMode}
+          onLogout={onLogout}
+          variant="ghost"
+        />
       </header>
       <main className="portal">
         <div className="portal-hero">

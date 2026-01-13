@@ -44,6 +44,8 @@ export default function App() {
   const lastHomePathRef = useRef('/section-1');
   const panelTouchRef = useRef<number | null>(null);
   const isAuthenticated = Boolean(session);
+  const protectedRoutes = useMemo(() => new Set<RouteKey>(['account']), []);
+  const protectedPathMap = useMemo(() => new Map<string, RouteKey>([['/account', 'account']]), []);
 
   const pathname = location.pathname;
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
@@ -120,7 +122,7 @@ export default function App() {
 
   const closeLoginCard = () => {
     setLoginCardOpen(false);
-    if (pathname === '/account' && !session) {
+    if (protectedPathMap.has(pathname) && !session) {
       navigate(lastHomePathRef.current || '/section-1');
     }
   };
@@ -201,6 +203,10 @@ export default function App() {
   async function handleLogout() {
     resetStatus();
     await logout();
+    const protectedRoute = protectedPathMap.get(pathname);
+    if (protectedRoute) {
+      navigate(lastHomePathRef.current || '/section-1');
+    }
   }
 
   async function handleCheckSession() {
@@ -225,19 +231,28 @@ export default function App() {
   }, [isHomePath, pathname]);
 
   useEffect(() => {
-    if (pathname === '/account' && !session) {
-      openLoginCard('account');
+    const requiredRoute = protectedPathMap.get(pathname);
+    if (requiredRoute && !session) {
+      openLoginCard(requiredRoute);
     }
-  }, [pathname, session]);
+  }, [pathname, session, protectedPathMap]);
 
   useEffect(() => {
-    if (pathname === '/account' && session && loginCardOpen && loginCardContext === 'account') {
+    const requiredRoute = protectedPathMap.get(pathname);
+    if (requiredRoute && session && loginCardOpen && loginCardContext === requiredRoute) {
       setLoginCardOpen(false);
     }
-  }, [loginCardContext, loginCardOpen, pathname, session]);
+  }, [loginCardContext, loginCardOpen, pathname, protectedPathMap, session]);
 
   const homeAuthLabel = isAuthenticated ? t.nav.account : t.nav.login;
   const homeHeroLabel = isAuthenticated ? t.nav.account : t.hero.ctaPrimary;
+  const handleProtectedNavigation = (route: RouteKey, context: RouteKey) => {
+    if (protectedRoutes.has(route) && !session) {
+      openLoginCard(context);
+      return;
+    }
+    navigateRoute(route);
+  };
 
   const openPanel = (next: PanelType) => {
     if (!next) return;
@@ -281,13 +296,18 @@ export default function App() {
           onOpenPanel={openPanel}
           onAuthAction={() => {
             if (isAuthenticated) {
-              navigateRoute('account');
+              handleProtectedNavigation('account', 'account');
             } else {
               openPanel('login');
             }
           }}
           authLabel={homeAuthLabel}
           authCtaLabel={homeHeroLabel}
+          showProfileMenu={isAuthenticated}
+          onProfileNavigate={() => handleProtectedNavigation('account', 'account')}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
+          secureMode={secureMode}
           panelOpen={panel !== null}
           activeSectionId={sectionFromPath}
           onSectionChange={(nextSection) => {
@@ -306,12 +326,17 @@ export default function App() {
           copy={t}
           onAuthAction={() => {
             if (isAuthenticated) {
-              navigateRoute('account');
+              handleProtectedNavigation('account', 'parish');
             } else {
               openLoginCard('parish');
             }
           }}
           authLabel={isAuthenticated ? t.nav.account : t.parish.loginCta}
+          showProfileMenu={isAuthenticated}
+          onProfileNavigate={() => handleProtectedNavigation('account', 'parish')}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
+          secureMode={secureMode}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
@@ -322,12 +347,17 @@ export default function App() {
           copy={t}
           onAuthAction={() => {
             if (isAuthenticated) {
-              navigateRoute('account');
+              handleProtectedNavigation('account', 'cogita');
             } else {
               openLoginCard('cogita');
             }
           }}
           authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+          showProfileMenu={isAuthenticated}
+          onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
+          secureMode={secureMode}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
@@ -339,6 +369,11 @@ export default function App() {
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
+          loginId={loginId}
+          onLoginIdChange={setLoginId}
+          secureMode={secureMode}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
         />
       )}
 

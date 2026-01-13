@@ -1,5 +1,5 @@
 import { deriveH3, randomSalt } from './crypto';
-import { ApiError, checkAvailability, getSalt, login, register } from './api';
+import { ApiError, changePassword, checkAvailability, getSalt, login, register } from './api';
 
 const primaryIterations = Number.parseInt(import.meta.env.VITE_H3_ITERATIONS ?? '', 10) || 150000;
 const legacyIterations = (import.meta.env.VITE_H3_LEGACY_ITERATIONS ?? '')
@@ -56,4 +56,18 @@ export async function loginWithPassword(options: {
   }
 
   throw new Error('Login failed.');
+}
+
+export async function changePasswordWithPassword(options: {
+  loginId: string;
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const saltResponse = await getSalt(options.loginId);
+  const h3Old = await deriveH3(options.currentPassword, saltResponse.userSaltBase64, primaryIterations);
+  const h3New = await deriveH3(options.newPassword, saltResponse.userSaltBase64, primaryIterations);
+  return changePassword({
+    h3OldBase64: h3Old,
+    h3NewBase64: h3New
+  });
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Copy } from '../content/types';
 import type { RouteKey } from '../types/navigation';
 import { LanguageSelect } from '../components/LanguageSelect';
+import { AuthAction } from '../components/AuthAction';
 
 type PanelType = 'faq' | 'legal' | 'login';
 
@@ -23,6 +24,11 @@ export function HomePage({
   onAuthAction,
   authLabel,
   authCtaLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
   panelOpen,
   activeSectionId,
   onSectionChange
@@ -35,6 +41,11 @@ export function HomePage({
   onAuthAction: () => void;
   authLabel: string;
   authCtaLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
   panelOpen: boolean;
   activeSectionId?: string;
   onSectionChange?: (sectionId: string) => void;
@@ -201,9 +212,17 @@ export function HomePage({
         </nav>
         <div className="home-actions">
           <LanguageSelect value={language} onChange={onLanguageChange} />
-          <button type="button" className="cta" onClick={onAuthAction}>
-            {authLabel}
-          </button>
+          <AuthAction
+            copy={copy}
+            label={authLabel}
+            isAuthenticated={showProfileMenu}
+            secureMode={secureMode}
+            onLogin={onAuthAction}
+            onProfileNavigate={onProfileNavigate}
+            onToggleSecureMode={onToggleSecureMode}
+            onLogout={onLogout}
+            variant="cta"
+          />
         </div>
       </header>
 

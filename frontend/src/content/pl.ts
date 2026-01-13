@@ -10,6 +10,12 @@ export const pl: Copy = {
     login: 'Zaloguj się',
     account: 'Profil'
   },
+  accountMenu: {
+    profile: 'Ustawienia użytkownika',
+    secureModeOn: 'Włącz tryb bezpieczny',
+    secureModeOff: 'Wyłącz tryb bezpieczny',
+    logout: 'Wyloguj'
+  },
   hero: {
     headline: 'ReCreatio — platforma zaufania i wiedzy wspólnotowej.',
     subtitle:
@@ -45,10 +51,10 @@ export const pl: Copy = {
     subtitle: 'Logowanie daje dostęp do funkcji zarządzania, ale portale publiczne są dostępne bez konta.',
     login: 'Logowanie',
     register: 'Rejestracja',
-    loginId: 'Login (e-mail lub nazwa)',
+    loginId: 'Login (nazwa użytkownika lub e-mail)',
     password: 'Hasło',
     confirm: 'Potwierdź hasło',
-    displayName: 'Imię i nazwisko (opcjonalnie)',
+    displayName: 'Publiczny nick (opcjonalnie)',
     secureMode: 'Tryb bezpieczny (brak cache kluczy)',
     create: 'Utwórz konto',
     signIn: 'Zaloguj się',
@@ -221,9 +227,38 @@ export const pl: Copy = {
     ]
   },
   account: {
-    title: 'Ustawienia profilu',
-    subtitle: 'Sekcja dostępna po zalogowaniu.',
-    placeholder: 'Wkrótce: zarządzanie danymi osobowymi, rolami, kluczami i historią aktywności.'
+    title: 'Ustawienia użytkownika',
+    subtitle: 'Zarządzaj publicznym profilem i bezpieczeństwem.',
+    overviewTitle: 'Przegląd',
+    overviewLead: 'Login nie musi być e-mailem. Nick jest publiczny.',
+    sections: {
+      overview: 'Przegląd',
+      profile: 'Profil publiczny',
+      security: 'Bezpieczeństwo'
+    },
+    menuLabel: 'Sekcje',
+    loginIdLabel: 'Login',
+    loginIdHint: 'Może to być nazwa użytkownika lub e-mail i nie można go zmienić.',
+    nicknameLabel: 'Publiczny nick',
+    nicknameHint: 'Widoczny dla innych użytkowników. Bez danych wrażliwych.',
+    nicknamePlaceholder: 'Wpisz publiczny nick',
+    nicknameAction: 'Zapisz nick',
+    nicknameWorking: 'Zapisywanie nicku…',
+    nicknameSuccess: 'Nick został zaktualizowany.',
+    nicknameError: 'Nie udało się zaktualizować nicku.',
+    passwordTitle: 'Zmiana hasła',
+    currentPassword: 'Aktualne hasło',
+    newPassword: 'Nowe hasło',
+    confirmPassword: 'Potwierdź nowe hasło',
+    passwordAction: 'Zmień hasło',
+    passwordWorking: 'Zmiana hasła…',
+    passwordSuccess: 'Hasło zostało zmienione.',
+    passwordError: 'Nie udało się zmienić hasła.',
+    secureModeTitle: 'Tryb bezpieczny',
+    secureModeNote: 'Tryb bezpieczny wyłącza cache kluczy na serwerze.',
+    secureModeEnable: 'Włącz tryb bezpieczny',
+    secureModeDisable: 'Wyłącz tryb bezpieczny',
+    logoutAction: 'Wyloguj'
   },
   footer: {
     headline: 'ReCreatio — wspólny ekosystem wiedzy i zaufania',

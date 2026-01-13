@@ -40,3 +40,61 @@
   background: transparent;
   color: var(--ink);
 }
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-button {
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 160ms ease, transform 160ms ease;
+}
+
+.profile-button:hover,
+.profile-menu.open .profile-button {
+  box-shadow: 0 0 0 2px rgba(255, 107, 61, 0.25);
+  transform: translateY(-1px);
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.4rem;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 180px;
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+  z-index: 12;
+}
+
+.profile-dropdown button {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.profile-dropdown button:hover {
+  background: var(--bg-alt);
+}
+
+.profile-dropdown.open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
