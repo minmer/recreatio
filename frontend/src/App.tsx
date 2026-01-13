@@ -205,6 +205,7 @@ export default function App() {
     await logout();
     const protectedRoute = protectedPathMap.get(pathname);
     if (protectedRoute) {
+      openLoginCard(protectedRoute);
       navigate(lastHomePathRef.current || '/section-1');
     }
   }

@@ -18,6 +18,7 @@ export function ProfileMenu({
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const pointerTypeRef = useRef<'mouse' | 'touch' | 'pen' | 'unknown'>('unknown');
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -43,8 +44,22 @@ export function ProfileMenu({
       ref={wrapperRef}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onPointerDown={(event) => {
+        pointerTypeRef.current = event.pointerType as typeof pointerTypeRef.current;
+      }}
     >
-      <button type="button" className="profile-button" onClick={() => onNavigateProfile()}>
+      <button
+        type="button"
+        className="profile-button"
+        onClick={(event) => {
+          if (pointerTypeRef.current === 'touch' || pointerTypeRef.current === 'pen') {
+            event.preventDefault();
+            setOpen((prev) => !prev);
+            return;
+          }
+          onNavigateProfile();
+        }}
+      >
         {label}
       </button>
       <div className={`profile-dropdown ${open ? 'open' : ''}`}>

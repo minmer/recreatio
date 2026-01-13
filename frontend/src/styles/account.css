@@ -87,6 +87,29 @@
   font-size: 1rem;
 }
 
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.account-readonly {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.8rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-alt);
+}
+
+.account-readonly span {
+  font-weight: 600;
+}
+
 .account-security {
   margin-top: 1.4rem;
   display: flex;

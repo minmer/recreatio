@@ -104,6 +104,7 @@ export type Copy = {
     nicknameLabel: string;
     nicknameHint: string;
     nicknamePlaceholder: string;
+    nicknameToggle: string;
     nicknameAction: string;
     nicknameWorking: string;
     nicknameSuccess: string;
@@ -112,6 +113,7 @@ export type Copy = {
     currentPassword: string;
     newPassword: string;
     confirmPassword: string;
+    passwordToggle: string;
     passwordAction: string;
     passwordWorking: string;
     passwordSuccess: string;

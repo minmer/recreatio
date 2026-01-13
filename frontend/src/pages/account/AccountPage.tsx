@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';
+import { AuthAction } from '../../components/AuthAction';
 import { checkPasswordStrength } from '../../lib/passwordPolicy';
 import { changePasswordWithPassword } from '../../lib/authClient';
-import { getProfile, updateProfile } from '../../lib/api';
+import { getProfile, issueCsrf, updateProfile } from '../../lib/api';
 
 export function AccountPage({
   copy,
@@ -40,9 +41,11 @@ export function AccountPage({
   const [nicknameStatus, setNicknameStatus] = useState<{ type: 'idle' | 'working' | 'success' | 'error'; message?: string }>(
     { type: 'idle' }
   );
+  const [nicknameOpen, setNicknameOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [passwordHint, setPasswordHint] = useState<string | null>(null);
   const [passwordStatus, setPasswordStatus] = useState<{ type: 'idle' | 'working' | 'success' | 'error'; message?: string }>({
     type: 'idle'
@@ -68,6 +71,25 @@ export function AccountPage({
     copy.access.passwordWeak,
     newPassword
   ]);
+
+  useEffect(() => {
+    let active = true;
+    const loadProfile = async () => {
+      try {
+        await issueCsrf();
+        const profile = await getProfile();
+        if (!active) return;
+        onLoginIdChange(profile.loginId);
+        setNickname(profile.displayName ?? '');
+      } catch {
+        if (!active) return;
+      }
+    };
+    loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [onLoginIdChange]);
 
   const scrollToSection = (id: string) => {
     const target = document.getElementById(id);
@@ -104,6 +126,7 @@ export function AccountPage({
 
     setPasswordStatus({ type: 'working', message: copy.account.passwordWorking });
     try {
+      await issueCsrf();
       await changePasswordWithPassword({
         loginId,
         currentPassword,
@@ -113,6 +136,7 @@ export function AccountPage({
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setPasswordOpen(false);
     } catch {
       setPasswordStatus({ type: 'error', message: copy.account.passwordError });
     }
@@ -125,6 +149,7 @@ export function AccountPage({
       const response = await updateProfile({ displayName: nickname || null });
       setNickname(response.displayName ?? '');
       setNicknameStatus({ type: 'success', message: copy.account.nicknameSuccess });
+      setNicknameOpen(false);
     } catch {
       setNicknameStatus({ type: 'error', message: copy.account.nicknameError });
     }
@@ -137,9 +162,17 @@ export function AccountPage({
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
         </button>
         <LanguageSelect value={language} onChange={onLanguageChange} />
-        <button type="button" className="ghost" onClick={() => onNavigate('home')}>
-          {copy.nav.home}
-        </button>
+        <AuthAction
+          copy={copy}
+          label={copy.nav.account}
+          isAuthenticated
+          secureMode={secureMode}
+          onLogin={() => onNavigate('home')}
+          onProfileNavigate={() => {}}
+          onToggleSecureMode={onToggleSecureMode}
+          onLogout={onLogout}
+          variant="ghost"
+        />
       </header>
       <main className="account-main">
         <div className="account-shell">
@@ -165,21 +198,32 @@ export function AccountPage({
 
             <section className="account-card" id="profile">
               <h3>{copy.account.sections.profile}</h3>
-              <form className="account-form" onSubmit={handleNicknameSubmit}>
-                <label>
-                  {copy.account.nicknameLabel}
-                  <input
-                    type="text"
-                    value={nickname}
-                    onChange={(event) => setNickname(event.target.value)}
-                    placeholder={copy.account.nicknamePlaceholder}
-                  />
-                </label>
-                <p className="hint">{copy.account.nicknameHint}</p>
-                <button type="submit" className="ghost">
-                  {copy.account.nicknameAction}
+              <div className="account-row">
+                <div>
+                  <strong>{copy.account.nicknameLabel}</strong>
+                  <p className="note">{nickname || copy.account.nicknamePlaceholder}</p>
+                </div>
+                <button type="button" className="ghost" onClick={() => setNicknameOpen((prev) => !prev)}>
+                  {copy.account.nicknameToggle}
                 </button>
-              </form>
+              </div>
+              {nicknameOpen && (
+                <form className="account-form" onSubmit={handleNicknameSubmit}>
+                  <label>
+                    {copy.account.nicknameLabel}
+                    <input
+                      type="text"
+                      value={nickname}
+                      onChange={(event) => setNickname(event.target.value)}
+                      placeholder={copy.account.nicknamePlaceholder}
+                    />
+                  </label>
+                  <p className="hint">{copy.account.nicknameHint}</p>
+                  <button type="submit" className="ghost">
+                    {copy.account.nicknameAction}
+                  </button>
+                </form>
+              )}
               {nicknameStatus.type !== 'idle' && (
                 <div className={`status ${nicknameStatus.type === 'working' ? '' : nicknameStatus.type}`}>
                   <strong>{copy.access.statusTitle}</strong>
@@ -190,46 +234,46 @@ export function AccountPage({
 
             <section className="account-card" id="security">
               <h3>{copy.account.sections.security}</h3>
-              <form className="account-form" onSubmit={handlePasswordSubmit}>
-                <label>
-                  {copy.account.loginIdLabel}
-                  <input
-                    type="text"
-                    value={loginId}
-                    placeholder={copy.access.loginId}
-                    readOnly
-                  />
-                </label>
-                <p className="hint">{copy.account.loginIdHint}</p>
-                <label>
-                  {copy.account.currentPassword}
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                  />
-                </label>
-                <label>
-                  {copy.account.newPassword}
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                  />
-                </label>
-                {passwordHint && <span className="hint">{passwordHint}</span>}
-                <label>
-                  {copy.account.confirmPassword}
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                  />
-                </label>
-                <button type="submit" className="cta">
-                  {copy.account.passwordAction}
-                </button>
-              </form>
+              <div className="account-readonly">
+                <strong>{copy.account.loginIdLabel}</strong>
+                <span>{loginId}</span>
+              </div>
+              <p className="hint">{copy.account.loginIdHint}</p>
+              <button type="button" className="ghost" onClick={() => setPasswordOpen((prev) => !prev)}>
+                {copy.account.passwordToggle}
+              </button>
+              {passwordOpen && (
+                <form className="account-form" onSubmit={handlePasswordSubmit}>
+                  <label>
+                    {copy.account.currentPassword}
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {copy.account.newPassword}
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                    />
+                  </label>
+                  {passwordHint && <span className="hint">{passwordHint}</span>}
+                  <label>
+                    {copy.account.confirmPassword}
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                    />
+                  </label>
+                  <button type="submit" className="cta">
+                    {copy.account.passwordAction}
+                  </button>
+                </form>
+              )}
               {passwordStatus.type !== 'idle' && (
                 <div className={`status ${passwordStatus.type}`}>
                   <strong>{copy.access.statusTitle}</strong>
@@ -260,20 +304,3 @@ export function AccountPage({
     </div>
   );
 }
-  useEffect(() => {
-    let active = true;
-    const loadProfile = async () => {
-      try {
-        const profile = await getProfile();
-        if (!active) return;
-        onLoginIdChange(profile.loginId);
-        setNickname(profile.displayName ?? '');
-      } catch {
-        if (!active) return;
-      }
-    };
-    loadProfile();
-    return () => {
-      active = false;
-    };
-  }, [onLoginIdChange]);
