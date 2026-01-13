@@ -12,6 +12,7 @@ import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 import { ParishPage } from './pages/parish/ParishPage';
 import { CogitaPage } from './pages/cogita/CogitaPage';
+import { AccountPage } from './pages/account/AccountPage';
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
 const languages = ['pl', 'en', 'de'] as const;
@@ -42,6 +43,7 @@ export default function App() {
   const t = copy[language];
   const lastHomePathRef = useRef('/section-1');
   const panelTouchRef = useRef<number | null>(null);
+  const isAuthenticated = Boolean(session);
 
   const pathname = location.pathname;
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
@@ -72,9 +74,14 @@ export default function App() {
       return;
     }
 
-    const check = checkPasswordStrength(password);
+    const check = checkPasswordStrength(password, {
+      tooShort: t.access.passwordTooShort,
+      common: t.access.passwordCommon,
+      weak: t.access.passwordWeak,
+      strong: t.access.passwordStrong
+    });
     setPasswordHint(check.message);
-  }, [password]);
+  }, [password, t.access.passwordCommon, t.access.passwordStrong, t.access.passwordTooShort, t.access.passwordWeak]);
 
   useEffect(() => {
     if (!loginId || mode !== 'register') {
@@ -111,6 +118,13 @@ export default function App() {
     setLoginCardOpen(true);
   };
 
+  const closeLoginCard = () => {
+    setLoginCardOpen(false);
+    if (pathname === '/account' && !session) {
+      navigate(lastHomePathRef.current || '/section-1');
+    }
+  };
+
   async function handleRegister(event: React.FormEvent) {
     event.preventDefault();
     resetStatus();
@@ -121,7 +135,12 @@ export default function App() {
         return;
       }
 
-      const strength = checkPasswordStrength(password);
+      const strength = checkPasswordStrength(password, {
+        tooShort: t.access.passwordTooShort,
+        common: t.access.passwordCommon,
+        weak: t.access.passwordWeak,
+        strong: t.access.passwordStrong
+      });
       if (!strength.ok) {
         setStatus({ type: 'error', message: strength.message });
         return;
@@ -145,9 +164,13 @@ export default function App() {
         displayName: displayName || undefined
       });
 
+      setStatus({ type: 'success', message: t.access.statusReady });
       setMode('login');
     } catch (error) {
-      const message = error instanceof Error ? error.message : t.access.registerError;
+      const message =
+        error instanceof Error && error.message === 'Login ID is already in use.'
+          ? t.access.loginTaken
+          : t.access.registerError;
       setStatus({ type: 'error', message });
     }
   }
@@ -169,9 +192,9 @@ export default function App() {
         secureMode,
         deviceInfo
       });
+      setStatus({ type: 'success', message: t.access.statusReady });
     } catch (error) {
-      const message = error instanceof Error ? error.message : t.access.loginError;
-      setStatus({ type: 'error', message });
+      setStatus({ type: 'error', message: t.access.loginError });
     }
   }
 
@@ -200,6 +223,21 @@ export default function App() {
       lastHomePathRef.current = pathname === '/' ? '/section-1' : pathname;
     }
   }, [isHomePath, pathname]);
+
+  useEffect(() => {
+    if (pathname === '/account' && !session) {
+      openLoginCard('account');
+    }
+  }, [pathname, session]);
+
+  useEffect(() => {
+    if (pathname === '/account' && session && loginCardOpen && loginCardContext === 'account') {
+      setLoginCardOpen(false);
+    }
+  }, [loginCardContext, loginCardOpen, pathname, session]);
+
+  const homeAuthLabel = isAuthenticated ? t.nav.account : t.nav.login;
+  const homeHeroLabel = isAuthenticated ? t.nav.account : t.hero.ctaPrimary;
 
   const openPanel = (next: PanelType) => {
     if (!next) return;
@@ -241,6 +279,15 @@ export default function App() {
           onLanguageChange={setLanguage}
           onNavigate={navigateRoute}
           onOpenPanel={openPanel}
+          onAuthAction={() => {
+            if (isAuthenticated) {
+              navigateRoute('account');
+            } else {
+              openPanel('login');
+            }
+          }}
+          authLabel={homeAuthLabel}
+          authCtaLabel={homeHeroLabel}
           panelOpen={panel !== null}
           activeSectionId={sectionFromPath}
           onSectionChange={(nextSection) => {
@@ -257,7 +304,14 @@ export default function App() {
       {pathname === '/parish' && (
         <ParishPage
           copy={t}
-          onLogin={() => openLoginCard('parish')}
+          onAuthAction={() => {
+            if (isAuthenticated) {
+              navigateRoute('account');
+            } else {
+              openLoginCard('parish');
+            }
+          }}
+          authLabel={isAuthenticated ? t.nav.account : t.parish.loginCta}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
@@ -266,7 +320,22 @@ export default function App() {
       {pathname === '/cogita' && (
         <CogitaPage
           copy={t}
-          onLogin={() => openLoginCard('cogita')}
+          onAuthAction={() => {
+            if (isAuthenticated) {
+              navigateRoute('account');
+            } else {
+              openLoginCard('cogita');
+            }
+          }}
+          authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+          onNavigate={navigateRoute}
+          language={language}
+          onLanguageChange={setLanguage}
+        />
+      )}
+      {pathname === '/account' && session && (
+        <AccountPage
+          copy={t}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
@@ -324,6 +393,7 @@ export default function App() {
                   onToggleMode={handleToggleMode}
                   onLogout={handleLogout}
                   sessionInfo={sessionInfo}
+                  showSessionActions={Boolean(session)}
                 />
               )}
             </div>
@@ -334,7 +404,7 @@ export default function App() {
       <LoginCard
         copy={t}
         open={loginCardOpen}
-        onClose={() => setLoginCardOpen(false)}
+        onClose={closeLoginCard}
         context={loginCardContext}
         mode={mode}
         onModeChange={setMode}

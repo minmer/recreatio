@@ -70,6 +70,8 @@ export function LoginCard({
       ? copy.parish.title
       : context === 'cogita'
         ? copy.cogita.title
+        : context === 'account'
+          ? copy.account.title
         : copy.loginCard.contextDefault;
 
   return (

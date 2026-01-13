@@ -20,6 +20,9 @@ export function HomePage({
   onLanguageChange,
   onNavigate,
   onOpenPanel,
+  onAuthAction,
+  authLabel,
+  authCtaLabel,
   panelOpen,
   activeSectionId,
   onSectionChange
@@ -29,6 +32,9 @@ export function HomePage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   onNavigate: (route: RouteKey) => void;
   onOpenPanel: (panel: PanelType) => void;
+  onAuthAction: () => void;
+  authLabel: string;
+  authCtaLabel: string;
   panelOpen: boolean;
   activeSectionId?: string;
   onSectionChange?: (sectionId: string) => void;
@@ -50,8 +56,8 @@ export function HomePage({
         id: 'section-1',
         title: copy.hero.headline,
         text: copy.hero.subtitle,
-        ctaLabel: copy.hero.ctaPrimary,
-        ctaAction: () => onOpenPanel('login')
+        ctaLabel: authCtaLabel,
+        ctaAction: onAuthAction
       },
       {
         id: 'section-2',
@@ -84,7 +90,7 @@ export function HomePage({
         variant: 'secondary'
       }
     ];
-  }, [copy, onNavigate, onOpenPanel]);
+  }, [authCtaLabel, copy, onAuthAction, onNavigate, onOpenPanel]);
 
   const initialIndex = useMemo(() => {
     const id = activeSectionId ?? 'section-1';
@@ -195,8 +201,8 @@ export function HomePage({
         </nav>
         <div className="home-actions">
           <LanguageSelect value={language} onChange={onLanguageChange} />
-          <button type="button" className="cta" onClick={() => onOpenPanel('login')}>
-            {copy.nav.login}
+          <button type="button" className="cta" onClick={onAuthAction}>
+            {authLabel}
           </button>
         </div>
       </header>

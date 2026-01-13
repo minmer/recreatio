@@ -73,10 +73,12 @@ export function AuthPanel({
         compact={compact}
       />
 
-      <div className={`status ${status.type}`}>
-        <strong>{copy.access.statusTitle}</strong>
-        <span>{status.message ?? copy.access.statusReady}</span>
-      </div>
+      {status.type !== 'idle' && (
+        <div className={`status ${status.type}`}>
+          <strong>{copy.access.statusTitle}</strong>
+          <span>{status.message ?? copy.access.statusReady}</span>
+        </div>
+      )}
 
       {showSessionActions && onCheckSession && onToggleMode && onLogout && (
         <div className="session-actions">

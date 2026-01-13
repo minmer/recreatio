@@ -4,13 +4,15 @@ import { LanguageSelect } from '../../components/LanguageSelect';
 
 export function CogitaPage({
   copy,
-  onLogin,
+  onAuthAction,
+  authLabel,
   onNavigate,
   language,
   onLanguageChange
 }: {
   copy: Copy;
-  onLogin: () => void;
+  onAuthAction: () => void;
+  authLabel: string;
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
@@ -22,8 +24,8 @@ export function CogitaPage({
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
         </button>
         <LanguageSelect value={language} onChange={onLanguageChange} />
-        <button type="button" className="ghost portal-login" onClick={onLogin}>
-          {copy.cogita.loginCta}
+        <button type="button" className="ghost portal-login" onClick={onAuthAction}>
+          {authLabel}
         </button>
       </header>
       <main className="portal">
@@ -32,8 +34,8 @@ export function CogitaPage({
             <p className="tag">{copy.nav.cogita}</p>
             <h2>{copy.cogita.title}</h2>
             <p className="lead">{copy.cogita.subtitle}</p>
-            <button type="button" className="cta portal-login" onClick={onLogin}>
-              {copy.cogita.loginCta}
+            <button type="button" className="cta portal-login" onClick={onAuthAction}>
+              {authLabel}
             </button>
           </div>
           <div className="portal-card">
@@ -49,8 +51,8 @@ export function CogitaPage({
       </main>
       <footer className="portal-footer">
         <span>{copy.footer.headline}</span>
-        <button type="button" className="ghost" onClick={onLogin}>
-          {copy.cogita.loginCta}
+        <button type="button" className="ghost" onClick={onAuthAction}>
+          {authLabel}
         </button>
       </footer>
     </div>

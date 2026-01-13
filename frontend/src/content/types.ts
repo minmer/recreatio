@@ -44,6 +44,10 @@ export type Copy = {
     registerError: string;
     loginTaken: string;
     passwordMismatch: string;
+    passwordTooShort: string;
+    passwordCommon: string;
+    passwordWeak: string;
+    passwordStrong: string;
     loadingLogin: string;
     loadingRegister: string;
     sessionLabel: string;

@@ -19,13 +19,20 @@ export type PasswordCheck = {
   message: string;
 };
 
-export function checkPasswordStrength(password: string): PasswordCheck {
-  if (password.length < 12) {
-    return { ok: false, message: 'Use at least 12 characters.' };
+export type PasswordMessages = {
+  tooShort: string;
+  common: string;
+  weak: string;
+  strong: string;
+};
+
+export function checkPasswordStrength(password: string, messages: PasswordMessages): PasswordCheck {
+  if (password.length < 8) {
+    return { ok: false, message: messages.tooShort };
   }
 
   if (commonPasswords.has(password.toLowerCase())) {
-    return { ok: false, message: 'That password is too common.' };
+    return { ok: false, message: messages.common };
   }
 
   const hasUpper = /[A-Z]/.test(password);
@@ -35,8 +42,8 @@ export function checkPasswordStrength(password: string): PasswordCheck {
 
   const score = [hasUpper, hasLower, hasDigit, hasSymbol].filter(Boolean).length;
   if (score < 3) {
-    return { ok: false, message: 'Use a mix of upper, lower, number, and symbol.' };
+    return { ok: false, message: messages.weak };
   }
 
-  return { ok: true, message: 'Strong password.' };
+  return { ok: true, message: messages.strong };
 }

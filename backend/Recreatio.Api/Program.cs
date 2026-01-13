@@ -97,8 +97,15 @@ app.MapPost("/auth/register", async (RegisterRequest request, IAuthService authS
         return Results.Forbid();
     }
 
-    var userId = await authService.RegisterAsync(request, ct);
-    return Results.Ok(new { userId });
+    try
+    {
+        var userId = await authService.RegisterAsync(request, ct);
+        return Results.Ok(new { userId });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return MapAuthException(ex);
+    }
 }).RequireRateLimiting("auth");
 
 app.MapGet("/auth/salt", async (string loginId, IAuthService authService, CancellationToken ct) =>
@@ -120,24 +127,31 @@ app.MapPost("/auth/login", async (LoginRequest request, IAuthService authService
         return Results.Forbid();
     }
 
-    var response = await authService.LoginAsync(request, ct);
-    var claims = new[]
+    try
     {
-        new Claim("sub", response.UserId.ToString()),
-        new Claim("sid", response.SessionId)
-    };
-    var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-    await context.SignInAsync(
-        CookieAuthenticationDefaults.AuthenticationScheme,
-        new ClaimsPrincipal(identity),
-        new AuthenticationProperties
+        var response = await authService.LoginAsync(request, ct);
+        var claims = new[]
         {
-            IsPersistent = true,
-            ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(60)
-        });
+            new Claim("sub", response.UserId.ToString()),
+            new Claim("sid", response.SessionId)
+        };
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await context.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(60)
+            });
 
-    csrfService.IssueToken(context);
-    return Results.Ok(new { response.UserId, response.SessionId, response.SecureMode });
+        csrfService.IssueToken(context);
+        return Results.Ok(new { response.UserId, response.SessionId, response.SecureMode });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return MapAuthException(ex);
+    }
 }).RequireRateLimiting("auth");
 
 app.MapPost("/auth/password-change", async (PasswordChangeRequest request, IAuthService authService, ICsrfService csrfService, HttpContext context, CancellationToken ct) =>
@@ -152,8 +166,15 @@ app.MapPost("/auth/password-change", async (PasswordChangeRequest request, IAuth
         return Results.Forbid();
     }
 
-    await authService.ChangePasswordAsync(userId, request, ct);
-    return Results.Ok();
+    try
+    {
+        await authService.ChangePasswordAsync(userId, request, ct);
+        return Results.Ok();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return MapAuthException(ex);
+    }
 }).RequireAuthorization();
 
 app.MapPost("/auth/logout", async (HttpContext context, ISessionService sessionService, ICsrfService csrfService, CancellationToken ct) =>
@@ -213,4 +234,17 @@ static bool TryGetSessionId(HttpContext context, out string sessionId)
 {
     sessionId = context.User.FindFirst("sid")?.Value ?? string.Empty;
     return !string.IsNullOrWhiteSpace(sessionId);
+}
+
+static IResult MapAuthException(InvalidOperationException ex)
+{
+    return ex.Message switch
+    {
+        "LoginId already exists." => Results.Conflict(new { error = ex.Message }),
+        "Invalid credentials." => Results.Unauthorized(),
+        "Account not active." => Results.StatusCode(StatusCodes.Status403Forbidden),
+        "LoginId is required." => Results.BadRequest(new { error = ex.Message }),
+        "Account not found." => Results.NotFound(),
+        _ => Results.BadRequest(new { error = ex.Message })
+    };
 }
