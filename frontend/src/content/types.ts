@@ -129,8 +129,6 @@ export type Copy = {
       addToggle: string;
       nameLabel: string;
       namePlaceholder: string;
-      descriptionLabel: string;
-      descriptionPlaceholder: string;
       createAction: string;
       createWorking: string;
       createSuccess: string;

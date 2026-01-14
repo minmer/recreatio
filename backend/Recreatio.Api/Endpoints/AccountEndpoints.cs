@@ -168,15 +168,34 @@ public static class AccountEndpoints
                 return Results.BadRequest(new { error = "Duplicate field types are not allowed." });
             }
 
-            if (!normalized.Contains("name") || !normalized.Contains("description"))
+            if (!normalized.Contains("name"))
             {
-                return Results.BadRequest(new { error = "Fields 'name' and 'description' are required." });
+                return Results.BadRequest(new { error = "Field 'name' is required." });
             }
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
             var now = DateTimeOffset.UtcNow;
             var roleId = Guid.NewGuid();
             var roleKey = RandomNumberGenerator.GetBytes(32);
             var encryptedRoleKey = encryptionService.Encrypt(masterKey, roleKey, roleId.ToByteArray());
+
+            var role = new Role
+            {
+                Id = roleId,
+                RoleType = "Person",
+                EncryptedRoleBlob = Array.Empty<byte>(),
+                PublicSigningKey = string.IsNullOrWhiteSpace(request.PublicSigningKeyBase64)
+                    ? null
+                    : Convert.FromBase64String(request.PublicSigningKeyBase64),
+                PublicSigningKeyAlg = request.PublicSigningKeyAlg,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+
+            dbContext.Roles.Add(role);
+            await dbContext.SaveChangesAsync(ct);
+
             var roleKeyLedger = await ledgerService.AppendKeyAsync(
                 "RoleKeyCreated",
                 userId.ToString(),
@@ -194,21 +213,7 @@ public static class AccountEndpoints
                 LedgerRefId = roleKeyLedger.Id,
                 CreatedUtc = now
             });
-
-            var role = new Role
-            {
-                Id = roleId,
-                RoleType = "Person",
-                EncryptedRoleBlob = Array.Empty<byte>(),
-                PublicSigningKey = string.IsNullOrWhiteSpace(request.PublicSigningKeyBase64)
-                    ? null
-                    : Convert.FromBase64String(request.PublicSigningKeyBase64),
-                PublicSigningKeyAlg = request.PublicSigningKeyAlg,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            };
-
-            dbContext.Roles.Add(role);
+            await dbContext.SaveChangesAsync(ct);
 
             var personFields = new List<PersonField>();
             foreach (var field in fields)
@@ -241,6 +246,7 @@ public static class AccountEndpoints
                     CreatedUtc = now
                 };
                 dbContext.Keys.Add(keyEntry);
+                await dbContext.SaveChangesAsync(ct);
 
                 personFields.Add(new PersonField
                 {
@@ -252,9 +258,9 @@ public static class AccountEndpoints
                     CreatedUtc = now,
                     UpdatedUtc = now
                 });
+                dbContext.PersonFields.Add(personFields[^1]);
+                await dbContext.SaveChangesAsync(ct);
             }
-
-            dbContext.PersonFields.AddRange(personFields);
 
             var membershipLedger = await ledgerService.AppendKeyAsync(
                 "PersonMembershipCreated",
@@ -274,6 +280,7 @@ public static class AccountEndpoints
             });
 
             await dbContext.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
 
             var plainByField = fields
                 .GroupBy(req => req.FieldType.Trim().ToLowerInvariant())

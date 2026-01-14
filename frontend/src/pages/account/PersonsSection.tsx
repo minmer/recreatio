@@ -20,7 +20,6 @@ type PersonView = {
   publicSigningKeyAlg?: string | null;
   fields: PersonFieldResponse[];
   name: string;
-  description: string;
 };
 
 const updateFields = (fields: PersonFieldResponse[], updated: PersonFieldResponse) => {
@@ -44,8 +43,7 @@ const toPersonView = (person: PersonResponse, fallback: string, encryptedPlaceho
     publicSigningKeyBase64: person.publicSigningKeyBase64 ?? null,
     publicSigningKeyAlg: person.publicSigningKeyAlg ?? null,
     fields: person.fields,
-    name: getField('name'),
-    description: getField('description')
+    name: getField('name')
   };
 };
 
@@ -54,11 +52,9 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
   const [createStatus, setCreateStatus] = useState<Status>({ type: 'idle' });
   const [editPersonId, setEditPersonId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState<Status>({ type: 'idle' });
   const [accessOpenId, setAccessOpenId] = useState<string | null>(null);
   const [accessByPerson, setAccessByPerson] = useState<Record<string, PersonAccessResponse>>({});
@@ -116,7 +112,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     event.preventDefault();
     setCreateStatus({ type: 'idle' });
 
-    if (!createName.trim() || !createDescription.trim()) {
+    if (!createName.trim()) {
       setCreateStatus({ type: 'error', message: copy.account.persons.createMissing });
       return;
     }
@@ -129,10 +125,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
           {
             fieldType: 'name',
             plainValue: createName.trim()
-          },
-          {
-            fieldType: 'description',
-            plainValue: createDescription.trim()
           }
         ],
         publicSigningKeyBase64: null,
@@ -143,7 +135,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
       setPersons((prev) => [...prev, view]);
       setCreateStatus({ type: 'success', message: copy.account.persons.createSuccess });
       setCreateName('');
-      setCreateDescription('');
       setCreateOpen(false);
     } catch {
       setCreateStatus({ type: 'error', message: copy.account.persons.createError });
@@ -153,7 +144,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const startEdit = (person: PersonView) => {
     setEditPersonId(person.personRoleId);
     setEditName(person.name);
-    setEditDescription(person.description);
     setEditStatus({ type: 'idle' });
   };
 
@@ -164,8 +154,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     if (!person) return;
 
     const nextName = editName.trim();
-    const nextDescription = editDescription.trim();
-    if (!nextName || !nextDescription) {
+    if (!nextName) {
       setEditStatus({ type: 'error', message: copy.account.persons.createMissing });
       return;
     }
@@ -181,18 +170,11 @@ export function PersonsSection({ copy }: { copy: Copy }) {
         });
         updatedFields = updateFields(updatedFields, updated);
       }
-      if (nextDescription !== person.description) {
-        const updated = await updatePersonField(editPersonId, {
-          fieldType: 'description',
-          plainValue: nextDescription
-        });
-        updatedFields = updateFields(updatedFields, updated);
-      }
 
       setPersons((prev) =>
         prev.map((item) =>
           item.personRoleId === editPersonId
-            ? { ...item, fields: updatedFields, name: nextName, description: nextDescription }
+            ? { ...item, fields: updatedFields, name: nextName }
             : item
         )
       );
@@ -273,15 +255,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
               placeholder={copy.account.persons.namePlaceholder}
             />
           </label>
-          <label>
-            {copy.account.persons.descriptionLabel}
-            <input
-              type="text"
-              value={createDescription}
-              onChange={(event) => setCreateDescription(event.target.value)}
-              placeholder={copy.account.persons.descriptionPlaceholder}
-            />
-          </label>
           <button type="submit" className="cta">
             {copy.account.persons.createAction}
           </button>
@@ -312,7 +285,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
               <div className="person-header">
                 <div className="person-meta">
                   <strong>{person.name}</strong>
-                  <span className="note">{person.description}</span>
                 </div>
                 <div className="person-actions">
                   <button type="button" className="ghost" onClick={() => startEdit(person)}>
@@ -332,14 +304,6 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                       type="text"
                       value={editName}
                       onChange={(event) => setEditName(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    {copy.account.persons.descriptionLabel}
-                    <input
-                      type="text"
-                      value={editDescription}
-                      onChange={(event) => setEditDescription(event.target.value)}
                     />
                   </label>
                   <div className="person-actions">
