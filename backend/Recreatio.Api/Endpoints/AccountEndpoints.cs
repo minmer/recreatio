@@ -70,24 +70,25 @@ public static class AccountEndpoints
                 return Results.Unauthorized();
             }
 
-            var memberRoleIds = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-
-            var personRoles = await dbContext.Roles.AsNoTracking()
-                .Where(x => memberRoleIds.Contains(x.Id) && x.RoleType == "Person")
-                .ToListAsync(ct);
+            var personRoles = await (
+                from role in dbContext.Roles.AsNoTracking()
+                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
+                where membership.UserId == userId && role.RoleType == "Person"
+                select role
+            ).Distinct().ToListAsync(ct);
 
             if (personRoles.Count == 0)
             {
                 return Results.Ok(new List<PersonResponse>());
             }
 
-            var personRoleIds = personRoles.Select(x => x.Id).ToList();
-            var fields = await dbContext.PersonFields.AsNoTracking()
-                .Where(x => personRoleIds.Contains(x.PersonRoleId))
-                .ToListAsync(ct);
+            var fields = await (
+                from field in dbContext.PersonFields.AsNoTracking()
+                join role in dbContext.Roles.AsNoTracking() on field.PersonRoleId equals role.Id
+                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
+                where membership.UserId == userId && role.RoleType == "Person"
+                select field
+            ).ToListAsync(ct);
 
             RoleKeyRing keyRing;
             try
@@ -99,12 +100,22 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            var dataKeyIds = fields.Select(x => x.DataKeyId).Distinct().ToList();
-            var keyEntries = dataKeyIds.Count == 0
-                ? new List<KeyEntry>()
-                : await dbContext.Keys.AsNoTracking()
-                    .Where(x => dataKeyIds.Contains(x.Id))
-                    .ToListAsync(ct);
+            List<KeyEntry> keyEntries;
+            if (fields.Count == 0)
+            {
+                keyEntries = new List<KeyEntry>();
+            }
+            else
+            {
+                keyEntries = await (
+                    from key in dbContext.Keys.AsNoTracking()
+                    join field in dbContext.PersonFields.AsNoTracking() on key.Id equals field.DataKeyId
+                    join role in dbContext.Roles.AsNoTracking() on field.PersonRoleId equals role.Id
+                    join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
+                    where membership.UserId == userId && role.RoleType == "Person"
+                    select key
+                ).Distinct().ToListAsync(ct);
+            }
             var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
 
             var fieldsByRole = fields.GroupBy(x => x.PersonRoleId)
@@ -439,20 +450,27 @@ public static class AccountEndpoints
                 .Where(x => x.RoleId == roleId)
                 .ToListAsync(ct);
 
-            var memberUserIds = memberships.Select(x => x.UserId).Distinct().ToList();
-            var users = await dbContext.UserAccounts.AsNoTracking()
-                .Where(x => memberUserIds.Contains(x.Id))
-                .ToListAsync(ct);
+            var users = await (
+                from user in dbContext.UserAccounts.AsNoTracking()
+                join membership in dbContext.Memberships.AsNoTracking() on user.Id equals membership.UserId
+                where membership.RoleId == roleId
+                select user
+            ).Distinct().ToListAsync(ct);
 
-            var userRoleMemberships = await dbContext.Memberships.AsNoTracking()
-                .Where(x => memberUserIds.Contains(x.UserId))
-                .ToListAsync(ct);
+            var userRoleMemberships = await (
+                from membership in dbContext.Memberships.AsNoTracking()
+                join roleMembership in dbContext.Memberships.AsNoTracking().Where(x => x.RoleId == roleId)
+                    on membership.UserId equals roleMembership.UserId
+                select membership
+            ).ToListAsync(ct);
 
-            var roleIds = userRoleMemberships.Select(x => x.RoleId).Distinct().ToList();
-            var roles = await dbContext.Roles.AsNoTracking()
-                .Where(x => roleIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.RoleType })
-                .ToListAsync(ct);
+            var roles = await (
+                from role in dbContext.Roles.AsNoTracking()
+                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
+                join roleMembership in dbContext.Memberships.AsNoTracking().Where(x => x.RoleId == roleId)
+                    on membership.UserId equals roleMembership.UserId
+                select new { role.Id, role.RoleType }
+            ).Distinct().ToListAsync(ct);
 
             var rolesById = roles.ToDictionary(x => x.Id, x => x.RoleType);
             var rolesByUser = userRoleMemberships.GroupBy(x => x.UserId)
