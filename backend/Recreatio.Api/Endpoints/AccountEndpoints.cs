@@ -58,27 +58,107 @@ public static class AccountEndpoints
             return Results.Ok(new ProfileResponse(account.LoginId, account.DisplayName));
         });
 
-        group.MapGet("/roles/lookup", async (string? loginId, HttpContext context, RecreatioDbContext dbContext, CancellationToken ct) =>
+        group.MapGet("/roles/search", async (string? query, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
         {
-            if (!EndpointHelpers.TryGetUserId(context, out _))
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
                 return Results.Unauthorized();
             }
 
-            if (string.IsNullOrWhiteSpace(loginId))
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
-                return Results.BadRequest(new { error = "LoginId is required." });
+                return Results.Unauthorized();
             }
 
-            var normalized = loginId.Trim();
-            var account = await dbContext.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.LoginId == normalized, ct);
-            if (account is null)
+            if (string.IsNullOrWhiteSpace(query))
             {
-                return Results.NotFound();
+                return Results.BadRequest(new { error = "Query is required." });
             }
 
-            return Results.Ok(new RoleLookupResponse(account.Id, account.LoginId, account.DisplayName, account.MasterRoleId));
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var nickFields = await dbContext.RoleFields.AsNoTracking()
+                .Where(x => x.FieldType == "nick")
+                .ToListAsync(ct);
+
+            List<KeyEntry> keyEntries;
+            if (nickFields.Count == 0)
+            {
+                keyEntries = new List<KeyEntry>();
+            }
+            else
+            {
+                keyEntries = await (
+                    from key in dbContext.Keys.AsNoTracking()
+                    join field in dbContext.RoleFields.AsNoTracking() on key.Id equals field.DataKeyId
+                    where field.FieldType == "nick"
+                    select key
+                ).Distinct().ToListAsync(ct);
+            }
+
+            var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
+            var normalized = query.Trim();
+            var matchedRoles = new List<(Guid RoleId, string Nick)>();
+
+            foreach (var field in nickFields)
+            {
+                if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
+                {
+                    continue;
+                }
+
+                if (!keyEntryById.TryGetValue(field.DataKeyId, out var keyEntry) || keyEntry.KeyType != KeyType.DataKey)
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                var plain = keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
+                if (string.IsNullOrWhiteSpace(plain))
+                {
+                    continue;
+                }
+
+                if (!plain.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                matchedRoles.Add((field.RoleId, plain));
+            }
+
+            if (matchedRoles.Count == 0)
+            {
+                return Results.Ok(new List<RoleSearchResponse>());
+            }
+
+            var roleTypes = await dbContext.Roles.AsNoTracking()
+                .Select(x => new { x.Id, x.RoleType })
+                .ToListAsync(ct);
+
+            var roleTypeById = roleTypes.ToDictionary(x => x.Id, x => x.RoleType);
+            var matches = matchedRoles
+                .Select(item => new RoleSearchResponse(item.RoleId, roleTypeById.GetValueOrDefault(item.RoleId, "Unknown"), item.Nick))
+                .ToList();
+
+            return Results.Ok(matches);
         });
 
         group.MapGet("/persons", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
@@ -202,9 +282,9 @@ public static class AccountEndpoints
                 return Results.BadRequest(new { error = "Duplicate field types are not allowed." });
             }
 
-            if (!normalized.Contains("name"))
+            if (!normalized.Contains("nick"))
             {
-                return Results.BadRequest(new { error = "Field 'name' is required." });
+                return Results.BadRequest(new { error = "Field 'nick' is required." });
             }
 
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);

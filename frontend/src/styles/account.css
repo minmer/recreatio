@@ -196,6 +196,15 @@
   flex-wrap: wrap;
 }
 
+.person-data-item .note {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.person-data-item strong {
+  display: block;
+}
+
 .person-access {
   margin-top: 0.4rem;
   border: 1px solid var(--line);

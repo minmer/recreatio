@@ -156,6 +156,7 @@ export type Copy = {
       dataSuccess: string;
       dataError: string;
       dataMissing: string;
+      dataNickReserved: string;
       accessToggle: string;
       accessTitle: string;
       accessRefresh: string;

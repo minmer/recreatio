@@ -7,13 +7,14 @@ import {
   getPendingRoleShares,
   getPersons,
   issueCsrf,
-  lookupRoleByLogin,
+  searchRolesByNick,
   sharePersonRole,
   updatePersonField,
   type PendingRoleShareResponse,
   type PersonAccessResponse,
   type PersonFieldResponse,
-  type PersonResponse
+  type PersonResponse,
+  type RoleSearchResponse
 } from '../../lib/api';
 
 type Status = { type: 'idle' | 'working' | 'success' | 'error'; message?: string };
@@ -47,7 +48,7 @@ const toPersonView = (person: PersonResponse, fallback: string, encryptedPlaceho
     publicSigningKeyBase64: person.publicSigningKeyBase64 ?? null,
     publicSigningKeyAlg: person.publicSigningKeyAlg ?? null,
     fields: person.fields,
-    name: getField('name')
+    name: getField('nick')
   };
 };
 
@@ -64,7 +65,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const [accessByPerson, setAccessByPerson] = useState<Record<string, PersonAccessResponse>>({});
   const [accessStatus, setAccessStatus] = useState<Record<string, Status>>({});
   const [memberInputs, setMemberInputs] = useState<
-    Record<string, { targetRoleId: string; relationshipType: string; lookupLoginId: string }>
+    Record<string, { targetRoleId: string; relationshipType: string; lookupNick: string }>
   >({});
   const [memberStatus, setMemberStatus] = useState<Record<string, Status>>({});
   const [dataInputs, setDataInputs] = useState<
@@ -73,6 +74,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const [dataStatus, setDataStatus] = useState<Record<string, Status>>({});
   const [pendingByRole, setPendingByRole] = useState<Record<string, PendingRoleShareResponse[]>>({});
   const [pendingStatus, setPendingStatus] = useState<Status>({ type: 'idle' });
+  const [searchResults, setSearchResults] = useState<Record<string, RoleSearchResponse[]>>({});
 
   const relationshipOptions = useMemo(
     () => [
@@ -143,7 +145,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
       const response = await createPerson({
         fields: [
           {
-            fieldType: 'name',
+            fieldType: 'nick',
             plainValue: createName.trim()
           }
         ],
@@ -185,7 +187,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
       let updatedFields = person.fields;
       if (nextName !== person.name) {
         const updated = await updatePersonField(editPersonId, {
-          fieldType: 'name',
+          fieldType: 'nick',
           plainValue: nextName
         });
         updatedFields = updateFields(updatedFields, updated);
@@ -221,7 +223,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     const input = memberInputs[personRoleId] ?? {
       targetRoleId: '',
       relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
-      lookupLoginId: ''
+      lookupNick: ''
     };
     if (!input.targetRoleId.trim()) {
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.memberMissing } }));
@@ -239,7 +241,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'success', message: copy.account.persons.memberSuccess } }));
       setMemberInputs((prev) => ({
         ...prev,
-        [personRoleId]: { ...input, targetRoleId: '', lookupLoginId: '' }
+        [personRoleId]: { ...input, targetRoleId: '', lookupNick: '' }
       }));
       if (accessOpenId === personRoleId) {
         await refreshAccess(personRoleId);
@@ -279,6 +281,10 @@ export function PersonsSection({ copy }: { copy: Copy }) {
       setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.dataMissing } }));
       return;
     }
+    if (fieldType.toLowerCase() === 'nick') {
+      setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.dataNickReserved } }));
+      return;
+    }
 
     setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'working', message: copy.account.persons.dataWorking } }));
     try {
@@ -310,10 +316,10 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     const input = memberInputs[personRoleId] ?? {
       targetRoleId: '',
       relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
-      lookupLoginId: ''
+      lookupNick: ''
     };
-    const loginId = input.lookupLoginId.trim();
-    if (!loginId) {
+    const nick = input.lookupNick.trim();
+    if (!nick) {
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.lookupMissing } }));
       return;
     }
@@ -321,15 +327,21 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'working', message: copy.account.persons.lookupWorking } }));
     try {
       await issueCsrf();
-      const result = await lookupRoleByLogin(loginId);
-      setMemberInputs((prev) => ({
-        ...prev,
-        [personRoleId]: {
-          ...input,
-          targetRoleId: result.masterRoleId,
-          lookupLoginId: loginId
-        }
-      }));
+      const results = await searchRolesByNick(nick);
+      setSearchResults((prev) => ({ ...prev, [personRoleId]: results }));
+      if (results.length === 1) {
+        setMemberInputs((prev) => ({
+          ...prev,
+          [personRoleId]: {
+            ...input,
+            targetRoleId: results[0].roleId
+          }
+        }));
+      }
+      if (results.length === 0) {
+        setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.lookupError } }));
+        return;
+      }
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'success', message: copy.account.persons.lookupSuccess } }));
     } catch {
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.lookupError } }));
@@ -378,7 +390,7 @@ export function PersonsSection({ copy }: { copy: Copy }) {
           const input = memberInputs[person.personRoleId] ?? {
             targetRoleId: '',
             relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
-            lookupLoginId: ''
+            lookupNick: ''
           };
           const memberState = memberStatus[person.personRoleId];
           const dataInput = dataInputs[person.personRoleId] ?? { fieldType: '', value: '', dataKeyId: null };
@@ -431,10 +443,14 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                 <div className="account-row">
                   <strong>{copy.account.persons.dataTitle}</strong>
                 </div>
-                {person.fields.length === 0 && <p className="hint">{copy.account.persons.dataEmpty}</p>}
-                {person.fields.length > 0 && (
+                {person.fields.filter((field) => field.fieldType !== 'nick').length === 0 && (
+                  <p className="hint">{copy.account.persons.dataEmpty}</p>
+                )}
+                {person.fields.filter((field) => field.fieldType !== 'nick').length > 0 && (
                   <div className="person-data-list">
-                    {person.fields.map((field) => (
+                    {person.fields
+                      .filter((field) => field.fieldType !== 'nick')
+                      .map((field) => (
                       <div className="person-data-item" key={field.fieldType}>
                         <div>
                           <span className="note">{field.fieldType}</span>
@@ -562,11 +578,11 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                       {copy.account.persons.lookupLabel}
                       <input
                         type="text"
-                        value={input.lookupLoginId}
+                        value={input.lookupNick}
                         onChange={(event) =>
                           setMemberInputs((prev) => ({
                             ...prev,
-                            [person.personRoleId]: { ...input, lookupLoginId: event.target.value }
+                            [person.personRoleId]: { ...input, lookupNick: event.target.value }
                           }))
                         }
                         placeholder={copy.account.persons.lookupPlaceholder}
@@ -579,6 +595,25 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                     >
                       {copy.account.persons.lookupAction}
                     </button>
+                    {searchResults[person.personRoleId]?.length ? (
+                      <div className="person-members">
+                        {searchResults[person.personRoleId].map((result) => (
+                          <button
+                            key={result.roleId}
+                            type="button"
+                            className="ghost"
+                            onClick={() =>
+                              setMemberInputs((prev) => ({
+                                ...prev,
+                                [person.personRoleId]: { ...input, targetRoleId: result.roleId }
+                              }))
+                            }
+                          >
+                            {result.nick} · {result.roleType}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     <label>
                       {copy.account.persons.memberRoleLabel}
                       <input

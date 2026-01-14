@@ -68,11 +68,10 @@ public sealed record PendingRoleShareAcceptRequest(
     string? SignatureBase64
 );
 
-public sealed record RoleLookupResponse(
-    Guid UserId,
-    string LoginId,
-    string? DisplayName,
-    Guid MasterRoleId
+public sealed record RoleSearchResponse(
+    Guid RoleId,
+    string RoleType,
+    string Nick
 );
 
 public sealed record RecoveryShareRequest(

@@ -243,12 +243,15 @@ export function acceptRoleShare(shareId: string, payload: { signatureBase64?: st
   });
 }
 
-export function lookupRoleByLogin(loginId: string) {
-  const params = new URLSearchParams({ loginId });
-  return request<{ userId: string; loginId: string; displayName?: string | null; masterRoleId: string }>(
-    `/account/roles/lookup?${params.toString()}`,
-    { method: 'GET' }
-  );
+export type RoleSearchResponse = {
+  roleId: string;
+  roleType: string;
+  nick: string;
+};
+
+export function searchRolesByNick(query: string) {
+  const params = new URLSearchParams({ query });
+  return request<RoleSearchResponse[]>(`/account/roles/search?${params.toString()}`, { method: 'GET' });
 }
 
 export function shareRecovery(roleId: string, payload: {
