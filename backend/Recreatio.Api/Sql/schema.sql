@@ -1,22 +1,19 @@
--- ReCreatio initial schema (SQL Server)
--- Replace database name if needed before executing.
+-- ReCreatio schema (fresh install)
+-- Drops all known tables and recreates the schema from scratch.
 
-IF DB_ID(N'minmer_zap_25') IS NULL
-BEGIN
-    CREATE DATABASE [minmer_zap_25];
-END
-GO
+SET NOCOUNT ON;
 
-USE [minmer_zap_25];
-GO
-
-IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
-IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL DROP TABLE dbo.Roles;
+IF OBJECT_ID(N'dbo.RoleRecoveryApprovals', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryApprovals;
+IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryRequests;
+IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
+IF OBJECT_ID(N'dbo.PersonFields', N'U') IS NOT NULL DROP TABLE dbo.PersonFields;
+IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
-IF OBJECT_ID(N'dbo.Keys', N'U') IS NOT NULL DROP TABLE dbo.Keys;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
 IF OBJECT_ID(N'dbo.Sessions', N'U') IS NOT NULL DROP TABLE dbo.Sessions;
-IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
+IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
+IF OBJECT_ID(N'dbo.Keys', N'U') IS NOT NULL DROP TABLE dbo.Keys;
+IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL DROP TABLE dbo.Roles;
 IF OBJECT_ID(N'dbo.AuthLedger', N'U') IS NOT NULL DROP TABLE dbo.AuthLedger;
 IF OBJECT_ID(N'dbo.KeyLedger', N'U') IS NOT NULL DROP TABLE dbo.KeyLedger;
 IF OBJECT_ID(N'dbo.BusinessLedger', N'U') IS NOT NULL DROP TABLE dbo.BusinessLedger;
@@ -27,6 +24,8 @@ CREATE TABLE dbo.Roles
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     RoleType NVARCHAR(128) NOT NULL,
     EncryptedRoleBlob VARBINARY(MAX) NOT NULL,
+    PublicSigningKey VARBINARY(MAX) NULL,
+    PublicSigningKeyAlg NVARCHAR(64) NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL
 );
@@ -37,8 +36,8 @@ CREATE TABLE dbo.UserAccounts
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     LoginId NVARCHAR(256) NOT NULL,
     DisplayName NVARCHAR(128) NULL,
-    UserSalt VARBINARY(512) NOT NULL,
-    StoredH4 VARBINARY(64) NOT NULL,
+    UserSalt VARBINARY(MAX) NOT NULL,
+    StoredH4 VARBINARY(MAX) NOT NULL,
     State INT NOT NULL,
     FailedLoginCount INT NOT NULL,
     LockedUntilUtc DATETIMEOFFSET NULL,
@@ -58,6 +57,7 @@ CREATE TABLE dbo.RoleEdges
     ParentRoleId UNIQUEIDENTIFIER NOT NULL,
     ChildRoleId UNIQUEIDENTIFIER NOT NULL,
     RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
@@ -153,10 +153,73 @@ CREATE TABLE dbo.SharedViews
     OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
     ViewRoleId UNIQUEIDENTIFIER NOT NULL,
     EncViewRoleKey VARBINARY(MAX) NOT NULL,
-    SharedViewSecretHash VARBINARY(64) NOT NULL,
+    SharedViewSecretHash VARBINARY(MAX) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     RevokedUtc DATETIMEOFFSET NULL,
     CONSTRAINT FK_SharedViews_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_SharedViews_ViewRole FOREIGN KEY (ViewRoleId) REFERENCES dbo.Roles(Id)
 );
+GO
+
+CREATE TABLE dbo.PersonFields
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    PersonRoleId UNIQUEIDENTIFIER NOT NULL,
+    FieldType NVARCHAR(64) NOT NULL,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedValue VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_PersonFields_Role FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_PersonFields_Key FOREIGN KEY (DataKeyId) REFERENCES dbo.Keys(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_PersonFields_Role_FieldType ON dbo.PersonFields(PersonRoleId, FieldType);
+GO
+
+CREATE TABLE dbo.RoleRecoveryShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    SharedWithRoleId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedShareBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    RevokedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_RoleRecoveryShares_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleRecoveryShares_SharedWithRole FOREIGN KEY (SharedWithRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_RoleRecoveryShares_Target_SharedWith ON dbo.RoleRecoveryShares(TargetRoleId, SharedWithRoleId);
+GO
+
+CREATE TABLE dbo.RoleRecoveryRequests
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    InitiatorRoleId UNIQUEIDENTIFIER NOT NULL,
+    Status NVARCHAR(32) NOT NULL,
+    RequiredApprovals INT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CanceledUtc DATETIMEOFFSET NULL,
+    CompletedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_RoleRecoveryRequests_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleRecoveryRequests_InitiatorRole FOREIGN KEY (InitiatorRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE TABLE dbo.RoleRecoveryApprovals
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    RequestId UNIQUEIDENTIFIER NOT NULL,
+    ApproverRoleId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedApprovalBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_RoleRecoveryApprovals_Request FOREIGN KEY (RequestId) REFERENCES dbo.RoleRecoveryRequests(Id),
+    CONSTRAINT FK_RoleRecoveryApprovals_ApproverRole FOREIGN KEY (ApproverRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_RoleRecoveryApprovals_Request_Approver ON dbo.RoleRecoveryApprovals(RequestId, ApproverRoleId);
 GO

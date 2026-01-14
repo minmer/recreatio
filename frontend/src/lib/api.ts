@@ -145,3 +145,139 @@ export function updateProfile(payload: { displayName?: string | null }) {
     body: JSON.stringify(payload)
   });
 }
+
+export type PersonFieldResponse = {
+  fieldType: string;
+  plainValue?: string | null;
+  dataKeyId: string;
+};
+
+export type PersonResponse = {
+  personRoleId: string;
+  publicSigningKeyBase64?: string | null;
+  publicSigningKeyAlg?: string | null;
+  fields: PersonFieldResponse[];
+};
+
+export type RoleSummaryResponse = {
+  roleId: string;
+  roleType: string;
+};
+
+export type PersonAccessMemberResponse = {
+  userId: string;
+  loginId: string;
+  displayName?: string | null;
+  relationshipType: string;
+  roles: RoleSummaryResponse[];
+};
+
+export type PersonAccessResponse = {
+  personRoleId: string;
+  members: PersonAccessMemberResponse[];
+};
+
+export function getPersons() {
+  return request<PersonResponse[]>('/account/persons', {
+    method: 'GET'
+  });
+}
+
+export function createPerson(payload: {
+  fields: Array<{
+    fieldType: string;
+    plainValue?: string | null;
+    dataKeyId?: string | null;
+    signatureBase64?: string | null;
+  }>;
+  publicSigningKeyBase64?: string | null;
+  publicSigningKeyAlg?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<PersonResponse>('/account/persons', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updatePersonField(roleId: string, payload: {
+  fieldType: string;
+  plainValue?: string | null;
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<PersonFieldResponse>(`/account/persons/${roleId}/fields`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getPersonAccess(roleId: string) {
+  return request<PersonAccessResponse>(`/account/persons/${roleId}/access`, {
+    method: 'GET'
+  });
+}
+
+export function addPersonMember(roleId: string, payload: {
+  loginId: string;
+  relationshipType: string;
+  encryptedRoleKeyCopyBase64?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<void>(`/account/persons/${roleId}/members`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function shareRecovery(roleId: string, payload: {
+  sharedWithRoleId: string;
+  encryptedShareBase64: string;
+  signatureBase64?: string | null;
+}) {
+  return request<void>(`/account/persons/${roleId}/recovery/shares`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function createRecoveryRequest(roleId: string, payload: { initiatorRoleId: string; signatureBase64?: string | null }) {
+  return request<{ requestId: string; status: string; requiredApprovals: number }>(`/account/persons/${roleId}/recovery/request`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function approveRecoveryRequest(
+  roleId: string,
+  requestId: string,
+  payload: { approverRoleId: string; encryptedApprovalBase64: string; signatureBase64?: string | null }
+) {
+  return request<{ requestId: string; status: string; requiredApprovals: number }>(
+    `/account/persons/${roleId}/recovery/request/${requestId}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export function cancelRecoveryRequest(roleId: string, requestId: string) {
+  return request<{ requestId: string; status: string; requiredApprovals: number }>(
+    `/account/persons/${roleId}/recovery/request/${requestId}/cancel`,
+    {
+      method: 'POST',
+      body: JSON.stringify({})
+    }
+  );
+}
+
+export function completeRecoveryRequest(roleId: string, requestId: string) {
+  return request<{ requestId: string; status: string; requiredApprovals: number }>(
+    `/account/persons/${roleId}/recovery/request/${requestId}/complete`,
+    {
+      method: 'POST',
+      body: JSON.stringify({})
+    }
+  );
+}

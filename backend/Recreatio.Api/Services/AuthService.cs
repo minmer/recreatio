@@ -198,7 +198,7 @@ public sealed class AuthService : IAuthService
 
         if (!request.SecureMode)
         {
-            _sessionSecretCache.Set(sessionId, new SessionSecret(masterKey));
+            _sessionSecretCache.Set(sessionId, new SessionSecret(masterKey, null));
         }
 
         await _ledgerService.AppendAuthAsync("LoginSuccess", account.Id.ToString(), JsonSerializer.Serialize(new { sessionId }), ct);

@@ -14,5 +14,7 @@ public sealed class RoleEdge
     [MaxLength(64)]
     public string RelationshipType { get; set; } = string.Empty;
 
+    public byte[] EncryptedRoleKeyCopy { get; set; } = Array.Empty<byte>();
+
     public DateTimeOffset CreatedUtc { get; set; }
 }

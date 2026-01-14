@@ -12,6 +12,11 @@ public sealed class Role
 
     public byte[] EncryptedRoleBlob { get; set; } = Array.Empty<byte>();
 
+    public byte[]? PublicSigningKey { get; set; }
+
+    [MaxLength(64)]
+    public string? PublicSigningKeyAlg { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

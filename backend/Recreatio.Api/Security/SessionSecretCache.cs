@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Recreatio.Api.Security;
 
-public sealed record SessionSecret(byte[] MasterKey);
+public sealed record SessionSecret(byte[] MasterKey, RoleKeyRing? CachedRoleKeyRing);
 
 public interface ISessionSecretCache
 {
