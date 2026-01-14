@@ -1,4 +1,4 @@
-const apiBase = import.meta.env.VITE_API_BASE ?? 'https://recreatio.hostingasp.pl';
+const apiBase = import.meta.env.VITE_API_BASE ?? 'https://api.recreatio.pl';
 let csrfTokenCache: string | null = null;
 
 function getCookie(name: string): string | null {

@@ -80,11 +80,18 @@ public sealed class KeyRingService : IKeyRingService
         }
 
         var masterKey = RequireMasterKey(context, userId, sessionId);
+        var roleKeys = new Dictionary<Guid, byte[]>();
+        var account = await _dbContext.UserAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (account is not null)
+        {
+            roleKeys[account.MasterRoleId] = masterKey;
+        }
+
         var memberships = await _dbContext.Memberships.AsNoTracking()
             .Where(x => x.UserId == userId)
             .ToListAsync(ct);
 
-        var roleKeys = new Dictionary<Guid, byte[]>();
         foreach (var membership in memberships)
         {
             if (membership.EncryptedRoleKeyCopy.Length == 0)

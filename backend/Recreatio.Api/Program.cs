@@ -29,7 +29,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("RecreatioWeb", policy =>
     {
-        policy.WithOrigins("https://recreatio.pl", "https://recreatio.hostingasp.pl", "http://localhost:5173", "https://localhost:5173")
+        policy.WithOrigins("https://recreatio.pl", "https://api.recreatio.pl", "http://localhost:5173", "https://localhost:5173")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -65,9 +65,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     {
         options.Cookie.Name = "recreatio.auth";
         options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.None;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.CookieManager = new PartitionedCookieManager();
+        options.Cookie.SameSite = isDevelopment ? SameSiteMode.None : SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
         var cookieDomain = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieDomain");
         if (!string.IsNullOrWhiteSpace(cookieDomain))
         {

@@ -106,8 +106,8 @@ public static class AccountEndpoints
             }
 
             var fields = await (
-                from field in dbContext.PersonFields.AsNoTracking()
-                join role in dbContext.Roles.AsNoTracking() on field.PersonRoleId equals role.Id
+                from field in dbContext.RoleFields.AsNoTracking()
+                join role in dbContext.Roles.AsNoTracking() on field.RoleId equals role.Id
                 join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
                 where membership.UserId == userId && role.RoleType == "Person"
                 select field
@@ -132,8 +132,8 @@ public static class AccountEndpoints
             {
                 keyEntries = await (
                     from key in dbContext.Keys.AsNoTracking()
-                    join field in dbContext.PersonFields.AsNoTracking() on key.Id equals field.DataKeyId
-                    join role in dbContext.Roles.AsNoTracking() on field.PersonRoleId equals role.Id
+                    join field in dbContext.RoleFields.AsNoTracking() on key.Id equals field.DataKeyId
+                    join role in dbContext.Roles.AsNoTracking() on field.RoleId equals role.Id
                     join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
                     where membership.UserId == userId && role.RoleType == "Person"
                     select key
@@ -141,7 +141,7 @@ public static class AccountEndpoints
             }
             var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
 
-            var fieldsByRole = fields.GroupBy(x => x.PersonRoleId)
+            var fieldsByRole = fields.GroupBy(x => x.RoleId)
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(field => new PersonFieldResponse(
@@ -259,7 +259,7 @@ public static class AccountEndpoints
             });
             await dbContext.SaveChangesAsync(ct);
 
-            var personFields = new List<PersonField>();
+            var personFields = new List<RoleField>();
             foreach (var field in fields)
             {
                 var fieldType = field.FieldType.Trim().ToLowerInvariant();
@@ -269,7 +269,7 @@ public static class AccountEndpoints
                     return Results.BadRequest(new { error = $"PlainValue required for field '{fieldType}'." });
                 }
 
-                var dataKeyId = field.DataKeyId ?? Guid.NewGuid();
+                var dataKeyId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
                 var encryptedDataKey = keyRingService.EncryptDataKey(roleKey, dataKey, dataKeyId);
                 var keyLedger = await ledgerService.AppendKeyAsync(
@@ -292,17 +292,17 @@ public static class AccountEndpoints
                 dbContext.Keys.Add(keyEntry);
                 await dbContext.SaveChangesAsync(ct);
 
-                personFields.Add(new PersonField
+                personFields.Add(new RoleField
                 {
                     Id = Guid.NewGuid(),
-                    PersonRoleId = roleId,
+                    RoleId = roleId,
                     FieldType = fieldType,
                     DataKeyId = dataKeyId,
                     EncryptedValue = keyRingService.EncryptFieldValue(dataKey, plainValue, roleId, fieldType),
                     CreatedUtc = now,
                     UpdatedUtc = now
                 });
-                dbContext.PersonFields.Add(personFields[^1]);
+                dbContext.RoleFields.Add(personFields[^1]);
                 await dbContext.SaveChangesAsync(ct);
             }
 
@@ -397,13 +397,13 @@ public static class AccountEndpoints
                 return Results.BadRequest(new { error = "PlainValue is required." });
             }
 
-            var existing = await dbContext.PersonFields
-                .FirstOrDefaultAsync(x => x.PersonRoleId == roleId && x.FieldType == fieldType, ct);
+            var existing = await dbContext.RoleFields
+                .FirstOrDefaultAsync(x => x.RoleId == roleId && x.FieldType == fieldType, ct);
 
             var now = DateTimeOffset.UtcNow;
             if (existing is null)
             {
-                var dataKeyId = request.DataKeyId ?? Guid.NewGuid();
+                var dataKeyId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
                 var encryptedDataKey = keyRingService.EncryptDataKey(roleKey, dataKey, dataKeyId);
                 var keyLedger = await ledgerService.AppendKeyAsync(
@@ -424,17 +424,17 @@ public static class AccountEndpoints
                     CreatedUtc = now
                 });
 
-                existing = new PersonField
+                existing = new RoleField
                 {
                     Id = Guid.NewGuid(),
-                    PersonRoleId = roleId,
+                    RoleId = roleId,
                     FieldType = fieldType,
                     DataKeyId = dataKeyId,
                     EncryptedValue = keyRingService.EncryptFieldValue(dataKey, plainValue, roleId, fieldType),
                     CreatedUtc = now,
                     UpdatedUtc = now
                 };
-                dbContext.PersonFields.Add(existing);
+                dbContext.RoleFields.Add(existing);
             }
             else
             {
@@ -925,12 +925,12 @@ public static class AccountEndpoints
     }
 
     private static string? TryGetPlainValue(
-        PersonField field,
+        RoleField field,
         RoleKeyRing keyRing,
         IReadOnlyDictionary<Guid, KeyEntry> keyEntryById,
         IKeyRingService keyRingService)
     {
-        if (!keyRing.TryGetRoleKey(field.PersonRoleId, out var roleKey))
+        if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
         {
             return null;
         }
@@ -950,12 +950,8 @@ public static class AccountEndpoints
             return null;
         }
 
-        return keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.PersonRoleId, field.FieldType);
+        return keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
     }
-
-    private sealed record RoleCryptoMaterial(
-        string PrivateEncryptionKeyBase64,
-        string PrivateEncryptionKeyAlg);
 
     private static RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] roleKey, IEncryptionService encryptionService)
     {

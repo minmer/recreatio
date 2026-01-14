@@ -3,21 +3,32 @@
 
 SET NOCOUNT ON;
 
+DECLARE @dropSql NVARCHAR(MAX) = N'';
+
+SELECT @dropSql += N'ALTER TABLE ' + QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+    + N' DROP CONSTRAINT ' + QUOTENAME(name) + N';' + CHAR(13)
+FROM sys.foreign_keys;
+
+IF (@dropSql <> N'')
+BEGIN
+    EXEC sp_executesql @dropSql;
+END
+
 IF OBJECT_ID(N'dbo.RoleRecoveryApprovals', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryApprovals;
 IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryRequests;
 IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
-IF OBJECT_ID(N'dbo.PersonFields', N'U') IS NOT NULL DROP TABLE dbo.PersonFields;
+IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
-IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
-IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
+IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
+IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
 IF OBJECT_ID(N'dbo.Sessions', N'U') IS NOT NULL DROP TABLE dbo.Sessions;
-IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
 IF OBJECT_ID(N'dbo.Keys', N'U') IS NOT NULL DROP TABLE dbo.Keys;
+IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
 IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL DROP TABLE dbo.Roles;
+IF OBJECT_ID(N'dbo.BusinessLedger', N'U') IS NOT NULL DROP TABLE dbo.BusinessLedger;
 IF OBJECT_ID(N'dbo.AuthLedger', N'U') IS NOT NULL DROP TABLE dbo.AuthLedger;
 IF OBJECT_ID(N'dbo.KeyLedger', N'U') IS NOT NULL DROP TABLE dbo.KeyLedger;
-IF OBJECT_ID(N'dbo.BusinessLedger', N'U') IS NOT NULL DROP TABLE dbo.BusinessLedger;
 GO
 
 CREATE TABLE dbo.Roles
@@ -32,59 +43,6 @@ CREATE TABLE dbo.Roles
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL
 );
-GO
-
-CREATE TABLE dbo.UserAccounts
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    LoginId NVARCHAR(256) NOT NULL,
-    DisplayName NVARCHAR(128) NULL,
-    UserSalt VARBINARY(MAX) NOT NULL,
-    StoredH4 VARBINARY(MAX) NOT NULL,
-    State INT NOT NULL,
-    FailedLoginCount INT NOT NULL,
-    LockedUntilUtc DATETIMEOFFSET NULL,
-    MasterRoleId UNIQUEIDENTIFIER NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_UserAccounts_MasterRole FOREIGN KEY (MasterRoleId) REFERENCES dbo.Roles(Id)
-);
-GO
-
-CREATE UNIQUE INDEX UX_UserAccounts_LoginId ON dbo.UserAccounts(LoginId);
-GO
-
-CREATE TABLE dbo.RoleEdges
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    ParentRoleId UNIQUEIDENTIFIER NOT NULL,
-    ChildRoleId UNIQUEIDENTIFIER NOT NULL,
-    RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
-    CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
-);
-GO
-
-CREATE TABLE dbo.PendingRoleShares
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    SourceRoleId UNIQUEIDENTIFIER NOT NULL,
-    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
-    RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyBlob VARBINARY(MAX) NOT NULL,
-    EncryptionAlg NVARCHAR(64) NOT NULL,
-    Status NVARCHAR(32) NOT NULL,
-    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    AcceptedUtc DATETIMEOFFSET NULL,
-    CONSTRAINT FK_PendingRoleShares_SourceRole FOREIGN KEY (SourceRoleId) REFERENCES dbo.Roles(Id),
-    CONSTRAINT FK_PendingRoleShares_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id)
-);
-GO
-
-CREATE INDEX IX_PendingRoleShares_TargetRole_Status ON dbo.PendingRoleShares(TargetRoleId, Status);
 GO
 
 CREATE TABLE dbo.KeyLedger
@@ -123,6 +81,26 @@ CREATE TABLE dbo.BusinessLedger
 );
 GO
 
+CREATE TABLE dbo.UserAccounts
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LoginId NVARCHAR(256) NOT NULL,
+    DisplayName NVARCHAR(128) NULL,
+    UserSalt VARBINARY(MAX) NOT NULL,
+    StoredH4 VARBINARY(MAX) NOT NULL,
+    State INT NOT NULL,
+    FailedLoginCount INT NOT NULL,
+    LockedUntilUtc DATETIMEOFFSET NULL,
+    MasterRoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_UserAccounts_MasterRole FOREIGN KEY (MasterRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_UserAccounts_LoginId ON dbo.UserAccounts(LoginId);
+GO
+
 CREATE TABLE dbo.Keys
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -135,21 +113,6 @@ CREATE TABLE dbo.Keys
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_Keys_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_Keys_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
-);
-GO
-
-CREATE TABLE dbo.Memberships
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    UserId UNIQUEIDENTIFIER NOT NULL,
-    RoleId UNIQUEIDENTIFIER NOT NULL,
-    RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
-    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
-    CONSTRAINT FK_Memberships_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
-    CONSTRAINT FK_Memberships_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
 );
 GO
 
@@ -170,6 +133,54 @@ GO
 CREATE UNIQUE INDEX UX_Sessions_SessionId ON dbo.Sessions(SessionId);
 GO
 
+CREATE TABLE dbo.RoleEdges
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParentRoleId UNIQUEIDENTIFIER NOT NULL,
+    ChildRoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE TABLE dbo.PendingRoleShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    SourceRoleId UNIQUEIDENTIFIER NOT NULL,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptionAlg NVARCHAR(64) NOT NULL,
+    Status NVARCHAR(32) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    AcceptedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_PendingRoleShares_SourceRole FOREIGN KEY (SourceRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_PendingRoleShares_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_PendingRoleShares_TargetRole_Status ON dbo.PendingRoleShares(TargetRoleId, Status);
+GO
+
+CREATE TABLE dbo.Memberships
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    UserId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
+    CONSTRAINT FK_Memberships_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Memberships_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
+);
+GO
+
 CREATE TABLE dbo.SharedViews
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -184,21 +195,21 @@ CREATE TABLE dbo.SharedViews
 );
 GO
 
-CREATE TABLE dbo.PersonFields
+CREATE TABLE dbo.RoleFields
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    PersonRoleId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
     FieldType NVARCHAR(64) NOT NULL,
     DataKeyId UNIQUEIDENTIFIER NOT NULL,
     EncryptedValue VARBINARY(MAX) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_PersonFields_Role FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id),
-    CONSTRAINT FK_PersonFields_Key FOREIGN KEY (DataKeyId) REFERENCES dbo.Keys(Id)
+    CONSTRAINT FK_RoleFields_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleFields_Key FOREIGN KEY (DataKeyId) REFERENCES dbo.Keys(Id)
 );
 GO
 
-CREATE UNIQUE INDEX UX_PersonFields_Role_FieldType ON dbo.PersonFields(PersonRoleId, FieldType);
+CREATE UNIQUE INDEX UX_RoleFields_Role_FieldType ON dbo.RoleFields(RoleId, FieldType);
 GO
 
 CREATE TABLE dbo.RoleRecoveryShares

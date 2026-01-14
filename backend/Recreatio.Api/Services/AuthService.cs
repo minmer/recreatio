@@ -73,13 +73,14 @@ public sealed class AuthService : IAuthService
         var masterKey = _masterKeyService.DeriveMasterKey(h3, userId);
         var masterRoleId = Guid.NewGuid();
 
-        var masterRolePayload = new
-        {
-            DisplayName = request.DisplayName,
-            CreatedUtc = DateTimeOffset.UtcNow
-        };
+        using var rsa = RSA.Create(2048);
+        var publicEncryptionKey = rsa.ExportSubjectPublicKeyInfo();
+        var privateEncryptionKey = rsa.ExportPkcs8PrivateKey();
+        var roleCrypto = new RoleCryptoMaterial(
+            Convert.ToBase64String(privateEncryptionKey),
+            "RSA-OAEP-SHA256");
 
-        var encryptedRoleBlob = _encryptionService.Encrypt(masterKey, JsonSerializer.SerializeToUtf8Bytes(masterRolePayload));
+        var encryptedRoleBlob = _encryptionService.Encrypt(masterKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
 
         var now = DateTimeOffset.UtcNow;
         var masterRole = new Role
@@ -87,6 +88,8 @@ public sealed class AuthService : IAuthService
             Id = masterRoleId,
             RoleType = "MasterRole",
             EncryptedRoleBlob = encryptedRoleBlob,
+            PublicEncryptionKey = publicEncryptionKey,
+            PublicEncryptionKeyAlg = "RSA-OAEP-SHA256",
             CreatedUtc = now,
             UpdatedUtc = now
         };

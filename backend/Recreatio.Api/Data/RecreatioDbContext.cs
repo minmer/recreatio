@@ -16,7 +16,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SharedView> SharedViews => Set<SharedView>();
-    public DbSet<PersonField> PersonFields => Set<PersonField>();
+    public DbSet<RoleField> RoleFields => Set<RoleField>();
     public DbSet<RoleRecoveryShare> RoleRecoveryShares => Set<RoleRecoveryShare>();
     public DbSet<RoleRecoveryRequest> RoleRecoveryRequests => Set<RoleRecoveryRequest>();
     public DbSet<RoleRecoveryApproval> RoleRecoveryApprovals => Set<RoleRecoveryApproval>();
@@ -34,8 +34,8 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => x.SessionId)
             .IsUnique();
 
-        modelBuilder.Entity<PersonField>()
-            .HasIndex(x => new { x.PersonRoleId, x.FieldType })
+        modelBuilder.Entity<RoleField>()
+            .HasIndex(x => new { x.RoleId, x.FieldType })
             .IsUnique();
 
         modelBuilder.Entity<RoleRecoveryShare>()
