@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Copy } from '../../content/types';
 import {
-  addPersonMember,
+  acceptRoleShare,
   createPerson,
   getPersonAccess,
+  getPendingRoleShares,
   getPersons,
   issueCsrf,
+  lookupRoleByLogin,
+  sharePersonRole,
   updatePersonField,
+  type PendingRoleShareResponse,
   type PersonAccessResponse,
   type PersonFieldResponse,
   type PersonResponse
@@ -60,9 +64,15 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const [accessByPerson, setAccessByPerson] = useState<Record<string, PersonAccessResponse>>({});
   const [accessStatus, setAccessStatus] = useState<Record<string, Status>>({});
   const [memberInputs, setMemberInputs] = useState<
-    Record<string, { loginId: string; relationshipType: string; encryptedRoleKeyCopyBase64: string }>
+    Record<string, { targetRoleId: string; relationshipType: string; lookupLoginId: string }>
   >({});
   const [memberStatus, setMemberStatus] = useState<Record<string, Status>>({});
+  const [dataInputs, setDataInputs] = useState<
+    Record<string, { fieldType: string; value: string; dataKeyId?: string | null }>
+  >({});
+  const [dataStatus, setDataStatus] = useState<Record<string, Status>>({});
+  const [pendingByRole, setPendingByRole] = useState<Record<string, PendingRoleShareResponse[]>>({});
+  const [pendingStatus, setPendingStatus] = useState<Status>({ type: 'idle' });
 
   const relationshipOptions = useMemo(
     () => [
@@ -83,8 +93,18 @@ export function PersonsSection({ copy }: { copy: Copy }) {
         const data = await getPersons();
         if (!active) return;
         setPersons(data.map((person) => toPersonView(person, copy.account.persons.missingField, copy.account.persons.encryptedPlaceholder)));
+        const pending = await getPendingRoleShares();
+        if (!active) return;
+        const grouped = pending.reduce<Record<string, PendingRoleShareResponse[]>>((acc, share) => {
+          const list = acc[share.targetRoleId] ?? [];
+          acc[share.targetRoleId] = [...list, share];
+          return acc;
+        }, {});
+        setPendingByRole(grouped);
+        setPendingStatus({ type: 'success' });
       } catch {
         if (!active) return;
+        setPendingStatus({ type: 'error', message: copy.account.persons.pendingError });
       } finally {
         if (!active) return;
         setLoading(false);
@@ -199,11 +219,11 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const handleAddMember = async (event: React.FormEvent, personRoleId: string) => {
     event.preventDefault();
     const input = memberInputs[personRoleId] ?? {
-      loginId: '',
+      targetRoleId: '',
       relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
-      encryptedRoleKeyCopyBase64: ''
+      lookupLoginId: ''
     };
-    if (!input.loginId.trim() || !input.encryptedRoleKeyCopyBase64.trim()) {
+    if (!input.targetRoleId.trim()) {
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.memberMissing } }));
       return;
     }
@@ -211,16 +231,15 @@ export function PersonsSection({ copy }: { copy: Copy }) {
     setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'working', message: copy.account.persons.memberWorking } }));
     try {
       await issueCsrf();
-      await addPersonMember(personRoleId, {
-        loginId: input.loginId.trim(),
+      await sharePersonRole(personRoleId, {
+        targetRoleId: input.targetRoleId.trim(),
         relationshipType: input.relationshipType,
-        encryptedRoleKeyCopyBase64: input.encryptedRoleKeyCopyBase64.trim(),
         signatureBase64: null
       });
       setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'success', message: copy.account.persons.memberSuccess } }));
       setMemberInputs((prev) => ({
         ...prev,
-        [personRoleId]: { ...input, loginId: '', encryptedRoleKeyCopyBase64: '' }
+        [personRoleId]: { ...input, targetRoleId: '', lookupLoginId: '' }
       }));
       if (accessOpenId === personRoleId) {
         await refreshAccess(personRoleId);
@@ -233,6 +252,88 @@ export function PersonsSection({ copy }: { copy: Copy }) {
   const formatRelationship = (value: string) => {
     const match = relationshipOptions.find((option) => option.value === value);
     return match ? match.label : value;
+  };
+
+  const handleAcceptShare = async (shareId: string, targetRoleId: string) => {
+    setPendingStatus({ type: 'working', message: copy.account.persons.pendingWorking });
+    try {
+      await issueCsrf();
+      await acceptRoleShare(shareId, { signatureBase64: null });
+      setPendingByRole((prev) => ({
+        ...prev,
+        [targetRoleId]: (prev[targetRoleId] ?? []).filter((share) => share.shareId !== shareId)
+      }));
+      setPendingStatus({ type: 'success', message: copy.account.persons.pendingSuccess });
+      await refreshAccess(targetRoleId);
+    } catch {
+      setPendingStatus({ type: 'error', message: copy.account.persons.pendingError });
+    }
+  };
+
+  const handleDataSave = async (event: React.FormEvent, personRoleId: string) => {
+    event.preventDefault();
+    const input = dataInputs[personRoleId] ?? { fieldType: '', value: '', dataKeyId: null };
+    const fieldType = input.fieldType.trim();
+    const value = input.value.trim();
+    if (!fieldType || !value) {
+      setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.dataMissing } }));
+      return;
+    }
+
+    setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'working', message: copy.account.persons.dataWorking } }));
+    try {
+      await issueCsrf();
+      const updated = await updatePersonField(personRoleId, {
+        fieldType,
+        plainValue: value,
+        dataKeyId: input.dataKeyId ?? undefined
+      });
+
+      setPersons((prev) =>
+        prev.map((person) => {
+          if (person.personRoleId !== personRoleId) {
+            return person;
+          }
+          const nextFields = updateFields(person.fields, updated);
+          const nextName = fieldType === 'name' ? value : person.name;
+          return { ...person, fields: nextFields, name: nextName };
+        })
+      );
+      setDataInputs((prev) => ({ ...prev, [personRoleId]: { fieldType: '', value: '', dataKeyId: null } }));
+      setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'success', message: copy.account.persons.dataSuccess } }));
+    } catch {
+      setDataStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.dataError } }));
+    }
+  };
+
+  const handleLookupRole = async (personRoleId: string) => {
+    const input = memberInputs[personRoleId] ?? {
+      targetRoleId: '',
+      relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
+      lookupLoginId: ''
+    };
+    const loginId = input.lookupLoginId.trim();
+    if (!loginId) {
+      setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.lookupMissing } }));
+      return;
+    }
+
+    setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'working', message: copy.account.persons.lookupWorking } }));
+    try {
+      await issueCsrf();
+      const result = await lookupRoleByLogin(loginId);
+      setMemberInputs((prev) => ({
+        ...prev,
+        [personRoleId]: {
+          ...input,
+          targetRoleId: result.masterRoleId,
+          lookupLoginId: loginId
+        }
+      }));
+      setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'success', message: copy.account.persons.lookupSuccess } }));
+    } catch {
+      setMemberStatus((prev) => ({ ...prev, [personRoleId]: { type: 'error', message: copy.account.persons.lookupError } }));
+    }
   };
 
   return (
@@ -275,11 +376,14 @@ export function PersonsSection({ copy }: { copy: Copy }) {
           const access = accessByPerson[person.personRoleId];
           const accessState = accessStatus[person.personRoleId]?.type ?? 'idle';
           const input = memberInputs[person.personRoleId] ?? {
-            loginId: '',
+            targetRoleId: '',
             relationshipType: relationshipOptions[0]?.value ?? 'PersonRead',
-            encryptedRoleKeyCopyBase64: ''
+            lookupLoginId: ''
           };
           const memberState = memberStatus[person.personRoleId];
+          const dataInput = dataInputs[person.personRoleId] ?? { fieldType: '', value: '', dataKeyId: null };
+          const currentDataStatus = dataStatus[person.personRoleId];
+          const pendingShares = pendingByRole[person.personRoleId] ?? [];
           return (
             <article className="person-card" key={person.personRoleId}>
               <div className="person-header">
@@ -323,6 +427,82 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                 </div>
               )}
 
+              <div className="person-data">
+                <div className="account-row">
+                  <strong>{copy.account.persons.dataTitle}</strong>
+                </div>
+                {person.fields.length === 0 && <p className="hint">{copy.account.persons.dataEmpty}</p>}
+                {person.fields.length > 0 && (
+                  <div className="person-data-list">
+                    {person.fields.map((field) => (
+                      <div className="person-data-item" key={field.fieldType}>
+                        <div>
+                          <span className="note">{field.fieldType}</span>
+                          <strong>{field.plainValue?.trim() || copy.account.persons.encryptedPlaceholder}</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() =>
+                            setDataInputs((prev) => ({
+                              ...prev,
+                              [person.personRoleId]: {
+                                fieldType: field.fieldType,
+                                value: field.plainValue ?? '',
+                                dataKeyId: field.dataKeyId
+                              }
+                            }))
+                          }
+                        >
+                          {copy.account.persons.dataEdit}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form className="account-form" onSubmit={(event) => handleDataSave(event, person.personRoleId)}>
+                  <label>
+                    {copy.account.persons.dataTypeLabel}
+                    <input
+                      type="text"
+                      value={dataInput.fieldType}
+                      onChange={(event) =>
+                        setDataInputs((prev) => ({
+                          ...prev,
+                          [person.personRoleId]: { ...dataInput, fieldType: event.target.value }
+                        }))
+                      }
+                      placeholder={copy.account.persons.dataTypePlaceholder}
+                    />
+                  </label>
+                  <label>
+                    {copy.account.persons.dataValueLabel}
+                    <input
+                      type="text"
+                      value={dataInput.value}
+                      onChange={(event) =>
+                        setDataInputs((prev) => ({
+                          ...prev,
+                          [person.personRoleId]: { ...dataInput, value: event.target.value }
+                        }))
+                      }
+                      placeholder={copy.account.persons.dataValuePlaceholder}
+                    />
+                  </label>
+                  <div className="person-actions">
+                    <button type="submit" className="cta">
+                      {copy.account.persons.dataAction}
+                    </button>
+                  </div>
+                </form>
+                {currentDataStatus?.type && currentDataStatus.type !== 'idle' && (
+                  <div className={`status ${currentDataStatus.type === 'working' ? '' : currentDataStatus.type}`}>
+                    <strong>{copy.access.statusTitle}</strong>
+                    <span>{currentDataStatus.message ?? copy.access.statusReady}</span>
+                  </div>
+                )}
+              </div>
+
               {accessOpenId === person.personRoleId && (
                 <div className="person-access">
                   <div className="account-row">
@@ -333,56 +513,86 @@ export function PersonsSection({ copy }: { copy: Copy }) {
                   </div>
                   {accessState === 'working' && <p className="hint">{copy.account.persons.accessLoading}</p>}
                   {accessState === 'error' && <p className="hint">{copy.account.persons.accessError}</p>}
-                  {access && access.members.length === 0 && <p className="hint">{copy.account.persons.accessEmpty}</p>}
-                  {access && access.members.length > 0 && (
+                  {access && access.roles.length === 0 && <p className="hint">{copy.account.persons.accessEmpty}</p>}
+                  {access && access.roles.length > 0 && (
                     <div className="person-members">
-                      {access.members.map((member) => (
-                        <div className="person-member" key={member.userId}>
+                      {access.roles.map((role) => (
+                        <div className="person-member" key={role.roleId}>
                           <div className="person-member-header">
-                            <strong>{member.displayName || member.loginId}</strong>
-                            <span className="note">{formatRelationship(member.relationshipType)}</span>
+                            <strong>{role.roleType}</strong>
+                            <span className="note">{formatRelationship(role.relationshipType)}</span>
                           </div>
-                          <span className="hint">
-                            {copy.account.persons.memberRolesLabel}:{' '}
-                            {member.roles.length > 0
-                              ? member.roles.map((role) => role.roleType).join(', ')
-                              : copy.account.persons.memberRolesEmpty}
-                          </span>
+                          <span className="hint">{role.roleId}</span>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {pendingShares.length > 0 && (
+                    <div className="person-members">
+                      <strong>{copy.account.persons.pendingTitle}</strong>
+                      {pendingShares.map((share) => (
+                        <div className="person-member" key={share.shareId}>
+                          <div className="person-member-header">
+                            <strong>{share.sourceRoleId}</strong>
+                            <span className="note">{formatRelationship(share.relationshipType)}</span>
+                          </div>
+                          <div className="person-actions">
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => handleAcceptShare(share.shareId, person.personRoleId)}
+                            >
+                              {copy.account.persons.pendingAccept}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {pendingStatus.type !== 'idle' && (
+                        <div className={`status ${pendingStatus.type === 'working' ? '' : pendingStatus.type}`}>
+                          <strong>{copy.access.statusTitle}</strong>
+                          <span>{pendingStatus.message ?? copy.access.statusReady}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   <form className="account-form" onSubmit={(event) => handleAddMember(event, person.personRoleId)}>
                     <h4>{copy.account.persons.memberTitle}</h4>
-                  <label>
-                    {copy.account.persons.memberLoginLabel}
-                    <input
-                      type="text"
-                      value={input.loginId}
-                      onChange={(event) =>
-                        setMemberInputs((prev) => ({
-                          ...prev,
-                          [person.personRoleId]: { ...input, loginId: event.target.value }
-                        }))
-                      }
-                      placeholder={copy.account.persons.memberLoginPlaceholder}
-                    />
-                  </label>
-                  <label>
-                    {copy.account.persons.memberKeyLabel}
-                    <input
-                      type="text"
-                      value={input.encryptedRoleKeyCopyBase64}
-                      onChange={(event) =>
-                        setMemberInputs((prev) => ({
-                          ...prev,
-                          [person.personRoleId]: { ...input, encryptedRoleKeyCopyBase64: event.target.value }
-                        }))
-                      }
-                      placeholder={copy.account.persons.memberKeyPlaceholder}
-                    />
-                  </label>
+                    <label>
+                      {copy.account.persons.lookupLabel}
+                      <input
+                        type="text"
+                        value={input.lookupLoginId}
+                        onChange={(event) =>
+                          setMemberInputs((prev) => ({
+                            ...prev,
+                            [person.personRoleId]: { ...input, lookupLoginId: event.target.value }
+                          }))
+                        }
+                        placeholder={copy.account.persons.lookupPlaceholder}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => handleLookupRole(person.personRoleId)}
+                    >
+                      {copy.account.persons.lookupAction}
+                    </button>
+                    <label>
+                      {copy.account.persons.memberRoleLabel}
+                      <input
+                        type="text"
+                        value={input.targetRoleId}
+                        onChange={(event) =>
+                          setMemberInputs((prev) => ({
+                            ...prev,
+                            [person.personRoleId]: { ...input, targetRoleId: event.target.value }
+                          }))
+                        }
+                        placeholder={copy.account.persons.memberRolePlaceholder}
+                      />
+                    </label>
                     <label>
                       {copy.account.persons.memberTypeLabel}
                       <select

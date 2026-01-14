@@ -11,6 +11,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<RoleEdge> RoleEdges => Set<RoleEdge>();
+    public DbSet<PendingRoleShare> PendingRoleShares => Set<PendingRoleShare>();
     public DbSet<KeyEntry> Keys => Set<KeyEntry>();
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Session> Sessions => Set<Session>();
@@ -44,5 +45,8 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<RoleRecoveryApproval>()
             .HasIndex(x => new { x.RequestId, x.ApproverRoleId })
             .IsUnique();
+
+        modelBuilder.Entity<PendingRoleShare>()
+            .HasIndex(x => new { x.TargetRoleId, x.Status });
     }
 }

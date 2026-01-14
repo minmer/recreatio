@@ -170,6 +170,32 @@
   flex-wrap: wrap;
 }
 
+.person-data {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1rem;
+  background: var(--bg-alt);
+  display: grid;
+  gap: 1rem;
+}
+
+.person-data-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.person-data-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .person-access {
   margin-top: 0.4rem;
   border: 1px solid var(--line);

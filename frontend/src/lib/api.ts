@@ -159,22 +159,23 @@ export type PersonResponse = {
   fields: PersonFieldResponse[];
 };
 
-export type RoleSummaryResponse = {
+export type PersonAccessRoleResponse = {
   roleId: string;
   roleType: string;
-};
-
-export type PersonAccessMemberResponse = {
-  userId: string;
-  loginId: string;
-  displayName?: string | null;
   relationshipType: string;
-  roles: RoleSummaryResponse[];
 };
 
 export type PersonAccessResponse = {
   personRoleId: string;
-  members: PersonAccessMemberResponse[];
+  roles: PersonAccessRoleResponse[];
+};
+
+export type PendingRoleShareResponse = {
+  shareId: string;
+  sourceRoleId: string;
+  targetRoleId: string;
+  relationshipType: string;
+  createdUtc: string;
 };
 
 export function getPersons() {
@@ -218,16 +219,36 @@ export function getPersonAccess(roleId: string) {
   });
 }
 
-export function addPersonMember(roleId: string, payload: {
-  loginId: string;
+export function sharePersonRole(roleId: string, payload: {
+  targetRoleId: string;
   relationshipType: string;
-  encryptedRoleKeyCopyBase64?: string | null;
   signatureBase64?: string | null;
 }) {
-  return request<void>(`/account/persons/${roleId}/members`, {
+  return request<void>(`/account/persons/${roleId}/shares`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export function getPendingRoleShares() {
+  return request<PendingRoleShareResponse[]>('/account/shares', {
+    method: 'GET'
+  });
+}
+
+export function acceptRoleShare(shareId: string, payload: { signatureBase64?: string | null }) {
+  return request<void>(`/account/shares/${shareId}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function lookupRoleByLogin(loginId: string) {
+  const params = new URLSearchParams({ loginId });
+  return request<{ userId: string; loginId: string; displayName?: string | null; masterRoleId: string }>(
+    `/account/roles/lookup?${params.toString()}`,
+    { method: 'GET' }
+  );
 }
 
 export function shareRecovery(roleId: string, payload: {

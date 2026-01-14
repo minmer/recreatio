@@ -58,6 +58,29 @@ public static class AccountEndpoints
             return Results.Ok(new ProfileResponse(account.LoginId, account.DisplayName));
         });
 
+        group.MapGet("/roles/lookup", async (string? loginId, HttpContext context, RecreatioDbContext dbContext, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out _))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (string.IsNullOrWhiteSpace(loginId))
+            {
+                return Results.BadRequest(new { error = "LoginId is required." });
+            }
+
+            var normalized = loginId.Trim();
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LoginId == normalized, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new RoleLookupResponse(account.Id, account.LoginId, account.DisplayName, account.MasterRoleId));
+        });
+
         group.MapGet("/persons", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
@@ -191,15 +214,25 @@ public static class AccountEndpoints
             var roleKey = RandomNumberGenerator.GetBytes(32);
             var encryptedRoleKey = encryptionService.Encrypt(masterKey, roleKey, roleId.ToByteArray());
 
+            using var rsa = RSA.Create(2048);
+            var publicEncryptionKey = rsa.ExportSubjectPublicKeyInfo();
+            var privateEncryptionKey = rsa.ExportPkcs8PrivateKey();
+            var roleCrypto = new RoleCryptoMaterial(
+                Convert.ToBase64String(privateEncryptionKey),
+                "RSA-OAEP-SHA256");
+            var encryptedRoleBlob = encryptionService.Encrypt(roleKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
+
             var role = new Role
             {
                 Id = roleId,
                 RoleType = "Person",
-                EncryptedRoleBlob = Array.Empty<byte>(),
+                EncryptedRoleBlob = encryptedRoleBlob,
                 PublicSigningKey = string.IsNullOrWhiteSpace(request.PublicSigningKeyBase64)
                     ? null
                     : Convert.FromBase64String(request.PublicSigningKeyBase64),
                 PublicSigningKeyAlg = request.PublicSigningKeyAlg,
+                PublicEncryptionKey = publicEncryptionKey,
+                PublicEncryptionKeyAlg = "RSA-OAEP-SHA256",
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -446,58 +479,19 @@ public static class AccountEndpoints
                 return Results.Forbid();
             }
 
-            var memberships = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.RoleId == roleId)
-                .ToListAsync(ct);
-
-            var users = await (
-                from user in dbContext.UserAccounts.AsNoTracking()
-                join membership in dbContext.Memberships.AsNoTracking() on user.Id equals membership.UserId
-                where membership.RoleId == roleId
-                select user
-            ).Distinct().ToListAsync(ct);
-
-            var userRoleMemberships = await (
-                from membership in dbContext.Memberships.AsNoTracking()
-                join roleMembership in dbContext.Memberships.AsNoTracking().Where(x => x.RoleId == roleId)
-                    on membership.UserId equals roleMembership.UserId
-                select membership
+            var roleEdges = await (
+                from edge in dbContext.RoleEdges.AsNoTracking()
+                join role in dbContext.Roles.AsNoTracking() on edge.ParentRoleId equals role.Id
+                where edge.ChildRoleId == roleId
+                select new PersonAccessRoleResponse(edge.ParentRoleId, role.RoleType, edge.RelationshipType)
             ).ToListAsync(ct);
 
-            var roles = await (
-                from role in dbContext.Roles.AsNoTracking()
-                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
-                join roleMembership in dbContext.Memberships.AsNoTracking().Where(x => x.RoleId == roleId)
-                    on membership.UserId equals roleMembership.UserId
-                select new { role.Id, role.RoleType }
-            ).Distinct().ToListAsync(ct);
-
-            var rolesById = roles.ToDictionary(x => x.Id, x => x.RoleType);
-            var rolesByUser = userRoleMemberships.GroupBy(x => x.UserId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Select(x => new RoleSummaryResponse(x.RoleId, rolesById.GetValueOrDefault(x.RoleId, "Unknown"))).ToList()
-                );
-
-            var response = new PersonAccessResponse(
-                roleId,
-                memberships.Select(member =>
-                {
-                    var user = users.FirstOrDefault(x => x.Id == member.UserId);
-                    return new PersonAccessMemberResponse(
-                        member.UserId,
-                        user?.LoginId ?? string.Empty,
-                        user?.DisplayName,
-                        member.RelationshipType,
-                        rolesByUser.GetValueOrDefault(member.UserId, new List<RoleSummaryResponse>())
-                    );
-                }).ToList()
-            );
+            var response = new PersonAccessResponse(roleId, roleEdges);
 
             return Results.Ok(response);
         });
 
-        group.MapPost("/persons/{roleId:guid}/members", async (Guid roleId, AddPersonMemberRequest request, HttpContext context, RecreatioDbContext dbContext, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/persons/{roleId:guid}/shares", async (Guid roleId, AddPersonShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IAsymmetricEncryptionService asymmetricEncryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -511,39 +505,194 @@ public static class AccountEndpoints
                 return Results.Forbid();
             }
 
-            var targetUser = await dbContext.UserAccounts.FirstOrDefaultAsync(x => x.LoginId == request.LoginId, ct);
-            if (targetUser is null)
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (request.TargetRoleId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "TargetRoleId is required." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.RelationshipType))
+            {
+                return Results.BadRequest(new { error = "RelationshipType is required." });
+            }
+
+            var targetRole = await dbContext.Roles.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.TargetRoleId, ct);
+            if (targetRole is null)
             {
                 return Results.NotFound();
             }
 
-            var existing = await dbContext.Memberships.FirstOrDefaultAsync(x => x.UserId == targetUser.Id && x.RoleId == roleId, ct);
-            if (existing is not null)
+            var existing = await dbContext.RoleEdges.AsNoTracking()
+                .AnyAsync(x => x.ParentRoleId == request.TargetRoleId && x.ChildRoleId == roleId, ct);
+            if (existing)
             {
-                return Results.Conflict(new { error = "Membership already exists." });
+                return Results.Conflict(new { error = "Role share already exists." });
             }
 
-            if (string.IsNullOrWhiteSpace(request.EncryptedRoleKeyCopyBase64))
+            if (targetRole.PublicEncryptionKey is null || string.IsNullOrWhiteSpace(targetRole.PublicEncryptionKeyAlg))
             {
-                return Results.BadRequest(new { error = "EncryptedRoleKeyCopyBase64 is required." });
+                return Results.BadRequest(new { error = "Target role has no encryption key." });
             }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetRoleKey(roleId, out var roleKey))
+            {
+                return Results.BadRequest(new { error = "Role key not available." });
+            }
+
+            var encryptedRoleKey = asymmetricEncryptionService.EncryptWithPublicKey(
+                targetRole.PublicEncryptionKey,
+                targetRole.PublicEncryptionKeyAlg,
+                roleKey);
 
             var ledger = await ledgerService.AppendKeyAsync(
-                "PersonMembershipCreated",
+                "PersonRoleSharePending",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { roleId, targetUserId = targetUser.Id, relationshipType = request.RelationshipType, signature = request.SignatureBase64 }),
+                JsonSerializer.Serialize(new { roleId, targetRoleId = request.TargetRoleId, relationshipType = request.RelationshipType, signature = request.SignatureBase64 }),
                 ct);
 
-            dbContext.Memberships.Add(new Membership
+            dbContext.PendingRoleShares.Add(new PendingRoleShare
             {
                 Id = Guid.NewGuid(),
-                UserId = targetUser.Id,
-                RoleId = roleId,
+                SourceRoleId = roleId,
+                TargetRoleId = request.TargetRoleId,
                 RelationshipType = request.RelationshipType,
-                EncryptedRoleKeyCopy = Convert.FromBase64String(request.EncryptedRoleKeyCopyBase64),
+                EncryptedRoleKeyBlob = encryptedRoleKey,
+                EncryptionAlg = targetRole.PublicEncryptionKeyAlg,
+                Status = "Pending",
                 LedgerRefId = ledger.Id,
                 CreatedUtc = DateTimeOffset.UtcNow
             });
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
+        });
+
+        group.MapGet("/shares", async (HttpContext context, RecreatioDbContext dbContext, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var shares = await (
+                from share in dbContext.PendingRoleShares.AsNoTracking()
+                join membership in dbContext.Memberships.AsNoTracking() on share.TargetRoleId equals membership.RoleId
+                where membership.UserId == userId && share.Status == "Pending"
+                select new PendingRoleShareResponse(
+                    share.Id,
+                    share.SourceRoleId,
+                    share.TargetRoleId,
+                    share.RelationshipType,
+                    share.CreatedUtc
+                )
+            ).ToListAsync(ct);
+
+            return Results.Ok(shares);
+        });
+
+        group.MapPost("/shares/{shareId:guid}/accept", async (Guid shareId, PendingRoleShareAcceptRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IAsymmetricEncryptionService asymmetricEncryptionService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var share = await dbContext.PendingRoleShares.FirstOrDefaultAsync(x => x.Id == shareId, ct);
+            if (share is null || share.Status != "Pending")
+            {
+                return Results.NotFound();
+            }
+
+            var isMember = await dbContext.Memberships.AsNoTracking()
+                .AnyAsync(x => x.UserId == userId && x.RoleId == share.TargetRoleId, ct);
+            if (!isMember)
+            {
+                return Results.Forbid();
+            }
+
+            var targetRole = await dbContext.Roles.FirstOrDefaultAsync(x => x.Id == share.TargetRoleId, ct);
+            if (targetRole is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetRoleKey(share.TargetRoleId, out var targetRoleKey))
+            {
+                return Results.BadRequest(new { error = "Target role key not available." });
+            }
+
+            var cryptoMaterial = TryReadRoleCryptoMaterial(targetRole, targetRoleKey, encryptionService);
+            if (cryptoMaterial is null)
+            {
+                return Results.BadRequest(new { error = "Target role crypto material missing." });
+            }
+
+            byte[] sharedRoleKey;
+            try
+            {
+                sharedRoleKey = asymmetricEncryptionService.DecryptWithPrivateKey(
+                    Convert.FromBase64String(cryptoMaterial.PrivateEncryptionKeyBase64),
+                    cryptoMaterial.PrivateEncryptionKeyAlg,
+                    share.EncryptedRoleKeyBlob);
+            }
+            catch (CryptographicException)
+            {
+                return Results.BadRequest(new { error = "Unable to decrypt shared role key." });
+            }
+
+            var encryptedCopy = encryptionService.Encrypt(targetRoleKey, sharedRoleKey, share.SourceRoleId.ToByteArray());
+
+            if (!await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == share.TargetRoleId && x.ChildRoleId == share.SourceRoleId, ct))
+            {
+                dbContext.RoleEdges.Add(new RoleEdge
+                {
+                    Id = Guid.NewGuid(),
+                    ParentRoleId = share.TargetRoleId,
+                    ChildRoleId = share.SourceRoleId,
+                    RelationshipType = share.RelationshipType,
+                    EncryptedRoleKeyCopy = encryptedCopy,
+                    CreatedUtc = DateTimeOffset.UtcNow
+                });
+            }
+
+            share.Status = "Accepted";
+            share.AcceptedUtc = DateTimeOffset.UtcNow;
+
+            await ledgerService.AppendKeyAsync(
+                "PersonRoleShareAccepted",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { shareId, sourceRoleId = share.SourceRoleId, targetRoleId = share.TargetRoleId, signature = request.SignatureBase64 }),
+                ct);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
@@ -802,5 +951,31 @@ public static class AccountEndpoints
         }
 
         return keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.PersonRoleId, field.FieldType);
+    }
+
+    private sealed record RoleCryptoMaterial(
+        string PrivateEncryptionKeyBase64,
+        string PrivateEncryptionKeyAlg);
+
+    private static RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] roleKey, IEncryptionService encryptionService)
+    {
+        if (role.EncryptedRoleBlob.Length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = encryptionService.Decrypt(roleKey, role.EncryptedRoleBlob);
+            return JsonSerializer.Deserialize<RoleCryptoMaterial>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
     }
 }

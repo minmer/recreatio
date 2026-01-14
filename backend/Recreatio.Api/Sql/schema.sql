@@ -9,6 +9,7 @@ IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRec
 IF OBJECT_ID(N'dbo.PersonFields', N'U') IS NOT NULL DROP TABLE dbo.PersonFields;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
+IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
 IF OBJECT_ID(N'dbo.Sessions', N'U') IS NOT NULL DROP TABLE dbo.Sessions;
 IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
@@ -26,6 +27,8 @@ CREATE TABLE dbo.Roles
     EncryptedRoleBlob VARBINARY(MAX) NOT NULL,
     PublicSigningKey VARBINARY(MAX) NULL,
     PublicSigningKeyAlg NVARCHAR(64) NULL,
+    PublicEncryptionKey VARBINARY(MAX) NULL,
+    PublicEncryptionKeyAlg NVARCHAR(64) NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL
 );
@@ -62,6 +65,26 @@ CREATE TABLE dbo.RoleEdges
     CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
 );
+GO
+
+CREATE TABLE dbo.PendingRoleShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    SourceRoleId UNIQUEIDENTIFIER NOT NULL,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    RelationshipType NVARCHAR(64) NOT NULL,
+    EncryptedRoleKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptionAlg NVARCHAR(64) NOT NULL,
+    Status NVARCHAR(32) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    AcceptedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_PendingRoleShares_SourceRole FOREIGN KEY (SourceRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_PendingRoleShares_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_PendingRoleShares_TargetRole_Status ON dbo.PendingRoleShares(TargetRoleId, Status);
 GO
 
 CREATE TABLE dbo.KeyLedger

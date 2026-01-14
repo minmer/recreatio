@@ -17,6 +17,11 @@ public sealed class Role
     [MaxLength(64)]
     public string? PublicSigningKeyAlg { get; set; }
 
+    public byte[]? PublicEncryptionKey { get; set; }
+
+    [MaxLength(64)]
+    public string? PublicEncryptionKeyAlg { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }
