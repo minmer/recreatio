@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;

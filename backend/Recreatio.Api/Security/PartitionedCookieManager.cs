@@ -21,9 +21,9 @@ public sealed class PartitionedCookieManager : ICookieManager
         return _inner.GetRequestCookie(context, key);
     }
 
-    public void AppendResponseCookie(HttpContext context, string key, string value, CookieOptions options)
+    public void AppendResponseCookie(HttpContext context, string key, string? value, CookieOptions options)
     {
-        _inner.AppendResponseCookie(context, key, value, options);
+        _inner.AppendResponseCookie(context, key, value ?? string.Empty, options);
         AppendPartitionedAttribute(context, key);
     }
 
@@ -61,8 +61,13 @@ public sealed class PartitionedCookieManager : ICookieManager
         }
     }
 
-    private static bool IsTargetCookie(string header, string key)
+    private static bool IsTargetCookie(string? header, string key)
     {
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return false;
+        }
+
         var trimmed = header.AsSpan().TrimStart();
         return trimmed.StartsWith(key.AsSpan(), StringComparison.OrdinalIgnoreCase)
             && trimmed.Length > key.Length

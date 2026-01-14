@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
+using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;

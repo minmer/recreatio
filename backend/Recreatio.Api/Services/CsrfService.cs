@@ -65,8 +65,13 @@ public sealed class CsrfService : ICsrfService
         }
     }
 
-    private static bool IsTargetCookie(string header)
+    private static bool IsTargetCookie(string? header)
     {
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return false;
+        }
+
         var trimmed = header.AsSpan().TrimStart();
         return trimmed.StartsWith(CookieName.AsSpan(), StringComparison.OrdinalIgnoreCase)
             && trimmed.Length > CookieName.Length
