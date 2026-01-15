@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -15,13 +15,25 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../content/types';
-import { getRoleGraph, issueCsrf, type RoleGraphEdge, type RoleGraphNode } from '../../lib/api';
+import {
+  createRole,
+  createRoleEdge,
+  getRoleGraph,
+  issueCsrf,
+  shareRole,
+  updateRoleField,
+  type RoleGraphEdge,
+  type RoleGraphNode
+} from '../../lib/api';
 
 type RoleNodeData = {
   label: string;
   kind?: string | null;
   nodeType: string;
   value?: string | null;
+  roleId?: string | null;
+  fieldType?: string | null;
+  dataKeyId?: string | null;
   incomingTypes: string[];
   outgoingTypes: string[];
   typeColors: Record<string, string>;
@@ -38,15 +50,28 @@ type PendingLink = {
   relationType: string;
 };
 
+const RELATION_TYPES = ['Owner', 'AdminOf', 'Write', 'Read', 'MemberOf', 'DelegatedTo'] as const;
+const RELATION_COLORS: Record<string, string> = {
+  Owner: '#1d4ed8',
+  AdminOf: '#c2410c',
+  Write: '#dc2626',
+  Read: '#0284c7',
+  MemberOf: '#16a34a',
+  DelegatedTo: '#7c3aed',
+  Data: '#6b7280',
+  RecoveryOwner: '#0f766e',
+  RecoveryShare: '#8b5cf6',
+  RecoveryAccess: '#a855f7',
+  link: '#374151'
+};
+const DEFAULT_RELATION_COLOR = '#374151';
+
 const buildTypeColors = (edges: RoleGraphEdge[]) => {
-  const colors: Record<string, string> = {};
+  const colors: Record<string, string> = { ...RELATION_COLORS };
   edges.forEach((edge) => {
-    if (colors[edge.type]) return;
-    let hash = 0;
-    for (let i = 0; i < edge.type.length; i += 1) {
-      hash = (hash * 31 + edge.type.charCodeAt(i)) % 360;
+    if (!colors[edge.type]) {
+      colors[edge.type] = DEFAULT_RELATION_COLOR;
     }
-    colors[edge.type] = `hsl(${hash}, 55%, 48%)`;
   });
   return colors;
 };
@@ -65,11 +90,26 @@ const defaultLayout = (nodes: RoleGraphNode[]) => {
   }, {});
 };
 
+const stripRoleId = (id: string) => (id.startsWith('role:') ? id.slice(5) : id);
+
 const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
+  const isRoleNode = data.nodeType === 'role';
   const allowFallback = data.nodeType !== 'data';
-  const incoming = data.incomingTypes.length > 0 ? data.incomingTypes : allowFallback ? ['link'] : [];
-  const outgoing = data.outgoingTypes.length > 0 ? data.outgoingTypes : allowFallback ? ['link'] : [];
+  const incoming = isRoleNode
+    ? [...RELATION_TYPES]
+    : data.incomingTypes.length > 0
+      ? data.incomingTypes
+      : allowFallback
+        ? ['link']
+        : [];
+  const outgoing = isRoleNode
+    ? [...RELATION_TYPES]
+    : data.outgoingTypes.length > 0
+      ? data.outgoingTypes
+      : allowFallback
+        ? ['link']
+        : [];
   const secondary = data.nodeType === 'data' ? data.value : data.kind;
   return (
     <div className={`role-flow-node role-flow-node--${data.nodeType}`}>
@@ -112,7 +152,9 @@ const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
         );
       })}
       <span>{data.label}</span>
-      {secondary && <small>{secondary}</small>}
+      {secondary && (
+        <small className={data.nodeType === 'data' ? 'role-node-value' : 'role-node-kind'}>{secondary}</small>
+      )}
     </div>
   );
 };
@@ -147,6 +189,17 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
   const [createOwnerId, setCreateOwnerId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [actionStatus, setActionStatus] = useState<{ type: 'idle' | 'working' | 'success' | 'error'; message?: string }>({
+    type: 'idle'
+  });
+  const [newRoleNick, setNewRoleNick] = useState('');
+  const [newRoleKind, setNewRoleKind] = useState('');
+  const [newRoleRelation, setNewRoleRelation] = useState('Owner');
+  const [newFieldType, setNewFieldType] = useState('');
+  const [newFieldValue, setNewFieldValue] = useState('');
+  const [dataValue, setDataValue] = useState('');
+  const [shareTargetRoleId, setShareTargetRoleId] = useState('');
+  const [shareRelationType, setShareRelationType] = useState('Read');
   const nodeTypes = useMemo(
     () => ({
       role: GraphNode,
@@ -169,80 +222,77 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     };
   }, [isFullscreen]);
 
-  useEffect(() => {
-    let active = true;
-    const loadGraph = async () => {
-      setLoading(true);
-      try {
-        await issueCsrf();
-        const graph = await getRoleGraph();
-        if (!active) return;
-        const layout = defaultLayout(graph.nodes);
-        const typeColors = buildTypeColors(graph.edges);
-        const perNode = graph.nodes.reduce<Record<string, { incoming: string[]; outgoing: string[] }>>((acc, node) => {
-          acc[node.id] = { incoming: [], outgoing: [] };
-          return acc;
-        }, {});
-        graph.edges.forEach((edge) => {
-          perNode[edge.targetRoleId]?.incoming.push(edge.type);
-          perNode[edge.sourceRoleId]?.outgoing.push(edge.type);
-        });
+  const loadGraph = useCallback(async () => {
+    setLoading(true);
+    try {
+      await issueCsrf();
+      const graph = await getRoleGraph();
+      const layout = defaultLayout(graph.nodes);
+      const typeColors = buildTypeColors(graph.edges);
+      const perNode = graph.nodes.reduce<Record<string, { incoming: string[]; outgoing: string[] }>>((acc, node) => {
+        acc[node.id] = { incoming: [], outgoing: [] };
+        return acc;
+      }, {});
+      graph.edges.forEach((edge) => {
+        perNode[edge.targetRoleId]?.incoming.push(edge.type);
+        perNode[edge.sourceRoleId]?.outgoing.push(edge.type);
+      });
 
-        const nextNodes: Node<RoleNodeData>[] = graph.nodes.map((node) => {
-          const nodeType = node.nodeType ?? 'role';
-          return {
-            id: node.id,
-            type: nodeType,
-            position: layout[node.id],
-            data: {
-              label: node.label,
-              kind: node.kind,
-              nodeType,
-              value: node.value,
-              incomingTypes: perNode[node.id]?.incoming ?? [],
-              outgoingTypes: perNode[node.id]?.outgoing ?? [],
-              typeColors
-            }
-          };
-        });
-
-        const nextEdges: Edge<RoleEdgeData>[] = graph.edges.map((edge) => ({
-          id: edge.id,
-          source: edge.sourceRoleId,
-          target: edge.targetRoleId,
-          type: 'role',
+      const nextNodes: Node<RoleNodeData>[] = graph.nodes.map((node) => {
+        const nodeType = node.nodeType ?? 'role';
+        return {
+          id: node.id,
+          type: nodeType,
+          position: layout[node.id],
           data: {
-            relationType: edge.type,
-            color: typeColors[edge.type] ?? 'rgba(28, 33, 38, 0.45)'
-          }
-        }));
-
-        const types = graph.edges.reduce<Record<string, boolean>>((acc, edge) => {
-          acc[edge.type] = acc[edge.type] ?? true;
-          return acc;
-        }, {});
-
-        setFilters(types);
-        setNodes(nextNodes);
-        setEdges(nextEdges);
-        setSearchIndex(
-          graph.nodes.map((node) => ({
-            id: node.id,
             label: node.label,
-            value: node.value
-          }))
-        );
-      } finally {
-        if (!active) return;
-        setLoading(false);
-      }
-    };
+            kind: node.kind,
+            nodeType,
+            value: node.value,
+            roleId: node.roleId,
+            fieldType: node.fieldType,
+            dataKeyId: node.dataKeyId,
+            incomingTypes: perNode[node.id]?.incoming ?? [],
+            outgoingTypes: perNode[node.id]?.outgoing ?? [],
+            typeColors
+          }
+        };
+      });
 
-    loadGraph();
-    return () => {
-      active = false;
-    };
+      const nextEdges: Edge<RoleEdgeData>[] = graph.edges.map((edge) => ({
+        id: edge.id,
+        source: edge.sourceRoleId,
+        target: edge.targetRoleId,
+        type: 'role',
+        data: {
+          relationType: edge.type,
+          color: typeColors[edge.type] ?? DEFAULT_RELATION_COLOR
+        }
+      }));
+
+      const types = graph.edges.reduce<Record<string, boolean>>((acc, edge) => {
+        acc[edge.type] = acc[edge.type] ?? true;
+        return acc;
+      }, {});
+
+      setFilters(types);
+      setNodes(nextNodes);
+      setEdges(nextEdges);
+      setSearchIndex(
+        graph.nodes.map((node) => ({
+          id: node.id,
+          label: node.label,
+          value: node.value ?? node.kind
+        }))
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [setEdges, setNodes]);
+
+  useEffect(() => {
+    void loadGraph();
+  }, [loadGraph]);
 
   const filteredEdges = useMemo(() => {
     return edges.filter((edge) => filters[edge.data?.relationType ?? ''] !== false);
@@ -365,24 +415,153 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
       return false;
     }
+    const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') ||
+      connection.targetHandle.replace(/^(in|out)-/, '');
+    if (relationType && !RELATION_TYPES.includes(relationType as (typeof RELATION_TYPES)[number])) {
+      return false;
+    }
     const sourceIn = connection.sourceHandle.startsWith('in-');
     const targetIn = connection.targetHandle.startsWith('in-');
     return sourceIn !== targetIn;
   };
 
-  const handleConnect = (connection: Connection) => {
+  const handleConnect = async (connection: Connection) => {
     if (!connection.source || !connection.target) return;
     if (!connection.sourceHandle || !connection.targetHandle) return;
-    const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') || 'link';
+    const sourceIsOut = connection.sourceHandle.startsWith('out-');
+    const relationType = (sourceIsOut ? connection.sourceHandle : connection.targetHandle).replace(/^(in|out)-/, '');
+    const parentNodeId = sourceIsOut ? connection.source : connection.target;
+    const childNodeId = sourceIsOut ? connection.target : connection.source;
+    if (!relationType) return;
+
     setPendingLink({
-      sourceId: connection.source,
-      targetId: connection.target,
+      sourceId: parentNodeId,
+      targetId: childNodeId,
       relationType
     });
+    setActionStatus({ type: 'working', message: copy.account.roles.linkWorking });
+
+    try {
+      await issueCsrf();
+      await createRoleEdge(stripRoleId(parentNodeId), {
+        childRoleId: stripRoleId(childNodeId),
+        relationshipType: relationType
+      });
+      await loadGraph();
+      setActionStatus({ type: 'success', message: copy.account.roles.linkSuccess });
+    } catch {
+      setActionStatus({ type: 'error', message: copy.account.roles.linkError });
+    }
   };
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+  const selectedRoleId = selectedNode?.data.roleId ?? (selectedNode?.id && selectedNode.id.startsWith('role:') ? stripRoleId(selectedNode.id) : null);
+
+  useEffect(() => {
+    if (selectedNode?.data.nodeType === 'data') {
+      setDataValue(selectedNode.data.value ?? '');
+    } else {
+      setDataValue('');
+    }
+    if (!selectedNode || selectedNode.id !== createOwnerId) {
+      setCreateOwnerId(null);
+    }
+    setActionStatus({ type: 'idle' });
+  }, [createOwnerId, selectedNode, selectedNodeId, selectedNode?.data.nodeType, selectedNode?.data.value]);
+
+  const handleCreateRole = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!createOwnerId) return;
+    if (!newRoleNick.trim() || !newRoleKind.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.createRoleError });
+      return;
+    }
+    setActionStatus({ type: 'working', message: copy.account.roles.createRoleWorking });
+    try {
+      await issueCsrf();
+      await createRole({
+        parentRoleId: stripRoleId(createOwnerId),
+        relationshipType: newRoleRelation,
+        fields: [
+          { fieldType: 'nick', plainValue: newRoleNick.trim() },
+          { fieldType: 'role_kind', plainValue: newRoleKind.trim() }
+        ]
+      });
+      await loadGraph();
+      setNewRoleNick('');
+      setNewRoleKind('');
+      setCreateOwnerId(null);
+      setActionStatus({ type: 'success', message: copy.account.roles.createRoleSuccess });
+    } catch {
+      setActionStatus({ type: 'error', message: copy.account.roles.createRoleError });
+    }
+  };
+
+  const handleAddField = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedRoleId) return;
+    if (!newFieldType.trim() || !newFieldValue.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataAddError });
+      return;
+    }
+    setActionStatus({ type: 'working', message: copy.account.roles.dataAddWorking });
+    try {
+      await issueCsrf();
+      await updateRoleField(selectedRoleId, {
+        fieldType: newFieldType.trim(),
+        plainValue: newFieldValue.trim()
+      });
+      await loadGraph();
+      setNewFieldType('');
+      setNewFieldValue('');
+      setActionStatus({ type: 'success', message: copy.account.roles.dataAddSuccess });
+    } catch {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataAddError });
+    }
+  };
+
+  const handleUpdateField = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedRoleId || !selectedNode?.data.fieldType) return;
+    if (!dataValue.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataEditError });
+      return;
+    }
+    setActionStatus({ type: 'working', message: copy.account.roles.dataEditWorking });
+    try {
+      await issueCsrf();
+      await updateRoleField(selectedRoleId, {
+        fieldType: selectedNode.data.fieldType,
+        plainValue: dataValue.trim()
+      });
+      await loadGraph();
+      setActionStatus({ type: 'success', message: copy.account.roles.dataEditSuccess });
+    } catch {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataEditError });
+    }
+  };
+
+  const handleShareRole = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedRoleId || !shareTargetRoleId.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.shareRoleError });
+      return;
+    }
+    const targetRoleId = stripRoleId(shareTargetRoleId.trim());
+    setActionStatus({ type: 'working', message: copy.account.roles.shareRoleWorking });
+    try {
+      await issueCsrf();
+      await shareRole(selectedRoleId, {
+        targetRoleId,
+        relationshipType: shareRelationType
+      });
+      setShareTargetRoleId('');
+      setActionStatus({ type: 'success', message: copy.account.roles.shareRoleSuccess });
+    } catch {
+      setActionStatus({ type: 'error', message: copy.account.roles.shareRoleError });
+    }
+  };
 
   return (
     <section className="account-card" id="roles">
@@ -458,24 +637,14 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           {selectedNode && (
             <div className="role-panel-block">
               <strong>{selectedNode.data.label}</strong>
-              {selectedNode.data.kind && <span className="hint">{selectedNode.data.kind}</span>}
+              {selectedNode.data.kind && selectedNode.data.nodeType !== 'data' && (
+                <span className="hint">{selectedNode.data.kind}</span>
+              )}
               {selectedNode.data.nodeType === 'data' && selectedNode.data.value && (
                 <span className="hint">{selectedNode.data.value}</span>
               )}
               <span className="hint">{selectedNode.id}</span>
             </div>
-          )}
-          {selectedNode && selectedNode.data.nodeType === 'role' && (
-            <button
-              type="button"
-              className="chip"
-              onClick={() => {
-                setCreateOwnerId(selectedNode.id);
-                setPendingLink(null);
-              }}
-            >
-              {copy.account.roles.createOwnedRole}
-            </button>
           )}
           {selectedEdge && (
             <div className="role-panel-block">
@@ -496,14 +665,125 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
               <span className="hint">{pendingLink.relationType}</span>
             </div>
           )}
-          {createOwnerId && (
-            <div className="role-panel-block">
-              <strong>{copy.account.roles.createOwnedRole}</strong>
-              <span className="hint">{copy.account.roles.createOwnedRoleHint}</span>
-              <span className="hint">{createOwnerId}</span>
+          {actionStatus.type !== 'idle' && (
+            <div className={`status ${actionStatus.type === 'working' ? '' : actionStatus.type}`}>
+              <strong>{copy.access.statusTitle}</strong>
+              <span>{actionStatus.message ?? copy.access.statusReady}</span>
             </div>
           )}
           {!selectedNode && !selectedEdge && <p className="hint">{copy.account.roles.panelEmpty}</p>}
+          {selectedNode && selectedNode.data.nodeType === 'role' && (
+            <>
+              <button
+                type="button"
+                className="chip"
+                onClick={() => {
+                  setCreateOwnerId(selectedNode.id);
+                  setPendingLink(null);
+                }}
+              >
+                {copy.account.roles.createOwnedRole}
+              </button>
+              {createOwnerId && (
+                <form className="role-panel-form" onSubmit={handleCreateRole}>
+                  <strong>{copy.account.roles.createRoleTitle}</strong>
+                  <span className="hint">{copy.account.roles.createOwnedRoleHint}</span>
+                  <label>
+                    {copy.account.roles.createRoleNickLabel}
+                    <input
+                      type="text"
+                      value={newRoleNick}
+                      onChange={(event) => setNewRoleNick(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {copy.account.roles.createRoleKindLabel}
+                    <input
+                      type="text"
+                      value={newRoleKind}
+                      onChange={(event) => setNewRoleKind(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    {copy.account.roles.createRoleRelationLabel}
+                    <select value={newRoleRelation} onChange={(event) => setNewRoleRelation(event.target.value)}>
+                      {RELATION_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="role-panel-actions">
+                    <button type="submit" className="chip">
+                      {copy.account.roles.createRoleAction}
+                    </button>
+                    <button type="button" className="ghost" onClick={() => setCreateOwnerId(null)}>
+                      {copy.account.roles.cancelAction}
+                    </button>
+                  </div>
+                </form>
+              )}
+              <form className="role-panel-form" onSubmit={handleAddField}>
+                <strong>{copy.account.roles.dataAddTitle}</strong>
+                <label>
+                  {copy.account.roles.dataFieldLabel}
+                  <input
+                    type="text"
+                    value={newFieldType}
+                    onChange={(event) => setNewFieldType(event.target.value)}
+                  />
+                </label>
+                <label>
+                  {copy.account.roles.dataValueLabel}
+                  <input
+                    type="text"
+                    value={newFieldValue}
+                    onChange={(event) => setNewFieldValue(event.target.value)}
+                  />
+                </label>
+                <button type="submit" className="chip">
+                  {copy.account.roles.dataAddAction}
+                </button>
+              </form>
+              <form className="role-panel-form" onSubmit={handleShareRole}>
+                <strong>{copy.account.roles.shareRoleTitle}</strong>
+                <label>
+                  {copy.account.roles.shareRoleTargetLabel}
+                  <input
+                    type="text"
+                    value={shareTargetRoleId}
+                    onChange={(event) => setShareTargetRoleId(event.target.value)}
+                  />
+                </label>
+                <label>
+                  {copy.account.roles.shareRoleRelationLabel}
+                  <select value={shareRelationType} onChange={(event) => setShareRelationType(event.target.value)}>
+                    {RELATION_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" className="chip">
+                  {copy.account.roles.shareRoleAction}
+                </button>
+              </form>
+            </>
+          )}
+          {selectedNode && selectedNode.data.nodeType === 'data' && (
+            <form className="role-panel-form" onSubmit={handleUpdateField}>
+              <strong>{copy.account.roles.dataEditTitle}</strong>
+              <label>
+                {copy.account.roles.dataValueLabel}
+                <input type="text" value={dataValue} onChange={(event) => setDataValue(event.target.value)} />
+              </label>
+              <button type="submit" className="chip">
+                {copy.account.roles.dataEditAction}
+              </button>
+            </form>
+          )}
           {selectedNode && (
             <>
               <div className="role-panel-block">

@@ -1,13 +1,25 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
+using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
+using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 
 namespace Recreatio.Api.Endpoints;
 
 public static class RoleEndpoints
 {
+    private static readonly HashSet<string> AllowedRelationshipTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Owner",
+        "AdminOf",
+        "Write",
+        "Read",
+        "MemberOf",
+        "DelegatedTo"
+    };
+
     public static void MapRoleEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/roles").RequireAuthorization();
@@ -17,6 +29,8 @@ public static class RoleEndpoints
             CreateRoleEdgeRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
@@ -25,11 +39,9 @@ public static class RoleEndpoints
                 return Results.Unauthorized();
             }
 
-            var isMember = await dbContext.Memberships.AsNoTracking()
-                .AnyAsync(x => x.UserId == userId && x.RoleId == parentRoleId, ct);
-            if (!isMember)
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
-                return Results.Forbid();
+                return Results.Unauthorized();
             }
 
             if (request.ChildRoleId == Guid.Empty)
@@ -42,21 +54,37 @@ public static class RoleEndpoints
             {
                 return Results.BadRequest(new { error = "RelationshipType is required." });
             }
+            if (!AllowedRelationshipTypes.Contains(relationshipType))
+            {
+                return Results.BadRequest(new { error = "RelationshipType is invalid." });
+            }
 
             if (await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == parentRoleId && x.ChildRoleId == request.ChildRoleId, ct))
             {
                 return Results.Conflict(new { error = "Role edge already exists." });
             }
 
-            byte[] encryptedRoleKeyCopy;
+            RoleKeyRing keyRing;
             try
             {
-                encryptedRoleKeyCopy = Convert.FromBase64String(request.EncryptedRoleKeyCopyBase64);
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
             }
-            catch (FormatException)
+            catch (InvalidOperationException)
             {
-                return Results.BadRequest(new { error = "EncryptedRoleKeyCopyBase64 is invalid." });
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
+
+            if (!keyRing.TryGetRoleKey(parentRoleId, out var parentRoleKey))
+            {
+                return Results.Forbid();
+            }
+
+            if (!keyRing.TryGetRoleKey(request.ChildRoleId, out var childRoleKey))
+            {
+                return Results.BadRequest(new { error = "Child role key not available." });
+            }
+
+            var encryptedRoleKeyCopy = encryptionService.Encrypt(parentRoleKey, childRoleKey, request.ChildRoleId.ToByteArray());
 
             var now = DateTimeOffset.UtcNow;
             var edge = new RoleEdge

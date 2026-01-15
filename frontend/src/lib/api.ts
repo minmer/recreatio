@@ -146,28 +146,28 @@ export function updateProfile(payload: { displayName?: string | null }) {
   });
 }
 
-export type PersonFieldResponse = {
+export type RoleFieldResponse = {
   fieldType: string;
   plainValue?: string | null;
   dataKeyId: string;
 };
 
-export type PersonResponse = {
-  personRoleId: string;
+export type RoleResponse = {
+  roleId: string;
   publicSigningKeyBase64?: string | null;
   publicSigningKeyAlg?: string | null;
-  fields: PersonFieldResponse[];
+  fields: RoleFieldResponse[];
 };
 
-export type PersonAccessRoleResponse = {
+export type RoleAccessRoleResponse = {
   roleId: string;
   roleKind: string;
   relationshipType: string;
 };
 
-export type PersonAccessResponse = {
-  personRoleId: string;
-  roles: PersonAccessRoleResponse[];
+export type RoleAccessResponse = {
+  roleId: string;
+  roles: RoleAccessRoleResponse[];
 };
 
 export type PendingRoleShareResponse = {
@@ -178,53 +178,55 @@ export type PendingRoleShareResponse = {
   createdUtc: string;
 };
 
-export function getPersons() {
-  return request<PersonResponse[]>('/account/persons', {
+export function getRoles() {
+  return request<RoleResponse[]>('/account/roles', {
     method: 'GET'
   });
 }
 
-export function createPerson(payload: {
+export function createRole(payload: {
   fields: Array<{
     fieldType: string;
     plainValue?: string | null;
     dataKeyId?: string | null;
     signatureBase64?: string | null;
   }>;
+  parentRoleId?: string | null;
+  relationshipType?: string | null;
   publicSigningKeyBase64?: string | null;
   publicSigningKeyAlg?: string | null;
   signatureBase64?: string | null;
 }) {
-  return request<PersonResponse>('/account/persons', {
+  return request<RoleResponse>('/account/roles', {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function updatePersonField(roleId: string, payload: {
+export function updateRoleField(roleId: string, payload: {
   fieldType: string;
   plainValue?: string | null;
   dataKeyId?: string | null;
   signatureBase64?: string | null;
 }) {
-  return request<PersonFieldResponse>(`/account/persons/${roleId}/fields`, {
+  return request<RoleFieldResponse>(`/account/roles/${roleId}/fields`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
-export function getPersonAccess(roleId: string) {
-  return request<PersonAccessResponse>(`/account/persons/${roleId}/access`, {
+export function getRoleAccess(roleId: string) {
+  return request<RoleAccessResponse>(`/account/roles/${roleId}/access`, {
     method: 'GET'
   });
 }
 
-export function sharePersonRole(roleId: string, payload: {
+export function shareRole(roleId: string, payload: {
   targetRoleId: string;
   relationshipType: string;
   signatureBase64?: string | null;
 }) {
-  return request<void>(`/account/persons/${roleId}/shares`, {
+  return request<void>(`/account/roles/${roleId}/shares`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
@@ -254,12 +256,26 @@ export function searchRolesByNick(query: string) {
   return request<RoleSearchResponse[]>(`/account/roles/search?${params.toString()}`, { method: 'GET' });
 }
 
+export function createRoleEdge(parentRoleId: string, payload: {
+  childRoleId: string;
+  relationshipType: string;
+  signatureBase64?: string | null;
+}) {
+  return request<void>(`/roles/${parentRoleId}/edges`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export type RoleGraphNode = {
   id: string;
   label: string;
   nodeType: string;
   kind?: string | null;
   value?: string | null;
+  roleId?: string | null;
+  fieldType?: string | null;
+  dataKeyId?: string | null;
 };
 
 export type RoleGraphEdge = {
@@ -283,14 +299,14 @@ export function shareRecovery(roleId: string, payload: {
   encryptedShareBase64: string;
   signatureBase64?: string | null;
 }) {
-  return request<void>(`/account/persons/${roleId}/recovery/shares`, {
+  return request<void>(`/account/roles/${roleId}/recovery/shares`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
 }
 
 export function createRecoveryRequest(roleId: string, payload: { initiatorRoleId: string; signatureBase64?: string | null }) {
-  return request<{ requestId: string; status: string; requiredApprovals: number }>(`/account/persons/${roleId}/recovery/request`, {
+  return request<{ requestId: string; status: string; requiredApprovals: number }>(`/account/roles/${roleId}/recovery/request`, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
@@ -302,7 +318,7 @@ export function approveRecoveryRequest(
   payload: { approverRoleId: string; encryptedApprovalBase64: string; signatureBase64?: string | null }
 ) {
   return request<{ requestId: string; status: string; requiredApprovals: number }>(
-    `/account/persons/${roleId}/recovery/request/${requestId}/approve`,
+    `/account/roles/${roleId}/recovery/request/${requestId}/approve`,
     {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -312,7 +328,7 @@ export function approveRecoveryRequest(
 
 export function cancelRecoveryRequest(roleId: string, requestId: string) {
   return request<{ requestId: string; status: string; requiredApprovals: number }>(
-    `/account/persons/${roleId}/recovery/request/${requestId}/cancel`,
+    `/account/roles/${roleId}/recovery/request/${requestId}/cancel`,
     {
       method: 'POST',
       body: JSON.stringify({})
@@ -322,7 +338,7 @@ export function cancelRecoveryRequest(roleId: string, requestId: string) {
 
 export function completeRecoveryRequest(roleId: string, requestId: string) {
   return request<{ requestId: string; status: string; requiredApprovals: number }>(
-    `/account/persons/${roleId}/recovery/request/${requestId}/complete`,
+    `/account/roles/${roleId}/recovery/request/${requestId}/complete`,
     {
       method: 'POST',
       body: JSON.stringify({})

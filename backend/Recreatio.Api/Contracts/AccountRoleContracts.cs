@@ -1,40 +1,42 @@
 namespace Recreatio.Api.Contracts;
 
-public sealed record PersonFieldRequest(
+public sealed record RoleFieldRequest(
     string FieldType,
     string? PlainValue,
     Guid? DataKeyId,
     string? SignatureBase64
 );
 
-public sealed record CreatePersonRequest(
-    List<PersonFieldRequest> Fields,
+public sealed record CreateRoleRequest(
+    List<RoleFieldRequest> Fields,
+    Guid? ParentRoleId,
+    string? RelationshipType,
     string? PublicSigningKeyBase64,
     string? PublicSigningKeyAlg,
     string? SignatureBase64
 );
 
-public sealed record UpdatePersonFieldRequest(
+public sealed record UpdateRoleFieldRequest(
     string FieldType,
     string? PlainValue,
     Guid? DataKeyId,
     string? SignatureBase64
 );
 
-public sealed record PersonFieldResponse(
+public sealed record RoleFieldResponse(
     string FieldType,
     string? PlainValue,
     Guid DataKeyId
 );
 
-public sealed record PersonResponse(
-    Guid PersonRoleId,
+public sealed record RoleResponse(
+    Guid RoleId,
     string? PublicSigningKeyBase64,
     string? PublicSigningKeyAlg,
-    List<PersonFieldResponse> Fields
+    List<RoleFieldResponse> Fields
 );
 
-public sealed record AddPersonShareRequest(
+public sealed record AddRoleShareRequest(
     Guid TargetRoleId,
     string RelationshipType,
     string? SignatureBase64
@@ -45,15 +47,15 @@ public sealed record RoleSummaryResponse(
     string RoleKind
 );
 
-public sealed record PersonAccessRoleResponse(
+public sealed record RoleAccessRoleResponse(
     Guid RoleId,
     string RoleKind,
     string RelationshipType
 );
 
-public sealed record PersonAccessResponse(
-    Guid PersonRoleId,
-    List<PersonAccessRoleResponse> Roles
+public sealed record RoleAccessResponse(
+    Guid RoleId,
+    List<RoleAccessRoleResponse> Roles
 );
 
 public sealed record PendingRoleShareResponse(
@@ -79,7 +81,10 @@ public sealed record RoleGraphNode(
     string Label,
     string NodeType,
     string? Kind,
-    string? Value
+    string? Value,
+    Guid? RoleId,
+    string? FieldType,
+    Guid? DataKeyId
 );
 
 public sealed record RoleGraphEdge(
