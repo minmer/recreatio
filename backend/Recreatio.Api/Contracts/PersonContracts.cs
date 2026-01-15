@@ -74,6 +74,24 @@ public sealed record RoleSearchResponse(
     string Nick
 );
 
+public sealed record RoleGraphNode(
+    Guid Id,
+    string Label,
+    string Kind
+);
+
+public sealed record RoleGraphEdge(
+    string Id,
+    Guid SourceRoleId,
+    Guid TargetRoleId,
+    string Type
+);
+
+public sealed record RoleGraphResponse(
+    List<RoleGraphNode> Nodes,
+    List<RoleGraphEdge> Edges
+);
+
 public sealed record RecoveryShareRequest(
     Guid SharedWithRoleId,
     string EncryptedShareBase64,

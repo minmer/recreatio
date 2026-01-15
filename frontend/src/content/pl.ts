@@ -234,6 +234,7 @@ export const pl: Copy = {
     sections: {
       overview: 'Przegląd',
       profile: 'Profil publiczny',
+      roles: 'Graf ról',
       persons: 'Osoby',
       security: 'Bezpieczeństwo'
     },
@@ -262,6 +263,20 @@ export const pl: Copy = {
     secureModeEnable: 'Włącz tryb bezpieczny',
     secureModeDisable: 'Wyłącz tryb bezpieczny',
     logoutAction: 'Wyloguj',
+    roles: {
+      lead: 'Wizualizacja ról i relacji. Kliknij węzeł lub krawędź, aby zobaczyć szczegóły.',
+      searchPlaceholder: 'Szukaj po nicku lub ID roli',
+      reachableToggle: 'Pokaż tylko osiągalne od wybranej',
+      noFilters: 'Brak typów relacji.',
+      loading: 'Ładowanie grafu…',
+      noNodes: 'Brak ról do wyświetlenia.',
+      panelTitle: 'Szczegóły',
+      panelEmpty: 'Wybierz rolę lub relację.',
+      edgeTitle: 'Relacja',
+      incomingTitle: 'Przychodzące',
+      outgoingTitle: 'Wychodzące',
+      none: 'Brak'
+    },
     persons: {
       lead: 'Role osób zaczynają się od prywatnego nicku. Dane osobowe dodajesz osobno i są szyfrowane per rola.',
       addToggle: 'Dodaj osobę',
@@ -294,7 +309,7 @@ export const pl: Copy = {
       dataSuccess: 'Dane zostały zaktualizowane.',
       dataError: 'Nie udało się zaktualizować danych.',
       dataMissing: 'Typ i wartość są wymagane.',
-      dataNickReserved: 'Nick edytujesz w profilu powyżej.',
+      dataNickReserved: 'Nick edytujesz w profilu osoby.',
       accessToggle: 'Dostęp',
       accessTitle: 'Lista dostępu',
       accessRefresh: 'Odśwież',

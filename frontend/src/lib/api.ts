@@ -254,6 +254,28 @@ export function searchRolesByNick(query: string) {
   return request<RoleSearchResponse[]>(`/account/roles/search?${params.toString()}`, { method: 'GET' });
 }
 
+export type RoleGraphNode = {
+  id: string;
+  label: string;
+  kind: string;
+};
+
+export type RoleGraphEdge = {
+  id: string;
+  sourceRoleId: string;
+  targetRoleId: string;
+  type: string;
+};
+
+export type RoleGraphResponse = {
+  nodes: RoleGraphNode[];
+  edges: RoleGraphEdge[];
+};
+
+export function getRoleGraph() {
+  return request<RoleGraphResponse>('/account/roles/graph', { method: 'GET' });
+}
+
 export function shareRecovery(roleId: string, payload: {
   sharedWithRoleId: string;
   encryptedShareBase64: string;

@@ -231,6 +231,7 @@ export const de: Copy = {
     sections: {
       overview: 'Überblick',
       profile: 'Öffentliches Profil',
+      roles: 'Rollen-Graph',
       persons: 'Personen',
       security: 'Sicherheit'
     },
@@ -259,6 +260,20 @@ export const de: Copy = {
     secureModeEnable: 'Sicheren Modus aktivieren',
     secureModeDisable: 'Sicheren Modus deaktivieren',
     logoutAction: 'Abmelden',
+    roles: {
+      lead: 'Visualisiere Rollen und Beziehungen. Wähle Knoten oder Kanten für Details.',
+      searchPlaceholder: 'Nach Nick oder Rollen-ID suchen',
+      reachableToggle: 'Nur erreichbare vom gewählten Knoten',
+      noFilters: 'Keine Beziehungstypen.',
+      loading: 'Graph wird geladen…',
+      noNodes: 'Keine Rollen verfügbar.',
+      panelTitle: 'Details',
+      panelEmpty: 'Wähle eine Rolle oder Beziehung.',
+      edgeTitle: 'Beziehung',
+      incomingTitle: 'Eingehend',
+      outgoingTitle: 'Ausgehend',
+      none: 'Keine'
+    },
     persons: {
       lead: 'Personenrollen starten mit einem privaten Nick. Persönliche Daten werden separat und rollenbasiert verschlüsselt.',
       addToggle: 'Person hinzufügen',
@@ -291,7 +306,7 @@ export const de: Copy = {
       dataSuccess: 'Daten aktualisiert.',
       dataError: 'Aktualisierung fehlgeschlagen.',
       dataMissing: 'Typ und Wert sind erforderlich.',
-      dataNickReserved: 'Den Nick bearbeitest du oben im Profil.',
+      dataNickReserved: 'Den Nick bearbeitest du im Personenprofil.',
       accessToggle: 'Zugriff',
       accessTitle: 'Zugriffsliste',
       accessRefresh: 'Aktualisieren',

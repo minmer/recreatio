@@ -96,6 +96,7 @@ export type Copy = {
     sections: {
       overview: string;
       profile: string;
+      roles: string;
       persons: string;
       security: string;
     };
@@ -124,6 +125,20 @@ export type Copy = {
     secureModeEnable: string;
     secureModeDisable: string;
     logoutAction: string;
+    roles: {
+      lead: string;
+      searchPlaceholder: string;
+      reachableToggle: string;
+      noFilters: string;
+      loading: string;
+      noNodes: string;
+      panelTitle: string;
+      panelEmpty: string;
+      edgeTitle: string;
+      incomingTitle: string;
+      outgoingTitle: string;
+      none: string;
+    };
     persons: {
       lead: string;
       addToggle: string;

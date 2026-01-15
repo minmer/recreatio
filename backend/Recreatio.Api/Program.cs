@@ -37,6 +37,25 @@ builder.Services.AddCors(options =>
 });
 
 var isDevelopment = builder.Environment.IsDevelopment();
+SameSiteMode ParseSameSiteSetting(string? value, SameSiteMode fallback)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return fallback;
+    }
+
+    return Enum.TryParse<SameSiteMode>(value, true, out var parsed) ? parsed : fallback;
+}
+
+CookieSecurePolicy ParseSecurePolicySetting(string? value, CookieSecurePolicy fallback)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return fallback;
+    }
+
+    return Enum.TryParse<CookieSecurePolicy>(value, true, out var parsed) ? parsed : fallback;
+}
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -63,10 +82,15 @@ builder.Services.AddScoped<ICsrfService, CsrfService>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
+        var cookieSameSiteSetting = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieSameSite");
+        var cookieSecurePolicySetting = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieSecurePolicy");
+        var defaultSameSite = isDevelopment ? SameSiteMode.None : SameSiteMode.Lax;
+        var defaultSecurePolicy = isDevelopment ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
+
         options.Cookie.Name = "recreatio.auth";
         options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = isDevelopment ? SameSiteMode.None : SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
+        options.Cookie.SameSite = ParseSameSiteSetting(cookieSameSiteSetting, defaultSameSite);
+        options.Cookie.SecurePolicy = ParseSecurePolicySetting(cookieSecurePolicySetting, defaultSecurePolicy);
         var cookieDomain = builder.Configuration.GetSection("Auth").GetValue<string?>("CookieDomain");
         if (!string.IsNullOrWhiteSpace(cookieDomain))
         {

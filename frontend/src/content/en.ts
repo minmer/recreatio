@@ -233,6 +233,7 @@ export const en: Copy = {
     sections: {
       overview: 'Overview',
       profile: 'Public profile',
+      roles: 'Role graph',
       persons: 'Persons',
       security: 'Security'
     },
@@ -261,6 +262,20 @@ export const en: Copy = {
     secureModeEnable: 'Enable secure mode',
     secureModeDisable: 'Disable secure mode',
     logoutAction: 'Sign out',
+    roles: {
+      lead: 'Visualize roles and their relationships. Select nodes or edges for details.',
+      searchPlaceholder: 'Search by nick or role ID',
+      reachableToggle: 'Show only reachable from selected',
+      noFilters: 'No relation types yet.',
+      loading: 'Loading graph…',
+      noNodes: 'No roles to display.',
+      panelTitle: 'Details',
+      panelEmpty: 'Select a role or relation.',
+      edgeTitle: 'Relation',
+      incomingTitle: 'Incoming',
+      outgoingTitle: 'Outgoing',
+      none: 'None'
+    },
     persons: {
       lead: 'Person roles start with a private nick. Personal data is added separately and stays encrypted per role.',
       addToggle: 'Add person',
@@ -293,7 +308,7 @@ export const en: Copy = {
       dataSuccess: 'Data updated.',
       dataError: 'Data update failed.',
       dataMissing: 'Type and value are required.',
-      dataNickReserved: 'Nick is edited in the profile section above.',
+      dataNickReserved: 'Nick is edited in the person profile section.',
       accessToggle: 'Access',
       accessTitle: 'Access list',
       accessRefresh: 'Refresh',

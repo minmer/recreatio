@@ -161,6 +161,130 @@ public static class AccountEndpoints
             return Results.Ok(matches);
         });
 
+        group.MapGet("/roles/graph", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var roleIds = keyRing.RoleKeys.Keys.ToList();
+            if (roleIds.Count == 0)
+            {
+                return Results.Ok(new RoleGraphResponse(new List<RoleGraphNode>(), new List<RoleGraphEdge>()));
+            }
+
+            var roleIdSet = roleIds.ToHashSet();
+            var roles = await dbContext.Roles.AsNoTracking()
+                .ToListAsync(ct);
+            var roleSummaries = roles
+                .Where(role => roleIdSet.Contains(role.Id))
+                .Select(role => new { role.Id, role.RoleType })
+                .ToList();
+
+            var nickFields = await dbContext.RoleFields.AsNoTracking()
+                .Where(x => x.FieldType == "nick")
+                .ToListAsync(ct);
+            nickFields = nickFields.Where(field => roleIdSet.Contains(field.RoleId)).ToList();
+
+            List<KeyEntry> keyEntries;
+            if (nickFields.Count == 0)
+            {
+                keyEntries = new List<KeyEntry>();
+            }
+            else
+            {
+                var dataKeyIds = nickFields.Select(x => x.DataKeyId).Distinct().ToHashSet();
+                var keys = await dbContext.Keys.AsNoTracking().ToListAsync(ct);
+                keyEntries = keys.Where(key => dataKeyIds.Contains(key.Id)).ToList();
+            }
+
+            var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
+            var nickByRole = new Dictionary<Guid, string>(roleIds.Count);
+            foreach (var field in nickFields)
+            {
+                if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
+                {
+                    continue;
+                }
+
+                if (!keyEntryById.TryGetValue(field.DataKeyId, out var keyEntry) || keyEntry.KeyType != KeyType.DataKey)
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                var nick = keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
+                if (!string.IsNullOrWhiteSpace(nick))
+                {
+                    nickByRole[field.RoleId] = nick;
+                }
+            }
+
+            var nodes = roleSummaries.Select(role =>
+            {
+                var label = nickByRole.TryGetValue(role.Id, out var nick)
+                    ? nick
+                    : $"{role.RoleType} {role.Id.ToString()[..8]}";
+                return new RoleGraphNode(role.Id, label, role.RoleType);
+            }).ToList();
+
+            var roleEdges = await dbContext.RoleEdges.AsNoTracking().ToListAsync(ct);
+            var edges = roleEdges
+                .Where(edge => roleIdSet.Contains(edge.ParentRoleId) && roleIdSet.Contains(edge.ChildRoleId))
+                .Select(edge => new RoleGraphEdge(
+                    $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{edge.RelationshipType}",
+                    edge.ParentRoleId,
+                    edge.ChildRoleId,
+                    edge.RelationshipType))
+                .ToList();
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is not null)
+            {
+                var membershipEdges = await dbContext.Memberships.AsNoTracking()
+                    .Where(x => x.UserId == userId)
+                    .Select(x => new RoleGraphEdge(
+                        $"{account.MasterRoleId:N}:{x.RoleId:N}:{x.RelationshipType}",
+                        account.MasterRoleId,
+                        x.RoleId,
+                        x.RelationshipType))
+                    .ToListAsync(ct);
+                membershipEdges = membershipEdges
+                    .Where(edge => roleIdSet.Contains(edge.SourceRoleId) && roleIdSet.Contains(edge.TargetRoleId))
+                    .ToList();
+
+                edges.AddRange(membershipEdges);
+            }
+
+            return Results.Ok(new RoleGraphResponse(nodes, edges));
+        });
+
         group.MapGet("/persons", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
