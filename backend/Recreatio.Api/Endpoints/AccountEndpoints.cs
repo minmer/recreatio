@@ -269,7 +269,11 @@ public static class AccountEndpoints
                 }
 
                 valuesByRole.TryGetValue(field.RoleId, out var fieldValues);
-                fieldValues?.TryGetValue(field.FieldType, out var value);
+                string? value = null;
+                if (fieldValues is not null && fieldValues.TryGetValue(field.FieldType, out var resolved))
+                {
+                    value = resolved;
+                }
                 var dataNodeId = $"data:{field.Id:N}";
                 nodes.Add(new RoleGraphNode(
                     dataNodeId,
