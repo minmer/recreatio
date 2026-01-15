@@ -1,21 +1,63 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import ReactFlow, {
+  Background,
+  BaseEdge,
+  Controls,
+  EdgeLabelRenderer,
+  Handle,
+  Position,
+  getStraightPath,
+  useEdgesState,
+  useNodesState,
+  type Connection,
+  type Edge,
+  type EdgeProps,
+  type Node,
+  type NodeProps
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import type { Copy } from '../../content/types';
-import {
-  getRoleGraph,
-  issueCsrf,
-  type RoleGraphEdge,
-  type RoleGraphNode
-} from '../../lib/api';
+import { getRoleGraph, issueCsrf, type RoleGraphEdge, type RoleGraphNode } from '../../lib/api';
 
-type Point = { x: number; y: number };
+type RoleNodeData = {
+  label: string;
+  kind: string;
+  incomingTypes: string[];
+  outgoingTypes: string[];
+  typeColors: Record<string, string>;
+};
 
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+type RoleEdgeData = {
+  relationType: string;
+  color: string;
+  showLabel: boolean;
+};
+
+type PendingLink = {
+  sourceId: string;
+  targetId: string;
+  relationType: string;
+};
+
+
+const buildTypeColors = (edges: RoleGraphEdge[]) => {
+  const colors: Record<string, string> = {};
+  edges.forEach((edge) => {
+    if (colors[edge.type]) return;
+    let hash = 0;
+    for (let i = 0; i < edge.type.length; i += 1) {
+      hash = (hash * 31 + edge.type.charCodeAt(i)) % 360;
+    }
+    colors[edge.type] = `hsl(${hash}, 55%, 48%)`;
+  });
+  return colors;
+};
 
 const defaultLayout = (nodes: RoleGraphNode[]) => {
   const radius = 240;
   const center = { x: 320, y: 240 };
   const count = Math.max(nodes.length, 1);
-  return nodes.reduce<Record<string, Point>>((acc, node, index) => {
+  return nodes.reduce<Record<string, { x: number; y: number }>>((acc, node, index) => {
     const angle = (index / count) * Math.PI * 2;
     acc[node.id] = {
       x: center.x + Math.cos(angle) * radius,
@@ -25,22 +67,102 @@ const defaultLayout = (nodes: RoleGraphNode[]) => {
   }, {});
 };
 
+const RoleNode = ({ data }: NodeProps<RoleNodeData>) => {
+  const incoming = data.incomingTypes.length > 0 ? data.incomingTypes : ['link'];
+  const outgoing = data.outgoingTypes.length > 0 ? data.outgoingTypes : ['link'];
+  const spacing = 16;
+  return (
+    <div className="role-flow-node">
+      {incoming.map((relationType, index) => {
+        const offset = (index - (incoming.length - 1) / 2) * spacing;
+        const color = data.typeColors[relationType] ?? 'var(--ink)';
+        return (
+          <Handle
+            key={`in-${relationType}`}
+            id={`in-${relationType}`}
+            type="target"
+            position={Position.Left}
+            isConnectableStart
+            isConnectableEnd
+            className="role-handle role-handle-in"
+            style={{
+              '--edge-color': color,
+              '--port-offset': `${offset}px`
+            } as CSSProperties}
+          />
+        );
+      })}
+      {outgoing.map((relationType, index) => {
+        const offset = (index - (outgoing.length - 1) / 2) * spacing;
+        const color = data.typeColors[relationType] ?? 'var(--ink)';
+        return (
+          <Handle
+            key={`out-${relationType}`}
+            id={`out-${relationType}`}
+            type="source"
+            position={Position.Right}
+            isConnectableStart
+            isConnectableEnd
+            className="role-handle role-handle-out"
+            style={{
+              '--edge-color': color,
+              '--port-offset': `${offset}px`
+            } as CSSProperties}
+          />
+        );
+      })}
+      <span>{data.label}</span>
+      <small>{data.kind}</small>
+    </div>
+  );
+};
+
+const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<RoleEdgeData>) => {
+  const [path, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  const showLabel = data?.showLabel;
+  return (
+    <>
+      <BaseEdge id={id} path={path} style={{ stroke: data?.color }} className="role-edge-path" />
+      {showLabel && data?.relationType && (
+        <EdgeLabelRenderer>
+          <div
+            className="role-edge-label"
+            style={{
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`
+            }}
+          >
+            {data.relationType}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+};
+
 export function RoleGraphSection({ copy }: { copy: Copy }) {
-  const [nodes, setNodes] = useState<RoleGraphNode[]>([]);
-  const [edges, setEdges] = useState<RoleGraphEdge[]>([]);
-  const [positions, setPositions] = useState<Record<string, Point>>({});
+  const [nodes, setNodes, onNodesChange] = useNodesState<RoleNodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<RoleEdgeData>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [showReachable, setShowReachable] = useState(false);
-  const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragStart, setDragStart] = useState<Point | null>(null);
-  const [panStart, setPanStart] = useState<Point | null>(null);
   const [filters, setFilters] = useState<Record<string, boolean>>({});
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
+  const [createOwnerId, setCreateOwnerId] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreen) {
+      return;
+    }
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     let active = true;
@@ -50,29 +172,64 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         await issueCsrf();
         const graph = await getRoleGraph();
         if (!active) return;
-        setNodes(graph.nodes);
-        setEdges(graph.edges);
-        setPositions(defaultLayout(graph.nodes));
+        const layout = defaultLayout(graph.nodes);
+        const typeColors = buildTypeColors(graph.edges);
+        const perNode = graph.nodes.reduce<Record<string, { incoming: string[]; outgoing: string[] }>>((acc, node) => {
+          acc[node.id] = { incoming: [], outgoing: [] };
+          return acc;
+        }, {});
+        graph.edges.forEach((edge) => {
+          perNode[edge.targetRoleId]?.incoming.push(edge.type);
+          perNode[edge.sourceRoleId]?.outgoing.push(edge.type);
+        });
+
+        const nextNodes: Node<RoleNodeData>[] = graph.nodes.map((node) => ({
+          id: node.id,
+          type: 'role',
+          position: layout[node.id],
+          data: {
+            label: node.label,
+            kind: node.kind,
+            incomingTypes: perNode[node.id]?.incoming ?? [],
+            outgoingTypes: perNode[node.id]?.outgoing ?? [],
+            typeColors
+          }
+        }));
+
+        const nextEdges: Edge<RoleEdgeData>[] = graph.edges.map((edge) => ({
+          id: edge.id,
+          source: edge.sourceRoleId,
+          target: edge.targetRoleId,
+          type: 'role',
+          data: {
+            relationType: edge.type,
+            color: typeColors[edge.type] ?? 'rgba(28, 33, 38, 0.45)',
+            showLabel: false
+          }
+        }));
+
         const types = graph.edges.reduce<Record<string, boolean>>((acc, edge) => {
           acc[edge.type] = acc[edge.type] ?? true;
           return acc;
         }, {});
+
         setFilters(types);
-      } catch {
-        if (!active) return;
+        setNodes(nextNodes);
+        setEdges(nextEdges);
       } finally {
         if (!active) return;
         setLoading(false);
       }
     };
+
     loadGraph();
     return () => {
       active = false;
     };
-  }, []);
+  }, [setEdges, setNodes]);
 
   const filteredEdges = useMemo(() => {
-    return edges.filter((edge) => filters[edge.type] !== false);
+    return edges.filter((edge) => filters[edge.data?.relationType ?? ''] !== false);
   }, [edges, filters]);
 
   const reachableIds = useMemo(() => {
@@ -85,84 +242,105 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       const current = queue.shift();
       if (!current) continue;
       filteredEdges.forEach((edge) => {
-        if (edge.sourceRoleId === current && !visited.has(edge.targetRoleId)) {
-          visited.add(edge.targetRoleId);
-          queue.push(edge.targetRoleId);
+        if (edge.source === current && !visited.has(edge.target)) {
+          visited.add(edge.target);
+          queue.push(edge.target);
         }
       });
     }
     return visited;
   }, [filteredEdges, selectedNodeId, showReachable]);
 
-  const filteredNodes = useMemo(() => {
+  const visibleNodeIds = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return nodes.filter((node) => {
-      if (reachableIds && !reachableIds.has(node.id)) {
-        return false;
-      }
-      if (!term) return true;
-      return node.label.toLowerCase().includes(term) || node.id.toLowerCase().includes(term);
-    });
+    return new Set(
+      nodes
+        .filter((node) => {
+          if (reachableIds && !reachableIds.has(node.id)) {
+            return false;
+          }
+          if (!term) return true;
+          return (
+            node.data.label.toLowerCase().includes(term) ||
+            node.id.toLowerCase().includes(term)
+          );
+        })
+        .map((node) => node.id)
+    );
   }, [nodes, reachableIds, search]);
 
-  const visibleEdges = useMemo(() => {
-    const visibleIds = new Set(filteredNodes.map((node) => node.id));
-    return filteredEdges.filter((edge) => visibleIds.has(edge.sourceRoleId) && visibleIds.has(edge.targetRoleId));
-  }, [filteredEdges, filteredNodes]);
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((node) => ({
+        ...node,
+        hidden: !visibleNodeIds.has(node.id)
+      }))
+    );
+  }, [setNodes, visibleNodeIds]);
 
-  const incomingByType = useMemo(() => {
-    if (!selectedNodeId) return {};
-    return visibleEdges
-      .filter((edge) => edge.targetRoleId === selectedNodeId)
-      .reduce<Record<string, RoleGraphEdge[]>>((acc, edge) => {
-        acc[edge.type] = [...(acc[edge.type] ?? []), edge];
-        return acc;
-      }, {});
-  }, [selectedNodeId, visibleEdges]);
+  useEffect(() => {
+    setEdges((prev) =>
+      prev.map((edge) => {
+        const visible =
+          filters[edge.data?.relationType ?? ''] !== false &&
+          visibleNodeIds.has(edge.source) &&
+          visibleNodeIds.has(edge.target);
+        return {
+          ...edge,
+          hidden: !visible,
+          data: {
+            ...edge.data,
+            showLabel: edge.id === hoveredEdgeId
+          }
+        };
+      })
+    );
+  }, [filters, hoveredEdgeId, setEdges, visibleNodeIds]);
 
-  const outgoingByType = useMemo(() => {
-    if (!selectedNodeId) return {};
-    return visibleEdges
-      .filter((edge) => edge.sourceRoleId === selectedNodeId)
-      .reduce<Record<string, RoleGraphEdge[]>>((acc, edge) => {
-        acc[edge.type] = [...(acc[edge.type] ?? []), edge];
-        return acc;
-      }, {});
-  }, [selectedNodeId, visibleEdges]);
+  useEffect(() => {
+    const incoming: Record<string, string[]> = {};
+    const outgoing: Record<string, string[]> = {};
+    filteredEdges.forEach((edge) => {
+      if (!incoming[edge.target]) incoming[edge.target] = [];
+      if (!outgoing[edge.source]) outgoing[edge.source] = [];
+      if (!incoming[edge.target].includes(edge.data?.relationType ?? '')) {
+        incoming[edge.target].push(edge.data?.relationType ?? '');
+      }
+      if (!outgoing[edge.source].includes(edge.data?.relationType ?? '')) {
+        outgoing[edge.source].push(edge.data?.relationType ?? '');
+      }
+    });
 
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingNodeId && dragStart) {
-      const delta = { x: event.clientX - dragStart.x, y: event.clientY - dragStart.y };
-      setPositions((prev) => ({
-        ...prev,
-        [draggingNodeId]: {
-          x: prev[draggingNodeId].x + delta.x / zoom,
-          y: prev[draggingNodeId].y + delta.y / zoom
+    setNodes((prev) =>
+      prev.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          incomingTypes: incoming[node.id] ?? [],
+          outgoingTypes: outgoing[node.id] ?? []
         }
-      }));
-      setDragStart({ x: event.clientX, y: event.clientY });
-      return;
-    }
+      }))
+    );
+  }, [filteredEdges, setNodes]);
 
-    if (panStart) {
-      setPan((prev) => ({
-        x: prev.x + (event.clientX - panStart.x),
-        y: prev.y + (event.clientY - panStart.y)
-      }));
-      setPanStart({ x: event.clientX, y: event.clientY });
-    }
+  const isValidConnection = (connection: Connection) => {
+    if (!connection.source || !connection.target) return false;
+    if (connection.source === connection.target) return false;
+    if (!connection.sourceHandle || !connection.targetHandle) return false;
+    const sourceIn = connection.sourceHandle.startsWith('in-');
+    const targetIn = connection.targetHandle.startsWith('in-');
+    return sourceIn !== targetIn;
   };
 
-  const handlePointerUp = () => {
-    setDraggingNodeId(null);
-    setDragStart(null);
-    setPanStart(null);
-  };
-
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const next = clamp(zoom - event.deltaY * 0.001, 0.4, 1.8);
-    setZoom(next);
+  const handleConnect = (connection: Connection) => {
+    if (!connection.source || !connection.target) return;
+    if (!connection.sourceHandle || !connection.targetHandle) return;
+    const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') || 'link';
+    setPendingLink({
+      sourceId: connection.source,
+      targetId: connection.target,
+      relationType
+    });
   };
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
@@ -187,6 +365,9 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           />
           {copy.account.roles.reachableToggle}
         </label>
+        <button type="button" className="chip" onClick={() => setIsFullscreen((prev) => !prev)}>
+          {isFullscreen ? copy.account.roles.fullscreenExit : copy.account.roles.fullscreenEnter}
+        </button>
       </div>
       <div className="role-filters">
         {Object.keys(filters).length === 0 && <span className="hint">{copy.account.roles.noFilters}</span>}
@@ -201,94 +382,85 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           </button>
         ))}
       </div>
-      <div className="role-graph">
-        <div
-          ref={containerRef}
-          className="role-canvas"
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          onWheel={handleWheel}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            setSelectedEdgeId(null);
-            if ((event.target as HTMLElement).dataset.nodeId) return;
-            setPanStart({ x: event.clientX, y: event.clientY });
-          }}
-        >
-          <div
-            className="role-viewport"
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+      <div className={`role-graph ${isFullscreen ? 'is-fullscreen' : ''}`}>
+        <div className="role-flow">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={{ role: RoleNode }}
+            edgeTypes={{ role: RoleEdge }}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setSelectedEdgeId(null);
+            }}
+            onEdgeClick={(_, edge) => {
+              setSelectedEdgeId(edge.id);
+              setSelectedNodeId(null);
+            }}
+            onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+            onEdgeMouseLeave={() => setHoveredEdgeId(null)}
+            onConnect={handleConnect}
+            isValidConnection={isValidConnection}
+            fitView
+            minZoom={0.4}
+            maxZoom={1.8}
+            zoomOnScroll
+            panOnScroll={false}
+            preventScrolling
           >
-            <svg className="role-edges" viewBox="0 0 640 480">
-              {visibleEdges.map((edge) => {
-                const source = positions[edge.sourceRoleId];
-                const target = positions[edge.targetRoleId];
-                if (!source || !target) return null;
-                const selected = edge.id === selectedEdgeId;
-                return (
-                  <g key={edge.id} onClick={() => setSelectedEdgeId(edge.id)}>
-                    <line
-                      x1={source.x}
-                      y1={source.y}
-                      x2={target.x}
-                      y2={target.y}
-                      className={selected ? 'selected' : ''}
-                    />
-                    <text x={(source.x + target.x) / 2} y={(source.y + target.y) / 2}>
-                      {edge.type}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="role-nodes">
-              {filteredNodes.map((node) => {
-                const pos = positions[node.id] ?? { x: 0, y: 0 };
-                const isSelected = node.id === selectedNodeId;
-                return (
-                  <button
-                    key={node.id}
-                    type="button"
-                    data-node-id={node.id}
-                    className={`role-node ${isSelected ? 'selected' : ''}`}
-                    style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
-                    onPointerDown={(event) => {
-                      event.stopPropagation();
-                      setSelectedNodeId(node.id);
-                      setSelectedEdgeId(null);
-                      setDraggingNodeId(node.id);
-                      setDragStart({ x: event.clientX, y: event.clientY });
-                    }}
-                  >
-                    <span>{node.label}</span>
-                    <small>{node.kind}</small>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            <Background gap={24} size={1} color="rgba(40, 48, 56, 0.08)" />
+            <Controls showInteractive={false} />
+          </ReactFlow>
           {loading && <div className="role-loading">{copy.account.roles.loading}</div>}
-          {!loading && nodes.length === 0 && (
-            <div className="role-loading">{copy.account.roles.noNodes}</div>
-          )}
+          {!loading && nodes.length === 0 && <div className="role-loading">{copy.account.roles.noNodes}</div>}
         </div>
         <aside className="role-panel">
           <h4>{copy.account.roles.panelTitle}</h4>
           {selectedNode && (
             <div className="role-panel-block">
-              <strong>{selectedNode.label}</strong>
-              <span className="hint">{selectedNode.kind}</span>
+              <strong>{selectedNode.data.label}</strong>
+              <span className="hint">{selectedNode.data.kind}</span>
               <span className="hint">{selectedNode.id}</span>
             </div>
+          )}
+          {selectedNode && (
+            <button
+              type="button"
+              className="chip"
+              onClick={() => {
+                setCreateOwnerId(selectedNode.id);
+                setPendingLink(null);
+              }}
+            >
+              {copy.account.roles.createOwnedRole}
+            </button>
           )}
           {selectedEdge && (
             <div className="role-panel-block">
               <strong>{copy.account.roles.edgeTitle}</strong>
-              <span className="hint">{selectedEdge.type}</span>
+              <span className="hint">{selectedEdge.data?.relationType}</span>
               <span className="hint">
-                {selectedEdge.sourceRoleId} {"->"} {selectedEdge.targetRoleId}
+                {selectedEdge.source} {"->"} {selectedEdge.target}
               </span>
+            </div>
+          )}
+          {pendingLink && (
+            <div className="role-panel-block">
+              <strong>{copy.account.roles.linkDraftTitle}</strong>
+              <span className="hint">{copy.account.roles.linkDraftHint}</span>
+              <span className="hint">
+                {pendingLink.sourceId} {"->"} {pendingLink.targetId}
+              </span>
+              <span className="hint">{pendingLink.relationType}</span>
+            </div>
+          )}
+          {createOwnerId && (
+            <div className="role-panel-block">
+              <strong>{copy.account.roles.createOwnedRole}</strong>
+              <span className="hint">{copy.account.roles.createOwnedRoleHint}</span>
+              <span className="hint">{createOwnerId}</span>
             </div>
           )}
           {!selectedNode && !selectedEdge && <p className="hint">{copy.account.roles.panelEmpty}</p>}
@@ -296,21 +468,19 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             <>
               <div className="role-panel-block">
                 <strong>{copy.account.roles.incomingTitle}</strong>
-                {Object.keys(incomingByType).length === 0 && <span className="hint">{copy.account.roles.none}</span>}
-                {Object.entries(incomingByType).map(([type, list]) => (
+                {selectedNode.data.incomingTypes.length === 0 && <span className="hint">{copy.account.roles.none}</span>}
+                {selectedNode.data.incomingTypes.map((type) => (
                   <div key={type}>
                     <span className="note">{type}</span>
-                    <div className="hint">{list.length}</div>
                   </div>
                 ))}
               </div>
               <div className="role-panel-block">
                 <strong>{copy.account.roles.outgoingTitle}</strong>
-                {Object.keys(outgoingByType).length === 0 && <span className="hint">{copy.account.roles.none}</span>}
-                {Object.entries(outgoingByType).map(([type, list]) => (
+                {selectedNode.data.outgoingTypes.length === 0 && <span className="hint">{copy.account.roles.none}</span>}
+                {selectedNode.data.outgoingTypes.map((type) => (
                   <div key={type}>
                     <span className="note">{type}</span>
-                    <div className="hint">{list.length}</div>
                   </div>
                 ))}
               </div>

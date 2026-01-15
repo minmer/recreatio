@@ -193,79 +193,88 @@
   gap: 1.2rem;
 }
 
-.role-canvas {
+.role-flow {
   position: relative;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 246, 240, 0.95));
   border: 1px solid var(--line);
   border-radius: 18px;
   overflow: hidden;
   min-height: 420px;
-  cursor: grab;
-  touch-action: none;
-}
-
-.role-viewport {
-  position: relative;
-  width: 640px;
   height: 480px;
-  transform-origin: top left;
 }
 
-.role-edges {
-  position: absolute;
-  inset: 0;
-  overflow: visible;
+.role-flow .react-flow__renderer {
+  border-radius: 18px;
 }
 
-.role-edges line {
+.role-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.role-flow .react-flow__edge-path {
   stroke: rgba(28, 33, 38, 0.35);
-  stroke-width: 1.2;
+  stroke-width: 1.6;
 }
 
-.role-edges line.selected {
-  stroke: var(--ink);
-  stroke-width: 2;
+.role-edge-path {
+  stroke-width: 1.6;
 }
 
-.role-edges text {
+.role-edge-label {
+  padding: 0.15rem 0.4rem;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   font-size: 0.7rem;
-  fill: rgba(28, 33, 38, 0.6);
+  color: rgba(28, 33, 38, 0.8);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
-.role-nodes {
-  position: absolute;
-  inset: 0;
-}
-
-.role-node {
-  position: absolute;
-  transform: translate(0, 0);
+.role-flow-node {
   border-radius: 14px;
   border: 1px solid var(--line);
   background: white;
-  padding: 0.5rem 0.8rem;
+  padding: 0.6rem 1.5rem;
   box-shadow: 0 6px 14px rgba(30, 30, 30, 0.08);
   display: grid;
   gap: 0.2rem;
   min-width: 120px;
-  cursor: grab;
 }
 
-.role-node.selected {
+.role-flow .react-flow__node.selected .role-flow-node {
   border-color: var(--ink);
   box-shadow: 0 8px 18px rgba(28, 33, 38, 0.2);
 }
 
-.role-node span {
+.role-flow-node span {
   font-weight: 600;
   font-size: 0.95rem;
 }
 
-.role-node small {
+.role-flow-node small {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: rgba(28, 33, 38, 0.65);
+}
+
+.role-handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--edge-color, var(--ink));
+  background: var(--edge-color, white);
+  top: calc(50% + var(--port-offset, 0px));
+  box-shadow: 0 0 0 3px white;
+}
+
+.role-handle-in {
+  left: -6px;
+}
+
+.role-handle-out {
+  right: -6px;
 }
 
 .role-panel {
@@ -276,6 +285,22 @@
   display: grid;
   gap: 1rem;
 }
+
+.role-graph.is-fullscreen {
+  position: fixed;
+  inset: 1rem;
+  z-index: 40;
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 1rem;
+  border-radius: 20px;
+}
+
+.role-graph.is-fullscreen .role-flow {
+  min-height: calc(100vh - 6rem);
+  height: calc(100vh - 6rem);
+}
+
 
 .role-panel-block {
   display: grid;

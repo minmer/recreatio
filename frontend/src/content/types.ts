@@ -129,12 +129,18 @@ export type Copy = {
       lead: string;
       searchPlaceholder: string;
       reachableToggle: string;
+      fullscreenEnter: string;
+      fullscreenExit: string;
       noFilters: string;
       loading: string;
       noNodes: string;
       panelTitle: string;
       panelEmpty: string;
       edgeTitle: string;
+      linkDraftTitle: string;
+      linkDraftHint: string;
+      createOwnedRole: string;
+      createOwnedRoleHint: string;
       incomingTitle: string;
       outgoingTitle: string;
       none: string;
