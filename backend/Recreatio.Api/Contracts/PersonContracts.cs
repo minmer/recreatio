@@ -42,12 +42,12 @@ public sealed record AddPersonShareRequest(
 
 public sealed record RoleSummaryResponse(
     Guid RoleId,
-    string RoleType
+    string RoleKind
 );
 
 public sealed record PersonAccessRoleResponse(
     Guid RoleId,
-    string RoleType,
+    string RoleKind,
     string RelationshipType
 );
 
@@ -70,20 +70,22 @@ public sealed record PendingRoleShareAcceptRequest(
 
 public sealed record RoleSearchResponse(
     Guid RoleId,
-    string RoleType,
+    string RoleKind,
     string Nick
 );
 
 public sealed record RoleGraphNode(
-    Guid Id,
+    string Id,
     string Label,
-    string Kind
+    string NodeType,
+    string? Kind,
+    string? Value
 );
 
 public sealed record RoleGraphEdge(
     string Id,
-    Guid SourceRoleId,
-    Guid TargetRoleId,
+    string SourceRoleId,
+    string TargetRoleId,
     string Type
 );
 

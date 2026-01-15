@@ -6,7 +6,6 @@ import { AuthAction } from '../../components/AuthAction';
 import { checkPasswordStrength } from '../../lib/passwordPolicy';
 import { changePasswordWithPassword } from '../../lib/authClient';
 import { getProfile, issueCsrf, updateProfile } from '../../lib/api';
-import { PersonsSection } from './PersonsSection';
 import { RoleGraphSection } from './RoleGraphSection';
 
 export function AccountPage({
@@ -35,7 +34,6 @@ export function AccountPage({
       { id: 'overview', label: copy.account.sections.overview },
       { id: 'profile', label: copy.account.sections.profile },
       { id: 'roles', label: copy.account.sections.roles },
-      { id: 'persons', label: copy.account.sections.persons },
       { id: 'security', label: copy.account.sections.security }
     ],
     [copy.account.sections]
@@ -237,7 +235,6 @@ export function AccountPage({
             </section>
 
             <RoleGraphSection copy={copy} />
-            <PersonsSection copy={copy} />
 
             <section className="account-card" id="security">
               <h3>{copy.account.sections.security}</h3>

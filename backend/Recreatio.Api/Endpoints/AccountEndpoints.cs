@@ -88,20 +88,22 @@ public static class AccountEndpoints
             var nickFields = await dbContext.RoleFields.AsNoTracking()
                 .Where(x => x.FieldType == "nick")
                 .ToListAsync(ct);
+            var roleKindFields = await dbContext.RoleFields.AsNoTracking()
+                .Where(x => x.FieldType == "role_kind")
+                .ToListAsync(ct);
+            var allFields = nickFields.Concat(roleKindFields).ToList();
 
             List<KeyEntry> keyEntries;
-            if (nickFields.Count == 0)
+            if (allFields.Count == 0)
             {
                 keyEntries = new List<KeyEntry>();
             }
             else
             {
-                keyEntries = await (
-                    from key in dbContext.Keys.AsNoTracking()
-                    join field in dbContext.RoleFields.AsNoTracking() on key.Id equals field.DataKeyId
-                    where field.FieldType == "nick"
-                    select key
-                ).Distinct().ToListAsync(ct);
+                var dataKeyIds = allFields.Select(x => x.DataKeyId).Distinct().ToHashSet();
+                keyEntries = await dbContext.Keys.AsNoTracking()
+                    .Where(key => dataKeyIds.Contains(key.Id))
+                    .ToListAsync(ct);
             }
 
             var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
@@ -149,13 +151,17 @@ public static class AccountEndpoints
                 return Results.Ok(new List<RoleSearchResponse>());
             }
 
-            var roleTypes = await dbContext.Roles.AsNoTracking()
-                .Select(x => new { x.Id, x.RoleType })
-                .ToListAsync(ct);
-
-            var roleTypeById = roleTypes.ToDictionary(x => x.Id, x => x.RoleType);
+            var roleKindById = new Dictionary<Guid, string>();
+            foreach (var field in roleKindFields)
+            {
+                var roleKind = TryGetPlainValue(field, keyRing, keyEntryById, keyRingService);
+                if (!string.IsNullOrWhiteSpace(roleKind))
+                {
+                    roleKindById[field.RoleId] = roleKind;
+                }
+            }
             var matches = matchedRoles
-                .Select(item => new RoleSearchResponse(item.RoleId, roleTypeById.GetValueOrDefault(item.RoleId, "Unknown"), item.Nick))
+                .Select(item => new RoleSearchResponse(item.RoleId, roleKindById.GetValueOrDefault(item.RoleId, "Role"), item.Nick))
                 .ToList();
 
             return Results.Ok(matches);
@@ -191,77 +197,124 @@ public static class AccountEndpoints
 
             var roleIdSet = roleIds.ToHashSet();
             var roles = await dbContext.Roles.AsNoTracking()
-                .ToListAsync(ct);
-            var roleSummaries = roles
                 .Where(role => roleIdSet.Contains(role.Id))
-                .Select(role => new { role.Id, role.RoleType })
-                .ToList();
-
-            var nickFields = await dbContext.RoleFields.AsNoTracking()
-                .Where(x => x.FieldType == "nick")
                 .ToListAsync(ct);
-            nickFields = nickFields.Where(field => roleIdSet.Contains(field.RoleId)).ToList();
+
+            var fields = await dbContext.RoleFields.AsNoTracking()
+                .Where(field => roleIdSet.Contains(field.RoleId))
+                .ToListAsync(ct);
 
             List<KeyEntry> keyEntries;
-            if (nickFields.Count == 0)
+            if (fields.Count == 0)
             {
                 keyEntries = new List<KeyEntry>();
             }
             else
             {
-                var dataKeyIds = nickFields.Select(x => x.DataKeyId).Distinct().ToHashSet();
-                var keys = await dbContext.Keys.AsNoTracking().ToListAsync(ct);
-                keyEntries = keys.Where(key => dataKeyIds.Contains(key.Id)).ToList();
+                var dataKeyIds = fields.Select(x => x.DataKeyId).Distinct().ToHashSet();
+                keyEntries = await dbContext.Keys.AsNoTracking()
+                    .Where(key => dataKeyIds.Contains(key.Id))
+                    .ToListAsync(ct);
             }
 
             var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
-            var nickByRole = new Dictionary<Guid, string>(roleIds.Count);
-            foreach (var field in nickFields)
+            var valuesByRole = new Dictionary<Guid, Dictionary<string, string>>();
+            foreach (var field in fields)
             {
-                if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
+                var plain = TryGetPlainValue(field, keyRing, keyEntryById, keyRingService);
+                if (string.IsNullOrWhiteSpace(plain))
                 {
                     continue;
                 }
 
-                if (!keyEntryById.TryGetValue(field.DataKeyId, out var keyEntry) || keyEntry.KeyType != KeyType.DataKey)
+                if (!valuesByRole.TryGetValue(field.RoleId, out var fieldValues))
+                {
+                    fieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    valuesByRole[field.RoleId] = fieldValues;
+                }
+
+                fieldValues[field.FieldType] = plain;
+            }
+
+            var nodes = new List<RoleGraphNode>();
+            foreach (var role in roles)
+            {
+                valuesByRole.TryGetValue(role.Id, out var fieldValues);
+                var roleKind = fieldValues is not null && fieldValues.TryGetValue("role_kind", out var kindValue)
+                    ? kindValue
+                    : "Role";
+                var label = fieldValues is not null && fieldValues.TryGetValue("nick", out var nickValue)
+                    ? nickValue
+                    : $"{roleKind} {role.Id.ToString()[..8]}";
+                nodes.Add(new RoleGraphNode($"role:{role.Id:N}", label, "role", roleKind, null));
+            }
+
+            var edges = new List<RoleGraphEdge>();
+
+            foreach (var field in fields)
+            {
+                if (field.FieldType is "nick" or "role_kind")
                 {
                     continue;
                 }
 
-                byte[] dataKey;
-                try
-                {
-                    dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
-                }
-                catch (CryptographicException)
-                {
-                    continue;
-                }
+                valuesByRole.TryGetValue(field.RoleId, out var fieldValues);
+                fieldValues?.TryGetValue(field.FieldType, out var value);
+                var dataNodeId = $"data:{field.Id:N}";
+                nodes.Add(new RoleGraphNode(dataNodeId, field.FieldType, "data", field.FieldType, value));
+                edges.Add(new RoleGraphEdge(
+                    $"{field.RoleId:N}:{field.Id:N}:data",
+                    $"role:{field.RoleId:N}",
+                    dataNodeId,
+                    "Data"));
+            }
 
-                var nick = keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
-                if (!string.IsNullOrWhiteSpace(nick))
+            foreach (var roleId in roleIds)
+            {
+                var recoveryNodeId = $"recovery:{roleId:N}";
+                nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null));
+                edges.Add(new RoleGraphEdge(
+                    $"role:{roleId:N}:{recoveryNodeId}:recovery-owner",
+                    $"role:{roleId:N}",
+                    recoveryNodeId,
+                    "RecoveryOwner"));
+            }
+
+            var recoveryShares = await dbContext.RoleRecoveryShares.AsNoTracking()
+                .Where(share => roleIdSet.Contains(share.TargetRoleId))
+                .ToListAsync(ct);
+            foreach (var targetRoleId in recoveryShares.Select(x => x.TargetRoleId).Distinct())
+            {
+                var sharedNodeId = $"recovery-shared:{targetRoleId:N}";
+                nodes.Add(new RoleGraphNode(sharedNodeId, "Shared recovery", "recovery_shared", "RecoveryShare", null));
+                edges.Add(new RoleGraphEdge(
+                    $"recovery:{targetRoleId:N}:{sharedNodeId}:recovery-share",
+                    $"recovery:{targetRoleId:N}",
+                    sharedNodeId,
+                    "RecoveryShare"));
+
+                foreach (var share in recoveryShares.Where(x => x.TargetRoleId == targetRoleId))
                 {
-                    nickByRole[field.RoleId] = nick;
+                    if (!roleIdSet.Contains(share.SharedWithRoleId))
+                    {
+                        continue;
+                    }
+                    edges.Add(new RoleGraphEdge(
+                        $"{sharedNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
+                        sharedNodeId,
+                        $"role:{share.SharedWithRoleId:N}",
+                        "RecoveryAccess"));
                 }
             }
 
-            var nodes = roleSummaries.Select(role =>
-            {
-                var label = nickByRole.TryGetValue(role.Id, out var nick)
-                    ? nick
-                    : $"{role.RoleType} {role.Id.ToString()[..8]}";
-                return new RoleGraphNode(role.Id, label, role.RoleType);
-            }).ToList();
-
             var roleEdges = await dbContext.RoleEdges.AsNoTracking().ToListAsync(ct);
-            var edges = roleEdges
+            edges.AddRange(roleEdges
                 .Where(edge => roleIdSet.Contains(edge.ParentRoleId) && roleIdSet.Contains(edge.ChildRoleId))
                 .Select(edge => new RoleGraphEdge(
                     $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{edge.RelationshipType}",
-                    edge.ParentRoleId,
-                    edge.ChildRoleId,
-                    edge.RelationshipType))
-                .ToList();
+                    $"role:{edge.ParentRoleId:N}",
+                    $"role:{edge.ChildRoleId:N}",
+                    edge.RelationshipType)));
 
             var account = await dbContext.UserAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == userId, ct);
@@ -269,17 +322,14 @@ public static class AccountEndpoints
             {
                 var membershipEdges = await dbContext.Memberships.AsNoTracking()
                     .Where(x => x.UserId == userId)
-                    .Select(x => new RoleGraphEdge(
-                        $"{account.MasterRoleId:N}:{x.RoleId:N}:{x.RelationshipType}",
-                        account.MasterRoleId,
-                        x.RoleId,
-                        x.RelationshipType))
                     .ToListAsync(ct);
-                membershipEdges = membershipEdges
-                    .Where(edge => roleIdSet.Contains(edge.SourceRoleId) && roleIdSet.Contains(edge.TargetRoleId))
-                    .ToList();
-
-                edges.AddRange(membershipEdges);
+                edges.AddRange(membershipEdges
+                    .Where(edge => roleIdSet.Contains(edge.RoleId))
+                    .Select(edge => new RoleGraphEdge(
+                        $"{account.MasterRoleId:N}:{edge.RoleId:N}:{edge.RelationshipType}",
+                        $"role:{account.MasterRoleId:N}",
+                        $"role:{edge.RoleId:N}",
+                        edge.RelationshipType)));
             }
 
             return Results.Ok(new RoleGraphResponse(nodes, edges));
@@ -297,25 +347,24 @@ public static class AccountEndpoints
                 return Results.Unauthorized();
             }
 
-            var personRoles = await (
-                from role in dbContext.Roles.AsNoTracking()
-                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
-                where membership.UserId == userId && role.RoleType == "Person"
-                select role
-            ).Distinct().ToListAsync(ct);
+            var memberRoleIds = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .Select(x => x.RoleId)
+                .Distinct()
+                .ToListAsync(ct);
 
-            if (personRoles.Count == 0)
+            if (memberRoleIds.Count == 0)
             {
                 return Results.Ok(new List<PersonResponse>());
             }
 
-            var fields = await (
-                from field in dbContext.RoleFields.AsNoTracking()
-                join role in dbContext.Roles.AsNoTracking() on field.RoleId equals role.Id
-                join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
-                where membership.UserId == userId && role.RoleType == "Person"
-                select field
-            ).ToListAsync(ct);
+            var roles = await dbContext.Roles.AsNoTracking()
+                .Where(role => memberRoleIds.Contains(role.Id))
+                .ToListAsync(ct);
+
+            var fields = await dbContext.RoleFields.AsNoTracking()
+                .Where(field => memberRoleIds.Contains(field.RoleId))
+                .ToListAsync(ct);
 
             RoleKeyRing keyRing;
             try
@@ -334,18 +383,51 @@ public static class AccountEndpoints
             }
             else
             {
-                keyEntries = await (
-                    from key in dbContext.Keys.AsNoTracking()
-                    join field in dbContext.RoleFields.AsNoTracking() on key.Id equals field.DataKeyId
-                    join role in dbContext.Roles.AsNoTracking() on field.RoleId equals role.Id
-                    join membership in dbContext.Memberships.AsNoTracking() on role.Id equals membership.RoleId
-                    where membership.UserId == userId && role.RoleType == "Person"
-                    select key
-                ).Distinct().ToListAsync(ct);
+                var dataKeyIds = fields.Select(x => x.DataKeyId).Distinct().ToHashSet();
+                keyEntries = await dbContext.Keys.AsNoTracking()
+                    .Where(key => dataKeyIds.Contains(key.Id))
+                    .ToListAsync(ct);
             }
             var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
+            var valuesByRole = new Dictionary<Guid, Dictionary<string, string>>();
+            foreach (var field in fields)
+            {
+                var plain = TryGetPlainValue(field, keyRing, keyEntryById, keyRingService);
+                if (string.IsNullOrWhiteSpace(plain))
+                {
+                    continue;
+                }
 
-            var fieldsByRole = fields.GroupBy(x => x.RoleId)
+                if (!valuesByRole.TryGetValue(field.RoleId, out var fieldValues))
+                {
+                    fieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    valuesByRole[field.RoleId] = fieldValues;
+                }
+
+                fieldValues[field.FieldType] = plain;
+            }
+
+            var personRoleIds = roles
+                .Where(role =>
+                {
+                    if (!valuesByRole.TryGetValue(role.Id, out var fieldValues))
+                    {
+                        return false;
+                    }
+                    return fieldValues.TryGetValue("role_kind", out var kind) &&
+                           kind.Equals("Person", StringComparison.OrdinalIgnoreCase);
+                })
+                .Select(role => role.Id)
+                .ToHashSet();
+
+            if (personRoleIds.Count == 0)
+            {
+                return Results.Ok(new List<PersonResponse>());
+            }
+
+            var fieldsByRole = fields
+                .Where(field => personRoleIds.Contains(field.RoleId))
+                .GroupBy(x => x.RoleId)
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(field => new PersonFieldResponse(
@@ -355,12 +437,14 @@ public static class AccountEndpoints
                     )).ToList()
                 );
 
-            var response = personRoles.Select(role => new PersonResponse(
-                role.Id,
-                role.PublicSigningKey is null ? null : Convert.ToBase64String(role.PublicSigningKey),
-                role.PublicSigningKeyAlg,
-                fieldsByRole.TryGetValue(role.Id, out var list) ? list : new List<PersonFieldResponse>()
-            )).ToList();
+            var response = roles
+                .Where(role => personRoleIds.Contains(role.Id))
+                .Select(role => new PersonResponse(
+                    role.Id,
+                    role.PublicSigningKey is null ? null : Convert.ToBase64String(role.PublicSigningKey),
+                    role.PublicSigningKeyAlg,
+                    fieldsByRole.TryGetValue(role.Id, out var list) ? list : new List<PersonFieldResponse>()
+                )).ToList();
 
             return Results.Ok(response);
         });
@@ -395,6 +479,10 @@ public static class AccountEndpoints
             }
 
             var fields = request.Fields ?? new List<PersonFieldRequest>();
+            if (!fields.Any(field => field.FieldType.Trim().Equals("role_kind", StringComparison.OrdinalIgnoreCase)))
+            {
+                fields.Add(new PersonFieldRequest("role_kind", "Person", null, request.SignatureBase64));
+            }
             if (fields.Count == 0)
             {
                 return Results.BadRequest(new { error = "At least one field is required." });
@@ -429,7 +517,6 @@ public static class AccountEndpoints
             var role = new Role
             {
                 Id = roleId,
-                RoleType = "Person",
                 EncryptedRoleBlob = encryptedRoleBlob,
                 PublicSigningKey = string.IsNullOrWhiteSpace(request.PublicSigningKeyBase64)
                     ? null
@@ -457,7 +544,7 @@ public static class AccountEndpoints
                 OwnerRoleId = roleId,
                 Version = 1,
                 EncryptedKeyBlob = encryptedRoleKey,
-                MetadataJson = JsonSerializer.Serialize(new { roleType = "Person" }),
+                MetadataJson = "{}",
                 LedgerRefId = roleKeyLedger.Id,
                 CreatedUtc = now
             });
@@ -669,9 +756,14 @@ public static class AccountEndpoints
             ));
         });
 
-        group.MapGet("/persons/{roleId:guid}/access", async (Guid roleId, HttpContext context, RecreatioDbContext dbContext, CancellationToken ct) =>
+        group.MapGet("/persons/{roleId:guid}/access", async (Guid roleId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
                 return Results.Unauthorized();
             }
@@ -683,12 +775,59 @@ public static class AccountEndpoints
                 return Results.Forbid();
             }
 
-            var roleEdges = await (
-                from edge in dbContext.RoleEdges.AsNoTracking()
-                join role in dbContext.Roles.AsNoTracking() on edge.ParentRoleId equals role.Id
-                where edge.ChildRoleId == roleId
-                select new PersonAccessRoleResponse(edge.ParentRoleId, role.RoleType, edge.RelationshipType)
-            ).ToListAsync(ct);
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var edges = await dbContext.RoleEdges.AsNoTracking()
+                .Where(edge => edge.ChildRoleId == roleId)
+                .ToListAsync(ct);
+            if (edges.Count == 0)
+            {
+                return Results.Ok(new PersonAccessResponse(roleId, new List<PersonAccessRoleResponse>()));
+            }
+
+            var parentRoleIds = edges.Select(edge => edge.ParentRoleId).Distinct().ToList();
+            var kindFields = await dbContext.RoleFields.AsNoTracking()
+                .Where(field => field.FieldType == "role_kind" && parentRoleIds.Contains(field.RoleId))
+                .ToListAsync(ct);
+
+            List<KeyEntry> keyEntries;
+            if (kindFields.Count == 0)
+            {
+                keyEntries = new List<KeyEntry>();
+            }
+            else
+            {
+                var dataKeyIds = kindFields.Select(x => x.DataKeyId).Distinct().ToHashSet();
+                keyEntries = await dbContext.Keys.AsNoTracking()
+                    .Where(key => dataKeyIds.Contains(key.Id))
+                    .ToListAsync(ct);
+            }
+
+            var keyEntryById = keyEntries.ToDictionary(x => x.Id, x => x);
+            var roleKindById = new Dictionary<Guid, string>();
+            foreach (var field in kindFields)
+            {
+                var kind = TryGetPlainValue(field, keyRing, keyEntryById, keyRingService);
+                if (!string.IsNullOrWhiteSpace(kind))
+                {
+                    roleKindById[field.RoleId] = kind;
+                }
+            }
+
+            var roleEdges = edges
+                .Select(edge => new PersonAccessRoleResponse(
+                    edge.ParentRoleId,
+                    roleKindById.GetValueOrDefault(edge.ParentRoleId, "Role"),
+                    edge.RelationshipType))
+                .ToList();
 
             var response = new PersonAccessResponse(roleId, roleEdges);
 

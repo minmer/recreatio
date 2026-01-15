@@ -34,7 +34,6 @@ GO
 CREATE TABLE dbo.Roles
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    RoleType NVARCHAR(128) NOT NULL,
     EncryptedRoleBlob VARBINARY(MAX) NOT NULL,
     PublicSigningKey VARBINARY(MAX) NULL,
     PublicSigningKeyAlg NVARCHAR(64) NULL,

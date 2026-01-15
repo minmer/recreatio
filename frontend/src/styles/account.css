@@ -220,17 +220,6 @@
   stroke-width: 1.6;
 }
 
-.role-edge-label {
-  padding: 0.15rem 0.4rem;
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 0.7rem;
-  color: rgba(28, 33, 38, 0.8);
-  pointer-events: none;
-  white-space: nowrap;
-}
-
 .role-flow-node {
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -240,6 +229,18 @@
   display: grid;
   gap: 0.2rem;
   min-width: 120px;
+}
+
+.role-flow-node--data {
+  background: rgba(255, 255, 255, 0.85);
+  border-style: dashed;
+  min-width: 140px;
+}
+
+.role-flow-node--recovery,
+.role-flow-node--recovery_shared {
+  background: rgba(252, 250, 244, 0.95);
+  border-color: rgba(35, 43, 55, 0.25);
 }
 
 .role-flow .react-flow__node.selected .role-flow-node {
@@ -314,101 +315,6 @@
   place-items: center;
   background: rgba(255, 255, 255, 0.8);
   font-weight: 600;
-}
-
-.person-card {
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 1.2rem;
-  background: rgba(255, 255, 255, 0.96);
-  display: grid;
-  gap: 1rem;
-}
-
-.person-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.person-meta {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.person-actions {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.person-data {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 1rem;
-  background: var(--bg-alt);
-  display: grid;
-  gap: 1rem;
-}
-
-.person-data-list {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.person-data-item {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.8rem;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.person-data-item .note {
-  display: block;
-  margin-bottom: 0.25rem;
-}
-
-.person-data-item strong {
-  display: block;
-}
-
-.person-access {
-  margin-top: 0.4rem;
-  border: 1px solid var(--line);
-  background: var(--bg-alt);
-  border-radius: 14px;
-  padding: 1rem;
-  display: grid;
-  gap: 1rem;
-}
-
-.person-members {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.person-member {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 0.8rem;
-  background: white;
-  display: grid;
-  gap: 0.2rem;
-}
-
-.person-member-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.8rem;
-  flex-wrap: wrap;
 }
 
 @media (max-width: 900px) {

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import ReactFlow, {
   Background,
-  BaseEdge,
   Controls,
-  EdgeLabelRenderer,
   Handle,
   Position,
   getStraightPath,
@@ -21,7 +19,9 @@ import { getRoleGraph, issueCsrf, type RoleGraphEdge, type RoleGraphNode } from 
 
 type RoleNodeData = {
   label: string;
-  kind: string;
+  kind?: string | null;
+  nodeType: string;
+  value?: string | null;
   incomingTypes: string[];
   outgoingTypes: string[];
   typeColors: Record<string, string>;
@@ -30,7 +30,6 @@ type RoleNodeData = {
 type RoleEdgeData = {
   relationType: string;
   color: string;
-  showLabel: boolean;
 };
 
 type PendingLink = {
@@ -38,7 +37,6 @@ type PendingLink = {
   targetId: string;
   relationType: string;
 };
-
 
 const buildTypeColors = (edges: RoleGraphEdge[]) => {
   const colors: Record<string, string> = {};
@@ -67,12 +65,14 @@ const defaultLayout = (nodes: RoleGraphNode[]) => {
   }, {});
 };
 
-const RoleNode = ({ data }: NodeProps<RoleNodeData>) => {
-  const incoming = data.incomingTypes.length > 0 ? data.incomingTypes : ['link'];
-  const outgoing = data.outgoingTypes.length > 0 ? data.outgoingTypes : ['link'];
+const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
+  const allowFallback = data.nodeType !== 'data';
+  const incoming = data.incomingTypes.length > 0 ? data.incomingTypes : allowFallback ? ['link'] : [];
+  const outgoing = data.outgoingTypes.length > 0 ? data.outgoingTypes : allowFallback ? ['link'] : [];
+  const secondary = data.nodeType === 'data' ? data.value : data.kind;
   return (
-    <div className="role-flow-node">
+    <div className={`role-flow-node role-flow-node--${data.nodeType}`}>
       {incoming.map((relationType, index) => {
         const offset = (index - (incoming.length - 1) / 2) * spacing;
         const color = data.typeColors[relationType] ?? 'var(--ink)';
@@ -112,30 +112,25 @@ const RoleNode = ({ data }: NodeProps<RoleNodeData>) => {
         );
       })}
       <span>{data.label}</span>
-      <small>{data.kind}</small>
+      {secondary && <small>{secondary}</small>}
     </div>
   );
 };
 
-const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps<RoleEdgeData>) => {
-  const [path, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
-  const showLabel = data?.showLabel;
+const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data, markerEnd }: EdgeProps<RoleEdgeData>) => {
+  const [path] = getStraightPath({ sourceX, sourceY, targetX, targetY });
   return (
-    <>
-      <BaseEdge id={id} path={path} style={{ stroke: data?.color }} className="role-edge-path" />
-      {showLabel && data?.relationType && (
-        <EdgeLabelRenderer>
-          <div
-            className="role-edge-label"
-            style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`
-            }}
-          >
-            {data.relationType}
-          </div>
-        </EdgeLabelRenderer>
-      )}
-    </>
+    <g className="react-flow__edge">
+      <path
+        id={id}
+        className="react-flow__edge-path role-edge-path"
+        d={path}
+        markerEnd={markerEnd}
+        style={{ stroke: data?.color }}
+      >
+        <title>{data?.relationType}</title>
+      </path>
+    </g>
   );
 };
 
@@ -146,12 +141,22 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const [search, setSearch] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [showReachable, setShowReachable] = useState(false);
   const [filters, setFilters] = useState<Record<string, boolean>>({});
+  const [searchIndex, setSearchIndex] = useState<Array<{ id: string; label: string; value?: string | null }>>([]);
   const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
   const [createOwnerId, setCreateOwnerId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const nodeTypes = useMemo(
+    () => ({
+      role: GraphNode,
+      data: GraphNode,
+      recovery: GraphNode,
+      recovery_shared: GraphNode
+    }),
+    []
+  );
+  const edgeTypes = useMemo(() => ({ role: RoleEdge }), []);
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -183,18 +188,23 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           perNode[edge.sourceRoleId]?.outgoing.push(edge.type);
         });
 
-        const nextNodes: Node<RoleNodeData>[] = graph.nodes.map((node) => ({
-          id: node.id,
-          type: 'role',
-          position: layout[node.id],
-          data: {
-            label: node.label,
-            kind: node.kind,
-            incomingTypes: perNode[node.id]?.incoming ?? [],
-            outgoingTypes: perNode[node.id]?.outgoing ?? [],
-            typeColors
-          }
-        }));
+        const nextNodes: Node<RoleNodeData>[] = graph.nodes.map((node) => {
+          const nodeType = node.nodeType ?? 'role';
+          return {
+            id: node.id,
+            type: nodeType,
+            position: layout[node.id],
+            data: {
+              label: node.label,
+              kind: node.kind,
+              nodeType,
+              value: node.value,
+              incomingTypes: perNode[node.id]?.incoming ?? [],
+              outgoingTypes: perNode[node.id]?.outgoing ?? [],
+              typeColors
+            }
+          };
+        });
 
         const nextEdges: Edge<RoleEdgeData>[] = graph.edges.map((edge) => ({
           id: edge.id,
@@ -203,8 +213,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           type: 'role',
           data: {
             relationType: edge.type,
-            color: typeColors[edge.type] ?? 'rgba(28, 33, 38, 0.45)',
-            showLabel: false
+            color: typeColors[edge.type] ?? 'rgba(28, 33, 38, 0.45)'
           }
         }));
 
@@ -216,6 +225,13 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         setFilters(types);
         setNodes(nextNodes);
         setEdges(nextEdges);
+        setSearchIndex(
+          graph.nodes.map((node) => ({
+            id: node.id,
+            label: node.label,
+            value: node.value
+          }))
+        );
       } finally {
         if (!active) return;
         setLoading(false);
@@ -254,48 +270,52 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const visibleNodeIds = useMemo(() => {
     const term = search.trim().toLowerCase();
     return new Set(
-      nodes
+      searchIndex
         .filter((node) => {
           if (reachableIds && !reachableIds.has(node.id)) {
             return false;
           }
           if (!term) return true;
-          return (
-            node.data.label.toLowerCase().includes(term) ||
-            node.id.toLowerCase().includes(term)
-          );
+          return node.label.toLowerCase().includes(term) || node.id.toLowerCase().includes(term) ||
+            (node.value ?? '').toLowerCase().includes(term);
         })
         .map((node) => node.id)
     );
-  }, [nodes, reachableIds, search]);
+  }, [reachableIds, search, searchIndex]);
 
   useEffect(() => {
-    setNodes((prev) =>
-      prev.map((node) => ({
-        ...node,
-        hidden: !visibleNodeIds.has(node.id)
-      }))
-    );
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
+        const hidden = !visibleNodeIds.has(node.id);
+        if (hidden === node.hidden) {
+          return node;
+        }
+        changed = true;
+        return { ...node, hidden };
+      });
+      return changed ? next : prev;
+    });
   }, [setNodes, visibleNodeIds]);
 
   useEffect(() => {
-    setEdges((prev) =>
-      prev.map((edge) => {
+    setEdges((prev) => {
+      let changed = false;
+      const next = prev.map((edge) => {
         const visible =
           filters[edge.data?.relationType ?? ''] !== false &&
           visibleNodeIds.has(edge.source) &&
           visibleNodeIds.has(edge.target);
-        return {
-          ...edge,
-          hidden: !visible,
-          data: {
-            ...edge.data,
-            showLabel: edge.id === hoveredEdgeId
-          }
-        };
-      })
-    );
-  }, [filters, hoveredEdgeId, setEdges, visibleNodeIds]);
+        const hidden = !visible;
+        if (hidden === edge.hidden) {
+          return edge;
+        }
+        changed = true;
+        return { ...edge, hidden };
+      });
+      return changed ? next : prev;
+    });
+  }, [filters, setEdges, visibleNodeIds]);
 
   useEffect(() => {
     const incoming: Record<string, string[]> = {};
@@ -311,22 +331,40 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       }
     });
 
-    setNodes((prev) =>
-      prev.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          incomingTypes: incoming[node.id] ?? [],
-          outgoingTypes: outgoing[node.id] ?? []
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
+        const nextIncoming = incoming[node.id] ?? [];
+        const nextOutgoing = outgoing[node.id] ?? [];
+        if (
+          node.data.incomingTypes.length === nextIncoming.length &&
+          node.data.outgoingTypes.length === nextOutgoing.length &&
+          node.data.incomingTypes.every((value, index) => value === nextIncoming[index]) &&
+          node.data.outgoingTypes.every((value, index) => value === nextOutgoing[index])
+        ) {
+          return node;
         }
-      }))
-    );
+        changed = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            incomingTypes: nextIncoming,
+            outgoingTypes: nextOutgoing
+          }
+        };
+      });
+      return changed ? next : prev;
+    });
   }, [filteredEdges, setNodes]);
 
   const isValidConnection = (connection: Connection) => {
     if (!connection.source || !connection.target) return false;
     if (connection.source === connection.target) return false;
     if (!connection.sourceHandle || !connection.targetHandle) return false;
+    if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
+      return false;
+    }
     const sourceIn = connection.sourceHandle.startsWith('in-');
     const targetIn = connection.targetHandle.startsWith('in-');
     return sourceIn !== targetIn;
@@ -387,8 +425,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            nodeTypes={{ role: RoleNode }}
-            edgeTypes={{ role: RoleEdge }}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={(_, node) => {
@@ -399,13 +437,12 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
               setSelectedEdgeId(edge.id);
               setSelectedNodeId(null);
             }}
-            onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
-            onEdgeMouseLeave={() => setHoveredEdgeId(null)}
             onConnect={handleConnect}
             isValidConnection={isValidConnection}
             fitView
             minZoom={0.4}
             maxZoom={1.8}
+            onlyRenderVisibleElements
             zoomOnScroll
             panOnScroll={false}
             preventScrolling
@@ -421,11 +458,14 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           {selectedNode && (
             <div className="role-panel-block">
               <strong>{selectedNode.data.label}</strong>
-              <span className="hint">{selectedNode.data.kind}</span>
+              {selectedNode.data.kind && <span className="hint">{selectedNode.data.kind}</span>}
+              {selectedNode.data.nodeType === 'data' && selectedNode.data.value && (
+                <span className="hint">{selectedNode.data.value}</span>
+              )}
               <span className="hint">{selectedNode.id}</span>
             </div>
           )}
-          {selectedNode && (
+          {selectedNode && selectedNode.data.nodeType === 'role' && (
             <button
               type="button"
               className="chip"

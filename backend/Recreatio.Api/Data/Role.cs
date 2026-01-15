@@ -7,9 +7,6 @@ public sealed class Role
     [Key]
     public Guid Id { get; set; }
 
-    [MaxLength(128)]
-    public string RoleType { get; set; } = string.Empty;
-
     public byte[] EncryptedRoleBlob { get; set; } = Array.Empty<byte>();
 
     public byte[]? PublicSigningKey { get; set; }

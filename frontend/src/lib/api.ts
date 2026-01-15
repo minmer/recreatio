@@ -161,7 +161,7 @@ export type PersonResponse = {
 
 export type PersonAccessRoleResponse = {
   roleId: string;
-  roleType: string;
+  roleKind: string;
   relationshipType: string;
 };
 
@@ -245,7 +245,7 @@ export function acceptRoleShare(shareId: string, payload: { signatureBase64?: st
 
 export type RoleSearchResponse = {
   roleId: string;
-  roleType: string;
+  roleKind: string;
   nick: string;
 };
 
@@ -257,7 +257,9 @@ export function searchRolesByNick(query: string) {
 export type RoleGraphNode = {
   id: string;
   label: string;
-  kind: string;
+  nodeType: string;
+  kind?: string | null;
+  value?: string | null;
 };
 
 export type RoleGraphEdge = {

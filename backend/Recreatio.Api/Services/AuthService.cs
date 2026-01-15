@@ -25,6 +25,7 @@ public sealed class AuthService : IAuthService
     private readonly IHashingService _hashingService;
     private readonly IMasterKeyService _masterKeyService;
     private readonly IEncryptionService _encryptionService;
+    private readonly IKeyRingService _keyRingService;
     private readonly ISessionSecretCache _sessionSecretCache;
     private readonly ILedgerService _ledgerService;
     private readonly AuthOptions _authOptions;
@@ -35,6 +36,7 @@ public sealed class AuthService : IAuthService
         IHashingService hashingService,
         IMasterKeyService masterKeyService,
         IEncryptionService encryptionService,
+        IKeyRingService keyRingService,
         ISessionSecretCache sessionSecretCache,
         ILedgerService ledgerService,
         IOptions<AuthOptions> authOptions,
@@ -44,6 +46,7 @@ public sealed class AuthService : IAuthService
         _hashingService = hashingService;
         _masterKeyService = masterKeyService;
         _encryptionService = encryptionService;
+        _keyRingService = keyRingService;
         _sessionSecretCache = sessionSecretCache;
         _ledgerService = ledgerService;
         _authOptions = authOptions.Value;
@@ -86,7 +89,6 @@ public sealed class AuthService : IAuthService
         var masterRole = new Role
         {
             Id = masterRoleId,
-            RoleType = "MasterRole",
             EncryptedRoleBlob = encryptedRoleBlob,
             PublicEncryptionKey = publicEncryptionKey,
             PublicEncryptionKeyAlg = "RSA-OAEP-SHA256",
@@ -110,6 +112,40 @@ public sealed class AuthService : IAuthService
 
         _dbContext.Roles.Add(masterRole);
         _dbContext.UserAccounts.Add(account);
+
+        var roleKindFieldType = "role_kind";
+        var roleKindValue = "MasterRole";
+        var roleKindKeyId = Guid.NewGuid();
+        var roleKindKey = RandomNumberGenerator.GetBytes(32);
+        var encryptedRoleKindKey = _keyRingService.EncryptDataKey(masterKey, roleKindKey, roleKindKeyId);
+        var roleKindLedger = await _ledgerService.AppendKeyAsync(
+            "RoleKindKeyCreated",
+            userId.ToString(),
+            JsonSerializer.Serialize(new { RoleId = masterRoleId, FieldType = roleKindFieldType }),
+            ct);
+
+        _dbContext.Keys.Add(new KeyEntry
+        {
+            Id = roleKindKeyId,
+            KeyType = KeyType.DataKey,
+            OwnerRoleId = masterRoleId,
+            Version = 1,
+            EncryptedKeyBlob = encryptedRoleKindKey,
+            MetadataJson = JsonSerializer.Serialize(new { fieldType = roleKindFieldType }),
+            LedgerRefId = roleKindLedger.Id,
+            CreatedUtc = now
+        });
+
+        _dbContext.RoleFields.Add(new RoleField
+        {
+            Id = Guid.NewGuid(),
+            RoleId = masterRoleId,
+            FieldType = roleKindFieldType,
+            DataKeyId = roleKindKeyId,
+            EncryptedValue = _keyRingService.EncryptFieldValue(roleKindKey, roleKindValue, masterRoleId, roleKindFieldType),
+            CreatedUtc = now,
+            UpdatedUtc = now
+        });
 
         await _dbContext.SaveChangesAsync(ct);
         await _ledgerService.AppendAuthAsync("RegistrationCreated", userId.ToString(), JsonSerializer.Serialize(new { LoginId = loginId }), ct);
