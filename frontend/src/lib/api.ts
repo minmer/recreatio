@@ -147,6 +147,7 @@ export function updateProfile(payload: { displayName?: string | null }) {
 }
 
 export type RoleFieldResponse = {
+  fieldId: string;
   fieldType: string;
   plainValue?: string | null;
   dataKeyId: string;

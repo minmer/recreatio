@@ -136,9 +136,9 @@ const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
   });
 
   const xStart = 140;
-  const xStep = 344;
+  const xStep = 392;
   const yStart = 140;
-  const yStep = 160;
+  const yStep = 180;
   const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
   sortedDepths.forEach((level) => {
     const group = depthGroups.get(level) ?? [];
@@ -159,7 +159,7 @@ const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
       const offset = dataOffsets.get(roleNodeId) ?? 0;
       dataOffsets.set(roleNodeId, offset + 1);
       positions[node.id] = {
-        x: base.x + 220,
+        x: base.x + 240,
         y: base.y + offset * 90
       };
     }
@@ -173,7 +173,7 @@ const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
         const offset = recoveryOffsets.get(roleNodeId) ?? 0;
         recoveryOffsets.set(roleNodeId, offset + 1);
         positions[node.id] = {
-          x: base.x + 200,
+          x: base.x + 220,
           y: base.y - 120 - offset * 80
         };
       }
@@ -189,7 +189,7 @@ const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
     const base = positions[edge.sourceRoleId];
     if (base) {
       positions[node.id] = {
-        x: base.x + 200,
+        x: base.x + 220,
         y: base.y
       };
     }
@@ -625,7 +625,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       const parentNode = nodes.find((node) => node.id === parentNodeId);
       const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
       const position = parentNode
-        ? { x: parentNode.position.x + 344, y: parentNode.position.y + outgoingCount * 140 }
+        ? { x: parentNode.position.x + 392, y: parentNode.position.y + outgoingCount * 160 }
         : { x: 280, y: 200 };
 
       setNodes((prev) =>
@@ -697,11 +697,84 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setActionStatus({ type: 'working', message: copy.account.roles.dataAddWorking });
     try {
       await issueCsrf();
-      await updateRoleField(selectedRoleId, {
+      const response = await updateRoleField(selectedRoleId, {
         fieldType: newFieldType.trim(),
         plainValue: newFieldValue.trim()
       });
-      await loadGraph();
+      const roleNodeId = `role:${selectedRoleId.replace(/-/g, '')}`;
+      const dataNodeId = `data:${response.fieldId.replace(/-/g, '')}`;
+      const edgeId = `${selectedRoleId.replace(/-/g, '')}:${response.fieldId.replace(/-/g, '')}:data`;
+      const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+      setNodes((prev) => {
+        const roleNode = prev.find((node) => node.id === roleNodeId);
+        const dataCount = prev.filter((node) => node.data.nodeType === 'data' && node.data.roleId === selectedRoleId).length;
+        const position = roleNode
+          ? { x: roleNode.position.x + 240, y: roleNode.position.y + dataCount * 90 }
+          : { x: 320, y: 220 };
+        const exists = prev.some((node) => node.id === dataNodeId);
+        if (exists) {
+          return prev.map((node) =>
+            node.id === dataNodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    label: response.fieldType,
+                    kind: response.fieldType,
+                    value: response.plainValue ?? null,
+                    fieldType: response.fieldType,
+                    dataKeyId: response.dataKeyId
+                  }
+                }
+              : node
+          );
+        }
+        return prev.concat({
+          id: dataNodeId,
+          type: 'data',
+          position,
+          data: {
+            label: response.fieldType,
+            kind: response.fieldType,
+            nodeType: 'data',
+            value: response.plainValue ?? null,
+            roleId: selectedRoleId,
+            fieldType: response.fieldType,
+            dataKeyId: response.dataKeyId,
+            incomingTypes: ['Data'],
+            outgoingTypes: [],
+            typeColors
+          }
+        });
+      });
+      setEdges((prev) => {
+        const exists = prev.some((edge) => edge.id === edgeId);
+        if (exists) {
+          return prev;
+        }
+        return prev.concat({
+          id: edgeId,
+          source: roleNodeId,
+          target: dataNodeId,
+          type: 'role',
+          data: {
+            relationType: 'Data',
+            color: typeColors.Data ?? DEFAULT_RELATION_COLOR
+          }
+        });
+      });
+      setSearchIndex((prev) => {
+        const exists = prev.some((entry) => entry.id === dataNodeId);
+        if (exists) {
+          return prev.map((entry) =>
+            entry.id === dataNodeId
+              ? { ...entry, label: response.fieldType, value: response.plainValue ?? null }
+              : entry
+          );
+        }
+        return prev.concat({ id: dataNodeId, label: response.fieldType, value: response.plainValue ?? null });
+      });
+      setSelectedNodeId(dataNodeId);
       setNewFieldType('');
       setNewFieldValue('');
       setActionStatus({ type: 'success', message: copy.account.roles.dataAddSuccess });
@@ -720,11 +793,33 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setActionStatus({ type: 'working', message: copy.account.roles.dataEditWorking });
     try {
       await issueCsrf();
-      await updateRoleField(selectedRoleId, {
+      const response = await updateRoleField(selectedRoleId, {
         fieldType: selectedNode.data.fieldType,
         plainValue: dataValue.trim()
       });
-      await loadGraph();
+      const dataNodeId = `data:${response.fieldId.replace(/-/g, '')}`;
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === dataNodeId
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  label: response.fieldType,
+                  kind: response.fieldType,
+                  value: response.plainValue ?? null,
+                  fieldType: response.fieldType,
+                  dataKeyId: response.dataKeyId
+                }
+              }
+            : node
+        )
+      );
+      setSearchIndex((prev) =>
+        prev.map((entry) =>
+          entry.id === dataNodeId ? { ...entry, label: response.fieldType, value: response.plainValue ?? null } : entry
+        )
+      );
       setActionStatus({ type: 'success', message: copy.account.roles.dataEditSuccess });
     } catch (error) {
       setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataEditError) });

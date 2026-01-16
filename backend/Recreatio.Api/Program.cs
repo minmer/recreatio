@@ -130,7 +130,7 @@ app.Use(async (context, next) =>
     await next();
     if (context.Response.StatusCode is >= 400 and < 500)
     {
-        app.Logger.LogDebug("HTTP {Method} {Path} -> {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+        app.Logger.LogWarning("HTTP {Method} {Path} -> {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
     }
 });
 

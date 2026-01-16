@@ -426,6 +426,7 @@ public static class AccountEndpoints
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(field => new RoleFieldResponse(
+                        field.Id,
                         field.FieldType,
                         TryGetPlainValue(field, keyRing, keyEntryById, keyRingService),
                         field.DataKeyId
@@ -679,6 +680,7 @@ public static class AccountEndpoints
                 role.PublicSigningKey is null ? null : Convert.ToBase64String(role.PublicSigningKey),
                 role.PublicSigningKeyAlg,
                 roleFields.Select(field => new RoleFieldResponse(
+                    field.Id,
                     field.FieldType,
                     plainByField.GetValueOrDefault(field.FieldType),
                     field.DataKeyId
@@ -796,6 +798,7 @@ public static class AccountEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new RoleFieldResponse(
+                existing.Id,
                 existing.FieldType,
                 plainValue,
                 existing.DataKeyId

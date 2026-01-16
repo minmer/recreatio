@@ -24,6 +24,7 @@ public sealed record UpdateRoleFieldRequest(
 );
 
 public sealed record RoleFieldResponse(
+    Guid FieldId,
     string FieldType,
     string? PlainValue,
     Guid DataKeyId
