@@ -4,7 +4,7 @@ import ReactFlow, {
   Controls,
   Handle,
   Position,
-  getSmoothStepPath,
+  getBezierPath,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -292,7 +292,7 @@ const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
 };
 
 const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data, markerEnd }: EdgeProps<RoleEdgeData>) => {
-  const [path] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY });
+  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY });
   return (
     <g className="react-flow__edge">
       <path
