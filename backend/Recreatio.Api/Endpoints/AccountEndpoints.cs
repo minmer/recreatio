@@ -449,10 +449,11 @@ public static class AccountEndpoints
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
-            ILogger<AccountEndpoints> logger,
+            ILoggerFactory loggerFactory,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("AccountEndpoints");
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
                 return Results.Unauthorized();
