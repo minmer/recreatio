@@ -4,7 +4,7 @@ import ReactFlow, {
   Controls,
   Handle,
   Position,
-  getStraightPath,
+  getSmoothStepPath,
   useEdgesState,
   useNodesState,
   type Connection,
@@ -18,6 +18,7 @@ import type { Copy } from '../../content/types';
 import {
   createRole,
   createRoleEdge,
+  deleteRoleField,
   getRoleGraph,
   issueCsrf,
   shareRole,
@@ -291,7 +292,7 @@ const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
 };
 
 const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data, markerEnd }: EdgeProps<RoleEdgeData>) => {
-  const [path] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  const [path] = getSmoothStepPath({ sourceX, sourceY, targetX, targetY });
   return (
     <g className="react-flow__edge">
       <path
@@ -320,6 +321,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
   const [createOwnerId, setCreateOwnerId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [compactView, setCompactView] = useState<'graph' | 'panel'>('graph');
   const [actionStatus, setActionStatus] = useState<{ type: 'idle' | 'working' | 'success' | 'error'; message?: string }>({
     type: 'idle'
   });
@@ -352,6 +355,25 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       document.body.style.overflow = previous;
     };
   }, [isFullscreen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 720px)');
+    const handleChange = (event: MediaQueryListEvent | MediaQueryList) => {
+      const nextCompact = 'matches' in event ? event.matches : event.matches;
+      setIsCompact(nextCompact);
+      if (!nextCompact) {
+        setCompactView('graph');
+      }
+    };
+    handleChange(media);
+    if ('addEventListener' in media) {
+      media.addEventListener('change', handleChange);
+      return () => media.removeEventListener('change', handleChange);
+    }
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, []);
 
   const loadGraph = useCallback(async () => {
     setLoading(true);
@@ -612,7 +634,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     try {
       await issueCsrf();
       const response = await createRole({
-        parentRoleId: stripRoleId(createOwnerId),
+        parentRoleId: parentNode?.data.roleId ?? stripRoleId(createOwnerId),
         relationshipType: newRoleRelation,
         fields: [
           { fieldType: 'nick', plainValue: newRoleNick.trim() },
@@ -826,6 +848,25 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
+  const handleDeleteField = async () => {
+    if (!selectedRoleId || !selectedNode || selectedNode.data.nodeType !== 'data') return;
+    const fieldId = selectedNode.id.startsWith('data:') ? selectedNode.id.slice(5) : null;
+    if (!fieldId) return;
+    setActionStatus({ type: 'working', message: copy.account.roles.dataDeleteWorking });
+    try {
+      await issueCsrf();
+      await deleteRoleField(selectedRoleId, fieldId);
+      const dataNodeId = selectedNode.id;
+      setNodes((prev) => prev.filter((node) => node.id !== dataNodeId));
+      setEdges((prev) => prev.filter((edge) => edge.source !== dataNodeId && edge.target !== dataNodeId));
+      setSearchIndex((prev) => prev.filter((entry) => entry.id !== dataNodeId));
+      setSelectedNodeId(null);
+      setActionStatus({ type: 'success', message: copy.account.roles.dataDeleteSuccess });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataDeleteError) });
+    }
+  };
+
   const handleShareRole = async (event: FormEvent) => {
     event.preventDefault();
     if (!selectedRoleId || !shareTargetRoleId.trim()) {
@@ -883,7 +924,29 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           </button>
         ))}
       </div>
-      <div className={`role-graph ${isFullscreen ? 'is-fullscreen' : ''}`}>
+      <div
+        className={`role-graph ${isFullscreen ? 'is-fullscreen' : ''} ${isCompact ? 'is-compact' : ''} ${
+          isCompact ? `view-${compactView}` : ''
+        }`}
+      >
+        {isCompact && (
+          <div className="role-view-toggle">
+            <button
+              type="button"
+              className={`chip ${compactView === 'graph' ? 'active' : ''}`}
+              onClick={() => setCompactView('graph')}
+            >
+              {copy.account.roles.viewGraph}
+            </button>
+            <button
+              type="button"
+              className={`chip ${compactView === 'panel' ? 'active' : ''}`}
+              onClick={() => setCompactView('panel')}
+            >
+              {copy.account.roles.viewDetails}
+            </button>
+          </div>
+        )}
         <div className="role-flow">
           <ReactFlow
             nodes={nodes}
@@ -895,10 +958,16 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             onNodeClick={(_, node) => {
               setSelectedNodeId(node.id);
               setSelectedEdgeId(null);
+              if (isCompact) {
+                setCompactView('panel');
+              }
             }}
             onEdgeClick={(_, edge) => {
               setSelectedEdgeId(edge.id);
               setSelectedNodeId(null);
+              if (isCompact) {
+                setCompactView('panel');
+              }
             }}
             onConnect={handleConnect}
             isValidConnection={isValidConnection}
@@ -1063,9 +1132,14 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
                 {copy.account.roles.dataValueLabel}
                 <input type="text" value={dataValue} onChange={(event) => setDataValue(event.target.value)} />
               </label>
-              <button type="submit" className="chip">
-                {copy.account.roles.dataEditAction}
-              </button>
+              <div className="role-panel-actions">
+                <button type="submit" className="chip">
+                  {copy.account.roles.dataEditAction}
+                </button>
+                <button type="button" className="ghost" onClick={handleDeleteField}>
+                  {copy.account.roles.dataDeleteAction}
+                </button>
+              </div>
             </form>
           )}
           {selectedNode && (

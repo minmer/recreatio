@@ -9,6 +9,7 @@ using Recreatio.Api.Endpoints;
 using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -127,7 +128,42 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
-    await next();
+    var path = context.Request.Path.Value ?? string.Empty;
+    var captureBody = path.StartsWith("/account/roles", StringComparison.OrdinalIgnoreCase);
+
+    if (!captureBody)
+    {
+        await next();
+    }
+    else
+    {
+        var originalBody = context.Response.Body;
+        await using var buffer = new MemoryStream();
+        context.Response.Body = buffer;
+        await next();
+
+        buffer.Position = 0;
+        if (context.Response.StatusCode is >= 400 and < 500)
+        {
+            using var reader = new StreamReader(buffer, Encoding.UTF8, leaveOpen: true);
+            var bodyText = await reader.ReadToEndAsync();
+            if (bodyText.Length > 2000)
+            {
+                bodyText = bodyText[..2000];
+            }
+            app.Logger.LogWarning(
+                "HTTP {Method} {Path} -> {StatusCode}. Body: {Body}",
+                context.Request.Method,
+                context.Request.Path,
+                context.Response.StatusCode,
+                bodyText);
+        }
+
+        buffer.Position = 0;
+        await buffer.CopyToAsync(originalBody);
+        context.Response.Body = originalBody;
+    }
+
     if (context.Response.StatusCode is >= 400 and < 500)
     {
         app.Logger.LogWarning("HTTP {Method} {Path} -> {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);

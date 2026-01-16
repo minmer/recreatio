@@ -216,6 +216,12 @@ export function updateRoleField(roleId: string, payload: {
   });
 }
 
+export function deleteRoleField(roleId: string, fieldId: string) {
+  return request<void>(`/account/roles/${roleId}/fields/${fieldId}`, {
+    method: 'DELETE'
+  });
+}
+
 export function getRoleAccess(roleId: string) {
   return request<RoleAccessResponse>(`/account/roles/${roleId}/access`, {
     method: 'GET'

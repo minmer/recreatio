@@ -805,6 +805,70 @@ public static class AccountEndpoints
             ));
         });
 
+        group.MapDelete("/roles/{roleId:guid}/fields/{fieldId:guid}", async (
+            Guid roleId,
+            Guid fieldId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetRoleKey(roleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var field = await dbContext.RoleFields
+                .FirstOrDefaultAsync(x => x.Id == fieldId && x.RoleId == roleId, ct);
+            if (field is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (field.FieldType is "nick" or "role_kind")
+            {
+                return Results.BadRequest(new { error = "System fields cannot be deleted." });
+            }
+
+            var dataKey = await dbContext.Keys
+                .FirstOrDefaultAsync(x => x.Id == field.DataKeyId && x.KeyType == KeyType.DataKey && x.OwnerRoleId == roleId, ct);
+            if (dataKey is not null)
+            {
+                dbContext.Keys.Remove(dataKey);
+            }
+
+            dbContext.RoleFields.Remove(field);
+            await ledgerService.AppendBusinessAsync(
+                "RoleFieldDeleted",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId, fieldId, fieldType = field.FieldType }),
+                ct);
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.NoContent();
+        });
+
         group.MapGet("/roles/{roleId:guid}/access", async (Guid roleId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))

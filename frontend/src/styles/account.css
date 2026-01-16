@@ -187,6 +187,12 @@
   gap: 1.2rem;
 }
 
+.role-view-toggle {
+  display: none;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .role-flow {
   position: relative;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 246, 240, 0.95));
@@ -391,5 +397,17 @@
 
   .role-canvas {
     min-height: 320px;
+  }
+
+  .role-graph.is-compact .role-view-toggle {
+    display: flex;
+  }
+
+  .role-graph.is-compact.view-graph .role-panel {
+    display: none;
+  }
+
+  .role-graph.is-compact.view-panel .role-flow {
+    display: none;
   }
 }

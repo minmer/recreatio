@@ -163,6 +163,10 @@ export type Copy = {
       dataEditWorking: string;
       dataEditSuccess: string;
       dataEditError: string;
+      dataDeleteAction: string;
+      dataDeleteWorking: string;
+      dataDeleteSuccess: string;
+      dataDeleteError: string;
       shareRoleTitle: string;
       shareRoleTargetLabel: string;
       shareRoleRelationLabel: string;
@@ -170,6 +174,8 @@ export type Copy = {
       shareRoleWorking: string;
       shareRoleSuccess: string;
       shareRoleError: string;
+      viewGraph: string;
+      viewDetails: string;
       cancelAction: string;
       incomingTitle: string;
       outgoingTitle: string;
