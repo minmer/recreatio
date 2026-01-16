@@ -22,6 +22,7 @@ import {
   issueCsrf,
   shareRole,
   updateRoleField,
+  ApiError,
   type RoleGraphEdge,
   type RoleGraphNode
 } from '../../lib/api';
@@ -76,21 +77,147 @@ const buildTypeColors = (edges: RoleGraphEdge[]) => {
   return colors;
 };
 
-const defaultLayout = (nodes: RoleGraphNode[]) => {
-  const radius = 240;
-  const center = { x: 320, y: 240 };
-  const count = Math.max(nodes.length, 1);
-  return nodes.reduce<Record<string, { x: number; y: number }>>((acc, node, index) => {
-    const angle = (index / count) * Math.PI * 2;
-    acc[node.id] = {
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius
-    };
-    return acc;
-  }, {});
+const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
+  const roleNodes = nodes.filter((node) => node.nodeType === 'role');
+  const roleIdSet = new Set(roleNodes.map((node) => node.id));
+  const adjacency = new Map<string, string[]>();
+  const indegree = new Map<string, number>();
+
+  roleNodes.forEach((node) => {
+    adjacency.set(node.id, []);
+    indegree.set(node.id, 0);
+  });
+
+  edges.forEach((edge) => {
+    if (!roleIdSet.has(edge.sourceRoleId) || !roleIdSet.has(edge.targetRoleId)) {
+      return;
+    }
+    adjacency.get(edge.sourceRoleId)?.push(edge.targetRoleId);
+    indegree.set(edge.targetRoleId, (indegree.get(edge.targetRoleId) ?? 0) + 1);
+  });
+
+  const queue: string[] = [];
+  indegree.forEach((count, nodeId) => {
+    if (count === 0) {
+      queue.push(nodeId);
+    }
+  });
+
+  const depth = new Map<string, number>();
+  queue.forEach((nodeId) => depth.set(nodeId, 0));
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    const currentDepth = depth.get(current) ?? 0;
+    const children = adjacency.get(current) ?? [];
+    children.forEach((child) => {
+      const nextDepth = currentDepth + 1;
+      const existingDepth = depth.get(child);
+      if (existingDepth === undefined || nextDepth > existingDepth) {
+        depth.set(child, nextDepth);
+      }
+      const nextIn = (indegree.get(child) ?? 0) - 1;
+      indegree.set(child, nextIn);
+      if (nextIn === 0) {
+        queue.push(child);
+      }
+    });
+  }
+
+  const positions: Record<string, { x: number; y: number }> = {};
+  const depthGroups = new Map<number, string[]>();
+  roleNodes.forEach((node) => {
+    const nodeDepth = depth.get(node.id) ?? 0;
+    if (!depthGroups.has(nodeDepth)) {
+      depthGroups.set(nodeDepth, []);
+    }
+    depthGroups.get(nodeDepth)?.push(node.id);
+  });
+
+  const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
+  sortedDepths.forEach((level) => {
+    const group = depthGroups.get(level) ?? [];
+    group.forEach((nodeId, index) => {
+      positions[nodeId] = {
+        x: 140 + level * 280,
+        y: 140 + index * 160
+      };
+    });
+  });
+
+  const dataOffsets = new Map<string, number>();
+  const recoveryOffsets = new Map<string, number>();
+  nodes.forEach((node) => {
+    if (node.nodeType === 'data' && node.roleId && positions[`role:${node.roleId.replace(/-/g, '')}`]) {
+      const roleNodeId = `role:${node.roleId.replace(/-/g, '')}`;
+      const base = positions[roleNodeId];
+      const offset = dataOffsets.get(roleNodeId) ?? 0;
+      dataOffsets.set(roleNodeId, offset + 1);
+      positions[node.id] = {
+        x: base.x + 220,
+        y: base.y + offset * 90
+      };
+    }
+  });
+
+  nodes.forEach((node) => {
+    if (node.nodeType === 'recovery' && node.roleId) {
+      const roleNodeId = `role:${node.roleId.replace(/-/g, '')}`;
+      const base = positions[roleNodeId];
+      if (base) {
+        const offset = recoveryOffsets.get(roleNodeId) ?? 0;
+        recoveryOffsets.set(roleNodeId, offset + 1);
+        positions[node.id] = {
+          x: base.x + 200,
+          y: base.y - 120 - offset * 80
+        };
+      }
+    }
+  });
+
+  nodes.forEach((node) => {
+    if (node.nodeType !== 'recovery_shared') {
+      return;
+    }
+    const edge = edges.find((item) => item.targetRoleId === node.id);
+    if (!edge) return;
+    const base = positions[edge.sourceRoleId];
+    if (base) {
+      positions[node.id] = {
+        x: base.x + 200,
+        y: base.y
+      };
+    }
+  });
+
+  nodes.forEach((node) => {
+    if (!positions[node.id]) {
+      positions[node.id] = { x: 140, y: 140 };
+    }
+  });
+
+  return positions;
 };
 
 const stripRoleId = (id: string) => (id.startsWith('role:') ? id.slice(5) : id);
+
+const formatApiError = (error: unknown, fallback: string) => {
+  if (error instanceof ApiError) {
+    const text = error.message?.trim();
+    if (!text) return fallback;
+    if (text.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(text) as { error?: string };
+        if (parsed.error) return parsed.error;
+      } catch {
+        return text;
+      }
+    }
+    return text;
+  }
+  return fallback;
+};
 
 const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
@@ -227,7 +354,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     try {
       await issueCsrf();
       const graph = await getRoleGraph();
-      const layout = defaultLayout(graph.nodes);
+      const layout = defaultLayout(graph.nodes, graph.edges);
       const typeColors = buildTypeColors(graph.edges);
       const perNode = graph.nodes.reduce<Record<string, { incoming: string[]; outgoing: string[] }>>((acc, node) => {
         acc[node.id] = { incoming: [], outgoing: [] };
@@ -449,8 +576,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       });
       await loadGraph();
       setActionStatus({ type: 'success', message: copy.account.roles.linkSuccess });
-    } catch {
-      setActionStatus({ type: 'error', message: copy.account.roles.linkError });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.linkError) });
     }
   };
 
@@ -480,7 +607,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setActionStatus({ type: 'working', message: copy.account.roles.createRoleWorking });
     try {
       await issueCsrf();
-      await createRole({
+      const response = await createRole({
         parentRoleId: stripRoleId(createOwnerId),
         relationshipType: newRoleRelation,
         fields: [
@@ -488,13 +615,71 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           { fieldType: 'role_kind', plainValue: newRoleKind.trim() }
         ]
       });
-      await loadGraph();
+      const parentNodeId = createOwnerId;
+      const newNodeId = `role:${response.roleId.replace(/-/g, '')}`;
+      const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+      const parentNode = nodes.find((node) => node.id === parentNodeId);
+      const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
+      const position = parentNode
+        ? { x: parentNode.position.x + 280, y: parentNode.position.y + outgoingCount * 140 }
+        : { x: 280, y: 200 };
+
+      setNodes((prev) =>
+        prev.map((node) => {
+          if (node.id !== parentNodeId) {
+            return node;
+          }
+          const nextOutgoing = node.data.outgoingTypes.includes(newRoleRelation)
+            ? node.data.outgoingTypes
+            : [...node.data.outgoingTypes, newRoleRelation];
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              outgoingTypes: nextOutgoing
+            }
+          };
+        }).concat({
+          id: newNodeId,
+          type: 'role',
+          position,
+          data: {
+            label: newRoleNick.trim(),
+            kind: newRoleKind.trim(),
+            nodeType: 'role',
+            value: null,
+            roleId: response.roleId,
+            fieldType: null,
+            dataKeyId: null,
+            incomingTypes: [newRoleRelation],
+            outgoingTypes: [],
+            typeColors
+          }
+        })
+      );
+
+      setEdges((prev) =>
+        prev.concat({
+          id: `${stripRoleId(parentNodeId)}:${response.roleId.replace(/-/g, '')}:${newRoleRelation}`,
+          source: parentNodeId,
+          target: newNodeId,
+          type: 'role',
+          data: {
+            relationType: newRoleRelation,
+            color: typeColors[newRoleRelation] ?? DEFAULT_RELATION_COLOR
+          }
+        })
+      );
+
+      setFilters((prev) => ({ ...prev, [newRoleRelation]: prev[newRoleRelation] ?? true }));
+      setSearchIndex((prev) => prev.concat({ id: newNodeId, label: newRoleNick.trim(), value: newRoleKind.trim() }));
+      setSelectedNodeId(newNodeId);
       setNewRoleNick('');
       setNewRoleKind('');
       setCreateOwnerId(null);
       setActionStatus({ type: 'success', message: copy.account.roles.createRoleSuccess });
-    } catch {
-      setActionStatus({ type: 'error', message: copy.account.roles.createRoleError });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.createRoleError) });
     }
   };
 
@@ -516,8 +701,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       setNewFieldType('');
       setNewFieldValue('');
       setActionStatus({ type: 'success', message: copy.account.roles.dataAddSuccess });
-    } catch {
-      setActionStatus({ type: 'error', message: copy.account.roles.dataAddError });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataAddError) });
     }
   };
 
@@ -537,8 +722,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       });
       await loadGraph();
       setActionStatus({ type: 'success', message: copy.account.roles.dataEditSuccess });
-    } catch {
-      setActionStatus({ type: 'error', message: copy.account.roles.dataEditError });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataEditError) });
     }
   };
 
@@ -558,8 +743,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       });
       setShareTargetRoleId('');
       setActionStatus({ type: 'success', message: copy.account.roles.shareRoleSuccess });
-    } catch {
-      setActionStatus({ type: 'error', message: copy.account.roles.shareRoleError });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.shareRoleError) });
     }
   };
 

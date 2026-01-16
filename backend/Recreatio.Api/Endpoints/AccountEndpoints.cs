@@ -291,22 +291,19 @@ public static class AccountEndpoints
                     "Data"));
             }
 
-            foreach (var roleId in roleIds)
-            {
-                var recoveryNodeId = $"recovery:{roleId:N}";
-                nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null, roleId, null, null));
-                edges.Add(new RoleGraphEdge(
-                    $"role:{roleId:N}:{recoveryNodeId}:recovery-owner",
-                    $"role:{roleId:N}",
-                    recoveryNodeId,
-                    "RecoveryOwner"));
-            }
-
             var recoveryShares = await dbContext.RoleRecoveryShares.AsNoTracking()
                 .Where(share => roleIdSet.Contains(share.TargetRoleId))
                 .ToListAsync(ct);
             foreach (var targetRoleId in recoveryShares.Select(x => x.TargetRoleId).Distinct())
             {
+                var recoveryNodeId = $"recovery:{targetRoleId:N}";
+                nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null, targetRoleId, null, null));
+                edges.Add(new RoleGraphEdge(
+                    $"role:{targetRoleId:N}:{recoveryNodeId}:recovery-owner",
+                    $"role:{targetRoleId:N}",
+                    recoveryNodeId,
+                    "RecoveryOwner"));
+
                 var sharedNodeId = $"recovery-shared:{targetRoleId:N}";
                 nodes.Add(new RoleGraphNode(sharedNodeId, "Shared recovery", "recovery_shared", "RecoveryShare", null, targetRoleId, null, null));
                 edges.Add(new RoleGraphEdge(
@@ -655,6 +652,11 @@ public static class AccountEndpoints
             });
 
             await dbContext.SaveChangesAsync(ct);
+            await ledgerService.AppendAuthAsync(
+                "RoleCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId, parentRoleId, relationshipType }),
+                ct);
             await transaction.CommitAsync(ct);
 
             var plainByField = fields

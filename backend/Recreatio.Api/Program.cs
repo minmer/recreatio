@@ -125,6 +125,14 @@ app.UseCors("RecreatioWeb");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+app.Use(async (context, next) =>
+{
+    await next();
+    if (context.Response.StatusCode is >= 400 and < 500)
+    {
+        app.Logger.LogDebug("HTTP {Method} {Path} -> {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+    }
+});
 
 app.MapHealthEndpoints();
 app.MapAuthEndpoints();
