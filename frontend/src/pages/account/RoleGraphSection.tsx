@@ -135,13 +135,17 @@ const defaultLayout = (nodes: RoleGraphNode[], edges: RoleGraphEdge[]) => {
     depthGroups.get(nodeDepth)?.push(node.id);
   });
 
+  const xStart = 140;
+  const xStep = 344;
+  const yStart = 140;
+  const yStep = 160;
   const sortedDepths = Array.from(depthGroups.keys()).sort((a, b) => a - b);
   sortedDepths.forEach((level) => {
     const group = depthGroups.get(level) ?? [];
     group.forEach((nodeId, index) => {
       positions[nodeId] = {
-        x: 140 + level * 280,
-        y: 140 + index * 160
+        x: xStart + level * xStep,
+        y: yStart + index * yStep
       };
     });
   });
@@ -621,7 +625,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       const parentNode = nodes.find((node) => node.id === parentNodeId);
       const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
       const position = parentNode
-        ? { x: parentNode.position.x + 280, y: parentNode.position.y + outgoingCount * 140 }
+        ? { x: parentNode.position.x + 344, y: parentNode.position.y + outgoingCount * 140 }
         : { x: 280, y: 200 };
 
       setNodes((prev) =>

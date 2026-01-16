@@ -449,6 +449,7 @@ public static class AccountEndpoints
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
+            ILogger<AccountEndpoints> logger,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
@@ -462,10 +463,17 @@ public static class AccountEndpoints
                 return Results.Unauthorized();
             }
 
+            IResult Fail(string message)
+            {
+                logger.LogWarning("Create role failed for user {UserId}: {Message}", userId, message);
+                return Results.BadRequest(new { error = message });
+            }
+
             var account = await dbContext.UserAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (account is null)
             {
+                logger.LogWarning("Create role failed: account not found for user {UserId}.", userId);
                 return Results.NotFound();
             }
 
@@ -481,7 +489,7 @@ public static class AccountEndpoints
 
             if (request.ParentRoleId.HasValue && request.ParentRoleId.Value == Guid.Empty)
             {
-                return Results.BadRequest(new { error = "ParentRoleId is invalid." });
+                return Fail("ParentRoleId is invalid.");
             }
 
             var parentRoleId = request.ParentRoleId ?? account.MasterRoleId;
@@ -490,11 +498,12 @@ public static class AccountEndpoints
                 : request.RelationshipType.Trim();
             if (!AllowedRelationshipTypes.Contains(relationshipType))
             {
-                return Results.BadRequest(new { error = "RelationshipType is invalid." });
+                return Fail("RelationshipType is invalid.");
             }
 
             if (!keyRing.TryGetRoleKey(parentRoleId, out var parentRoleKey))
             {
+                logger.LogWarning("Create role failed: parent role key not available for user {UserId}, parent {ParentRoleId}.", userId, parentRoleId);
                 return Results.Forbid();
             }
 
@@ -502,6 +511,7 @@ public static class AccountEndpoints
                 .AnyAsync(role => role.Id == parentRoleId, ct);
             if (!parentRoleExists)
             {
+                logger.LogWarning("Create role failed: parent role {ParentRoleId} not found for user {UserId}.", parentRoleId, userId);
                 return Results.NotFound();
             }
 
@@ -522,18 +532,18 @@ public static class AccountEndpoints
             }
             if (fields.Count == 0)
             {
-                return Results.BadRequest(new { error = "At least one field is required." });
+                return Fail("At least one field is required.");
             }
 
             var normalized = fields.Select(field => field.FieldType.Trim().ToLowerInvariant()).ToList();
             if (normalized.Distinct().Count() != normalized.Count)
             {
-                return Results.BadRequest(new { error = "Duplicate field types are not allowed." });
+                return Fail("Duplicate field types are not allowed.");
             }
 
             if (!normalized.Contains("nick"))
             {
-                return Results.BadRequest(new { error = "Field 'nick' is required." });
+                return Fail("Field 'nick' is required.");
             }
 
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
@@ -595,7 +605,7 @@ public static class AccountEndpoints
                 var plainValue = field.PlainValue?.Trim();
                 if (string.IsNullOrWhiteSpace(plainValue))
                 {
-                    return Results.BadRequest(new { error = $"PlainValue required for field '{fieldType}'." });
+                    return Fail($"PlainValue required for field '{fieldType}'.");
                 }
 
                 var dataKeyId = Guid.NewGuid();
