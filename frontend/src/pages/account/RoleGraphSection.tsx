@@ -631,20 +631,20 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       return;
     }
     setActionStatus({ type: 'working', message: copy.account.roles.createRoleWorking });
+    const parentNodeId = createOwnerId;
+    const parentNode = nodes.find((node) => node.id === parentNodeId);
     try {
       await issueCsrf();
       const response = await createRole({
-        parentRoleId: parentNode?.data.roleId ?? stripRoleId(createOwnerId),
+        parentRoleId: parentNode?.data.roleId ?? stripRoleId(parentNodeId),
         relationshipType: newRoleRelation,
         fields: [
           { fieldType: 'nick', plainValue: newRoleNick.trim() },
           { fieldType: 'role_kind', plainValue: newRoleKind.trim() }
         ]
       });
-      const parentNodeId = createOwnerId;
       const newNodeId = `role:${response.roleId.replace(/-/g, '')}`;
       const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
-      const parentNode = nodes.find((node) => node.id === parentNodeId);
       const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
       const position = parentNode
         ? { x: parentNode.position.x + 392, y: parentNode.position.y + outgoingCount * 160 }

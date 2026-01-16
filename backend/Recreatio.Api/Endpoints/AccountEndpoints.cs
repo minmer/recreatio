@@ -853,12 +853,14 @@ public static class AccountEndpoints
 
             var dataKey = await dbContext.Keys
                 .FirstOrDefaultAsync(x => x.Id == field.DataKeyId && x.KeyType == KeyType.DataKey && x.OwnerRoleId == roleId, ct);
+
+            dbContext.RoleFields.Remove(field);
+            await dbContext.SaveChangesAsync(ct);
+
             if (dataKey is not null)
             {
                 dbContext.Keys.Remove(dataKey);
             }
-
-            dbContext.RoleFields.Remove(field);
             await ledgerService.AppendBusinessAsync(
                 "RoleFieldDeleted",
                 userId.ToString(),
