@@ -52,7 +52,10 @@ CREATE TABLE dbo.KeyLedger
     Actor NVARCHAR(128) NOT NULL,
     PayloadJson NVARCHAR(MAX) NOT NULL,
     PreviousHash VARBINARY(64) NOT NULL,
-    Hash VARBINARY(64) NOT NULL
+    Hash VARBINARY(64) NOT NULL,
+    SignerRoleId UNIQUEIDENTIFIER NULL,
+    Signature VARBINARY(MAX) NULL,
+    SignatureAlg NVARCHAR(64) NULL
 );
 GO
 
@@ -64,7 +67,10 @@ CREATE TABLE dbo.AuthLedger
     Actor NVARCHAR(128) NOT NULL,
     PayloadJson NVARCHAR(MAX) NOT NULL,
     PreviousHash VARBINARY(64) NOT NULL,
-    Hash VARBINARY(64) NOT NULL
+    Hash VARBINARY(64) NOT NULL,
+    SignerRoleId UNIQUEIDENTIFIER NULL,
+    Signature VARBINARY(MAX) NULL,
+    SignatureAlg NVARCHAR(64) NULL
 );
 GO
 
@@ -76,7 +82,10 @@ CREATE TABLE dbo.BusinessLedger
     Actor NVARCHAR(128) NOT NULL,
     PayloadJson NVARCHAR(MAX) NOT NULL,
     PreviousHash VARBINARY(64) NOT NULL,
-    Hash VARBINARY(64) NOT NULL
+    Hash VARBINARY(64) NOT NULL,
+    SignerRoleId UNIQUEIDENTIFIER NULL,
+    Signature VARBINARY(MAX) NULL,
+    SignatureAlg NVARCHAR(64) NULL
 );
 GO
 
@@ -138,7 +147,8 @@ CREATE TABLE dbo.RoleEdges
     ParentRoleId UNIQUEIDENTIFIER NOT NULL,
     ChildRoleId UNIQUEIDENTIFIER NOT NULL,
     RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
+    EncryptedReadKeyCopy VARBINARY(MAX) NOT NULL,
+    EncryptedWriteKeyCopy VARBINARY(MAX) NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
@@ -151,7 +161,8 @@ CREATE TABLE dbo.PendingRoleShares
     SourceRoleId UNIQUEIDENTIFIER NOT NULL,
     TargetRoleId UNIQUEIDENTIFIER NOT NULL,
     RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptedReadKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptedWriteKeyBlob VARBINARY(MAX) NULL,
     EncryptionAlg NVARCHAR(64) NOT NULL,
     Status NVARCHAR(32) NOT NULL,
     LedgerRefId UNIQUEIDENTIFIER NOT NULL,
@@ -171,7 +182,8 @@ CREATE TABLE dbo.Memberships
     UserId UNIQUEIDENTIFIER NOT NULL,
     RoleId UNIQUEIDENTIFIER NOT NULL,
     RelationshipType NVARCHAR(64) NOT NULL,
-    EncryptedRoleKeyCopy VARBINARY(MAX) NOT NULL,
+    EncryptedReadKeyCopy VARBINARY(MAX) NOT NULL,
+    EncryptedWriteKeyCopy VARBINARY(MAX) NULL,
     LedgerRefId UNIQUEIDENTIFIER NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),

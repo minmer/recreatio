@@ -167,6 +167,34 @@
   margin-bottom: 1.2rem;
 }
 
+.role-legend {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.role-legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+
+.role-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: rgba(28, 33, 38, 0.7);
+}
+
+.role-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+  background: currentColor;
+}
+
 .chip {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -340,6 +368,42 @@
 .role-panel-block {
   display: grid;
   gap: 0.35rem;
+}
+
+.role-panel-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.role-ledger-row {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.4rem 0;
+  border-top: 1px dashed rgba(28, 33, 38, 0.15);
+}
+
+.role-ledger-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.role-ledger-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.role-ledger-flag.ok {
+  color: #166534;
+}
+
+.role-ledger-flag.error {
+  color: #9f1239;
 }
 
 .role-loading {

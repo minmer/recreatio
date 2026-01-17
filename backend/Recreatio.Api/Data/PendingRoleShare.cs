@@ -14,7 +14,9 @@ public sealed class PendingRoleShare
     [MaxLength(64)]
     public string RelationshipType { get; set; } = string.Empty;
 
-    public byte[] EncryptedRoleKeyBlob { get; set; } = Array.Empty<byte>();
+    public byte[] EncryptedReadKeyBlob { get; set; } = Array.Empty<byte>();
+
+    public byte[]? EncryptedWriteKeyBlob { get; set; }
 
     [MaxLength(64)]
     public string EncryptionAlg { get; set; } = string.Empty;

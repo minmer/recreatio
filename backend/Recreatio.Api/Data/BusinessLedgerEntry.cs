@@ -20,4 +20,11 @@ public sealed class BusinessLedgerEntry
     public byte[] PreviousHash { get; set; } = Array.Empty<byte>();
 
     public byte[] Hash { get; set; } = Array.Empty<byte>();
+
+    public Guid? SignerRoleId { get; set; }
+
+    public byte[]? Signature { get; set; }
+
+    [MaxLength(64)]
+    public string? SignatureAlg { get; set; }
 }

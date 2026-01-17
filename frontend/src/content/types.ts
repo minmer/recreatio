@@ -135,6 +135,7 @@ export type Copy = {
       noNodes: string;
       panelTitle: string;
       panelEmpty: string;
+      legendTitle: string;
       edgeTitle: string;
       linkDraftTitle: string;
       linkDraftHint: string;
@@ -174,6 +175,19 @@ export type Copy = {
       shareRoleWorking: string;
       shareRoleSuccess: string;
       shareRoleError: string;
+      parentsTitle: string;
+      parentsAction: string;
+      parentsWorking: string;
+      parentsError: string;
+      verifyTitle: string;
+      verifyAction: string;
+      verifyWorking: string;
+      verifyError: string;
+      verifyHashOk: string;
+      verifyHashIssue: string;
+      verifySigOk: string;
+      verifySigIssue: string;
+      verifyRoleSigned: string;
       viewGraph: string;
       viewDetails: string;
       cancelAction: string;

@@ -85,7 +85,8 @@ public sealed record RoleGraphNode(
     string? Value,
     Guid? RoleId,
     string? FieldType,
-    Guid? DataKeyId
+    Guid? DataKeyId,
+    bool CanLink
 );
 
 public sealed record RoleGraphEdge(
@@ -98,6 +99,28 @@ public sealed record RoleGraphEdge(
 public sealed record RoleGraphResponse(
     List<RoleGraphNode> Nodes,
     List<RoleGraphEdge> Edges
+);
+
+public sealed record RoleParentsResponse(
+    Guid RoleId,
+    List<Guid> ParentRoleIds
+);
+
+public sealed record LedgerVerificationSummary(
+    string Ledger,
+    int TotalEntries,
+    int HashMismatches,
+    int PreviousHashMismatches,
+    int SignaturesVerified,
+    int SignaturesMissing,
+    int SignaturesInvalid,
+    int RoleSignedEntries,
+    int RoleInvalidSignatures
+);
+
+public sealed record RoleLedgerVerificationResponse(
+    Guid RoleId,
+    List<LedgerVerificationSummary> Ledgers
 );
 
 public sealed record RecoveryShareRequest(

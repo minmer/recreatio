@@ -283,6 +283,7 @@ export type RoleGraphNode = {
   roleId?: string | null;
   fieldType?: string | null;
   dataKeyId?: string | null;
+  canLink?: boolean;
 };
 
 export type RoleGraphEdge = {
@@ -299,6 +300,36 @@ export type RoleGraphResponse = {
 
 export function getRoleGraph() {
   return request<RoleGraphResponse>('/account/roles/graph', { method: 'GET' });
+}
+
+export type RoleParentsResponse = {
+  roleId: string;
+  parentRoleIds: string[];
+};
+
+export function getRoleParents(roleId: string) {
+  return request<RoleParentsResponse>(`/account/roles/${roleId}/parents`, { method: 'GET' });
+}
+
+export type LedgerVerificationSummary = {
+  ledger: string;
+  totalEntries: number;
+  hashMismatches: number;
+  previousHashMismatches: number;
+  signaturesVerified: number;
+  signaturesMissing: number;
+  signaturesInvalid: number;
+  roleSignedEntries: number;
+  roleInvalidSignatures: number;
+};
+
+export type RoleLedgerVerificationResponse = {
+  roleId: string;
+  ledgers: LedgerVerificationSummary[];
+};
+
+export function verifyRoleLedger(roleId: string) {
+  return request<RoleLedgerVerificationResponse>(`/account/roles/${roleId}/verify`, { method: 'GET' });
 }
 
 export function shareRecovery(roleId: string, payload: {

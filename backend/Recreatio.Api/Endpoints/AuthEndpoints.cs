@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
+using Recreatio.Api.Crypto;
+using Recreatio.Api.Data;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 
@@ -97,7 +100,7 @@ public static class AuthEndpoints
             }
         }).RequireAuthorization();
 
-        group.MapPost("/logout", async (HttpContext context, ISessionService sessionService, ICsrfService csrfService, CancellationToken ct) =>
+        group.MapPost("/logout", async (HttpContext context, ISessionService sessionService, ICsrfService csrfService, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) || !EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
@@ -109,12 +112,13 @@ public static class AuthEndpoints
                 return Results.Forbid();
             }
 
-            await sessionService.LogoutAsync(userId, sessionId, ct);
+            var signingContext = await TryGetSigningContextAsync(context, userId, sessionId, dbContext, keyRingService, encryptionService, ct);
+            await sessionService.LogoutAsync(userId, sessionId, ct, signingContext);
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.Ok();
         }).RequireAuthorization();
 
-        group.MapPost("/session/mode", async (SessionModeRequest request, HttpContext context, ISessionService sessionService, ICsrfService csrfService, CancellationToken ct) =>
+        group.MapPost("/session/mode", async (SessionModeRequest request, HttpContext context, ISessionService sessionService, ICsrfService csrfService, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) || !EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
@@ -126,7 +130,8 @@ public static class AuthEndpoints
                 return Results.Forbid();
             }
 
-            var session = await sessionService.SetSecureModeAsync(userId, sessionId, request.SecureMode, ct);
+            var signingContext = await TryGetSigningContextAsync(context, userId, sessionId, dbContext, keyRingService, encryptionService, ct);
+            var session = await sessionService.SetSecureModeAsync(userId, sessionId, request.SecureMode, ct, signingContext);
             var h3Base64 = AuthClaims.GetH3Base64(context.User);
             if (!string.IsNullOrWhiteSpace(h3Base64))
             {
@@ -145,5 +150,41 @@ public static class AuthEndpoints
             var session = await sessionService.RequireSessionAsync(userId, sessionId, ct);
             return Results.Ok(new { UserId = userId, session.SessionId, session.IsSecureMode });
         }).RequireAuthorization();
+    }
+
+    private static async Task<LedgerSigningContext?> TryGetSigningContextAsync(
+        HttpContext context,
+        Guid userId,
+        string sessionId,
+        RecreatioDbContext dbContext,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        CancellationToken ct)
+    {
+        var account = await dbContext.UserAccounts
+            .Include(x => x.MasterRole)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (account?.MasterRole is null)
+        {
+            return null;
+        }
+
+        RoleKeyRing keyRing;
+        try
+        {
+            keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        if (!keyRing.TryGetWriteKey(account.MasterRoleId, out var writeKey))
+        {
+            return null;
+        }
+
+        return LedgerSigning.TryCreate(account.MasterRole, writeKey, encryptionService);
     }
 }

@@ -18,12 +18,16 @@ import type { Copy } from '../../content/types';
 import {
   createRole,
   createRoleEdge,
+  getRoleParents,
   deleteRoleField,
   getRoleGraph,
   issueCsrf,
   shareRole,
   updateRoleField,
+  verifyRoleLedger,
   ApiError,
+  type RoleLedgerVerificationResponse,
+  type RoleParentsResponse,
   type RoleGraphEdge,
   type RoleGraphNode
 } from '../../lib/api';
@@ -36,6 +40,7 @@ type RoleNodeData = {
   roleId?: string | null;
   fieldType?: string | null;
   dataKeyId?: string | null;
+  canLink?: boolean;
   incomingTypes: string[];
   outgoingTypes: string[];
   typeColors: Record<string, string>;
@@ -67,6 +72,18 @@ const RELATION_COLORS: Record<string, string> = {
   link: '#374151'
 };
 const DEFAULT_RELATION_COLOR = '#374151';
+const LEGEND_ENTRIES = [
+  'Owner',
+  'AdminOf',
+  'Write',
+  'Read',
+  'MemberOf',
+  'DelegatedTo',
+  'Data',
+  'RecoveryOwner',
+  'RecoveryShare',
+  'RecoveryAccess'
+] as const;
 
 const buildTypeColors = (edges: RoleGraphEdge[]) => {
   const colors: Record<string, string> = { ...RELATION_COLORS };
@@ -227,21 +244,9 @@ const formatApiError = (error: unknown, fallback: string) => {
 const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
   const isRoleNode = data.nodeType === 'role';
-  const allowFallback = data.nodeType !== 'data';
-  const incoming = isRoleNode
-    ? [...RELATION_TYPES]
-    : data.incomingTypes.length > 0
-      ? data.incomingTypes
-      : allowFallback
-        ? ['link']
-        : [];
-  const outgoing = isRoleNode
-    ? [...RELATION_TYPES]
-    : data.outgoingTypes.length > 0
-      ? data.outgoingTypes
-      : allowFallback
-        ? ['link']
-        : [];
+  const canLink = isRoleNode && Boolean(data.canLink);
+  const incoming = canLink ? [...RELATION_TYPES] : [];
+  const outgoing = canLink ? [...RELATION_TYPES] : [];
   const secondary = data.nodeType === 'data' ? data.value : data.kind;
   return (
     <div className={`role-flow-node role-flow-node--${data.nodeType}`}>
@@ -291,8 +296,25 @@ const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   );
 };
 
-const RoleEdge = ({ id, sourceX, sourceY, targetX, targetY, data, markerEnd }: EdgeProps<RoleEdgeData>) => {
-  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY });
+const RoleEdge = ({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  markerEnd
+}: EdgeProps<RoleEdgeData>) => {
+  const [path] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition: sourcePosition ?? Position.Right,
+    targetPosition: targetPosition ?? Position.Left
+  });
   return (
     <g className="react-flow__edge">
       <path
@@ -334,6 +356,10 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const [dataValue, setDataValue] = useState('');
   const [shareTargetRoleId, setShareTargetRoleId] = useState('');
   const [shareRelationType, setShareRelationType] = useState('Read');
+  const [parents, setParents] = useState<RoleParentsResponse | null>(null);
+  const [parentsState, setParentsState] = useState<'idle' | 'working' | 'error'>('idle');
+  const [verification, setVerification] = useState<RoleLedgerVerificationResponse | null>(null);
+  const [verificationState, setVerificationState] = useState<'idle' | 'working' | 'error'>('idle');
   const nodeTypes = useMemo(
     () => ({
       role: GraphNode,
@@ -405,6 +431,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             roleId: node.roleId,
             fieldType: node.fieldType,
             dataKeyId: node.dataKeyId,
+            canLink: node.canLink ?? false,
             incomingTypes: perNode[node.id]?.incoming ?? [],
             outgoingTypes: perNode[node.id]?.outgoing ?? [],
             typeColors
@@ -568,6 +595,11 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
       return false;
     }
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    if (!sourceNode?.data.canLink || !targetNode?.data.canLink) {
+      return false;
+    }
     const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') ||
       connection.targetHandle.replace(/^(in|out)-/, '');
     if (relationType && !RELATION_TYPES.includes(relationType as (typeof RELATION_TYPES)[number])) {
@@ -620,6 +652,10 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     if (!selectedNode || selectedNode.id !== createOwnerId) {
       setCreateOwnerId(null);
     }
+    setParents(null);
+    setParentsState('idle');
+    setVerification(null);
+    setVerificationState('idle');
     setActionStatus({ type: 'idle' });
   }, [createOwnerId, selectedNode, selectedNodeId, selectedNode?.data.nodeType, selectedNode?.data.value]);
 
@@ -677,6 +713,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             roleId: response.roleId,
             fieldType: null,
             dataKeyId: null,
+            canLink: newRoleRelation === 'Owner',
             incomingTypes: [newRoleRelation],
             outgoingTypes: [],
             typeColors
@@ -763,6 +800,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             roleId: selectedRoleId,
             fieldType: response.fieldType,
             dataKeyId: response.dataKeyId,
+            canLink: false,
             incomingTypes: ['Data'],
             outgoingTypes: [],
             typeColors
@@ -888,6 +926,30 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
+  const handleLoadParents = async () => {
+    if (!selectedRoleId) return;
+    setParentsState('working');
+    try {
+      const response = await getRoleParents(selectedRoleId);
+      setParents(response);
+      setParentsState('idle');
+    } catch {
+      setParentsState('error');
+    }
+  };
+
+  const handleVerifyRole = async () => {
+    if (!selectedRoleId) return;
+    setVerificationState('working');
+    try {
+      const response = await verifyRoleLedger(selectedRoleId);
+      setVerification(response);
+      setVerificationState('idle');
+    } catch {
+      setVerificationState('error');
+    }
+  };
+
   return (
     <section className="account-card" id="roles">
       <h3>{copy.account.sections.roles}</h3>
@@ -923,6 +985,17 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             {type}
           </button>
         ))}
+      </div>
+      <div className="role-legend">
+        <span className="hint">{copy.account.roles.legendTitle}</span>
+        <div className="role-legend-items">
+          {LEGEND_ENTRIES.map((entry) => (
+            <div key={entry} className="role-legend-item">
+              <span className="role-legend-dot" style={{ background: RELATION_COLORS[entry], borderColor: RELATION_COLORS[entry] }} />
+              <span>{entry}</span>
+            </div>
+          ))}
+        </div>
       </div>
       <div
         className={`role-graph ${isFullscreen ? 'is-fullscreen' : ''} ${isCompact ? 'is-compact' : ''} ${
@@ -1124,6 +1197,58 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
                 </button>
               </form>
             </>
+          )}
+          {selectedRoleId && (
+            <div className="role-panel-block">
+              <strong>{copy.account.roles.parentsTitle}</strong>
+              <button type="button" className="chip" onClick={handleLoadParents}>
+                {copy.account.roles.parentsAction}
+              </button>
+              {parentsState === 'working' && <span className="hint">{copy.account.roles.parentsWorking}</span>}
+              {parentsState === 'error' && <div className="status error">{copy.account.roles.parentsError}</div>}
+              {parents && parents.parentRoleIds.length === 0 && <span className="hint">{copy.account.roles.none}</span>}
+              {parents && parents.parentRoleIds.length > 0 && (
+                <div className="role-panel-list">
+                  {parents.parentRoleIds.map((parentId) => (
+                    <span key={parentId} className="note">
+                      {parentId}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selectedRoleId && (
+            <div className="role-panel-block">
+              <strong>{copy.account.roles.verifyTitle}</strong>
+              <button type="button" className="chip" onClick={handleVerifyRole}>
+                {copy.account.roles.verifyAction}
+              </button>
+              {verificationState === 'working' && <span className="hint">{copy.account.roles.verifyWorking}</span>}
+              {verificationState === 'error' && <div className="status error">{copy.account.roles.verifyError}</div>}
+              {verification && (
+                <div className="role-panel-list">
+                  {verification.ledgers.map((ledger) => {
+                    const hashOk = ledger.hashMismatches === 0 && ledger.previousHashMismatches === 0;
+                    const sigOk = ledger.signaturesInvalid === 0 && ledger.signaturesMissing === 0;
+                    return (
+                      <div key={ledger.ledger} className="role-ledger-row">
+                        <span className="note">{ledger.ledger}</span>
+                        <span className={`role-ledger-flag ${hashOk ? 'ok' : 'error'}`}>
+                          {hashOk ? copy.account.roles.verifyHashOk : copy.account.roles.verifyHashIssue}
+                        </span>
+                        <span className={`role-ledger-flag ${sigOk ? 'ok' : 'error'}`}>
+                          {sigOk ? copy.account.roles.verifySigOk : copy.account.roles.verifySigIssue}
+                        </span>
+                        <span className="hint">
+                          {copy.account.roles.verifyRoleSigned.replace('{count}', String(ledger.roleSignedEntries))}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
           {selectedNode && selectedNode.data.nodeType === 'data' && (
             <form className="role-panel-form" onSubmit={handleUpdateField}>

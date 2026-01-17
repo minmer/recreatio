@@ -20,6 +20,13 @@ public static class RoleEndpoints
         "DelegatedTo"
     };
 
+    private static bool RelationshipAllowsWrite(string relationshipType)
+    {
+        return relationshipType.Equals("Owner", StringComparison.OrdinalIgnoreCase)
+            || relationshipType.Equals("AdminOf", StringComparison.OrdinalIgnoreCase)
+            || relationshipType.Equals("Write", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static void MapRoleEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/roles").RequireAuthorization();
@@ -74,17 +81,57 @@ public static class RoleEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(parentRoleId, out var parentRoleKey))
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            var membershipOwners = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId && x.RelationshipType == "Owner")
+                .Select(x => x.RoleId)
+                .ToListAsync(ct);
+            var ownerRoots = new List<Guid> { account.MasterRoleId };
+            ownerRoots.AddRange(membershipOwners);
+            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            if (!ownerRoleIds.Contains(parentRoleId))
             {
                 return Results.Forbid();
             }
 
-            if (!keyRing.TryGetRoleKey(request.ChildRoleId, out var childRoleKey))
+            if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) ||
+                !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
+            {
+                return Results.Forbid();
+            }
+
+            var parentRole = await dbContext.Roles.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parentRoleId, ct);
+            if (parentRole is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!keyRing.TryGetReadKey(request.ChildRoleId, out var childReadKey))
             {
                 return Results.BadRequest(new { error = "Child role key not available." });
             }
 
-            var encryptedRoleKeyCopy = encryptionService.Encrypt(parentRoleKey, childRoleKey, request.ChildRoleId.ToByteArray());
+            byte[]? childWriteKey = null;
+            if (RelationshipAllowsWrite(relationshipType))
+            {
+                if (!keyRing.TryGetWriteKey(request.ChildRoleId, out var resolvedWriteKey))
+                {
+                    return Results.BadRequest(new { error = "Child role write key not available." });
+                }
+                childWriteKey = resolvedWriteKey;
+            }
+
+            var encryptedReadCopy = encryptionService.Encrypt(parentReadKey, childReadKey, request.ChildRoleId.ToByteArray());
+            var encryptedWriteCopy = childWriteKey is null
+                ? null
+                : encryptionService.Encrypt(parentWriteKey, childWriteKey, request.ChildRoleId.ToByteArray());
 
             var now = DateTimeOffset.UtcNow;
             var edge = new RoleEdge
@@ -93,7 +140,8 @@ public static class RoleEndpoints
                 ParentRoleId = parentRoleId,
                 ChildRoleId = request.ChildRoleId,
                 RelationshipType = relationshipType,
-                EncryptedRoleKeyCopy = encryptedRoleKeyCopy,
+                EncryptedReadKeyCopy = encryptedReadCopy,
+                EncryptedWriteKeyCopy = encryptedWriteCopy,
                 CreatedUtc = now
             };
 
@@ -101,7 +149,8 @@ public static class RoleEndpoints
                 "RoleEdgeCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { parentRoleId, childRoleId = request.ChildRoleId, relationshipType, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                LedgerSigning.TryCreate(parentRole, parentWriteKey, encryptionService));
 
             dbContext.RoleEdges.Add(edge);
             await dbContext.SaveChangesAsync(ct);

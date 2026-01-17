@@ -72,6 +72,7 @@ builder.Services.AddSingleton<IHashingService, HashingService>();
 builder.Services.AddSingleton<IKdfService, KdfService>();
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton<IAsymmetricEncryptionService, AsymmetricEncryptionService>();
+builder.Services.AddSingleton<IAsymmetricSigningService, AsymmetricSigningService>();
 builder.Services.AddSingleton<IMasterKeyService, MasterKeyService>();
 builder.Services.AddSingleton<ISessionSecretCache, InMemorySessionSecretCache>();
 builder.Services.AddScoped<IKeyRingService, KeyRingService>();

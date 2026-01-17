@@ -8,8 +8,8 @@ namespace Recreatio.Api.Services;
 public interface ISessionService
 {
     Task<Session> RequireSessionAsync(Guid userId, string sessionId, CancellationToken ct);
-    Task LogoutAsync(Guid userId, string sessionId, CancellationToken ct);
-    Task<Session> SetSecureModeAsync(Guid userId, string sessionId, bool secureMode, CancellationToken ct);
+    Task LogoutAsync(Guid userId, string sessionId, CancellationToken ct, LedgerSigningContext? signingContext = null);
+    Task<Session> SetSecureModeAsync(Guid userId, string sessionId, bool secureMode, CancellationToken ct, LedgerSigningContext? signingContext = null);
 }
 
 public sealed class SessionService : ISessionService
@@ -40,7 +40,7 @@ public sealed class SessionService : ISessionService
         return session;
     }
 
-    public async Task LogoutAsync(Guid userId, string sessionId, CancellationToken ct)
+    public async Task LogoutAsync(Guid userId, string sessionId, CancellationToken ct, LedgerSigningContext? signingContext = null)
     {
         var session = await _dbContext.Sessions.FirstOrDefaultAsync(
             x => x.UserId == userId && x.SessionId == sessionId && !x.IsRevoked, ct);
@@ -54,10 +54,10 @@ public sealed class SessionService : ISessionService
         session.LastActivityUtc = DateTimeOffset.UtcNow;
         _sessionSecretCache.Remove(session.SessionId);
         await _dbContext.SaveChangesAsync(ct);
-        await _ledgerService.AppendAuthAsync("Logout", userId.ToString(), JsonSerializer.Serialize(new { sessionId }), ct);
+        await _ledgerService.AppendAuthAsync("Logout", userId.ToString(), JsonSerializer.Serialize(new { sessionId }), ct, signingContext);
     }
 
-    public async Task<Session> SetSecureModeAsync(Guid userId, string sessionId, bool secureMode, CancellationToken ct)
+    public async Task<Session> SetSecureModeAsync(Guid userId, string sessionId, bool secureMode, CancellationToken ct, LedgerSigningContext? signingContext = null)
     {
         var session = await RequireSessionAsync(userId, sessionId, ct);
         if (session.IsSecureMode == secureMode)
@@ -77,7 +77,8 @@ public sealed class SessionService : ISessionService
             "SessionModeChanged",
             userId.ToString(),
             JsonSerializer.Serialize(new { sessionId, secureMode }),
-            ct);
+            ct,
+            signingContext);
 
         return session;
     }

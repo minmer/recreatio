@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 
@@ -11,8 +12,8 @@ public interface IKeyRingService
 {
     byte[] RequireMasterKey(HttpContext context, Guid userId, string sessionId);
     Task<RoleKeyRing> BuildRoleKeyRingAsync(HttpContext context, Guid userId, string sessionId, CancellationToken ct);
-    byte[] DecryptDataKey(KeyEntry keyEntry, byte[] roleKey);
-    byte[] EncryptDataKey(byte[] roleKey, byte[] dataKey, Guid dataKeyId);
+    byte[] DecryptDataKey(KeyEntry keyEntry, byte[] readKey);
+    byte[] EncryptDataKey(byte[] readKey, byte[] dataKey, Guid dataKeyId);
     byte[] EncryptFieldValue(byte[] dataKey, string value, Guid roleId, string fieldType);
     string? TryDecryptFieldValue(byte[] dataKey, byte[] encryptedValue, Guid roleId, string fieldType);
 }
@@ -24,17 +25,20 @@ public sealed class KeyRingService : IKeyRingService
     private readonly IEncryptionService _encryptionService;
     private readonly ISessionSecretCache _sessionSecretCache;
     private readonly IMasterKeyService _masterKeyService;
+    private readonly ILogger<KeyRingService> _logger;
 
     public KeyRingService(
         RecreatioDbContext dbContext,
         IEncryptionService encryptionService,
         ISessionSecretCache sessionSecretCache,
-        IMasterKeyService masterKeyService)
+        IMasterKeyService masterKeyService,
+        ILogger<KeyRingService> logger)
     {
         _dbContext = dbContext;
         _encryptionService = encryptionService;
         _sessionSecretCache = sessionSecretCache;
         _masterKeyService = masterKeyService;
+        _logger = logger;
     }
 
     public byte[] RequireMasterKey(HttpContext context, Guid userId, string sessionId)
@@ -80,12 +84,27 @@ public sealed class KeyRingService : IKeyRingService
         }
 
         var masterKey = RequireMasterKey(context, userId, sessionId);
-        var roleKeys = new Dictionary<Guid, byte[]>();
+        var readKeys = new Dictionary<Guid, byte[]>();
+        var writeKeys = new Dictionary<Guid, byte[]>();
         var account = await _dbContext.UserAccounts.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == userId, ct);
         if (account is not null)
         {
-            roleKeys[account.MasterRoleId] = masterKey;
+            var rootKeyEntries = await _dbContext.Keys.AsNoTracking()
+                .Where(key => key.OwnerRoleId == account.MasterRoleId
+                    && (key.KeyType == KeyType.RoleReadKey || key.KeyType == KeyType.RoleWriteKey))
+                .ToListAsync(ct);
+
+            var readEntry = rootKeyEntries.FirstOrDefault(x => x.KeyType == KeyType.RoleReadKey);
+            var writeEntry = rootKeyEntries.FirstOrDefault(x => x.KeyType == KeyType.RoleWriteKey);
+            if (readEntry is not null)
+            {
+                readKeys[account.MasterRoleId] = _encryptionService.Decrypt(masterKey, readEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
+            }
+            if (writeEntry is not null)
+            {
+                writeKeys[account.MasterRoleId] = _encryptionService.Decrypt(masterKey, writeEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
+            }
         }
 
         var memberships = await _dbContext.Memberships.AsNoTracking()
@@ -94,32 +113,43 @@ public sealed class KeyRingService : IKeyRingService
 
         foreach (var membership in memberships)
         {
-            if (membership.EncryptedRoleKeyCopy.Length == 0)
+            if (membership.EncryptedReadKeyCopy.Length > 0)
             {
-                continue;
+                try
+                {
+                    var readKey = _encryptionService.Decrypt(masterKey, membership.EncryptedReadKeyCopy, membership.RoleId.ToByteArray());
+                    readKeys[membership.RoleId] = readKey;
+                }
+                catch (CryptographicException)
+                {
+                    _logger.LogWarning("Failed to decrypt membership read key copy for role {RoleId}.", membership.RoleId);
+                }
             }
 
-            try
+            if (membership.EncryptedWriteKeyCopy is { Length: > 0 })
             {
-                var roleKey = _encryptionService.Decrypt(masterKey, membership.EncryptedRoleKeyCopy, membership.RoleId.ToByteArray());
-                roleKeys[membership.RoleId] = roleKey;
-            }
-            catch (CryptographicException)
-            {
-                continue;
+                try
+                {
+                    var writeKey = _encryptionService.Decrypt(masterKey, membership.EncryptedWriteKeyCopy, membership.RoleId.ToByteArray());
+                    writeKeys[membership.RoleId] = writeKey;
+                }
+                catch (CryptographicException)
+                {
+                    _logger.LogWarning("Failed to decrypt membership write key copy for role {RoleId}.", membership.RoleId);
+                }
             }
         }
 
-        if (roleKeys.Count == 0)
+        if (readKeys.Count == 0)
         {
-            return new RoleKeyRing(roleKeys);
+            return new RoleKeyRing(readKeys, writeKeys);
         }
 
         var edges = await _dbContext.RoleEdges.AsNoTracking().ToListAsync(ct);
         var edgesByParent = edges.GroupBy(edge => edge.ParentRoleId)
             .ToDictionary(group => group.Key, group => group.ToList());
 
-        var queue = new Queue<Guid>(roleKeys.Keys);
+        var queue = new Queue<Guid>(readKeys.Keys);
         while (queue.Count > 0)
         {
             var parentRoleId = queue.Dequeue();
@@ -128,33 +158,70 @@ public sealed class KeyRingService : IKeyRingService
                 continue;
             }
 
-            var parentKey = roleKeys[parentRoleId];
+            var parentReadKey = readKeys[parentRoleId];
             foreach (var edge in childEdges)
             {
-                if (roleKeys.ContainsKey(edge.ChildRoleId))
+                if (readKeys.ContainsKey(edge.ChildRoleId))
                 {
                     continue;
                 }
 
-                if (edge.EncryptedRoleKeyCopy.Length == 0)
+                if (edge.EncryptedReadKeyCopy.Length == 0)
                 {
                     continue;
                 }
 
                 try
                 {
-                    var childKey = _encryptionService.Decrypt(parentKey, edge.EncryptedRoleKeyCopy, edge.ChildRoleId.ToByteArray());
-                    roleKeys[edge.ChildRoleId] = childKey;
+                    var childKey = _encryptionService.Decrypt(parentReadKey, edge.EncryptedReadKeyCopy, edge.ChildRoleId.ToByteArray());
+                    readKeys[edge.ChildRoleId] = childKey;
                     queue.Enqueue(edge.ChildRoleId);
                 }
                 catch (CryptographicException)
                 {
+                    _logger.LogWarning("Failed to decrypt role edge read key copy from {ParentRoleId} to {ChildRoleId}.", parentRoleId, edge.ChildRoleId);
                     continue;
                 }
             }
         }
 
-        var ring = new RoleKeyRing(roleKeys);
+        var writeQueue = new Queue<Guid>(writeKeys.Keys);
+        while (writeQueue.Count > 0)
+        {
+            var parentRoleId = writeQueue.Dequeue();
+            if (!edgesByParent.TryGetValue(parentRoleId, out var childEdges))
+            {
+                continue;
+            }
+
+            var parentWriteKey = writeKeys[parentRoleId];
+            foreach (var edge in childEdges)
+            {
+                if (writeKeys.ContainsKey(edge.ChildRoleId))
+                {
+                    continue;
+                }
+
+                if (edge.EncryptedWriteKeyCopy is not { Length: > 0 })
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var childKey = _encryptionService.Decrypt(parentWriteKey, edge.EncryptedWriteKeyCopy, edge.ChildRoleId.ToByteArray());
+                    writeKeys[edge.ChildRoleId] = childKey;
+                    writeQueue.Enqueue(edge.ChildRoleId);
+                }
+                catch (CryptographicException)
+                {
+                    _logger.LogWarning("Failed to decrypt role edge write key copy from {ParentRoleId} to {ChildRoleId}.", parentRoleId, edge.ChildRoleId);
+                    continue;
+                }
+            }
+        }
+
+        var ring = new RoleKeyRing(readKeys, writeKeys);
         if (!secureMode)
         {
             if (_sessionSecretCache.TryGet(sessionId, out var existing))
@@ -170,14 +237,14 @@ public sealed class KeyRingService : IKeyRingService
         return ring;
     }
 
-    public byte[] DecryptDataKey(KeyEntry keyEntry, byte[] roleKey)
+    public byte[] DecryptDataKey(KeyEntry keyEntry, byte[] readKey)
     {
-        return _encryptionService.Decrypt(roleKey, keyEntry.EncryptedKeyBlob, keyEntry.Id.ToByteArray());
+        return _encryptionService.Decrypt(readKey, keyEntry.EncryptedKeyBlob, keyEntry.Id.ToByteArray());
     }
 
-    public byte[] EncryptDataKey(byte[] roleKey, byte[] dataKey, Guid dataKeyId)
+    public byte[] EncryptDataKey(byte[] readKey, byte[] dataKey, Guid dataKeyId)
     {
-        return _encryptionService.Encrypt(roleKey, dataKey, dataKeyId.ToByteArray());
+        return _encryptionService.Encrypt(readKey, dataKey, dataKeyId.ToByteArray());
     }
 
     public byte[] EncryptFieldValue(byte[] dataKey, string value, Guid roleId, string fieldType)

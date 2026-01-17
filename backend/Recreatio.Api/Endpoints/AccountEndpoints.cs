@@ -21,6 +21,13 @@ public static class AccountEndpoints
         "DelegatedTo"
     };
 
+    private static bool RelationshipAllowsWrite(string relationshipType)
+    {
+        return relationshipType.Equals("Owner", StringComparison.OrdinalIgnoreCase)
+            || relationshipType.Equals("AdminOf", StringComparison.OrdinalIgnoreCase)
+            || relationshipType.Equals("Write", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static void MapAccountEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/account").RequireAuthorization();
@@ -122,7 +129,7 @@ public static class AccountEndpoints
 
             foreach (var field in nickFields)
             {
-                if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
+                if (!keyRing.TryGetReadKey(field.RoleId, out var readKey))
                 {
                     continue;
                 }
@@ -135,7 +142,7 @@ public static class AccountEndpoints
                 byte[] dataKey;
                 try
                 {
-                    dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
                 }
                 catch (CryptographicException)
                 {
@@ -199,11 +206,14 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            var roleIds = keyRing.RoleKeys.Keys.ToList();
+            var roleIds = keyRing.ReadKeys.Keys.ToList();
             if (roleIds.Count == 0)
             {
                 return Results.Ok(new RoleGraphResponse(new List<RoleGraphNode>(), new List<RoleGraphEdge>()));
             }
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
 
             var roleIdSet = roleIds.ToHashSet();
             var roles = await dbContext.Roles.AsNoTracking()
@@ -246,7 +256,24 @@ public static class AccountEndpoints
                 fieldValues[field.FieldType] = plain;
             }
 
+            var membershipEdges = account is null
+                ? new List<Membership>()
+                : await dbContext.Memberships.AsNoTracking()
+                    .Where(x => x.UserId == userId)
+                    .ToListAsync(ct);
+            var ownerRoots = new List<Guid>();
+            if (account is not null)
+            {
+                ownerRoots.Add(account.MasterRoleId);
+                ownerRoots.AddRange(membershipEdges
+                    .Where(edge => edge.RelationshipType == "Owner")
+                    .Select(edge => edge.RoleId));
+            }
+
             var nodes = new List<RoleGraphNode>();
+            var ownerRoleIds = account is null
+                ? new HashSet<Guid>()
+                : await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, roleIdSet, dbContext, ct);
             foreach (var role in roles)
             {
                 valuesByRole.TryGetValue(role.Id, out var fieldValues);
@@ -256,7 +283,16 @@ public static class AccountEndpoints
                 var label = fieldValues is not null && fieldValues.TryGetValue("nick", out var nickValue)
                     ? nickValue
                     : $"{roleKind} {role.Id.ToString()[..8]}";
-                nodes.Add(new RoleGraphNode($"role:{role.Id:N}", label, "role", roleKind, null, role.Id, null, null));
+                nodes.Add(new RoleGraphNode(
+                    $"role:{role.Id:N}",
+                    label,
+                    "role",
+                    roleKind,
+                    null,
+                    role.Id,
+                    null,
+                    null,
+                    ownerRoleIds.Contains(role.Id)));
             }
 
             var edges = new List<RoleGraphEdge>();
@@ -283,7 +319,8 @@ public static class AccountEndpoints
                     value,
                     field.RoleId,
                     field.FieldType,
-                    field.DataKeyId));
+                    field.DataKeyId,
+                    false));
                 edges.Add(new RoleGraphEdge(
                     $"{field.RoleId:N}:{field.Id:N}:data",
                     $"role:{field.RoleId:N}",
@@ -297,7 +334,7 @@ public static class AccountEndpoints
             foreach (var targetRoleId in recoveryShares.Select(x => x.TargetRoleId).Distinct())
             {
                 var recoveryNodeId = $"recovery:{targetRoleId:N}";
-                nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null, targetRoleId, null, null));
+                nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null, targetRoleId, null, null, false));
                 edges.Add(new RoleGraphEdge(
                     $"role:{targetRoleId:N}:{recoveryNodeId}:recovery-owner",
                     $"role:{targetRoleId:N}",
@@ -305,7 +342,7 @@ public static class AccountEndpoints
                     "RecoveryOwner"));
 
                 var sharedNodeId = $"recovery-shared:{targetRoleId:N}";
-                nodes.Add(new RoleGraphNode(sharedNodeId, "Shared recovery", "recovery_shared", "RecoveryShare", null, targetRoleId, null, null));
+                nodes.Add(new RoleGraphNode(sharedNodeId, "Shared recovery", "recovery_shared", "RecoveryShare", null, targetRoleId, null, null, false));
                 edges.Add(new RoleGraphEdge(
                     $"recovery:{targetRoleId:N}:{sharedNodeId}:recovery-share",
                     $"recovery:{targetRoleId:N}",
@@ -335,13 +372,8 @@ public static class AccountEndpoints
                     $"role:{edge.ChildRoleId:N}",
                     edge.RelationshipType)));
 
-            var account = await dbContext.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (account is not null)
             {
-                var membershipEdges = await dbContext.Memberships.AsNoTracking()
-                    .Where(x => x.UserId == userId)
-                    .ToListAsync(ct);
                 edges.AddRange(membershipEdges
                     .Where(edge => roleIdSet.Contains(edge.RoleId))
                     .Select(edge => new RoleGraphEdge(
@@ -376,7 +408,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            var roleIds = keyRing.RoleKeys.Keys.ToList();
+            var roleIds = keyRing.ReadKeys.Keys.ToList();
             if (roleIds.Count == 0)
             {
                 return Results.Ok(new List<RoleResponse>());
@@ -503,18 +535,31 @@ public static class AccountEndpoints
                 return Fail("RelationshipType is invalid.");
             }
 
-            if (!keyRing.TryGetRoleKey(parentRoleId, out var parentRoleKey))
+            if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) || !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
             {
-                logger.LogWarning("Create role failed: parent role key not available for user {UserId}, parent {ParentRoleId}.", userId, parentRoleId);
+                logger.LogWarning("Create role failed: parent role keys not available for user {UserId}, parent {ParentRoleId}.", userId, parentRoleId);
                 return Results.Forbid();
             }
 
-            var parentRoleExists = await dbContext.Roles.AsNoTracking()
-                .AnyAsync(role => role.Id == parentRoleId, ct);
-            if (!parentRoleExists)
+            var parentRole = await dbContext.Roles.AsNoTracking()
+                .FirstOrDefaultAsync(role => role.Id == parentRoleId, ct);
+            if (parentRole is null)
             {
                 logger.LogWarning("Create role failed: parent role {ParentRoleId} not found for user {UserId}.", parentRoleId, userId);
                 return Results.NotFound();
+            }
+
+            var membershipOwners = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId && x.RelationshipType == "Owner")
+                .Select(x => x.RoleId)
+                .ToListAsync(ct);
+            var ownerRoots = new List<Guid> { account.MasterRoleId };
+            ownerRoots.AddRange(membershipOwners);
+            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            if (!ownerRoleIds.Contains(parentRoleId))
+            {
+                logger.LogWarning("Create role failed: parent role {ParentRoleId} not owned by user {UserId}.", parentRoleId, userId);
+                return Results.Forbid();
             }
 
             byte[] masterKey;
@@ -552,26 +597,34 @@ public static class AccountEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var roleId = Guid.NewGuid();
-            var roleKey = RandomNumberGenerator.GetBytes(32);
-            var encryptedRoleKey = encryptionService.Encrypt(masterKey, roleKey, roleId.ToByteArray());
-            var encryptedRoleKeyCopy = encryptionService.Encrypt(parentRoleKey, roleKey, roleId.ToByteArray());
+            var readKey = RandomNumberGenerator.GetBytes(32);
+            var writeKey = RandomNumberGenerator.GetBytes(32);
+            var encryptedReadKeyCopy = encryptionService.Encrypt(parentReadKey, readKey, roleId.ToByteArray());
+            var encryptedWriteKeyCopy = encryptionService.Encrypt(parentWriteKey, writeKey, roleId.ToByteArray());
 
-            using var rsa = RSA.Create(2048);
-            var publicEncryptionKey = rsa.ExportSubjectPublicKeyInfo();
-            var privateEncryptionKey = rsa.ExportPkcs8PrivateKey();
+            using var encryptionRsa = RSA.Create(2048);
+            var publicEncryptionKey = encryptionRsa.ExportSubjectPublicKeyInfo();
+            var privateEncryptionKey = encryptionRsa.ExportPkcs8PrivateKey();
+
+            using var signingRsa = RSA.Create(2048);
+            var publicSigningKey = signingRsa.ExportSubjectPublicKeyInfo();
+            var privateSigningKey = signingRsa.ExportPkcs8PrivateKey();
+            var publicSigningKeyHash = Convert.ToBase64String(SHA256.HashData(publicSigningKey));
+            var publicEncryptionKeyHash = Convert.ToBase64String(SHA256.HashData(publicEncryptionKey));
+
             var roleCrypto = new RoleCryptoMaterial(
                 Convert.ToBase64String(privateEncryptionKey),
-                "RSA-OAEP-SHA256");
-            var encryptedRoleBlob = encryptionService.Encrypt(roleKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
+                "RSA-OAEP-SHA256",
+                Convert.ToBase64String(privateSigningKey),
+                "RSA-SHA256");
+            var encryptedRoleBlob = encryptionService.Encrypt(writeKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
 
             var role = new Role
             {
                 Id = roleId,
                 EncryptedRoleBlob = encryptedRoleBlob,
-                PublicSigningKey = string.IsNullOrWhiteSpace(request.PublicSigningKeyBase64)
-                    ? null
-                    : Convert.FromBase64String(request.PublicSigningKeyBase64),
-                PublicSigningKeyAlg = request.PublicSigningKeyAlg,
+                PublicSigningKey = publicSigningKey,
+                PublicSigningKeyAlg = "RSA-SHA256",
                 PublicEncryptionKey = publicEncryptionKey,
                 PublicEncryptionKeyAlg = "RSA-OAEP-SHA256",
                 CreatedUtc = now,
@@ -581,21 +634,41 @@ public static class AccountEndpoints
             dbContext.Roles.Add(role);
             await dbContext.SaveChangesAsync(ct);
 
-            var roleKeyLedger = await ledgerService.AppendKeyAsync(
-                "RoleKeyCreated",
+            var signingContext = LedgerSigning.TryCreate(parentRole, parentWriteKey, encryptionService);
+
+            var roleReadKeyLedger = await ledgerService.AppendKeyAsync(
+                "RoleReadKeyCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             dbContext.Keys.Add(new KeyEntry
             {
                 Id = Guid.NewGuid(),
-                KeyType = KeyType.RoleKey,
+                KeyType = KeyType.RoleReadKey,
                 OwnerRoleId = roleId,
                 Version = 1,
-                EncryptedKeyBlob = encryptedRoleKey,
+                EncryptedKeyBlob = encryptionService.Encrypt(masterKey, readKey, roleId.ToByteArray()),
                 MetadataJson = "{}",
-                LedgerRefId = roleKeyLedger.Id,
+                LedgerRefId = roleReadKeyLedger.Id,
+                CreatedUtc = now
+            });
+            var roleWriteKeyLedger = await ledgerService.AppendKeyAsync(
+                "RoleWriteKeyCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
+                ct,
+                signingContext);
+            dbContext.Keys.Add(new KeyEntry
+            {
+                Id = Guid.NewGuid(),
+                KeyType = KeyType.RoleWriteKey,
+                OwnerRoleId = roleId,
+                Version = 1,
+                EncryptedKeyBlob = encryptionService.Encrypt(masterKey, writeKey, roleId.ToByteArray()),
+                MetadataJson = "{}",
+                LedgerRefId = roleWriteKeyLedger.Id,
                 CreatedUtc = now
             });
             await dbContext.SaveChangesAsync(ct);
@@ -612,12 +685,13 @@ public static class AccountEndpoints
 
                 var dataKeyId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
-                var encryptedDataKey = keyRingService.EncryptDataKey(roleKey, dataKey, dataKeyId);
+                var encryptedDataKey = keyRingService.EncryptDataKey(readKey, dataKey, dataKeyId);
                 var keyLedger = await ledgerService.AppendKeyAsync(
                     "RoleFieldKeyCreated",
                     userId.ToString(),
                     JsonSerializer.Serialize(new { roleId, fieldType, dataKeyId, signature = field.SignatureBase64 }),
-                    ct);
+                    ct,
+                    signingContext);
 
                 var keyEntry = new KeyEntry
                 {
@@ -651,7 +725,8 @@ public static class AccountEndpoints
                 "RoleEdgeCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { parentRoleId, roleId, relationshipType, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             dbContext.RoleEdges.Add(new RoleEdge
             {
@@ -659,7 +734,8 @@ public static class AccountEndpoints
                 ParentRoleId = parentRoleId,
                 ChildRoleId = roleId,
                 RelationshipType = relationshipType,
-                EncryptedRoleKeyCopy = encryptedRoleKeyCopy,
+                EncryptedReadKeyCopy = encryptedReadKeyCopy,
+                EncryptedWriteKeyCopy = RelationshipAllowsWrite(relationshipType) ? encryptedWriteKeyCopy : null,
                 CreatedUtc = now
             });
 
@@ -667,8 +743,18 @@ public static class AccountEndpoints
             await ledgerService.AppendAuthAsync(
                 "RoleCreated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { roleId, parentRoleId, relationshipType }),
-                ct);
+                JsonSerializer.Serialize(new
+                {
+                    roleId,
+                    parentRoleId,
+                    relationshipType,
+                    publicSigningKeyHash,
+                    publicEncryptionKeyHash,
+                    role.PublicSigningKeyAlg,
+                    role.PublicEncryptionKeyAlg
+                }),
+                ct,
+                signingContext);
             await transaction.CommitAsync(ct);
 
             var plainByField = fields
@@ -696,6 +782,7 @@ public static class AccountEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
@@ -719,7 +806,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out var roleKey))
+            if (!keyRing.TryGetReadKey(roleId, out var readKey) || !keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -739,17 +826,19 @@ public static class AccountEndpoints
             var existing = await dbContext.RoleFields
                 .FirstOrDefaultAsync(x => x.RoleId == roleId && x.FieldType == fieldType, ct);
 
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
             var now = DateTimeOffset.UtcNow;
             if (existing is null)
             {
                 var dataKeyId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
-                var encryptedDataKey = keyRingService.EncryptDataKey(roleKey, dataKey, dataKeyId);
+                var encryptedDataKey = keyRingService.EncryptDataKey(readKey, dataKey, dataKeyId);
                 var keyLedger = await ledgerService.AppendKeyAsync(
                     "RoleFieldKeyCreated",
                     userId.ToString(),
                     JsonSerializer.Serialize(new { roleId, fieldType, dataKeyId, signature = request.SignatureBase64 }),
-                    ct);
+                    ct,
+                    signingContext);
 
                 dbContext.Keys.Add(new KeyEntry
                 {
@@ -784,7 +873,7 @@ public static class AccountEndpoints
                     return Results.BadRequest(new { error = "DataKey missing for field." });
                 }
 
-                var dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
+                var dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
                 existing.EncryptedValue = keyRingService.EncryptFieldValue(dataKey, plainValue, roleId, fieldType);
                 existing.UpdatedUtc = now;
             }
@@ -793,7 +882,8 @@ public static class AccountEndpoints
                 "RoleFieldUpdated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, fieldType, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
 
@@ -811,6 +901,7 @@ public static class AccountEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
             ILedgerService ledgerService,
             CancellationToken ct) =>
         {
@@ -834,7 +925,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -861,11 +952,14 @@ public static class AccountEndpoints
             {
                 dbContext.Keys.Remove(dataKey);
             }
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendBusinessAsync(
                 "RoleFieldDeleted",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, fieldId, fieldType = field.FieldType }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.NoContent();
@@ -893,7 +987,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetReadKey(roleId, out _))
             {
                 return Results.Forbid();
             }
@@ -947,7 +1041,118 @@ public static class AccountEndpoints
             return Results.Ok(response);
         });
 
-        group.MapPost("/roles/{roleId:guid}/shares", async (Guid roleId, AddRoleShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IAsymmetricEncryptionService asymmetricEncryptionService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapGet("/roles/{roleId:guid}/parents", async (
+            Guid roleId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(roleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var parentRoleIds = await dbContext.RoleEdges.AsNoTracking()
+                .Where(edge => edge.ChildRoleId == roleId)
+                .Select(edge => edge.ParentRoleId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is not null)
+            {
+                var isMembership = await dbContext.Memberships.AsNoTracking()
+                    .AnyAsync(x => x.UserId == userId && x.RoleId == roleId, ct);
+                if (isMembership && !parentRoleIds.Contains(account.MasterRoleId))
+                {
+                    parentRoleIds.Add(account.MasterRoleId);
+                }
+            }
+
+            return Results.Ok(new RoleParentsResponse(roleId, parentRoleIds));
+        });
+
+        group.MapGet("/roles/{roleId:guid}/verify", async (
+            Guid roleId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IAsymmetricSigningService signingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(roleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var authEntries = await dbContext.AuthLedger.AsNoTracking()
+                .OrderBy(entry => entry.TimestampUtc)
+                .ThenBy(entry => entry.Id)
+                .ToListAsync(ct);
+            var keyEntries = await dbContext.KeyLedger.AsNoTracking()
+                .OrderBy(entry => entry.TimestampUtc)
+                .ThenBy(entry => entry.Id)
+                .ToListAsync(ct);
+            var businessEntries = await dbContext.BusinessLedger.AsNoTracking()
+                .OrderBy(entry => entry.TimestampUtc)
+                .ThenBy(entry => entry.Id)
+                .ToListAsync(ct);
+
+            var response = new RoleLedgerVerificationResponse(
+                roleId,
+                new List<LedgerVerificationSummary>
+                {
+                    await VerifyLedgerAsync("Auth", authEntries.Select(MapLedgerEntry).ToList(), roleId, dbContext, signingService, ct),
+                    await VerifyLedgerAsync("Key", keyEntries.Select(MapLedgerEntry).ToList(), roleId, dbContext, signingService, ct),
+                    await VerifyLedgerAsync("Business", businessEntries.Select(MapLedgerEntry).ToList(), roleId, dbContext, signingService, ct)
+                });
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/roles/{roleId:guid}/shares", async (Guid roleId, AddRoleShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IAsymmetricEncryptionService asymmetricEncryptionService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1003,21 +1208,37 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out var roleKey))
+            if (!keyRing.TryGetReadKey(roleId, out var readKey))
             {
                 return Results.Forbid();
             }
 
-            var encryptedRoleKey = asymmetricEncryptionService.EncryptWithPublicKey(
+            if (!keyRing.TryGetWriteKey(roleId, out var roleWriteKey))
+            {
+                return Results.Forbid();
+            }
+
+            var writeKeyToShare = RelationshipAllowsWrite(relationshipType) ? roleWriteKey : null;
+
+            var encryptedReadKey = asymmetricEncryptionService.EncryptWithPublicKey(
                 targetRole.PublicEncryptionKey,
                 targetRole.PublicEncryptionKeyAlg,
-                roleKey);
+                readKey);
+            var encryptedWriteKey = writeKeyToShare is null
+                ? null
+                : asymmetricEncryptionService.EncryptWithPublicKey(
+                    targetRole.PublicEncryptionKey,
+                    targetRole.PublicEncryptionKeyAlg,
+                    writeKeyToShare);
+
+            var signingContext = await TryGetSigningContextAsync(roleId, roleWriteKey, dbContext, encryptionService, ct);
 
             var ledger = await ledgerService.AppendKeyAsync(
                 "RoleSharePending",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, targetRoleId = request.TargetRoleId, relationshipType, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             dbContext.PendingRoleShares.Add(new PendingRoleShare
             {
@@ -1025,7 +1246,8 @@ public static class AccountEndpoints
                 SourceRoleId = roleId,
                 TargetRoleId = request.TargetRoleId,
                 RelationshipType = relationshipType,
-                EncryptedRoleKeyBlob = encryptedRoleKey,
+                EncryptedReadKeyBlob = encryptedReadKey,
+                EncryptedWriteKeyBlob = encryptedWriteKey,
                 EncryptionAlg = targetRole.PublicEncryptionKeyAlg,
                 Status = "Pending",
                 LedgerRefId = ledger.Id,
@@ -1058,7 +1280,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            var roleIds = keyRing.RoleKeys.Keys.ToList();
+            var roleIds = keyRing.ReadKeys.Keys.ToList();
             if (roleIds.Count == 0)
             {
                 return Results.Ok(new List<PendingRoleShareResponse>());
@@ -1112,31 +1334,51 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(share.TargetRoleId, out var targetRoleKey))
+            if (!keyRing.TryGetReadKey(share.TargetRoleId, out var targetReadKey) ||
+                !keyRing.TryGetWriteKey(share.TargetRoleId, out var targetWriteKey))
             {
                 return Results.Forbid();
             }
 
-            var cryptoMaterial = TryReadRoleCryptoMaterial(targetRole, targetRoleKey, encryptionService);
+            var cryptoMaterial = TryReadRoleCryptoMaterial(targetRole, targetWriteKey, encryptionService);
             if (cryptoMaterial is null)
             {
                 return Results.BadRequest(new { error = "Target role crypto material missing." });
             }
 
-            byte[] sharedRoleKey;
+            byte[] sharedReadKey;
             try
             {
-                sharedRoleKey = asymmetricEncryptionService.DecryptWithPrivateKey(
+                sharedReadKey = asymmetricEncryptionService.DecryptWithPrivateKey(
                     Convert.FromBase64String(cryptoMaterial.PrivateEncryptionKeyBase64),
                     cryptoMaterial.PrivateEncryptionKeyAlg,
-                    share.EncryptedRoleKeyBlob);
+                    share.EncryptedReadKeyBlob);
             }
             catch (CryptographicException)
             {
-                return Results.BadRequest(new { error = "Unable to decrypt shared role key." });
+                return Results.BadRequest(new { error = "Unable to decrypt shared read key." });
             }
 
-            var encryptedCopy = encryptionService.Encrypt(targetRoleKey, sharedRoleKey, share.SourceRoleId.ToByteArray());
+            byte[]? sharedWriteKey = null;
+            if (share.EncryptedWriteKeyBlob is { Length: > 0 })
+            {
+                try
+                {
+                    sharedWriteKey = asymmetricEncryptionService.DecryptWithPrivateKey(
+                        Convert.FromBase64String(cryptoMaterial.PrivateEncryptionKeyBase64),
+                        cryptoMaterial.PrivateEncryptionKeyAlg,
+                        share.EncryptedWriteKeyBlob);
+                }
+                catch (CryptographicException)
+                {
+                    return Results.BadRequest(new { error = "Unable to decrypt shared write key." });
+                }
+            }
+
+            var encryptedReadCopy = encryptionService.Encrypt(targetReadKey, sharedReadKey, share.SourceRoleId.ToByteArray());
+            var encryptedWriteCopy = sharedWriteKey is null
+                ? null
+                : encryptionService.Encrypt(targetWriteKey, sharedWriteKey, share.SourceRoleId.ToByteArray());
 
             if (!await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == share.TargetRoleId && x.ChildRoleId == share.SourceRoleId, ct))
             {
@@ -1146,7 +1388,8 @@ public static class AccountEndpoints
                     ParentRoleId = share.TargetRoleId,
                     ChildRoleId = share.SourceRoleId,
                     RelationshipType = share.RelationshipType,
-                    EncryptedRoleKeyCopy = encryptedCopy,
+                    EncryptedReadKeyCopy = encryptedReadCopy,
+                    EncryptedWriteKeyCopy = encryptedWriteCopy,
                     CreatedUtc = DateTimeOffset.UtcNow
                 });
             }
@@ -1154,17 +1397,20 @@ public static class AccountEndpoints
             share.Status = "Accepted";
             share.AcceptedUtc = DateTimeOffset.UtcNow;
 
+            var signingContext = await TryGetSigningContextAsync(share.TargetRoleId, targetWriteKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendKeyAsync(
                 "RoleShareAccepted",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { shareId, sourceRoleId = share.SourceRoleId, targetRoleId = share.TargetRoleId, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
         });
 
-        group.MapPost("/roles/{roleId:guid}/recovery/shares", async (Guid roleId, RecoveryShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/shares", async (Guid roleId, RecoveryShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1186,7 +1432,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -1213,17 +1459,20 @@ public static class AccountEndpoints
                 share.RevokedUtc = null;
             }
 
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendKeyAsync(
                 "RecoveryShareUpdated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, sharedWithRoleId = request.SharedWithRoleId, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
         });
 
-        group.MapPost("/roles/{roleId:guid}/recovery/request", async (Guid roleId, RecoveryRequestCreate request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/request", async (Guid roleId, RecoveryRequestCreate request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1245,7 +1494,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -1271,18 +1520,21 @@ public static class AccountEndpoints
             };
 
             dbContext.RoleRecoveryRequests.Add(recovery);
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, requestId = recovery.Id, requiredApprovals = activeShares, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new RecoveryRequestResponse(recovery.Id, recovery.Status, recovery.RequiredApprovals));
         });
 
-        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/approve", async (Guid roleId, Guid requestId, RecoveryApproveRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/approve", async (Guid roleId, Guid requestId, RecoveryApproveRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1304,7 +1556,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(request.ApproverRoleId, out _))
+            if (!keyRing.TryGetWriteKey(request.ApproverRoleId, out var approverWriteKey))
             {
                 return Results.Forbid();
             }
@@ -1343,11 +1595,14 @@ public static class AccountEndpoints
                 CreatedUtc = DateTimeOffset.UtcNow
             });
 
+            var signingContext = await TryGetSigningContextAsync(request.ApproverRoleId, approverWriteKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendAuthAsync(
                 "RecoveryApprovalAdded",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, requestId, approverRoleId = request.ApproverRoleId, signature = request.SignatureBase64 }),
-                ct);
+                ct,
+                signingContext);
 
             var approvals = await dbContext.RoleRecoveryApprovals.CountAsync(x => x.RequestId == requestId, ct);
             if (approvals >= recovery.RequiredApprovals && recovery.Status != "Ready")
@@ -1357,14 +1612,15 @@ public static class AccountEndpoints
                     "RecoveryRequestReady",
                     userId.ToString(),
                     JsonSerializer.Serialize(new { roleId, requestId }),
-                    ct);
+                    ct,
+                    signingContext);
             }
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new RecoveryRequestResponse(recovery.Id, recovery.Status, recovery.RequiredApprovals));
         });
 
-        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/cancel", async (Guid roleId, Guid requestId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/cancel", async (Guid roleId, Guid requestId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1386,7 +1642,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -1405,17 +1661,20 @@ public static class AccountEndpoints
             recovery.Status = "Canceled";
             recovery.CanceledUtc = DateTimeOffset.UtcNow;
 
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCanceled",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, requestId }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new RecoveryRequestResponse(recovery.Id, recovery.Status, recovery.RequiredApprovals));
         });
 
-        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/complete", async (Guid roleId, Guid requestId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/request/{requestId:guid}/complete", async (Guid roleId, Guid requestId, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, ILedgerService ledgerService, CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -1437,7 +1696,7 @@ public static class AccountEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetRoleKey(roleId, out _))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
             {
                 return Results.Forbid();
             }
@@ -1465,11 +1724,14 @@ public static class AccountEndpoints
                 share.RevokedUtc = DateTimeOffset.UtcNow;
             }
 
+            var signingContext = await TryGetSigningContextAsync(roleId, writeKey, dbContext, encryptionService, ct);
+
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCompleted",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, requestId }),
-                ct);
+                ct,
+                signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new RecoveryRequestResponse(recovery.Id, recovery.Status, recovery.RequiredApprovals));
@@ -1482,7 +1744,7 @@ public static class AccountEndpoints
         IReadOnlyDictionary<Guid, KeyEntry> keyEntryById,
         IKeyRingService keyRingService)
     {
-        if (!keyRing.TryGetRoleKey(field.RoleId, out var roleKey))
+        if (!keyRing.TryGetReadKey(field.RoleId, out var readKey))
         {
             return null;
         }
@@ -1495,7 +1757,7 @@ public static class AccountEndpoints
         byte[] dataKey;
         try
         {
-            dataKey = keyRingService.DecryptDataKey(keyEntry, roleKey);
+            dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
         }
         catch (CryptographicException)
         {
@@ -1505,7 +1767,7 @@ public static class AccountEndpoints
         return keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
     }
 
-    private static RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] roleKey, IEncryptionService encryptionService)
+    private static RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] writeKey, IEncryptionService encryptionService)
     {
         if (role.EncryptedRoleBlob.Length == 0)
         {
@@ -1514,7 +1776,7 @@ public static class AccountEndpoints
 
         try
         {
-            var json = encryptionService.Decrypt(roleKey, role.EncryptedRoleBlob);
+            var json = encryptionService.Decrypt(writeKey, role.EncryptedRoleBlob);
             return JsonSerializer.Deserialize<RoleCryptoMaterial>(json);
         }
         catch (JsonException)
@@ -1525,5 +1787,166 @@ public static class AccountEndpoints
         {
             return null;
         }
+    }
+
+    private static async Task<LedgerSigningContext?> TryGetSigningContextAsync(
+        Guid roleId,
+        byte[] writeKey,
+        RecreatioDbContext dbContext,
+        IEncryptionService encryptionService,
+        CancellationToken ct)
+    {
+        var role = await dbContext.Roles.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == roleId, ct);
+        if (role is null)
+        {
+            return null;
+        }
+
+        return LedgerSigning.TryCreate(role, writeKey, encryptionService);
+    }
+
+    private sealed record LedgerEntrySnapshot(
+        DateTimeOffset TimestampUtc,
+        string EventType,
+        string Actor,
+        string PayloadJson,
+        byte[] PreviousHash,
+        byte[] Hash,
+        Guid? SignerRoleId,
+        byte[]? Signature,
+        string? SignatureAlg
+    );
+
+    private static LedgerEntrySnapshot MapLedgerEntry(AuthLedgerEntry entry) =>
+        new(entry.TimestampUtc, entry.EventType, entry.Actor, entry.PayloadJson, entry.PreviousHash, entry.Hash, entry.SignerRoleId, entry.Signature, entry.SignatureAlg);
+
+    private static LedgerEntrySnapshot MapLedgerEntry(KeyLedgerEntry entry) =>
+        new(entry.TimestampUtc, entry.EventType, entry.Actor, entry.PayloadJson, entry.PreviousHash, entry.Hash, entry.SignerRoleId, entry.Signature, entry.SignatureAlg);
+
+    private static LedgerEntrySnapshot MapLedgerEntry(BusinessLedgerEntry entry) =>
+        new(entry.TimestampUtc, entry.EventType, entry.Actor, entry.PayloadJson, entry.PreviousHash, entry.Hash, entry.SignerRoleId, entry.Signature, entry.SignatureAlg);
+
+    private static async Task<LedgerVerificationSummary> VerifyLedgerAsync(
+        string ledgerName,
+        List<LedgerEntrySnapshot> entries,
+        Guid roleId,
+        RecreatioDbContext dbContext,
+        IAsymmetricSigningService signingService,
+        CancellationToken ct)
+    {
+        if (entries.Count == 0)
+        {
+            return new LedgerVerificationSummary(ledgerName, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+
+        var signerRoleIds = entries
+            .Where(entry => entry.SignerRoleId.HasValue)
+            .Select(entry => entry.SignerRoleId!.Value)
+            .Distinct()
+            .ToList();
+
+        var roles = await dbContext.Roles.AsNoTracking()
+            .Where(role => signerRoleIds.Contains(role.Id))
+            .Select(role => new
+            {
+                role.Id,
+                role.PublicSigningKey,
+                role.PublicSigningKeyAlg
+            })
+            .ToListAsync(ct);
+
+        var signerKeys = roles
+            .Where(role => role.PublicSigningKey is not null && !string.IsNullOrWhiteSpace(role.PublicSigningKeyAlg))
+            .ToDictionary(role => role.Id, role => new { Key = role.PublicSigningKey!, Alg = role.PublicSigningKeyAlg! });
+
+        var previousHash = Array.Empty<byte>();
+        var hashMismatches = 0;
+        var previousHashMismatches = 0;
+        var signaturesVerified = 0;
+        var signaturesMissing = 0;
+        var signaturesInvalid = 0;
+        var roleSignedEntries = 0;
+        var roleInvalidSignatures = 0;
+
+        foreach (var entry in entries)
+        {
+            if (!previousHash.SequenceEqual(entry.PreviousHash))
+            {
+                previousHashMismatches += 1;
+            }
+
+            var expected = LedgerHashing.ComputeHash(
+                entry.PreviousHash,
+                entry.TimestampUtc,
+                entry.EventType,
+                entry.Actor,
+                entry.PayloadJson,
+                entry.SignerRoleId,
+                entry.SignatureAlg);
+            if (!expected.SequenceEqual(entry.Hash))
+            {
+                hashMismatches += 1;
+            }
+
+            var hasSignature = entry.Signature is { Length: > 0 }
+                && entry.SignerRoleId.HasValue
+                && !string.IsNullOrWhiteSpace(entry.SignatureAlg);
+
+            if (!hasSignature)
+            {
+                if (entry.Signature is { Length: > 0 } || entry.SignerRoleId.HasValue || !string.IsNullOrWhiteSpace(entry.SignatureAlg))
+                {
+                    signaturesMissing += 1;
+                }
+            }
+            else
+            {
+                var signerId = entry.SignerRoleId!.Value;
+                var isRoleEntry = signerId == roleId;
+                if (isRoleEntry)
+                {
+                    roleSignedEntries += 1;
+                }
+
+                if (!signerKeys.TryGetValue(signerId, out var keyInfo))
+                {
+                    signaturesInvalid += 1;
+                    if (isRoleEntry)
+                    {
+                        roleInvalidSignatures += 1;
+                    }
+                }
+                else
+                {
+                    var ok = signingService.Verify(keyInfo.Key, entry.SignatureAlg!, entry.Hash, entry.Signature!);
+                    if (ok)
+                    {
+                        signaturesVerified += 1;
+                    }
+                    else
+                    {
+                        signaturesInvalid += 1;
+                        if (isRoleEntry)
+                        {
+                            roleInvalidSignatures += 1;
+                        }
+                    }
+                }
+            }
+
+            previousHash = entry.Hash;
+        }
+
+        return new LedgerVerificationSummary(
+            ledgerName,
+            entries.Count,
+            hashMismatches,
+            previousHashMismatches,
+            signaturesVerified,
+            signaturesMissing,
+            signaturesInvalid,
+            roleSignedEntries,
+            roleInvalidSignatures);
     }
 }
