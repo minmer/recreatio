@@ -29,6 +29,7 @@ public static class RoleEndpoints
             IEncryptionService encryptionService,
             ILedgerService ledgerService,
             ISessionSecretCache sessionSecretCache,
+            ILogger<RoleEndpoints> logger,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
@@ -43,22 +44,26 @@ public static class RoleEndpoints
 
             if (request.ChildRoleId == Guid.Empty)
             {
+                logger.LogWarning("Create edge failed: empty child role. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
                 return Results.BadRequest(new { error = "ChildRoleId is required." });
             }
 
             var relationshipType = request.RelationshipType?.Trim();
             if (string.IsNullOrWhiteSpace(relationshipType))
             {
+                logger.LogWarning("Create edge failed: missing relationship type. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
                 return Results.BadRequest(new { error = "RelationshipType is required." });
             }
             if (!RoleRelationships.IsAllowed(relationshipType))
             {
+                logger.LogWarning("Create edge failed: invalid relationship type {RelationshipType}. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", relationshipType, parentRoleId, request.ChildRoleId, userId);
                 return Results.BadRequest(new { error = "RelationshipType is invalid." });
             }
             relationshipType = NormalizeRelationshipType(relationshipType);
 
             if (await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == parentRoleId && x.ChildRoleId == request.ChildRoleId, ct))
             {
+                logger.LogWarning("Create edge failed: edge already exists. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
                 return Results.Conflict(new { error = "Role edge already exists." });
             }
 
@@ -76,6 +81,7 @@ public static class RoleEndpoints
                 .FirstOrDefaultAsync(x => x.Id == userId, ct);
             if (account is null)
             {
+                logger.LogWarning("Create edge failed: account not found for user {UserId}.", userId);
                 return Results.NotFound();
             }
 
@@ -88,12 +94,14 @@ public static class RoleEndpoints
             var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
             if (!ownerRoleIds.Contains(parentRoleId))
             {
+                logger.LogWarning("Create edge failed: parent role not owned. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
                 return Results.Forbid();
             }
 
             if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) ||
                 !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
             {
+                logger.LogWarning("Create edge failed: parent keys missing. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
                 return Results.Forbid();
             }
 
@@ -101,11 +109,13 @@ public static class RoleEndpoints
                 .FirstOrDefaultAsync(x => x.Id == parentRoleId, ct);
             if (parentRole is null)
             {
+                logger.LogWarning("Create edge failed: parent role not found. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
                 return Results.NotFound();
             }
 
             if (!keyRing.TryGetReadKey(request.ChildRoleId, out var childReadKey))
             {
+                logger.LogWarning("Create edge failed: child read key missing. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
                 return Results.BadRequest(new { error = "Child role key not available." });
             }
 
@@ -114,6 +124,7 @@ public static class RoleEndpoints
             {
                 if (!keyRing.TryGetWriteKey(request.ChildRoleId, out var resolvedWriteKey))
                 {
+                    logger.LogWarning("Create edge failed: child write key missing. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
                     return Results.BadRequest(new { error = "Child role write key not available." });
                 }
                 childWriteKey = resolvedWriteKey;

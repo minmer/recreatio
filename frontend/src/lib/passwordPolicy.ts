@@ -1,17 +1,24 @@
 const commonPasswords = new Set([
-  'password',
-  '123456',
-  '12345678',
-  'qwerty',
-  'abc123',
-  'letmein',
-  'admin',
-  'welcome',
-  'iloveyou',
-  'password1',
-  '123456789',
-  '000000',
-  '111111'
+'Aa123456',
+'Pass@123',
+'P@ssw0rd',
+'Password1',
+'Password123',
+'Password',
+'Passw0rd',
+'N0=Acc3ss',
+'Sojdlg123aljg',
+'YAgjecc826',
+'SZ9kQcCTwY',
+'3rJs1la7qE',
+'a838hfiD',
+'iG4abOX4',
+'W5tXn36alfW',
+'N8ZGT5P0sHw=',
+'Groupd2013',
+'3Odi15ngxB',
+'qti7Zxh18U',
+'P@ssw0rd'
 ]);
 
 export type PasswordCheck = {

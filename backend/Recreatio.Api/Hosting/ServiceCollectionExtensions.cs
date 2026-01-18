@@ -23,7 +23,9 @@ public static class ServiceCollectionExtensions
         services.Configure<CsrfOptions>(configuration.GetSection("Csrf"));
 
         services.AddDbContext<RecreatioDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(
+                configuration.GetConnectionString("DefaultConnection"),
+                sqlOptions => sqlOptions.UseCompatibilityLevel(120)));
 
         services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(environment.ContentRootPath, "dataprotection-keys")));
