@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
+using Recreatio.Api.Domain;
 using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 
@@ -131,7 +132,7 @@ public sealed class AuthService : IAuthService
         _dbContext.Roles.Add(masterRole);
         _dbContext.UserAccounts.Add(account);
 
-        var roleKindFieldType = "role_kind";
+        var roleKindFieldType = RoleFieldTypes.RoleKind;
         var roleKindValue = "MasterRole";
         var roleKindKeyId = Guid.NewGuid();
         var roleKindKey = RandomNumberGenerator.GetBytes(32);

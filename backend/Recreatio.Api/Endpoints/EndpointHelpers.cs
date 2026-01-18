@@ -33,6 +33,14 @@ public static class EndpointHelpers
             });
     }
 
+    public static void InvalidateRoleKeyRing(ISessionSecretCache sessionSecretCache, string sessionId)
+    {
+        if (sessionSecretCache.TryGet(sessionId, out var secret))
+        {
+            sessionSecretCache.Set(sessionId, secret with { CachedRoleKeyRing = null });
+        }
+    }
+
     public static IResult MapAuthException(InvalidOperationException ex)
     {
         return ex.Message switch

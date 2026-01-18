@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
+using Recreatio.Api.Domain;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 
@@ -10,21 +11,9 @@ namespace Recreatio.Api.Endpoints;
 
 public static class RoleEndpoints
 {
-    private static readonly HashSet<string> AllowedRelationshipTypes = new(StringComparer.OrdinalIgnoreCase)
+    private static string NormalizeRelationshipType(string relationshipType)
     {
-        "Owner",
-        "AdminOf",
-        "Write",
-        "Read",
-        "MemberOf",
-        "DelegatedTo"
-    };
-
-    private static bool RelationshipAllowsWrite(string relationshipType)
-    {
-        return relationshipType.Equals("Owner", StringComparison.OrdinalIgnoreCase)
-            || relationshipType.Equals("AdminOf", StringComparison.OrdinalIgnoreCase)
-            || relationshipType.Equals("Write", StringComparison.OrdinalIgnoreCase);
+        return RoleRelationships.Normalize(relationshipType);
     }
 
     public static void MapRoleEndpoints(this WebApplication app)
@@ -39,6 +28,7 @@ public static class RoleEndpoints
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
             ILedgerService ledgerService,
+            ISessionSecretCache sessionSecretCache,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
@@ -61,10 +51,11 @@ public static class RoleEndpoints
             {
                 return Results.BadRequest(new { error = "RelationshipType is required." });
             }
-            if (!AllowedRelationshipTypes.Contains(relationshipType))
+            if (!RoleRelationships.IsAllowed(relationshipType))
             {
                 return Results.BadRequest(new { error = "RelationshipType is invalid." });
             }
+            relationshipType = NormalizeRelationshipType(relationshipType);
 
             if (await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == parentRoleId && x.ChildRoleId == request.ChildRoleId, ct))
             {
@@ -89,7 +80,7 @@ public static class RoleEndpoints
             }
 
             var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == "Owner")
+                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
                 .Select(x => x.RoleId)
                 .ToListAsync(ct);
             var ownerRoots = new List<Guid> { account.MasterRoleId };
@@ -119,7 +110,7 @@ public static class RoleEndpoints
             }
 
             byte[]? childWriteKey = null;
-            if (RelationshipAllowsWrite(relationshipType))
+            if (RoleRelationships.AllowsWrite(relationshipType))
             {
                 if (!keyRing.TryGetWriteKey(request.ChildRoleId, out var resolvedWriteKey))
                 {
@@ -154,6 +145,7 @@ public static class RoleEndpoints
 
             dbContext.RoleEdges.Add(edge);
             await dbContext.SaveChangesAsync(ct);
+            EndpointHelpers.InvalidateRoleKeyRing(sessionSecretCache, sessionId);
             return Results.Ok(new { edgeId = edge.Id, ledgerId = ledger.Id });
         });
     }

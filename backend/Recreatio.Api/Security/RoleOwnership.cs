@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Data;
+using Recreatio.Api.Domain;
 
 namespace Recreatio.Api.Security;
 
@@ -25,7 +26,7 @@ public static class RoleOwnership
         }
 
         var ownerEdges = await dbContext.RoleEdges.AsNoTracking()
-            .Where(edge => edge.RelationshipType == "Owner")
+            .Where(edge => edge.RelationshipType == RoleRelationships.Owner || edge.RelationshipType == RoleRelationships.Owner.ToLowerInvariant())
             .ToListAsync(ct);
 
         var edgesByParent = ownerEdges

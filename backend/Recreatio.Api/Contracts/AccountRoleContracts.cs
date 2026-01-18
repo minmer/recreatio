@@ -86,7 +86,8 @@ public sealed record RoleGraphNode(
     Guid? RoleId,
     string? FieldType,
     Guid? DataKeyId,
-    bool CanLink
+    bool CanLink,
+    bool CanWrite
 );
 
 public sealed record RoleGraphEdge(

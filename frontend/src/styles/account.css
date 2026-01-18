@@ -173,6 +173,19 @@
   margin-bottom: 1rem;
 }
 
+.role-legend-notes {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 1.2rem;
+}
+
+.role-legend-notes .role-legend-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  max-width: 220px;
+}
+
 .role-legend-items {
   display: flex;
   flex-wrap: wrap;
@@ -300,6 +313,7 @@
   border: 2px solid var(--edge-color, var(--ink));
   background: var(--edge-color, white);
   top: calc(50% + var(--port-offset, 0px));
+  transform: translateY(-50%);
   box-shadow: 0 0 0 3px white;
 }
 
@@ -309,6 +323,12 @@
 
 .role-handle-out {
   right: -6px;
+}
+
+.role-handle--hidden,
+.role-handle-aux {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .role-panel {

@@ -284,6 +284,7 @@ export type RoleGraphNode = {
   fieldType?: string | null;
   dataKeyId?: string | null;
   canLink?: boolean;
+  canWrite?: boolean;
 };
 
 export type RoleGraphEdge = {
@@ -309,6 +310,10 @@ export type RoleParentsResponse = {
 
 export function getRoleParents(roleId: string) {
   return request<RoleParentsResponse>(`/account/roles/${roleId}/parents`, { method: 'GET' });
+}
+
+export function deleteRoleParent(roleId: string, parentRoleId: string) {
+  return request<void>(`/account/roles/${roleId}/parents/${parentRoleId}`, { method: 'DELETE' });
 }
 
 export type LedgerVerificationSummary = {
