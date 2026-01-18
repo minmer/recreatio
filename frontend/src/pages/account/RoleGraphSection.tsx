@@ -17,11 +17,13 @@ import {
   DEFAULT_RELATION_COLOR,
   RELATION_COLORS,
   RELATION_TYPES,
+  RECOVERY_HANDLE_IN,
+  RECOVERY_HANDLE_OUT,
   buildTypeColors,
   getEdgeHandles
 } from './roleGraphConfig';
 import { defaultLayout } from './roleGraphLayout';
-import { GraphNode, RoleEdge } from './RoleGraphNodes';
+import { GraphNode, RecoveryNode, RoleEdge } from './RoleGraphNodes';
 import { RoleGraphControls } from './RoleGraphControls';
 import { RoleGraphPanel } from './RoleGraphPanel';
 import type { ActionStatus, PendingLink, RoleEdgeData, RoleNodeData } from './roleGraphTypes';
@@ -36,6 +38,9 @@ import {
   getRoleGraph,
   issueCsrf,
   shareRole,
+  prepareRecoveryPlan,
+  addRecoveryPlanShare,
+  activateRecoveryPlan,
   updateRoleField,
   verifyRoleLedger,
   ApiError,
@@ -99,8 +104,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     () => ({
       role: GraphNode,
       data: GraphNode,
-      recovery: GraphNode,
-      recovery_shared: GraphNode
+      recovery: RecoveryNode,
+      recovery_plan: RecoveryNode
     }),
     []
   );
@@ -329,16 +334,42 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     });
   }, [filteredEdges, setNodes]);
 
+  const isRecoveryNode = (node?: Node<RoleNodeData>) => Boolean(node?.data.nodeType?.startsWith('recovery'));
+
   const isValidConnection = (connection: Connection) => {
     if (!connection.source || !connection.target) return false;
     if (connection.source === connection.target) return false;
     if (!connection.sourceHandle || !connection.targetHandle) return false;
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    if (!sourceNode || !targetNode) {
+      return false;
+    }
+
+    const sourceIsRecovery = isRecoveryNode(sourceNode);
+    const targetIsRecovery = isRecoveryNode(targetNode);
+    if (sourceIsRecovery || targetIsRecovery) {
+      if (sourceIsRecovery && targetIsRecovery) return false;
+      const recoveryHandle = sourceIsRecovery ? connection.sourceHandle : connection.targetHandle;
+      const roleHandle = sourceIsRecovery ? connection.targetHandle : connection.sourceHandle;
+      const roleNode = sourceIsRecovery ? targetNode : sourceNode;
+      const recoveryNode = sourceIsRecovery ? sourceNode : targetNode;
+      if (!roleNode.data.canLink || !recoveryNode.data.canLink) {
+        return false;
+      }
+      if (recoveryHandle !== RECOVERY_HANDLE_IN && recoveryHandle !== RECOVERY_HANDLE_OUT) {
+        return false;
+      }
+      if (roleHandle !== 'out-Owner' && roleHandle !== 'in-Owner') {
+        return false;
+      }
+      return true;
+    }
+
     if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
       return false;
     }
-    const sourceNode = nodes.find((node) => node.id === connection.source);
-    const targetNode = nodes.find((node) => node.id === connection.target);
-    if (!sourceNode?.data.canLink || !targetNode?.data.canLink) {
+    if (!sourceNode.data.canLink || !targetNode.data.canLink) {
       return false;
     }
     const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') ||
@@ -354,6 +385,77 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const handleConnect = async (connection: Connection) => {
     if (!connection.source || !connection.target) return;
     if (!connection.sourceHandle || !connection.targetHandle) return;
+    const sourceNode = nodes.find((node) => node.id === connection.source);
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    if (!sourceNode || !targetNode) return;
+
+    const sourceIsRecovery = isRecoveryNode(sourceNode);
+    const targetIsRecovery = isRecoveryNode(targetNode);
+    if (sourceIsRecovery || targetIsRecovery) {
+      const recoveryHandle = sourceIsRecovery ? connection.sourceHandle : connection.targetHandle;
+      const relationType = recoveryHandle === RECOVERY_HANDLE_IN ? 'RecoveryOwner' : 'RecoveryAccess';
+      const recoveryNodeId = sourceIsRecovery ? connection.source : connection.target;
+      const roleNodeId = sourceIsRecovery ? connection.target : connection.source;
+      if (relationType === 'RecoveryOwner') {
+        const edgeId = `${stripRoleId(roleNodeId)}:${stripRoleId(recoveryNodeId)}:${relationType}`;
+        const handles = getEdgeHandles(relationType);
+        setEdges((prev) =>
+          prev.some((edge) => edge.id === edgeId)
+            ? prev
+            : prev.concat({
+                id: edgeId,
+                source: roleNodeId,
+                target: recoveryNodeId,
+                sourceHandle: handles.sourceHandle,
+                targetHandle: handles.targetHandle,
+                type: 'role',
+                data: {
+                  relationType,
+                  color: nodes[0]?.data.typeColors?.[relationType] ?? DEFAULT_RELATION_COLOR
+                }
+              })
+        );
+        setFilters((prev) => ({ ...prev, [relationType]: prev[relationType] ?? true }));
+        return;
+      }
+
+      if (targetNode.data.nodeType !== 'recovery_plan' && sourceNode.data.nodeType !== 'recovery_plan') {
+        setActionStatus({ type: 'error', message: copy.account.roles.recoveryPlanError });
+        return;
+      }
+
+      const planId = (sourceIsRecovery ? sourceNode.id : targetNode.id).replace('recovery-plan:', '');
+      const targetRoleId = stripRoleId(roleNodeId);
+      setActionStatus({ type: 'working', message: copy.account.roles.recoveryShareWorking });
+      try {
+        await issueCsrf();
+        await addRecoveryPlanShare(planId, { sharedWithRoleId: targetRoleId });
+        const edgeId = `${planId}:${targetRoleId}:${relationType}`;
+        const handles = getEdgeHandles(relationType);
+        setEdges((prev) =>
+          prev.some((edge) => edge.id === edgeId)
+            ? prev
+            : prev.concat({
+                id: edgeId,
+                source: recoveryNodeId,
+                target: roleNodeId,
+                sourceHandle: handles.sourceHandle,
+                targetHandle: handles.targetHandle,
+                type: 'role',
+                data: {
+                  relationType,
+                  color: nodes[0]?.data.typeColors?.[relationType] ?? DEFAULT_RELATION_COLOR
+                }
+              })
+        );
+        setFilters((prev) => ({ ...prev, [relationType]: prev[relationType] ?? true }));
+        setActionStatus({ type: 'success', message: copy.account.roles.recoveryShareSuccess });
+      } catch (error) {
+        setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryShareError) });
+      }
+      return;
+    }
+
     const sourceIsOut = connection.sourceHandle.startsWith('out-');
     const relationType = (sourceIsOut ? connection.sourceHandle : connection.targetHandle).replace(/^(in|out)-/, '');
     const parentNodeId = sourceIsOut ? connection.source : connection.target;
@@ -406,6 +508,9 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     : null;
   const selectedRoleCanWrite = selectedRoleNode?.data.canWrite ?? false;
   const selectedRoleCanLink = selectedRoleNode?.data.canLink ?? false;
+  const selectedRecoveryPlanId =
+    selectedNode?.data.nodeType === 'recovery_plan' ? selectedNode.id.replace('recovery-plan:', '') : null;
+  const selectedRecoveryCanLink = selectedNode?.data.nodeType?.startsWith('recovery') ? Boolean(selectedNode.data.canLink) : false;
   const selectedDataOwner =
     selectedNode?.data.nodeType === 'data' && selectedNode.data.roleId
       ? nodes.find((node) => node.id === `role:${selectedNode.data.roleId.replace(/-/g, '')}`) ?? null
@@ -451,7 +556,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       });
       const newNodeId = `role:${response.roleId.replace(/-/g, '')}`;
       const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
-      const allowsWrite = ['Owner', 'AdminOf', 'Write'].includes(newRoleRelation);
+      const allowsWrite = ['Owner', 'Write'].includes(newRoleRelation);
       const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
       const position = parentNode
         ? { x: parentNode.position.x + 392, y: parentNode.position.y + outgoingCount * 160 }
@@ -702,6 +807,86 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
+  const handlePrepareRecovery = async (roleId: string) => {
+    setActionStatus({ type: 'working', message: copy.account.roles.recoveryPrepareWorking });
+    try {
+      await issueCsrf();
+      const response = await prepareRecoveryPlan(roleId);
+      const roleNodeId = `role:${roleId.replace(/-/g, '')}`;
+      const planNodeId = `recovery-plan:${response.planId}`;
+      const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+      const roleNode = nodes.find((node) => node.id === roleNodeId);
+      const position = roleNode
+        ? { x: roleNode.position.x + 260, y: roleNode.position.y - 120 }
+        : { x: 320, y: 200 };
+
+      setNodes((prev) =>
+        prev.some((node) => node.id === planNodeId)
+          ? prev
+          : prev.concat({
+              id: planNodeId,
+              type: 'recovery_plan',
+              position,
+              data: {
+                label: copy.account.roles.recoveryPlanLabel,
+                kind: 'RecoveryKey',
+                nodeType: 'recovery_plan',
+                value: null,
+                roleId,
+                fieldType: null,
+                dataKeyId: null,
+                canLink: true,
+                canWrite: false,
+                incomingTypes: ['RecoveryOwner'],
+                outgoingTypes: [],
+                typeColors
+              }
+            })
+      );
+
+      const edgeId = `${roleId.replace(/-/g, '')}:${response.planId}:RecoveryOwner`;
+      const handles = getEdgeHandles('RecoveryOwner');
+      setEdges((prev) =>
+        prev.some((edge) => edge.id === edgeId)
+          ? prev
+          : prev.concat({
+              id: edgeId,
+              source: roleNodeId,
+              target: planNodeId,
+              sourceHandle: handles.sourceHandle,
+              targetHandle: handles.targetHandle,
+              type: 'role',
+              data: {
+                relationType: 'RecoveryOwner',
+                color: typeColors.RecoveryOwner ?? DEFAULT_RELATION_COLOR
+              }
+            })
+      );
+      setFilters((prev) => ({ ...prev, RecoveryOwner: prev.RecoveryOwner ?? true }));
+      setSearchIndex((prev) =>
+        prev.some((entry) => entry.id === planNodeId)
+          ? prev
+          : prev.concat({ id: planNodeId, label: copy.account.roles.recoveryPlanLabel, value: 'Draft' })
+      );
+      setSelectedNodeId(planNodeId);
+      setActionStatus({ type: 'success', message: copy.account.roles.recoveryPrepareSuccess });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryPrepareError) });
+    }
+  };
+
+  const handleActivateRecovery = async (planId: string) => {
+    setActionStatus({ type: 'working', message: copy.account.roles.recoveryActivateWorking });
+    try {
+      await issueCsrf();
+      await activateRecoveryPlan(planId);
+      await loadGraph();
+      setActionStatus({ type: 'success', message: copy.account.roles.recoveryActivateSuccess });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryActivateError) });
+    }
+  };
+
   const handleLoadParents = async () => {
     if (!selectedRoleId) return;
     setParentsState('working');
@@ -856,6 +1041,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             selectedRoleId,
             selectedRoleCanWrite,
             selectedRoleCanLink,
+            selectedRecoveryPlanId,
+            selectedRecoveryCanLink,
             selectedDataOwner,
             createOwnerId,
             pendingShares,
@@ -895,6 +1082,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             onCreateRole: handleCreateRole,
             onAddField: handleAddField,
             onShareRole: handleShareRole,
+            onPrepareRecovery: handlePrepareRecovery,
+            onActivateRecovery: handleActivateRecovery,
             onLoadPendingShares: handleLoadPendingShares,
             onAcceptShare: handleAcceptShare,
             onLoadParents: handleLoadParents,

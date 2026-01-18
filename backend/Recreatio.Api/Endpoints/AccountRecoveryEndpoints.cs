@@ -1,8 +1,10 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
+using Recreatio.Api.Domain;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 
@@ -12,7 +14,14 @@ public static class AccountRecoveryEndpoints
 {
     public static void MapAccountRecoveryEndpoints(this RouteGroupBuilder group)
     {
-        group.MapPost("/roles/{roleId:guid}/recovery/shares", async (Guid roleId, RecoveryShareRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, IRoleCryptoService roleCryptoService, ILedgerService ledgerService, CancellationToken ct) =>
+        group.MapPost("/roles/{roleId:guid}/recovery/plan", async (
+            Guid roleId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
@@ -39,39 +48,305 @@ public static class AccountRecoveryEndpoints
                 return Results.Forbid();
             }
 
-            var share = await dbContext.RoleRecoveryShares
-                .FirstOrDefaultAsync(x => x.TargetRoleId == roleId && x.SharedWithRoleId == request.SharedWithRoleId, ct);
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
 
-            var now = DateTimeOffset.UtcNow;
-            if (share is null)
+            var targetRole = await dbContext.Roles.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == roleId, ct);
+            if (targetRole is null)
             {
-                share = new RoleRecoveryShare
-                {
-                    Id = Guid.NewGuid(),
-                    TargetRoleId = roleId,
-                    SharedWithRoleId = request.SharedWithRoleId,
-                    EncryptedShareBlob = Convert.FromBase64String(request.EncryptedShareBase64),
-                    CreatedUtc = now
-                };
-                dbContext.RoleRecoveryShares.Add(share);
+                return Results.NotFound();
             }
-            else
+
+            var membershipOwners = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
+                .Select(x => x.RoleId)
+                .ToListAsync(ct);
+            var ownerRoots = new List<Guid> { account.MasterRoleId };
+            ownerRoots.AddRange(membershipOwners);
+            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            if (!ownerRoleIds.Contains(roleId))
             {
-                share.EncryptedShareBlob = Convert.FromBase64String(request.EncryptedShareBase64);
-                share.RevokedUtc = null;
+                return Results.Forbid();
             }
+
+            var existingPlan = await dbContext.RoleRecoveryPlans
+                .FirstOrDefaultAsync(plan => plan.TargetRoleId == roleId && plan.ActivatedUtc == null, ct);
+            if (existingPlan is not null)
+            {
+                return Results.Ok(new RecoveryPlanResponse(existingPlan.Id, existingPlan.TargetRoleId, "Draft"));
+            }
+
+            var plan = new RoleRecoveryPlan
+            {
+                Id = Guid.NewGuid(),
+                TargetRoleId = roleId,
+                CreatedByRoleId = roleId,
+                CreatedUtc = DateTimeOffset.UtcNow
+            };
+            dbContext.RoleRecoveryPlans.Add(plan);
 
             var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
-
             await ledgerService.AppendKeyAsync(
-                "RecoveryShareUpdated",
+                "RecoveryPlanCreated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { roleId, sharedWithRoleId = request.SharedWithRoleId, signature = request.SignatureBase64 }),
+                JsonSerializer.Serialize(new { roleId, planId = plan.Id }),
+                ct,
+                signingContext);
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new RecoveryPlanResponse(plan.Id, plan.TargetRoleId, "Draft"));
+        });
+
+        group.MapPost("/recovery/plans/{planId:guid}/shares", async (
+            Guid planId,
+            RecoveryPlanShareRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var plan = await dbContext.RoleRecoveryPlans
+                .FirstOrDefaultAsync(x => x.Id == planId && x.ActivatedUtc == null, ct);
+            if (plan is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (request.SharedWithRoleId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "SharedWithRoleId is required." });
+            }
+
+            if (!keyRing.TryGetWriteKey(plan.TargetRoleId, out var writeKey))
+            {
+                return Results.Forbid();
+            }
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            var membershipOwners = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
+                .Select(x => x.RoleId)
+                .ToListAsync(ct);
+            var ownerRoots = new List<Guid> { account.MasterRoleId };
+            ownerRoots.AddRange(membershipOwners);
+            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            if (!ownerRoleIds.Contains(plan.TargetRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var exists = await dbContext.RoleRecoveryPlanShares
+                .AnyAsync(x => x.PlanId == planId && x.SharedWithRoleId == request.SharedWithRoleId, ct);
+            if (exists)
+            {
+                return Results.Ok();
+            }
+
+            dbContext.RoleRecoveryPlanShares.Add(new RoleRecoveryPlanShare
+            {
+                Id = Guid.NewGuid(),
+                PlanId = planId,
+                SharedWithRoleId = request.SharedWithRoleId,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(plan.TargetRoleId, writeKey, ct);
+            await ledgerService.AppendKeyAsync(
+                "RecoveryPlanShareAdded",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId = plan.TargetRoleId, planId, sharedWithRoleId = request.SharedWithRoleId, signature = request.SignatureBase64 }),
                 ct,
                 signingContext);
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
+        });
+
+        group.MapPost("/recovery/plans/{planId:guid}/activate", async (
+            Guid planId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IAsymmetricEncryptionService asymmetricEncryptionService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var plan = await dbContext.RoleRecoveryPlans
+                .FirstOrDefaultAsync(x => x.Id == planId && x.ActivatedUtc == null, ct);
+            if (plan is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!keyRing.TryGetWriteKey(plan.TargetRoleId, out var writeKey))
+            {
+                return Results.Forbid();
+            }
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            var membershipOwners = await dbContext.Memberships.AsNoTracking()
+                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
+                .Select(x => x.RoleId)
+                .ToListAsync(ct);
+            var ownerRoots = new List<Guid> { account.MasterRoleId };
+            ownerRoots.AddRange(membershipOwners);
+            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            if (!ownerRoleIds.Contains(plan.TargetRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var shares = await dbContext.RoleRecoveryPlanShares.AsNoTracking()
+                .Where(x => x.PlanId == planId)
+                .ToListAsync(ct);
+            if (shares.Count == 0)
+            {
+                return Results.BadRequest(new { error = "No recovery shares defined for plan." });
+            }
+
+            var shareRoleIds = shares.Select(x => x.SharedWithRoleId).Distinct().ToList();
+            var shareRoles = await dbContext.Roles.AsNoTracking()
+                .Where(role => shareRoleIds.Contains(role.Id))
+                .ToListAsync(ct);
+            if (shareRoles.Count != shareRoleIds.Count)
+            {
+                return Results.BadRequest(new { error = "Shared roles not found." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var recoveryKey = RandomNumberGenerator.GetBytes(32);
+            var serverPart = recoveryKey.ToArray();
+
+            var existingShares = await dbContext.RoleRecoveryShares
+                .Where(x => x.TargetRoleId == plan.TargetRoleId && x.RevokedUtc == null)
+                .ToListAsync(ct);
+            foreach (var share in existingShares)
+            {
+                share.RevokedUtc = now;
+            }
+
+            foreach (var shareRole in shareRoles)
+            {
+                var sharePart = RandomNumberGenerator.GetBytes(32);
+                for (var i = 0; i < serverPart.Length; i++)
+                {
+                    serverPart[i] ^= sharePart[i];
+                }
+
+                if (shareRole.PublicEncryptionKey is null || string.IsNullOrWhiteSpace(shareRole.PublicEncryptionKeyAlg))
+                {
+                    return Results.BadRequest(new { error = "Shared role has no public encryption key." });
+                }
+
+                var encryptedShare = asymmetricEncryptionService.EncryptWithPublicKey(
+                    shareRole.PublicEncryptionKey,
+                    shareRole.PublicEncryptionKeyAlg,
+                    sharePart);
+
+                dbContext.RoleRecoveryShares.Add(new RoleRecoveryShare
+                {
+                    Id = Guid.NewGuid(),
+                    TargetRoleId = plan.TargetRoleId,
+                    SharedWithRoleId = shareRole.Id,
+                    EncryptedShareBlob = encryptedShare,
+                    CreatedUtc = now
+                });
+            }
+
+            var existingKeys = await dbContext.RoleRecoveryKeys
+                .Where(x => x.TargetRoleId == plan.TargetRoleId && x.RevokedUtc == null)
+                .ToListAsync(ct);
+            foreach (var key in existingKeys)
+            {
+                key.RevokedUtc = now;
+            }
+
+            dbContext.RoleRecoveryKeys.Add(new RoleRecoveryKey
+            {
+                Id = Guid.NewGuid(),
+                TargetRoleId = plan.TargetRoleId,
+                EncryptedServerShare = encryptionService.Encrypt(writeKey, serverPart, plan.TargetRoleId.ToByteArray()),
+                CreatedUtc = now
+            });
+
+            plan.ActivatedUtc = now;
+
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(plan.TargetRoleId, writeKey, ct);
+            await ledgerService.AppendKeyAsync(
+                "RecoveryKeyActivated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId = plan.TargetRoleId, planId }),
+                ct,
+                signingContext);
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
+        });
+
+        group.MapPost("/roles/{roleId:guid}/recovery/shares", (Guid roleId) =>
+        {
+            return Results.BadRequest(new { error = "Use recovery plans to manage recovery keys." });
         });
 
         group.MapPost("/roles/{roleId:guid}/recovery/request", async (Guid roleId, RecoveryRequestCreate request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IEncryptionService encryptionService, IRoleCryptoService roleCryptoService, ILedgerService ledgerService, CancellationToken ct) =>

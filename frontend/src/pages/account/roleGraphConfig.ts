@@ -1,18 +1,14 @@
 import type { RoleGraphEdge } from '../../lib/api';
 
-export const RELATION_TYPES = ['Owner', 'AdminOf', 'Write', 'Read', 'MemberOf', 'DelegatedTo'] as const;
+export const RELATION_TYPES = ['Owner', 'Write', 'Read'] as const;
 
 export const RELATION_COLORS: Record<string, string> = {
   Owner: '#1d4ed8',
-  AdminOf: '#c2410c',
   Write: '#dc2626',
   Read: '#0284c7',
-  MemberOf: '#16a34a',
-  DelegatedTo: '#7c3aed',
   Data: '#6b7280',
   RecoveryOwner: '#0f766e',
-  RecoveryShare: '#8b5cf6',
-  RecoveryAccess: '#a855f7',
+  RecoveryAccess: '#8b5cf6',
   link: '#374151'
 };
 
@@ -20,19 +16,17 @@ export const DEFAULT_RELATION_COLOR = '#374151';
 
 export const LEGEND_ENTRIES = [
   'Owner',
-  'AdminOf',
   'Write',
   'Read',
-  'MemberOf',
-  'DelegatedTo',
   'Data',
   'RecoveryOwner',
-  'RecoveryShare',
   'RecoveryAccess'
 ] as const;
 
 export const AUX_HANDLE_IN = 'aux-in';
 export const AUX_HANDLE_OUT = 'aux-out';
+export const RECOVERY_HANDLE_IN = 'recovery-in';
+export const RECOVERY_HANDLE_OUT = 'recovery-out';
 
 export const buildTypeColors = (edges: RoleGraphEdge[]) => {
   const colors: Record<string, string> = { ...RELATION_COLORS };
@@ -49,6 +43,12 @@ export const isRelationType = (type: string) => RELATION_TYPES.includes(type as 
 export const getEdgeHandles = (type: string) => {
   if (isRelationType(type)) {
     return { sourceHandle: `out-${type}`, targetHandle: `in-${type}` };
+  }
+  if (type === 'RecoveryOwner') {
+    return { sourceHandle: `out-${RELATION_TYPES[0]}`, targetHandle: RECOVERY_HANDLE_IN };
+  }
+  if (type === 'RecoveryAccess') {
+    return { sourceHandle: RECOVERY_HANDLE_OUT, targetHandle: `in-${RELATION_TYPES[0]}` };
   }
   return { sourceHandle: AUX_HANDLE_OUT, targetHandle: AUX_HANDLE_IN };
 };

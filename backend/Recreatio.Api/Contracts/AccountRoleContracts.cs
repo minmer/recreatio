@@ -130,6 +130,17 @@ public sealed record RecoveryShareRequest(
     string? SignatureBase64
 );
 
+public sealed record RecoveryPlanResponse(
+    Guid PlanId,
+    Guid TargetRoleId,
+    string Status
+);
+
+public sealed record RecoveryPlanShareRequest(
+    Guid SharedWithRoleId,
+    string? SignatureBase64
+);
+
 public sealed record RecoveryRequestCreate(
     Guid InitiatorRoleId,
     string? SignatureBase64

@@ -210,26 +210,72 @@ public sealed class RoleQueryService : IRoleQueryService
                 "Data"));
         }
 
+        var recoveryPlans = await _dbContext.RoleRecoveryPlans.AsNoTracking()
+            .Where(plan => roleIdSet.Contains(plan.TargetRoleId) && plan.ActivatedUtc == null)
+            .ToListAsync(ct);
+        if (recoveryPlans.Count > 0)
+        {
+            var planIds = recoveryPlans.Select(plan => plan.Id).ToList();
+            var planShares = await _dbContext.RoleRecoveryPlanShares.AsNoTracking()
+                .Where(share => planIds.Contains(share.PlanId))
+                .ToListAsync(ct);
+            foreach (var plan in recoveryPlans)
+            {
+                var recoveryNodeId = $"recovery-plan:{plan.Id:N}";
+                nodes.Add(new RoleGraphNode(
+                    recoveryNodeId,
+                    "Recovery key",
+                    "recovery_plan",
+                    "Draft",
+                    null,
+                    plan.TargetRoleId,
+                    null,
+                    null,
+                    ownerRoleIds.Contains(plan.TargetRoleId),
+                    false));
+                edges.Add(new RoleGraphEdge(
+                    $"role:{plan.TargetRoleId:N}:{recoveryNodeId}:recovery-owner",
+                    $"role:{plan.TargetRoleId:N}",
+                    recoveryNodeId,
+                    "RecoveryOwner"));
+
+                foreach (var share in planShares.Where(x => x.PlanId == plan.Id))
+                {
+                    if (!roleIdSet.Contains(share.SharedWithRoleId))
+                    {
+                        continue;
+                    }
+                    edges.Add(new RoleGraphEdge(
+                        $"{recoveryNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
+                        recoveryNodeId,
+                        $"role:{share.SharedWithRoleId:N}",
+                        "RecoveryAccess"));
+                }
+            }
+        }
+
         var recoveryShares = await _dbContext.RoleRecoveryShares.AsNoTracking()
-            .Where(share => roleIdSet.Contains(share.TargetRoleId))
+            .Where(share => roleIdSet.Contains(share.TargetRoleId) && share.RevokedUtc == null)
             .ToListAsync(ct);
         foreach (var targetRoleId in recoveryShares.Select(x => x.TargetRoleId).Distinct())
         {
             var recoveryNodeId = $"recovery:{targetRoleId:N}";
-            nodes.Add(new RoleGraphNode(recoveryNodeId, "Recovery key", "recovery", "RecoveryKey", null, targetRoleId, null, null, false, false));
+            nodes.Add(new RoleGraphNode(
+                recoveryNodeId,
+                "Recovery key",
+                "recovery",
+                "Active",
+                null,
+                targetRoleId,
+                null,
+                null,
+                false,
+                false));
             edges.Add(new RoleGraphEdge(
                 $"role:{targetRoleId:N}:{recoveryNodeId}:recovery-owner",
                 $"role:{targetRoleId:N}",
                 recoveryNodeId,
                 "RecoveryOwner"));
-
-            var sharedNodeId = $"recovery-shared:{targetRoleId:N}";
-            nodes.Add(new RoleGraphNode(sharedNodeId, "Shared recovery", "recovery_shared", "RecoveryShare", null, targetRoleId, null, null, false, false));
-            edges.Add(new RoleGraphEdge(
-                $"recovery:{targetRoleId:N}:{sharedNodeId}:recovery-share",
-                $"recovery:{targetRoleId:N}",
-                sharedNodeId,
-                "RecoveryShare"));
 
             foreach (var share in recoveryShares.Where(x => x.TargetRoleId == targetRoleId))
             {
@@ -238,8 +284,8 @@ public sealed class RoleQueryService : IRoleQueryService
                     continue;
                 }
                 edges.Add(new RoleGraphEdge(
-                    $"{sharedNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
-                    sharedNodeId,
+                    $"{recoveryNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
+                    recoveryNodeId,
                     $"role:{share.SharedWithRoleId:N}",
                     "RecoveryAccess"));
             }
@@ -252,7 +298,7 @@ public sealed class RoleQueryService : IRoleQueryService
                 $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{edge.RelationshipType}",
                 $"role:{edge.ParentRoleId:N}",
                 $"role:{edge.ChildRoleId:N}",
-                edge.RelationshipType)));
+                RoleRelationships.Normalize(edge.RelationshipType))));
 
         if (account is not null)
         {
@@ -262,7 +308,7 @@ public sealed class RoleQueryService : IRoleQueryService
                     $"{account.MasterRoleId:N}:{edge.RoleId:N}:{edge.RelationshipType}",
                     $"role:{account.MasterRoleId:N}",
                     $"role:{edge.RoleId:N}",
-                    edge.RelationshipType)));
+                    RoleRelationships.Normalize(edge.RelationshipType))));
         }
 
         return new RoleGraphResponse(nodes, edges);

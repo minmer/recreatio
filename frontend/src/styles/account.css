@@ -279,6 +279,7 @@
 }
 
 .role-flow-node--recovery,
+.role-flow-node--recovery_plan,
 .role-flow-node--recovery_shared {
   background: rgba(252, 250, 244, 0.95);
   border-color: rgba(35, 43, 55, 0.25);

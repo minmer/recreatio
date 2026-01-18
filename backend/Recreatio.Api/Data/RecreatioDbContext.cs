@@ -17,7 +17,10 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SharedView> SharedViews => Set<SharedView>();
     public DbSet<RoleField> RoleFields => Set<RoleField>();
+    public DbSet<RoleRecoveryPlan> RoleRecoveryPlans => Set<RoleRecoveryPlan>();
+    public DbSet<RoleRecoveryPlanShare> RoleRecoveryPlanShares => Set<RoleRecoveryPlanShare>();
     public DbSet<RoleRecoveryShare> RoleRecoveryShares => Set<RoleRecoveryShare>();
+    public DbSet<RoleRecoveryKey> RoleRecoveryKeys => Set<RoleRecoveryKey>();
     public DbSet<RoleRecoveryRequest> RoleRecoveryRequests => Set<RoleRecoveryRequest>();
     public DbSet<RoleRecoveryApproval> RoleRecoveryApprovals => Set<RoleRecoveryApproval>();
     public DbSet<AuthLedgerEntry> AuthLedger => Set<AuthLedgerEntry>();
@@ -40,6 +43,13 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<RoleRecoveryShare>()
             .HasIndex(x => new { x.TargetRoleId, x.SharedWithRoleId })
+            .IsUnique();
+
+        modelBuilder.Entity<RoleRecoveryPlan>()
+            .HasIndex(x => new { x.TargetRoleId, x.ActivatedUtc });
+
+        modelBuilder.Entity<RoleRecoveryPlanShare>()
+            .HasIndex(x => new { x.PlanId, x.SharedWithRoleId })
             .IsUnique();
 
         modelBuilder.Entity<RoleRecoveryApproval>()

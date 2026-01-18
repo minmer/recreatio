@@ -13,6 +13,8 @@ type RoleGraphPanelState = {
   selectedRoleId: string | null;
   selectedRoleCanWrite: boolean;
   selectedRoleCanLink: boolean;
+  selectedRecoveryPlanId: string | null;
+  selectedRecoveryCanLink: boolean;
   selectedDataOwner: Node<RoleNodeData> | null;
   createOwnerId: string | null;
   pendingShares: PendingRoleShareResponse[];
@@ -52,6 +54,8 @@ type RoleGraphPanelHandlers = {
   onCreateRole: (event: FormEvent) => void;
   onAddField: (event: FormEvent) => void;
   onShareRole: (event: FormEvent) => void;
+  onPrepareRecovery: (roleId: string) => void;
+  onActivateRecovery: (planId: string) => void;
   onLoadPendingShares: () => void;
   onAcceptShare: (shareId: string) => void;
   onLoadParents: () => void;
@@ -78,6 +82,8 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
     selectedRoleId,
     selectedRoleCanWrite,
     selectedRoleCanLink,
+    selectedRecoveryPlanId,
+    selectedRecoveryCanLink,
     selectedDataOwner,
     createOwnerId,
     pendingShares,
@@ -248,7 +254,21 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
               </button>
             </form>
           )}
+          {selectedRoleId && selectedRoleCanLink && (
+            <button type="button" className="chip" onClick={() => handlers.onPrepareRecovery(selectedRoleId)}>
+              {copy.account.roles.recoveryPrepareAction}
+            </button>
+          )}
         </>
+      )}
+      {selectedRecoveryPlanId && selectedRecoveryCanLink && (
+        <div className="role-panel-block">
+          <strong>{copy.account.roles.recoveryPlanTitle}</strong>
+          <span className="hint">{copy.account.roles.recoveryPlanHint}</span>
+          <button type="button" className="chip" onClick={() => handlers.onActivateRecovery(selectedRecoveryPlanId)}>
+            {copy.account.roles.recoveryActivateAction}
+          </button>
+        </div>
       )}
       {selectedRoleId && (
         <div className="role-panel-block">

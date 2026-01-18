@@ -16,7 +16,10 @@ END
 
 IF OBJECT_ID(N'dbo.RoleRecoveryApprovals', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryApprovals;
 IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryRequests;
+IF OBJECT_ID(N'dbo.RoleRecoveryKeys', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryKeys;
 IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
+IF OBJECT_ID(N'dbo.RoleRecoveryPlanShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlanShares;
+IF OBJECT_ID(N'dbo.RoleRecoveryPlans', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlans;
 IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
@@ -223,6 +226,35 @@ GO
 CREATE UNIQUE INDEX UX_RoleFields_Role_FieldType ON dbo.RoleFields(RoleId, FieldType);
 GO
 
+CREATE TABLE dbo.RoleRecoveryPlans
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedByRoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    ActivatedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_RoleRecoveryPlans_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_RoleRecoveryPlans_CreatedByRole FOREIGN KEY (CreatedByRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_RoleRecoveryPlans_Target_Activated ON dbo.RoleRecoveryPlans(TargetRoleId, ActivatedUtc);
+GO
+
+CREATE TABLE dbo.RoleRecoveryPlanShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    PlanId UNIQUEIDENTIFIER NOT NULL,
+    SharedWithRoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_RoleRecoveryPlanShares_Plan FOREIGN KEY (PlanId) REFERENCES dbo.RoleRecoveryPlans(Id),
+    CONSTRAINT FK_RoleRecoveryPlanShares_SharedWithRole FOREIGN KEY (SharedWithRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_RoleRecoveryPlanShares_Plan_SharedWith ON dbo.RoleRecoveryPlanShares(PlanId, SharedWithRoleId);
+GO
+
 CREATE TABLE dbo.RoleRecoveryShares
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -237,6 +269,17 @@ CREATE TABLE dbo.RoleRecoveryShares
 GO
 
 CREATE UNIQUE INDEX UX_RoleRecoveryShares_Target_SharedWith ON dbo.RoleRecoveryShares(TargetRoleId, SharedWithRoleId);
+GO
+
+CREATE TABLE dbo.RoleRecoveryKeys
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedServerShare VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    RevokedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_RoleRecoveryKeys_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id)
+);
 GO
 
 CREATE TABLE dbo.RoleRecoveryRequests
