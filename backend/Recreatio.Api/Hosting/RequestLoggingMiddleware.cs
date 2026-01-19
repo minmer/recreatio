@@ -21,7 +21,7 @@ public sealed class RequestLoggingMiddleware
             || path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
 
         string? requestBody = null;
-        if (captureBody && context.Request.ContentLength is > 0)
+        if (captureBody && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))
         {
             context.Request.EnableBuffering();
             using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true))

@@ -33,10 +33,20 @@ public static class RoleEndpoints
             CancellationToken ct) =>
         {
             var logger = loggerFactory.CreateLogger("RoleEndpoints");
+            var requestSnapshot = JsonSerializer.Serialize(new
+            {
+                request.ChildRoleId,
+                request.RelationshipType
+            });
             IResult Forbidden(string message)
             {
-                logger.LogWarning("Create edge forbidden: {Message} Parent {ParentRoleId}, child {ChildRoleId}.", message, parentRoleId, request.ChildRoleId);
+                logger.LogWarning("Create edge forbidden: {Message} Parent {ParentRoleId}, Request {Request}.", message, parentRoleId, requestSnapshot);
                 return Results.Json(new { error = message }, statusCode: StatusCodes.Status403Forbidden);
+            }
+            IResult BadRequest(string message)
+            {
+                logger.LogWarning("Create edge bad request: {Message} Parent {ParentRoleId}, Request {Request}.", message, parentRoleId, requestSnapshot);
+                return Results.BadRequest(new { error = message });
             }
 
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
@@ -51,26 +61,23 @@ public static class RoleEndpoints
 
             if (request.ChildRoleId == Guid.Empty)
             {
-                logger.LogWarning("Create edge failed: empty child role. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
-                return Results.BadRequest(new { error = "ChildRoleId is required." });
+                return BadRequest("ChildRoleId is required.");
             }
 
             var relationshipType = request.RelationshipType?.Trim();
             if (string.IsNullOrWhiteSpace(relationshipType))
             {
-                logger.LogWarning("Create edge failed: missing relationship type. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
-                return Results.BadRequest(new { error = "RelationshipType is required." });
+                return BadRequest("RelationshipType is required.");
             }
             if (!RoleRelationships.IsAllowed(relationshipType))
             {
-                logger.LogWarning("Create edge failed: invalid relationship type {RelationshipType}. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", relationshipType, parentRoleId, request.ChildRoleId, userId);
-                return Results.BadRequest(new { error = "RelationshipType is invalid." });
+                return BadRequest("RelationshipType is invalid.");
             }
             relationshipType = NormalizeRelationshipType(relationshipType);
 
             if (await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == parentRoleId && x.ChildRoleId == request.ChildRoleId, ct))
             {
-                logger.LogWarning("Create edge failed: edge already exists. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
+                logger.LogWarning("Create edge failed: edge already exists. Parent {ParentRoleId}, Request {Request}.", parentRoleId, requestSnapshot);
                 return Results.Conflict(new { error = "Role edge already exists." });
             }
 
