@@ -126,13 +126,13 @@ public static class AccountShareEndpoints
                     });
                 }
 
-                var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
+                var directSigningContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
                 await ledgerService.AppendKeyAsync(
                     "RoleShareGranted",
                     userId.ToString(),
                     JsonSerializer.Serialize(new { roleId, targetRoleId = request.TargetRoleId, relationshipType, signature = request.SignatureBase64 }),
                     ct,
-                    signingContext);
+                    directSigningContext);
 
                 await dbContext.SaveChangesAsync(ct);
                 return Results.Ok();
