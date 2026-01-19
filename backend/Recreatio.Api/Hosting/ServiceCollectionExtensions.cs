@@ -16,6 +16,10 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddRecreatioApi(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
         services.AddEndpointsApiExplorer();
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new GuidJsonConverterFactory());
+        });
         services.AddSwaggerGen();
 
         services.Configure<CryptoOptions>(configuration.GetSection("Crypto"));
