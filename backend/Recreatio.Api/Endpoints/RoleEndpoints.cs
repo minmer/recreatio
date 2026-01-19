@@ -22,8 +22,8 @@ public static class RoleEndpoints
 
         group.MapPost("/{parentRoleId:guid}/edges", async (
             Guid parentRoleId,
-            CreateRoleEdgeRequest request,
             HttpContext context,
+            HttpRequest httpRequest,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
@@ -33,6 +33,26 @@ public static class RoleEndpoints
             CancellationToken ct) =>
         {
             var logger = loggerFactory.CreateLogger("RoleEndpoints");
+            CreateRoleEdgeRequest? request = null;
+            try
+            {
+                request = await JsonSerializer.DeserializeAsync<CreateRoleEdgeRequest>(
+                    httpRequest.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+                    ct);
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex, "Create edge failed: invalid JSON payload. Parent {ParentRoleId}.", parentRoleId);
+                return Results.BadRequest(new { error = "Invalid JSON payload." });
+            }
+
+            if (request is null)
+            {
+                logger.LogWarning("Create edge failed: empty payload. Parent {ParentRoleId}.", parentRoleId);
+                return Results.BadRequest(new { error = "Request body is required." });
+            }
+
             var requestSnapshot = JsonSerializer.Serialize(new
             {
                 request.ChildRoleId,
