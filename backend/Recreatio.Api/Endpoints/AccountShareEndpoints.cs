@@ -140,8 +140,9 @@ public static class AccountShareEndpoints
             return Results.Ok();
         });
 
-        group.MapGet("/shares", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILogger<AccountShareEndpoints> logger, CancellationToken ct) =>
+        group.MapGet("/shares", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("AccountShareEndpoints");
             try
             {
                 if (!EndpointHelpers.TryGetUserId(context, out var userId))

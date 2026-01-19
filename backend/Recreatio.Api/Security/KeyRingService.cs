@@ -16,6 +16,8 @@ public interface IKeyRingService
     byte[] EncryptDataKey(byte[] readKey, byte[] dataKey, Guid dataKeyId);
     byte[] EncryptFieldValue(byte[] dataKey, string value, Guid roleId, string fieldType);
     string? TryDecryptFieldValue(byte[] dataKey, byte[] encryptedValue, Guid roleId, string fieldType);
+    byte[] EncryptDataItemValue(byte[] dataKey, string value, Guid dataItemId, string itemName);
+    string? TryDecryptDataItemValue(byte[] dataKey, byte[] encryptedValue, Guid dataItemId, string itemName);
 }
 
 public sealed class KeyRingService : IKeyRingService

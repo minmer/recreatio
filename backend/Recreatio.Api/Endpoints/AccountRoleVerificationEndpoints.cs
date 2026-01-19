@@ -16,9 +16,10 @@ public static class AccountRoleVerificationEndpoints
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             ILedgerVerificationService ledgerVerificationService,
-            ILogger<AccountRoleVerificationEndpoints> logger,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("AccountRoleVerificationEndpoints");
             try
             {
                 if (!EndpointHelpers.TryGetUserId(context, out var userId))

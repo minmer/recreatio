@@ -420,9 +420,10 @@ public static class AccountDataEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
-            ILogger<AccountDataEndpoints> logger,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("AccountDataEndpoints");
             try
             {
                 if (!EndpointHelpers.TryGetUserId(context, out var userId))

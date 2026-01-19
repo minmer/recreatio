@@ -29,9 +29,10 @@ public static class RoleEndpoints
             IEncryptionService encryptionService,
             ILedgerService ledgerService,
             ISessionSecretCache sessionSecretCache,
-            ILogger<RoleEndpoints> logger,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("RoleEndpoints");
             IResult Forbidden(string message)
             {
                 logger.LogWarning("Create edge forbidden: {Message} Parent {ParentRoleId}, child {ChildRoleId}.", message, parentRoleId, request.ChildRoleId);
