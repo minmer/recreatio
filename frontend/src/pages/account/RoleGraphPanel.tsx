@@ -8,6 +8,7 @@ import type { ActionStatus, PendingLink, RoleEdgeData, RoleNodeData } from './ro
 type RoleGraphPanelState = {
   selectedNode: Node<RoleNodeData> | null;
   selectedEdge: Edge<RoleEdgeData> | null;
+  selectedEdgeCanDelete: boolean;
   pendingLink: PendingLink | null;
   actionStatus: ActionStatus;
   selectedRoleId: string | null;
@@ -71,6 +72,7 @@ type RoleGraphPanelHandlers = {
   onAcceptDataShare: (shareId: string) => void;
   onLoadParents: () => void;
   onDeleteParent: (parentRoleId: string) => void;
+  onDeleteEdge: () => void;
   onVerifyRole: () => void;
   onUpdateField: (event: FormEvent) => void;
   onDeleteField: () => void;
@@ -88,6 +90,7 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
   const {
     selectedNode,
     selectedEdge,
+    selectedEdgeCanDelete,
     pendingLink,
     actionStatus,
     selectedRoleId,
@@ -140,6 +143,11 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
           <span className="hint">
             {selectedEdge.source} {'->'} {selectedEdge.target}
           </span>
+          {selectedEdgeCanDelete && (
+            <button type="button" className="ghost" onClick={handlers.onDeleteEdge}>
+              {copy.account.roles.edgeDeleteAction}
+            </button>
+          )}
         </div>
       )}
       {pendingLink && (

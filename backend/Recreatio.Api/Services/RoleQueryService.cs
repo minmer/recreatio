@@ -251,7 +251,7 @@ public sealed class RoleQueryService : IRoleQueryService
                     {
                         continue;
                     }
-                    var permission = RoleRelationships.Normalize(grant.PermissionType);
+                    var permission = ResolveVisiblePermission(grant.RoleId, grant.PermissionType, keyRing);
                     edges.Add(new RoleGraphEdge(
                         $"{grant.RoleId:N}:{item.Id:N}:{permission}",
                         $"role:{grant.RoleId:N}",
@@ -302,22 +302,38 @@ public sealed class RoleQueryService : IRoleQueryService
         edges.AddRange(roleEdges
             .Where(edge => roleIdSet.Contains(edge.ParentRoleId) && roleIdSet.Contains(edge.ChildRoleId))
             .Select(edge => new RoleGraphEdge(
-                $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{edge.RelationshipType}",
+                $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{ResolveVisiblePermission(edge.ParentRoleId, edge.RelationshipType, keyRing)}",
                 $"role:{edge.ParentRoleId:N}",
                 $"role:{edge.ChildRoleId:N}",
-                RoleRelationships.Normalize(edge.RelationshipType))));
+                ResolveVisiblePermission(edge.ParentRoleId, edge.RelationshipType, keyRing))));
 
         if (account is not null)
         {
             edges.AddRange(membershipEdges
                 .Where(edge => roleIdSet.Contains(edge.RoleId))
                 .Select(edge => new RoleGraphEdge(
-                    $"{account.MasterRoleId:N}:{edge.RoleId:N}:{edge.RelationshipType}",
+                    $"{account.MasterRoleId:N}:{edge.RoleId:N}:{ResolveVisiblePermission(account.MasterRoleId, edge.RelationshipType, keyRing)}",
                     $"role:{account.MasterRoleId:N}",
                     $"role:{edge.RoleId:N}",
-                    RoleRelationships.Normalize(edge.RelationshipType))));
+                    ResolveVisiblePermission(account.MasterRoleId, edge.RelationshipType, keyRing))));
         }
 
         return new RoleGraphResponse(nodes, edges);
+    }
+
+    private static string ResolveVisiblePermission(Guid roleId, string relationshipType, RoleKeyRing keyRing)
+    {
+        var normalized = RoleRelationships.Normalize(relationshipType);
+        if (normalized == RoleRelationships.Read)
+        {
+            return normalized;
+        }
+
+        if (keyRing.TryGetWriteKey(roleId, out _))
+        {
+            return normalized;
+        }
+
+        return RoleRelationships.Read;
     }
 }

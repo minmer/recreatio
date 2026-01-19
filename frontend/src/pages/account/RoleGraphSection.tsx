@@ -540,6 +540,9 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const selectedRoleNode = selectedRoleId
     ? nodes.find((node) => node.id === `role:${selectedRoleId.replace(/-/g, '')}`) ?? null
     : null;
+  const selectedEdgeTargetNode = selectedEdge ? nodes.find((node) => node.id === selectedEdge.target) ?? null : null;
+  const selectedEdgeSourceNode = selectedEdge ? nodes.find((node) => node.id === selectedEdge.source) ?? null : null;
+  const selectedEdgeCanDelete = Boolean(selectedEdgeTargetNode?.data.canLink || selectedEdgeSourceNode?.data.canLink);
   const selectedRoleCanWrite = selectedNode?.data.nodeType === 'data' || selectedNode?.data.nodeType === 'key'
     ? Boolean(selectedNode.data.canWrite)
     : selectedRoleNode?.data.canWrite ?? false;
@@ -1160,6 +1163,23 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
+  const handleDeleteEdge = async () => {
+    if (!selectedEdge) {
+      return;
+    }
+    const parentRoleId = stripRoleId(selectedEdge.source);
+    const childRoleId = stripRoleId(selectedEdge.target);
+    setActionStatus({ type: 'working', message: copy.account.roles.edgeDeleteWorking });
+    try {
+      await issueCsrf();
+      await deleteRoleParent(childRoleId, parentRoleId);
+      setEdges((prev) => prev.filter((edge) => edge.id !== selectedEdge.id));
+      setActionStatus({ type: 'success', message: copy.account.roles.edgeDeleteSuccess });
+    } catch (error) {
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.edgeDeleteError) });
+    }
+  };
+
   const handleContextAddRole = () => {
     const trimmed = contextRoleId.trim();
     if (!trimmed) {
@@ -1366,16 +1386,17 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           state={{
             selectedNode,
             selectedEdge,
+            selectedEdgeCanDelete,
             pendingLink,
             actionStatus,
             selectedRoleId,
             selectedRoleCanWrite,
             selectedRoleCanLink,
-          selectedRecoveryPlanId,
-          selectedRecoveryCanLink,
-          selectedRecoveryHasShares,
-          selectedRecoveryNeedsShares,
-          selectedDataOwner,
+            selectedRecoveryPlanId,
+            selectedRecoveryCanLink,
+            selectedRecoveryHasShares,
+            selectedRecoveryNeedsShares,
+            selectedDataOwner,
             createOwnerId,
             pendingShares,
             pendingState,
@@ -1429,6 +1450,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             onAcceptDataShare: handleAcceptDataShare,
             onLoadParents: handleLoadParents,
             onDeleteParent: handleDeleteParent,
+            onDeleteEdge: handleDeleteEdge,
             onVerifyRole: handleVerifyRole,
             onUpdateField: handleUpdateField,
             onDeleteField: handleDeleteField

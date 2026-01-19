@@ -137,6 +137,10 @@ export type Copy = {
       panelEmpty: string;
       legendTitle: string;
       edgeTitle: string;
+      edgeDeleteAction: string;
+      edgeDeleteWorking: string;
+      edgeDeleteSuccess: string;
+      edgeDeleteError: string;
       linkDraftTitle: string;
       linkDraftHint: string;
       linkWorking: string;
