@@ -6,6 +6,7 @@ public static class AccountRoleManagementEndpoints
     {
         group.MapAccountRoleCreationEndpoints();
         group.MapAccountRoleFieldEndpoints();
+        group.MapAccountDataEndpoints();
         group.MapAccountRoleAccessEndpoints();
         group.MapAccountRoleParentEndpoints();
         group.MapAccountRoleVerificationEndpoints();

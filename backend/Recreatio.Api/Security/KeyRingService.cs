@@ -266,4 +266,24 @@ public sealed class KeyRingService : IKeyRingService
             return null;
         }
     }
+
+    public byte[] EncryptDataItemValue(byte[] dataKey, string value, Guid dataItemId, string itemName)
+    {
+        var aad = Utf8.GetBytes($"{dataItemId:D}:{itemName}");
+        return _encryptionService.Encrypt(dataKey, Utf8.GetBytes(value), aad);
+    }
+
+    public string? TryDecryptDataItemValue(byte[] dataKey, byte[] encryptedValue, Guid dataItemId, string itemName)
+    {
+        var aad = Utf8.GetBytes($"{dataItemId:D}:{itemName}");
+        try
+        {
+            var plaintext = _encryptionService.Decrypt(dataKey, encryptedValue, aad);
+            return Utf8.GetString(plaintext);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
 }

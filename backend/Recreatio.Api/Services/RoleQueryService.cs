@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
+using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Domain;
 using Recreatio.Api.Security;
@@ -18,15 +19,18 @@ public sealed class RoleQueryService : IRoleQueryService
     private readonly RecreatioDbContext _dbContext;
     private readonly IRoleFieldQueryService _fieldQueryService;
     private readonly IRoleFieldValueService _fieldValueService;
+    private readonly IEncryptionService _encryptionService;
 
     public RoleQueryService(
         RecreatioDbContext dbContext,
         IRoleFieldQueryService fieldQueryService,
-        IRoleFieldValueService fieldValueService)
+        IRoleFieldValueService fieldValueService,
+        IEncryptionService encryptionService)
     {
         _dbContext = dbContext;
         _fieldQueryService = fieldQueryService;
         _fieldValueService = fieldValueService;
+        _encryptionService = encryptionService;
     }
 
     public async Task<IReadOnlyList<RoleSearchResponse>> SearchAsync(string query, RoleKeyRing keyRing, CancellationToken ct)
@@ -178,36 +182,83 @@ public sealed class RoleQueryService : IRoleQueryService
 
         var edges = new List<RoleGraphEdge>();
 
-        foreach (var field in fields)
+        var dataGrants = await _dbContext.DataKeyGrants.AsNoTracking()
+            .Where(grant => roleIdSet.Contains(grant.RoleId) && grant.RevokedUtc == null)
+            .ToListAsync(ct);
+
+        if (dataGrants.Count > 0)
         {
-            if (RoleFieldTypes.IsSystemField(field.FieldType))
+            var dataItemIds = dataGrants.Select(grant => grant.DataItemId).Distinct().ToList();
+            var dataItems = await _dbContext.DataItems.AsNoTracking()
+                .Where(item => dataItemIds.Contains(item.Id))
+                .ToListAsync(ct);
+
+            var grantsByItem = dataGrants.GroupBy(grant => grant.DataItemId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            static byte[] BuildDataItemAad(Guid dataItemId, string itemName)
             {
-                continue;
+                return System.Text.Encoding.UTF8.GetBytes($"{dataItemId:D}:{itemName}");
             }
 
-            valuesByRole.TryGetValue(field.RoleId, out var fieldValues);
-            string? value = null;
-            if (fieldValues is not null && fieldValues.TryGetValue(field.FieldType, out var resolved))
+            foreach (var item in dataItems)
             {
-                value = resolved;
+                var itemGrants = grantsByItem.TryGetValue(item.Id, out var list) ? list : new List<DataKeyGrant>();
+                var canOwner = itemGrants.Any(grant => grant.PermissionType == RoleRelationships.Owner);
+                var canWrite = itemGrants.Any(grant => RoleRelationships.AllowsWrite(grant.PermissionType));
+
+                string? value = null;
+                if (item.EncryptedValue is not null)
+                {
+                    foreach (var grant in itemGrants)
+                    {
+                        if (!keyRing.TryGetReadKey(grant.RoleId, out var readKey))
+                        {
+                            continue;
+                        }
+                        try
+                        {
+                            var dataKey = _encryptionService.Decrypt(readKey, grant.EncryptedDataKeyBlob, item.Id.ToByteArray());
+                            var aad = BuildDataItemAad(item.Id, item.ItemName);
+                            var plaintext = _encryptionService.Decrypt(dataKey, item.EncryptedValue, aad);
+                            value = System.Text.Encoding.UTF8.GetString(plaintext);
+                            break;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                var nodeType = item.ItemType == "key" || item.EncryptedValue is null ? "key" : "data";
+                var dataNodeId = $"{nodeType}:{item.Id:N}";
+                nodes.Add(new RoleGraphNode(
+                    dataNodeId,
+                    item.ItemName,
+                    nodeType,
+                    item.ItemType,
+                    value,
+                    item.OwnerRoleId,
+                    item.ItemName,
+                    item.Id,
+                    canOwner,
+                    canWrite));
+
+                foreach (var grant in itemGrants)
+                {
+                    if (!roleIdSet.Contains(grant.RoleId))
+                    {
+                        continue;
+                    }
+                    var permission = RoleRelationships.Normalize(grant.PermissionType);
+                    edges.Add(new RoleGraphEdge(
+                        $"{grant.RoleId:N}:{item.Id:N}:{permission}",
+                        $"role:{grant.RoleId:N}",
+                        dataNodeId,
+                        permission));
+                }
             }
-            var dataNodeId = $"data:{field.Id:N}";
-            nodes.Add(new RoleGraphNode(
-                dataNodeId,
-                field.FieldType,
-                "data",
-                field.FieldType,
-                value,
-                field.RoleId,
-                field.FieldType,
-                field.DataKeyId,
-                false,
-                false));
-            edges.Add(new RoleGraphEdge(
-                $"{field.RoleId:N}:{field.Id:N}:data",
-                $"role:{field.RoleId:N}",
-                dataNodeId,
-                "Data"));
         }
 
         var recoveryPlans = await _dbContext.RoleRecoveryPlans.AsNoTracking()
@@ -234,10 +285,10 @@ public sealed class RoleQueryService : IRoleQueryService
                     ownerRoleIds.Contains(plan.TargetRoleId),
                     false));
                 edges.Add(new RoleGraphEdge(
-                    $"role:{plan.TargetRoleId:N}:{recoveryNodeId}:recovery-owner",
-                    $"role:{plan.TargetRoleId:N}",
+                    $"{recoveryNodeId}:role:{plan.TargetRoleId:N}:Owner",
                     recoveryNodeId,
-                    "RecoveryOwner"));
+                    $"role:{plan.TargetRoleId:N}",
+                    RoleRelationships.Owner));
 
                 foreach (var share in planShares.Where(x => x.PlanId == plan.Id))
                 {
@@ -246,10 +297,10 @@ public sealed class RoleQueryService : IRoleQueryService
                         continue;
                     }
                     edges.Add(new RoleGraphEdge(
-                        $"{recoveryNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
-                        recoveryNodeId,
+                        $"role:{share.SharedWithRoleId:N}:{recoveryNodeId}:Owner",
                         $"role:{share.SharedWithRoleId:N}",
-                        "RecoveryAccess"));
+                        recoveryNodeId,
+                        RoleRelationships.Owner));
                 }
             }
         }
@@ -269,13 +320,13 @@ public sealed class RoleQueryService : IRoleQueryService
                 targetRoleId,
                 null,
                 null,
-                false,
+                ownerRoleIds.Contains(targetRoleId),
                 false));
             edges.Add(new RoleGraphEdge(
-                $"role:{targetRoleId:N}:{recoveryNodeId}:recovery-owner",
-                $"role:{targetRoleId:N}",
+                $"{recoveryNodeId}:role:{targetRoleId:N}:Owner",
                 recoveryNodeId,
-                "RecoveryOwner"));
+                $"role:{targetRoleId:N}",
+                RoleRelationships.Owner));
 
             foreach (var share in recoveryShares.Where(x => x.TargetRoleId == targetRoleId))
             {
@@ -284,10 +335,10 @@ public sealed class RoleQueryService : IRoleQueryService
                     continue;
                 }
                 edges.Add(new RoleGraphEdge(
-                    $"{recoveryNodeId}:role:{share.SharedWithRoleId:N}:recovery-access",
-                    recoveryNodeId,
+                    $"role:{share.SharedWithRoleId:N}:{recoveryNodeId}:Owner",
                     $"role:{share.SharedWithRoleId:N}",
-                    "RecoveryAccess"));
+                    recoveryNodeId,
+                    RoleRelationships.Owner));
             }
         }
 

@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import type { Edge, Node } from 'reactflow';
 import type { Copy } from '../../content/types';
-import type { PendingRoleShareResponse, RoleLedgerVerificationResponse, RoleParentsResponse } from '../../lib/api';
+import type { PendingDataShareResponse, PendingRoleShareResponse, RoleLedgerVerificationResponse, RoleParentsResponse } from '../../lib/api';
 import { RELATION_TYPES } from './roleGraphConfig';
 import type { ActionStatus, PendingLink, RoleEdgeData, RoleNodeData } from './roleGraphTypes';
 
@@ -15,10 +15,14 @@ type RoleGraphPanelState = {
   selectedRoleCanLink: boolean;
   selectedRecoveryPlanId: string | null;
   selectedRecoveryCanLink: boolean;
+  selectedRecoveryHasShares: boolean;
+  selectedRecoveryNeedsShares: boolean;
   selectedDataOwner: Node<RoleNodeData> | null;
   createOwnerId: string | null;
   pendingShares: PendingRoleShareResponse[];
   pendingState: 'idle' | 'working' | 'error';
+  pendingDataShares: PendingDataShareResponse[];
+  pendingDataState: 'idle' | 'working' | 'error';
   parents: RoleParentsResponse | null;
   parentsState: 'idle' | 'working' | 'error';
   verification: RoleLedgerVerificationResponse | null;
@@ -29,22 +33,26 @@ type RoleGraphPanelState = {
 type RoleGraphPanelFormState = {
   newRoleNick: string;
   newRoleKind: string;
-  newRoleRelation: string;
+  newDataKind: string;
   newFieldType: string;
   newFieldValue: string;
   shareTargetRoleId: string;
   shareRelationType: string;
+  shareDataTargetRoleId: string;
+  shareDataPermission: string;
   dataValue: string;
 };
 
 type RoleGraphPanelFormSetters = {
   setNewRoleNick: (value: string) => void;
   setNewRoleKind: (value: string) => void;
-  setNewRoleRelation: (value: string) => void;
+  setNewDataKind: (value: string) => void;
   setNewFieldType: (value: string) => void;
   setNewFieldValue: (value: string) => void;
   setShareTargetRoleId: (value: string) => void;
   setShareRelationType: (value: string) => void;
+  setShareDataTargetRoleId: (value: string) => void;
+  setShareDataPermission: (value: string) => void;
   setDataValue: (value: string) => void;
 };
 
@@ -54,10 +62,13 @@ type RoleGraphPanelHandlers = {
   onCreateRole: (event: FormEvent) => void;
   onAddField: (event: FormEvent) => void;
   onShareRole: (event: FormEvent) => void;
+  onShareData: (event: FormEvent) => void;
   onPrepareRecovery: (roleId: string) => void;
   onActivateRecovery: (planId: string) => void;
   onLoadPendingShares: () => void;
   onAcceptShare: (shareId: string) => void;
+  onLoadPendingDataShares: () => void;
+  onAcceptDataShare: (shareId: string) => void;
   onLoadParents: () => void;
   onDeleteParent: (parentRoleId: string) => void;
   onVerifyRole: () => void;
@@ -84,10 +95,14 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
     selectedRoleCanLink,
     selectedRecoveryPlanId,
     selectedRecoveryCanLink,
+    selectedRecoveryHasShares,
+    selectedRecoveryNeedsShares,
     selectedDataOwner,
     createOwnerId,
     pendingShares,
     pendingState,
+    pendingDataShares,
+    pendingDataState,
     parents,
     parentsState,
     verification,
@@ -175,19 +190,6 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
                       onChange={(event) => setForm.setNewRoleKind(event.target.value)}
                     />
                   </label>
-                  <label>
-                    {copy.account.roles.createRoleRelationLabel}
-                    <select
-                      value={form.newRoleRelation}
-                      onChange={(event) => setForm.setNewRoleRelation(event.target.value)}
-                    >
-                      {RELATION_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                   <div className="role-panel-actions">
                     <button type="submit" className="chip">
                       {copy.account.roles.createRoleAction}
@@ -200,9 +202,19 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
               )}
             </>
           )}
-          {selectedRoleCanWrite && (
+          {selectedRoleCanLink && (
             <form className="role-panel-form" onSubmit={handlers.onAddField}>
               <strong>{copy.account.roles.dataAddTitle}</strong>
+              <label>
+                {copy.account.roles.dataKindLabel}
+                <select
+                  value={form.newDataKind}
+                  onChange={(event) => setForm.setNewDataKind(event.target.value)}
+                >
+                  <option value="data">{copy.account.roles.dataKindData}</option>
+                  <option value="key">{copy.account.roles.dataKindKey}</option>
+                </select>
+              </label>
               <label>
                 {copy.account.roles.dataFieldLabel}
                 <input
@@ -265,9 +277,16 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
         <div className="role-panel-block">
           <strong>{copy.account.roles.recoveryPlanTitle}</strong>
           <span className="hint">{copy.account.roles.recoveryPlanHint}</span>
-          <button type="button" className="chip" onClick={() => handlers.onActivateRecovery(selectedRecoveryPlanId)}>
-            {copy.account.roles.recoveryActivateAction}
-          </button>
+          {selectedRecoveryNeedsShares && <span className="hint">{copy.account.roles.recoveryPlanNeedsShares}</span>}
+          {!selectedRecoveryNeedsShares && (
+            <button
+              type="button"
+              className="chip"
+              onClick={() => handlers.onActivateRecovery(selectedRecoveryPlanId)}
+            >
+              {copy.account.roles.recoveryActivateAction}
+            </button>
+          )}
         </div>
       )}
       {selectedRoleId && (
@@ -298,6 +317,59 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
           )}
         </div>
       )}
+      {selectedNode && (selectedNode.data.nodeType === 'data' || selectedNode.data.nodeType === 'key') && selectedRoleCanLink && (
+        <form className="role-panel-form" onSubmit={handlers.onShareData}>
+          <strong>{copy.account.roles.dataShareTitle}</strong>
+          <label>
+            {copy.account.roles.dataShareTargetLabel}
+            <input
+              type="text"
+              value={form.shareDataTargetRoleId}
+              onChange={(event) => setForm.setShareDataTargetRoleId(event.target.value)}
+            />
+          </label>
+          <label>
+            {copy.account.roles.dataSharePermissionLabel}
+            <select
+              value={form.shareDataPermission}
+              onChange={(event) => setForm.setShareDataPermission(event.target.value)}
+            >
+              {RELATION_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="chip">
+            {copy.account.roles.dataShareAction}
+          </button>
+        </form>
+      )}
+      <div className="role-panel-block">
+        <strong>{copy.account.roles.pendingDataTitle}</strong>
+        <button type="button" className="chip" onClick={handlers.onLoadPendingDataShares}>
+          {copy.account.roles.pendingDataAction}
+        </button>
+        {pendingDataState === 'working' && <span className="hint">{copy.account.roles.pendingDataWorking}</span>}
+        {pendingDataState === 'error' && <div className="status error">{copy.account.roles.pendingDataError}</div>}
+        {pendingDataState === 'idle' && pendingDataShares.length === 0 && (
+          <span className="hint">{copy.account.roles.pendingDataEmpty}</span>
+        )}
+        {pendingDataShares.length > 0 && (
+          <div className="role-panel-list">
+            {pendingDataShares.map((share) => (
+              <div key={share.shareId} className="role-ledger-row">
+                <span className="note">{share.dataItemId}</span>
+                <span className="hint">{share.permissionType}</span>
+                <button type="button" className="chip" onClick={() => handlers.onAcceptDataShare(share.shareId)}>
+                  {copy.account.roles.pendingAccept}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {selectedRoleId && (
         <div className="role-panel-block">
           <strong>{copy.account.roles.parentsTitle}</strong>

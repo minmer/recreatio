@@ -84,18 +84,6 @@ export function RoleGraphControls({
             <span>Read</span>
             <span className="hint">{copy.account.roles.relationRead}</span>
           </div>
-          <div className="role-legend-item">
-            <span>Data</span>
-            <span className="hint">{copy.account.roles.relationData}</span>
-          </div>
-          <div className="role-legend-item">
-            <span>RecoveryOwner</span>
-            <span className="hint">{copy.account.roles.relationRecoveryOwner}</span>
-          </div>
-          <div className="role-legend-item">
-            <span>RecoveryAccess</span>
-            <span className="hint">{copy.account.roles.relationRecoveryAccess}</span>
-          </div>
         </div>
       </div>
     </>

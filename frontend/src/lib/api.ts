@@ -222,6 +222,69 @@ export function deleteRoleField(roleId: string, fieldId: string) {
   });
 }
 
+export type DataItemResponse = {
+  dataItemId: string;
+  itemName: string;
+  itemType: string;
+  plainValue?: string | null;
+};
+
+export function createDataItem(roleId: string, payload: {
+  itemName: string;
+  itemType?: string | null;
+  plainValue?: string | null;
+}) {
+  return request<DataItemResponse>(`/account/roles/${roleId}/data`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateDataItem(dataItemId: string, payload: { plainValue?: string | null }) {
+  return request<DataItemResponse>(`/account/data/${dataItemId}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteDataItem(dataItemId: string) {
+  return request<void>(`/account/data/${dataItemId}`, {
+    method: 'DELETE'
+  });
+}
+
+export function shareDataItem(dataItemId: string, payload: {
+  targetRoleId: string;
+  permissionType: string;
+}) {
+  return request<void>(`/account/data/${dataItemId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export type PendingDataShareResponse = {
+  shareId: string;
+  dataItemId: string;
+  sourceRoleId: string;
+  targetRoleId: string;
+  permissionType: string;
+  createdUtc: string;
+};
+
+export function getPendingDataShares() {
+  return request<PendingDataShareResponse[]>('/account/data/shares', {
+    method: 'GET'
+  });
+}
+
+export function acceptDataShare(shareId: string, payload: { signatureBase64?: string | null }) {
+  return request<void>(`/account/data/shares/${shareId}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export function getRoleAccess(roleId: string) {
   return request<RoleAccessResponse>(`/account/roles/${roleId}/access`, {
     method: 'GET'

@@ -140,46 +140,54 @@ public static class AccountShareEndpoints
             return Results.Ok();
         });
 
-        group.MapGet("/shares", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, CancellationToken ct) =>
+        group.MapGet("/shares", async (HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, ILogger<AccountShareEndpoints> logger, CancellationToken ct) =>
         {
-            if (!EndpointHelpers.TryGetUserId(context, out var userId))
-            {
-                return Results.Unauthorized();
-            }
-
-            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
-            {
-                return Results.Unauthorized();
-            }
-
-            RoleKeyRing keyRing;
             try
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                if (!EndpointHelpers.TryGetUserId(context, out var userId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+                {
+                    return Results.Unauthorized();
+                }
+
+                RoleKeyRing keyRing;
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+
+                var roleIds = keyRing.ReadKeys.Keys.ToList();
+                if (roleIds.Count == 0)
+                {
+                    return Results.Ok(new List<PendingRoleShareResponse>());
+                }
+
+                var shares = await dbContext.PendingRoleShares.AsNoTracking()
+                    .Where(share => roleIds.Contains(share.TargetRoleId) && share.Status == "Pending")
+                    .Select(share => new PendingRoleShareResponse(
+                        share.Id,
+                        share.SourceRoleId,
+                        share.TargetRoleId,
+                        share.RelationshipType,
+                        share.CreatedUtc
+                    ))
+                    .ToListAsync(ct);
+
+                return Results.Ok(shares);
             }
-            catch (InvalidOperationException)
+            catch (Exception ex)
             {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                logger.LogError(ex, "Failed to load pending shares.");
+                return Results.Problem("Failed to load pending shares.");
             }
-
-            var roleIds = keyRing.ReadKeys.Keys.ToList();
-            if (roleIds.Count == 0)
-            {
-                return Results.Ok(new List<PendingRoleShareResponse>());
-            }
-
-            var shares = await dbContext.PendingRoleShares.AsNoTracking()
-                .Where(share => roleIds.Contains(share.TargetRoleId) && share.Status == "Pending")
-                .Select(share => new PendingRoleShareResponse(
-                    share.Id,
-                    share.SourceRoleId,
-                    share.TargetRoleId,
-                    share.RelationshipType,
-                    share.CreatedUtc
-                ))
-                .ToListAsync(ct);
-
-            return Results.Ok(shares);
         });
 
         group.MapPost("/shares/{shareId:guid}/accept", async (Guid shareId, PendingRoleShareAcceptRequest request, HttpContext context, RecreatioDbContext dbContext, IKeyRingService keyRingService, IAsymmetricEncryptionService asymmetricEncryptionService, IEncryptionService encryptionService, IRoleCryptoService roleCryptoService, ILedgerService ledgerService, ISessionSecretCache sessionSecretCache, CancellationToken ct) =>

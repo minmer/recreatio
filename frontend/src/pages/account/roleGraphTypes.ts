@@ -6,6 +6,7 @@ export type RoleNodeData = {
   roleId?: string | null;
   fieldType?: string | null;
   dataKeyId?: string | null;
+  recoveryDraft?: boolean;
   canLink?: boolean;
   canWrite?: boolean;
   incomingTypes: string[];

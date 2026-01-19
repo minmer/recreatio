@@ -1,17 +1,18 @@
 import type { CSSProperties } from 'react';
 import { Handle, Position, getBezierPath, type EdgeProps, type NodeProps } from 'reactflow';
-import { AUX_HANDLE_IN, AUX_HANDLE_OUT, RECOVERY_HANDLE_IN, RECOVERY_HANDLE_OUT, RELATION_TYPES } from './roleGraphConfig';
+import { AUX_HANDLE_IN, AUX_HANDLE_OUT, RELATION_TYPES } from './roleGraphConfig';
 import type { RoleEdgeData, RoleNodeData } from './roleGraphTypes';
 
 export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
-  const isRoleNode = data.nodeType === 'role';
+  const isRoleNode = data.nodeType === 'role' || data.nodeType === 'data' || data.nodeType === 'key';
   const canLink = Boolean(data.canLink);
+  const showHandles = canLink;
   const handleTypes = isRoleNode ? [...RELATION_TYPES] : [];
   const handleCount = isRoleNode ? handleTypes.length : 1;
   const minHeight = isRoleNode ? Math.max(72, (handleCount - 1) * spacing + 48) : 56;
   const secondary = data.nodeType === 'data' ? data.value : data.kind;
-  const handleVisibilityClass = canLink ? '' : 'role-handle--hidden';
+  const handleVisibilityClass = showHandles ? '' : 'role-handle--hidden';
   return (
     <div className={`role-flow-node role-flow-node--${data.nodeType}`} style={{ minHeight }}>
       <Handle
@@ -81,12 +82,12 @@ export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
 export const RecoveryNode = ({ data }: NodeProps<RoleNodeData>) => {
   const canLink = Boolean(data.canLink);
   const secondary = data.nodeType === 'recovery_plan' ? 'Draft' : data.kind;
-  const color = data.typeColors.RecoveryOwner ?? 'var(--ink)';
+  const color = data.typeColors.Owner ?? 'var(--ink)';
   const handleVisibilityClass = canLink ? '' : 'role-handle--hidden';
   return (
     <div className={`role-flow-node role-flow-node--${data.nodeType}`}>
       <Handle
-        id={RECOVERY_HANDLE_IN}
+        id="in-Owner"
         type="target"
         position={Position.Left}
         isConnectableStart={false}
@@ -95,7 +96,7 @@ export const RecoveryNode = ({ data }: NodeProps<RoleNodeData>) => {
         style={{ '--edge-color': color } as CSSProperties}
       />
       <Handle
-        id={RECOVERY_HANDLE_OUT}
+        id="out-Owner"
         type="source"
         position={Position.Right}
         isConnectableStart={canLink}

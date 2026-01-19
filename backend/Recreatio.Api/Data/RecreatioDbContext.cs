@@ -17,6 +17,9 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SharedView> SharedViews => Set<SharedView>();
     public DbSet<RoleField> RoleFields => Set<RoleField>();
+    public DbSet<DataItem> DataItems => Set<DataItem>();
+    public DbSet<DataKeyGrant> DataKeyGrants => Set<DataKeyGrant>();
+    public DbSet<PendingDataShare> PendingDataShares => Set<PendingDataShare>();
     public DbSet<RoleRecoveryPlan> RoleRecoveryPlans => Set<RoleRecoveryPlan>();
     public DbSet<RoleRecoveryPlanShare> RoleRecoveryPlanShares => Set<RoleRecoveryPlanShare>();
     public DbSet<RoleRecoveryShare> RoleRecoveryShares => Set<RoleRecoveryShare>();
@@ -41,6 +44,16 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.RoleId, x.FieldType })
             .IsUnique();
 
+        modelBuilder.Entity<DataItem>()
+            .HasIndex(x => x.OwnerRoleId);
+
+        modelBuilder.Entity<DataKeyGrant>()
+            .HasIndex(x => new { x.DataItemId, x.RoleId })
+            .IsUnique();
+
+        modelBuilder.Entity<DataKeyGrant>()
+            .HasIndex(x => x.RoleId);
+
         modelBuilder.Entity<RoleRecoveryShare>()
             .HasIndex(x => new { x.TargetRoleId, x.SharedWithRoleId })
             .IsUnique();
@@ -57,6 +70,9 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
 
         modelBuilder.Entity<PendingRoleShare>()
+            .HasIndex(x => new { x.TargetRoleId, x.Status });
+
+        modelBuilder.Entity<PendingDataShare>()
             .HasIndex(x => new { x.TargetRoleId, x.Status });
     }
 }

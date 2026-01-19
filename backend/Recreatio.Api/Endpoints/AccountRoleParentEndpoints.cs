@@ -74,6 +74,16 @@ public static class AccountRoleParentEndpoints
                 return Results.NotFound();
             }
 
+            if (edge.RelationshipType == RoleRelationships.Owner && roleId != account.MasterRoleId)
+            {
+                var remainingOwners = await dbContext.RoleEdges.AsNoTracking()
+                    .CountAsync(x => x.ChildRoleId == roleId && x.RelationshipType == RoleRelationships.Owner && x.ParentRoleId != parentRoleId, ct);
+                if (remainingOwners == 0)
+                {
+                    return Results.BadRequest(new { error = "At least one Owner relation is required." });
+                }
+            }
+
             dbContext.RoleEdges.Remove(edge);
             var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
             await ledgerService.AppendKeyAsync(

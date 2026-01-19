@@ -16,7 +16,9 @@ public sealed class RequestLoggingMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? string.Empty;
-        var captureBody = path.StartsWith("/account/roles", StringComparison.OrdinalIgnoreCase);
+        var captureBody = path.StartsWith("/account", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/roles", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
 
         if (!captureBody)
         {

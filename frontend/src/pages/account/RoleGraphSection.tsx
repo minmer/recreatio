@@ -17,8 +17,6 @@ import {
   DEFAULT_RELATION_COLOR,
   RELATION_COLORS,
   RELATION_TYPES,
-  RECOVERY_HANDLE_IN,
-  RECOVERY_HANDLE_OUT,
   buildTypeColors,
   getEdgeHandles
 } from './roleGraphConfig';
@@ -32,19 +30,24 @@ import {
   createRoleEdge,
   getRoleParents,
   getPendingRoleShares,
+  getPendingDataShares,
   acceptRoleShare,
+  acceptDataShare,
   deleteRoleParent,
-  deleteRoleField,
+  deleteDataItem,
   getRoleGraph,
   issueCsrf,
   shareRole,
+  shareDataItem,
   prepareRecoveryPlan,
   addRecoveryPlanShare,
   activateRecoveryPlan,
-  updateRoleField,
+  createDataItem,
+  updateDataItem,
   verifyRoleLedger,
   ApiError,
   type PendingRoleShareResponse,
+  type PendingDataShareResponse,
   type RoleLedgerVerificationResponse,
   type RoleParentsResponse,
   type RoleGraphEdge,
@@ -88,28 +91,43 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const [actionStatus, setActionStatus] = useState<ActionStatus>({ type: 'idle' });
   const [newRoleNick, setNewRoleNick] = useState('');
   const [newRoleKind, setNewRoleKind] = useState('');
-  const [newRoleRelation, setNewRoleRelation] = useState('Owner');
+  const [newDataKind, setNewDataKind] = useState('data');
   const [newFieldType, setNewFieldType] = useState('');
   const [newFieldValue, setNewFieldValue] = useState('');
   const [dataValue, setDataValue] = useState('');
   const [shareTargetRoleId, setShareTargetRoleId] = useState('');
   const [shareRelationType, setShareRelationType] = useState('Read');
+  const [shareDataTargetRoleId, setShareDataTargetRoleId] = useState('');
+  const [shareDataPermission, setShareDataPermission] = useState('Read');
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'canvas' | 'node'; nodeId?: string } | null>(null);
+  const [contextRoleId, setContextRoleId] = useState('');
   const [parents, setParents] = useState<RoleParentsResponse | null>(null);
   const [parentsState, setParentsState] = useState<'idle' | 'working' | 'error'>('idle');
   const [verification, setVerification] = useState<RoleLedgerVerificationResponse | null>(null);
   const [verificationState, setVerificationState] = useState<'idle' | 'working' | 'error'>('idle');
   const [pendingShares, setPendingShares] = useState<PendingRoleShareResponse[]>([]);
   const [pendingState, setPendingState] = useState<'idle' | 'working' | 'error'>('idle');
+  const [pendingDataShares, setPendingDataShares] = useState<PendingDataShareResponse[]>([]);
+  const [pendingDataState, setPendingDataState] = useState<'idle' | 'working' | 'error'>('idle');
+  const [recoveryDrafts, setRecoveryDrafts] = useState<Record<string, { targetRoleId: string; sharedRoleIds: string[] }>>({});
   const nodeTypes = useMemo(
     () => ({
       role: GraphNode,
       data: GraphNode,
+      key: GraphNode,
       recovery: RecoveryNode,
       recovery_plan: RecoveryNode
     }),
     []
   );
   const edgeTypes = useMemo(() => ({ role: RoleEdge }), []);
+
+  const createDraftId = () => {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return `recovery-plan:draft-${crypto.randomUUID()}`;
+    }
+    return `recovery-plan:draft-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  };
 
   useEffect(() => {
     if (!isFullscreen) {
@@ -350,20 +368,13 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     const targetIsRecovery = isRecoveryNode(targetNode);
     if (sourceIsRecovery || targetIsRecovery) {
       if (sourceIsRecovery && targetIsRecovery) return false;
-      const recoveryHandle = sourceIsRecovery ? connection.sourceHandle : connection.targetHandle;
-      const roleHandle = sourceIsRecovery ? connection.targetHandle : connection.sourceHandle;
-      const roleNode = sourceIsRecovery ? targetNode : sourceNode;
-      const recoveryNode = sourceIsRecovery ? sourceNode : targetNode;
+      if (sourceIsRecovery) return false;
+      const roleNode = sourceNode;
+      const recoveryNode = targetNode;
       if (!roleNode.data.canLink || !recoveryNode.data.canLink) {
         return false;
       }
-      if (recoveryHandle !== RECOVERY_HANDLE_IN && recoveryHandle !== RECOVERY_HANDLE_OUT) {
-        return false;
-      }
-      if (roleHandle !== 'out-Owner' && roleHandle !== 'in-Owner') {
-        return false;
-      }
-      return true;
+      return connection.sourceHandle === 'out-Owner' && connection.targetHandle === 'in-Owner';
     }
 
     if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
@@ -392,66 +403,87 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     const sourceIsRecovery = isRecoveryNode(sourceNode);
     const targetIsRecovery = isRecoveryNode(targetNode);
     if (sourceIsRecovery || targetIsRecovery) {
+      const recoveryNode = sourceIsRecovery ? sourceNode : targetNode;
+      const roleNode = sourceIsRecovery ? targetNode : sourceNode;
       const recoveryHandle = sourceIsRecovery ? connection.sourceHandle : connection.targetHandle;
-      const relationType = recoveryHandle === RECOVERY_HANDLE_IN ? 'RecoveryOwner' : 'RecoveryAccess';
-      const recoveryNodeId = sourceIsRecovery ? connection.source : connection.target;
-      const roleNodeId = sourceIsRecovery ? connection.target : connection.source;
-      if (relationType === 'RecoveryOwner') {
-        const edgeId = `${stripRoleId(roleNodeId)}:${stripRoleId(recoveryNodeId)}:${relationType}`;
-        const handles = getEdgeHandles(relationType);
+      const roleHandle = sourceIsRecovery ? connection.targetHandle : connection.sourceHandle;
+      if (recoveryHandle !== 'in-Owner' && recoveryHandle !== 'out-Owner') {
+        return;
+      }
+      if (roleHandle !== 'in-Owner' && roleHandle !== 'out-Owner') {
+        return;
+      }
+      if (recoveryNode.data.nodeType !== 'recovery_plan') {
+        return;
+      }
+      if (recoveryHandle !== 'in-Owner') {
+        return;
+      }
+      if (recoveryNode.data.recoveryDraft) {
+        const edgeId = `${stripRoleId(roleNode.id)}:${stripRoleId(recoveryNode.id)}:Owner`;
         setEdges((prev) =>
           prev.some((edge) => edge.id === edgeId)
             ? prev
             : prev.concat({
                 id: edgeId,
-                source: roleNodeId,
-                target: recoveryNodeId,
-                sourceHandle: handles.sourceHandle,
-                targetHandle: handles.targetHandle,
+                source: roleNode.id,
+                target: recoveryNode.id,
+                sourceHandle: 'out-Owner',
+                targetHandle: 'in-Owner',
                 type: 'role',
                 data: {
-                  relationType,
-                  color: nodes[0]?.data.typeColors?.[relationType] ?? DEFAULT_RELATION_COLOR
+                  relationType: 'Owner',
+                  color: nodes[0]?.data.typeColors?.Owner ?? DEFAULT_RELATION_COLOR
                 }
               })
         );
-        setFilters((prev) => ({ ...prev, [relationType]: prev[relationType] ?? true }));
-        return;
-      }
-
-      if (targetNode.data.nodeType !== 'recovery_plan' && sourceNode.data.nodeType !== 'recovery_plan') {
-        setActionStatus({ type: 'error', message: copy.account.roles.recoveryPlanError });
-        return;
-      }
-
-      const planId = (sourceIsRecovery ? sourceNode.id : targetNode.id).replace('recovery-plan:', '');
-      const targetRoleId = stripRoleId(roleNodeId);
-      setActionStatus({ type: 'working', message: copy.account.roles.recoveryShareWorking });
-      try {
-        await issueCsrf();
-        await addRecoveryPlanShare(planId, { sharedWithRoleId: targetRoleId });
-        const edgeId = `${planId}:${targetRoleId}:${relationType}`;
-        const handles = getEdgeHandles(relationType);
-        setEdges((prev) =>
-          prev.some((edge) => edge.id === edgeId)
-            ? prev
-            : prev.concat({
-                id: edgeId,
-                source: recoveryNodeId,
-                target: roleNodeId,
-                sourceHandle: handles.sourceHandle,
-                targetHandle: handles.targetHandle,
-                type: 'role',
-                data: {
-                  relationType,
-                  color: nodes[0]?.data.typeColors?.[relationType] ?? DEFAULT_RELATION_COLOR
-                }
-              })
-        );
-        setFilters((prev) => ({ ...prev, [relationType]: prev[relationType] ?? true }));
+        setRecoveryDrafts((prev) => {
+          const draft = prev[recoveryNode.id] ?? {
+            targetRoleId: recoveryNode.data.roleId ?? stripRoleId(roleNode.id),
+            sharedRoleIds: []
+          };
+          const sharedRoleId = stripRoleId(roleNode.id);
+          if (draft.sharedRoleIds.includes(sharedRoleId)) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [recoveryNode.id]: {
+              ...draft,
+              sharedRoleIds: draft.sharedRoleIds.concat(sharedRoleId)
+            }
+          };
+        });
+        setFilters((prev) => ({ ...prev, Owner: prev.Owner ?? true }));
         setActionStatus({ type: 'success', message: copy.account.roles.recoveryShareSuccess });
-      } catch (error) {
-        setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryShareError) });
+      } else {
+        setActionStatus({ type: 'working', message: copy.account.roles.recoveryShareWorking });
+        try {
+          await issueCsrf();
+          const planId = recoveryNode.id.replace('recovery-plan:', '');
+          await addRecoveryPlanShare(planId, { sharedWithRoleId: stripRoleId(roleNode.id) });
+          const edgeId = `${stripRoleId(roleNode.id)}:${stripRoleId(recoveryNode.id)}:Owner`;
+          setEdges((prev) =>
+            prev.some((edge) => edge.id === edgeId)
+              ? prev
+              : prev.concat({
+                  id: edgeId,
+                  source: roleNode.id,
+                  target: recoveryNode.id,
+                  sourceHandle: 'out-Owner',
+                  targetHandle: 'in-Owner',
+                  type: 'role',
+                  data: {
+                    relationType: 'Owner',
+                    color: nodes[0]?.data.typeColors?.Owner ?? DEFAULT_RELATION_COLOR
+                  }
+                })
+          );
+          setFilters((prev) => ({ ...prev, Owner: prev.Owner ?? true }));
+          setActionStatus({ type: 'success', message: copy.account.roles.recoveryShareSuccess });
+        } catch (error) {
+          setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryShareError) });
+        }
       }
       return;
     }
@@ -506,15 +538,28 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   const selectedRoleNode = selectedRoleId
     ? nodes.find((node) => node.id === `role:${selectedRoleId.replace(/-/g, '')}`) ?? null
     : null;
-  const selectedRoleCanWrite = selectedRoleNode?.data.canWrite ?? false;
-  const selectedRoleCanLink = selectedRoleNode?.data.canLink ?? false;
+  const selectedRoleCanWrite = selectedNode?.data.nodeType === 'data' || selectedNode?.data.nodeType === 'key'
+    ? Boolean(selectedNode.data.canWrite)
+    : selectedRoleNode?.data.canWrite ?? false;
+  const selectedRoleCanLink = selectedNode?.data.nodeType === 'data' || selectedNode?.data.nodeType === 'key'
+    ? Boolean(selectedNode.data.canLink)
+    : selectedRoleNode?.data.canLink ?? false;
   const selectedRecoveryPlanId =
     selectedNode?.data.nodeType === 'recovery_plan' ? selectedNode.id.replace('recovery-plan:', '') : null;
   const selectedRecoveryCanLink = selectedNode?.data.nodeType?.startsWith('recovery') ? Boolean(selectedNode.data.canLink) : false;
+  const selectedRecoveryHasShares =
+    selectedNode?.data.nodeType === 'recovery_plan'
+      ? edges.some((edge) => edge.target === selectedNode.id && edge.data?.relationType === 'Owner')
+      : false;
+  const selectedRecoveryNeedsShares = selectedNode?.data.nodeType === 'recovery_plan' && !selectedRecoveryHasShares;
+  const selectedRecoveryIsDraft = Boolean(selectedNode?.data.recoveryDraft);
   const selectedDataOwner =
     selectedNode?.data.nodeType === 'data' && selectedNode.data.roleId
       ? nodes.find((node) => node.id === `role:${selectedNode.data.roleId.replace(/-/g, '')}`) ?? null
       : null;
+  const contextNode = contextMenu?.nodeId ? nodes.find((node) => node.id === contextMenu.nodeId) ?? null : null;
+  const contextNodeCanWrite = contextNode?.data.canWrite ?? false;
+  const contextNodeCanLink = contextNode?.data.canLink ?? false;
 
   useEffect(() => {
     if (selectedNode?.data.nodeType === 'data') {
@@ -531,6 +576,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setVerificationState('idle');
     setPendingShares([]);
     setPendingState('idle');
+    setPendingDataShares([]);
+    setPendingDataState('idle');
     setActionStatus({ type: 'idle' });
   }, [createOwnerId, selectedNode, selectedNodeId, selectedNode?.data.nodeType, selectedNode?.data.value]);
 
@@ -544,11 +591,12 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setActionStatus({ type: 'working', message: copy.account.roles.createRoleWorking });
     const parentNodeId = createOwnerId;
     const parentNode = nodes.find((node) => node.id === parentNodeId);
+    const relationType = 'Owner';
     try {
       await issueCsrf();
       const response = await createRole({
         parentRoleId: parentNode?.data.roleId ?? stripRoleId(parentNodeId),
-        relationshipType: newRoleRelation,
+        relationshipType: relationType,
         fields: [
           { fieldType: 'nick', plainValue: newRoleNick.trim() },
           { fieldType: 'role_kind', plainValue: newRoleKind.trim() }
@@ -556,7 +604,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       });
       const newNodeId = `role:${response.roleId.replace(/-/g, '')}`;
       const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
-      const allowsWrite = ['Owner', 'Write'].includes(newRoleRelation);
+      const allowsWrite = true;
       const outgoingCount = edges.filter((edge) => edge.source === parentNodeId).length;
       const position = parentNode
         ? { x: parentNode.position.x + 392, y: parentNode.position.y + outgoingCount * 160 }
@@ -567,9 +615,9 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           if (node.id !== parentNodeId) {
             return node;
           }
-          const nextOutgoing = node.data.outgoingTypes.includes(newRoleRelation)
+          const nextOutgoing = node.data.outgoingTypes.includes(relationType)
             ? node.data.outgoingTypes
-            : [...node.data.outgoingTypes, newRoleRelation];
+            : [...node.data.outgoingTypes, relationType];
           return {
             ...node,
             data: {
@@ -589,9 +637,9 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             roleId: response.roleId,
             fieldType: null,
             dataKeyId: null,
-            canLink: newRoleRelation === 'Owner',
+            canLink: true,
             canWrite: allowsWrite,
-            incomingTypes: [newRoleRelation],
+            incomingTypes: [relationType],
             outgoingTypes: [],
             typeColors
           }
@@ -600,20 +648,20 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
 
       setEdges((prev) =>
         prev.concat({
-          id: `${stripRoleId(parentNodeId)}:${response.roleId.replace(/-/g, '')}:${newRoleRelation}`,
+          id: `${stripRoleId(parentNodeId)}:${response.roleId.replace(/-/g, '')}:${relationType}`,
           source: parentNodeId,
           target: newNodeId,
-          sourceHandle: `out-${newRoleRelation}`,
-          targetHandle: `in-${newRoleRelation}`,
+          sourceHandle: `out-${relationType}`,
+          targetHandle: `in-${relationType}`,
           type: 'role',
           data: {
-            relationType: newRoleRelation,
-            color: typeColors[newRoleRelation] ?? DEFAULT_RELATION_COLOR
+            relationType: relationType,
+            color: typeColors[relationType] ?? DEFAULT_RELATION_COLOR
           }
         })
       );
 
-      setFilters((prev) => ({ ...prev, [newRoleRelation]: prev[newRoleRelation] ?? true }));
+      setFilters((prev) => ({ ...prev, [relationType]: prev[relationType] ?? true }));
       setSearchIndex((prev) => prev.concat({ id: newNodeId, label: newRoleNick.trim(), value: newRoleKind.trim() }));
       setSelectedNodeId(newNodeId);
       setNewRoleNick('');
@@ -627,25 +675,32 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
 
   const handleAddField = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedRoleId) return;
-    if (!newFieldType.trim() || !newFieldValue.trim()) {
+    if (!selectedRoleId || !selectedRoleCanLink) return;
+    if (!newFieldType.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataAddError });
+      return;
+    }
+    if (newDataKind === 'data' && !newFieldValue.trim()) {
       setActionStatus({ type: 'error', message: copy.account.roles.dataAddError });
       return;
     }
     setActionStatus({ type: 'working', message: copy.account.roles.dataAddWorking });
     try {
       await issueCsrf();
-      const response = await updateRoleField(selectedRoleId, {
-        fieldType: newFieldType.trim(),
-        plainValue: newFieldValue.trim()
+      const response = await createDataItem(selectedRoleId, {
+        itemName: newFieldType.trim(),
+        itemType: newDataKind,
+        plainValue: newFieldValue.trim() || null
       });
       const roleNodeId = `role:${selectedRoleId.replace(/-/g, '')}`;
-      const dataNodeId = `data:${response.fieldId.replace(/-/g, '')}`;
-      const edgeId = `${selectedRoleId.replace(/-/g, '')}:${response.fieldId.replace(/-/g, '')}:data`;
+      const nodePrefix = response.itemType === 'key' ? 'key' : 'data';
+      const dataNodeId = `${nodePrefix}:${response.dataItemId.replace(/-/g, '')}`;
+      const accessType = 'Owner';
+      const edgeId = `${selectedRoleId.replace(/-/g, '')}:${response.dataItemId.replace(/-/g, '')}:${accessType}`;
       const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
       setNodes((prev) => {
         const roleNode = prev.find((node) => node.id === roleNodeId);
-        const dataCount = prev.filter((node) => node.data.nodeType === 'data' && node.data.roleId === selectedRoleId).length;
+        const dataCount = prev.filter((node) => node.data.nodeType === nodePrefix && node.data.roleId === selectedRoleId).length;
         const position = roleNode
           ? { x: roleNode.position.x + 240, y: roleNode.position.y + dataCount * 90 }
           : { x: 320, y: 220 };
@@ -657,11 +712,11 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
                   ...node,
                   data: {
                     ...node.data,
-                    label: response.fieldType,
-                    kind: response.fieldType,
+                    label: response.itemName,
+                    kind: response.itemType,
                     value: response.plainValue ?? null,
-                    fieldType: response.fieldType,
-                    dataKeyId: response.dataKeyId
+                    fieldType: response.itemName,
+                    dataKeyId: response.dataItemId
                   }
                 }
               : node
@@ -669,18 +724,19 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         }
         return prev.concat({
           id: dataNodeId,
-          type: 'data',
+          type: nodePrefix,
           position,
           data: {
-            label: response.fieldType,
-            kind: response.fieldType,
-            nodeType: 'data',
+            label: response.itemName,
+            kind: response.itemType,
+            nodeType: nodePrefix,
             value: response.plainValue ?? null,
             roleId: selectedRoleId,
-            fieldType: response.fieldType,
-            dataKeyId: response.dataKeyId,
-            canLink: false,
-            incomingTypes: ['Data'],
+            fieldType: response.itemName,
+            dataKeyId: response.dataItemId,
+            canLink: true,
+            canWrite: true,
+            incomingTypes: [accessType],
             outgoingTypes: [],
             typeColors
           }
@@ -691,16 +747,17 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         if (exists) {
           return prev;
         }
+        const handles = getEdgeHandles(accessType);
         return prev.concat({
           id: edgeId,
           source: roleNodeId,
           target: dataNodeId,
-          sourceHandle: AUX_HANDLE_OUT,
-          targetHandle: AUX_HANDLE_IN,
+          sourceHandle: handles.sourceHandle,
+          targetHandle: handles.targetHandle,
           type: 'role',
           data: {
-            relationType: 'Data',
-            color: typeColors.Data ?? DEFAULT_RELATION_COLOR
+            relationType: accessType,
+            color: typeColors[accessType] ?? DEFAULT_RELATION_COLOR
           }
         });
       });
@@ -709,15 +766,16 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         if (exists) {
           return prev.map((entry) =>
             entry.id === dataNodeId
-              ? { ...entry, label: response.fieldType, value: response.plainValue ?? null }
+              ? { ...entry, label: response.itemName, value: response.plainValue ?? null }
               : entry
           );
         }
-        return prev.concat({ id: dataNodeId, label: response.fieldType, value: response.plainValue ?? null });
+        return prev.concat({ id: dataNodeId, label: response.itemName, value: response.plainValue ?? null });
       });
       setSelectedNodeId(dataNodeId);
       setNewFieldType('');
       setNewFieldValue('');
+      setNewDataKind('data');
       setActionStatus({ type: 'success', message: copy.account.roles.dataAddSuccess });
     } catch (error) {
       setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataAddError) });
@@ -726,19 +784,20 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
 
   const handleUpdateField = async (event: FormEvent) => {
     event.preventDefault();
-    if (!selectedRoleId || !selectedNode?.data.fieldType) return;
+    if (!selectedNode || selectedNode.data.nodeType !== 'data') return;
     if (!dataValue.trim()) {
       setActionStatus({ type: 'error', message: copy.account.roles.dataEditError });
       return;
     }
+    const dataItemId = selectedNode.id.replace(/^data:/, '');
     setActionStatus({ type: 'working', message: copy.account.roles.dataEditWorking });
     try {
       await issueCsrf();
-      const response = await updateRoleField(selectedRoleId, {
-        fieldType: selectedNode.data.fieldType,
+      const response = await updateDataItem(dataItemId, {
         plainValue: dataValue.trim()
       });
-      const dataNodeId = `data:${response.fieldId.replace(/-/g, '')}`;
+      const nodePrefix = selectedNode.data.nodeType === 'key' ? 'key' : 'data';
+      const dataNodeId = `${nodePrefix}:${response.dataItemId.replace(/-/g, '')}`;
       setNodes((prev) =>
         prev.map((node) =>
           node.id === dataNodeId
@@ -746,11 +805,11 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
                 ...node,
                 data: {
                   ...node.data,
-                  label: response.fieldType,
-                  kind: response.fieldType,
+                  label: response.itemName,
+                  kind: response.itemType,
                   value: response.plainValue ?? null,
-                  fieldType: response.fieldType,
-                  dataKeyId: response.dataKeyId
+                  fieldType: response.itemName,
+                  dataKeyId: response.dataItemId
                 }
               }
             : node
@@ -758,7 +817,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       );
       setSearchIndex((prev) =>
         prev.map((entry) =>
-          entry.id === dataNodeId ? { ...entry, label: response.fieldType, value: response.plainValue ?? null } : entry
+          entry.id === dataNodeId ? { ...entry, label: response.itemName, value: response.plainValue ?? null } : entry
         )
       );
       setActionStatus({ type: 'success', message: copy.account.roles.dataEditSuccess });
@@ -768,13 +827,13 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   };
 
   const handleDeleteField = async () => {
-    if (!selectedRoleId || !selectedNode || selectedNode.data.nodeType !== 'data') return;
-    const fieldId = selectedNode.id.startsWith('data:') ? selectedNode.id.slice(5) : null;
-    if (!fieldId) return;
+    if (!selectedNode || (selectedNode.data.nodeType !== 'data' && selectedNode.data.nodeType !== 'key')) return;
+    const dataItemId = selectedNode.id.replace(/^data:|^key:/, '');
+    if (!dataItemId) return;
     setActionStatus({ type: 'working', message: copy.account.roles.dataDeleteWorking });
     try {
       await issueCsrf();
-      await deleteRoleField(selectedRoleId, fieldId);
+      await deleteDataItem(dataItemId);
       const dataNodeId = selectedNode.id;
       setNodes((prev) => prev.filter((node) => node.id !== dataNodeId));
       setEdges((prev) => prev.filter((edge) => edge.source !== dataNodeId && edge.target !== dataNodeId));
@@ -807,79 +866,150 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
-  const handlePrepareRecovery = async (roleId: string) => {
-    setActionStatus({ type: 'working', message: copy.account.roles.recoveryPrepareWorking });
+  const handleShareData = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedNode || (selectedNode.data.nodeType !== 'data' && selectedNode.data.nodeType !== 'key')) {
+      return;
+    }
+    if (!shareDataTargetRoleId.trim()) {
+      setActionStatus({ type: 'error', message: copy.account.roles.dataShareError });
+      return;
+    }
+    const dataItemId = selectedNode.id.replace(/^data:|^key:/, '');
+    setActionStatus({ type: 'working', message: copy.account.roles.dataShareWorking });
     try {
       await issueCsrf();
-      const response = await prepareRecoveryPlan(roleId);
-      const roleNodeId = `role:${roleId.replace(/-/g, '')}`;
-      const planNodeId = `recovery-plan:${response.planId}`;
-      const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
-      const roleNode = nodes.find((node) => node.id === roleNodeId);
-      const position = roleNode
-        ? { x: roleNode.position.x + 260, y: roleNode.position.y - 120 }
-        : { x: 320, y: 200 };
-
-      setNodes((prev) =>
-        prev.some((node) => node.id === planNodeId)
-          ? prev
-          : prev.concat({
-              id: planNodeId,
-              type: 'recovery_plan',
-              position,
-              data: {
-                label: copy.account.roles.recoveryPlanLabel,
-                kind: 'RecoveryKey',
-                nodeType: 'recovery_plan',
-                value: null,
-                roleId,
-                fieldType: null,
-                dataKeyId: null,
-                canLink: true,
-                canWrite: false,
-                incomingTypes: ['RecoveryOwner'],
-                outgoingTypes: [],
-                typeColors
-              }
-            })
-      );
-
-      const edgeId = `${roleId.replace(/-/g, '')}:${response.planId}:RecoveryOwner`;
-      const handles = getEdgeHandles('RecoveryOwner');
-      setEdges((prev) =>
-        prev.some((edge) => edge.id === edgeId)
-          ? prev
-          : prev.concat({
-              id: edgeId,
-              source: roleNodeId,
-              target: planNodeId,
-              sourceHandle: handles.sourceHandle,
-              targetHandle: handles.targetHandle,
-              type: 'role',
-              data: {
-                relationType: 'RecoveryOwner',
-                color: typeColors.RecoveryOwner ?? DEFAULT_RELATION_COLOR
-              }
-            })
-      );
-      setFilters((prev) => ({ ...prev, RecoveryOwner: prev.RecoveryOwner ?? true }));
-      setSearchIndex((prev) =>
-        prev.some((entry) => entry.id === planNodeId)
-          ? prev
-          : prev.concat({ id: planNodeId, label: copy.account.roles.recoveryPlanLabel, value: 'Draft' })
-      );
-      setSelectedNodeId(planNodeId);
-      setActionStatus({ type: 'success', message: copy.account.roles.recoveryPrepareSuccess });
+      await shareDataItem(dataItemId, {
+        targetRoleId: stripRoleId(shareDataTargetRoleId.trim()),
+        permissionType: shareDataPermission
+      });
+      setShareDataTargetRoleId('');
+      setActionStatus({ type: 'success', message: copy.account.roles.dataShareSuccess });
     } catch (error) {
-      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryPrepareError) });
+      setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.dataShareError) });
     }
   };
 
+  const handleLoadPendingDataShares = async () => {
+    setPendingDataState('working');
+    try {
+      const response = await getPendingDataShares();
+      setPendingDataShares(response);
+      setPendingDataState('idle');
+    } catch {
+      setPendingDataState('error');
+    }
+  };
+
+  const handleAcceptDataShare = async (shareId: string) => {
+    setPendingDataState('working');
+    try {
+      await issueCsrf();
+      await acceptDataShare(shareId, {});
+      await loadGraph();
+      setPendingDataShares((prev) => prev.filter((share) => share.shareId !== shareId));
+      setPendingDataState('idle');
+    } catch {
+      setPendingDataState('error');
+    }
+  };
+
+  const handlePrepareRecovery = async (roleId: string) => {
+    setActionStatus({ type: 'working', message: copy.account.roles.recoveryPrepareWorking });
+    const roleNodeId = `role:${roleId.replace(/-/g, '')}`;
+    const planNodeId = createDraftId();
+    const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+    const roleNode = nodes.find((node) => node.id === roleNodeId);
+    const position = roleNode
+      ? { x: roleNode.position.x + 260, y: roleNode.position.y - 120 }
+      : { x: 320, y: 200 };
+
+    setNodes((prev) =>
+      prev.concat({
+        id: planNodeId,
+        type: 'recovery_plan',
+        position,
+        data: {
+          label: copy.account.roles.recoveryPlanLabel,
+          kind: 'RecoveryKey',
+          nodeType: 'recovery_plan',
+          value: null,
+          roleId,
+          fieldType: null,
+          dataKeyId: null,
+          recoveryDraft: true,
+          canLink: roleNode?.data.canLink ?? true,
+          canWrite: false,
+          incomingTypes: [],
+          outgoingTypes: ['Owner'],
+          typeColors
+        }
+      })
+    );
+
+    const edgeId = `${planNodeId}:${roleId.replace(/-/g, '')}:Owner`;
+    const handles = getEdgeHandles('Owner');
+    setEdges((prev) =>
+      prev.concat({
+        id: edgeId,
+        source: planNodeId,
+        target: roleNodeId,
+        sourceHandle: handles.sourceHandle,
+        targetHandle: handles.targetHandle,
+        type: 'role',
+        data: {
+          relationType: 'Owner',
+          color: typeColors.Owner ?? DEFAULT_RELATION_COLOR
+        }
+      })
+    );
+    setRecoveryDrafts((prev) => ({
+      ...prev,
+      [planNodeId]: {
+        targetRoleId: roleId,
+        sharedRoleIds: []
+      }
+    }));
+    setFilters((prev) => ({ ...prev, Owner: prev.Owner ?? true }));
+    setSearchIndex((prev) => prev.concat({ id: planNodeId, label: copy.account.roles.recoveryPlanLabel, value: 'Draft' }));
+    setSelectedNodeId(planNodeId);
+    setActionStatus({ type: 'success', message: copy.account.roles.recoveryPrepareSuccess });
+  };
+
   const handleActivateRecovery = async (planId: string) => {
+    if (!selectedNode || selectedNode.data.nodeType !== 'recovery_plan') {
+      return;
+    }
+    if (selectedRecoveryNeedsShares) {
+      setActionStatus({ type: 'error', message: copy.account.roles.recoveryPlanNeedsShares });
+      return;
+    }
     setActionStatus({ type: 'working', message: copy.account.roles.recoveryActivateWorking });
     try {
       await issueCsrf();
-      await activateRecoveryPlan(planId);
+      if (selectedRecoveryIsDraft) {
+        const targetRoleId = selectedNode.data.roleId ?? recoveryDrafts[selectedNode.id]?.targetRoleId;
+        if (!targetRoleId) {
+          setActionStatus({ type: 'error', message: copy.account.roles.recoveryActivateError });
+          return;
+        }
+        const response = await prepareRecoveryPlan(targetRoleId);
+        const incomingOwners = edges
+          .filter((edge) => edge.target === selectedNode.id && edge.data?.relationType === 'Owner')
+          .map((edge) => stripRoleId(edge.source));
+        const uniqueOwners = Array.from(new Set(incomingOwners));
+        for (const ownerId of uniqueOwners) {
+          await addRecoveryPlanShare(response.planId, { sharedWithRoleId: ownerId });
+        }
+        await activateRecoveryPlan(response.planId);
+        setRecoveryDrafts((prev) => {
+          const next = { ...prev };
+          delete next[selectedNode.id];
+          return next;
+        });
+      } else {
+        await activateRecoveryPlan(planId);
+      }
       await loadGraph();
       setActionStatus({ type: 'success', message: copy.account.roles.recoveryActivateSuccess });
     } catch (error) {
@@ -954,6 +1084,23 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     }
   };
 
+  const handleContextAddRole = () => {
+    const trimmed = contextRoleId.trim();
+    if (!trimmed) {
+      return;
+    }
+    const nodeId = `role:${trimmed.replace(/-/g, '')}`;
+    const node = nodes.find((item) => item.id === nodeId);
+    if (!node) {
+      setActionStatus({ type: 'error', message: copy.account.roles.contextAddRoleError });
+      return;
+    }
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+    setContextMenu(null);
+    setContextRoleId('');
+  };
+
   return (
     <section className="account-card" id="roles">
       <h3>{copy.account.sections.roles}</h3>
@@ -1001,6 +1148,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeClick={(_, node) => {
+              setContextMenu(null);
               setSelectedNodeId(node.id);
               setSelectedEdgeId(null);
               if (isCompact) {
@@ -1008,8 +1156,24 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
               }
             }}
             onEdgeClick={(_, edge) => {
+              setContextMenu(null);
               setSelectedEdgeId(edge.id);
               setSelectedNodeId(null);
+              if (isCompact) {
+                setCompactView('panel');
+              }
+            }}
+            onPaneClick={() => setContextMenu(null)}
+            onPaneContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu({ x: event.clientX, y: event.clientY, type: 'canvas' });
+              setContextRoleId('');
+            }}
+            onNodeContextMenu={(event, node) => {
+              event.preventDefault();
+              setContextMenu({ x: event.clientX, y: event.clientY, type: 'node', nodeId: node.id });
+              setSelectedNodeId(node.id);
+              setSelectedEdgeId(null);
               if (isCompact) {
                 setCompactView('panel');
               }
@@ -1028,6 +1192,62 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             <Background gap={24} size={1} color="rgba(40, 48, 56, 0.08)" />
             <Controls showInteractive={false} />
           </ReactFlow>
+          {contextMenu && (
+            <div className="role-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
+              {contextMenu.type === 'canvas' && (
+                <div className="role-context-block">
+                  <strong>{copy.account.roles.contextAddRoleTitle}</strong>
+                  <input
+                    type="text"
+                    placeholder={copy.account.roles.contextAddRolePlaceholder}
+                    value={contextRoleId}
+                    onChange={(event) => setContextRoleId(event.target.value)}
+                  />
+                  <button type="button" className="chip" onClick={handleContextAddRole}>
+                    {copy.account.roles.contextAddRoleAction}
+                  </button>
+                  <button type="button" className="ghost" onClick={() => setContextMenu(null)}>
+                    {copy.account.roles.contextClose}
+                  </button>
+                </div>
+              )}
+              {contextMenu.type === 'node' && contextNode && (
+                <div className="role-context-block">
+                  <strong>{contextNode.data.label}</strong>
+                  {contextNode.data.nodeType === 'role' && contextNodeCanWrite && (
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => {
+                        setContextMenu(null);
+                        setSelectedNodeId(contextNode.id);
+                        if (isCompact) {
+                          setCompactView('panel');
+                        }
+                      }}
+                    >
+                      {copy.account.roles.contextAddData}
+                    </button>
+                  )}
+                  {contextNode.data.nodeType === 'role' && contextNodeCanLink && contextNode.data.roleId && (
+                    <button
+                      type="button"
+                      className="chip"
+                      onClick={() => {
+                        setContextMenu(null);
+                        void handlePrepareRecovery(contextNode.data.roleId);
+                      }}
+                    >
+                      {copy.account.roles.contextPrepareRecovery}
+                    </button>
+                  )}
+                  <button type="button" className="ghost" onClick={() => setContextMenu(null)}>
+                    {copy.account.roles.contextClose}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {loading && <div className="role-loading">{copy.account.roles.loading}</div>}
           {!loading && nodes.length === 0 && <div className="role-loading">{copy.account.roles.noNodes}</div>}
         </div>
@@ -1041,12 +1261,16 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             selectedRoleId,
             selectedRoleCanWrite,
             selectedRoleCanLink,
-            selectedRecoveryPlanId,
-            selectedRecoveryCanLink,
-            selectedDataOwner,
+          selectedRecoveryPlanId,
+          selectedRecoveryCanLink,
+          selectedRecoveryHasShares,
+          selectedRecoveryNeedsShares,
+          selectedDataOwner,
             createOwnerId,
             pendingShares,
             pendingState,
+            pendingDataShares,
+            pendingDataState,
             parents,
             parentsState,
             verification,
@@ -1056,21 +1280,25 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
           form={{
             newRoleNick,
             newRoleKind,
-            newRoleRelation,
+            newDataKind,
             newFieldType,
             newFieldValue,
             shareTargetRoleId,
             shareRelationType,
+            shareDataTargetRoleId,
+            shareDataPermission,
             dataValue
           }}
           setForm={{
             setNewRoleNick,
             setNewRoleKind,
-            setNewRoleRelation,
+            setNewDataKind,
             setNewFieldType,
             setNewFieldValue,
             setShareTargetRoleId,
             setShareRelationType,
+            setShareDataTargetRoleId,
+            setShareDataPermission,
             setDataValue
           }}
           handlers={{
@@ -1082,10 +1310,13 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
             onCreateRole: handleCreateRole,
             onAddField: handleAddField,
             onShareRole: handleShareRole,
+            onShareData: handleShareData,
             onPrepareRecovery: handlePrepareRecovery,
             onActivateRecovery: handleActivateRecovery,
             onLoadPendingShares: handleLoadPendingShares,
             onAcceptShare: handleAcceptShare,
+            onLoadPendingDataShares: handleLoadPendingDataShares,
+            onAcceptDataShare: handleAcceptDataShare,
             onLoadParents: handleLoadParents,
             onDeleteParent: handleDeleteParent,
             onVerifyRole: handleVerifyRole,

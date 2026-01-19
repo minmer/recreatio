@@ -74,6 +74,10 @@ public static class AccountRoleCreationEndpoints
                 return Fail("RelationshipType is invalid.");
             }
             relationshipType = RoleRelationships.Normalize(relationshipType);
+            if (request.ParentRoleId.HasValue && relationshipType != RoleRelationships.Owner)
+            {
+                return Fail("RelationshipType must be Owner for subroles.");
+            }
 
             if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) || !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
             {

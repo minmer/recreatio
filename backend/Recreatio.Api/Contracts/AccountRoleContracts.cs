@@ -30,6 +30,44 @@ public sealed record RoleFieldResponse(
     Guid DataKeyId
 );
 
+public sealed record CreateDataItemRequest(
+    string ItemName,
+    string? PlainValue,
+    string? ItemType,
+    string? SignatureBase64
+);
+
+public sealed record UpdateDataItemRequest(
+    string? PlainValue,
+    string? SignatureBase64
+);
+
+public sealed record DataItemResponse(
+    Guid DataItemId,
+    string ItemName,
+    string ItemType,
+    string? PlainValue
+);
+
+public sealed record DataItemShareRequest(
+    Guid TargetRoleId,
+    string PermissionType,
+    string? SignatureBase64
+);
+
+public sealed record PendingDataShareResponse(
+    Guid ShareId,
+    Guid DataItemId,
+    Guid SourceRoleId,
+    Guid TargetRoleId,
+    string PermissionType,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record PendingDataShareAcceptRequest(
+    string? SignatureBase64
+);
+
 public sealed record RoleResponse(
     Guid RoleId,
     string? PublicSigningKeyBase64,

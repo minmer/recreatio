@@ -32,6 +32,12 @@ public static class RoleEndpoints
             ILogger<RoleEndpoints> logger,
             CancellationToken ct) =>
         {
+            IResult Forbidden(string message)
+            {
+                logger.LogWarning("Create edge forbidden: {Message} Parent {ParentRoleId}, child {ChildRoleId}.", message, parentRoleId, request.ChildRoleId);
+                return Results.Json(new { error = message }, statusCode: StatusCodes.Status403Forbidden);
+            }
+
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
                 return Results.Unauthorized();
@@ -95,14 +101,14 @@ public static class RoleEndpoints
             if (!ownerRoleIds.Contains(parentRoleId))
             {
                 logger.LogWarning("Create edge failed: parent role not owned. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
-                return Results.Forbid();
+                return Forbidden("Parent role is not owned by the user.");
             }
 
             if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) ||
                 !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
             {
                 logger.LogWarning("Create edge failed: parent keys missing. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
-                return Results.Forbid();
+                return Forbidden("Parent role keys not available.");
             }
 
             var parentRole = await dbContext.Roles.AsNoTracking()
@@ -113,10 +119,18 @@ public static class RoleEndpoints
                 return Results.NotFound();
             }
 
+            var childRole = await dbContext.Roles.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == request.ChildRoleId, ct);
+            if (childRole is null)
+            {
+                logger.LogWarning("Create edge failed: child role not found. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
+                return Results.NotFound();
+            }
+
             if (!keyRing.TryGetReadKey(request.ChildRoleId, out var childReadKey))
             {
                 logger.LogWarning("Create edge failed: child read key missing. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
-                return Results.BadRequest(new { error = "Child role key not available." });
+                return Forbidden("Child role key not available.");
             }
 
             byte[]? childWriteKey = null;
@@ -125,7 +139,7 @@ public static class RoleEndpoints
                 if (!keyRing.TryGetWriteKey(request.ChildRoleId, out var resolvedWriteKey))
                 {
                     logger.LogWarning("Create edge failed: child write key missing. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
-                    return Results.BadRequest(new { error = "Child role write key not available." });
+                    return Forbidden("Child role write key not available.");
                 }
                 childWriteKey = resolvedWriteKey;
             }

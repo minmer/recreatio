@@ -21,6 +21,9 @@ IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRec
 IF OBJECT_ID(N'dbo.RoleRecoveryPlanShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlanShares;
 IF OBJECT_ID(N'dbo.RoleRecoveryPlans', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlans;
 IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
+IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
+IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
+IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
 IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
@@ -224,6 +227,72 @@ CREATE TABLE dbo.RoleFields
 GO
 
 CREATE UNIQUE INDEX UX_RoleFields_Role_FieldType ON dbo.RoleFields(RoleId, FieldType);
+GO
+
+CREATE TABLE dbo.DataItems
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+    ItemType NVARCHAR(32) NOT NULL,
+    ItemName NVARCHAR(128) NOT NULL,
+    EncryptedValue VARBINARY(MAX) NULL,
+    PublicSigningKey VARBINARY(MAX) NOT NULL,
+    PublicSigningKeyAlg NVARCHAR(64) NOT NULL,
+    DataSignature VARBINARY(MAX) NULL,
+    DataSignatureAlg NVARCHAR(64) NULL,
+    DataSignatureRoleId UNIQUEIDENTIFIER NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_DataItems_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_DataItems_OwnerRole ON dbo.DataItems(OwnerRoleId);
+GO
+
+CREATE TABLE dbo.DataKeyGrants
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataItemId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    PermissionType NVARCHAR(32) NOT NULL,
+    EncryptedDataKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptedSigningKeyBlob VARBINARY(MAX) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    RevokedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_DataKeyGrants_DataItem FOREIGN KEY (DataItemId) REFERENCES dbo.DataItems(Id),
+    CONSTRAINT FK_DataKeyGrants_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_DataKeyGrants_DataItem_Role ON dbo.DataKeyGrants(DataItemId, RoleId);
+GO
+
+CREATE INDEX IX_DataKeyGrants_Role ON dbo.DataKeyGrants(RoleId);
+GO
+
+CREATE TABLE dbo.PendingDataShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataItemId UNIQUEIDENTIFIER NOT NULL,
+    SourceRoleId UNIQUEIDENTIFIER NOT NULL,
+    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
+    PermissionType NVARCHAR(32) NOT NULL,
+    EncryptedDataKeyBlob VARBINARY(MAX) NOT NULL,
+    EncryptedSigningKeyBlob VARBINARY(MAX) NULL,
+    EncryptionAlg NVARCHAR(64) NOT NULL,
+    Status NVARCHAR(32) NOT NULL,
+    LedgerRefId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    AcceptedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_PendingDataShares_DataItem FOREIGN KEY (DataItemId) REFERENCES dbo.DataItems(Id),
+    CONSTRAINT FK_PendingDataShares_SourceRole FOREIGN KEY (SourceRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_PendingDataShares_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_PendingDataShares_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
+);
+GO
+
+CREATE INDEX IX_PendingDataShares_Target_Status ON dbo.PendingDataShares(TargetRoleId, Status);
 GO
 
 CREATE TABLE dbo.RoleRecoveryPlans
