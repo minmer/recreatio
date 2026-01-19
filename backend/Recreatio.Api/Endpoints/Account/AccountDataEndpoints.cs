@@ -79,6 +79,14 @@ public static class AccountDataEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var itemType = string.IsNullOrWhiteSpace(request.ItemType) ? "data" : request.ItemType.Trim();
+            if (itemType.Equals("key", StringComparison.OrdinalIgnoreCase))
+            {
+                itemType = "key";
+            }
+            else
+            {
+                itemType = "data";
+            }
             var dataItemId = Guid.NewGuid();
             var dataKey = RandomNumberGenerator.GetBytes(32);
 
@@ -89,7 +97,7 @@ public static class AccountDataEndpoints
 
             byte[]? encryptedValue = null;
             byte[]? dataSignature = null;
-            if (!string.IsNullOrWhiteSpace(request.PlainValue))
+            if (itemType == "data" && !string.IsNullOrWhiteSpace(request.PlainValue))
             {
                 encryptedValue = keyRingService.EncryptDataItemValue(dataKey, request.PlainValue.Trim(), dataItemId, itemName);
                 dataSignature = signingService.Sign(privateSigningKey, signatureAlg, encryptedValue);
@@ -135,7 +143,8 @@ public static class AccountDataEndpoints
             });
 
             await dbContext.SaveChangesAsync(ct);
-            return Results.Ok(new DataItemResponse(dataItemId, itemName, itemType, request.PlainValue?.Trim()));
+            var responseValue = itemType == "data" ? request.PlainValue?.Trim() : null;
+            return Results.Ok(new DataItemResponse(dataItemId, itemName, itemType, responseValue));
         });
 
         group.MapPost("/data/{dataItemId:guid}", async (
@@ -180,6 +189,10 @@ public static class AccountDataEndpoints
             if (dataItem is null)
             {
                 return Results.NotFound();
+            }
+            if (dataItem.ItemType.Equals("key", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "Key items do not support values." });
             }
 
             var grants = await dbContext.DataKeyGrants.AsNoTracking()

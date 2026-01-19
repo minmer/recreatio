@@ -217,7 +217,13 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
                 {copy.account.roles.dataKindLabel}
                 <select
                   value={form.newDataKind}
-                  onChange={(event) => setForm.setNewDataKind(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setForm.setNewDataKind(value);
+                    if (value === 'key') {
+                      setForm.setNewFieldValue('');
+                    }
+                  }}
                 >
                   <option value="data">{copy.account.roles.dataKindData}</option>
                   <option value="key">{copy.account.roles.dataKindKey}</option>
@@ -237,6 +243,7 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
                   type="text"
                   value={form.newFieldValue}
                   onChange={(event) => setForm.setNewFieldValue(event.target.value)}
+                  disabled={form.newDataKind === 'key'}
                 />
               </label>
               <button type="submit" className="chip">
