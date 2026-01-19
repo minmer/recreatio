@@ -116,7 +116,7 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
       {selectedNode && (
         <div className="role-panel-block">
           <strong>{selectedNode.data.label}</strong>
-          {selectedNode.data.kind && selectedNode.data.nodeType !== 'data' && (
+          {selectedNode.data.kind && selectedNode.data.nodeType !== 'data' && selectedNode.data.nodeType !== 'external' && (
             <span className="hint">{selectedNode.data.kind}</span>
           )}
           {selectedNode.data.nodeType === 'data' && selectedNode.data.value && (
@@ -378,17 +378,18 @@ export function RoleGraphPanel({ copy, state, form, setForm, handlers }: RoleGra
           </button>
           {parentsState === 'working' && <span className="hint">{copy.account.roles.parentsWorking}</span>}
           {parentsState === 'error' && <div className="status error">{copy.account.roles.parentsError}</div>}
-          {parents && parents.parentRoleIds.length === 0 && <span className="hint">{copy.account.roles.none}</span>}
-          {parents && parents.parentRoleIds.length > 0 && (
+          {parents && parents.parents.length === 0 && <span className="hint">{copy.account.roles.none}</span>}
+          {parents && parents.parents.length > 0 && (
             <div className="role-panel-list">
-              {parents.parentRoleIds.map((parentId) => {
+              {parents.parents.map((parent) => {
+                const parentId = parent.parentRoleId;
                 const roleNodeId = selectedRoleId ? `role:${selectedRoleId.replace(/-/g, '')}` : '';
                 const parentNodeId = `role:${parentId.replace(/-/g, '')}`;
                 const relation = edges.find((edge) => edge.source === parentNodeId && edge.target === roleNodeId);
                 return (
                   <div key={parentId} className="role-ledger-row">
                     <span className="note">{parentId}</span>
-                    {relation?.data?.relationType && <span className="hint">{relation.data.relationType}</span>}
+                    <span className="hint">{relation?.data?.relationType ?? parent.relationshipType}</span>
                     {selectedRoleCanLink && (
                       <button type="button" className="ghost" onClick={() => handlers.onDeleteParent(parentId)}>
                         {copy.account.roles.parentsRemoveAction}

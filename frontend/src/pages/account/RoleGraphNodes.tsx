@@ -5,15 +5,17 @@ import type { RoleEdgeData, RoleNodeData } from './roleGraphTypes';
 
 export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
-  const isRoleNode = data.nodeType === 'role' || data.nodeType === 'data' || data.nodeType === 'key';
+  const isExternal = data.nodeType === 'external';
+  const isRoleNode = data.nodeType === 'role' || data.nodeType === 'data' || data.nodeType === 'key' || isExternal;
   const isDataNode = data.nodeType === 'data' || data.nodeType === 'key';
   const canLink = Boolean(data.canLink);
-  const showHandles = canLink;
+  const showHandles = true;
   const handleTypes = isRoleNode ? [...RELATION_TYPES] : [];
   const handleCount = isRoleNode ? handleTypes.length : 1;
   const minHeight = isRoleNode ? Math.max(72, (handleCount - 1) * spacing + 48) : 56;
-  const secondary = data.nodeType === 'data' ? data.value : data.kind;
+  const secondary = data.nodeType === 'data' ? data.value : isExternal ? null : data.kind;
   const handleVisibilityClass = showHandles ? '' : 'role-handle--hidden';
+  const handleDisabledClass = !canLink && !isExternal ? 'role-handle--disabled' : '';
   return (
     <div className={`role-flow-node role-flow-node--${data.nodeType}`} style={{ minHeight }}>
       <Handle
@@ -34,25 +36,26 @@ export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
         className="role-handle role-handle-aux"
         style={{ '--edge-color': 'transparent' } as CSSProperties}
       />
-      {handleTypes.map((relationType, index) => {
-        const offset = (index - (handleTypes.length - 1) / 2) * spacing;
-        const color = data.typeColors[relationType] ?? 'var(--ink)';
-        return (
-          <Handle
-            key={`in-${relationType}`}
-            id={`in-${relationType}`}
-            type="target"
-            position={Position.Left}
-            isConnectableStart={canLink}
-            isConnectableEnd={canLink}
-            className={`role-handle role-handle-in ${handleVisibilityClass}`}
-            style={{
-              '--edge-color': color,
-              '--port-offset': `${offset}px`
-            } as CSSProperties}
-          />
-        );
-      })}
+      {!isExternal &&
+        handleTypes.map((relationType, index) => {
+          const offset = (index - (handleTypes.length - 1) / 2) * spacing;
+          const color = data.typeColors[relationType] ?? 'var(--ink)';
+          return (
+            <Handle
+              key={`in-${relationType}`}
+              id={`in-${relationType}`}
+              type="target"
+              position={Position.Left}
+              isConnectableStart
+              isConnectableEnd
+              className={`role-handle role-handle-in ${handleVisibilityClass} ${handleDisabledClass}`}
+              style={{
+                '--edge-color': color,
+                '--port-offset': `${offset}px`
+              } as CSSProperties}
+            />
+          );
+        })}
       {!isDataNode &&
         handleTypes.map((relationType, index) => {
           const offset = (index - (handleTypes.length - 1) / 2) * spacing;
@@ -63,9 +66,9 @@ export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
               id={`out-${relationType}`}
               type="source"
               position={Position.Right}
-              isConnectableStart={canLink}
-              isConnectableEnd={canLink}
-              className={`role-handle role-handle-out ${handleVisibilityClass}`}
+              isConnectableStart
+              isConnectableEnd
+              className={`role-handle role-handle-out ${handleVisibilityClass} ${handleDisabledClass}`}
               style={{
                 '--edge-color': color,
                 '--port-offset': `${offset}px`

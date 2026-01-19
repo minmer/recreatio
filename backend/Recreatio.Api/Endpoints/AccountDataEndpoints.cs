@@ -352,11 +352,6 @@ public static class AccountDataEndpoints
                 return Results.NotFound();
             }
 
-            if (targetRole.PublicEncryptionKey is null || string.IsNullOrWhiteSpace(targetRole.PublicEncryptionKeyAlg))
-            {
-                return Results.BadRequest(new { error = "Target role has no encryption key." });
-            }
-
             var grants = await dbContext.DataKeyGrants.AsNoTracking()
                 .Where(x => x.DataItemId == dataItemId && x.RevokedUtc == null)
                 .ToListAsync(ct);
@@ -378,22 +373,66 @@ public static class AccountDataEndpoints
                 ? null
                 : encryptionService.Decrypt(ownerWriteKey, ownerGrant.EncryptedSigningKeyBlob, dataItemId.ToByteArray());
 
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerWriteKey, ct);
+            var normalizedPermission = RoleRelationships.Normalize(request.PermissionType);
+            var needsWrite = RoleRelationships.AllowsWrite(normalizedPermission);
+            if (keyRing.TryGetReadKey(request.TargetRoleId, out var targetReadKey) &&
+                (!needsWrite || keyRing.TryGetWriteKey(request.TargetRoleId, out _)))
+            {
+                if (await dbContext.DataKeyGrants.AsNoTracking()
+                        .AnyAsync(x => x.DataItemId == dataItemId && x.RoleId == request.TargetRoleId && x.RevokedUtc == null, ct))
+                {
+                    return Results.Conflict(new { error = "Data share already exists." });
+                }
+
+                keyRing.TryGetWriteKey(request.TargetRoleId, out var targetWriteKey);
+                var directEncryptedDataKey = encryptionService.Encrypt(targetReadKey, dataKey, dataItemId.ToByteArray());
+                var directEncryptedSigningKey = needsWrite && privateSigningKey is not null
+                    ? encryptionService.Encrypt(targetWriteKey, privateSigningKey, dataItemId.ToByteArray())
+                    : null;
+
+                await ledgerService.AppendKeyAsync(
+                    "DataShareGranted",
+                    userId.ToString(),
+                    JsonSerializer.Serialize(new { dataItemId, roleId = ownerGrant.RoleId, targetRoleId = request.TargetRoleId, permissionType = normalizedPermission, signature = request.SignatureBase64 }),
+                    ct,
+                    signingContext);
+
+                dbContext.DataKeyGrants.Add(new DataKeyGrant
+                {
+                    Id = Guid.NewGuid(),
+                    DataItemId = dataItemId,
+                    RoleId = request.TargetRoleId,
+                    PermissionType = normalizedPermission,
+                    EncryptedDataKeyBlob = directEncryptedDataKey,
+                    EncryptedSigningKeyBlob = directEncryptedSigningKey,
+                    CreatedUtc = DateTimeOffset.UtcNow
+                });
+
+                await dbContext.SaveChangesAsync(ct);
+                return Results.Ok();
+            }
+
+            if (targetRole.PublicEncryptionKey is null || string.IsNullOrWhiteSpace(targetRole.PublicEncryptionKeyAlg))
+            {
+                return Results.BadRequest(new { error = "Target role has no encryption key." });
+            }
+
             var encryptedDataKey = asymmetricEncryptionService.EncryptWithPublicKey(
                 targetRole.PublicEncryptionKey,
                 targetRole.PublicEncryptionKeyAlg,
                 dataKey);
-            var encryptedSigningKey = RoleRelationships.AllowsWrite(request.PermissionType) && privateSigningKey is not null
+            var encryptedSigningKey = needsWrite && privateSigningKey is not null
                 ? asymmetricEncryptionService.EncryptWithPublicKey(
                     targetRole.PublicEncryptionKey,
                     targetRole.PublicEncryptionKeyAlg,
                     privateSigningKey)
                 : null;
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerWriteKey, ct);
             var ledger = await ledgerService.AppendKeyAsync(
                 "DataSharePending",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { dataItemId, roleId = ownerGrant.RoleId, targetRoleId = request.TargetRoleId, permissionType = request.PermissionType, signature = request.SignatureBase64 }),
+                JsonSerializer.Serialize(new { dataItemId, roleId = ownerGrant.RoleId, targetRoleId = request.TargetRoleId, permissionType = normalizedPermission, signature = request.SignatureBase64 }),
                 ct,
                 signingContext);
 
@@ -403,7 +442,7 @@ public static class AccountDataEndpoints
                 DataItemId = dataItemId,
                 SourceRoleId = ownerGrant.RoleId,
                 TargetRoleId = request.TargetRoleId,
-                PermissionType = RoleRelationships.Normalize(request.PermissionType),
+                PermissionType = normalizedPermission,
                 EncryptedDataKeyBlob = encryptedDataKey,
                 EncryptedSigningKeyBlob = encryptedSigningKey,
                 EncryptionAlg = targetRole.PublicEncryptionKeyAlg,

@@ -129,10 +129,9 @@ public static class AccountRoleParentEndpoints
                 return Results.Forbid();
             }
 
-            var parentRoleIds = await dbContext.RoleEdges.AsNoTracking()
+            var parentLinks = await dbContext.RoleEdges.AsNoTracking()
                 .Where(edge => edge.ChildRoleId == roleId)
-                .Select(edge => edge.ParentRoleId)
-                .Distinct()
+                .Select(edge => new RoleParentLinkResponse(edge.ParentRoleId, RoleRelationships.Normalize(edge.RelationshipType)))
                 .ToListAsync(ct);
 
             var account = await dbContext.UserAccounts.AsNoTracking()
@@ -141,13 +140,13 @@ public static class AccountRoleParentEndpoints
             {
                 var isMembership = await dbContext.Memberships.AsNoTracking()
                     .AnyAsync(x => x.UserId == userId && x.RoleId == roleId, ct);
-                if (isMembership && !parentRoleIds.Contains(account.MasterRoleId))
+                if (isMembership && parentLinks.All(link => link.ParentRoleId != account.MasterRoleId))
                 {
-                    parentRoleIds.Add(account.MasterRoleId);
+                    parentLinks.Add(new RoleParentLinkResponse(account.MasterRoleId, RoleRelationships.Owner));
                 }
             }
 
-            return Results.Ok(new RoleParentsResponse(roleId, parentRoleIds));
+            return Results.Ok(new RoleParentsResponse(roleId, parentLinks));
         });
     }
 }

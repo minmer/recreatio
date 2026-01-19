@@ -206,7 +206,10 @@ export type Copy = {
       contextAddRoleTitle: string;
       contextAddRolePlaceholder: string;
       contextAddRoleAction: string;
+      contextAddRoleWorking: string;
+      contextAddRoleSuccess: string;
       contextAddRoleError: string;
+      linkPermissionNeeded: string;
       contextAddData: string;
       contextPrepareRecovery: string;
       contextClose: string;

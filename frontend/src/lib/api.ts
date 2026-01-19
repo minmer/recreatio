@@ -362,13 +362,32 @@ export type RoleGraphResponse = {
   edges: RoleGraphEdge[];
 };
 
+export type RoleLookupResponse = {
+  id: string;
+  label: string;
+  kind: string;
+  nodeType: string;
+  roleId: string;
+  canLink: boolean;
+  canWrite: boolean;
+};
+
 export function getRoleGraph() {
   return request<RoleGraphResponse>('/account/roles/graph', { method: 'GET' });
 }
 
+export function lookupRole(roleId: string) {
+  return request<RoleLookupResponse>(`/account/roles/${roleId}/lookup`, { method: 'GET' });
+}
+
+export type RoleParentLinkResponse = {
+  parentRoleId: string;
+  relationshipType: string;
+};
+
 export type RoleParentsResponse = {
   roleId: string;
-  parentRoleIds: string[];
+  parents: RoleParentLinkResponse[];
 };
 
 export function getRoleParents(roleId: string) {

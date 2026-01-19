@@ -102,6 +102,42 @@ public static class AccountShareEndpoints
 
             var writeKeyToShare = RoleRelationships.AllowsWrite(relationshipType) ? roleWriteKey : null;
 
+            if (keyRing.TryGetReadKey(request.TargetRoleId, out var targetReadKey) &&
+                (!RoleRelationships.AllowsWrite(relationshipType) || keyRing.TryGetWriteKey(request.TargetRoleId, out _)))
+            {
+                keyRing.TryGetWriteKey(request.TargetRoleId, out var targetWriteKey);
+                var directReadCopy = encryptionService.Encrypt(targetReadKey, readKey, roleId.ToByteArray());
+                var directWriteCopy = writeKeyToShare is null
+                    ? null
+                    : encryptionService.Encrypt(targetWriteKey, writeKeyToShare, roleId.ToByteArray());
+
+                if (!await dbContext.RoleEdges.AsNoTracking()
+                        .AnyAsync(x => x.ParentRoleId == request.TargetRoleId && x.ChildRoleId == roleId, ct))
+                {
+                    dbContext.RoleEdges.Add(new RoleEdge
+                    {
+                        Id = Guid.NewGuid(),
+                        ParentRoleId = request.TargetRoleId,
+                        ChildRoleId = roleId,
+                        RelationshipType = relationshipType,
+                        EncryptedReadKeyCopy = directReadCopy,
+                        EncryptedWriteKeyCopy = directWriteCopy,
+                        CreatedUtc = DateTimeOffset.UtcNow
+                    });
+                }
+
+                var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
+                await ledgerService.AppendKeyAsync(
+                    "RoleShareGranted",
+                    userId.ToString(),
+                    JsonSerializer.Serialize(new { roleId, targetRoleId = request.TargetRoleId, relationshipType, signature = request.SignatureBase64 }),
+                    ct,
+                    signingContext);
+
+                await dbContext.SaveChangesAsync(ct);
+                return Results.Ok();
+            }
+
             var encryptedReadKey = asymmetricEncryptionService.EncryptWithPublicKey(
                 targetRole.PublicEncryptionKey,
                 targetRole.PublicEncryptionKeyAlg,

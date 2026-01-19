@@ -29,6 +29,7 @@ import {
   createRole,
   createRoleEdge,
   getRoleParents,
+  lookupRole,
   getPendingRoleShares,
   getPendingDataShares,
   acceptRoleShare,
@@ -113,6 +114,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
       role: GraphNode,
       data: GraphNode,
       key: GraphNode,
+      external: GraphNode,
       recovery: RecoveryNode,
       recovery_plan: RecoveryNode
     }),
@@ -351,6 +353,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
   }, [filteredEdges, setNodes]);
 
   const isRecoveryNode = (node?: Node<RoleNodeData>) => Boolean(node?.data.nodeType?.startsWith('recovery'));
+  const isExternalNode = (node?: Node<RoleNodeData>) => node?.data.nodeType === 'external';
 
   const isValidConnection = (connection: Connection) => {
     if (!connection.source || !connection.target) return false;
@@ -364,21 +367,20 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
 
     const sourceIsRecovery = isRecoveryNode(sourceNode);
     const targetIsRecovery = isRecoveryNode(targetNode);
+    const sourceIsExternal = isExternalNode(sourceNode);
+    const targetIsExternal = isExternalNode(targetNode);
     if (sourceIsRecovery || targetIsRecovery) {
       if (sourceIsRecovery && targetIsRecovery) return false;
       if (sourceIsRecovery) return false;
       const roleNode = sourceNode;
       const recoveryNode = targetNode;
-      if (!roleNode.data.canLink || !recoveryNode.data.canLink) {
-        return false;
-      }
       return connection.sourceHandle === 'out-Owner' && connection.targetHandle === 'in-Owner';
     }
 
     if (!connection.source.startsWith('role:') || !connection.target.startsWith('role:')) {
       return false;
     }
-    if (!sourceNode.data.canLink || !targetNode.data.canLink) {
+    if (sourceIsExternal && targetIsExternal) {
       return false;
     }
     const relationType = connection.sourceHandle.replace(/^(in|out)-/, '') ||
@@ -400,6 +402,8 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
 
     const sourceIsRecovery = isRecoveryNode(sourceNode);
     const targetIsRecovery = isRecoveryNode(targetNode);
+    const sourceIsExternal = isExternalNode(sourceNode);
+    const targetIsExternal = isExternalNode(targetNode);
     if (sourceIsRecovery || targetIsRecovery) {
       const recoveryNode = sourceIsRecovery ? sourceNode : targetNode;
       const roleNode = sourceIsRecovery ? targetNode : sourceNode;
@@ -465,6 +469,32 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     const parentNodeId = sourceIsOut ? connection.source : connection.target;
     const childNodeId = sourceIsOut ? connection.target : connection.source;
     if (!relationType) return;
+
+    if (sourceIsExternal || targetIsExternal) {
+      const externalNode = sourceIsExternal ? sourceNode : targetNode;
+      const localNode = sourceIsExternal ? targetNode : sourceNode;
+      if (!localNode.data.canLink) {
+        setActionStatus({ type: 'error', message: copy.account.roles.linkPermissionNeeded });
+        return;
+      }
+      setActionStatus({ type: 'working', message: copy.account.roles.shareRoleWorking });
+      try {
+        await issueCsrf();
+        await shareRole(stripRoleId(localNode.id), {
+          targetRoleId: stripRoleId(externalNode.id),
+          relationshipType: relationType
+        });
+        setActionStatus({ type: 'success', message: copy.account.roles.shareRoleSuccess });
+      } catch (error) {
+        setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.shareRoleError) });
+      }
+      return;
+    }
+
+    if (!sourceNode.data.canLink || !targetNode.data.canLink) {
+      setActionStatus({ type: 'error', message: copy.account.roles.linkPermissionNeeded });
+      return;
+    }
 
     setPendingLink({
       sourceId: parentNodeId,
@@ -855,6 +885,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         targetRoleId: stripRoleId(shareDataTargetRoleId.trim()),
         permissionType: shareDataPermission
       });
+      await loadGraph();
       setShareDataTargetRoleId('');
       setActionStatus({ type: 'success', message: copy.account.roles.dataShareSuccess });
     } catch (error) {
@@ -987,6 +1018,87 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     try {
       const response = await getRoleParents(selectedRoleId);
       setParents(response);
+      const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+      const roleNodeId = `role:${selectedRoleId.replace(/-/g, '')}`;
+      const childNode = nodes.find((node) => node.id === roleNodeId);
+      let parentOffset = 0;
+      for (const parent of response.parents) {
+        const parentNodeId = `role:${parent.parentRoleId.replace(/-/g, '')}`;
+        if (!nodes.some((node) => node.id === parentNodeId)) {
+          try {
+            const lookup = await lookupRole(parent.parentRoleId);
+            const position = childNode
+              ? { x: childNode.position.x - 320, y: childNode.position.y + parentOffset * 140 }
+              : { x: 120, y: 120 + parentOffset * 140 };
+            setNodes((prev) =>
+              prev.concat({
+                id: lookup.id,
+                type: lookup.nodeType,
+                position,
+                data: {
+                  label: lookup.label,
+                  kind: lookup.kind,
+                  nodeType: lookup.nodeType,
+                  value: null,
+                  roleId: lookup.roleId,
+                  fieldType: null,
+                  dataKeyId: null,
+                  canLink: lookup.canLink,
+                  canWrite: lookup.canWrite,
+                  incomingTypes: [],
+                  outgoingTypes: [],
+                  typeColors
+                }
+              })
+            );
+          } catch {
+            const position = childNode
+              ? { x: childNode.position.x - 320, y: childNode.position.y + parentOffset * 140 }
+              : { x: 120, y: 120 + parentOffset * 140 };
+            setNodes((prev) =>
+              prev.concat({
+                id: parentNodeId,
+                type: 'external',
+                position,
+                data: {
+                  label: parent.parentRoleId,
+                  kind: 'Role',
+                  nodeType: 'external',
+                  value: null,
+                  roleId: parent.parentRoleId,
+                  fieldType: null,
+                  dataKeyId: null,
+                  canLink: false,
+                  canWrite: false,
+                  incomingTypes: [],
+                  outgoingTypes: [],
+                  typeColors
+                }
+              })
+            );
+          }
+        }
+
+        const edgeId = `${parent.parentRoleId.replace(/-/g, '')}:${selectedRoleId.replace(/-/g, '')}:${parent.relationshipType}`;
+        const handles = getEdgeHandles(parent.relationshipType);
+        setEdges((prev) =>
+          prev.some((edge) => edge.id === edgeId)
+            ? prev
+            : prev.concat({
+                id: edgeId,
+                source: parentNodeId,
+                target: roleNodeId,
+                sourceHandle: handles.sourceHandle,
+                targetHandle: handles.targetHandle,
+                type: 'role',
+                data: {
+                  relationType: parent.relationshipType,
+                  color: typeColors[parent.relationshipType] ?? DEFAULT_RELATION_COLOR
+                }
+              })
+        );
+        parentOffset += 1;
+      }
       setParentsState('idle');
     } catch {
       setParentsState('error');
@@ -1053,16 +1165,50 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     if (!trimmed) {
       return;
     }
-    const nodeId = `role:${trimmed.replace(/-/g, '')}`;
+    const normalized = trimmed.replace(/^role:/i, '').trim();
+    const nodeId = `role:${normalized.replace(/-/g, '')}`;
     const node = nodes.find((item) => item.id === nodeId);
-    if (!node) {
-      setActionStatus({ type: 'error', message: copy.account.roles.contextAddRoleError });
+    if (node) {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeId(null);
+      setContextMenu(null);
+      setContextRoleId('');
       return;
     }
-    setSelectedNodeId(nodeId);
-    setSelectedEdgeId(null);
-    setContextMenu(null);
-    setContextRoleId('');
+    setActionStatus({ type: 'working', message: copy.account.roles.contextAddRoleWorking });
+    lookupRole(normalized)
+      .then((lookup) => {
+        const typeColors = nodes[0]?.data.typeColors ?? { ...RELATION_COLORS };
+        setNodes((prev) =>
+          prev.concat({
+            id: lookup.id,
+            type: lookup.nodeType,
+            position: { x: 140, y: 140 },
+            data: {
+              label: lookup.label,
+              kind: lookup.kind,
+              nodeType: lookup.nodeType,
+              value: null,
+              roleId: lookup.roleId,
+              fieldType: null,
+              dataKeyId: null,
+              canLink: lookup.canLink,
+              canWrite: lookup.canWrite,
+              incomingTypes: [],
+              outgoingTypes: [],
+              typeColors
+            }
+          })
+        );
+        setSelectedNodeId(lookup.id);
+        setSelectedEdgeId(null);
+        setContextMenu(null);
+        setContextRoleId('');
+        setActionStatus({ type: 'success', message: copy.account.roles.contextAddRoleSuccess });
+      })
+      .catch(() => {
+        setActionStatus({ type: 'error', message: copy.account.roles.contextAddRoleError });
+      });
   };
 
   return (

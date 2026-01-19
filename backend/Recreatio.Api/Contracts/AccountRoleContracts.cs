@@ -140,9 +140,24 @@ public sealed record RoleGraphResponse(
     List<RoleGraphEdge> Edges
 );
 
+public sealed record RoleLookupResponse(
+    string Id,
+    string Label,
+    string Kind,
+    string NodeType,
+    Guid RoleId,
+    bool CanLink,
+    bool CanWrite
+);
+
+public sealed record RoleParentLinkResponse(
+    Guid ParentRoleId,
+    string RelationshipType
+);
+
 public sealed record RoleParentsResponse(
     Guid RoleId,
-    List<Guid> ParentRoleIds
+    List<RoleParentLinkResponse> Parents
 );
 
 public sealed record LedgerVerificationSummary(
