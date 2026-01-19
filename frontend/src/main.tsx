@@ -9,6 +9,7 @@ import './styles/panels.css';
 import './styles/portal.css';
 import './styles/auth.css';
 import './styles/account.css';
+import './styles/parish.css';
 import './styles/responsive.css';
 import { AuthProvider } from './lib/authContext';
 
