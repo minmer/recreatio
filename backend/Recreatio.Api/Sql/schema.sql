@@ -18,8 +18,6 @@ IF OBJECT_ID(N'dbo.RoleRecoveryApprovals', N'U') IS NOT NULL DROP TABLE dbo.Role
 IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryRequests;
 IF OBJECT_ID(N'dbo.RoleRecoveryKeys', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryKeys;
 IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
-IF OBJECT_ID(N'dbo.RoleRecoveryPlanShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlanShares;
-IF OBJECT_ID(N'dbo.RoleRecoveryPlans', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryPlans;
 IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
@@ -295,34 +293,7 @@ GO
 CREATE INDEX IX_PendingDataShares_Target_Status ON dbo.PendingDataShares(TargetRoleId, Status);
 GO
 
-CREATE TABLE dbo.RoleRecoveryPlans
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    TargetRoleId UNIQUEIDENTIFIER NOT NULL,
-    CreatedByRoleId UNIQUEIDENTIFIER NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    ActivatedUtc DATETIMEOFFSET NULL,
-    CONSTRAINT FK_RoleRecoveryPlans_TargetRole FOREIGN KEY (TargetRoleId) REFERENCES dbo.Roles(Id),
-    CONSTRAINT FK_RoleRecoveryPlans_CreatedByRole FOREIGN KEY (CreatedByRoleId) REFERENCES dbo.Roles(Id)
-);
-GO
-
-CREATE INDEX IX_RoleRecoveryPlans_Target_Activated ON dbo.RoleRecoveryPlans(TargetRoleId, ActivatedUtc);
-GO
-
-CREATE TABLE dbo.RoleRecoveryPlanShares
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    PlanId UNIQUEIDENTIFIER NOT NULL,
-    SharedWithRoleId UNIQUEIDENTIFIER NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_RoleRecoveryPlanShares_Plan FOREIGN KEY (PlanId) REFERENCES dbo.RoleRecoveryPlans(Id),
-    CONSTRAINT FK_RoleRecoveryPlanShares_SharedWithRole FOREIGN KEY (SharedWithRoleId) REFERENCES dbo.Roles(Id)
-);
-GO
-
-CREATE UNIQUE INDEX UX_RoleRecoveryPlanShares_Plan_SharedWith ON dbo.RoleRecoveryPlanShares(PlanId, SharedWithRoleId);
-GO
+-- Recovery key drafts are client-only; no server-side plan tables.
 
 CREATE TABLE dbo.RoleRecoveryShares
 (

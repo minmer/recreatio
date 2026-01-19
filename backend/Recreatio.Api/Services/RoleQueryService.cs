@@ -261,50 +261,6 @@ public sealed class RoleQueryService : IRoleQueryService
             }
         }
 
-        var recoveryPlans = await _dbContext.RoleRecoveryPlans.AsNoTracking()
-            .Where(plan => roleIdSet.Contains(plan.TargetRoleId) && plan.ActivatedUtc == null)
-            .ToListAsync(ct);
-        if (recoveryPlans.Count > 0)
-        {
-            var planIds = recoveryPlans.Select(plan => plan.Id).ToList();
-            var planShares = await _dbContext.RoleRecoveryPlanShares.AsNoTracking()
-                .Where(share => planIds.Contains(share.PlanId))
-                .ToListAsync(ct);
-            foreach (var plan in recoveryPlans)
-            {
-                var recoveryNodeId = $"recovery-plan:{plan.Id:N}";
-                nodes.Add(new RoleGraphNode(
-                    recoveryNodeId,
-                    "Recovery key",
-                    "recovery_plan",
-                    "Draft",
-                    null,
-                    plan.TargetRoleId,
-                    null,
-                    null,
-                    ownerRoleIds.Contains(plan.TargetRoleId),
-                    false));
-                edges.Add(new RoleGraphEdge(
-                    $"{recoveryNodeId}:role:{plan.TargetRoleId:N}:Owner",
-                    recoveryNodeId,
-                    $"role:{plan.TargetRoleId:N}",
-                    RoleRelationships.Owner));
-
-                foreach (var share in planShares.Where(x => x.PlanId == plan.Id))
-                {
-                    if (!roleIdSet.Contains(share.SharedWithRoleId))
-                    {
-                        continue;
-                    }
-                    edges.Add(new RoleGraphEdge(
-                        $"role:{share.SharedWithRoleId:N}:{recoveryNodeId}:Owner",
-                        $"role:{share.SharedWithRoleId:N}",
-                        recoveryNodeId,
-                        RoleRelationships.Owner));
-                }
-            }
-        }
-
         var recoveryShares = await _dbContext.RoleRecoveryShares.AsNoTracking()
             .Where(share => roleIdSet.Contains(share.TargetRoleId) && share.RevokedUtc == null)
             .ToListAsync(ct);

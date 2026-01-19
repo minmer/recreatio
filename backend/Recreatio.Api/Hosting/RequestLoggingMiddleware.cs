@@ -20,6 +20,21 @@ public sealed class RequestLoggingMiddleware
             || path.StartsWith("/roles", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
 
+        string? requestBody = null;
+        if (captureBody && context.Request.ContentLength is > 0)
+        {
+            context.Request.EnableBuffering();
+            using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true))
+            {
+                requestBody = await reader.ReadToEndAsync();
+                if (requestBody.Length > 2000)
+                {
+                    requestBody = requestBody[..2000];
+                }
+                context.Request.Body.Position = 0;
+            }
+        }
+
         if (!captureBody)
         {
             await _next(context);
@@ -48,10 +63,10 @@ public sealed class RequestLoggingMiddleware
         await buffer.CopyToAsync(originalBody);
         context.Response.Body = originalBody;
 
-        LogStatus(context, bodyText);
+        LogStatus(context, bodyText, requestBody);
     }
 
-    private void LogStatus(HttpContext context, string? bodyText)
+    private void LogStatus(HttpContext context, string? bodyText, string? requestBody = null)
     {
         if (context.Response.StatusCode is < 400 or >= 500)
         {
@@ -69,6 +84,21 @@ public sealed class RequestLoggingMiddleware
             return;
         }
 
-        _logger.LogWarning("HTTP {Method} {Path} -> {StatusCode}", context.Request.Method, context.Request.Path, context.Response.StatusCode);
+        if (!string.IsNullOrWhiteSpace(requestBody))
+        {
+            _logger.LogWarning(
+                "HTTP {Method} {Path} -> {StatusCode}. RequestBody: {Body}",
+                context.Request.Method,
+                context.Request.Path,
+                context.Response.StatusCode,
+                requestBody);
+            return;
+        }
+
+        _logger.LogWarning(
+            "HTTP {Method} {Path} -> {StatusCode}",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode);
     }
 }

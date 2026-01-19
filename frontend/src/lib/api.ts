@@ -411,30 +411,10 @@ export function shareRecovery(roleId: string, payload: {
   });
 }
 
-export type RecoveryPlanResponse = {
-  planId: string;
-  targetRoleId: string;
-  status: string;
-};
-
-export function prepareRecoveryPlan(roleId: string) {
-  return request<RecoveryPlanResponse>(`/account/roles/${roleId}/recovery/plan`, {
-    method: 'POST',
-    body: JSON.stringify({})
-  });
-}
-
-export function addRecoveryPlanShare(planId: string, payload: { sharedWithRoleId: string }) {
-  return request<void>(`/account/recovery/plans/${planId}/shares`, {
+export function activateRecoveryKey(roleId: string, payload: { sharedWithRoleIds: string[]; signatureBase64?: string | null }) {
+  return request<void>(`/account/roles/${roleId}/recovery/activate`, {
     method: 'POST',
     body: JSON.stringify(payload)
-  });
-}
-
-export function activateRecoveryPlan(planId: string) {
-  return request<void>(`/account/recovery/plans/${planId}/activate`, {
-    method: 'POST',
-    body: JSON.stringify({})
   });
 }
 

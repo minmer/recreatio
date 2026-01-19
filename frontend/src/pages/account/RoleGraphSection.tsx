@@ -39,9 +39,7 @@ import {
   issueCsrf,
   shareRole,
   shareDataItem,
-  prepareRecoveryPlan,
-  addRecoveryPlanShare,
-  activateRecoveryPlan,
+  activateRecoveryKey,
   createDataItem,
   updateDataItem,
   verifyRoleLedger,
@@ -457,33 +455,7 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
         setFilters((prev) => ({ ...prev, Owner: prev.Owner ?? true }));
         setActionStatus({ type: 'success', message: copy.account.roles.recoveryShareSuccess });
       } else {
-        setActionStatus({ type: 'working', message: copy.account.roles.recoveryShareWorking });
-        try {
-          await issueCsrf();
-          const planId = recoveryNode.id.replace('recovery-plan:', '');
-          await addRecoveryPlanShare(planId, { sharedWithRoleId: stripRoleId(roleNode.id) });
-          const edgeId = `${stripRoleId(roleNode.id)}:${stripRoleId(recoveryNode.id)}:Owner`;
-          setEdges((prev) =>
-            prev.some((edge) => edge.id === edgeId)
-              ? prev
-              : prev.concat({
-                  id: edgeId,
-                  source: roleNode.id,
-                  target: recoveryNode.id,
-                  sourceHandle: 'out-Owner',
-                  targetHandle: 'in-Owner',
-                  type: 'role',
-                  data: {
-                    relationType: 'Owner',
-                    color: nodes[0]?.data.typeColors?.Owner ?? DEFAULT_RELATION_COLOR
-                  }
-                })
-          );
-          setFilters((prev) => ({ ...prev, Owner: prev.Owner ?? true }));
-          setActionStatus({ type: 'success', message: copy.account.roles.recoveryShareSuccess });
-        } catch (error) {
-          setActionStatus({ type: 'error', message: formatApiError(error, copy.account.roles.recoveryShareError) });
-        }
+        setActionStatus({ type: 'error', message: copy.account.roles.recoveryPlanError });
       }
       return;
     }
@@ -987,29 +959,21 @@ export function RoleGraphSection({ copy }: { copy: Copy }) {
     setActionStatus({ type: 'working', message: copy.account.roles.recoveryActivateWorking });
     try {
       await issueCsrf();
-      if (selectedRecoveryIsDraft) {
-        const targetRoleId = selectedNode.data.roleId ?? recoveryDrafts[selectedNode.id]?.targetRoleId;
-        if (!targetRoleId) {
-          setActionStatus({ type: 'error', message: copy.account.roles.recoveryActivateError });
-          return;
-        }
-        const response = await prepareRecoveryPlan(targetRoleId);
-        const incomingOwners = edges
-          .filter((edge) => edge.target === selectedNode.id && edge.data?.relationType === 'Owner')
-          .map((edge) => stripRoleId(edge.source));
-        const uniqueOwners = Array.from(new Set(incomingOwners));
-        for (const ownerId of uniqueOwners) {
-          await addRecoveryPlanShare(response.planId, { sharedWithRoleId: ownerId });
-        }
-        await activateRecoveryPlan(response.planId);
-        setRecoveryDrafts((prev) => {
-          const next = { ...prev };
-          delete next[selectedNode.id];
-          return next;
-        });
-      } else {
-        await activateRecoveryPlan(planId);
+      const targetRoleId = selectedNode.data.roleId ?? recoveryDrafts[selectedNode.id]?.targetRoleId;
+      if (!targetRoleId) {
+        setActionStatus({ type: 'error', message: copy.account.roles.recoveryActivateError });
+        return;
       }
+      const incomingOwners = edges
+        .filter((edge) => edge.target === selectedNode.id && edge.data?.relationType === 'Owner')
+        .map((edge) => stripRoleId(edge.source));
+      const uniqueOwners = Array.from(new Set(incomingOwners));
+      await activateRecoveryKey(targetRoleId, { sharedWithRoleIds: uniqueOwners });
+      setRecoveryDrafts((prev) => {
+        const next = { ...prev };
+        delete next[selectedNode.id];
+        return next;
+      });
       await loadGraph();
       setActionStatus({ type: 'success', message: copy.account.roles.recoveryActivateSuccess });
     } catch (error) {

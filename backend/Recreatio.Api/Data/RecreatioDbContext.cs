@@ -20,8 +20,6 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<DataItem> DataItems => Set<DataItem>();
     public DbSet<DataKeyGrant> DataKeyGrants => Set<DataKeyGrant>();
     public DbSet<PendingDataShare> PendingDataShares => Set<PendingDataShare>();
-    public DbSet<RoleRecoveryPlan> RoleRecoveryPlans => Set<RoleRecoveryPlan>();
-    public DbSet<RoleRecoveryPlanShare> RoleRecoveryPlanShares => Set<RoleRecoveryPlanShare>();
     public DbSet<RoleRecoveryShare> RoleRecoveryShares => Set<RoleRecoveryShare>();
     public DbSet<RoleRecoveryKey> RoleRecoveryKeys => Set<RoleRecoveryKey>();
     public DbSet<RoleRecoveryRequest> RoleRecoveryRequests => Set<RoleRecoveryRequest>();
@@ -58,12 +56,6 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.TargetRoleId, x.SharedWithRoleId })
             .IsUnique();
 
-        modelBuilder.Entity<RoleRecoveryPlan>()
-            .HasIndex(x => new { x.TargetRoleId, x.ActivatedUtc });
-
-        modelBuilder.Entity<RoleRecoveryPlanShare>()
-            .HasIndex(x => new { x.PlanId, x.SharedWithRoleId })
-            .IsUnique();
 
         modelBuilder.Entity<RoleRecoveryApproval>()
             .HasIndex(x => new { x.RequestId, x.ApproverRoleId })

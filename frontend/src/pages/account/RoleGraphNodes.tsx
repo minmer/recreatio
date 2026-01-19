@@ -6,6 +6,7 @@ import type { RoleEdgeData, RoleNodeData } from './roleGraphTypes';
 export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
   const spacing = 16;
   const isRoleNode = data.nodeType === 'role' || data.nodeType === 'data' || data.nodeType === 'key';
+  const isDataNode = data.nodeType === 'data' || data.nodeType === 'key';
   const canLink = Boolean(data.canLink);
   const showHandles = canLink;
   const handleTypes = isRoleNode ? [...RELATION_TYPES] : [];
@@ -52,25 +53,26 @@ export const GraphNode = ({ data }: NodeProps<RoleNodeData>) => {
           />
         );
       })}
-      {handleTypes.map((relationType, index) => {
-        const offset = (index - (handleTypes.length - 1) / 2) * spacing;
-        const color = data.typeColors[relationType] ?? 'var(--ink)';
-        return (
-          <Handle
-            key={`out-${relationType}`}
-            id={`out-${relationType}`}
-            type="source"
-            position={Position.Right}
-            isConnectableStart={canLink}
-            isConnectableEnd={canLink}
-            className={`role-handle role-handle-out ${handleVisibilityClass}`}
-            style={{
-              '--edge-color': color,
-              '--port-offset': `${offset}px`
-            } as CSSProperties}
-          />
-        );
-      })}
+      {!isDataNode &&
+        handleTypes.map((relationType, index) => {
+          const offset = (index - (handleTypes.length - 1) / 2) * spacing;
+          const color = data.typeColors[relationType] ?? 'var(--ink)';
+          return (
+            <Handle
+              key={`out-${relationType}`}
+              id={`out-${relationType}`}
+              type="source"
+              position={Position.Right}
+              isConnectableStart={canLink}
+              isConnectableEnd={canLink}
+              className={`role-handle role-handle-out ${handleVisibilityClass}`}
+              style={{
+                '--edge-color': color,
+                '--port-offset': `${offset}px`
+              } as CSSProperties}
+            />
+          );
+        })}
       <span>{data.label}</span>
       {secondary && (
         <small className={data.nodeType === 'data' ? 'role-node-value' : 'role-node-kind'}>{secondary}</small>
