@@ -326,7 +326,7 @@ export default function App() {
         />
       )}
 
-      {pathname === '/parish' && (
+      {pathname.startsWith('/parish') && (
         <ParishPage
           copy={t}
           onAuthAction={() => {
@@ -337,14 +337,10 @@ export default function App() {
             }
           }}
           authLabel={isAuthenticated ? t.nav.account : t.parish.loginCta}
-          showProfileMenu={isAuthenticated}
-          onProfileNavigate={() => handleProtectedNavigation('account', 'parish')}
-          onToggleSecureMode={handleToggleMode}
-          onLogout={handleLogout}
-          secureMode={secureMode}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}
+          parishSlug={pathname.startsWith('/parish/') ? pathname.split('/')[2] : undefined}
         />
       )}
       {pathname === '/cogita' && (

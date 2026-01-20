@@ -1,33 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 
-type PortalMode = 'public' | 'user' | 'admin';
 type ThemePreset = 'classic' | 'minimal' | 'warm';
-type PublicPage =
-  | 'home'
-  | 'masses'
-  | 'intentions'
-  | 'announcements'
-  | 'calendar'
+type PageId =
+  | 'start'
+  | 'about'
   | 'clergy'
-  | 'groups'
-  | 'sacraments'
-  | 'koleda'
-  | 'contact';
-type AdminPage =
-  | 'dashboard'
-  | 'calendar-rooms'
-  | 'intentions'
+  | 'office'
   | 'announcements'
+  | 'intentions'
+  | 'masses'
+  | 'calendar'
   | 'koleda'
-  | 'groups'
-  | 'priests'
-  | 'locations'
-  | 'settings';
+  | 'sacrament-baptism'
+  | 'sacrament-communion'
+  | 'sacrament-confirmation'
+  | 'sacrament-marriage'
+  | 'sacrament-funeral'
+  | 'sacrament-sick'
+  | 'community-bible'
+  | 'community-formation'
+  | 'contact';
 
 type ParishOption = {
   id: string;
+  slug: string;
   name: string;
   location: string;
   logo: string;
@@ -35,56 +34,81 @@ type ParishOption = {
   theme: ThemePreset;
 };
 
+type MenuItem = {
+  label: string;
+  id?: PageId;
+  children?: { id: PageId; label: string }[];
+};
+
 const parishes: ParishOption[] = [
   {
     id: 'st-john',
+    slug: 'jan-pradnik',
     name: 'Parafia pw. św. Jana Chrzciciela',
     location: 'Kraków • Prądnik',
-    logo: '/logo_new.svg',
+    logo: '/parish/logo.svg',
     heroImage: '/parish/visit.jpg',
     theme: 'classic'
   },
   {
     id: 'holy-family',
+    slug: 'sw-rodzina',
     name: 'Parafia Najświętszej Rodziny',
     location: 'Nowa Huta',
-    logo: '/logo_new.svg',
+    logo: '/parish/logo.svg',
     heroImage: '/parish/pursuit_saint.jpg',
     theme: 'warm'
   },
   {
     id: 'st-mary',
+    slug: 'mariacka',
     name: 'Parafia Mariacka',
     location: 'Stare Miasto',
-    logo: '/logo_new.svg',
+    logo: '/parish/logo.svg',
     heroImage: '/parish/minister.jpg',
     theme: 'minimal'
   }
 ];
 
-const publicNav: { id: PublicPage; label: string }[] = [
-  { id: 'home', label: 'Strona główna' },
-  { id: 'masses', label: 'Msze i nabożeństwa' },
-  { id: 'intentions', label: 'Intencje' },
-  { id: 'announcements', label: 'Ogłoszenia' },
-  { id: 'calendar', label: 'Kalendarz' },
-  { id: 'clergy', label: 'Duchowieństwo' },
-  { id: 'groups', label: 'Grupy' },
-  { id: 'sacraments', label: 'Sakramenty' },
-  { id: 'koleda', label: 'Kolęda' },
-  { id: 'contact', label: 'Kontakt' }
-];
-
-const adminNav: { id: AdminPage; label: string }[] = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'calendar-rooms', label: 'Kalendarz i sale' },
-  { id: 'intentions', label: 'Intencje' },
-  { id: 'announcements', label: 'Ogłoszenia' },
-  { id: 'koleda', label: 'Kolęda' },
-  { id: 'groups', label: 'Grupy i osoby' },
-  { id: 'priests', label: 'Duchowieństwo' },
-  { id: 'locations', label: 'Lokalizacje' },
-  { id: 'settings', label: 'Ustawienia' }
+const menu: MenuItem[] = [
+  { label: 'Start', id: 'start' },
+  {
+    label: 'Parafia',
+    children: [
+      { id: 'about', label: 'O parafii' },
+      { id: 'clergy', label: 'Duszpasterze' },
+      { id: 'office', label: 'Kancelaria' }
+    ]
+  },
+  {
+    label: 'Aktualne',
+    children: [
+      { id: 'announcements', label: 'Ogłoszenia' },
+      { id: 'intentions', label: 'Intencje' },
+      { id: 'masses', label: 'Msze i nabożeństwa' },
+      { id: 'calendar', label: 'Kalendarz' },
+      { id: 'koleda', label: 'Kolęda' }
+    ]
+  },
+  {
+    label: 'Sakramenty',
+    children: [
+      { id: 'sacrament-baptism', label: 'Chrzest' },
+      { id: 'sacrament-communion', label: 'I Komunia' },
+      { id: 'sacrament-confirmation', label: 'Bierzmowanie' },
+      { id: 'sacrament-marriage', label: 'Małżeństwo' },
+      { id: 'sacrament-funeral', label: 'Pogrzeb' },
+      { id: 'sacrament-sick', label: 'Chorzy' }
+    ]
+  },
+  {
+    label: 'Wspólnoty',
+    children: [
+      { id: 'community-bible', label: 'Krąg biblijny' },
+      { id: 'community-formation', label: 'Diakonia formacji' }
+    ]
+  },
+  { label: 'Kontakt', id: 'contact' }
 ];
 
 const todayStrip = [
@@ -243,39 +267,6 @@ const priests = [
   }
 ];
 
-const groups = [
-  {
-    id: 'gr-1',
-    name: 'Schola dziecięca',
-    category: 'Muzyka',
-    cadence: 'Co tydzień, sobota 10:00',
-    location: 'Sala muzyczna',
-    priest: 'ks. Marek',
-    roles: ['lider', 'animator', 'członek'],
-    desc: 'Grupa śpiewająca podczas liturgii rodzinnych.'
-  },
-  {
-    id: 'gr-2',
-    name: 'Wspólnota młodzieży',
-    category: 'Formacja',
-    cadence: 'Co tydzień, piątek 19:30',
-    location: 'Salki duszpasterskie',
-    priest: 'ks. Adam',
-    roles: ['lider', 'mentor', 'członek'],
-    desc: 'Spotkania modlitewne i tematyczne.'
-  },
-  {
-    id: 'gr-3',
-    name: 'Krąg biblijny',
-    category: 'Słowo',
-    cadence: 'Co dwa tygodnie, środa 19:00',
-    location: 'Biblioteka parafialna',
-    priest: 'ks. Paweł',
-    roles: ['prowadzący', 'uczestnik'],
-    desc: 'Wspólne czytanie i rozważanie Pisma Świętego.'
-  }
-];
-
 const sacraments = [
   {
     id: 'baptism',
@@ -320,6 +311,71 @@ const sacraments = [
     docs: ['Dane chorego', 'Kontakt do rodziny', 'Informacja o stanie zdrowia']
   }
 ];
+
+const sacramentDescriptions: Record<string, string> = {
+  baptism: 'Wprowadzenie dziecka do wspólnoty Kościoła wraz z błogosławieństwem rodziny.',
+  communion: 'Uroczyste spotkanie dzieci z Eucharystią, przygotowanie trwa cały rok formacyjny.',
+  confirmation: 'Sakrament dojrzałości chrześcijańskiej, przyjmowany w parafii wiosną.',
+  marriage: 'Towarzyszymy narzeczonym od pierwszej rozmowy aż po dzień ślubu.',
+  funeral: 'Pomagamy rodzinie w modlitwie i przygotowaniu liturgii pogrzebowej.',
+  sick: 'Odwiedzamy chorych w domach i szpitalach, z posługą sakramentalną.'
+};
+
+const sacramentPageMap: Record<PageId, string> = {
+  'sacrament-baptism': 'baptism',
+  'sacrament-communion': 'communion',
+  'sacrament-confirmation': 'confirmation',
+  'sacrament-marriage': 'marriage',
+  'sacrament-funeral': 'funeral',
+  'sacrament-sick': 'sick',
+  start: '',
+  about: '',
+  clergy: '',
+  office: '',
+  announcements: '',
+  intentions: '',
+  masses: '',
+  calendar: '',
+  koleda: '',
+  'community-bible': '',
+  'community-formation': '',
+  contact: ''
+};
+
+const communityPages: Record<
+  'community-bible' | 'community-formation',
+  {
+    title: string;
+    image: string;
+    lead: string;
+    cadence: string;
+    location: string;
+    leader: string;
+    roles: string[];
+    plan: string[];
+  }
+> = {
+  'community-bible': {
+    title: 'Krąg biblijny',
+    image: '/parish/bible_circle.jpg',
+    lead: 'Spotkania z Pismem Świętym, dzielenie się i wspólna modlitwa.',
+    cadence: 'Co dwa tygodnie, środa 19:00',
+    location: 'Biblioteka parafialna',
+    leader: 'ks. Paweł Zieliński',
+    roles: ['prowadzący', 'uczestnik'],
+    plan: ['Modlitwa wstępna', 'Lectio divina', 'Dzielenie w grupach', 'Zakończenie']
+  },
+  'community-formation': {
+    title: 'Diakonia formacji',
+    image: '/parish/choir.jpg',
+    lead: 'Zespół odpowiedzialny za formację wspólnot i przygotowanie spotkań.',
+    cadence: 'Co tydzień, wtorek 18:30',
+    location: 'Sala Jana Pawła II',
+    leader: 'Anna Nowak',
+    roles: ['koordynator', 'mentor', 'wolontariusz'],
+    plan: ['Przygotowanie materiałów', 'Konsultacje z duszpasterzem', 'Warsztaty', 'Podsumowanie']
+  }
+};
 
 const koledaByDate = [
   {
@@ -378,34 +434,42 @@ const parishLocations = [
   }
 ];
 
+const officeHours = [
+  { day: 'Poniedziałek', hours: '9:00–11:00, 16:00–18:00' },
+  { day: 'Wtorek', hours: '9:00–11:00, 16:00–18:00' },
+  { day: 'Środa', hours: '9:00–11:00' },
+  { day: 'Czwartek', hours: '9:00–11:00, 16:00–18:00' },
+  { day: 'Piątek', hours: '9:00–11:00, 16:00–18:00' }
+];
+
+const aboutHighlights = [
+  { label: 'Rok założenia', value: '1984' },
+  { label: 'Wspólnoty', value: '12' },
+  { label: 'Msze tygodniowo', value: '18' },
+  { label: 'Wolontariusze', value: '45' }
+];
+
 export function ParishPage({
   copy,
   onAuthAction,
   authLabel,
-  showProfileMenu,
-  onProfileNavigate,
-  onToggleSecureMode,
-  onLogout,
-  secureMode,
   onNavigate,
   language,
-  onLanguageChange
+  onLanguageChange,
+  parishSlug
 }: {
   copy: Copy;
   onAuthAction: () => void;
   authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  parishSlug?: string;
 }) {
-  const [mode, setMode] = useState<PortalMode>('public');
-  const [activePage, setActivePage] = useState<PublicPage>('home');
-  const [adminPage, setAdminPage] = useState<AdminPage>('dashboard');
+  const navigate = useNavigate();
+  const [activePage, setActivePage] = useState<PageId>('start');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const [parishId, setParishId] = useState(parishes[0].id);
   const [theme, setTheme] = useState<ThemePreset>(parishes[0].theme);
   const [massTab, setMassTab] = useState<keyof typeof massesTables>('Sunday');
@@ -413,9 +477,8 @@ export function ParishPage({
   const [calendarView, setCalendarView] = useState<'month' | 'agenda'>('month');
   const [selectedEventId, setSelectedEventId] = useState(calendarEvents[0].id);
   const [selectedPriestId, setSelectedPriestId] = useState(priests[0].id);
-  const [selectedGroupId, setSelectedGroupId] = useState(groups[0].id);
   const [selectedSacramentId, setSelectedSacramentId] = useState(sacraments[0].id);
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [view, setView] = useState<'chooser' | 'parish'>(parishSlug ? 'parish' : 'chooser');
 
   const parish = useMemo(() => parishes.find((item) => item.id === parishId) ?? parishes[0], [parishId]);
   const announcement = useMemo(
@@ -429,20 +492,18 @@ export function ParishPage({
   const selectedPriest = useMemo(() => priests.find((item) => item.id === selectedPriestId) ?? priests[0], [
     selectedPriestId
   ]);
-  const selectedGroup = useMemo(() => groups.find((item) => item.id === selectedGroupId) ?? groups[0], [selectedGroupId]);
+
   const selectedSacrament = useMemo(
     () => sacraments.find((item) => item.id === selectedSacramentId) ?? sacraments[0],
     [selectedSacramentId]
   );
 
-  const handleModeChange = (next: PortalMode) => {
-    setMode(next);
-    if (next === 'admin') {
-      setAdminPage('dashboard');
-    } else {
-      setActivePage('home');
+  const communityData = useMemo(() => {
+    if (activePage === 'community-bible' || activePage === 'community-formation') {
+      return communityPages[activePage];
     }
-  };
+    return null;
+  }, [activePage]);
 
   const handleParishChange = (nextId: string) => {
     const nextParish = parishes.find((item) => item.id === nextId) ?? parishes[0];
@@ -450,99 +511,164 @@ export function ParishPage({
     setTheme(nextParish.theme);
   };
 
-  const profileLabel = showProfileMenu ? copy.nav.account : authLabel;
+  const selectPage = (next: PageId) => {
+    setActivePage(next);
+    setMenuOpen(false);
+    setOpenSection(null);
+    if (sacramentPageMap[next]) {
+      setSelectedSacramentId(sacramentPageMap[next]);
+    }
+  };
+
+  useEffect(() => {
+    if (!parishSlug) {
+      setView('chooser');
+      return;
+    }
+    const nextParish = parishes.find((item) => item.slug === parishSlug);
+    if (nextParish) {
+      setParishId(nextParish.id);
+      setTheme(nextParish.theme);
+      setView('parish');
+      setActivePage('start');
+    }
+  }, [parishSlug]);
 
   return (
-    <div className={`parish-portal theme-${theme} mode-${mode}`} lang={language}>
-      {mode !== 'admin' ? (
+    <div className={`parish-portal theme-${theme}`} lang={language}>
+      {view === 'chooser' ? (
         <>
-          <header className="parish-header">
+          <header className="parish-header parish-header--chooser">
             <button type="button" className="parish-brand" onClick={() => onNavigate('home')}>
-              <img src={parish.logo} alt={copy.loginCard.title} />
-              <div>
-                <span className="parish-name">{parish.name}</span>
-                <span className="parish-location">{parish.location}</span>
-              </div>
+              <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
+              <span className="parish-name">Parafie</span>
             </button>
-            <nav className="parish-nav" aria-label={copy.nav.parish}>
-              {publicNav.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={item.id === activePage ? 'is-active' : undefined}
-                  onClick={() => setActivePage(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
             <div className="parish-controls">
-              <div className="mode-switch" role="group" aria-label="Tryb portalu">
-                {(['public', 'user', 'admin'] as PortalMode[]).map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className={mode === item ? 'is-active' : undefined}
-                    onClick={() => handleModeChange(item)}
-                  >
-                    {item === 'public' ? 'Public' : item === 'user' ? 'User' : 'Admin'}
-                  </button>
-                ))}
-              </div>
-              <select
-                className="parish-select"
-                value={parishId}
-                onChange={(event) => handleParishChange(event.target.value)}
-              >
-                {parishes.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-              <select className="parish-select" value={theme} onChange={(event) => setTheme(event.target.value as ThemePreset)}>
-                <option value="classic">Klasyczny</option>
-                <option value="minimal">Minimal</option>
-                <option value="warm">Ciepły</option>
-              </select>
-              <button type="button" className="parish-icon-button" aria-label="Wyszukaj">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M20 20l-3.5-3.5" />
-                </svg>
+              <button type="button" className="parish-login" onClick={onAuthAction}>
+                {authLabel}
               </button>
-              <div className={`parish-profile ${profileOpen ? 'open' : ''}`}>
-                <button
-                  type="button"
-                  className="parish-profile-button"
-                  onClick={() => {
-                    if (showProfileMenu) {
-                      setProfileOpen((open) => !open);
-                    } else {
-                      onAuthAction();
-                    }
-                  }}
-                >
-                  {profileLabel}
-                </button>
-                {showProfileMenu && (
-                  <div className="parish-profile-menu">
-                    <button type="button" onClick={onProfileNavigate}>
-                      {copy.accountMenu.profile}
-                    </button>
-                    <button type="button" onClick={onToggleSecureMode}>
-                      {secureMode ? copy.accountMenu.secureModeOff : copy.accountMenu.secureModeOn}
-                    </button>
-                    <button type="button" onClick={onLogout}>
-                      {copy.accountMenu.logout}
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </header>
           <main className="parish-main">
-            {activePage === 'home' && (
+            <section className="parish-chooser">
+              <div className="chooser-card">
+                <div>
+                  <p className="tag">Portal parafialny</p>
+                  <h1>Wybierz parafię</h1>
+                  <p className="lead">Na start udostępniamy jedną parafię testową.</p>
+                </div>
+                <div className="chooser-list">
+                  {parishes.slice(0, 1).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="chooser-item"
+                      onClick={() => {
+                        handleParishChange(item.id);
+                        setView('parish');
+                        setActivePage('start');
+                        navigate(`/parish/${item.slug}`);
+                      }}
+                    >
+                      <div>
+                        <strong>{item.name}</strong>
+                        <span className="muted">{item.location}</span>
+                      </div>
+                      <span className="pill">Wejdź</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </main>
+        </>
+      ) : (
+        <>
+          <header className="parish-header">
+            <button
+              type="button"
+              className="parish-brand"
+              onClick={() => {
+                setActivePage('start');
+                setMenuOpen(false);
+                setOpenSection(null);
+                navigate(`/parish/${parish.slug}`);
+              }}
+            >
+              <img src={parish.logo} alt={`Logo ${parish.name}`} className="parish-logo" />
+              <span className="parish-name">{parish.name}</span>
+            </button>
+            <nav className={`parish-menu ${menuOpen ? 'open' : ''}`} aria-label="Menu parafialne">
+              {menu.map((item) => {
+                if (item.children) {
+                  const isActiveGroup = item.children.some((child) => child.id === activePage);
+                  const firstChild = item.children[0];
+                  const isOpen = openSection === item.label;
+                  return (
+                    <div key={item.label} className={`menu-item ${isActiveGroup ? 'is-active' : ''} ${isOpen ? 'open' : ''}`}>
+                      <button
+                        type="button"
+                        className="menu-button"
+                        aria-haspopup="true"
+                        onClick={() => selectPage(firstChild.id)}
+                      >
+                        {item.label}
+                      </button>
+                      <button
+                        type="button"
+                        className="submenu-toggle"
+                        aria-label={`Rozwiń ${item.label}`}
+                        onClick={() => setOpenSection((current) => (current === item.label ? null : item.label))}
+                      >
+                        ▾
+                      </button>
+                      <div className="submenu">
+                        {item.children.map((child) => (
+                          <button
+                            key={child.id}
+                            type="button"
+                            className={`submenu-link ${activePage === child.id ? 'is-active' : ''}`}
+                            onClick={() => selectPage(child.id)}
+                          >
+                            {child.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`menu-link ${activePage === item.id ? 'is-active' : ''}`}
+                    onClick={() => selectPage(item.id as PageId)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <div className="parish-controls">
+              <button
+                type="button"
+                className="menu-toggle"
+                onClick={() => {
+                  setMenuOpen((open) => {
+                    if (open) setOpenSection(null);
+                    return !open;
+                  });
+                }}
+              >
+                Menu
+              </button>
+              <button type="button" className="parish-login" onClick={onAuthAction}>
+                {authLabel}
+              </button>
+            </div>
+          </header>
+          <main className="parish-main">
+            {activePage === 'start' && (
               <>
                 <section className="parish-hero">
                   <div className="parish-hero-media">
@@ -583,7 +709,7 @@ export function ParishPage({
                     <div className="parish-card">
                       <div className="section-header">
                         <h2>Ogłoszenia — najnowsze</h2>
-                        <button type="button" className="ghost" onClick={() => setActivePage('announcements')}>
+                        <button type="button" className="ghost" onClick={() => selectPage('announcements')}>
                           Wszystkie ogłoszenia
                         </button>
                       </div>
@@ -626,8 +752,8 @@ export function ParishPage({
                     <div className="parish-card">
                       <div className="section-header">
                         <h2>Intencje na tydzień</h2>
-                        <button type="button" className="ghost" onClick={() => setActivePage('intentions')}>
-                          Przejdź do intencji
+                        <button type="button" className="ghost" onClick={() => selectPage('intentions')}>
+                          Zobacz pełny plan
                         </button>
                       </div>
                       <div className="accordion">
@@ -674,13 +800,13 @@ export function ParishPage({
                   </div>
                   <div className="quick-grid">
                     {quickActions.map((action) => (
-                      <button key={action.label} type="button" className="quick-card">
+                      <div key={action.label} className="quick-card">
                         <span className="quick-icon">{action.icon}</span>
                         <div>
                           <strong>{action.label}</strong>
                           <span>{action.detail}</span>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -706,6 +832,101 @@ export function ParishPage({
                   </div>
                 </section>
               </>
+            )}
+            {activePage === 'about' && (
+              <section className="parish-section about-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Parafia</p>
+                    <h2>O parafii</h2>
+                  </div>
+                  <span className="muted">Historia i misja wspólnoty</span>
+                </div>
+                <div className="about-grid">
+                  <div className="parish-card">
+                    <h3>Misja i wspólnota</h3>
+                    <p className="note">
+                      Tworzymy miejsce modlitwy, edukacji i pomocy. Każda inicjatywa służy budowaniu relacji i
+                      wzmacnianiu wiary.
+                    </p>
+                    <div className="highlight-grid">
+                      {aboutHighlights.map((item) => (
+                        <div key={item.label}>
+                          <strong>{item.value}</strong>
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="parish-card">
+                    <h3>Historia parafii</h3>
+                    <p className="note">
+                      Parafia powstała w odpowiedzi na rozwój dzielnicy. Od początku łączy duchowość z aktywnym
+                      zaangażowaniem społecznym.
+                    </p>
+                    <ul className="history-list">
+                      <li>1984 — erygowanie parafii i budowa kościoła.</li>
+                      <li>2002 — otwarcie centrum formacji i biblioteki.</li>
+                      <li>2020 — uruchomienie transmisji i nowych wspólnot.</li>
+                    </ul>
+                  </div>
+                  <div className="parish-card about-media">
+                    <img src="/parish/trip.jpg" alt="Wspólnota parafialna" />
+                    <div>
+                      <h3>Zaangażowanie</h3>
+                      <p className="note">Wspieramy wolontariat, wydarzenia rodzinne oraz działania charytatywne.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+            {activePage === 'office' && (
+              <section className="parish-section office-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Kancelaria</p>
+                    <h2>Godziny przyjęć i kontakt</h2>
+                  </div>
+                  <button type="button" className="ghost">
+                    Pobierz formularze
+                  </button>
+                </div>
+                <div className="office-grid">
+                  <div className="parish-card">
+                    <h3>Godziny kancelarii</h3>
+                    <ul className="office-hours">
+                      {officeHours.map((item) => (
+                        <li key={item.day}>
+                          <strong>{item.day}</strong>
+                          <span>{item.hours}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="notice">
+                      <strong>Uwaga</strong>
+                      <p>W święta i uroczystości godziny mogą ulec zmianie.</p>
+                    </div>
+                  </div>
+                  <div className="parish-card">
+                    <h3>Sprawy urzędowe</h3>
+                    <p className="note">Spisanie protokołów, zapisy na sakramenty i sprawy administracyjne.</p>
+                    <div className="detail-grid">
+                      <div>
+                        <span className="label">Telefon</span>
+                        <strong>+48 12 412 58 50</strong>
+                      </div>
+                      <div>
+                        <span className="label">E-mail</span>
+                        <strong>kancelaria@janchrzciciel.eu</strong>
+                      </div>
+                      <div>
+                        <span className="label">Lokalizacja</span>
+                        <strong>Wejście od strony plebanii</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             )}
             {activePage === 'masses' && (
               <section className="parish-section">
@@ -814,31 +1035,29 @@ export function ParishPage({
                       ))}
                     </div>
                   </div>
-                  {mode === 'user' && (
-                    <aside className="parish-card">
-                      <div className="section-header">
-                        <h3>Moje intencje</h3>
-                        <span className="muted">Statusy</span>
-                      </div>
-                      <ul className="status-list">
-                        <li>
-                          <strong>14 marca, 7:00</strong>
-                          <span>W toku</span>
-                        </li>
-                        <li>
-                          <strong>17 marca, 18:00</strong>
-                          <span>Potwierdzona</span>
-                        </li>
-                        <li>
-                          <strong>21 marca, 7:00</strong>
-                          <span>Weryfikacja</span>
-                        </li>
-                      </ul>
-                      <button type="button" className="cta ghost">
-                        Zgłoś intencję
-                      </button>
-                    </aside>
-                  )}
+                  <aside className="parish-card">
+                    <div className="section-header">
+                      <h3>Moje intencje</h3>
+                      <span className="muted">Statusy</span>
+                    </div>
+                    <ul className="status-list">
+                      <li>
+                        <strong>14 marca, 7:00</strong>
+                        <span>W toku</span>
+                      </li>
+                      <li>
+                        <strong>17 marca, 18:00</strong>
+                        <span>Potwierdzona</span>
+                      </li>
+                      <li>
+                        <strong>21 marca, 7:00</strong>
+                        <span>Weryfikacja</span>
+                      </li>
+                    </ul>
+                    <button type="button" className="cta ghost">
+                      Zgłoś intencję
+                    </button>
+                  </aside>
                 </div>
               </section>
             )}
@@ -1049,133 +1268,55 @@ export function ParishPage({
                 </div>
               </section>
             )}
-            {activePage === 'groups' && (
-              <section className="parish-section groups-page">
+            {(activePage === 'community-bible' || activePage === 'community-formation') && communityData && (
+              <section className="parish-section community-page">
                 <div className="section-header">
                   <div>
-                    <p className="tag">Grupy i wspólnoty</p>
-                    <h2>Katalog wspólnot</h2>
+                    <p className="tag">Wspólnoty</p>
+                    <h2>{communityData.title}</h2>
                   </div>
-                  <div className="filters">
-                    <select className="parish-select">
-                      <option>Wszystkie kategorie</option>
-                      <option>Muzyka</option>
-                      <option>Formacja</option>
-                      <option>Słowo</option>
-                    </select>
-                    <select className="parish-select">
-                      <option>Wszystkie dni</option>
-                      <option>Piątek</option>
-                      <option>Sobota</option>
-                      <option>Środa</option>
-                    </select>
-                  </div>
+                  <button type="button" className="ghost">
+                    Dołącz do wspólnoty
+                  </button>
                 </div>
-                <div className="groups-layout">
-                  <div className="parish-card group-list">
-                    {groups.map((group) => (
-                      <button
-                        key={group.id}
-                        type="button"
-                        className={group.id === selectedGroupId ? 'is-active' : undefined}
-                        onClick={() => setSelectedGroupId(group.id)}
-                      >
-                        <strong>{group.name}</strong>
-                        <span>{group.category}</span>
-                        <p className="note">{group.cadence}</p>
-                      </button>
-                    ))}
-                  </div>
-                  <article className="parish-card group-detail">
-                    <div className="section-header">
-                      <h3>{selectedGroup.name}</h3>
-                      <span className="pill">{selectedGroup.category}</span>
-                    </div>
-                    <p>{selectedGroup.desc}</p>
+                <div className="community-hero">
+                  <img src={communityData.image} alt={communityData.title} />
+                  <div className="parish-card">
+                    <p className="lead">{communityData.lead}</p>
                     <div className="detail-grid">
                       <div>
-                        <span className="label">Kadencja spotkań</span>
-                        <strong>{selectedGroup.cadence}</strong>
+                        <span className="label">Spotkania</span>
+                        <strong>{communityData.cadence}</strong>
                       </div>
                       <div>
                         <span className="label">Miejsce</span>
-                        <strong>{selectedGroup.location}</strong>
+                        <strong>{communityData.location}</strong>
                       </div>
                       <div>
-                        <span className="label">Opiekun</span>
-                        <strong>{selectedGroup.priest}</strong>
+                        <span className="label">Prowadzący</span>
+                        <strong>{communityData.leader}</strong>
                       </div>
                     </div>
                     <div className="chip-row">
-                      {selectedGroup.roles.map((role) => (
+                      {communityData.roles.map((role) => (
                         <span key={role} className="chip">
                           {role}
                         </span>
                       ))}
                     </div>
-                  </article>
-                </div>
-              </section>
-            )}
-            {activePage === 'sacraments' && (
-              <section className="parish-section sacraments-page">
-                <div className="section-header">
-                  <div>
-                    <p className="tag">Sakramenty</p>
-                    <h2>Zacznij od zadania</h2>
                   </div>
-                  <span className="muted">Wybierz sakrament, aby zobaczyć kroki</span>
                 </div>
-                <div className="sacrament-grid">
-                  {sacraments.map((sacrament) => (
-                    <button
-                      key={sacrament.id}
-                      type="button"
-                      className={sacrament.id === selectedSacramentId ? 'is-active' : undefined}
-                      onClick={() => setSelectedSacramentId(sacrament.id)}
-                    >
-                      <img src={sacrament.img} alt={sacrament.title} />
-                      <strong>{sacrament.title}</strong>
-                    </button>
-                  ))}
+                <div className="parish-card">
+                  <h3>Plan spotkania</h3>
+                  <ul className="plan-list">
+                    {communityData.plan.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="parish-card sacrament-detail">
-                  <div className="section-header">
-                    <h3>{selectedSacrament.title}</h3>
-                    <button type="button" className="ghost">
-                      Kontakt
-                    </button>
-                  </div>
-                  <div className="detail-columns">
-                    <div>
-                      <h4>Kroki</h4>
-                      <ol>
-                        {selectedSacrament.steps.map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div>
-                      <h4>Wymagane dokumenty</h4>
-                      <ul className="download-list">
-                        {selectedSacrament.docs.map((doc) => (
-                          <li key={doc}>
-                            <span>{doc}</span>
-                            <button type="button" className="ghost">
-                              Pobierz
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="contact-box">
-                      <h4>Kancelaria parafialna</h4>
-                      <p className="note">Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
-                      <button type="button" className="cta">
-                        Umów spotkanie
-                      </button>
-                    </div>
-                  </div>
+                <div className="parish-card">
+                  <h3>Aktualności wspólnoty</h3>
+                  <p className="note">Najbliższe spotkanie: 19 marca, 19:00. Temat: Ewangelia wg św. Marka.</p>
                 </div>
               </section>
             )}
@@ -1229,15 +1370,71 @@ export function ParishPage({
                       ))}
                     </ul>
                   </div>
-                  {mode === 'user' && (
-                    <aside className="parish-card my-area">
-                      <h3>Moja okolica</h3>
-                      <p className="note">Os. Zielone 12–24 — 7 stycznia</p>
-                      <button type="button" className="cta ghost">
-                        Zobacz trasę
-                      </button>
-                    </aside>
-                  )}
+                  <aside className="parish-card my-area">
+                    <h3>Moja okolica</h3>
+                    <p className="note">Os. Zielone 12–24 — 7 stycznia</p>
+                    <button type="button" className="cta ghost">
+                      Zobacz trasę
+                    </button>
+                  </aside>
+                </div>
+              </section>
+            )}
+            {activePage.startsWith('sacrament-') && (
+              <section className="parish-section sacrament-page">
+                <div className="section-header">
+                  <div>
+                    <p className="tag">Sakramenty</p>
+                    <h2>{selectedSacrament.title}</h2>
+                    <p className="lead">{sacramentDescriptions[selectedSacrament.id]}</p>
+                  </div>
+                  <button type="button" className="ghost">
+                    Pobierz checklistę
+                  </button>
+                </div>
+                <div className="sacrament-hero">
+                  <img src={selectedSacrament.img} alt={selectedSacrament.title} />
+                  <div className="parish-card">
+                    <h3>Kontakt w sprawie sakramentu</h3>
+                    <p className="note">Kancelaria: Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
+                    <button type="button" className="cta">
+                      Umów spotkanie
+                    </button>
+                  </div>
+                </div>
+                <div className="parish-card sacrament-detail">
+                  <div className="detail-columns">
+                    <div>
+                      <h4>Kroki</h4>
+                      <ol>
+                        {selectedSacrament.steps.map((step) => (
+                          <li key={step}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div>
+                      <h4>Wymagane dokumenty</h4>
+                      <ul className="download-list">
+                        {selectedSacrament.docs.map((doc) => (
+                          <li key={doc}>
+                            <span>{doc}</span>
+                            <button type="button" className="ghost">
+                              Pobierz
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="contact-box">
+                      <h4>Przygotowanie</h4>
+                      <p className="note">Przynieś dokumenty i ustal terminy z wyprzedzeniem.</p>
+                      <div className="chip-row">
+                        <span className="chip">Dokumenty</span>
+                        <span className="chip">Spotkanie</span>
+                        <span className="chip">Liturgia</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </section>
             )}
@@ -1245,7 +1442,7 @@ export function ParishPage({
               <section className="parish-section contact-page">
                 <div className="section-header">
                   <div>
-                    <p className="tag">Kontakt i kancelaria</p>
+                    <p className="tag">Kontakt</p>
                     <h2>Adresy i godziny</h2>
                   </div>
                   <span className="muted">Gotowe do wydruku</span>
@@ -1335,340 +1532,7 @@ export function ParishPage({
               </div>
             </div>
           </footer>
-          <nav className="parish-bottom-nav">
-            {[
-              { id: 'home', label: 'Home' },
-              { id: 'masses', label: 'Msze' },
-              { id: 'intentions', label: 'Intencje' },
-              { id: 'calendar', label: 'Kalendarz' },
-              { id: 'more', label: 'Więcej' }
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={item.id === activePage ? 'is-active' : undefined}
-                onClick={() => {
-                  if (item.id === 'more') setActivePage('contact');
-                  else setActivePage(item.id as PublicPage);
-                }}
-              >
-                <span className="bottom-icon">{item.label[0]}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
         </>
-      ) : (
-        <div className="admin-shell">
-          <aside className="admin-sidebar">
-            <div className="admin-brand">
-              <img src={parish.logo} alt={copy.loginCard.title} />
-              <div>
-                <strong>{parish.name}</strong>
-                <span>{parish.location}</span>
-              </div>
-            </div>
-            <nav>
-              {adminNav.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={item.id === adminPage ? 'is-active' : undefined}
-                  onClick={() => setAdminPage(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-          </aside>
-          <div className="admin-main">
-            <header className="admin-header">
-              <div>
-                <p className="tag">Panel administratora</p>
-                <h2>{adminNav.find((item) => item.id === adminPage)?.label}</h2>
-              </div>
-              <div className="admin-controls">
-                <div className="mode-switch">
-                  {(['public', 'user', 'admin'] as PortalMode[]).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      className={mode === item ? 'is-active' : undefined}
-                      onClick={() => handleModeChange(item)}
-                    >
-                      {item === 'public' ? 'Public' : item === 'user' ? 'User' : 'Admin'}
-                    </button>
-                  ))}
-                </div>
-                <button type="button" className="ghost">
-                  Eksportuj
-                </button>
-              </div>
-            </header>
-            <div className="admin-content">
-              {adminPage === 'dashboard' && (
-                <section className="admin-grid">
-                  <div className="admin-card">
-                    <h3>Ogłoszenia</h3>
-                    <p className="stat">12 aktywnych</p>
-                    <span className="muted">Ostatnia zmiana: 2 godz. temu</span>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Intencje</h3>
-                    <p className="stat">34 wpisy</p>
-                    <span className="muted">8 nowych zgłoszeń</span>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Sale</h3>
-                    <p className="stat">6 zasobów</p>
-                    <span className="muted">2 konflikty</span>
-                  </div>
-                  <div className="admin-card wide">
-                    <h3>Ostatnie zmiany</h3>
-                    <ul>
-                      <li>Dodano ogłoszenie: Rekolekcje wielkopostne</li>
-                      <li>Zmieniono plan kolędy — Os. Zielone</li>
-                      <li>Nowe zgłoszenie intencji — 17 marca</li>
-                    </ul>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'calendar-rooms' && (
-                <section className="admin-split">
-                  <div className="admin-card">
-                    <h3>Kalendarz tygodniowy</h3>
-                    <div className="admin-week">
-                      {['Pon', 'Wt', 'Śr', 'Czw', 'Pt'].map((day) => (
-                        <div key={day} className="admin-day">
-                          <strong>{day}</strong>
-                          <span>8:00 — Msza</span>
-                          <span>17:00 — Próba chóru</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="template-cards">
-                      <div>
-                        <strong>Szablon tygodnia</strong>
-                        <p className="note">Msze: Pon–Pt 7:00, 18:00</p>
-                      </div>
-                      <button type="button" className="ghost">
-                        Dodaj wyjątek
-                      </button>
-                    </div>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Obłożenie sal</h3>
-                    <div className="room-timeline">
-                      <span>Sala JP2</span>
-                      <div className="timeline-bar">
-                        <span className="fill" />
-                      </div>
-                      <span>Kaplica</span>
-                      <div className="timeline-bar">
-                        <span className="fill light" />
-                      </div>
-                      <span>Sala muzyczna</span>
-                      <div className="timeline-bar">
-                        <span className="fill" />
-                      </div>
-                    </div>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'intentions' && (
-                <section className="admin-split">
-                  <div className="admin-card">
-                    <h3>Skrzynka intencji</h3>
-                    <ul className="admin-list">
-                      <li>
-                        <strong>Nowa intencja</strong>
-                        <span>17 marca, 7:00</span>
-                      </li>
-                      <li>
-                        <strong>Do korekty</strong>
-                        <span>19 marca, 18:00</span>
-                      </li>
-                      <li>
-                        <strong>Potwierdzona</strong>
-                        <span>21 marca, 7:00</span>
-                      </li>
-                    </ul>
-                    <button type="button" className="ghost">
-                      Drukuj plan tygodnia
-                    </button>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Planer tygodniowy</h3>
-                    <div className="planner-grid">
-                      {['Pon', 'Wt', 'Śr', 'Czw', 'Pt'].map((day) => (
-                        <div key={day} className="planner-day">
-                          <strong>{day}</strong>
-                          <span className="pill">7:00</span>
-                          <span className="pill">18:00</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="drag-hint">Przeciągnij intencje (mock)</div>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'announcements' && (
-                <section className="admin-split">
-                  <div className="admin-card">
-                    <h3>Edytor ogłoszeń</h3>
-                    <input type="text" placeholder="Tytuł ogłoszenia" />
-                    <textarea placeholder="Treść ogłoszenia" rows={6} />
-                    <div className="admin-row">
-                      <label>Publikacja</label>
-                      <input type="date" />
-                    </div>
-                    <button type="button" className="cta">
-                      Zapisz szkic
-                    </button>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Podgląd</h3>
-                    <article className="preview">
-                      <strong>Nowe ogłoszenie</strong>
-                      <p className="note">Podgląd treści ogłoszenia, gotowy do publikacji.</p>
-                    </article>
-                    <div className="schedule">
-                      <span>Zaplanowano: 18 marca 2025</span>
-                      <span className="pill">W kolejce</span>
-                    </div>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'koleda' && (
-                <section className="admin-card">
-                  <h3>Widok ministra</h3>
-                  <div className="minister-view">
-                    <div>
-                      <strong>Trasa</strong>
-                      <p>Os. Zielone 12–24</p>
-                    </div>
-                    <div>
-                      <strong>Przydział</strong>
-                      <p>ks. Marek • 7 stycznia • 16:00–20:00</p>
-                    </div>
-                    <div>
-                      <strong>Notatki</strong>
-                      <p>Uwaga na blok 18, wejście od podwórza.</p>
-                    </div>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'groups' && (
-                <section className="admin-split">
-                  <div className="admin-card">
-                    <h3>Nowa grupa</h3>
-                    <input type="text" placeholder="Nazwa grupy" />
-                    <select>
-                      <option>Kategoria</option>
-                      <option>Muzyka</option>
-                      <option>Formacja</option>
-                    </select>
-                    <input type="text" placeholder="Opiekun (ksiądz)" />
-                    <div className="chip-row">
-                      <span className="chip">lider</span>
-                      <span className="chip">animator</span>
-                      <span className="chip">członek</span>
-                    </div>
-                    <button type="button" className="cta ghost">
-                      Zapisz
-                    </button>
-                  </div>
-                  <div className="admin-card">
-                    <h3>Uczestnicy</h3>
-                    <ul className="admin-list">
-                      <li>
-                        <strong>Anna Nowak</strong>
-                        <span className="pill">lider</span>
-                      </li>
-                      <li>
-                        <strong>Piotr Zieliński</strong>
-                        <span className="pill">członek</span>
-                      </li>
-                    </ul>
-                  </div>
-                </section>
-              )}
-              {adminPage === 'priests' && (
-                <section className="admin-card">
-                  <h3>Lista kapłanów</h3>
-                  <div className="admin-list">
-                    {priests.map((priest) => (
-                      <div key={priest.id} className="admin-list-item">
-                        <img src={priest.img} alt={priest.name} />
-                        <div>
-                          <strong>{priest.name}</strong>
-                          <span>{priest.role}</span>
-                        </div>
-                        <button type="button" className="ghost">
-                          Edytuj
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {adminPage === 'locations' && (
-                <section className="admin-card">
-                  <h3>Lokalizacje parafii</h3>
-                  <div className="admin-list">
-                    {parishLocations.map((location) => (
-                      <div key={location.title} className="admin-list-item">
-                        <div>
-                          <strong>{location.title}</strong>
-                          <span>{location.address}</span>
-                        </div>
-                        <button type="button" className="ghost">
-                          Edytuj kartę
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-              {adminPage === 'settings' && (
-                <section className="admin-card settings">
-                  <h3>Ustawienia wyglądu</h3>
-                  <div className="settings-grid">
-                    {(['classic', 'minimal', 'warm'] as ThemePreset[]).map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        className={`theme-tile ${theme === preset ? 'is-active' : ''}`}
-                        onClick={() => setTheme(preset)}
-                      >
-                        <span>{preset === 'classic' ? 'Klasyczny' : preset === 'minimal' ? 'Minimal' : 'Ciepły'}</span>
-                        <div className={`theme-preview ${preset}`} />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="settings-row">
-                    <div>
-                      <strong>Logo parafii</strong>
-                      <p className="note">Dodaj wersję jasną i ciemną.</p>
-                    </div>
-                    <button type="button" className="ghost">
-                      Prześlij logo
-                    </button>
-                  </div>
-                  <div className="settings-row">
-                    <div>
-                      <strong>Kolory przewodnie</strong>
-                      <p className="note">Wybierz akcent i kolor tła.</p>
-                    </div>
-                    <button type="button" className="ghost">
-                      Edytuj paletę
-                    </button>
-                  </div>
-                </section>
-              )}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
