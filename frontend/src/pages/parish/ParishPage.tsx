@@ -561,6 +561,8 @@ export function ParishPage({
   const [view, setView] = useState<'chooser' | 'parish'>(parishSlug ? 'parish' : 'chooser');
   const [activeSlide, setActiveSlide] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchDeltaX, setTouchDeltaX] = useState(0);
 
   const parish = useMemo(() => parishes.find((item) => item.id === parishId) ?? parishes[0], [parishId]);
   const announcement = useMemo(
@@ -764,7 +766,34 @@ export function ParishPage({
               <>
                 <section className="parish-section home-top">
                   <div className="home-top-grid">
-                    <div className="carousel">
+                    <div
+                      className="carousel"
+                      onTouchStart={(event) => {
+                        const touch = event.touches[0];
+                        if (!touch) return;
+                        setTouchStartX(touch.clientX);
+                        setTouchDeltaX(0);
+                      }}
+                      onTouchMove={(event) => {
+                        if (touchStartX === null) return;
+                        const touch = event.touches[0];
+                        if (!touch) return;
+                        setTouchDeltaX(touch.clientX - touchStartX);
+                      }}
+                      onTouchEnd={() => {
+                        if (touchStartX === null) return;
+                        if (Math.abs(touchDeltaX) > 40) {
+                          setAutoRotate(false);
+                          setActiveSlide((prev) =>
+                            touchDeltaX > 0
+                              ? (prev - 1 + homepageHighlights.length) % homepageHighlights.length
+                              : (prev + 1) % homepageHighlights.length
+                          );
+                        }
+                        setTouchStartX(null);
+                        setTouchDeltaX(0);
+                      }}
+                    >
                       {homepageHighlights.map((item, index) => (
                         <a
                           key={item.id}
