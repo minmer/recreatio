@@ -119,6 +119,86 @@ const todayStrip = [
   { label: 'Telefon alarmowy', value: '+48 600 123 456' }
 ];
 
+const homepageHighlights: {
+  id: string;
+  title: string;
+  note: string;
+  date: string;
+  img: string | null;
+  link: string;
+}[] = [
+  {
+    id: 'highlight-1',
+    title: 'Niedziela Miłosierdzia',
+    note: 'Koronka o 15:00 i adoracja. Zapraszamy całe rodziny.',
+    date: '12 kwietnia 2025',
+    img: '/parish/minister.jpg',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'highlight-2',
+    title: 'Rekolekcje wielkopostne',
+    note: 'Konferencje w piątek, sobotę i niedzielę.',
+    date: '9 kwietnia 2025',
+    img: '/parish/pursuit_saint.jpg',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'highlight-3',
+    title: 'Zbiórka dla Caritas',
+    note: 'Kosze z darami w kruchcie. Wsparcie dla potrzebujących.',
+    date: '6 kwietnia 2025',
+    img: '/parish/finance.jpg',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'highlight-4',
+    title: 'Ogłoszenie tekstowe',
+    note: 'Przykład komunikatu bez zdjęcia. Krótka informacja dla parafian.',
+    date: '4 kwietnia 2025',
+    img: null,
+    link: '/#/parish/jan-pradnik'
+  }
+];
+
+const calendarPreview = [
+  {
+    id: 'cal-1',
+    title: 'Droga Krzyżowa',
+    date: 'Piątek, 15 marca • 17:15',
+    place: 'Kościół główny',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'cal-2',
+    title: 'Spotkanie kręgu biblijnego',
+    date: 'Środa, 19 marca • 19:00',
+    place: 'Biblioteka parafialna',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'cal-3',
+    title: 'Próba chóru',
+    date: 'Czwartek, 20 marca • 18:30',
+    place: 'Sala muzyczna',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'cal-4',
+    title: 'Spotkanie młodzieży',
+    date: 'Piątek, 21 marca • 19:30',
+    place: 'Salki duszpasterskie',
+    link: '/#/parish/jan-pradnik'
+  },
+  {
+    id: 'cal-5',
+    title: 'Msza za wspólnotę',
+    date: 'Niedziela, 23 marca • 11:00',
+    place: 'Kościół główny',
+    link: '/#/parish/jan-pradnik'
+  }
+];
+
 const announcements = [
   {
     id: 'ann-1',
@@ -479,6 +559,8 @@ export function ParishPage({
   const [selectedPriestId, setSelectedPriestId] = useState(priests[0].id);
   const [selectedSacramentId, setSelectedSacramentId] = useState(sacraments[0].id);
   const [view, setView] = useState<'chooser' | 'parish'>(parishSlug ? 'parish' : 'chooser');
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [autoRotate, setAutoRotate] = useState(true);
 
   const parish = useMemo(() => parishes.find((item) => item.id === parishId) ?? parishes[0], [parishId]);
   const announcement = useMemo(
@@ -497,6 +579,7 @@ export function ParishPage({
     () => sacraments.find((item) => item.id === selectedSacramentId) ?? sacraments[0],
     [selectedSacramentId]
   );
+  const activeHighlight = homepageHighlights[activeSlide] ?? homepageHighlights[0];
 
   const communityData = useMemo(() => {
     if (activePage === 'community-bible' || activePage === 'community-formation') {
@@ -510,6 +593,14 @@ export function ParishPage({
     setParishId(nextParish.id);
     setTheme(nextParish.theme);
   };
+
+  useEffect(() => {
+    if (!autoRotate) return;
+    const interval = window.setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % homepageHighlights.length);
+    }, 6000);
+    return () => window.clearInterval(interval);
+  }, [autoRotate, homepageHighlights.length]);
 
   const selectPage = (next: PageId) => {
     setActivePage(next);
@@ -671,6 +762,86 @@ export function ParishPage({
           <main className="parish-main">
             {activePage === 'start' && (
               <>
+                <section className="parish-section home-top">
+                  <div className="home-top-grid">
+                    <div className="carousel">
+                      {homepageHighlights.map((item, index) => (
+                        <a
+                          key={item.id}
+                          className={`carousel-slide ${activeSlide === index ? 'is-active' : ''} ${
+                            item.img ? '' : 'text-only'
+                          }`}
+                          href={item.link}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {item.img ? <img src={item.img} alt={item.title} /> : null}
+                        </a>
+                      ))}
+                      <a
+                        className={`carousel-caption ${activeHighlight.img ? '' : 'text-only'}`}
+                        href={activeHighlight.link}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span className="pill">{activeHighlight.date}</span>
+                        <h2>{activeHighlight.title}</h2>
+                        <p className="note">{activeHighlight.note}</p>
+                      </a>
+                      <button
+                        type="button"
+                        className="carousel-arrow left"
+                        aria-label="Poprzednia informacja"
+                        onClick={() => {
+                          setAutoRotate(false);
+                          setActiveSlide((prev) => (prev - 1 + homepageHighlights.length) % homepageHighlights.length);
+                        }}
+                      >
+                        <span>‹</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="carousel-arrow right"
+                        aria-label="Następna informacja"
+                        onClick={() => {
+                          setAutoRotate(false);
+                          setActiveSlide((prev) => (prev + 1) % homepageHighlights.length);
+                        }}
+                      >
+                        <span>›</span>
+                      </button>
+                      <div className="carousel-dots" role="tablist" aria-label="Ważne informacje">
+                        {homepageHighlights.map((item, index) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className={activeSlide === index ? 'is-active' : undefined}
+                            onClick={() => {
+                              setAutoRotate(false);
+                              setActiveSlide(index);
+                            }}
+                            aria-label={`Slajd ${index + 1}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <aside className="calendar-panel">
+                      <div className="section-header">
+                        <h3>Nadchodzące wydarzenia</h3>
+                        <span className="muted">Najbliższe wpisy</span>
+                      </div>
+                      <div className="calendar-list">
+                        {calendarPreview.map((item) => (
+                          <a key={item.id} href={item.link} target="_blank" rel="noreferrer">
+                            <strong>{item.title}</strong>
+                            <span>{item.date}</span>
+                            <span className="muted">{item.place}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </aside>
+                  </div>
+                </section>
                 <section className="parish-hero">
                   <div className="parish-hero-media">
                     <img src={parish.heroImage} alt="Wnętrze kościoła" />

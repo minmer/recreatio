@@ -334,6 +334,206 @@
   margin-bottom: 3rem;
 }
 
+.home-top {
+  margin-top: 0.5rem;
+}
+
+.home-top-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 1.8rem;
+  align-items: stretch;
+}
+
+.home-top-grid > * {
+  min-width: 0;
+}
+
+.carousel {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  min-height: 320px;
+  height: 100%;
+  aspect-ratio: 16 / 9;
+  box-shadow: 0 20px 50px var(--parish-shadow);
+  width: 100%;
+}
+
+.carousel-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.02);
+  transition: opacity 260ms ease, transform 260ms ease;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  z-index: 0;
+}
+
+.carousel-slide.is-active {
+  opacity: 1;
+  transform: scale(1);
+  z-index: 2;
+}
+
+.carousel-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.carousel-slide.text-only {
+  display: grid;
+  align-items: center;
+  background-image: url('/parish/Background.png');
+  background-size: cover;
+  background-position: center;
+}
+
+.carousel-caption {
+  position: absolute;
+  left: 1.2rem;
+  bottom: 2.2rem;
+  right: 1.2rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  display: grid;
+  gap: 0.4rem;
+  z-index: 6;
+  color: inherit;
+  text-decoration: none;
+}
+
+.carousel-caption.text-only {
+  position: absolute;
+  left: 1.2rem;
+  right: 1.2rem;
+  bottom: 2.2rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px dashed rgba(165, 107, 47, 0.35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
+  max-width: 70%;
+  margin: 0 auto;
+}
+
+.carousel-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 0.4rem;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.4rem;
+  z-index: 5;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.carousel-dots button {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(27, 53, 82, 0.45);
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.carousel-dots button.is-active {
+  background: var(--parish-accent-deep);
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20%;
+  border: none;
+  background: transparent;
+  color: var(--parish-ink);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 4;
+  font-size: 2rem;
+}
+
+.carousel-arrow.left {
+  left: 0;
+  background: transparent;
+}
+
+.carousel-arrow.right {
+  right: 0;
+  background: transparent;
+}
+
+.carousel-arrow:hover {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.carousel-arrow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  z-index: 0;
+}
+
+.carousel-arrow.left::before {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+}
+
+.carousel-arrow.right::before {
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+}
+
+.carousel-arrow:hover::before {
+  opacity: 1;
+}
+
+.carousel-arrow span {
+  position: relative;
+  z-index: 2;
+}
+
+.calendar-panel {
+  background: var(--parish-surface);
+  border-radius: 20px;
+  padding: 1.2rem;
+  border: 1px solid var(--parish-line);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.08);
+  height: 100%;
+  min-height: 320px;
+  overflow: hidden;
+  display: grid;
+  gap: 0.8rem;
+  width: 100%;
+}
+
+.calendar-list {
+  display: grid;
+  gap: 0.8rem;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  max-height: 100%;
+}
+
+.calendar-list a {
+  border: 1px solid var(--parish-line);
+  border-radius: 14px;
+  padding: 0.7rem;
+  text-decoration: none;
+  color: inherit;
+  display: grid;
+  gap: 0.2rem;
+  background: white;
+}
+
 .two-column {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1028,6 +1228,12 @@
   .live-card,
   .sacrament-hero,
   .community-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1360px) {
+  .home-top-grid {
     grid-template-columns: 1fr;
   }
 }
