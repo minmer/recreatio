@@ -31,7 +31,7 @@
   top: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: auto minmax(280px, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 1.5rem;
   align-items: center;
   padding: 1rem 5vw;
@@ -105,9 +105,22 @@
 .parish-menu {
   display: flex;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
   position: relative;
+  justify-self: center;
+}
+
+.parish-menu-control,
+.parish-login-control {
+  display: flex;
+  align-items: center;
+}
+
+.parish-menu-control {
+  display: none;
+  justify-content: center;
 }
 
 .menu-item {
@@ -115,7 +128,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  min-width: 140px;
+  min-width: 120px;
   justify-content: center;
 }
 
@@ -130,8 +143,9 @@
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
-  min-width: 140px;
+  min-width: 120px;
   justify-content: center;
+  font-size: 0.95rem;
 }
 
 .menu-link.is-active,
@@ -157,13 +171,6 @@
   transition: opacity 160ms ease, transform 160ms ease, max-height 200ms ease;
 }
 
-.menu-item.open .submenu {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  gap: 0.2rem;
-}
-
 .menu-item::after {
   content: '';
   position: absolute;
@@ -182,11 +189,13 @@
   }
 }
 
-.menu-item:focus-within .submenu {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-  gap: 0.2rem;
+@media (hover: none) and (pointer: coarse) {
+  .menu-item:focus-within .submenu {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    gap: 0.2rem;
+  }
 }
 
 .submenu-link {
@@ -196,6 +205,7 @@
   padding: 0.45rem 0.6rem;
   border-radius: 10px;
   cursor: pointer;
+  font-size: 0.9rem;
 }
 
 .submenu-link:hover,
@@ -1024,14 +1034,19 @@
 
 @media (max-width: 900px) {
   .parish-header {
-    grid-template-columns: 1fr auto;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.35rem;
+    padding: 0.7rem 4vw;
+    position: relative;
   }
 
   .parish-menu {
     display: grid;
-    grid-column: 1 / -1;
-    flex-direction: column;
-    align-items: flex-start;
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 50%;
+    transform: translate(-50%, -6px);
     background: white;
     padding: 0.8rem 0.4rem;
     border: 1px solid var(--parish-line);
@@ -1041,8 +1056,19 @@
     opacity: 0;
     overflow: hidden;
     pointer-events: none;
-    transform: translateY(-6px);
     transition: max-height 220ms ease, opacity 200ms ease, transform 200ms ease;
+    width: min(92vw, 360px);
+    z-index: 20;
+  }
+
+  .parish-menu-control {
+    display: flex;
+    justify-content: center;
+    justify-self: center;
+  }
+
+  .parish-login-control {
+    justify-content: flex-end;
   }
 
   .menu-item {
@@ -1064,6 +1090,7 @@
     padding-left: 0;
     min-width: 0;
     justify-content: flex-start;
+    font-size: 1.05rem;
   }
 
   .menu-link {
@@ -1072,6 +1099,7 @@
     padding-left: 0.5rem;
     min-width: 0;
     justify-content: flex-start;
+    font-size: 1.05rem;
   }
 
   .parish-menu.open {
@@ -1080,7 +1108,7 @@
     opacity: 1;
     overflow-y: auto;
     pointer-events: auto;
-    transform: translateY(0);
+    transform: translate(-50%, 0);
   }
 
   .submenu {

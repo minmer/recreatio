@@ -648,7 +648,7 @@ export function ParishPage({
                 );
               })}
             </nav>
-            <div className="parish-controls">
+            <div className="parish-menu-control">
               <button
                 type="button"
                 className="menu-toggle"
@@ -661,6 +661,8 @@ export function ParishPage({
               >
                 Menu
               </button>
+            </div>
+            <div className="parish-login-control">
               <button type="button" className="parish-login" onClick={onAuthAction}>
                 {authLabel}
               </button>
