@@ -602,7 +602,6 @@ export function ParishPage({
               {menu.map((item) => {
                 if (item.children) {
                   const isActiveGroup = item.children.some((child) => child.id === activePage);
-                  const firstChild = item.children[0];
                   const isOpen = openSection === item.label;
                   return (
                     <div key={item.label} className={`menu-item ${isActiveGroup ? 'is-active' : ''} ${isOpen ? 'open' : ''}`}>
@@ -610,7 +609,7 @@ export function ParishPage({
                         type="button"
                         className="menu-button"
                         aria-haspopup="true"
-                        onClick={() => selectPage(firstChild.id)}
+                        onClick={() => setOpenSection((current) => (current === item.label ? null : item.label))}
                       >
                         {item.label}
                       </button>
