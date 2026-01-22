@@ -79,6 +79,31 @@ export type Copy = {
     items: string[];
     note: string;
     loginCta: string;
+    page: {
+      nav: Array<{ id: string; label: string }>;
+      hero: {
+        tag: string;
+        title: string;
+        subtitle: string;
+        primaryCta: string;
+        secondaryCta: string;
+      };
+      stats: Array<{ value: string; label: string }>;
+      highlights: Array<{ title: string; desc: string }>;
+      sections: Array<{
+        id: string;
+        tag: string;
+        title: string;
+        subtitle: string;
+        cards: Array<{ title: string; desc: string; meta?: string }>;
+        bullets: string[];
+      }>;
+      join: {
+        title: string;
+        subtitle: string;
+        cards: Array<{ title: string; desc: string; action: string }>;
+      };
+    };
   };
   faq: {
     title: string;

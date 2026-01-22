@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
@@ -161,41 +162,78 @@ const homepageHighlights: {
   }
 ];
 
-const calendarPreview = [
+const calendarPreviewGroups = [
   {
-    id: 'cal-1',
-    title: 'Droga Krzyżowa',
-    date: 'Piątek, 15 marca • 17:15',
-    place: 'Kościół główny',
-    link: '/#/parish/jan-pradnik'
+    id: 'cal-group-1',
+    time: 'Piątek, 15 marca • 17:15',
+    entries: [
+      {
+        id: 'cal-1',
+        title: 'Droga Krzyżowa',
+        place: 'Kościół główny',
+        provider: 'ks. Marek',
+        link: '/#/parish/jan-pradnik'
+      },
+      {
+        id: 'cal-1b',
+        title: 'Spowiedź',
+        place: 'Konfesjonały',
+        provider: 'ks. Adam',
+        link: '/#/parish/jan-pradnik'
+      }
+    ]
   },
   {
-    id: 'cal-2',
-    title: 'Spotkanie kręgu biblijnego',
-    date: 'Środa, 19 marca • 19:00',
-    place: 'Biblioteka parafialna',
-    link: '/#/parish/jan-pradnik'
+    id: 'cal-group-2',
+    time: 'Środa, 19 marca • 19:00',
+    entries: [
+      {
+        id: 'cal-2',
+        title: 'Spotkanie kręgu biblijnego',
+        place: 'Biblioteka parafialna',
+        provider: 'ks. Paweł',
+        link: '/#/parish/jan-pradnik'
+      }
+    ]
   },
   {
-    id: 'cal-3',
-    title: 'Próba chóru',
-    date: 'Czwartek, 20 marca • 18:30',
-    place: 'Sala muzyczna',
-    link: '/#/parish/jan-pradnik'
+    id: 'cal-group-3',
+    time: 'Czwartek, 20 marca • 18:30',
+    entries: [
+      {
+        id: 'cal-3',
+        title: 'Próba chóru',
+        place: 'Sala muzyczna',
+        provider: 'Anna Nowak',
+        link: '/#/parish/jan-pradnik'
+      }
+    ]
   },
   {
-    id: 'cal-4',
-    title: 'Spotkanie młodzieży',
-    date: 'Piątek, 21 marca • 19:30',
-    place: 'Salki duszpasterskie',
-    link: '/#/parish/jan-pradnik'
+    id: 'cal-group-4',
+    time: 'Piątek, 21 marca • 19:30',
+    entries: [
+      {
+        id: 'cal-4',
+        title: 'Spotkanie młodzieży',
+        place: 'Salki duszpasterskie',
+        provider: 'ks. Adam',
+        link: '/#/parish/jan-pradnik'
+      }
+    ]
   },
   {
-    id: 'cal-5',
-    title: 'Msza za wspólnotę',
-    date: 'Niedziela, 23 marca • 11:00',
-    place: 'Kościół główny',
-    link: '/#/parish/jan-pradnik'
+    id: 'cal-group-5',
+    time: 'Niedziela, 23 marca • 11:00',
+    entries: [
+      {
+        id: 'cal-5',
+        title: 'Msza za wspólnotę',
+        place: 'Kościół główny',
+        provider: 'ks. Marek',
+        link: '/#/parish/jan-pradnik'
+      }
+    ]
   }
 ];
 
@@ -224,6 +262,30 @@ const announcements = [
     content:
       'W najbliższą niedzielę prowadzimy zbiórkę żywności długoterminowej. Dary można składać w wyznaczonych koszach od 7:00 do 13:00.'
   }
+];
+
+const ogloszeniaShortcuts = [
+  { date: '12–18 marca', link: '/#/parish/jan-pradnik' },
+  { date: '5–11 marca', link: '/#/parish/jan-pradnik' },
+  { date: 'Marzec 2025', link: '/#/parish/jan-pradnik' }
+];
+
+const intentionShortcuts = [
+  { label: 'Intencje dzisiaj', desc: 'Lista na dziś', link: '/#/parish/jan-pradnik' },
+  { label: 'Intencje tygodnia', desc: 'Pełny harmonogram', link: '/#/parish/jan-pradnik' },
+  { label: 'Intencje pogrzebowe', desc: 'Msze za zmarłych', link: '/#/parish/jan-pradnik' }
+];
+
+const aktualnosciImages = [
+  { img: '/parish/trip.jpg', link: '/#/parish/jan-pradnik' },
+  { img: '/parish/choir.jpg', link: '/#/parish/jan-pradnik' },
+  { img: '/parish/bible_circle.jpg', link: '/#/parish/jan-pradnik' }
+];
+
+const wspolnotyImages = [
+  { img: '/parish/user.jpg', link: '/#/parish/jan-pradnik' },
+  { img: '/parish/minister.jpg', link: '/#/parish/jan-pradnik' },
+  { img: '/parish/visit.jpg', link: '/#/parish/jan-pradnik' }
 ];
 
 const upcomingEvents = [
@@ -563,6 +625,10 @@ export function ParishPage({
   const [autoRotate, setAutoRotate] = useState(true);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchDeltaX, setTouchDeltaX] = useState(0);
+  const [aktualnosciIndex, setAktualnosciIndex] = useState(0);
+  const [wspolnotyIndex, setWspolnotyIndex] = useState(0);
+  const [aktualnosciPrevIndex, setAktualnosciPrevIndex] = useState(0);
+  const [wspolnotyPrevIndex, setWspolnotyPrevIndex] = useState(0);
 
   const parish = useMemo(() => parishes.find((item) => item.id === parishId) ?? parishes[0], [parishId]);
   const announcement = useMemo(
@@ -603,6 +669,35 @@ export function ParishPage({
     }, 6000);
     return () => window.clearInterval(interval);
   }, [autoRotate, homepageHighlights.length]);
+
+  useEffect(() => {
+    const baseDelay = 5000;
+    const minDelay = baseDelay * 0.8;
+    const maxDelay = baseDelay * 1.2;
+    const schedule = (
+      length: number,
+      update: Dispatch<SetStateAction<number>>,
+      updatePrev: Dispatch<SetStateAction<number>>
+    ) => {
+      const tick = () => {
+        update((prev) => {
+          updatePrev(prev);
+          return (prev + 1) % length;
+        });
+        const nextDelay = Math.floor(minDelay + Math.random() * (maxDelay - minDelay));
+        timeoutId = window.setTimeout(tick, nextDelay);
+      };
+      let timeoutId = window.setTimeout(tick, minDelay + Math.random() * (maxDelay - minDelay));
+      return () => window.clearTimeout(timeoutId);
+    };
+
+    const cleanupAktualnosci = schedule(aktualnosciImages.length, setAktualnosciIndex, setAktualnosciPrevIndex);
+    const cleanupWspolnoty = schedule(wspolnotyImages.length, setWspolnotyIndex, setWspolnotyPrevIndex);
+    return () => {
+      cleanupAktualnosci();
+      cleanupWspolnoty();
+    };
+  }, []);
 
   const selectPage = (next: PageId) => {
     setActivePage(next);
@@ -857,140 +952,113 @@ export function ParishPage({
                     <aside className="calendar-panel">
                       <div className="section-header">
                         <h3>Nadchodzące wydarzenia</h3>
-                        <span className="muted">Najbliższe wpisy</span>
+                        <button type="button" className="ghost" onClick={() => selectPage('calendar')}>
+                          Pełny kalendarz
+                        </button>
                       </div>
                       <div className="calendar-list">
-                        {calendarPreview.map((item) => (
-                          <a key={item.id} href={item.link} target="_blank" rel="noreferrer">
-                            <strong>{item.title}</strong>
-                            <span>{item.date}</span>
-                            <span className="muted">{item.place}</span>
-                          </a>
+                        {calendarPreviewGroups.map((group) => (
+                          <div key={group.id} className="calendar-group">
+                            <span className="calendar-time">{group.time}</span>
+                            <div className="calendar-row">
+                              {group.entries.map((entry) => (
+                                <a key={entry.id} href={entry.link} target="_blank" rel="noreferrer">
+                                  <strong>{entry.title}</strong>
+                                  <span>{entry.place}</span>
+                                  <span className="muted">Prowadzi: {entry.provider}</span>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </aside>
                   </div>
                 </section>
-                <section className="parish-hero">
-                  <div className="parish-hero-media">
-                    <img src={parish.heroImage} alt="Wnętrze kościoła" />
-                    <div className="parish-hero-tag">
-                      <p className="tag">Ten tydzień</p>
-                      <h1>Wspólnota, która modli się razem</h1>
-                      <p className="lead">
-                        Aktualne godziny Mszy, intencje, wydarzenia i sprawy kancelaryjne. Wszystko w jednym miejscu.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="parish-hero-side">
-                    <div className="parish-card next-mass">
-                      <span className="section-label">Najbliższa Msza</span>
-                      <h3>Środa, 13 marca • 18:00</h3>
-                      <p className="note">Kościół główny • Nawa boczna</p>
-                      <div className="chip-row">
-                        <span className="chip">ks. Marek Nowak</span>
-                        <span className="chip">Msza wieczorna</span>
-                      </div>
-                      <button type="button" className="cta ghost">
-                        Dodaj do kalendarza
-                      </button>
-                    </div>
-                    <div className="today-strip">
-                      {todayStrip.map((item) => (
-                        <div key={item.label} className="today-chip">
-                          <span>{item.label}</span>
-                          <strong>{item.value}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-                <section className="parish-section two-column">
-                  <div className="column">
-                    <div className="parish-card">
+                <section className="parish-section home-split">
+                  <div className="widget-row">
+                    <div className="parish-card slim-widget">
                       <div className="section-header">
-                        <h2>Ogłoszenia — najnowsze</h2>
+                        <h3>Ogłoszenia — skróty</h3>
                         <button type="button" className="ghost" onClick={() => selectPage('announcements')}>
                           Wszystkie ogłoszenia
                         </button>
                       </div>
-                      <div className="stack">
-                        {announcements.map((item) => (
-                          <article key={item.id} className="announcement-card">
-                            <p className="date">{item.date}</p>
-                            <h3>{item.title}</h3>
-                            <p className="note">{item.excerpt}</p>
-                          </article>
+                      <div className="shortcut-list">
+                        {ogloszeniaShortcuts.map((item) => (
+                          <a key={item.date} href={item.link} target="_blank" rel="noreferrer">
+                            <strong>{item.date}</strong>
+                          </a>
                         ))}
                       </div>
                     </div>
-                    <div className="parish-card">
+                    <div className="parish-card slim-widget">
                       <div className="section-header">
-                        <h2>Nadchodzące 14 dni</h2>
-                        <span className="muted">Aktualizacja: 12 marca</span>
+                        <h3>Intencje</h3>
+                        <button type="button" className="ghost" onClick={() => selectPage('intentions')}>
+                          Wszystkie intencje
+                        </button>
                       </div>
-                      <ul className="event-list">
-                        {upcomingEvents.map((event) => (
-                          <li key={event.title}>
-                            <div>
-                              <strong>{event.title}</strong>
-                              <span>{event.place}</span>
-                            </div>
-                            <div className="event-meta">
-                              <span className="pill">{event.tag}</span>
-                              <span>{event.date}</span>
-                            </div>
-                          </li>
+                      <div className="shortcut-list">
+                        {intentionShortcuts.map((item) => (
+                          <a key={item.label} href={item.link} target="_blank" rel="noreferrer">
+                            <strong>{item.label}</strong>
+                            <span className="muted">{item.desc}</span>
+                          </a>
                         ))}
-                      </ul>
-                      <div className="skeleton-row">
-                        <div className="skeleton block" />
-                        <div className="skeleton block" />
                       </div>
                     </div>
                   </div>
-                  <div className="column">
-                    <div className="parish-card">
+                  <div className="widget-row">
+                    <div className="parish-card image-widget">
                       <div className="section-header">
-                        <h2>Intencje na tydzień</h2>
-                        <button type="button" className="ghost" onClick={() => selectPage('intentions')}>
-                          Zobacz pełny plan
+                        <h3>Aktualności</h3>
+                        <button type="button" className="ghost" onClick={() => selectPage('announcements')}>
+                          Wszystkie aktualności
                         </button>
                       </div>
-                      <div className="accordion">
-                        {intentionsWeek.map((day) => (
-                          <details key={day.day} open>
-                            <summary>{day.day}</summary>
-                            <div className="accordion-body">
-                              {day.items.map((item) => (
-                                <div key={`${day.day}-${item.time}`} className="intent-row">
-                                  <span>{item.time}</span>
-                                  <div>
-                                    <p>{item.text}</p>
-                                    <span className="muted">
-                                      {item.location} • {item.priest}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
+                      <a
+                        className="image-link"
+                        href={aktualnosciImages[aktualnosciIndex]?.link}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <div
+                          className="image-layer is-prev"
+                          style={{ backgroundImage: `url(${aktualnosciImages[aktualnosciPrevIndex]?.img})` }}
+                        />
+                        <div
+                          className="image-layer is-current"
+                          key={aktualnosciImages[aktualnosciIndex]?.img}
+                          style={{ backgroundImage: `url(${aktualnosciImages[aktualnosciIndex]?.img})` }}
+                        />
+                        <span>Przejdź do aktualności</span>
+                      </a>
                     </div>
-                    <div className="parish-card live-card">
-                      <div>
-                        <p className="tag">Live / Stream</p>
-                        <h3>Najbliższa transmisja: Niedziela 9:00</h3>
-                        <p className="note">Link pojawi się 10 minut przed rozpoczęciem.</p>
-                        <button type="button" className="cta ghost">
-                          Powiadom mnie
+                    <div className="parish-card image-widget">
+                      <div className="section-header">
+                        <h3>Wspólnoty</h3>
+                        <button type="button" className="ghost" onClick={() => selectPage('community-bible')}>
+                          Wszystkie wspólnoty
                         </button>
                       </div>
-                      <div className="live-player">
-                        <img src="/parish/minister.jpg" alt="Podgląd transmisji" />
-                        <span className="live-badge">Live</span>
-                      </div>
+                      <a
+                        className="image-link"
+                        href={wspolnotyImages[wspolnotyIndex]?.link}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <div
+                          className="image-layer is-prev"
+                          style={{ backgroundImage: `url(${wspolnotyImages[wspolnotyPrevIndex]?.img})` }}
+                        />
+                        <div
+                          className="image-layer is-current"
+                          key={wspolnotyImages[wspolnotyIndex]?.img}
+                          style={{ backgroundImage: `url(${wspolnotyImages[wspolnotyIndex]?.img})` }}
+                        />
+                        <span>Przejdź do wspólnot</span>
+                      </a>
                     </div>
                   </div>
                 </section>

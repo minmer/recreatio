@@ -122,7 +122,208 @@ export const de: Copy = {
       'Teilen von Materialien mit Zugangskontrolle.'
     ],
     note: 'Cogita kann auch unter eigener Domain laufen, z.B. cogita.pl — ohne Backend-Änderung.',
-    loginCta: 'Mit REcreatio anmelden'
+    loginCta: 'Mit REcreatio anmelden',
+    page: {
+      nav: [
+        { id: 'home', label: 'Start' },
+        { id: 'library', label: 'Bibliothek' },
+        { id: 'live', label: 'Live' },
+        { id: 'participation', label: 'Teilnahme' },
+        { id: 'results', label: 'Ergebnisse' },
+        { id: 'security', label: 'Sicherheit' },
+        { id: 'join', label: 'Einstieg' }
+      ],
+      hero: {
+        tag: 'Cogita',
+        title: 'Ein Live-Wissensraum für Quiz, Dialog und gemeinsames Lernen.',
+        subtitle:
+          'Quiz entwerfen, Live-Sessions steuern und jedem Teilnehmenden eine persönliche Ergebnisansicht geben. Cogita hält Inhalte offen und Schlüssel privat.',
+        primaryCta: 'Mit REcreatio starten',
+        secondaryCta: 'Unterseiten entdecken'
+      },
+      stats: [
+        { value: '3 Modi', label: 'Lehrkraft, Lernende, Gast' },
+        { value: '1 Link', label: 'QR oder Session-Code' },
+        { value: '0 Vertrauen', label: 'Schlüssel regeln Zugriff' }
+      ],
+      highlights: [
+        {
+          title: 'Live-Session-Steuerung',
+          desc: 'Sessions starten, pausieren und beenden — mit synchronem Tempo.'
+        },
+        {
+          title: 'Anonym bereit',
+          desc: 'Teilnehmende ohne Konto erhalten trotzdem eine private Ergebnisansicht.'
+        },
+        {
+          title: 'Audit-first',
+          desc: 'Jede Änderung wird protokolliert und ist rollenbasiert nachvollziehbar.'
+        }
+      ],
+      sections: [
+        {
+          id: 'library',
+          tag: 'Wissensbibliothek',
+          title: 'Lektion aufbauen, Quiz-Stapel wiederverwenden, Kontext bewahren.',
+          subtitle: 'Quiz und Materialien mit Vorlagen, Versionierung und Co-Authoring erstellen.',
+          cards: [
+            {
+              title: 'Quiz-Builder',
+              desc: 'Fragebanken, Vorlagen und zufällige Varianten für Assessments.',
+              meta: 'Vorlagen + Generator'
+            },
+            {
+              title: 'Knowledge Boards',
+              desc: 'Themen bündeln, Materialien anhängen und Kontext sichtbar halten.',
+              meta: 'Sammlungen + Tags'
+            },
+            {
+              title: 'Gemeinsames Bearbeiten',
+              desc: 'Rollenbasiert entwerfen, prüfen und veröffentlichen.',
+              meta: 'Rollenbasierter Zugriff'
+            }
+          ],
+          bullets: [
+            'Wiederverwendbare Fragenvorlagen mit Parametern.',
+            'Lesestoff, Medien und Links direkt am Block.',
+            'Öffentliche Vorschauen ohne Preisgabe der Lösungen.'
+          ]
+        },
+        {
+          id: 'live',
+          tag: 'Live-Sessions',
+          title: 'Live-Teilnahme steuern, ohne den Fokus zu verlieren.',
+          subtitle: 'Session starten, Code teilen und die Gruppe in Echtzeit begleiten.',
+          cards: [
+            {
+              title: 'Session-Desk',
+              desc: 'Fragen sperren, Zeit steuern und Runden live begleiten.',
+              meta: 'Lehrkraft-Steuerung'
+            },
+            {
+              title: 'Sofort-Feedback',
+              desc: 'Antworten sammeln, Trends zeigen und Ergebnisse dosiert freigeben.',
+              meta: 'Live-Dashboard'
+            },
+            {
+              title: 'Gruppierung',
+              desc: 'Auf Klassen begrenzen oder für Gäste öffnen.',
+              meta: 'Klassenfokus'
+            }
+          ],
+          bullets: [
+            'Quiz mit sofortigem Feedback und Moderation.',
+            'Unterstützung für angemeldete und anonyme Teilnehmende.',
+            'QR-Ansichten für persönliche Ergebnisse.'
+          ]
+        },
+        {
+          id: 'participation',
+          tag: 'Teilnahme',
+          title: 'Teilnahme so flexibel wie die Gruppe.',
+          subtitle: 'Drei Zugangsarten mit passenden Datenansichten.',
+          cards: [
+            {
+              title: 'Angemeldete Lernende',
+              desc: 'Ergebnisse bleiben mit dem Konto verknüpft.',
+              meta: 'Konto-basiert'
+            },
+            {
+              title: 'Anonyme Gäste',
+              desc: 'Sofort beitreten per QR, mit privatem Ergebnislink.',
+              meta: 'Ohne Konto'
+            },
+            {
+              title: 'Später übernehmen',
+              desc: 'Gäste können Ergebnisse nachträglich an ein Konto binden.',
+              meta: 'SharedView'
+            }
+          ],
+          bullets: [
+            'QR-basierter Einstieg mit SharedViews.',
+            'Persönliche Ergebnislinks bleiben privat und widerrufbar.',
+            'Historie bleibt beim späteren Konto erhalten.'
+          ]
+        },
+        {
+          id: 'results',
+          tag: 'Ergebnisse',
+          title: 'Lernsignale sehen, nicht nur Punkte.',
+          subtitle: 'Zeit, Korrektheit und Gruppendynamik ohne Rohdaten preiszugeben.',
+          cards: [
+            {
+              title: 'Zeit vs. Genauigkeit',
+              desc: 'Erkennen, wo Unsicherheit entsteht und wo Klarheit wächst.',
+              meta: 'Analytics'
+            },
+            {
+              title: 'Session-Review',
+              desc: 'Fragen mit aggregierten Mustern erneut betrachten.',
+              meta: 'Nachbereitung'
+            },
+            {
+              title: 'Export-Ansichten',
+              desc: 'Zusammenfassungen teilen, ohne Antworten offenzulegen.',
+              meta: 'Kontrollierte Reports'
+            }
+          ],
+          bullets: [
+            'Aggregierte Einblicke ohne Einblick in Einzelantworten.',
+            'QR-Ansichten für persönliche Ergebnisse.',
+            'Vertrauen durch auditierbare Zusammenfassungen.'
+          ]
+        },
+        {
+          id: 'security',
+          tag: 'Sicherheit',
+          title: 'Zugriff wird durch Schlüssel erzwungen.',
+          subtitle: 'Cogita nutzt REcreatio-Kryptografie für Ende-zu-Ende-Schutz.',
+          cards: [
+            {
+              title: 'Rollenbasierte Schlüssel',
+              desc: 'Lehrkräfte, Admins und Klassen steuern eigene Datenkeys.',
+              meta: 'Key Ledger'
+            },
+            {
+              title: 'SharedViews',
+              desc: 'Anonyme Ergebnisse sind strikt pro Teilnehmer begrenzt.',
+              meta: 'QR-Sicherheit'
+            },
+            {
+              title: 'Audit Trail',
+              desc: 'Änderungen an Quiz und Sessions sind nachvollziehbar.',
+              meta: 'Auth Ledger'
+            }
+          ],
+          bullets: [
+            'Verschlüsselte Konfiguration und Antwortspeicherung.',
+            'Kein Zugriff ohne passende Rollenschlüssel.',
+            'Secure Mode deaktiviert Key-Caching.'
+          ]
+        }
+      ],
+      join: {
+        title: 'Einstieg in Cogita',
+        subtitle: 'Zum Erstellen anmelden oder öffentliche Inhalte direkt ansehen.',
+        cards: [
+          {
+            title: 'Anmelden zum Erstellen',
+            desc: 'Quiz entwerfen, Sessions steuern und Mitwirkende einladen.',
+            action: 'Anmelden'
+          },
+          {
+            title: 'Öffentliche Bereiche ansehen',
+            desc: 'Wissensboards und Demo-Sessions entdecken.',
+            action: 'Entdecken'
+          },
+          {
+            title: 'Pilotprojekt planen',
+            desc: 'Mit Schule oder Community eine erste Runde starten.',
+            action: 'Kontakt'
+          }
+        ]
+      }
+    }
   },
   faq: {
     title: 'FAQ und Sicherheit',

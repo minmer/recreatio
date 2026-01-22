@@ -122,7 +122,208 @@ export const en: Copy = {
       'Controlled sharing of resources.'
     ],
     note: 'Cogita can also run under a separate domain, e.g. cogita.pl, while still using REcreatio backend.',
-    loginCta: 'Sign in via REcreatio'
+    loginCta: 'Sign in via REcreatio',
+    page: {
+      nav: [
+        { id: 'home', label: 'Home' },
+        { id: 'library', label: 'Library' },
+        { id: 'live', label: 'Live' },
+        { id: 'participation', label: 'Participation' },
+        { id: 'results', label: 'Results' },
+        { id: 'security', label: 'Security' },
+        { id: 'join', label: 'Join' }
+      ],
+      hero: {
+        tag: 'Cogita',
+        title: 'A live knowledge space for quizzes, dialogue, and shared memory.',
+        subtitle:
+          'Design quizzes, run live sessions, and give every participant a personal result view. Cogita keeps content open and access keys private.',
+        primaryCta: 'Start with REcreatio',
+        secondaryCta: 'Explore the subpages'
+      },
+      stats: [
+        { value: '3 modes', label: 'Teacher, student, guest' },
+        { value: '1 link', label: 'QR or session code' },
+        { value: '0 trust', label: 'Keys enforce access' }
+      ],
+      highlights: [
+        {
+          title: 'Live session control',
+          desc: 'Start, pause, and close sessions with a single command. Keep the tempo together.'
+        },
+        {
+          title: 'Anonymous ready',
+          desc: 'Participants can join without accounts, yet still keep a private result view.'
+        },
+        {
+          title: 'Audit-first',
+          desc: 'Every change is logged and scoped by roles, so your knowledge stays accountable.'
+        }
+      ],
+      sections: [
+        {
+          id: 'library',
+          tag: 'Knowledge Library',
+          title: 'Compose lessons, reuse quiz stacks, keep context.',
+          subtitle: 'Build quizzes and resources with templates, versioning, and co-authorship.',
+          cards: [
+            {
+              title: 'Quiz builder',
+              desc: 'Create question banks, templates, and randomized variants for assessments.',
+              meta: 'Templates + generator'
+            },
+            {
+              title: 'Knowledge boards',
+              desc: 'Cluster topics, attach materials, and keep curriculum context visible.',
+              meta: 'Collections + tags'
+            },
+            {
+              title: 'Co-editing',
+              desc: 'Invite collaborators with role-based access to draft, review, and publish.',
+              meta: 'Role-scoped access'
+            }
+          ],
+          bullets: [
+            'Reusable question templates with random parameters.',
+            'Attach readings, media, and links to each block.',
+            'Publish public previews without exposing answer keys.'
+          ]
+        },
+        {
+          id: 'live',
+          tag: 'Live Sessions',
+          title: 'Orchestrate live participation without losing focus.',
+          subtitle: 'Launch a session, broadcast a code, and guide the group in real time.',
+          cards: [
+            {
+              title: 'Session desk',
+              desc: 'Start sessions, lock questions, and keep a live timer for each round.',
+              meta: 'Teacher control'
+            },
+            {
+              title: 'Instant feedback',
+              desc: 'Collect answers, show trends, and decide when to reveal results.',
+              meta: 'Live dashboard'
+            },
+            {
+              title: 'Group scope',
+              desc: 'Limit sessions to a class or open them to guests with controlled access.',
+              meta: 'Class-aware'
+            }
+          ],
+          bullets: [
+            'Run quizzes with immediate feedback and moderated reveals.',
+            'Support both logged-in and anonymous participants.',
+            'Deliver shared views for personal results via QR.'
+          ]
+        },
+        {
+          id: 'participation',
+          tag: 'Participation',
+          title: 'Meet participants where they are.',
+          subtitle: 'Cogita supports three ways to join, each with a tailored data view.',
+          cards: [
+            {
+              title: 'Logged-in learners',
+              desc: 'Results follow the student account and can be revisited later.',
+              meta: 'Account-linked'
+            },
+            {
+              title: 'Anonymous guests',
+              desc: 'Join instantly with a QR code and keep a private results link.',
+              meta: 'No account needed'
+            },
+            {
+              title: 'Claim later',
+              desc: 'Guests can attach their results to an account after the session.',
+              meta: 'SharedView join'
+            }
+          ],
+          bullets: [
+            'QR-based join flows with per-participant SharedViews.',
+            'Personal results links stay private and revocable.',
+            'Account upgrades keep the same history.'
+          ]
+        },
+        {
+          id: 'results',
+          tag: 'Results',
+          title: 'See learning signals, not just scores.',
+          subtitle: 'Track time, correctness, and group dynamics without exposing raw data.',
+          cards: [
+            {
+              title: 'Time vs accuracy',
+              desc: 'Spot where learners hesitate and where they feel confident.',
+              meta: 'Analytics'
+            },
+            {
+              title: 'Session replay',
+              desc: 'Revisit each question with aggregated insight and anonymised patterns.',
+              meta: 'After-action'
+            },
+            {
+              title: 'Export views',
+              desc: 'Share summaries with stakeholders while keeping raw answers private.',
+              meta: 'Controlled reports'
+            }
+          ],
+          bullets: [
+            'Aggregate insights without exposing individual answers.',
+            'QR-based views let participants revisit their own results.',
+            'Build trust with audit-ready summaries.'
+          ]
+        },
+        {
+          id: 'security',
+          tag: 'Security',
+          title: 'Access is enforced by keys, not just passwords.',
+          subtitle: 'Cogita inherits REcreatio cryptography so content stays controlled end-to-end.',
+          cards: [
+            {
+              title: 'Role-based keys',
+              desc: 'Teachers, admins, and classes each control distinct data keys.',
+              meta: 'Key ledger'
+            },
+            {
+              title: 'SharedViews',
+              desc: 'Anonymous results are scoped to a single participant by design.',
+              meta: 'QR security'
+            },
+            {
+              title: 'Audit trail',
+              desc: 'Changes to quizzes and sessions are recorded with accountability.',
+              meta: 'Auth ledger'
+            }
+          ],
+          bullets: [
+            'Encrypted quiz configuration and answer storage.',
+            'No data access without the right role keys.',
+            'Secure mode disables key caching entirely.'
+          ]
+        }
+      ],
+      join: {
+        title: 'Step into Cogita',
+        subtitle: 'Use REcreatio login for authoring, or explore public content right away.',
+        cards: [
+          {
+            title: 'Sign in for authoring',
+            desc: 'Create quizzes, manage sessions, and invite collaborators.',
+            action: 'Sign in'
+          },
+          {
+            title: 'Preview public spaces',
+            desc: 'Browse open knowledge boards and demo sessions.',
+            action: 'Explore'
+          },
+          {
+            title: 'Talk to the team',
+            desc: 'Plan a pilot with your school or community.',
+            action: 'Contact'
+          }
+        ]
+      }
+    }
   },
   faq: {
     title: 'FAQ and security',

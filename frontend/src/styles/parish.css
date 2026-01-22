@@ -523,7 +523,24 @@
   max-height: 100%;
 }
 
-.calendar-list a {
+.calendar-group {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.calendar-time {
+  font-size: 0.85rem;
+  color: var(--parish-muted);
+  font-weight: 600;
+}
+
+.calendar-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.calendar-row a {
   border: 1px solid var(--parish-line);
   border-radius: 14px;
   padding: 0.7rem;
@@ -532,6 +549,89 @@
   display: grid;
   gap: 0.2rem;
   background: white;
+}
+
+.home-split {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.widget-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.4rem;
+}
+
+.slim-widget .shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.7rem;
+}
+
+.slim-widget .shortcut-list a {
+  border: 1px solid var(--parish-line);
+  border-radius: 14px;
+  padding: 0.6rem 0.8rem;
+  text-decoration: none;
+  color: inherit;
+  display: grid;
+  gap: 0.2rem;
+  background: white;
+}
+
+.image-widget .image-link {
+  border-radius: 18px;
+  min-height: 220px;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  background-color: #1e1b16;
+  text-decoration: none;
+  color: inherit;
+  position: relative;
+  overflow: hidden;
+  transition: transform 260ms ease, filter 260ms ease;
+}
+
+.image-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+}
+
+.image-layer.is-prev {
+  opacity: 1;
+  z-index: 0;
+}
+
+.image-layer.is-current {
+  z-index: 1;
+  opacity: 1;
+  animation: imageFade 1200ms ease-in-out;
+}
+
+.image-widget .image-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0.55) 100%);
+  transition: opacity 220ms ease;
+  z-index: 2;
+}
+
+.image-widget .image-link span {
+  position: relative;
+  z-index: 3;
+  color: white;
+  font-weight: 600;
+}
+
+.image-widget .image-link:hover {
+  transform: translateY(-2px);
+  filter: saturate(1.05);
 }
 
 .two-column {
@@ -1206,6 +1306,24 @@
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes imageFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .muted {
   color: var(--parish-muted);
   font-size: 0.85rem;
@@ -1228,6 +1346,10 @@
   .live-card,
   .sacrament-hero,
   .community-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .widget-row {
     grid-template-columns: 1fr;
   }
 }

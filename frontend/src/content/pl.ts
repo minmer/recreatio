@@ -122,7 +122,208 @@ export const pl: Copy = {
       'Udostępnianie materiałów z kontrolą dostępu.'
     ],
     note: 'Cogita będzie mogła działać również jako osobna domena, np. cogita.pl — bez zmiany backendu.',
-    loginCta: 'Zaloguj się przez REcreatio'
+    loginCta: 'Zaloguj się przez REcreatio',
+    page: {
+      nav: [
+        { id: 'home', label: 'Start' },
+        { id: 'library', label: 'Biblioteka' },
+        { id: 'live', label: 'Live' },
+        { id: 'participation', label: 'Udział' },
+        { id: 'results', label: 'Wyniki' },
+        { id: 'security', label: 'Bezpieczeństwo' },
+        { id: 'join', label: 'Wejście' }
+      ],
+      hero: {
+        tag: 'Cogita',
+        title: 'Żywa przestrzeń wiedzy dla quizów, dialogu i wspólnej pamięci.',
+        subtitle:
+          'Projektuj quizy, prowadź sesje live i daj każdemu uczestnikowi własny widok wyników. Cogita utrzymuje treści publiczne, a klucze prywatne.',
+        primaryCta: 'Zacznij z REcreatio',
+        secondaryCta: 'Zobacz podstrony'
+      },
+      stats: [
+        { value: '3 tryby', label: 'Nauczyciel, uczeń, gość' },
+        { value: '1 link', label: 'QR lub kod sesji' },
+        { value: '0 zaufania', label: 'dostęp wymusza klucz' }
+      ],
+      highlights: [
+        {
+          title: 'Sterowanie sesją live',
+          desc: 'Start, pauza i zamknięcie sesji jednym ruchem.'
+        },
+        {
+          title: 'Anonimowo, ale prywatnie',
+          desc: 'Uczestnicy bez konta mają własny, prywatny widok wyników.'
+        },
+        {
+          title: 'Audit-first',
+          desc: 'Każda zmiana jest rejestrowana i powiązana z rolą.'
+        }
+      ],
+      sections: [
+        {
+          id: 'library',
+          tag: 'Biblioteka wiedzy',
+          title: 'Buduj lekcje, używaj zestawów pytań, trzymaj kontekst.',
+          subtitle: 'Quizy i materiały z szablonami, wersjonowaniem i współautorstwem.',
+          cards: [
+            {
+              title: 'Kreator quizów',
+              desc: 'Banki pytań, szablony i warianty losowe do sprawdzania wiedzy.',
+              meta: 'Szablony + generator'
+            },
+            {
+              title: 'Tablice wiedzy',
+              desc: 'Grupuj tematy, dodawaj materiały i utrzymuj kontekst.',
+              meta: 'Kolekcje + tagi'
+            },
+            {
+              title: 'Współedycja',
+              desc: 'Zapraszaj współtwórców z dostępem opartym o role.',
+              meta: 'Dostęp rolowy'
+            }
+          ],
+          bullets: [
+            'Szablony pytań z losowanymi parametrami.',
+            'Materiały, linki i media przy każdej sekcji.',
+            'Publiczne podglądy bez ujawniania odpowiedzi.'
+          ]
+        },
+        {
+          id: 'live',
+          tag: 'Sesje live',
+          title: 'Prowadź udział na żywo bez utraty koncentracji.',
+          subtitle: 'Uruchom sesję, udostępnij kod i prowadź grupę w czasie rzeczywistym.',
+          cards: [
+            {
+              title: 'Panel sesji',
+              desc: 'Kontrola pytań, czasu i kolejnych rund.',
+              meta: 'Kontrola prowadzącego'
+            },
+            {
+              title: 'Natychmiastowy feedback',
+              desc: 'Zbieraj odpowiedzi, pokazuj trendy i decyduj o ujawnieniu wyników.',
+              meta: 'Dashboard live'
+            },
+            {
+              title: 'Zakres grupy',
+              desc: 'Ogranicz do klasy lub otwórz dla gości.',
+              meta: 'Zasięg'
+            }
+          ],
+          bullets: [
+            'Quizy z natychmiastową informacją zwrotną.',
+            'Uczestnicy zalogowani i anonimowi w jednej sesji.',
+            'Prywatne wyniki dzięki widokom QR.'
+          ]
+        },
+        {
+          id: 'participation',
+          tag: 'Udział',
+          title: 'Dopasuj udział do potrzeb grupy.',
+          subtitle: 'Trzy sposoby dołączenia, każdy z własnym widokiem danych.',
+          cards: [
+            {
+              title: 'Uczniowie zalogowani',
+              desc: 'Wyniki są przypięte do konta ucznia.',
+              meta: 'Powiązane z kontem'
+            },
+            {
+              title: 'Anonimowi goście',
+              desc: 'Szybkie wejście przez QR i prywatny link wyników.',
+              meta: 'Bez konta'
+            },
+            {
+              title: 'Przypnij później',
+              desc: 'Gość może później dołączyć wyniki do konta.',
+              meta: 'SharedView'
+            }
+          ],
+          bullets: [
+            'Wejście przez QR z indywidualnym SharedView.',
+            'Prywatne linki wyników możliwe do odwołania.',
+            'Historia zostaje po założeniu konta.'
+          ]
+        },
+        {
+          id: 'results',
+          tag: 'Wyniki',
+          title: 'Zobacz sygnały uczenia, nie tylko punkty.',
+          subtitle: 'Czas, poprawność i dynamika grupy bez ujawniania surowych danych.',
+          cards: [
+            {
+              title: 'Czas vs poprawność',
+              desc: 'Gdzie pojawia się niepewność, a gdzie pewność.',
+              meta: 'Analityka'
+            },
+            {
+              title: 'Powtórka sesji',
+              desc: 'Powrót do pytań z zagregowanym obrazem.',
+              meta: 'Podsumowanie'
+            },
+            {
+              title: 'Eksport widoków',
+              desc: 'Udostępniaj podsumowania bez ujawniania odpowiedzi.',
+              meta: 'Raporty kontrolowane'
+            }
+          ],
+          bullets: [
+            'Wnioski zagregowane bez wglądu w odpowiedzi indywidualne.',
+            'Widoki QR dla osobistych wyników.',
+            'Zaufanie dzięki audytowalnym raportom.'
+          ]
+        },
+        {
+          id: 'security',
+          tag: 'Bezpieczeństwo',
+          title: 'Dostęp wymuszany jest kluczami, nie tylko hasłem.',
+          subtitle: 'Cogita korzysta z kryptografii REcreatio dla pełnej kontroli.',
+          cards: [
+            {
+              title: 'Klucze ról',
+              desc: 'Nauczyciele, admini i klasy mają własne klucze danych.',
+              meta: 'Key Ledger'
+            },
+            {
+              title: 'SharedViews',
+              desc: 'Anonimowe wyniki są ograniczone do jednej osoby.',
+              meta: 'Bezpieczeństwo QR'
+            },
+            {
+              title: 'Audit trail',
+              desc: 'Zmiany w quizach i sesjach są rejestrowane.',
+              meta: 'Auth Ledger'
+            }
+          ],
+          bullets: [
+            'Szyfrowane konfiguracje i odpowiedzi.',
+            'Brak dostępu bez właściwego klucza roli.',
+            'Tryb secure bez cache kluczy.'
+          ]
+        }
+      ],
+      join: {
+        title: 'Wejdź do Cogita',
+        subtitle: 'Zaloguj się, aby tworzyć, albo poznaj publiczne treści.',
+        cards: [
+          {
+            title: 'Zaloguj się do tworzenia',
+            desc: 'Projektuj quizy, prowadź sesje i zapraszaj współtwórców.',
+            action: 'Zaloguj się'
+          },
+          {
+            title: 'Zobacz publiczne treści',
+            desc: 'Przeglądaj tablice wiedzy i demo sesje.',
+            action: 'Odkryj'
+          },
+          {
+            title: 'Porozmawiaj z zespołem',
+            desc: 'Zaplanuj pilotaż z Twoją szkołą lub wspólnotą.',
+            action: 'Kontakt'
+          }
+        ]
+      }
+    }
   },
   faq: {
     title: 'FAQ i bezpieczeństwo',
