@@ -120,114 +120,276 @@ export function CogitaPage({
     if (!ctx) return;
 
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const DPR_CAP = 1.25;
+    const renderScaleDesktop = 0.9;
+    const renderScaleMobile = 0.85;
+    const targetFps = 30;
+    const meshFps = 15;
+    const DPR = Math.max(1, Math.min(DPR_CAP, window.devicePixelRatio || 1));
     let width = 0;
     let height = 0;
     let frame = 0;
     let rafId = 0;
-    const nodes: Array<{ x: number; y: number; vx: number; vy: number; r: number }> = [];
+    let paused = false;
+    let renderScale = renderScaleDesktop;
+    let lastTime = 0;
+    let acc = 0;
+    let lastMeshTime = 0;
+    let meshCanvas: HTMLCanvasElement | null = null;
+    let meshCtx: CanvasRenderingContext2D | null = null;
+    let filaments: Array<{
+      seed: number;
+      offset: number;
+      freqA: number;
+      freqB: number;
+      ampA: number;
+      ampB: number;
+      width: number;
+      depth: number;
+      layer: number;
+    }> = [];
 
     const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const config = {
+      colors: {
+        filaments: 'rgba(143, 208, 255, 0.52)',
+        glow: 'rgba(167, 224, 255, 0.42)',
+        nodes: 'rgba(210, 240, 255, 0.92)'
+      },
+      filamentCount: 180,
+      segments: 72,
+      waveBandPx: 190,
+      crestX: 0.58,
+      crestW: 0.3,
+      crestThickness: 40,
+      waveCenter: 0.74,
+      amp1: 48,
+      amp2: 22,
+      freq1: 0.010,
+      freq2: 0.021,
+      speed1: 0.006,
+      speed2: 0.009,
+      jitterA: 12,
+      jitterB: 8,
+      xJitter: 4,
+      crossThreadCount: 160,
+      glowAlpha: 0.18,
+      depthLayers: 3
+    };
 
     const resize = () => {
       width = Math.floor(container.clientWidth);
       height = Math.floor(container.clientHeight);
-      canvas.width = Math.floor(width * DPR);
-      canvas.height = Math.floor(height * DPR);
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      const count = Math.max(26, Math.floor((width * height) / 26000));
-      nodes.length = 0;
-      for (let i = 0; i < count; i += 1) {
-        nodes.push({
-          x: rand(0, width),
-          y: rand(0, height),
-          vx: rand(-0.35, 0.35),
-          vy: rand(-0.35, 0.35),
-          r: rand(1.1, 2.6)
-        });
+      renderScale = width < 820 ? renderScaleMobile : renderScaleDesktop;
+      canvas.width = Math.floor(width * DPR * renderScale);
+      canvas.height = Math.floor(height * DPR * renderScale);
+      ctx.setTransform(DPR * renderScale, 0, 0, DPR * renderScale, 0, 0);
+      if (!meshCanvas) {
+        meshCanvas = document.createElement('canvas');
+        meshCtx = meshCanvas.getContext('2d');
       }
+      if (meshCanvas && meshCtx) {
+        meshCanvas.width = canvas.width;
+        meshCanvas.height = canvas.height;
+        meshCtx.setTransform(DPR * renderScale, 0, 0, DPR * renderScale, 0, 0);
+      }
+      const adaptiveCount = Math.min(
+        width < 820 ? 65 : 90,
+        Math.max(width < 820 ? 40 : 55, Math.floor((width / 1200) * config.filamentCount))
+      );
+      filaments = Array.from({ length: adaptiveCount }, (_, idx) => {
+        const offset = Math.max(-1, Math.min(1, gaussian(idx * 0.37)));
+        const depth = Math.min(1, Math.max(0, seededRand(idx * 1.31)));
+        const layer = Math.min(config.depthLayers - 1, Math.floor(depth * config.depthLayers));
+        return {
+          seed: rand(0, Math.PI * 2),
+          offset,
+          freqA: config.freq1 * (0.75 + rand(0, 0.5)),
+          freqB: config.freq2 * (0.75 + rand(0, 0.5)),
+          ampA: config.amp1 * (0.6 + rand(0, 0.7)),
+          ampB: config.amp2 * (0.6 + rand(0, 0.7)),
+          width: 2 + (idx % 5) * 0.32,
+          depth,
+          layer
+        };
+      });
+    };
+
+    const drawMesh = (time: number) => {
+      if (!meshCtx || !meshCanvas) return;
+      const mctx = meshCtx;
+      mctx.clearRect(0, 0, width, height);
+      const baseY = height * config.waveCenter;
+      const band = config.waveBandPx;
+      const segments = config.segments;
+      const lineColor = config.colors.filaments;
+      const breathe = 0.7 + Math.sin(time * config.speed1) * 0.3;
+      const shimmer = 0.6 + Math.sin(time * config.speed2) * 0.4;
+      mctx.strokeStyle = lineColor;
+      for (let i = 0; i < filaments.length; i += 1) {
+        const filament = filaments[i];
+        const offset = filament.offset * band * (0.85 + seededRand(filament.seed) * 0.4);
+        const breatheLocal =
+          0.65 +
+          Math.sin(time * config.speed1 + filament.seed * 0.7) * 0.25 +
+          Math.sin(time * config.speed2 * 0.6 + filament.seed * 1.2) * 0.1;
+        const depthFade = 1 - Math.min(1, Math.abs(offset) / band);
+        const crestWeight = Math.exp(-Math.pow(offset / config.crestThickness, 2));
+        const layerBoost = filament.layer === 0 ? 1.1 : filament.layer === 1 ? 0.85 : 0.6;
+        const depthBoost = 0.35 + (1 - filament.depth) * 0.65;
+        const alpha = depthFade * depthBoost * layerBoost * (0.34 + crestWeight * 0.45);
+        mctx.globalAlpha = alpha;
+        mctx.lineWidth = filament.width * (0.8 + (1 - filament.depth) * 0.9);
+        mctx.beginPath();
+        for (let s = 0; s <= segments; s += 1) {
+          const xRaw = (s / segments) * width;
+          const xJitter = (noise1D(xRaw * 0.012, filament.seed) - 0.5) * config.xJitter;
+          const x = xRaw + xJitter;
+          const noiseA =
+            (noise1D(x * filament.freqA, filament.seed) - 0.5) * config.jitterA;
+          const noiseB =
+            (noise1D(x * filament.freqB, filament.seed * 1.7) - 0.5) *
+            config.jitterB *
+            shimmer;
+          const y =
+            baseY +
+            Math.sin(x * filament.freqA + filament.seed) * filament.ampA * breatheLocal +
+            Math.sin(x * filament.freqB + filament.seed * 1.3) * filament.ampB * breatheLocal +
+            offset +
+            noiseA +
+            noiseB;
+          if (s === 0) mctx.moveTo(x, y);
+          else mctx.lineTo(x, y);
+        }
+        mctx.stroke();
+      }
+
+      mctx.save();
+      mctx.globalCompositeOperation = 'lighter';
+      mctx.strokeStyle = config.colors.glow;
+      for (let i = 0; i < filaments.length; i += 1) {
+        const filament = filaments[i];
+        if (Math.abs(filament.offset) * band > config.crestThickness) continue;
+        const breatheLocal =
+          0.65 +
+          Math.sin(time * config.speed1 + filament.seed * 0.7) * 0.25 +
+          Math.sin(time * config.speed2 * 0.6 + filament.seed * 1.2) * 0.1;
+        const alpha = config.glowAlpha * (0.7 + (1 - filament.depth) * 0.6);
+        mctx.globalAlpha = alpha;
+        mctx.lineWidth = 1.4 + (1 - filament.depth) * 1.4;
+        mctx.beginPath();
+        for (let s = 0; s <= segments; s += 1) {
+          const x = (s / segments) * width;
+          const noise = Math.sin(x * 0.02 + filament.seed) * 3 * shimmer;
+          const y =
+            baseY +
+            Math.sin(x * filament.freqA + filament.seed) * filament.ampA * breatheLocal +
+            Math.sin(x * filament.freqB + filament.seed * 1.3) * filament.ampB * breatheLocal +
+            filament.offset * band * 0.35 +
+            noise;
+          if (s === 0) mctx.moveTo(x, y);
+          else mctx.lineTo(x, y);
+        }
+        mctx.stroke();
+      }
+      mctx.restore();
+
+      mctx.strokeStyle = lineColor;
+      mctx.lineWidth = 0.6;
+      for (let i = 0; i < config.crossThreadCount; i += 1) {
+        const seed = seededRand(i * 13.7);
+        const x = seed * width;
+        const y =
+          baseY +
+          Math.sin(x * config.freq1 + seed) * config.amp1 * breathe +
+          Math.sin(x * config.freq2 + seed * 1.3) * config.amp2 * breathe +
+          (seededRand(seed + 4.2) * 2 - 1) * band * 0.5;
+        const len = 8 + seededRand(seed + 9.1) * 20;
+        const angle = (seededRand(seed + 1.3) * 0.6 - 0.3) * Math.PI;
+        const x2 = x + Math.cos(angle) * len;
+        const y2 = y + Math.sin(angle) * len;
+        mctx.globalAlpha = 0.08;
+        mctx.beginPath();
+        mctx.moveTo(x, y);
+        mctx.lineTo(x2, y2);
+        mctx.stroke();
+      }
+    };
+
+    const seededRand = (seed: number) => {
+      const s = Math.sin(seed * 12.9898) * 43758.5453;
+      return s - Math.floor(s);
+    };
+
+    const gaussian = (seed: number) => {
+      const u = seededRand(seed + 0.1) || 0.0001;
+      const v = seededRand(seed + 0.7) || 0.0001;
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+
+    const noise1D = (x: number, seed: number) => {
+      const x0 = Math.floor(x);
+      const x1 = x0 + 1;
+      const t = x - x0;
+      const fade = t * t * (3 - 2 * t);
+      const n0 = seededRand(x0 * 12.9898 + seed * 78.233);
+      const n1 = seededRand(x1 * 12.9898 + seed * 78.233);
+      return n0 + (n1 - n0) * fade;
     };
 
     resize();
     window.addEventListener('resize', resize, { passive: true });
 
-    const drawDot = (x: number, y: number, r: number) => {
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha *= 0.22;
-      ctx.beginPath();
-      ctx.arc(x, y, r * 4.6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha *= 4.5;
-    };
-
-    const tick = () => {
+    const tick = (now: number) => {
+      if (paused) return;
+      if (!lastTime) lastTime = now;
+      const delta = now - lastTime;
+      lastTime = now;
+      acc += delta;
+      const step = 1000 / targetFps;
+      if (acc < step && !prefersReducedMotion) {
+        rafId = window.requestAnimationFrame(tick);
+        return;
+      }
+      acc = acc % step;
       ctx.clearRect(0, 0, width, height);
       frame += 1;
 
-      ctx.fillStyle =
-        getComputedStyle(container).getPropertyValue('--cogita-dust').trim() ||
-        'rgba(180, 230, 255, 0.06)';
-      for (let i = 0; i < 70; i += 1) {
-        ctx.fillRect((i * 97) % width, (i * 193 + frame * 0.12) % height, 1, 1);
-      }
-
-      for (const node of nodes) {
-        node.x += node.vx;
-        node.y += node.vy;
-        if (node.x < -20) node.x = width + 20;
-        if (node.x > width + 20) node.x = -20;
-        if (node.y < -20) node.y = height + 20;
-        if (node.y > height + 20) node.y = -20;
-      }
-
-      const lineColor =
-        getComputedStyle(container).getPropertyValue('--cogita-line').trim() ||
-        'rgba(120, 200, 255, 0.18)';
-      const dotColor =
-        getComputedStyle(container).getPropertyValue('--cogita-dot').trim() ||
-        'rgba(180, 230, 255, 0.95)';
-
-      ctx.strokeStyle = lineColor;
-      ctx.lineWidth = 1;
-      const linkDist = Math.min(160, Math.max(120, width * 0.12));
-      const maxDist = linkDist * linkDist;
-      for (let i = 0; i < nodes.length; i += 1) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j += 1) {
-          const b = nodes[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const d2 = dx * dx + dy * dy;
-          if (d2 > maxDist) continue;
-          const d = Math.sqrt(d2);
-          const alpha = Math.max(0, 1 - d / linkDist) * 0.9;
-          ctx.globalAlpha = alpha;
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-          ctx.lineTo(b.x, b.y);
-          ctx.stroke();
+      const t = frame;
+      if (!meshCanvas || !meshCtx) {
+        drawMesh(t);
+      } else {
+        if (prefersReducedMotion || now - lastMeshTime > 1000 / meshFps) {
+          lastMeshTime = now;
+          drawMesh(t);
         }
+        ctx.globalAlpha = 1;
+        ctx.drawImage(meshCanvas, 0, 0, width, height);
       }
-
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = dotColor;
-      for (const node of nodes) drawDot(node.x, node.y, node.r);
 
       if (!prefersReducedMotion) {
         rafId = window.requestAnimationFrame(tick);
       }
     };
 
+    const onVisibilityChange = () => {
+      paused = document.hidden;
+      if (!paused && !prefersReducedMotion) {
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     if (prefersReducedMotion) {
-      tick();
+      tick(performance.now());
     } else {
       rafId = window.requestAnimationFrame(tick);
     }
 
     return () => {
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       if (rafId) window.cancelAnimationFrame(rafId);
     };
   }, []);
@@ -281,65 +443,59 @@ export function CogitaPage({
                   activeHomeIndex === index ? 'is-active' : ''
                 }`}
               >
-                <div className="cogita-home-content">
-                  <p className="cogita-tag">{copy.cogita.page.hero.tag}</p>
-                  <h1>{slide.title}</h1>
-                  <p>{slide.text}</p>
-                  <button
-                    type="button"
-                    className={`cta ${slide.variant === 'secondary' ? 'ghost' : ''}`}
-                    onClick={slideActions[index] ?? onAuthAction}
-                  >
-                    {slide.ctaLabel}
-                  </button>
-                </div>
-                <div className={`cogita-visual visual-${index + 1}`} aria-hidden="true">
-                  {index === 0 && (
-                    <>
-                      <img className="cogita-logo-hero" src="/Cogita.svg" alt="" />
-                      <div className="cogita-bubbles">
-                        {Array.from({ length: 10 }).map((_, bubbleIndex) => (
-                          <span key={`bubble-${bubbleIndex}`} />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {index !== 0 && <img className="cogita-logo-ghost" src="/Cogita.svg" alt="" />}
-                  {index === 1 && (
+                {index !== 0 && (
+                  <div className="cogita-home-content">
+                    <p className="cogita-tag">{copy.cogita.page.hero.tag}</p>
+                    <h1>{slide.title}</h1>
+                    <p>{slide.text}</p>
+                    <button
+                      type="button"
+                      className={`cta ${slide.variant === 'secondary' ? 'ghost' : ''}`}
+                      onClick={slideActions[index] ?? onAuthAction}
+                    >
+                      {slide.ctaLabel}
+                    </button>
+                  </div>
+                )}
+                {index !== 0 && (
+                  <div className={`cogita-visual visual-${index + 1}`} aria-hidden="true">
+                    <img className="cogita-logo-ghost" src="/Cogita.svg" alt="" />
+                    {index === 1 && (
                     <div className="cogita-card-stack">
                       <span />
                       <span />
                       <span />
                     </div>
-                  )}
-                  {index === 2 && (
+                    )}
+                    {index === 2 && (
                     <div className="cogita-live-orbit">
                       <span />
                       <span />
                       <span />
                     </div>
-                  )}
-                  {index === 3 && (
+                    )}
+                    {index === 3 && (
                     <div className="cogita-results-map">
                       <span />
                       <span />
                       <span />
                       <span />
                     </div>
-                  )}
-                  {index === 4 && (
+                    )}
+                    {index === 4 && (
                     <div className="cogita-security-shield">
                       <span />
                       <span />
                     </div>
-                  )}
-                  {index === 5 && (
+                    )}
+                    {index === 5 && (
                     <div className="cogita-login-portal">
                       <span />
                       <span />
                     </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </section>
             ))}
           </div>
