@@ -141,6 +141,46 @@ export const de: Copy = {
         primaryCta: 'Mit REcreatio starten',
         secondaryCta: 'Unterseiten entdecken'
       },
+      homeSlides: [
+        {
+          id: 'overview',
+          title: 'Cogita. Eine Live-Bühne für Wissen und Dialog.',
+          text:
+            'Ein Präsentationsraum für Quiz, Sessions und Ressourcen, offen für alle und geschützt durch Kryptografie.',
+          ctaLabel: 'Tour starten'
+        },
+        {
+          id: 'library',
+          title: 'Wissensbibliothek mit wiederverwendbaren Quiz-Stapeln.',
+          text: 'Lektionen bauen, Ressourcen anhängen und kuratierte Sammlungen teilen.',
+          ctaLabel: 'Weiter: Live'
+        },
+        {
+          id: 'live',
+          title: 'Live-Sessions mit kontrolliertem Tempo.',
+          text: 'Session starten, Code teilen und die Gruppe durch jede Runde führen.',
+          ctaLabel: 'Weiter: Teilnahme'
+        },
+        {
+          id: 'results',
+          title: 'Teilnahme, Ergebnisse und SharedViews.',
+          text: 'Jede Person erhält eine eigene Ergebnisansicht, auch ohne Konto.',
+          ctaLabel: 'Weiter: Sicherheit'
+        },
+        {
+          id: 'security',
+          title: 'Sicherheit in jedem Schritt.',
+          text: 'Rollenbasierte Schlüssel, Audit-Trail und eigene Domains wie cogita.pl.',
+          ctaLabel: 'Weiter: Login',
+          variant: 'secondary'
+        },
+        {
+          id: 'login',
+          title: 'Bereit für Cogita?',
+          text: 'Mit REcreatio anmelden, um Quiz zu erstellen, Sessions zu hosten und Wissen zu steuern.',
+          ctaLabel: 'Anmelden über REcreatio'
+        }
+      ],
       stats: [
         { value: '3 Modi', label: 'Lehrkraft, Lernende, Gast' },
         { value: '1 Link', label: 'QR oder Session-Code' },

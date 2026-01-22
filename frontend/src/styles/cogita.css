@@ -1,51 +1,164 @@
 .cogita-main {
-  padding: 0 6vw 5rem;
-  background: linear-gradient(180deg, rgba(244, 248, 250, 0.9), rgba(236, 242, 246, 0.92));
+  padding: 0;
+  background: #050f1c;
 }
 
-.cogita-hero {
+.cogita-home {
   position: relative;
-  padding: 3.2rem 0 2.4rem;
+  height: calc(100vh - var(--header-h) - var(--footer-h));
+  min-height: 560px;
   overflow: hidden;
+  --cogita-bg0: #06162a;
+  --cogita-bg1: #0c2d49;
+  --cogita-glow: rgba(120, 200, 255, 0.85);
+  --cogita-line: rgba(120, 200, 255, 0.18);
+  --cogita-dot: rgba(190, 235, 255, 0.95);
+  --cogita-dust: rgba(180, 230, 255, 0.06);
 }
 
-.cogita-hero::before {
+.cogita-home-bg {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(1200px 800px at 50% 35%, var(--cogita-bg1), var(--cogita-bg0));
+  overflow: hidden;
+  z-index: 0;
+  transition: background 800ms ease, filter 800ms ease;
+}
+
+.cogita-home-bg::before {
   content: '';
   position: absolute;
-  top: -20%;
-  right: -10%;
-  width: 520px;
-  height: 520px;
-  background: radial-gradient(circle, rgba(255, 214, 144, 0.4), rgba(240, 132, 88, 0.15) 55%, rgba(240, 132, 88, 0) 70%);
-  filter: blur(2px);
-  z-index: 0;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(84, 140, 198, 0.35), transparent 45%),
+    radial-gradient(circle at 70% 20%, rgba(60, 120, 200, 0.28), transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(40, 80, 160, 0.35), transparent 55%);
+  filter: blur(30px);
+  opacity: 0.7;
+  animation: cogita-depth 18s ease-in-out infinite alternate;
 }
 
-.cogita-hero::after {
+.cogita-home-bg::after {
   content: '';
   position: absolute;
-  bottom: -25%;
-  left: -10%;
-  width: 520px;
-  height: 520px;
-  background: radial-gradient(circle, rgba(120, 174, 198, 0.35), rgba(42, 78, 119, 0.15) 55%, rgba(42, 78, 119, 0) 70%);
-  filter: blur(4px);
-  z-index: 0;
+  inset: 0;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.05), transparent 40%),
+    radial-gradient(circle at 60% 40%, rgba(255, 255, 255, 0.06), transparent 55%);
+  mix-blend-mode: screen;
+  opacity: 0.6;
 }
 
-.cogita-hero-grid {
+.cogita-home-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cogita-home-wave {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  bottom: -40%;
+  height: 60%;
+  background:
+    radial-gradient(circle at 30% 45%, rgba(120, 200, 255, 0.32), transparent 55%),
+    radial-gradient(circle at 70% 55%, rgba(120, 200, 255, 0.22), transparent 60%);
+  filter: blur(40px);
+  opacity: 0.8;
+  transform: translate3d(0, 0, 0);
+  animation: cogita-drift 14s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.cogita-home-wave.wave-2 {
+  bottom: -50%;
+  opacity: 0.55;
+  filter: blur(60px);
+  animation-duration: 18s;
+}
+
+.cogita-home-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 30%, var(--cogita-glow), transparent 55%);
+  opacity: 0.18;
+  mix-blend-mode: screen;
+  transition: opacity 800ms ease;
+}
+
+.cogita-home-viewport {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  background: transparent;
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 2.8rem;
-  align-items: start;
+  scrollbar-width: none;
 }
 
-.cogita-hero-copy h1 {
+.cogita-home-viewport::-webkit-scrollbar {
+  width: 0;
+}
+
+.cogita-home-slide {
+  min-height: 100%;
+  scroll-snap-align: start;
+  display: flex;
+  align-items: center;
+  padding: 0 8vw;
+  position: relative;
+}
+
+.cogita-home-slide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5, 14, 26, 0.25), rgba(5, 14, 26, 0.6));
+  opacity: 0.35;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cogita-home-slide h1 {
   font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(2.3rem, 4vw, 3.4rem);
+  font-size: clamp(2.2rem, 4vw, 3.3rem);
   margin: 0 0 1rem;
+  color: #f4f7fb;
+}
+
+.cogita-home-slide p {
+  font-size: 1.05rem;
+  color: rgba(228, 239, 255, 0.82);
+  line-height: 1.6;
+  margin: 0 0 1.4rem;
+}
+
+.cogita-home .cta {
+  background: rgba(126, 200, 255, 0.92);
+  color: #071424;
+  box-shadow: 0 12px 28px rgba(40, 80, 120, 0.35);
+}
+
+.cogita-home .cta.ghost {
+  background: transparent;
+  color: rgba(220, 236, 255, 0.92);
+  border: 1px solid rgba(140, 190, 235, 0.45);
+}
+
+.cogita-home-slide .cogita-home-content {
+  max-width: 640px;
+  opacity: 0.35;
+  transform: translateY(20px);
+  transition: opacity 220ms ease, transform 220ms ease;
+  position: relative;
+  z-index: 2;
+}
+
+.cogita-home-slide.is-active .cogita-home-content {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .cogita-tag {
@@ -53,294 +166,434 @@
   letter-spacing: 0.2em;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #cb5b2a;
+  color: rgba(197, 225, 255, 0.9);
 }
 
-.cogita-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem;
-  margin: 1.6rem 0 2rem;
-}
-
-.cogita-stats {
+.cogita-home-dots {
+  position: absolute;
+  right: 1.6rem;
+  top: 50%;
+  transform: translateY(-50%);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 1rem;
-}
-
-.cogita-stat {
-  padding: 0.9rem 1rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid var(--line);
-  box-shadow: 0 16px 30px rgba(32, 49, 67, 0.1);
-}
-
-.cogita-stat strong {
-  display: block;
-  font-size: 1.1rem;
-}
-
-.cogita-stat span {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.cogita-hero-panels {
-  display: grid;
-  gap: 1.2rem;
-}
-
-.cogita-panel-card {
-  background: #ffffff;
-  border-radius: 22px;
-  padding: 1.6rem;
-  border: 1px solid var(--line);
-  box-shadow: 0 20px 50px rgba(32, 49, 67, 0.12);
-}
-
-.cogita-panel-card h3 {
-  margin-top: 0;
-  font-size: 1.2rem;
-}
-
-.cogita-highlight-grid {
-  display: grid;
-  gap: 1rem;
-}
-
-.cogita-highlight {
-  padding: 1.1rem 1.2rem;
-  border-radius: 18px;
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.9), rgba(236, 244, 249, 0.8));
-  border: 1px solid rgba(44, 67, 90, 0.08);
-  box-shadow: 0 18px 32px rgba(32, 49, 67, 0.08);
-}
-
-.cogita-highlight h4 {
-  margin: 0 0 0.4rem;
-}
-
-.cogita-highlight p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.cogita-subpage-grid {
-  margin-top: 2.6rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.2rem;
-}
-
-.cogita-subpage-card {
-  border: none;
-  background: linear-gradient(140deg, #ffffff, #f3f7fb);
-  border-radius: 20px;
-  padding: 1.2rem 1.3rem;
-  text-align: left;
-  cursor: pointer;
-  display: grid;
-  gap: 0.5rem;
-  box-shadow: 0 16px 30px rgba(31, 47, 65, 0.1);
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-
-.cogita-subpage-card span {
-  font-size: 0.7rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #d36a3a;
-  font-weight: 600;
-}
-
-.cogita-subpage-card strong {
-  font-size: 1rem;
-  color: var(--ink);
-}
-
-.cogita-subpage-card em {
-  font-style: normal;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.cogita-subpage-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 40px rgba(31, 47, 65, 0.18);
-}
-
-.cogita-subnav {
-  position: sticky;
-  top: calc(var(--header-h) + 0.4rem);
-  z-index: 4;
-  margin: 0 -6vw;
-  padding: 0.8rem 6vw;
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.6rem;
-  background: rgba(244, 248, 250, 0.92);
-  border-top: 1px solid rgba(44, 67, 90, 0.08);
-  border-bottom: 1px solid rgba(44, 67, 90, 0.08);
+  z-index: 2;
+}
+
+.cogita-home-dots .dot {
+  border-color: rgba(196, 220, 255, 0.5);
+}
+
+.cogita-home-dots .dot.active {
+  background: rgba(210, 235, 255, 0.9);
+  border-color: rgba(210, 235, 255, 0.9);
+}
+
+.cogita-home-indicator {
+  position: absolute;
+  left: 2.2rem;
+  bottom: 5.5rem;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 215, 255, 0.3);
+  background: rgba(6, 22, 42, 0.6);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-}
-
-.cogita-subnav button {
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.7);
-  padding: 0.4rem 0.9rem;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--muted);
-  transition: all 160ms ease;
-}
-
-.cogita-subnav button.active,
-.cogita-subnav button:hover {
-  border-color: rgba(203, 91, 42, 0.5);
-  color: var(--ink);
-  box-shadow: 0 0 0 2px rgba(203, 91, 42, 0.15);
-}
-
-.cogita-detail {
-  padding: 3rem 0;
-}
-
-.cogita-section-header {
-  display: grid;
-  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
-  gap: 1.8rem;
+  color: rgba(226, 239, 255, 0.92);
+  display: inline-flex;
   align-items: center;
-  margin-bottom: 1.6rem;
-}
-
-.cogita-section-header h2 {
-  margin: 0 0 0.4rem;
-  font-size: clamp(1.6rem, 2.8vw, 2.3rem);
-}
-
-.cogita-section-tag {
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #36638f;
-}
-
-.cogita-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.2rem;
-}
-
-.cogita-card {
-  background: #ffffff;
-  border-radius: 20px;
-  padding: 1.4rem;
-  border: 1px solid rgba(44, 67, 90, 0.08);
-  box-shadow: 0 18px 35px rgba(31, 47, 65, 0.12);
-  display: grid;
   gap: 0.6rem;
+  font-size: 0.85rem;
+  z-index: 2;
 }
 
-.cogita-card h3 {
-  margin: 0;
-}
-
-.cogita-card p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-.cogita-card-meta {
-  font-size: 0.75rem;
+.cogita-home-indicator span {
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #d36a3a;
+  letter-spacing: 0.16em;
+  font-size: 0.65rem;
+  color: rgba(174, 210, 255, 0.85);
+}
+
+.cogita-home-indicator strong {
   font-weight: 600;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.cogita-bullets {
-  margin: 1.6rem 0 0;
-  padding-left: 1.1rem;
-  color: var(--muted);
-  display: grid;
-  gap: 0.5rem;
+.cogita-visual {
+  position: absolute;
+  right: 6vw;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(42vw, 520px);
+  height: min(42vw, 520px);
+  pointer-events: none;
+  z-index: 2;
 }
 
-.cogita-join {
-  padding: 3.4rem 0 1.2rem;
+.cogita-home-slide.slide-1 .cogita-visual {
+  width: min(50vw, 680px);
+  height: min(50vw, 680px);
+  right: 4vw;
 }
 
-.cogita-join-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.2rem;
+.cogita-logo-hero {
+  width: 100%;
+  max-width: 520px;
+  filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.5));
+  opacity: 0.95;
+  animation: cogita-logo-rise 1.6s ease forwards;
 }
 
-.cogita-join-card button {
-  align-self: start;
+.cogita-logo-ghost {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0.2;
+  filter: blur(1px);
+  transform: scale(1.1);
 }
 
-.cogita-join-action {
-  margin-top: 1.8rem;
-  display: flex;
-  justify-content: center;
+.cogita-bubbles {
+  position: absolute;
+  top: 12%;
+  right: 8%;
+  width: 160px;
+  height: 160px;
 }
+
+.cogita-bubbles span {
+  position: absolute;
+  border-radius: 50%;
+  background: #ee4d3c;
+  opacity: 0.9;
+  animation: bubble-float 3.8s ease-in-out infinite;
+}
+
+.cogita-bubbles span:nth-child(1) {
+  width: 18px;
+  height: 18px;
+  top: 20%;
+  left: 40%;
+}
+
+.cogita-bubbles span:nth-child(2) {
+  width: 34px;
+  height: 34px;
+  top: 2%;
+  left: 62%;
+  animation-delay: 0.2s;
+}
+
+.cogita-bubbles span:nth-child(3) {
+  width: 22px;
+  height: 22px;
+  top: 44%;
+  left: 52%;
+  animation-delay: 0.4s;
+}
+
+.cogita-bubbles span:nth-child(4) {
+  width: 12px;
+  height: 12px;
+  top: 66%;
+  left: 70%;
+  animation-delay: 0.6s;
+}
+
+.cogita-bubbles span:nth-child(5) {
+  width: 42px;
+  height: 42px;
+  top: 18%;
+  left: 10%;
+  animation-delay: 0.8s;
+}
+
+.cogita-bubbles span:nth-child(6) {
+  width: 14px;
+  height: 14px;
+  top: 70%;
+  left: 34%;
+  animation-delay: 1s;
+}
+
+.cogita-bubbles span:nth-child(7) {
+  width: 26px;
+  height: 26px;
+  top: 32%;
+  left: 78%;
+  animation-delay: 1.2s;
+}
+
+.cogita-bubbles span:nth-child(8) {
+  width: 18px;
+  height: 18px;
+  top: 78%;
+  left: 58%;
+  animation-delay: 1.4s;
+}
+
+.cogita-bubbles span:nth-child(9) {
+  width: 28px;
+  height: 28px;
+  top: 52%;
+  left: 18%;
+  animation-delay: 1.6s;
+}
+
+.cogita-bubbles span:nth-child(10) {
+  width: 12px;
+  height: 12px;
+  top: 8%;
+  left: 28%;
+  animation-delay: 1.8s;
+}
+
+.cogita-card-stack {
+  position: absolute;
+  inset: 18% 18% auto auto;
+  width: 220px;
+  height: 200px;
+}
+
+.cogita-card-stack span {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: rgba(10, 26, 46, 0.55);
+  border: 1px solid rgba(146, 200, 255, 0.35);
+  box-shadow: 0 18px 40px rgba(3, 10, 18, 0.5);
+  backdrop-filter: blur(6px);
+  animation: cogita-float 4s ease-in-out infinite;
+}
+
+.cogita-card-stack span:nth-child(2) {
+  transform: translate(-16px, 18px);
+  opacity: 0.8;
+  animation-delay: 0.4s;
+}
+
+.cogita-card-stack span:nth-child(3) {
+  transform: translate(-32px, 36px);
+  opacity: 0.6;
+  animation-delay: 0.8s;
+}
+
+.cogita-live-orbit {
+  position: absolute;
+  inset: 15% 10% auto auto;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  border: 1px solid rgba(160, 210, 255, 0.3);
+  animation: orbit-spin 12s linear infinite;
+}
+
+.cogita-live-orbit span {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(230, 245, 255, 0.9);
+  box-shadow: 0 0 20px rgba(120, 200, 255, 0.7);
+}
+
+.cogita-live-orbit span:nth-child(1) {
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.cogita-live-orbit span:nth-child(2) {
+  bottom: 18%;
+  right: -4px;
+}
+
+.cogita-live-orbit span:nth-child(3) {
+  bottom: -8px;
+  left: 30%;
+}
+
+.cogita-results-map {
+  position: absolute;
+  inset: 18% 12% auto auto;
+  width: 220px;
+  height: 220px;
+}
+
+.cogita-results-map span {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(120, 200, 255, 0.9);
+  box-shadow: 0 0 18px rgba(120, 200, 255, 0.65);
+  animation: pulse 3s ease-in-out infinite;
+}
+
+.cogita-results-map span:nth-child(1) {
+  top: 20%;
+  left: 20%;
+}
+
+.cogita-results-map span:nth-child(2) {
+  top: 60%;
+  left: 40%;
+  animation-delay: 0.4s;
+}
+
+.cogita-results-map span:nth-child(3) {
+  top: 35%;
+  left: 70%;
+  animation-delay: 0.8s;
+}
+
+.cogita-results-map span:nth-child(4) {
+  top: 75%;
+  left: 75%;
+  animation-delay: 1.2s;
+}
+
+.cogita-security-shield {
+  position: absolute;
+  inset: 20% 18% auto auto;
+  width: 200px;
+  height: 240px;
+  border-radius: 80px 80px 100px 100px;
+  border: 1px solid rgba(150, 210, 255, 0.4);
+  background: rgba(10, 26, 46, 0.45);
+  box-shadow: inset 0 0 30px rgba(120, 200, 255, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+.cogita-security-shield span {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 1px solid rgba(150, 210, 255, 0.5);
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: pulse 3.4s ease-in-out infinite;
+}
+
+.cogita-security-shield span:nth-child(2) {
+  width: 120px;
+  height: 120px;
+  top: 22%;
+  opacity: 0.6;
+  animation-delay: 0.6s;
+}
+
+.cogita-login-portal {
+  position: absolute;
+  inset: 18% 14% auto auto;
+  width: 230px;
+  height: 230px;
+  border-radius: 40px;
+  border: 1px solid rgba(150, 210, 255, 0.4);
+  background: rgba(9, 24, 44, 0.5);
+  box-shadow: 0 0 40px rgba(120, 200, 255, 0.2);
+  backdrop-filter: blur(6px);
+}
+
+.cogita-login-portal span {
+  position: absolute;
+  inset: 18%;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 235, 255, 0.6);
+  animation: portal-pulse 3.2s ease-in-out infinite;
+}
+
+.cogita-login-portal span:nth-child(2) {
+  inset: 32%;
+  animation-delay: 0.6s;
+}
+
 
 .cogita-footer {
   background: rgba(18, 19, 18, 0.92);
+  color: rgba(226, 239, 255, 0.9);
+  border-top: 1px solid rgba(120, 170, 220, 0.18);
+}
+
+.cogita-footer button {
+  border: 1px solid rgba(140, 190, 235, 0.35);
+  color: rgba(226, 239, 255, 0.9);
 }
 
 @media (max-width: 980px) {
-  .cogita-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .cogita-section-header {
-    grid-template-columns: 1fr;
-  }
-
-  .cogita-subnav {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    gap: 0.8rem;
+  .cogita-visual {
+    position: static;
+    width: min(70vw, 380px);
+    height: min(70vw, 380px);
+    margin: 1.6rem auto 0;
+    transform: none;
   }
 }
 
 @media (max-width: 720px) {
   .cogita-main {
-    padding: 0 5vw 4rem;
+    padding: 0;
   }
 
-  .cogita-subnav {
-    margin: 0 -5vw;
-    padding: 0.8rem 5vw;
+  .cogita-home-viewport {
+    height: 100%;
+    min-height: 520px;
+  }
+
+  .cogita-home-slide {
+    padding: 0 7vw 2rem;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .cogita-home-dots {
+    position: static;
+    transform: none;
+    margin: 1.2rem 0 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .cogita-home-indicator {
+    position: static;
+    margin-top: 1.4rem;
+  }
+
+  .cogita-visual {
+    order: -1;
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .cogita-hero,
-  .cogita-subpage-card,
-  .cogita-card {
+  .cogita-home-slide .cogita-home-content {
     animation: cogita-rise 0.6s ease both;
   }
+}
 
-  .cogita-subpage-card {
-    animation-delay: 0.1s;
+@media (prefers-reduced-motion: reduce) {
+  .cogita-home-wave,
+  .cogita-home-bg::before,
+  .cogita-logo-hero,
+  .cogita-bubbles span,
+  .cogita-card-stack span,
+  .cogita-live-orbit,
+  .cogita-results-map span,
+  .cogita-security-shield span,
+  .cogita-login-portal span {
+    animation: none;
   }
+}
 
-  .cogita-card:nth-child(2) {
-    animation-delay: 0.08s;
+@keyframes cogita-drift {
+  from {
+    transform: translate3d(-2%, 0, 0) scale(1.02);
   }
-
-  .cogita-card:nth-child(3) {
-    animation-delay: 0.16s;
+  to {
+    transform: translate3d(2%, 0, 0) scale(1.05);
   }
 }
 
@@ -352,5 +605,82 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes cogita-depth {
+  from {
+    transform: translate3d(-1%, -1%, 0) scale(1.02);
+  }
+  to {
+    transform: translate3d(1%, 1%, 0) scale(1.08);
+  }
+}
+
+@keyframes cogita-logo-rise {
+  0% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0.85;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes bubble-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0) scale(1.08);
+  }
+}
+
+@keyframes cogita-float {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-6px, 6px);
+  }
+}
+
+@keyframes orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+@keyframes portal-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
   }
 }

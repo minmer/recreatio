@@ -4,7 +4,35 @@
 }
 
 .portal-page.cogita {
-  background: #f1f5f7;
+  background: #050f1c;
+}
+
+.portal-page.cogita .portal-header.cogita-header {
+  background: rgba(5, 14, 26, 0.92);
+  border-bottom: 1px solid rgba(120, 170, 220, 0.18);
+}
+
+.portal-page.cogita .portal-header.cogita-header .portal-brand img {
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
+}
+
+.portal-page.cogita .portal-header.cogita-header button,
+.portal-page.cogita .portal-header.cogita-header .profile-button,
+.portal-page.cogita .portal-header.cogita-header .lang-button {
+  color: rgba(226, 239, 255, 0.92);
+}
+
+.portal-page.cogita .portal-header.cogita-header .profile-button,
+.portal-page.cogita .portal-header.cogita-header .lang-button {
+  background: rgba(10, 26, 46, 0.7);
+  border: 1px solid rgba(140, 190, 235, 0.3);
+}
+
+.portal-page.cogita .portal-header.cogita-header .profile-dropdown,
+.portal-page.cogita .portal-header.cogita-header .lang-menu {
+  background: rgba(10, 26, 46, 0.95);
+  border: 1px solid rgba(140, 190, 235, 0.3);
+  color: rgba(226, 239, 255, 0.92);
 }
 
 .portal-header {

@@ -141,6 +141,46 @@ export const en: Copy = {
         primaryCta: 'Start with REcreatio',
         secondaryCta: 'Explore the subpages'
       },
+      homeSlides: [
+        {
+          id: 'overview',
+          title: 'Cogita. A live knowledge stage for learning and dialogue.',
+          text:
+            'A presentation space where quizzes, sessions, and resources stay open while access stays cryptographic.',
+          ctaLabel: 'Begin the tour'
+        },
+        {
+          id: 'library',
+          title: 'Knowledge library with reusable quiz stacks.',
+          text: 'Compose lessons, attach resources, and publish curated collections.',
+          ctaLabel: 'Next: live sessions'
+        },
+        {
+          id: 'live',
+          title: 'Live sessions with controlled tempo.',
+          text: 'Start a session, broadcast a code, and guide everyone through each round.',
+          ctaLabel: 'Next: participation'
+        },
+        {
+          id: 'results',
+          title: 'Participation, results, and SharedViews.',
+          text: 'Every participant gets a personal result view, even without an account.',
+          ctaLabel: 'Next: security'
+        },
+        {
+          id: 'security',
+          title: 'Security baked into every step.',
+          text: 'Role-based keys, audit trails, and optional separate domains such as cogita.pl.',
+          ctaLabel: 'Next: login',
+          variant: 'secondary'
+        },
+        {
+          id: 'login',
+          title: 'Ready to create in Cogita?',
+          text: 'Sign in with REcreatio to build quizzes, host sessions, and manage your knowledge space.',
+          ctaLabel: 'Sign in via REcreatio'
+        }
+      ],
       stats: [
         { value: '3 modes', label: 'Teacher, student, guest' },
         { value: '1 link', label: 'QR or session code' },

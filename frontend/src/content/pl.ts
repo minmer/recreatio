@@ -141,6 +141,46 @@ export const pl: Copy = {
         primaryCta: 'Zacznij z REcreatio',
         secondaryCta: 'Zobacz podstrony'
       },
+      homeSlides: [
+        {
+          id: 'overview',
+          title: 'Cogita. Scena wiedzy na żywo dla nauki i dialogu.',
+          text:
+            'Prezentacja dla quizów, sesji i zasobów, otwarta, ale chroniona kryptografią.',
+          ctaLabel: 'Rozpocznij pokaz'
+        },
+        {
+          id: 'library',
+          title: 'Biblioteka wiedzy z gotowymi zestawami quizów.',
+          text: 'Twórz lekcje, dodawaj materiały i publikuj kolekcje tematyczne.',
+          ctaLabel: 'Dalej: live'
+        },
+        {
+          id: 'live',
+          title: 'Sesje live z kontrolowanym tempem.',
+          text: 'Uruchom sesję, udostępnij kod i prowadź grupę krok po kroku.',
+          ctaLabel: 'Dalej: udział'
+        },
+        {
+          id: 'results',
+          title: 'Udział, wyniki i SharedViews.',
+          text: 'Każdy uczestnik ma własny widok wyników, nawet bez konta.',
+          ctaLabel: 'Dalej: bezpieczeństwo'
+        },
+        {
+          id: 'security',
+          title: 'Bezpieczeństwo wbudowane w proces.',
+          text: 'Klucze ról, audyt zmian i osobne domeny, np. cogita.pl.',
+          ctaLabel: 'Dalej: logowanie',
+          variant: 'secondary'
+        },
+        {
+          id: 'login',
+          title: 'Gotowy na Cogita?',
+          text: 'Zaloguj się przez REcreatio, aby tworzyć quizy i prowadzić sesje.',
+          ctaLabel: 'Zaloguj się przez REcreatio'
+        }
+      ],
       stats: [
         { value: '3 tryby', label: 'Nauczyciel, uczeń, gość' },
         { value: '1 link', label: 'QR lub kod sesji' },

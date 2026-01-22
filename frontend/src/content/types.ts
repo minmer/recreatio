@@ -88,6 +88,13 @@ export type Copy = {
         primaryCta: string;
         secondaryCta: string;
       };
+      homeSlides: Array<{
+        id: string;
+        title: string;
+        text: string;
+        ctaLabel: string;
+        variant?: 'secondary';
+      }>;
       stats: Array<{ value: string; label: string }>;
       highlights: Array<{ title: string; desc: string }>;
       sections: Array<{
