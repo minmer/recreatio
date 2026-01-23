@@ -121,10 +121,10 @@ export function CogitaPage({
 
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const DPR_CAP = 1;
-    const renderScaleDesktop = 0.7;
-    const renderScaleMobile = 0.65;
-    const targetFps = 20;
-    const meshFps = 5;
+    const renderScaleDesktop = 0.6;
+    const renderScaleMobile = 0.6;
+    const targetFps = 16;
+    const meshFps = 4;
     const DPR = Math.max(1, Math.min(DPR_CAP, window.devicePixelRatio || 1));
     let width = 0;
     let height = 0;
@@ -156,8 +156,8 @@ export function CogitaPage({
         glow: 'rgba(167, 224, 255, 0.42)',
         nodes: 'rgba(210, 240, 255, 0.92)'
       },
-      filamentCount: 80,
-      segments: 32,
+      filamentCount: 60,
+      segments: 24,
       waveBandPx: 190,
       crestX: 0.58,
       crestW: 0.3,
@@ -172,8 +172,8 @@ export function CogitaPage({
       jitterA: 12,
       jitterB: 8,
       xJitter: 4,
-      crossThreadCount: 60,
-      glowAlpha: 0.12,
+      crossThreadCount: 0,
+      glowAlpha: 0.1,
       depthLayers: 3
     };
 
@@ -194,8 +194,8 @@ export function CogitaPage({
         meshCtx.setTransform(DPR * renderScale, 0, 0, DPR * renderScale, 0, 0);
       }
       const adaptiveCount = Math.min(
-        width < 820 ? 35 : 50,
-        Math.max(width < 820 ? 20 : 30, Math.floor((width / 1200) * config.filamentCount))
+        width < 820 ? 28 : 40,
+        Math.max(width < 820 ? 16 : 24, Math.floor((width / 1200) * config.filamentCount))
       );
       filaments = Array.from({ length: adaptiveCount }, (_, idx) => {
         const offset = Math.max(-1, Math.min(1, gaussian(idx * 0.37)));
