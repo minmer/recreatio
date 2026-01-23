@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
@@ -31,86 +31,203 @@ export function CogitaPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
 }) {
   const homeRef = useRef<HTMLElement | null>(null);
-  const homeViewportRef = useRef<HTMLDivElement | null>(null);
-  const [activeHomeIndex, setActiveHomeIndex] = useState(0);
-  const homeSlides = useMemo(() => copy.cogita.page.homeSlides, [copy.cogita.page.homeSlides]);
-  const homeThemes = useMemo(
+  const introSlides = useMemo(
     () => [
       {
-        bg0: '#06162a',
-        bg1: '#0c2d49',
-        glow: 'rgba(120, 200, 255, 0.85)',
-        line: 'rgba(120, 200, 255, 0.18)',
-        dot: 'rgba(190, 235, 255, 0.95)'
+        id: 'entry',
+        title: 'Cogita.',
+        subtitle: 'Scena wiedzy na żywo dla nauki i dialogu.',
+        micro: 'Wejdź i zobacz, jak działa przestrzeń pracy.',
+        cta: 'Rozpocznij pokaz',
+        panel: { x: '0px', y: '0px', scale: '1' },
+        theme: {
+          bg0: '#06162a',
+          bg1: '#0c2d49',
+          bg2: '#0a1c2f',
+          bloom: 'rgba(120, 170, 220, 0.18)',
+          sat: '1'
+        }
       },
       {
-        bg0: '#071a2a',
-        bg1: '#0b3b56',
-        glow: 'rgba(129, 220, 255, 0.9)',
-        line: 'rgba(120, 210, 255, 0.2)',
-        dot: 'rgba(206, 241, 255, 0.98)'
+        id: 'workspace',
+        title: 'Twoja przestrzeń pracy.',
+        body: 'Twórz sceny, prowadź sesje i buduj narrację — wszystko w jednym miejscu.',
+        cta: 'Dalej: Biblioteka',
+        bullets: ['Sceny', 'Sesje', 'Narracja'],
+        panel: { x: '-6px', y: '-4px', scale: '1.01' },
+        theme: {
+          bg0: '#071a2a',
+          bg1: '#0b3b56',
+          bg2: '#081f33',
+          bloom: 'rgba(129, 190, 235, 0.18)',
+          sat: '1.05'
+        }
       },
       {
-        bg0: '#0a1d33',
-        bg1: '#0f334f',
-        glow: 'rgba(110, 195, 255, 0.88)',
-        line: 'rgba(120, 200, 255, 0.16)',
-        dot: 'rgba(180, 230, 255, 0.95)'
+        id: 'library',
+        title: 'Biblioteka.',
+        body: 'Układaj moduły wiedzy i quizów w stosy, zapisuj je i używaj ponownie.',
+        micro: 'Raz tworzysz — wiele razy używasz.',
+        cta: 'Dalej: Na żywo',
+        panel: { x: '-2px', y: '4px', scale: '1.01' },
+        theme: {
+          bg0: '#0a1d33',
+          bg1: '#0f334f',
+          bg2: '#0a2037',
+          bloom: 'rgba(110, 170, 230, 0.16)',
+          sat: '1'
+        }
       },
       {
-        bg0: '#08192f',
-        bg1: '#123b5c',
-        glow: 'rgba(140, 210, 255, 0.9)',
-        line: 'rgba(130, 210, 255, 0.2)',
-        dot: 'rgba(200, 240, 255, 0.98)'
+        id: 'live',
+        title: 'Na żywo.',
+        body: 'Uruchom sesję, kontroluj tempo, zadawaj pytania i obserwuj odpowiedzi w czasie rzeczywistym.',
+        micro: 'Prowadzący ma ster.',
+        cta: 'Dalej: Quiz',
+        panel: { x: '4px', y: '-2px', scale: '1.02' },
+        theme: {
+          bg0: '#08192f',
+          bg1: '#123b5c',
+          bg2: '#0a2239',
+          bloom: 'rgba(130, 190, 235, 0.18)',
+          sat: '1.03'
+        }
       },
       {
-        bg0: '#071424',
-        bg1: '#0f2a4a',
-        glow: 'rgba(120, 200, 255, 0.85)',
-        line: 'rgba(120, 190, 255, 0.18)',
-        dot: 'rgba(190, 230, 255, 0.95)'
+        id: 'quiz',
+        title: 'Quiz i udział.',
+        body: 'Uczestnicy dołączają w sekundę. Odpowiadają — Ty widzisz trend i tempo.',
+        micro: 'Wspólne myślenie, natychmiast.',
+        cta: 'Dalej: Ochrona',
+        panel: { x: '2px', y: '6px', scale: '1.01' },
+        theme: {
+          bg0: '#071424',
+          bg1: '#0f2a4a',
+          bg2: '#081a30',
+          bloom: 'rgba(110, 180, 235, 0.16)',
+          sat: '0.98'
+        }
       },
       {
-        bg0: '#071a2a',
-        bg1: '#0a2742',
-        glow: 'rgba(160, 220, 255, 0.85)',
-        line: 'rgba(120, 210, 255, 0.2)',
-        dot: 'rgba(210, 240, 255, 0.98)'
+        id: 'protection',
+        title: 'Otwarte, ale chronione.',
+        body: 'To, co prywatne, pozostaje prywatne — dostęp jest kontrolowany, a dane chronione.',
+        micro: 'Zaufanie jako fundament.',
+        cta: 'Dalej: Dołącz',
+        panel: { x: '-3px', y: '2px', scale: '1.01' },
+        theme: {
+          bg0: '#071a2a',
+          bg1: '#0a2742',
+          bg2: '#07192d',
+          bloom: 'rgba(150, 200, 240, 0.16)',
+          sat: '1'
+        }
+      },
+      {
+        id: 'register',
+        title: 'Wejdź do Cogita.',
+        body: 'Załóż konto i rozpocznij pierwszą scenę wiedzy.',
+        micro: 'To zajmie chwilę.',
+        cta: 'Zarejestruj się',
+        secondary: 'Wróć do początku',
+        panel: { x: '0px', y: '-4px', scale: '1.02' },
+        theme: {
+          bg0: '#081c30',
+          bg1: '#0f3754',
+          bg2: '#0b2239',
+          bloom: 'rgba(160, 210, 245, 0.2)',
+          sat: '1.05'
+        }
       }
     ],
     []
   );
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [introOpen, setIntroOpen] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const scrollToSlide = (index: number) => {
-    const viewport = homeViewportRef.current;
-    if (!viewport) return;
-    viewport.scrollTo({ top: index * viewport.clientHeight, behavior: 'smooth' });
-    setActiveHomeIndex(index);
-  };
+  const lastSlideIndex = introSlides.length - 1;
+  const markIntroSeen = useCallback(() => {
+    try {
+      if (typeof window === 'undefined') return;
+      window.localStorage.setItem('cogitaIntroSeen', 'true');
+    } catch {
+      // ignore
+    }
+  }, []);
+  const handleRegister = useCallback(() => {
+    markIntroSeen();
+    onAuthAction();
+  }, [markIntroSeen, onAuthAction]);
+  const openIntro = useCallback(() => {
+    setIntroOpen(true);
+    setActiveSlideIndex(0);
+  }, []);
+  const closeIntro = useCallback(() => {
+    setIntroOpen(false);
+  }, []);
+  const goToSlide = useCallback(
+    (nextIndex: number) => {
+      setActiveSlideIndex(Math.max(0, Math.min(lastSlideIndex, nextIndex)));
+    },
+    [lastSlideIndex]
+  );
+  const goNext = useCallback(() => {
+    if (activeSlideIndex >= lastSlideIndex) {
+      handleRegister();
+    } else {
+      goToSlide(activeSlideIndex + 1);
+    }
+  }, [activeSlideIndex, goToSlide, handleRegister, lastSlideIndex]);
+  const goPrev = useCallback(() => {
+    goToSlide(activeSlideIndex - 1);
+  }, [activeSlideIndex, goToSlide]);
 
   useEffect(() => {
-    const viewport = homeViewportRef.current;
-    if (!viewport) return;
+    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!media) return;
+    const update = () => setPrefersReducedMotion(media.matches);
+    update();
+    if (media.addEventListener) {
+      media.addEventListener('change', update);
+      return () => media.removeEventListener('change', update);
+    }
+    media.addListener(update);
+    return () => media.removeListener(update);
+  }, []);
 
-    let timeout: number | undefined;
-    const onScroll = () => {
-      if (timeout) window.clearTimeout(timeout);
-      timeout = window.setTimeout(() => {
-        const height = viewport.clientHeight || 1;
-        if (!Number.isFinite(height) || height <= 1) return;
-        const index = Math.round(viewport.scrollTop / height);
-        setActiveHomeIndex(Math.max(0, Math.min(index, homeSlides.length - 1)));
-      }, 40);
+  useEffect(() => {
+    if (!introOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const tag = target.tagName;
+      if (target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return;
+      }
+      if (event.key === 'Escape') {
+        closeIntro();
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        goPrev();
+        return;
+      }
+      if (event.key === 'ArrowRight' || event.code === 'Space' || event.key === ' ') {
+        event.preventDefault();
+        goNext();
+      }
     };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [closeIntro, goNext, goPrev, introOpen]);
 
-    viewport.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      viewport.removeEventListener('scroll', onScroll);
-      if (timeout) window.clearTimeout(timeout);
-    };
-  }, [homeSlides.length]);
+  useEffect(() => {
+    if (!introOpen) return;
+    if (activeSlideIndex === lastSlideIndex) {
+      markIntroSeen();
+    }
+  }, [activeSlideIndex, introOpen, lastSlideIndex, markIntroSeen]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -167,8 +284,8 @@ export function CogitaPage({
       amp2: 22,
       freq1: 0.010,
       freq2: 0.021,
-      speed1: 0.006,
-      speed2: 0.009,
+      speed1: 0.009,
+      speed2: 0.012,
       jitterA: 12,
       jitterB: 8,
       xJitter: 4,
@@ -394,18 +511,15 @@ export function CogitaPage({
     };
   }, []);
 
-  const slideActions = homeSlides.map((_, index) => {
-    if (index === homeSlides.length - 1) return onAuthAction;
-    return () => scrollToSlide(index + 1);
-  });
-  const activeSlide = homeSlides[activeHomeIndex];
-  const theme = homeThemes[activeHomeIndex % homeThemes.length];
+  const activeSlide = introSlides[Math.min(activeSlideIndex, introSlides.length - 1)];
+  const themedSlide = introOpen ? activeSlide : introSlides[introSlides.length - 1];
+  const theme = themedSlide?.theme ?? introSlides[0].theme;
   const homeThemeStyle = {
     '--cogita-bg0': theme.bg0,
     '--cogita-bg1': theme.bg1,
-    '--cogita-glow': theme.glow,
-    '--cogita-line': theme.line,
-    '--cogita-dot': theme.dot
+    '--cogita-bg2': theme.bg2,
+    '--cogita-bloom': theme.bloom,
+    '--cogita-sat': theme.sat
   } as CSSProperties;
 
   return (
@@ -435,87 +549,18 @@ export function CogitaPage({
             <div className="cogita-home-wave wave-2" />
             <div className="cogita-home-glow" />
           </div>
-          <div ref={homeViewportRef} className="cogita-home-viewport">
-            {homeSlides.map((slide, index) => (
-              <section
-                key={slide.id}
-                className={`cogita-home-slide slide-${index + 1} ${
-                  activeHomeIndex === index ? 'is-active' : ''
-                }`}
-              >
-                {index !== 0 && (
-                  <div className="cogita-home-content">
-                    <p className="cogita-tag">{copy.cogita.page.hero.tag}</p>
-                    <h1>{slide.title}</h1>
-                    <p>{slide.text}</p>
-                    <button
-                      type="button"
-                      className={`cta ${slide.variant === 'secondary' ? 'ghost' : ''}`}
-                      onClick={slideActions[index] ?? onAuthAction}
-                    >
-                      {slide.ctaLabel}
-                    </button>
-                  </div>
-                )}
-                {index !== 0 && (
-                  <div className={`cogita-visual visual-${index + 1}`} aria-hidden="true">
-                    <img className="cogita-logo-ghost" src="/Cogita.svg" alt="" />
-                    {index === 1 && (
-                    <div className="cogita-card-stack">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    )}
-                    {index === 2 && (
-                    <div className="cogita-live-orbit">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    )}
-                    {index === 3 && (
-                    <div className="cogita-results-map">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    )}
-                    {index === 4 && (
-                    <div className="cogita-security-shield">
-                      <span />
-                      <span />
-                    </div>
-                    )}
-                    {index === 5 && (
-                    <div className="cogita-login-portal">
-                      <span />
-                      <span />
-                    </div>
-                    )}
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-          <div className="cogita-home-dots">
-            {homeSlides.map((slide, index) => (
-              <button
-                key={slide.id}
-                className={`dot ${activeHomeIndex === index ? 'active' : ''}`}
-                aria-label={slide.title}
-                type="button"
-                onClick={() => scrollToSlide(index)}
-              />
-            ))}
-          </div>
-          {activeSlide && (
-            <div className="cogita-home-indicator">
-              <span>{copy.cogita.page.hero.tag}</span>
-              <strong>{activeSlide.title}</strong>
-            </div>
-          )}
+          <CogitaIntroSlides
+            slides={introSlides}
+            activeIndex={activeSlideIndex}
+            introOpen={introOpen}
+            prefersReducedMotion={prefersReducedMotion}
+            onNext={goNext}
+            onPrev={goPrev}
+            onSelect={goToSlide}
+            onExit={closeIntro}
+            onOpen={openIntro}
+            onRegister={handleRegister}
+          />
         </section>
       </main>
       <footer className="portal-footer cogita-footer">
@@ -524,6 +569,289 @@ export function CogitaPage({
           {authLabel}
         </button>
       </footer>
+    </div>
+  );
+}
+
+type IntroSlide = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  body?: string;
+  micro?: string;
+  cta: string;
+  secondary?: string;
+  bullets?: string[];
+  panel: { x: string; y: string; scale: string };
+  theme: { bg0: string; bg1: string; bg2: string; bloom: string; sat: string };
+};
+
+function CogitaIntroSlides({
+  slides,
+  activeIndex,
+  introOpen,
+  prefersReducedMotion,
+  onNext,
+  onPrev,
+  onSelect,
+  onExit,
+  onOpen,
+  onRegister
+}: {
+  slides: IntroSlide[];
+  activeIndex: number;
+  introOpen: boolean;
+  prefersReducedMotion: boolean;
+  onNext: () => void;
+  onPrev: () => void;
+  onSelect: (index: number) => void;
+  onExit: () => void;
+  onOpen: () => void;
+  onRegister: () => void;
+}) {
+  const isFinal = activeIndex === slides.length - 1;
+  const logoState = introOpen && activeIndex === 0 ? 'entry' : 'docked';
+  const staticSlide = slides[slides.length - 1];
+  const [logoEntered, setLogoEntered] = useState(false);
+  const logoLayers = useMemo(
+    () =>
+      Array.from({ length: 20 }, (_, idx) => {
+        const num = String(idx).padStart(2, '0');
+        return {
+          src: `/cogita/logo/Cogita${num}.png`,
+          kind: idx <= 11 ? 'bubble' : idx <= 17 ? 'text' : 'recreatio'
+        } as const;
+      }),
+    []
+  );
+  const isEntry = introOpen && activeIndex === 0;
+  useEffect(() => {
+    if (!introOpen) {
+      setLogoEntered(false);
+      return;
+    }
+    if (activeIndex > 0 && !logoEntered) {
+      setLogoEntered(true);
+    }
+  }, [activeIndex, introOpen, logoEntered]);
+  const wheelLockRef = useRef(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const answerDots = [
+    { x: '62%', y: '66%' },
+    { x: '70%', y: '70%' },
+    { x: '78%', y: '72%' },
+    { x: '66%', y: '75%' },
+    { x: '74%', y: '78%' },
+    { x: '82%', y: '70%' },
+    { x: '60%', y: '72%' }
+  ];
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!introOpen) return;
+    const now = Date.now();
+    if (now - wheelLockRef.current < 520) return;
+    if (Math.abs(event.deltaY) < 10) return;
+    wheelLockRef.current = now;
+    if (event.deltaY > 0) {
+      onNext();
+    } else {
+      onPrev();
+    }
+    event.preventDefault();
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!introOpen) return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!introOpen) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dy) < 40 || Math.abs(dy) < Math.abs(dx)) return;
+    if (dy < 0) {
+      onNext();
+    } else {
+      onPrev();
+    }
+  };
+
+  return (
+    <div
+      className={`cogita-intro ${introOpen ? 'is-open' : 'is-closed'} ${
+        prefersReducedMotion ? 'is-reduced' : ''
+      } ${isFinal ? 'is-final' : ''}`}
+      onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="cogita-intro-stage">
+        <div className="cogita-intro-logo" data-state={logoState} aria-hidden="true">
+          <div className={`cogita-logo-layers ${isEntry && !logoEntered ? 'is-entry' : ''}`}>
+            {logoLayers.map((layer, idx) => (
+              <img
+                key={layer.src}
+                src={layer.src}
+                alt=""
+                className={`cogita-logo-layer ${idx === 0 ? 'is-base' : ''} ${
+                  layer.kind === 'text' ? 'is-text' : layer.kind === 'recreatio' ? 'is-recreatio' : ''
+                } ${layer.kind === 'bubble' ? 'is-bubble' : ''}`}
+              />
+            ))}
+          </div>
+        </div>
+        {introOpen &&
+          slides.map((slide, index) => {
+            const isActive = index === activeIndex;
+            return (
+              <section
+                key={slide.id}
+                className={`cogita-intro-slide slide-${index + 1} ${isActive ? 'is-active' : ''}`}
+                aria-hidden={!isActive}
+              >
+                <div className="cogita-intro-text">
+                  {slide.subtitle ? (
+                    <>
+                      <p className="cogita-intro-kicker">Cogita</p>
+                      <h1>{slide.title}</h1>
+                      <p className="cogita-intro-subtitle">{slide.subtitle}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="cogita-intro-kicker">Cogita</p>
+                      <h2>{slide.title}</h2>
+                      {slide.body && <p>{slide.body}</p>}
+                    </>
+                  )}
+                  {slide.micro && <p className="cogita-intro-micro">{slide.micro}</p>}
+                  <div className="cogita-intro-actions">
+                    <button
+                      type="button"
+                      className="cta"
+                      onClick={isFinal ? onRegister : onNext}
+                    >
+                      {slide.cta}
+                    </button>
+                    {isFinal && slide.secondary && (
+                      <button type="button" className="ghost" onClick={() => onSelect(0)}>
+                        {slide.secondary}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="cogita-intro-visual" aria-hidden="true">
+                  {index === 1 && (
+                    <ul className="cogita-glyph-list">
+                      {slide.bullets?.map((item) => (
+                        <li key={item} className="cogita-glyph-item">
+                          <span className={`glyph glyph-${item.toLowerCase()}`} />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {index === 2 && (
+                    <div className="cogita-card-stack">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  )}
+                  {index === 3 && (
+                    <div className="cogita-card-stack is-timeline">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                      <div className="cogita-timeline-pulse" />
+                    </div>
+                  )}
+                  {index === 4 && (
+                    <div className="cogita-answers">
+                      <div className="cogita-answers-bars">
+                        <span />
+                        <span />
+                        <span />
+                        <span />
+                      </div>
+                      <div className="cogita-answers-dots">
+                        {answerDots.map((dot, idx) => (
+                          <span key={String(idx)} style={{ left: dot.x, top: dot.y }} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {index === 5 && (
+                    <div className="cogita-shield">
+                      <svg viewBox="0 0 120 140" role="presentation">
+                        <path
+                          d="M60 10l42 16v44c0 30-19 54-42 62C37 124 18 100 18 70V26z"
+                          fill="none"
+                        />
+                        <path d="M44 66l10 12 22-26" fill="none" />
+                      </svg>
+                      <span className="cogita-shield-glow" />
+                    </div>
+                  )}
+                  {index === 6 && <div className="cogita-final-glow" />}
+                </div>
+              </section>
+            );
+          })}
+        {!introOpen && (
+          <section className="cogita-intro-static">
+            <div className="cogita-intro-text">
+              <p className="cogita-intro-kicker">Cogita</p>
+              <h2>{staticSlide.title}</h2>
+              {staticSlide.body && <p>{staticSlide.body}</p>}
+              {staticSlide.micro && <p className="cogita-intro-micro">{staticSlide.micro}</p>}
+              <div className="cogita-intro-actions">
+                <button type="button" className="cta" onClick={onRegister}>
+                  {staticSlide.cta}
+                </button>
+                <button type="button" className="ghost" onClick={onOpen}>
+                  Otwórz pokaz
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+      </div>
+      {introOpen && (
+        <>
+          <div className="cogita-intro-dots" aria-label="Nawigacja slajdów">
+            {slides.map((slide, index) => (
+              <button
+                key={slide.id}
+                type="button"
+                className={`dot ${activeIndex === index ? 'active' : ''}`}
+                aria-label={slide.title}
+                onClick={() => onSelect(index)}
+              />
+            ))}
+          </div>
+          <button type="button" className="cogita-intro-skip" onClick={onExit}>
+            Pomiń
+          </button>
+          <div className="cogita-intro-nav">
+            <button type="button" className="ghost" onClick={onPrev} disabled={activeIndex === 0}>
+              Wstecz
+            </button>
+            <button type="button" className="ghost" onClick={onNext}>
+              Dalej
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
