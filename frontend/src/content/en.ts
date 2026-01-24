@@ -123,6 +123,62 @@ export const en: Copy = {
     ],
     note: 'Cogita can also run under a separate domain, e.g. cogita.pl, while still using REcreatio backend.',
     loginCta: 'Sign in via REcreatio',
+    introSlides: [
+      {
+        id: 'entry',
+        title: 'Cogita.',
+        subtitle: 'A live knowledge stage for learning and dialogue.',
+        micro: 'Step in and see how the knowledge map guides you.',
+        cta: 'Start the tour'
+      },
+      {
+        id: 'workspace',
+        title: 'You don’t get the next step before you’re ready.',
+        body:
+          'New knowledge opens only when the previous piece is understood.\nIf basics are missing, Cogita rebuilds them — then moves forward.',
+        micro: 'A learning tree that guides you.',
+        cta: 'Next: How it guides'
+      },
+      {
+        id: 'library',
+        title: 'Knowledge you can reuse — not just read.',
+        body:
+          'Save ideas as structured index cards: summary, quote, source, tags.\nReuse them to build arguments and notes without losing context.',
+        micro: 'Your personal knowledge box.',
+        cta: 'Next: Live collaboration'
+      },
+      {
+        id: 'live',
+        title: 'Knowledge lives in conversation.',
+        body:
+          'You learn faster when you think together with others.\nA shared Q&A round turns learning into dialogue.',
+        micro: 'Ask, answer, explain.',
+        cta: 'Next: The shared game'
+      },
+      {
+        id: 'quiz',
+        title: 'See your progress — and what to train next.',
+        body:
+          'Track your growth and compare with your group.\nFind gaps and connect with people at a similar level.',
+        micro: 'Clear feedback, not guessing.',
+        cta: 'Next: Trust & privacy'
+      },
+      {
+        id: 'protection',
+        title: 'Open, but protected.',
+        body: 'What is private stays private — access is controlled and data is protected.',
+        micro: 'Trust is the foundation.',
+        cta: 'Next: Join'
+      },
+      {
+        id: 'register',
+        title: 'Enter Cogita.',
+        body: 'Create an account and start your first knowledge scene.',
+        micro: 'It only takes a moment.',
+        cta: 'Register',
+        secondary: 'Back to start'
+      }
+    ],
     page: {
       nav: [
         { id: 'home', label: 'Home' },

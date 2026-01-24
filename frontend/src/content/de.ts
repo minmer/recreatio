@@ -123,6 +123,62 @@ export const de: Copy = {
     ],
     note: 'Cogita kann auch unter eigener Domain laufen, z.B. cogita.pl — ohne Backend-Änderung.',
     loginCta: 'Mit REcreatio anmelden',
+    introSlides: [
+      {
+        id: 'entry',
+        title: 'Cogita.',
+        subtitle: 'Eine Live-Wissensbühne für Lernen und Dialog.',
+        micro: 'Steig ein und sieh, wie dich die Wissenskarte führt.',
+        cta: 'Tour starten'
+      },
+      {
+        id: 'workspace',
+        title: 'Den nächsten Schritt bekommst du erst, wenn du bereit bist.',
+        body:
+          'Neues Wissen öffnet sich erst, wenn das vorherige sitzt.\nFehlt die Basis, stärkt Cogita sie — und führt dann weiter.',
+        micro: 'Ein Lernbaum, der dich leitet.',
+        cta: 'Weiter: Wie es führt'
+      },
+      {
+        id: 'library',
+        title: 'Wissen zum Wiederverwenden — nicht nur zum Lesen.',
+        body:
+          'Speichere Ideen als strukturierte Karten: Zusammenfassung, Zitat, Quelle, Tags.\nNutze sie für Argumente und Notizen, ohne Kontextverlust.',
+        micro: 'Deine persönliche Wissensbox.',
+        cta: 'Weiter: Live-Kollaboration'
+      },
+      {
+        id: 'live',
+        title: 'Wissen lebt im Gespräch.',
+        body:
+          'Du lernst schneller, wenn du mit anderen denkst.\nEine gemeinsame Fragerunde macht Lernen zum Dialog.',
+        micro: 'Fragen, antworten, erklären.',
+        cta: 'Weiter: Das gemeinsame Spiel'
+      },
+      {
+        id: 'quiz',
+        title: 'Sieh deinen Fortschritt — und was als Nächstes zählt.',
+        body:
+          'Verfolge dein Wachstum und vergleiche es mit der Gruppe.\nFinde Lücken und verbinde dich mit ähnlichem Niveau.',
+        micro: 'Klare Rückmeldung, kein Raten.',
+        cta: 'Weiter: Vertrauen & Schutz'
+      },
+      {
+        id: 'protection',
+        title: 'Offen, aber geschützt.',
+        body: 'Privates bleibt privat — Zugang ist kontrolliert, Daten sind geschützt.',
+        micro: 'Vertrauen als Fundament.',
+        cta: 'Weiter: Beitreten'
+      },
+      {
+        id: 'register',
+        title: 'Jetzt zu Cogita.',
+        body: 'Erstelle ein Konto und starte deine erste Wissensszene.',
+        micro: 'Dauert nur einen Moment.',
+        cta: 'Registrieren',
+        secondary: 'Zurück zum Start'
+      }
+    ],
     page: {
       nav: [
         { id: 'home', label: 'Start' },

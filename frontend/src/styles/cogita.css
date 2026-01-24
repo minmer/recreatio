@@ -2961,11 +2961,12 @@
   }
 
   .cogita-intro:not([data-slide='1']) .cogita-intro-logo {
-    --logo-x: 12%;
-    --logo-y: 16%;
-    --logo-scale: 0.5;
-    left: -25%;
-    top: -25%;
+    --logo-x: 10%;
+    --logo-y: 8%;
+    --logo-scale: 0.35;
+    left: var(--logo-x);
+    top: var(--logo-y);
+    opacity: 0.85;
   }
 
   .cogita-intro-slide.slide-1 {
@@ -3012,11 +3013,13 @@
   }
 
   .cogita-intro-slide:not(.slide-1) .cogita-intro-visual {
-    grid-column: 2;
+    grid-column: 1 / -1;
     grid-row: 1;
     display: flex;
     justify-content: center;
-    margin-top: 0;
+    margin-top: 0.6rem;
+    transform: scale(1.12);
+    transform-origin: top center;
   }
 
   .cogita-intro-slide:not(.slide-1) .cogita-intro-text {
