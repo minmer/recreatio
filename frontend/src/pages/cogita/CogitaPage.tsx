@@ -141,7 +141,8 @@ export function CogitaPage({
   }, []);
   const closeIntro = useCallback(() => {
     setIntroOpen(false);
-  }, []);
+    setActiveSlideIndex(lastSlideIndex);
+  }, [lastSlideIndex]);
   const goToSlide = useCallback(
     (nextIndex: number) => {
       setActiveSlideIndex(Math.max(0, Math.min(lastSlideIndex, nextIndex)));
@@ -1387,63 +1388,52 @@ function CogitaIntroSlides({
                   )}
                   {index === 4 && (
                     <div className="cogita-progress-story">
-                      <div className="progress-chart">
+                      <div className="progress-chart progress-chart--steps">
                         <svg className="progress-svg" viewBox="0 0 300 200" role="presentation">
                           <g className="chart-grid">
-                            <line x1="30" y1="24" x2="30" y2="174" />
-                            <line x1="70" y1="24" x2="70" y2="174" />
-                            <line x1="110" y1="24" x2="110" y2="174" />
-                            <line x1="150" y1="24" x2="150" y2="174" />
-                            <line x1="190" y1="24" x2="190" y2="174" />
-                            <line x1="230" y1="24" x2="230" y2="174" />
+                            <line x1="40" y1="30" x2="40" y2="170" />
+                            <line x1="90" y1="30" x2="90" y2="170" />
+                            <line x1="140" y1="30" x2="140" y2="170" />
+                            <line x1="190" y1="30" x2="190" y2="170" />
+                            <line x1="240" y1="30" x2="240" y2="170" />
+                            <line x1="40" y1="170" x2="260" y2="170" />
+                            <line x1="40" y1="130" x2="260" y2="130" />
+                            <line x1="40" y1="90" x2="260" y2="90" />
+                            <line x1="40" y1="50" x2="260" y2="50" />
                           </g>
-                          <g className="chart-history">
-                            <path
-                              className="chart-line line-main"
-                              d="M30 168 L60 148 L90 150 L120 128 L150 120 L180 104 L210 96 L230 78"
-                            />
-                            <path
-                              className="chart-range"
-                              d="M30 172 L60 156 L90 158 L120 140 L150 132 L180 118 L210 112 L230 96 L230 112 L210 124 L180 136 L150 144 L120 152 L90 160 L60 166 L30 176 Z"
-                            />
+                          <g className="chart-axes">
+                            <line x1="40" y1="170" x2="260" y2="170" />
+                            <line x1="40" y1="170" x2="40" y2="30" />
                           </g>
-                          <path
-                            className="chart-line line-peer peer-1"
-                            d="M30 172 L60 156 L90 158 L120 142 L150 136 L180 124 L210 120 L230 110"
-                          />
-                          <path
-                            className="chart-line line-peer peer-2"
-                            d="M30 176 L60 162 L90 166 L120 150 L150 146 L180 136 L210 134 L230 126"
-                          />
-                          <g className="chart-future">
-                            <path
-                              className="chart-line line-improve improve-1"
-                              d="M150 174 L190 132 L230 100"
-                            />
-                            <path
-                              className="chart-line line-improve improve-2"
-                              d="M150 178 L190 140 L230 112"
-                            />
-                            <path
-                              className="chart-line line-improve improve-3"
-                              d="M150 182 L190 146 L230 122"
-                            />
+                          <g className="chart-paths">
+                            <path className="chart-seg seg-1" d="M40 160 L80 140" pathLength="100" />
+                            <path className="chart-seg seg-2" d="M80 140 L130 120" pathLength="100" />
+                            <path className="chart-seg seg-3" d="M130 120 L190 90" pathLength="100" />
+                            <path className="chart-seg seg-4" d="M190 90 L250 70" pathLength="100" />
                           </g>
+                          <circle className="chart-dot-step" r="5" cx="40" cy="160">
+                            <animate
+                              attributeName="cx"
+                              dur="6s"
+                              begin="0.6s"
+                              repeatCount="indefinite"
+                              values="40;80;130;190;250"
+                              keyTimes="0;0.25;0.5;0.75;1"
+                              calcMode="spline"
+                              keySplines="0.4 0 0.2 1;0.4 0 0.2 1;0.4 0 0.2 1;0.4 0 0.2 1"
+                            />
+                            <animate
+                              attributeName="cy"
+                              dur="6s"
+                              begin="0.6s"
+                              repeatCount="indefinite"
+                              values="160;140;120;90;70"
+                              keyTimes="0;0.25;0.5;0.75;1"
+                              calcMode="spline"
+                              keySplines="0.4 0 0.2 1;0.4 0 0.2 1;0.4 0 0.2 1;0.4 0 0.2 1"
+                            />
+                          </circle>
                         </svg>
-                        <span className="chart-dot dot-main" />
-                        <span className="chart-dot dot-peer dot-peer-1" />
-                        <span className="chart-dot dot-peer dot-peer-2" />
-                      </div>
-                      <div className="progress-triangle">
-                        <svg viewBox="0 0 160 120" role="presentation">
-                          <circle className="triangle-ring" cx="80" cy="62" r="38" />
-                          <polygon className="triangle-edge" points="80,18 32,96 128,96" />
-                        </svg>
-                        <div className="triangle-orbit">
-                          <span className="orbit-dot orbit-1" />
-                          <span className="orbit-dot orbit-2" />
-                          <span className="orbit-dot orbit-3" />
-                        </div>
                       </div>
                     </div>
                   )}

@@ -1421,156 +1421,172 @@
   width: min(560px, 52vw);
   height: min(380px, 40vw);
   min-height: 260px;
-  --T_DRAW1: 1.2s;
-  --T_GROUP: 1s;
-  --T_OTHER: 1s;
-  --T_DOTS_OUT: 0.7s;
-  --T_ROTATE: 2s;
-  --T_DOTS_BACK: 0.7s;
-  --T_IMPROVE: 1.4s;
-  --T_TOTAL: 14s;
 }
 
-.cogita-progress-story .progress-chart {
+.cogita-progress-story .progress-chart--steps {
   position: relative;
   width: min(520px, 48vw);
-  height: min(280px, 28vw);
+  height: min(300px, 32vw);
   margin-left: auto;
   margin-right: 0;
-  overflow: visible;
+  border-radius: 18px;
+  border: 1px solid rgba(150, 200, 245, 0.22);
+  background: rgba(10, 22, 36, 0.28);
+  overflow: hidden;
+  --step-cycle: 6s;
+  --step-delay: 0.6s;
 }
 
-.cogita-progress-story svg {
+.cogita-progress-story .progress-chart--steps .progress-svg {
   width: 100%;
   height: 100%;
 }
 
-.cogita-progress-story .chart-grid line {
-  stroke: rgba(120, 170, 220, 0.18);
+.cogita-progress-story .progress-chart--steps .chart-grid line {
+  stroke: rgba(130, 190, 245, 0.18);
   stroke-width: 1;
-}
-
-.cogita-progress-story .chart-line {
-  fill: none;
-  stroke: rgba(175, 225, 255, 0.85);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-dasharray: 420;
-  stroke-dashoffset: 420;
-}
-
-.cogita-progress-story .line-main {
-  animation: chart-draw var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .chart-range {
-  fill: rgba(120, 175, 225, 0.16);
   opacity: 0;
-  animation: chart-range var(--T_TOTAL) ease-in-out infinite;
+  animation: chart-grid-in 1s ease forwards;
 }
 
-.cogita-progress-story .line-peer {
-  stroke: rgba(150, 210, 255, 0.6);
-  stroke-dasharray: 300;
-  stroke-dashoffset: 300;
-  animation: chart-peer var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .line-improve {
-  stroke: rgba(200, 235, 255, 0.95);
-  stroke-dasharray: 80;
-  stroke-dashoffset: 80;
-  animation: chart-improve var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .chart-history {
-  transform-origin: 30px 174px;
-  animation: chart-shrink var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .chart-dot {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(175, 225, 255, 0.9);
-  box-shadow: 0 0 10px rgba(150, 210, 255, 0.6);
-  opacity: 0;
-  transform: translate(-50%, -50%);
-  animation: dot-main var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .dot-peer {
-  width: 7px;
-  height: 7px;
-  background: rgba(140, 200, 255, 0.8);
-}
-
-.cogita-progress-story .dot-peer-1 {
-  animation: dot-peer-1 var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .dot-peer-2 {
-  animation: dot-peer-2 var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .progress-triangle {
-  position: absolute;
-  right: 0;
-  top: calc(100% - 4px);
-  width: min(220px, 28vw);
-  height: min(170px, 20vw);
-  transform: translate(-12%, -50%);
-  opacity: 0;
-  animation: triangle-shell var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .triangle-orbit {
-  position: absolute;
-  inset: 0;
-  animation: triangle-orbit var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .orbit-dot {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(175, 225, 255, 0.9);
-  box-shadow: 0 0 10px rgba(150, 210, 255, 0.6);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  animation: triangle-dot var(--T_TOTAL) ease-in-out infinite;
-}
-
-.cogita-progress-story .orbit-1 {
-  left: 50%;
-  top: 20%;
-}
-
-.cogita-progress-story .orbit-2 {
-  left: 25%;
-  top: 78%;
-}
-
-.cogita-progress-story .orbit-3 {
-  left: 75%;
-  top: 78%;
-}
-
-.cogita-progress-story .triangle-edge {
-  fill: none;
-  stroke: rgba(160, 210, 255, 0.6);
-  stroke-width: 1.6;
-  opacity: 0.7;
-}
-
-.cogita-progress-story .triangle-ring {
-  fill: none;
-  stroke: rgba(160, 210, 255, 0.4);
+.cogita-progress-story .progress-chart--steps .chart-axes line {
+  stroke: rgba(170, 220, 255, 0.55);
   stroke-width: 1.4;
-  opacity: 0.5;
-  animation: triangle-pulse var(--T_TOTAL) ease-in-out infinite;
+  opacity: 0;
+  animation: chart-axes-in 1.2s ease forwards;
+  animation-delay: 0.2s;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-seg {
+  fill: none;
+  stroke: rgba(190, 235, 255, 0.9);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+
+.cogita-progress-story .progress-chart--steps .seg-1 {
+  animation: chart-seg-1 var(--step-cycle) ease-in-out infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .seg-2 {
+  animation: chart-seg-2 var(--step-cycle) ease-in-out infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .seg-3 {
+  animation: chart-seg-3 var(--step-cycle) ease-in-out infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .seg-4 {
+  animation: chart-seg-4 var(--step-cycle) ease-in-out infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-dot-step {
+  fill: rgba(210, 245, 255, 0.95);
+  filter: drop-shadow(0 0 10px rgba(180, 230, 255, 0.75));
+}
+
+@keyframes chart-grid-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
+
+@keyframes chart-axes-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chart-seg-1 {
+  0% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  18% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+}
+
+@keyframes chart-seg-2 {
+  0%,
+  18% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  36% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+}
+
+@keyframes chart-seg-3 {
+  0%,
+  36% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  54% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+}
+
+@keyframes chart-seg-4 {
+  0%,
+  54% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
+  72% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  80% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 100;
+    opacity: 0;
+  }
 }
 
 .cogita-round-board {
@@ -1670,11 +1686,12 @@
 }
 
 .cogita-round-board .round-link {
-  stroke: rgba(180, 230, 255, 0.17);
-  stroke-width: 1;
+  stroke: rgba(170, 220, 255, 0.03);
+  stroke-width: 1.4;
   stroke-linecap: round;
-  opacity: 0;
-  filter: drop-shadow(0 0 4px rgba(160, 220, 255, 0.22));
+  stroke-linejoin: round;
+  opacity: 1;
+  filter: drop-shadow(0 0 8px rgba(160, 220, 255, 255));
   animation: round-link-fade 5.8s ease-in-out infinite;
   animation-delay: var(--delay);
 }
