@@ -1995,7 +1995,7 @@
     grid-row: 1;
     position: relative;
     left: auto;
-    top: auto;
+    top: 10%;
     transform: scale(var(--logo-scale));
   }
 }
@@ -2946,17 +2946,20 @@
   }
 
   .cogita-intro[data-slide='1'] .cogita-intro-logo {
-    --logo-x: 50%;
-    --logo-y: 16%;
+    --logo-x: 25%;
+    --logo-y: 10%;
     --logo-scale: 1;
     --logo-tx: -50%;
     --logo-ty: -50%;
+    left: var(--logo-x);
+    top: var(--logo-y);
+    opacity: 1;
     position: absolute;
   }
 
   .cogita-intro[data-slide='7'] .cogita-intro-logo {
     --logo-x: 50%;
-    --logo-y: 16%;
+    --logo-y: 25%;
     --logo-scale: 1;
     --logo-tx: -50%;
     --logo-ty: -50%;
@@ -3012,7 +3015,7 @@
   }
 
   .cogita-intro-slide.slide-3 .cogita-index-cards {
-    transform: translateX(10%) scale(0.55);
+    transform: translateX(10%) translateY(20%) scale(0.55);
     transform-origin: top center;
   }
 
