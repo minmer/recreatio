@@ -3,10 +3,33 @@
   background: #050f1c;
 }
 
+.portal-page.cogita {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.portal-header.cogita-header {
+  flex: 0 0 var(--header-h);
+  height: var(--header-h);
+}
+
+.portal-footer.cogita-footer {
+  flex: 0 0 var(--footer-h);
+  height: var(--footer-h);
+  padding: 0 6vw;
+}
+
+.cogita-main {
+  flex: 1;
+  min-height: 0;
+}
+
 .cogita-home {
   position: relative;
   height: calc(100vh - var(--header-h) - var(--footer-h));
-  min-height: 560px;
+  min-height: min(560px, calc(100vh - var(--header-h) - var(--footer-h)));
   overflow: hidden;
   --cogita-bg0: #06162a;
   --cogita-bg1: #0c2d49;
@@ -534,6 +557,8 @@
   background: rgba(18, 19, 18, 0.92);
   color: rgba(226, 239, 255, 0.9);
   border-top: 1px solid rgba(120, 170, 220, 0.18);
+  height: var(--footer-h);
+  padding: 0 6vw;
 }
 
 .cogita-footer button {
@@ -717,19 +742,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 clamp(1.5rem, 6vw, 6rem);
+  overflow: visible;
 }
 
 .cogita-intro-logo {
   position: absolute;
-  right: 9vw;
-  top: 50%;
+  --logo-x: calc(50% + min(22vw, 280px));
+  --logo-y: 50%;
+  --logo-tx: -50%;
+  --logo-ty: -50%;
+  --logo-scale: 1.08;
+  left: var(--logo-x);
+  top: var(--logo-y);
   width: min(44vw, 520px);
-  transform: translateY(-50%) scale(1.08);
-  transition: transform 800ms ease, top 800ms ease, left 800ms ease, right 800ms ease,
-    opacity 600ms ease;
+  transform: translate(var(--logo-tx), var(--logo-ty)) scale(var(--logo-scale));
+  transition:
+    transform 800ms ease,
+    top 800ms ease,
+    left 800ms ease,
+    opacity 700ms ease;
   opacity: 1;
   z-index: 3;
   pointer-events: none;
+}
+
+.cogita-intro-logo[data-state='entry'] {
+  opacity: 1;
 }
 
 .cogita-logo-layers {
@@ -891,11 +932,12 @@
 
 
 .cogita-intro-logo[data-state='docked'] {
-  left: 4vw;
-  right: auto;
-  top: 2rem;
-  transform: translateY(0) scale(0.48);
-  opacity: 0.85;
+  --logo-x: calc(50% - min(22vw, 280px));
+  --logo-y: 50%;
+  --logo-tx: -50%;
+  --logo-ty: -50%;
+  --logo-scale: 0.5;
+  opacity: 0.82;
 }
 
 .cogita-intro.is-final .cogita-intro-logo {
@@ -908,10 +950,13 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 4vw;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: clamp(1.2rem, 2.6vw, 3rem);
   align-items: center;
-  padding: 0 11vw;
+  padding: 0;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
   opacity: 0;
   transform: translateY(12px);
   filter: blur(2px);
@@ -930,7 +975,24 @@
 .cogita-intro-text {
   position: relative;
   z-index: 2;
-  max-width: 680px;
+  max-width: 640px;
+  grid-column: 2;
+  justify-self: center;
+}
+
+.cogita-intro-slide.slide-1 .cogita-intro-text {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.cogita-intro-slide.slide-2 .cogita-intro-text,
+.cogita-intro-slide.slide-3 .cogita-intro-text,
+.cogita-intro-slide.slide-4 .cogita-intro-text,
+.cogita-intro-slide.slide-5 .cogita-intro-text,
+.cogita-intro-slide.slide-6 .cogita-intro-text,
+.cogita-intro-slide.slide-7 .cogita-intro-text {
+  grid-column: 2;
+  justify-self: end;
 }
 
 .cogita-intro-kicker {
@@ -951,14 +1013,14 @@
 
 .cogita-intro-text h2 {
   font-family: 'Cormorant Garamond', serif;
-  font-size: clamp(2.4rem, 4.8vw, 3.8rem);
+  font-size: clamp(1.7rem, 3.2vw, 2.4rem);
   margin: 0 0 1rem;
   color: #f4f7fb;
 }
 
 .cogita-intro-subtitle,
 .cogita-intro-text p {
-  font-size: clamp(1.05rem, 1.2vw, 1.25rem);
+  font-size: clamp(1.05rem, 1.4vw, 1.35rem);
   color: rgba(228, 239, 255, 0.82);
   line-height: 1.6;
   margin: 0 0 1.4rem;
@@ -982,6 +1044,88 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  grid-column: 3;
+  justify-self: end;
+}
+
+.cogita-intro-slide.slide-2 .cogita-intro-text {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.cogita-learning-map {
+  position: relative;
+  width: min(440px, 44vw);
+  height: min(320px, 34vw);
+}
+
+.cogita-learning-map .learning-map-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cogita-learning-map .map-link {
+  stroke: rgba(140, 200, 255, 0.35);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+  opacity: 0.35;
+  transition: opacity 320ms ease, stroke 320ms ease;
+}
+
+.cogita-learning-map .map-link.is-active {
+  stroke: rgba(170, 230, 255, 0.85);
+  opacity: 0.85;
+}
+
+.cogita-learning-map .map-link.is-error {
+  animation: link-error 1s ease-in-out infinite;
+}
+
+.cogita-learning-map .map-node {
+  fill: rgba(140, 200, 255, 0.22);
+  opacity: 0.35;
+  transition: opacity 280ms ease, fill 280ms ease;
+}
+
+.cogita-learning-map .map-node.is-root {
+  opacity: 1;
+  fill: rgba(185, 235, 255, 0.95);
+  filter: drop-shadow(0 0 8px rgba(160, 220, 255, 0.75));
+}
+
+.cogita-learning-map .map-node.is-goal {
+  opacity: 0.7;
+  fill: rgba(170, 230, 255, 0.7);
+}
+
+.cogita-learning-map .map-node.is-active {
+  opacity: 0.9;
+  fill: rgba(170, 230, 255, 0.9);
+  filter: drop-shadow(0 0 10px rgba(160, 220, 255, 0.75));
+}
+
+.cogita-learning-map .map-node.is-error {
+  animation: node-blocked 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 120, 120, 0.7));
+}
+
+.cogita-learning-map .map-explorer-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(190, 240, 255, 0.95);
+  box-shadow: 0 0 14px rgba(160, 220, 255, 0.9);
+  transform: translate(-50%, -50%);
+  transition: left var(--move) ease-in-out, top var(--move) ease-in-out;
+  pointer-events: none;
+}
+
+.cogita-intro.is-reduced .map-explorer-dot {
+  transition: none;
 }
 
 
@@ -1083,6 +1227,109 @@
   height: 220px;
 }
 
+.cogita-index-cards {
+  position: relative;
+  width: min(560px, 50vw);
+  height: min(360px, 40vw);
+  min-height: 240px;
+  transform: translateX(10%);
+  --card-cycle: 10s;
+}
+
+.cogita-index-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(190px, 40vw);
+  height: min(130px, 28vw);
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(8, 20, 34, 0.75);
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  box-shadow: 0 18px 28px rgba(4, 10, 18, 0.45);
+  display: grid;
+  gap: 6px;
+  opacity: 0;
+  transform: translate(calc(-50% + var(--throw-x)), calc(-50% + var(--throw-y)))
+    rotate(var(--throw-rot))
+    scale(0.96);
+  animation:
+    cogita-card-flow var(--card-cycle) ease-in-out infinite,
+    cogita-card-opacity var(--card-cycle) ease-in-out infinite;
+  animation-delay: 0s, var(--delay);
+}
+
+.cogita-index-card .card-title {
+  height: 10px;
+  width: 55%;
+  border-radius: 999px;
+  background: rgba(200, 230, 255, 0.85);
+}
+
+.cogita-index-card .card-line {
+  height: 6px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(160, 210, 255, 0.45);
+}
+
+.cogita-index-card .card-line.short {
+  width: 70%;
+  background: rgba(160, 210, 255, 0.35);
+}
+
+.cogita-index-card .card-quote {
+  position: relative;
+  height: 12px;
+  width: 72%;
+  margin-top: 2px;
+  border-left: 2px solid rgba(160, 210, 255, 0.6);
+  padding-left: 8px;
+  opacity: 0.7;
+}
+
+.cogita-index-card .card-quote::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(200, 230, 255, 0.7);
+}
+
+.cogita-index-card .card-source {
+  height: 5px;
+  width: 42%;
+  border-radius: 999px;
+  background: rgba(130, 180, 230, 0.35);
+}
+
+.cogita-index-card .card-tags {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  animation: cogita-tag-filter var(--card-cycle) ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+.cogita-index-card .card-tags i {
+  display: inline-block;
+  height: 8px;
+  width: 36px;
+  border-radius: 999px;
+  background: rgba(120, 180, 230, 0.4);
+}
+
+.cogita-index-card .card-tags i:nth-child(2) {
+  width: 26px;
+}
+
+.cogita-index-card .card-tags i:nth-child(3) {
+  width: 18px;
+}
+
 .cogita-card-stack span {
   position: absolute;
   inset: 0;
@@ -1160,6 +1407,365 @@
   position: relative;
   width: min(360px, 40vw);
   height: 220px;
+}
+
+.cogita-progress {
+  position: relative;
+  width: min(460px, 42vw);
+  height: min(320px, 34vw);
+  min-height: 220px;
+}
+
+.cogita-progress-story {
+  position: relative;
+  width: min(560px, 52vw);
+  height: min(380px, 40vw);
+  min-height: 260px;
+  --T_DRAW1: 1.2s;
+  --T_GROUP: 1s;
+  --T_OTHER: 1s;
+  --T_DOTS_OUT: 0.7s;
+  --T_ROTATE: 2s;
+  --T_DOTS_BACK: 0.7s;
+  --T_IMPROVE: 1.4s;
+  --T_TOTAL: 14s;
+}
+
+.cogita-progress-story .progress-chart {
+  position: relative;
+  width: min(520px, 48vw);
+  height: min(280px, 28vw);
+  margin-left: auto;
+  margin-right: 0;
+  overflow: visible;
+}
+
+.cogita-progress-story svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cogita-progress-story .chart-grid line {
+  stroke: rgba(120, 170, 220, 0.18);
+  stroke-width: 1;
+}
+
+.cogita-progress-story .chart-line {
+  fill: none;
+  stroke: rgba(175, 225, 255, 0.85);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+}
+
+.cogita-progress-story .line-main {
+  animation: chart-draw var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .chart-range {
+  fill: rgba(120, 175, 225, 0.16);
+  opacity: 0;
+  animation: chart-range var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .line-peer {
+  stroke: rgba(150, 210, 255, 0.6);
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: chart-peer var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .line-improve {
+  stroke: rgba(200, 235, 255, 0.95);
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  animation: chart-improve var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .chart-history {
+  transform-origin: 30px 174px;
+  animation: chart-shrink var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .chart-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(175, 225, 255, 0.9);
+  box-shadow: 0 0 10px rgba(150, 210, 255, 0.6);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: dot-main var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .dot-peer {
+  width: 7px;
+  height: 7px;
+  background: rgba(140, 200, 255, 0.8);
+}
+
+.cogita-progress-story .dot-peer-1 {
+  animation: dot-peer-1 var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .dot-peer-2 {
+  animation: dot-peer-2 var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .progress-triangle {
+  position: absolute;
+  right: 0;
+  top: calc(100% - 4px);
+  width: min(220px, 28vw);
+  height: min(170px, 20vw);
+  transform: translate(-12%, -50%);
+  opacity: 0;
+  animation: triangle-shell var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .triangle-orbit {
+  position: absolute;
+  inset: 0;
+  animation: triangle-orbit var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .orbit-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(175, 225, 255, 0.9);
+  box-shadow: 0 0 10px rgba(150, 210, 255, 0.6);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: triangle-dot var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-progress-story .orbit-1 {
+  left: 50%;
+  top: 20%;
+}
+
+.cogita-progress-story .orbit-2 {
+  left: 25%;
+  top: 78%;
+}
+
+.cogita-progress-story .orbit-3 {
+  left: 75%;
+  top: 78%;
+}
+
+.cogita-progress-story .triangle-edge {
+  fill: none;
+  stroke: rgba(160, 210, 255, 0.6);
+  stroke-width: 1.6;
+  opacity: 0.7;
+}
+
+.cogita-progress-story .triangle-ring {
+  fill: none;
+  stroke: rgba(160, 210, 255, 0.4);
+  stroke-width: 1.4;
+  opacity: 0.5;
+  animation: triangle-pulse var(--T_TOTAL) ease-in-out infinite;
+}
+
+.cogita-round-board {
+  position: relative;
+  width: min(520px, 48vw);
+  height: min(300px, 32vw);
+  min-height: 220px;
+  --round-card-w: min(140px, 28vw);
+  --round-card-h: min(96px, 22vw);
+  --round-card-drop: var(--round-card-h);
+  --round-card-lift: var(--round-card-h);
+  --round-cycle: 8.6s;
+}
+
+.cogita-round-board .round-cards {
+  position: absolute;
+  inset: 0;
+}
+
+.cogita-round-board .round-card {
+  position: absolute;
+  left: var(--card-x);
+  top: var(--card-y);
+  width: var(--round-card-w);
+  height: var(--round-card-h);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(140, 200, 255, 0.35);
+  background: rgba(10, 24, 38, 0.72);
+  box-shadow: 0 12px 18px rgba(5, 12, 20, 0.35);
+  display: grid;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+}
+
+.cogita-round-board .round-card.is-active {
+  border-color: rgba(180, 230, 255, 0.75);
+  animation: round-card-lift var(--round-cycle) ease-in-out infinite;
+}
+
+.cogita-round-board .round-card.is-active::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 14px;
+  border: 1px solid rgba(190, 235, 255, 0.6);
+  box-shadow: 0 0 14px rgba(170, 220, 255, 0.35);
+  opacity: 0;
+  animation: round-card-highlight var(--round-cycle) ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cogita-round-board .round-card .card-title {
+  height: 7px;
+  width: 55%;
+  border-radius: 999px;
+  background: rgba(200, 230, 255, 0.8);
+}
+
+.cogita-round-board .round-card .card-line {
+  height: 5px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(160, 210, 255, 0.4);
+}
+
+.cogita-round-board .round-card .card-line.short {
+  width: 70%;
+  background: rgba(160, 210, 255, 0.3);
+}
+
+.cogita-round-board .round-ring {
+  position: absolute;
+  left: var(--card-x);
+  top: var(--card-y);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(170, 220, 255, 0.6);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  animation: round-ring var(--round-cycle) ease-in-out infinite;
+}
+
+.cogita-round-board .round-players {
+  position: absolute;
+  inset: 0;
+}
+
+.cogita-round-board .round-link-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.cogita-round-board .round-link {
+  stroke: rgba(180, 230, 255, 0.17);
+  stroke-width: 1;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgba(160, 220, 255, 0.22));
+  animation: round-link-fade 5.8s ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+
+.cogita-round-board .player-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(170, 220, 255, 0.6);
+  box-shadow: 0 0 8px rgba(140, 200, 255, 0.55);
+  transform: translate(calc(-50% + var(--jitter-x, 0px)), calc(-50% + var(--jitter-y, 0px)))
+    scale(0.95);
+  animation: round-player-breathe 2.6s ease-in-out infinite;
+  animation-delay: var(--breath-delay, 0s);
+}
+
+.cogita-round-board .player-dot.is-good {
+  background: rgba(170, 220, 255, 0.6);
+  box-shadow: 0 0 6px rgba(140, 200, 255, 0.45);
+}
+
+.cogita-round-board .player-dot.is-bad {
+  background: rgba(170, 220, 255, 0.6);
+  box-shadow: 0 0 6px rgba(140, 200, 255, 0.45);
+}
+
+.cogita-round-board .round-flows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cogita-round-board .flow-dot,
+.cogita-round-board .return-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+}
+
+.cogita-round-board .flow-dot {
+  left: var(--from-x);
+  top: var(--from-y);
+  background: rgba(170, 220, 255, 0.85);
+  animation: round-flow var(--round-cycle) ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+.cogita-round-board .return-dot {
+  left: var(--from-x);
+  top: var(--from-y);
+  animation: round-return var(--round-cycle) ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+.cogita-round-board .return-dot.is-good {
+  background: rgba(120, 230, 170, 0.9);
+  box-shadow: 0 0 10px rgba(120, 230, 170, 0.6);
+}
+
+.cogita-round-board .return-dot.is-bad {
+  background: rgba(245, 120, 120, 0.9);
+  box-shadow: 0 0 10px rgba(245, 120, 120, 0.6);
+}
+
+.cogita-round-board .result-pop {
+  position: absolute;
+  left: var(--at-x);
+  top: var(--at-y);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  animation: round-result var(--round-cycle) ease-in-out infinite;
+  animation-delay: var(--delay);
+}
+
+.cogita-round-board .result-pop::after {
+  content: '+';
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(120, 230, 170, 0.95);
+  text-shadow: 0 0 10px rgba(120, 230, 170, 0.8);
+}
+
+.cogita-round-board .result-pop.is-bad::after {
+  content: '−';
+  color: rgba(255, 120, 120, 0.95);
+  text-shadow: 0 0 10px rgba(255, 120, 120, 0.8);
 }
 
 .cogita-answers-bars {
@@ -1248,9 +1854,12 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
   align-items: center;
-  padding: 0 8vw;
+  padding: 0;
+  max-width: 1160px;
+  width: 100%;
+  margin: 0 auto;
   z-index: 2;
 }
 
@@ -1303,32 +1912,6 @@
 }
 
 @media (max-width: 960px) {
-  .cogita-intro-panel {
-    left: 6vw;
-    width: calc(100% - 12vw);
-    height: auto;
-    top: 50%;
-  }
-
-  .cogita-intro-slide,
-  .cogita-intro-static {
-    grid-template-columns: 1fr;
-    gap: 2rem;
-    padding: 0 8vw;
-    align-content: center;
-  }
-
-  .cogita-intro-logo {
-    right: 6vw;
-    width: min(70vw, 360px);
-  }
-
-  .cogita-intro-logo[data-state='docked'] {
-    left: 8vw;
-    top: 1.6rem;
-    transform: translateY(0) scale(0.55);
-  }
-
   .cogita-intro-nav {
     left: 6vw;
   }
@@ -1368,35 +1951,52 @@
 
 @media (orientation: portrait) {
   .cogita-intro-logo {
-    left: 50%;
-    right: auto;
-    top: 1.4rem;
-    transform: translateX(-50%) scale(0.75);
+    --logo-x: 50%;
+    --logo-y: 18%;
+    --logo-tx: -50%;
+    --logo-ty: -50%;
+    --logo-scale: 0.5;
   }
 
   .cogita-intro-logo[data-state='docked'] {
-    left: 50%;
-    right: auto;
-    top: 1.4rem;
-    transform: translateX(-50%) scale(0.55);
+    --logo-x: 50%;
+    --logo-y: 16%;
+    --logo-tx: -50%;
+    --logo-ty: -50%;
+    --logo-scale: 0.5;
   }
-
   .cogita-intro-slide,
   .cogita-intro-static {
-    padding: 0;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: auto auto;
+    padding: 0 8vw 5.4rem;
+    align-items: center;
   }
 
   .cogita-intro-text {
-    position: absolute;
-    left: 8vw;
-    right: 8vw;
-    bottom: 5.2rem;
-    margin: 0;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: end;
+    justify-self: stretch;
+    margin-top: 1.8rem;
+    margin-bottom: 0;
   }
 
   .cogita-intro-visual {
-    margin-top: 1.2rem;
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+
+  .cogita-intro-logo {
+    grid-column: 1;
+    grid-row: 1;
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: scale(var(--logo-scale));
   }
 }
 
@@ -1437,6 +2037,115 @@
   50% {
     opacity: 0.5;
     transform: scale(1.05);
+  }
+}
+
+@keyframes map-line-draw {
+  0%,
+  40% {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  55% {
+    transform: scaleX(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0.3;
+  }
+}
+
+@keyframes link-error {
+  0%,
+  100% {
+    opacity: 0.25;
+    stroke: rgba(255, 120, 120, 0.55);
+  }
+  50% {
+    opacity: 0.9;
+    stroke: rgba(255, 120, 120, 0.95);
+  }
+}
+
+@keyframes node-unlock {
+  0%,
+  20% {
+    opacity: 0.2;
+  }
+  35% {
+    opacity: 0.9;
+    box-shadow: 0 0 16px rgba(150, 210, 255, 0.7);
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes node-blocked {
+  0%,
+  100% {
+    opacity: 0.3;
+    fill: rgba(255, 110, 110, 0.5);
+  }
+  50% {
+    opacity: 1;
+    fill: rgba(255, 120, 120, 0.95);
+  }
+}
+
+@keyframes node-foundation {
+  0%,
+  55% {
+    opacity: 0.2;
+  }
+  70% {
+    opacity: 0.9;
+    box-shadow: 0 0 16px rgba(150, 210, 255, 0.7);
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes node-final {
+  0%,
+  75% {
+    opacity: 0.2;
+  }
+  85% {
+    opacity: 1;
+    box-shadow: 0 0 18px rgba(150, 210, 255, 0.9);
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes map-glow-travel {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  35% {
+    transform: translateX(72px);
+    opacity: 1;
+  }
+  55% {
+    transform: translateX(140px);
+    opacity: 0.4;
+  }
+  70% {
+    transform: translate(102px, 42px);
+    opacity: 0.7;
+  }
+  85% {
+    transform: translateX(210px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(210px);
+    opacity: 0.6;
   }
 }
 
@@ -1483,5 +2192,860 @@
   100% {
     transform: translateX(40%);
     opacity: 0;
+  }
+}
+
+@keyframes cogita-card-flow {
+  0% {
+    transform: translate(calc(-50% + var(--throw-x)), calc(-50% + var(--throw-y)))
+      rotate(var(--throw-rot))
+      scale(0.94);
+  }
+  24% {
+    transform: translate(calc(-50% + var(--throw-x)), calc(-50% + var(--throw-y)))
+      rotate(var(--throw-rot))
+      scale(0.98);
+  }
+  40% {
+    transform: translate(calc(-50% + var(--grid-x)), calc(-50% + var(--grid-y)))
+      rotate(0deg)
+      scale(1);
+  }
+  60% {
+    transform: translate(calc(-50% + var(--grid-x)), calc(-50% + var(--grid-y)))
+      rotate(0deg)
+      scale(1.01);
+  }
+  70% {
+    transform: translate(calc(-50% + var(--stack-x)), calc(-50% + var(--stack-y)))
+      rotate(0deg)
+      scale(1.02);
+  }
+  90% {
+    transform: translate(calc(-50% + var(--stack-x)), calc(-50% + var(--stack-y)))
+      rotate(0deg)
+      scale(1.02);
+  }
+  100% {
+    transform: translate(calc(-50% + var(--throw-x)), calc(-50% + var(--throw-y)))
+      rotate(var(--throw-rot))
+      scale(0.94);
+  }
+}
+
+@keyframes cogita-card-opacity {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  70% {
+    opacity: var(--stack-opacity);
+  }
+  90% {
+    opacity: var(--stack-opacity);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes cogita-tag-filter {
+  0%,
+  40% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  58% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+  66% {
+    opacity: 0.55;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}
+
+@keyframes board-question {
+  0%,
+  20% {
+    opacity: 0.8;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(0.98);
+    box-shadow: 0 0 0 rgba(170, 230, 255, 0.2);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(1.02);
+    box-shadow: 0 0 18px rgba(170, 230, 255, 0.35);
+  }
+  55% {
+    opacity: 0.95;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(1.01);
+    box-shadow: 0 0 8px rgba(170, 230, 255, 0.25);
+  }
+  100% {
+    opacity: 0.8;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(0.98);
+    box-shadow: 0 0 0 rgba(170, 230, 255, 0.2);
+  }
+}
+
+@keyframes board-echo {
+  0%,
+  45% {
+    opacity: 0.7;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(0.98);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(1.03);
+  }
+  100% {
+    opacity: 0.7;
+    transform: translate(calc(-50% + var(--card-x)), calc(-50% + var(--card-y)))
+      rotate(var(--card-rot))
+      scale(0.98);
+  }
+}
+
+@keyframes board-flow {
+  0%,
+  25% {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  35% {
+    opacity: 0.6;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes board-link {
+  0%,
+  55% {
+    opacity: 0;
+    transform: scaleX(0.4);
+  }
+  65% {
+    opacity: 0.55;
+    transform: scaleX(1);
+  }
+  80% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes board-ring {
+  0%,
+  32% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  45% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  55% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+@keyframes board-presence {
+  0%,
+  30% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 0.8;
+    transform: scale(1.08);
+  }
+  70% {
+    opacity: 0.55;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+}
+
+@keyframes round-card-lift {
+  0%,
+  18% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 12px 18px rgba(5, 12, 20, 0.35);
+  }
+  30% {
+    transform: translate(-50%, calc(-50% - var(--round-card-lift))) scale(1.02);
+    box-shadow: 0 18px 24px rgba(5, 12, 20, 0.45);
+  }
+  60% {
+    transform: translate(-50%, calc(-50% - var(--round-card-lift))) scale(1.01);
+    box-shadow: 0 16px 20px rgba(5, 12, 20, 0.4);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 12px 18px rgba(5, 12, 20, 0.35);
+  }
+}
+
+@keyframes round-card-highlight {
+  0%,
+  18% {
+    opacity: 0;
+  }
+  32% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes round-flow {
+  0%,
+  25% {
+    opacity: 0;
+    left: var(--from-x);
+    top: var(--from-y);
+  }
+  35% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+    left: var(--to-x);
+    top: var(--to-y);
+  }
+  62% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    left: var(--to-x);
+    top: var(--to-y);
+  }
+}
+
+@keyframes round-return {
+  0%,
+  55% {
+    opacity: 0;
+    left: var(--from-x);
+    top: var(--from-y);
+  }
+  68% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 0.2;
+    left: var(--to-x);
+    top: var(--to-y);
+  }
+  86% {
+    opacity: 0;
+    left: var(--to-x);
+    top: var(--to-y);
+  }
+  100% {
+    opacity: 0;
+    left: var(--to-x);
+    top: var(--to-y);
+  }
+}
+
+@keyframes round-ring {
+  0%,
+  25% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  40% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  55% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+@keyframes round-result {
+  0%,
+  72% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  88% {
+    opacity: 1;
+    transform: translate(-50%, -110%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(0.9);
+  }
+}
+
+@keyframes round-player-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(calc(-50% + var(--jitter-x, 0px)), calc(-50% + var(--jitter-y, 0px)))
+      scale(0.92);
+    box-shadow: 0 0 8px rgba(140, 200, 255, 0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--jitter-x, 0px)), calc(-50% + var(--jitter-y, 0px)))
+      scale(1.12);
+    box-shadow: 0 0 14px rgba(160, 215, 255, 0.75);
+  }
+}
+
+@keyframes round-link-fade {
+  0%,
+  15% {
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.85;
+  }
+  65% {
+    opacity: 0.6;
+  }
+  85%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes chart-draw {
+  0%,
+  8% {
+    stroke-dashoffset: 420;
+    opacity: 0;
+  }
+  20% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes chart-range {
+  0%,
+  28% {
+    opacity: 0;
+  }
+  36% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes chart-peer {
+  0%,
+  42% {
+    stroke-dashoffset: 300;
+    opacity: 0;
+  }
+  50% {
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+}
+
+@keyframes chart-improve {
+  0%,
+  82% {
+    stroke-dashoffset: 80;
+    opacity: 0;
+  }
+  94% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes chart-shrink {
+  0%,
+  82% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  92% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+}
+
+@keyframes dot-main {
+  0%,
+  8% {
+    opacity: 0;
+    left: 10%;
+    top: 88%;
+  }
+  12% {
+    opacity: 1;
+    left: 24%;
+    top: 78%;
+  }
+  14% {
+    opacity: 1;
+    left: 34%;
+    top: 80%;
+  }
+  16% {
+    opacity: 1;
+    left: 46%;
+    top: 68%;
+  }
+  18% {
+    opacity: 1;
+    left: 70%;
+    top: 54%;
+  }
+  20% {
+    opacity: 1;
+    left: 78%;
+    top: 38%;
+  }
+  28% {
+    opacity: 1;
+    left: 78%;
+    top: 38%;
+  }
+  36% {
+    opacity: 1;
+    left: 52%;
+    top: 120%;
+  }
+  58% {
+    opacity: 1;
+    left: 52%;
+    top: 120%;
+  }
+  66% {
+    opacity: 1;
+    left: 82%;
+    top: 40%;
+  }
+  74% {
+    opacity: 0;
+  }
+  82% {
+    opacity: 0;
+    left: 14%;
+    top: 92%;
+  }
+  96% {
+    opacity: 1;
+    left: 84%;
+    top: 28%;
+  }
+  100% {
+    opacity: 0;
+    left: 84%;
+    top: 28%;
+  }
+}
+
+@keyframes dot-peer-1 {
+  0%,
+  42% {
+    opacity: 0;
+    left: 36%;
+    top: 72%;
+  }
+  50% {
+    opacity: 1;
+    left: 72%;
+    top: 48%;
+  }
+  56% {
+    opacity: 1;
+    left: 42%;
+    top: 124%;
+  }
+  64% {
+    opacity: 1;
+    left: 80%;
+    top: 44%;
+  }
+  72% {
+    opacity: 0;
+  }
+  82% {
+    opacity: 0;
+    left: 20%;
+    top: 94%;
+  }
+  96% {
+    opacity: 1;
+    left: 86%;
+    top: 34%;
+  }
+  100% {
+    opacity: 0;
+    left: 86%;
+    top: 34%;
+  }
+}
+
+@keyframes dot-peer-2 {
+  0%,
+  42% {
+    opacity: 0;
+    left: 28%;
+    top: 78%;
+  }
+  50% {
+    opacity: 1;
+    left: 68%;
+    top: 54%;
+  }
+  56% {
+    opacity: 1;
+    left: 64%;
+    top: 124%;
+  }
+  64% {
+    opacity: 1;
+    left: 82%;
+    top: 52%;
+  }
+  72% {
+    opacity: 0;
+  }
+  82% {
+    opacity: 0;
+    left: 24%;
+    top: 96%;
+  }
+  96% {
+    opacity: 1;
+    left: 88%;
+    top: 42%;
+  }
+  100% {
+    opacity: 0;
+    left: 88%;
+    top: 42%;
+  }
+}
+
+@keyframes triangle-shell {
+  0%,
+  60% {
+    opacity: 0;
+    transform: translate(-10%, -50%) rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-10%, -50%) rotate(28deg);
+  }
+  82% {
+    opacity: 0;
+    transform: translate(-10%, -50%) rotate(38deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-10%, -50%) rotate(38deg);
+  }
+}
+
+@keyframes triangle-pulse {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  70% {
+    opacity: 0.7;
+  }
+  82% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes triangle-orbit {
+  0%,
+  60% {
+    opacity: 0;
+    transform: rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+    transform: rotate(20deg);
+  }
+  82% {
+    opacity: 1;
+    transform: rotate(60deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(60deg);
+  }
+}
+
+@keyframes triangle-dot {
+  0%,
+  60% {
+    opacity: 0;
+  }
+  70% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Cogita intro layout overrides for slide-specific layout */
+.cogita-intro[data-slide='1'] .cogita-intro-logo {
+  --logo-x: 70%;
+  --logo-y: 50%;
+  --logo-scale: 1.08;
+  opacity: 1;
+}
+
+.cogita-intro:not([data-slide='1']) .cogita-intro-logo {
+  --logo-x: 16%;
+  --logo-y: 50%;
+  --logo-scale: 0.5;
+  opacity: 0.82;
+}
+
+.cogita-intro[data-slide='7'] .cogita-intro-logo {
+  --logo-x: 25%;
+  --logo-y: 50%;
+  --logo-scale: 0.95;
+  opacity: 1;
+  transform: translate(var(--logo-tx), var(--logo-ty)) scale(var(--logo-scale));
+}
+
+.cogita-intro-slide {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 0.8fr);
+}
+
+.cogita-intro-slide.slide-1 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.cogita-intro-slide.slide-7 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+}
+
+.cogita-intro-slide.slide-1 .cogita-intro-text {
+  grid-column: 1;
+  justify-self: center;
+}
+
+.cogita-intro-slide.slide-1 .cogita-intro-visual {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.cogita-intro-slide.slide-7 .cogita-intro-text {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.cogita-intro-slide.slide-7 .cogita-intro-visual {
+  display: none;
+}
+
+.cogita-intro-slide.slide-4 .cogita-round-board {
+  transform: translateX(20%);
+}
+
+.cogita-intro-slide:not(.slide-1) .cogita-intro-text {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.cogita-intro-slide:not(.slide-1) .cogita-intro-visual {
+  grid-column: 3;
+  justify-self: center;
+}
+
+@media (orientation: portrait) {
+  .cogita-intro-slide.slide-4 .cogita-round-board {
+    transform: translateX(0) scale(0.85);
+    transform-origin: top center;
+  }
+
+  .cogita-intro[data-slide='1'] .cogita-intro-logo {
+    --logo-x: 50%;
+    --logo-y: 18%;
+    --logo-scale: 0.8;
+  }
+
+  .cogita-intro[data-slide='7'] .cogita-intro-logo {
+    --logo-x: 50%;
+    --logo-y: 25%;
+    --logo-scale: 0.8;
+    left: var(--logo-x);
+    top: var(--logo-y);
+    opacity: 1;
+  }
+
+  .cogita-intro:not([data-slide='1']) .cogita-intro-logo {
+    --logo-x: 12%;
+    --logo-y: 16%;
+    --logo-scale: 0.5;
+    left: -25%;
+    top: -25%;
+  }
+
+  .cogita-intro-slide.slide-1 {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    align-items: end;
+  }
+
+  .cogita-intro-slide.slide-7 {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    align-items: end;
+  }
+
+  .cogita-intro-slide.slide-1 .cogita-intro-text {
+    grid-row: 2;
+    margin-top: auto;
+  }
+
+  .cogita-intro-slide.slide-1 .cogita-intro-visual {
+    display: none;
+  }
+
+  .cogita-intro-slide.slide-7 .cogita-intro-text {
+    grid-row: 2;
+    grid-column: 1;
+    margin-top: auto;
+    text-align: center;
+  }
+
+  .cogita-intro-slide.slide-7 .cogita-intro-visual {
+    display: none;
+  }
+
+  .cogita-intro-slide.slide-3 .cogita-index-cards {
+    transform: translateX(10%) scale(0.78);
+    transform-origin: top center;
+  }
+
+  .cogita-intro-slide:not(.slide-1) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+  }
+
+  .cogita-intro-slide:not(.slide-1) .cogita-intro-visual {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    justify-content: center;
+    margin-top: 0;
+  }
+
+  .cogita-intro-slide:not(.slide-1) .cogita-intro-text {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-top: 1.6rem;
+  }
+}
+.cogita-intro-slide.slide-2.is-active .cogita-intro-text,
+.cogita-intro-slide.slide-3.is-active .cogita-intro-text,
+.cogita-intro-slide.slide-4.is-active .cogita-intro-text,
+.cogita-intro-slide.slide-5.is-active .cogita-intro-text,
+.cogita-intro-slide.slide-6.is-active .cogita-intro-text,
+.cogita-intro-slide.slide-7.is-active .cogita-intro-text {
+  animation: cogita-text-delayed 520ms ease both;
+  animation-delay: 220ms;
+}
+
+.cogita-intro-slide.slide-2.is-active .cogita-intro-text {
+  animation-delay: 1000ms;
+}
+
+@keyframes cogita-text-delayed {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

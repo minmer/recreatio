@@ -31,14 +31,10 @@ export function CogitaPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
 }) {
   const homeRef = useRef<HTMLElement | null>(null);
-  const introSlides = useMemo(
-    () => [
+  const introSlides = useMemo(() => {
+    const base = [
       {
         id: 'entry',
-        title: 'Cogita.',
-        subtitle: 'Scena wiedzy na żywo dla nauki i dialogu.',
-        micro: 'Wejdź i zobacz, jak działa przestrzeń pracy.',
-        cta: 'Rozpocznij pokaz',
         panel: { x: '0px', y: '0px', scale: '1' },
         theme: {
           bg0: '#06162a',
@@ -50,10 +46,6 @@ export function CogitaPage({
       },
       {
         id: 'workspace',
-        title: 'Twoja przestrzeń pracy.',
-        body: 'Twórz sceny, prowadź sesje i buduj narrację — wszystko w jednym miejscu.',
-        cta: 'Dalej: Biblioteka',
-        bullets: ['Sceny', 'Sesje', 'Narracja'],
         panel: { x: '-6px', y: '-4px', scale: '1.01' },
         theme: {
           bg0: '#071a2a',
@@ -65,55 +57,39 @@ export function CogitaPage({
       },
       {
         id: 'library',
-        title: 'Biblioteka.',
-        body: 'Układaj moduły wiedzy i quizów w stosy, zapisuj je i używaj ponownie.',
-        micro: 'Raz tworzysz — wiele razy używasz.',
-        cta: 'Dalej: Na żywo',
         panel: { x: '-2px', y: '4px', scale: '1.01' },
         theme: {
-          bg0: '#0a1d33',
-          bg1: '#0f334f',
-          bg2: '#0a2037',
-          bloom: 'rgba(110, 170, 230, 0.16)',
-          sat: '1'
+          bg0: '#071a2f',
+          bg1: '#0c2f4a',
+          bg2: '#081f33',
+          bloom: 'rgba(120, 175, 230, 0.14)',
+          sat: '0.96'
         }
       },
       {
         id: 'live',
-        title: 'Na żywo.',
-        body: 'Uruchom sesję, kontroluj tempo, zadawaj pytania i obserwuj odpowiedzi w czasie rzeczywistym.',
-        micro: 'Prowadzący ma ster.',
-        cta: 'Dalej: Quiz',
         panel: { x: '4px', y: '-2px', scale: '1.02' },
         theme: {
-          bg0: '#08192f',
-          bg1: '#123b5c',
-          bg2: '#0a2239',
-          bloom: 'rgba(130, 190, 235, 0.18)',
-          sat: '1.03'
-        }
-      },
-      {
-        id: 'quiz',
-        title: 'Quiz i udział.',
-        body: 'Uczestnicy dołączają w sekundę. Odpowiadają — Ty widzisz trend i tempo.',
-        micro: 'Wspólne myślenie, natychmiast.',
-        cta: 'Dalej: Ochrona',
-        panel: { x: '2px', y: '6px', scale: '1.01' },
-        theme: {
-          bg0: '#071424',
-          bg1: '#0f2a4a',
-          bg2: '#081a30',
-          bloom: 'rgba(110, 180, 235, 0.16)',
+          bg0: '#07182d',
+          bg1: '#0c2a4a',
+          bg2: '#081f35',
+          bloom: 'rgba(115, 170, 225, 0.15)',
           sat: '0.98'
         }
       },
       {
+        id: 'quiz',
+        panel: { x: '2px', y: '6px', scale: '1.01' },
+        theme: {
+          bg0: '#071526',
+          bg1: '#0d2946',
+          bg2: '#081a30',
+          bloom: 'rgba(120, 175, 230, 0.14)',
+          sat: '0.97'
+        }
+      },
+      {
         id: 'protection',
-        title: 'Otwarte, ale chronione.',
-        body: 'To, co prywatne, pozostaje prywatne — dostęp jest kontrolowany, a dane chronione.',
-        micro: 'Zaufanie jako fundament.',
-        cta: 'Dalej: Dołącz',
         panel: { x: '-3px', y: '2px', scale: '1.01' },
         theme: {
           bg0: '#071a2a',
@@ -125,11 +101,6 @@ export function CogitaPage({
       },
       {
         id: 'register',
-        title: 'Wejdź do Cogita.',
-        body: 'Załóż konto i rozpocznij pierwszą scenę wiedzy.',
-        micro: 'To zajmie chwilę.',
-        cta: 'Zarejestruj się',
-        secondary: 'Wróć do początku',
         panel: { x: '0px', y: '-4px', scale: '1.02' },
         theme: {
           bg0: '#081c30',
@@ -139,9 +110,164 @@ export function CogitaPage({
           sat: '1.05'
         }
       }
-    ],
-    []
-  );
+    ];
+
+    const copyByLanguage = {
+      pl: {
+        entry: {
+          title: 'Cogita.',
+          subtitle: 'Scena wiedzy na żywo dla nauki i dialogu.',
+          micro: 'Wejdź i zobacz, jak prowadzi mapa wiedzy.',
+          cta: 'Rozpocznij pokaz'
+        },
+        workspace: {
+          title: 'Nie dostajesz kolejnego kroku, zanim nie jesteś gotowy.',
+          body:
+            'Nowa wiedza otwiera się dopiero, gdy rozumiesz poprzednią.\nGdy brakuje podstaw, Cogita je odbudowuje — i prowadzi dalej.',
+          micro: 'Drzewo wiedzy, które prowadzi.',
+          cta: 'Dalej: Jak prowadzi'
+        },
+        library: {
+          title: 'Wiedza do ponownego użycia — nie tylko do czytania.',
+          body:
+            'Zapisuj idee jako karty: streszczenie, cytat, źródło, tagi.\nPotem układaj z nich argumenty i notatki, bez utraty kontekstu.',
+          micro: 'Twoje pudełko wiedzy.',
+          cta: 'Dalej: Współpraca na żywo'
+        },
+        live: {
+          title: 'Wiedza żyje w rozmowie.',
+          body:
+            'Uczysz się szybciej, gdy myślisz razem z innymi.\nWspólna runda pytań i odpowiedzi zamienia naukę w dialog.',
+          micro: 'Pytaj, odpowiadaj, wyjaśniaj.',
+          cta: 'Dalej: Wspólna gra'
+        },
+        quiz: {
+          title: 'Widzisz postęp — i co trenować dalej.',
+          body:
+            'Śledź swój rozwój i porównuj się z grupą.\nZnajduj luki i łącz się z osobami na podobnym poziomie.',
+          micro: 'Jasna informacja zwrotna.',
+          cta: 'Dalej: Zaufanie i prywatność'
+        },
+        protection: {
+          title: 'Otwarte, ale chronione.',
+          body: 'To, co prywatne, pozostaje prywatne — dostęp jest kontrolowany, a dane chronione.',
+          micro: 'Zaufanie jako fundament.',
+          cta: 'Dalej: Dołącz'
+        },
+        register: {
+          title: 'Wejdź do Cogita.',
+          body: 'Załóż konto i rozpocznij pierwszą scenę wiedzy.',
+          micro: 'To zajmie chwilę.',
+          cta: 'Zarejestruj się',
+          secondary: 'Wróć do początku'
+        }
+      },
+      en: {
+        entry: {
+          title: 'Cogita.',
+          subtitle: 'A live knowledge stage for learning and dialogue.',
+          micro: 'Step in and see how the knowledge map guides you.',
+          cta: 'Start the tour'
+        },
+        workspace: {
+          title: 'You don’t get the next step before you’re ready.',
+          body:
+            'New knowledge opens only when the previous piece is understood.\nIf basics are missing, Cogita rebuilds them — then moves forward.',
+          micro: 'A learning tree that guides you.',
+          cta: 'Next: How it guides'
+        },
+        library: {
+          title: 'Knowledge you can reuse — not just read.',
+          body:
+            'Save ideas as structured index cards: summary, quote, source, tags.\nReuse them to build arguments and notes without losing context.',
+          micro: 'Your personal knowledge box.',
+          cta: 'Next: Live collaboration'
+        },
+        live: {
+          title: 'Knowledge lives in conversation.',
+          body:
+            'You learn faster when you think together with others.\nA shared Q&A round turns learning into dialogue.',
+          micro: 'Ask, answer, explain.',
+          cta: 'Next: The shared game'
+        },
+        quiz: {
+          title: 'See your progress — and what to train next.',
+          body:
+            'Track your growth and compare with your group.\nFind gaps and connect with people at a similar level.',
+          micro: 'Clear feedback, not guessing.',
+          cta: 'Next: Trust & privacy'
+        },
+        protection: {
+          title: 'Open, but protected.',
+          body: 'What is private stays private — access is controlled and data is protected.',
+          micro: 'Trust is the foundation.',
+          cta: 'Next: Join'
+        },
+        register: {
+          title: 'Enter Cogita.',
+          body: 'Create an account and start your first knowledge scene.',
+          micro: 'It only takes a moment.',
+          cta: 'Register',
+          secondary: 'Back to start'
+        }
+      },
+      de: {
+        entry: {
+          title: 'Cogita.',
+          subtitle: 'Eine Live-Wissensbühne für Lernen und Dialog.',
+          micro: 'Steig ein und sieh, wie dich die Wissenskarte führt.',
+          cta: 'Tour starten'
+        },
+        workspace: {
+          title: 'Den nächsten Schritt bekommst du erst, wenn du bereit bist.',
+          body:
+            'Neues Wissen öffnet sich erst, wenn das vorherige sitzt.\nFehlt die Basis, stärkt Cogita sie — und führt dann weiter.',
+          micro: 'Ein Lernbaum, der dich leitet.',
+          cta: 'Weiter: Wie es führt'
+        },
+        library: {
+          title: 'Wissen zum Wiederverwenden — nicht nur zum Lesen.',
+          body:
+            'Speichere Ideen als strukturierte Karten: Zusammenfassung, Zitat, Quelle, Tags.\nNutze sie für Argumente und Notizen, ohne Kontextverlust.',
+          micro: 'Deine persönliche Wissensbox.',
+          cta: 'Weiter: Live-Kollaboration'
+        },
+        live: {
+          title: 'Wissen lebt im Gespräch.',
+          body:
+            'Du lernst schneller, wenn du mit anderen denkst.\nEine gemeinsame Fragerunde macht Lernen zum Dialog.',
+          micro: 'Fragen, antworten, erklären.',
+          cta: 'Weiter: Das gemeinsame Spiel'
+        },
+        quiz: {
+          title: 'Sieh deinen Fortschritt — und was als Nächstes zählt.',
+          body:
+            'Verfolge dein Wachstum und vergleiche es mit der Gruppe.\nFinde Lücken und verbinde dich mit ähnlichem Niveau.',
+          micro: 'Klare Rückmeldung, kein Raten.',
+          cta: 'Weiter: Vertrauen & Schutz'
+        },
+        protection: {
+          title: 'Offen, aber geschützt.',
+          body: 'Privates bleibt privat — Zugang ist kontrolliert, Daten sind geschützt.',
+          micro: 'Vertrauen als Fundament.',
+          cta: 'Weiter: Beitreten'
+        },
+        register: {
+          title: 'Jetzt zu Cogita.',
+          body: 'Erstelle ein Konto und starte deine erste Wissensszene.',
+          micro: 'Dauert nur einen Moment.',
+          cta: 'Registrieren',
+          secondary: 'Zurück zum Start'
+        }
+      }
+    } as const;
+
+    const localized = copyByLanguage[language] ?? copyByLanguage.en;
+    return base.map((slide) => ({
+      ...slide,
+      ...localized[slide.id as keyof typeof localized]
+    }));
+  }, [language]);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [introOpen, setIntroOpen] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -209,11 +335,11 @@ export function CogitaPage({
         closeIntro();
         return;
       }
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
         goPrev();
         return;
       }
-      if (event.key === 'ArrowRight' || event.code === 'Space' || event.key === ' ') {
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.code === 'Space' || event.key === ' ') {
         event.preventDefault();
         goNext();
       }
@@ -273,8 +399,8 @@ export function CogitaPage({
         glow: 'rgba(167, 224, 255, 0.42)',
         nodes: 'rgba(210, 240, 255, 0.92)'
       },
-      filamentCount: 60,
-      segments: 24,
+      filamentCount: 120,
+      segments: 64,
       waveBandPx: 190,
       crestX: 0.58,
       crestW: 0.3,
@@ -284,8 +410,8 @@ export function CogitaPage({
       amp2: 22,
       freq1: 0.010,
       freq2: 0.021,
-      speed1: 0.009,
-      speed2: 0.012,
+      speed1: 0.006,
+      speed2: 0.009,
       jitterA: 12,
       jitterB: 8,
       xJitter: 4,
@@ -586,6 +712,128 @@ type IntroSlide = {
   theme: { bg0: string; bg1: string; bg2: string; bloom: string; sat: string };
 };
 
+type LearningNode = {
+  id: string;
+  x: number;
+  y: number;
+  r: number;
+  level: number;
+  role?: 'root' | 'goal';
+};
+
+type LearningLink = {
+  from: string;
+  to: string;
+  key: string;
+};
+
+const LEARNING_MAP = {
+  width: 420,
+  height: 320,
+  paddingX: 28,
+  paddingY: 18,
+  levels: [1, 4, 6, 6, 5, 4, 4]
+} as const;
+
+const EXPLORER_TIMING = {
+  moveMs: 900,
+  pauseMs: 220,
+  errorMs: 900
+} as const;
+
+const createLearningTree = (seed = 11) => {
+  let state = seed;
+  const rand = () => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+
+  const { width, height, paddingX, paddingY, levels } = LEARNING_MAP;
+  const levelStep = (height - paddingY * 2) / (levels.length - 1);
+  const nodes: LearningNode[] = [];
+  const links: LearningLink[] = [];
+
+  const levelNodes: LearningNode[][] = [];
+  levels.forEach((count, levelIndex) => {
+    const y = height - paddingY - levelIndex * levelStep;
+    const spread = width - paddingX * 2;
+    const row: LearningNode[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const baseX = paddingX + ((i + 1) * spread) / (count + 1);
+      const jitter = (rand() - 0.5) * 18;
+      const x = Math.max(paddingX, Math.min(width - paddingX, baseX + jitter));
+      const r = levelIndex === 0 ? 3 : levelIndex < 2 ? 2.1 : 1.4;
+      const id = levelIndex === 0 ? 'root' : `l${levelIndex}-${i}`;
+      row.push({
+        id,
+        x: levelIndex === 0 ? width / 2 : x,
+        y,
+        r,
+        level: levelIndex,
+        role: levelIndex === 0 ? 'root' : undefined
+      });
+    }
+    levelNodes.push(row);
+    nodes.push(...row);
+  });
+
+  const topLevel = levelNodes[levelNodes.length - 1];
+  if (topLevel?.length) {
+    const goal = topLevel[Math.floor(topLevel.length / 2)];
+    goal.role = 'goal';
+    goal.r = 2;
+  }
+
+  for (let level = 1; level < levelNodes.length; level += 1) {
+    const parents = levelNodes[level - 1];
+    const row = levelNodes[level];
+    row.forEach((node) => {
+      const sortedParents = [...parents].sort((a, b) => Math.abs(a.x - node.x) - Math.abs(b.x - node.x));
+      const primary = sortedParents[0];
+      const secondary = sortedParents[1] && rand() < 0.45 ? sortedParents[1] : null;
+      const parentIds = secondary ? [primary, secondary] : [primary];
+      parentIds.forEach((parent) => {
+        links.push({ from: parent.id, to: node.id, key: `${parent.id}-${node.id}` });
+      });
+      if (rand() < 0.2 && sortedParents[2]) {
+        links.push({ from: sortedParents[2].id, to: node.id, key: `${sortedParents[2].id}-${node.id}` });
+      }
+    });
+  }
+
+  const parentsById = new Map<string, string[]>();
+  links.forEach((link) => {
+    const list = parentsById.get(link.to) ?? [];
+    list.push(link.from);
+    parentsById.set(link.to, list);
+  });
+
+  const linksByFrom = new Map<string, string[]>();
+  const childrenByFrom = new Map<string, string[]>();
+  const neighborsById = new Map<string, string[]>();
+  links.forEach((link) => {
+    const list = linksByFrom.get(link.from) ?? [];
+    list.push(link.key);
+    linksByFrom.set(link.from, list);
+    const children = childrenByFrom.get(link.from) ?? [];
+    children.push(link.to);
+    childrenByFrom.set(link.from, children);
+    const fromNeighbors = neighborsById.get(link.from) ?? [];
+    fromNeighbors.push(link.to);
+    neighborsById.set(link.from, fromNeighbors);
+    const toNeighbors = neighborsById.get(link.to) ?? [];
+    toNeighbors.push(link.from);
+    neighborsById.set(link.to, toNeighbors);
+  });
+
+  const nodesById = new Map<string, LearningNode>();
+  nodes.forEach((node) => {
+    nodesById.set(node.id, node);
+  });
+
+  return { nodes, links, parentsById, linksByFrom, childrenByFrom, neighborsById, nodesById };
+};
+
 function CogitaIntroSlides({
   slides,
   activeIndex,
@@ -645,6 +893,329 @@ function CogitaIntroSlides({
     { x: '82%', y: '70%' },
     { x: '60%', y: '72%' }
   ];
+  const cardCycleMs = 10000;
+  const indexCards = useMemo(() => {
+    let seed = 17;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+    const gridPositions = [
+      { x: -180, y: -70 },
+      { x: -60, y: -70 },
+      { x: 60, y: -70 },
+      { x: 180, y: -70 },
+      { x: -120, y: 60 },
+      { x: 0, y: 60 },
+      { x: 120, y: 60 }
+    ];
+    return gridPositions.map((grid, index) => {
+      const throwX = (rand() - 0.5) * 240;
+      const throwY = (rand() - 0.5) * 180;
+      const throwRot = (rand() - 0.5) * 24;
+      return {
+        id: `card-${index + 1}`,
+        throw: { x: `${throwX.toFixed(0)}px`, y: `${throwY.toFixed(0)}px`, rot: `${throwRot.toFixed(1)}deg` },
+        grid: { x: `${grid.x}px`, y: `${grid.y}px` },
+        delay: `${index * 0.12}s`
+      };
+    });
+  }, []);
+  const stackTargets = useMemo(
+    () => [
+      { x: '-80px', y: '-120px' },
+      { x: '-80px', y: '-15px' },
+      { x: '-80px', y: '90px' },
+      { x: '-80px', y: '195px' }
+    ],
+    []
+  );
+  const [stackOrder, setStackOrder] = useState<string[]>([]);
+  const roundCards = useMemo(
+    () => [
+      { id: 'round-1', x: '14%', y: 'calc(80% + var(--round-card-drop))' },
+      { id: 'round-2', x: '30%', y: 'calc(80% + var(--round-card-drop))' },
+      { id: 'round-3', x: '46%', y: 'calc(80% + var(--round-card-drop))' },
+      { id: 'round-4', x: '62%', y: 'calc(80% + var(--round-card-drop))' },
+      { id: 'round-5', x: '78%', y: 'calc(80% + var(--round-card-drop))' }
+    ],
+    []
+  );
+  const roundPlayers = useMemo(() => {
+    const count = 6;
+    const positions: Array<{ x: number; y: number }> = [];
+    const minDistance = 12;
+    const rand = (min: number, max: number) => min + Math.random() * (max - min);
+    const maxAttempts = 80;
+
+    for (let i = 0; i < count; i += 1) {
+      let placed = false;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const x = rand(14, 86);
+        const y = rand(10, 34);
+        const ok = positions.every((p) => {
+          const dx = p.x - x;
+          const dy = p.y - y;
+          return Math.hypot(dx, dy) >= minDistance;
+        });
+        if (ok) {
+          positions.push({ x, y });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        positions.push({ x: rand(16, 84), y: rand(12, 32) });
+      }
+    }
+
+    return positions.map((pos, idx) => ({
+      id: `p${idx + 1}`,
+      x: `${pos.x.toFixed(1)}%`,
+      y: `${pos.y.toFixed(1)}%`,
+      xNum: pos.x,
+      yNum: pos.y,
+      jitterX: `${(Math.random() - 0.5) * 12}px`,
+      jitterY: `${(Math.random() - 0.5) * 10}px`,
+      delay: `${(Math.random() * 1.2).toFixed(2)}s`
+    }));
+  }, []);
+  const [roundKey, setRoundKey] = useState(0);
+  const [activeRoundCard, setActiveRoundCard] = useState(0);
+  const [roundResults, setRoundResults] = useState<Array<'good' | 'bad'>>([]);
+  const roundCycleMs = 10000;
+  const roundLinks = useMemo(() => {
+    if (roundPlayers.length < 2) return [];
+    const seeded = (seed: number) => {
+      let t = seed + 0x6d2b79f5;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const pick = (seed: number, max: number) => Math.floor(seeded(seed) * max);
+    const pairs = new Set<string>();
+    const links: Array<{
+      id: string;
+      from: typeof roundPlayers[number];
+      to: typeof roundPlayers[number];
+      delay: string;
+    }> = [];
+    const targetCount = Math.min(3, roundPlayers.length);
+    let attempts = 0;
+    while (links.length < targetCount && attempts < 30) {
+      attempts += 1;
+      const a = pick(roundKey * 13 + attempts * 5, roundPlayers.length);
+      const b = pick(roundKey * 29 + attempts * 7, roundPlayers.length);
+      if (a === b) continue;
+      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+      if (pairs.has(key)) continue;
+      pairs.add(key);
+      links.push({
+        id: `link-${key}`,
+        from: roundPlayers[a],
+        to: roundPlayers[b],
+        delay: `${(attempts * 0.35).toFixed(2)}s`
+      });
+    }
+    return links;
+  }, [roundKey, roundPlayers]);
+
+  useEffect(() => {
+    if (!introOpen || activeIndex !== 2) return;
+    const pickOrder = () => {
+      const ids = indexCards.map((card) => card.id);
+      for (let i = ids.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+      }
+      return ids.slice(0, 4);
+    };
+    setStackOrder(pickOrder());
+    const interval = window.setInterval(() => {
+      setStackOrder(pickOrder());
+    }, cardCycleMs);
+    return () => window.clearInterval(interval);
+  }, [activeIndex, introOpen, indexCards, cardCycleMs]);
+
+  useEffect(() => {
+    if (!introOpen || activeIndex !== 3) return;
+    const nextRound = () => {
+      setActiveRoundCard(Math.floor(Math.random() * roundCards.length));
+      setRoundResults(
+        roundPlayers.map(() => (Math.random() < 0.6 ? 'good' : 'bad'))
+      );
+      setRoundKey((prev) => prev + 1);
+    };
+    nextRound();
+    const interval = window.setInterval(nextRound, roundCycleMs);
+    return () => window.clearInterval(interval);
+  }, [activeIndex, introOpen, roundCards.length, roundPlayers, roundCycleMs]);
+  const learningTree = useMemo(() => createLearningTree(11), []);
+  const [activeNodes, setActiveNodes] = useState<Set<string>>(new Set(['root']));
+  const [errorNodes, setErrorNodes] = useState<Set<string>>(new Set());
+  const [errorLinks, setErrorLinks] = useState<Set<string>>(new Set());
+  const [explorer, setExplorer] = useState<{ fromId: string; toId: string; key: number }>({
+    fromId: 'root',
+    toId: 'root',
+    key: 0
+  });
+  const activeNodesRef = useRef(activeNodes);
+  const explorerRef = useRef('root');
+  const explorerKeyRef = useRef(0);
+  const moveTimerRef = useRef<number | null>(null);
+  const errorTargetRef = useRef<{ fromId: string; toId: string } | null>(null);
+  const recoveryStackRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    activeNodesRef.current = activeNodes;
+  }, [activeNodes]);
+  const activeLinks = useMemo(() => {
+    const next = new Set<string>();
+    activeNodes.forEach((nodeId) => {
+      const list = learningTree.linksByFrom.get(nodeId);
+      if (!list) return;
+      list.forEach((key) => next.add(key));
+    });
+    return next;
+  }, [activeNodes, learningTree]);
+  const explorerNode =
+    learningTree.nodesById.get(explorer.toId) ?? learningTree.nodesById.get('root');
+  const explorerLeft = explorerNode
+    ? `${(explorerNode.x / LEARNING_MAP.width) * 100}%`
+    : '50%';
+  const explorerTop = explorerNode
+    ? `${(explorerNode.y / LEARNING_MAP.height) * 100}%`
+    : '90%';
+
+  useEffect(() => {
+    if (!introOpen || activeIndex !== 1 || prefersReducedMotion) return;
+    const reset = () => {
+      const nextActive = new Set<string>(['root']);
+      setActiveNodes(nextActive);
+      setErrorNodes(new Set());
+      setErrorLinks(new Set());
+      setExplorer({ fromId: 'root', toId: 'root', key: 0 });
+      errorTargetRef.current = null;
+      explorerKeyRef.current = 0;
+      explorerRef.current = 'root';
+      recoveryStackRef.current = [];
+    };
+    reset();
+
+    const pickNextTarget = () => {
+      const currentId = explorerRef.current;
+      const currentActive = activeNodesRef.current;
+      const children = learningTree.childrenByFrom.get(currentId) ?? [];
+      const unexploredChildren = children.filter((child) => !currentActive.has(child));
+      if (unexploredChildren.length) {
+        return unexploredChildren[Math.floor(Math.random() * unexploredChildren.length)];
+      }
+      if (currentActive.size >= learningTree.nodes.length) {
+        const neighbors = learningTree.neighborsById.get(currentId) ?? [];
+        return neighbors.length ? neighbors[Math.floor(Math.random() * neighbors.length)] : null;
+      }
+      const hasUnexploredChildren = (nodeId: string) => {
+        const nodeChildren = learningTree.childrenByFrom.get(nodeId) ?? [];
+        return nodeChildren.some((child) => !currentActive.has(child));
+      };
+      const queue: string[] = [currentId];
+      const visited = new Set<string>([currentId]);
+      const prev = new Map<string, string>();
+      let target: string | null = null;
+      while (queue.length) {
+        const nodeId = queue.shift();
+        if (!nodeId) break;
+        if (nodeId !== currentId && hasUnexploredChildren(nodeId)) {
+          target = nodeId;
+          break;
+        }
+        const neighbors = learningTree.neighborsById.get(nodeId) ?? [];
+        neighbors.forEach((neighbor) => {
+          if (visited.has(neighbor)) return;
+          visited.add(neighbor);
+          prev.set(neighbor, nodeId);
+          queue.push(neighbor);
+        });
+      }
+      if (!target) return null;
+      let step = target;
+      while (prev.get(step) && prev.get(step) !== currentId) {
+        step = prev.get(step) ?? step;
+      }
+      return step;
+    };
+
+    const scheduleMove = (fromId: string, toId: string) => {
+      if (fromId === toId) {
+        const nextTarget = pickNextTarget();
+        if (nextTarget) {
+          scheduleMove(fromId, nextTarget);
+        }
+        return;
+      }
+      explorerKeyRef.current += 1;
+      setExplorer({ fromId, toId, key: explorerKeyRef.current });
+      explorerRef.current = toId;
+      moveTimerRef.current = window.setTimeout(() => {
+        const parents = learningTree.parentsById.get(toId) ?? [];
+        const currentActive = activeNodesRef.current;
+        const missingParents = parents.filter((parent) => !currentActive.has(parent));
+        if (!missingParents.length) {
+          const nextActive = new Set(currentActive);
+          nextActive.add(toId);
+          setActiveNodes(nextActive);
+          moveTimerRef.current = window.setTimeout(() => {
+            while (recoveryStackRef.current.length) {
+              const target = recoveryStackRef.current[recoveryStackRef.current.length - 1];
+              if (!nextActive.has(target)) {
+                if (target !== toId) {
+                  scheduleMove(toId, target);
+                  return;
+                }
+                break;
+              }
+              recoveryStackRef.current.pop();
+            }
+            const nextTarget = pickNextTarget();
+            if (!nextTarget) return;
+            scheduleMove(toId, nextTarget);
+          }, EXPLORER_TIMING.pauseMs);
+          return;
+        }
+
+        const nextErrorNodes = new Set<string>([toId, ...missingParents]);
+        const nextErrorLinks = new Set<string>(
+          missingParents.map((parent) => `${parent}-${toId}`)
+        );
+        setErrorNodes(nextErrorNodes);
+        setErrorLinks(nextErrorLinks);
+        if (!recoveryStackRef.current.includes(toId)) {
+          recoveryStackRef.current.push(toId);
+        }
+        const fallback = missingParents[Math.floor(Math.random() * missingParents.length)];
+        errorTargetRef.current = { fromId: toId, toId: fallback };
+        moveTimerRef.current = window.setTimeout(() => {
+          setErrorNodes(new Set());
+          setErrorLinks(new Set());
+          const next = errorTargetRef.current;
+          if (!next) return;
+          scheduleMove(next.fromId, next.toId);
+        }, EXPLORER_TIMING.errorMs);
+      }, EXPLORER_TIMING.moveMs);
+    };
+
+    moveTimerRef.current = window.setTimeout(() => {
+      const target = pickNextTarget();
+      if (!target) return;
+      scheduleMove(explorerRef.current, target);
+    }, EXPLORER_TIMING.pauseMs);
+
+    return () => {
+      if (moveTimerRef.current) {
+        window.clearTimeout(moveTimerRef.current);
+      }
+    };
+  }, [activeIndex, introOpen, learningTree, prefersReducedMotion]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (!introOpen) return;
@@ -689,6 +1260,7 @@ function CogitaIntroSlides({
       className={`cogita-intro ${introOpen ? 'is-open' : 'is-closed'} ${
         prefersReducedMotion ? 'is-reduced' : ''
       } ${isFinal ? 'is-final' : ''}`}
+      data-slide={activeIndex + 1}
       onWheel={handleWheel}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -728,7 +1300,16 @@ function CogitaIntroSlides({
                     <>
                       <p className="cogita-intro-kicker">Cogita</p>
                       <h2>{slide.title}</h2>
-                      {slide.body && <p>{slide.body}</p>}
+                      {slide.body && (
+                        <p>
+                          {slide.body.split('\n').map((line, lineIndex) => (
+                            <span key={String(lineIndex)}>
+                              {line}
+                              {lineIndex === 0 && <br />}
+                            </span>
+                          ))}
+                        </p>
+                      )}
                     </>
                   )}
                   {slide.micro && <p className="cogita-intro-micro">{slide.micro}</p>}
@@ -749,44 +1330,270 @@ function CogitaIntroSlides({
                 </div>
                 <div className="cogita-intro-visual" aria-hidden="true">
                   {index === 1 && (
-                    <ul className="cogita-glyph-list">
-                      {slide.bullets?.map((item) => (
-                        <li key={item} className="cogita-glyph-item">
-                          <span className={`glyph glyph-${item.toLowerCase()}`} />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="cogita-learning-map">
+                      <svg
+                        className="learning-map-svg"
+                        viewBox={`0 0 ${LEARNING_MAP.width} ${LEARNING_MAP.height}`}
+                        preserveAspectRatio="none"
+                      >
+                        {learningTree.links.map((link) => {
+                          const start = learningTree.nodesById.get(link.from);
+                          const end = learningTree.nodesById.get(link.to);
+                          if (!start || !end) return null;
+                          const isActive = activeLinks.has(link.key);
+                          const isError = errorLinks.has(link.key);
+                          return (
+                            <line
+                              key={link.key}
+                              className={`map-link ${isActive ? 'is-active' : ''} ${
+                                isError ? 'is-error' : ''
+                              }`}
+                              x1={start.x}
+                              y1={start.y}
+                              x2={end.x}
+                              y2={end.y}
+                            />
+                          );
+                        })}
+                        {learningTree.nodes.map((node) => {
+                          const isActive = activeNodes.has(node.id);
+                          const isError = errorNodes.has(node.id);
+                          return (
+                            <circle
+                              key={node.id}
+                              className={`map-node ${node.role ? `is-${node.role}` : ''} ${
+                                isActive ? 'is-active' : ''
+                              } ${isError ? 'is-error' : ''}`}
+                              cx={node.x}
+                              cy={node.y}
+                              r={node.r}
+                            />
+                          );
+                        })}
+                      </svg>
+                      {explorerNode && (
+                        <span
+                          className="map-explorer-dot"
+                          style={
+                            {
+                              left: explorerLeft,
+                              top: explorerTop,
+                              '--move': `${EXPLORER_TIMING.moveMs}ms`
+                            } as CSSProperties
+                          }
+                        />
+                      )}
+                    </div>
                   )}
                   {index === 2 && (
-                    <div className="cogita-card-stack">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
+                    <div className="cogita-index-cards">
+                      {indexCards.map((card) => {
+                        const stackIndex = stackOrder.indexOf(card.id);
+                        const stackTarget = stackIndex >= 0 ? stackTargets[stackIndex] : null;
+                        const stackX = stackTarget?.x ?? '140px';
+                        const stackY = stackTarget?.y ?? '140px';
+                        const stackOpacity = stackIndex >= 0 ? 1 : 0;
+                        return (
+                          <div
+                            key={card.id}
+                            className="cogita-index-card"
+                            style={
+                              {
+                                '--throw-x': card.throw.x,
+                                '--throw-y': card.throw.y,
+                                '--throw-rot': card.throw.rot,
+                                '--grid-x': card.grid.x,
+                                '--grid-y': card.grid.y,
+                                '--stack-x': stackX,
+                                '--stack-y': stackY,
+                                '--stack-opacity': stackOpacity,
+                                '--delay': card.delay
+                              } as CSSProperties
+                            }
+                          >
+                            <span className="card-title" />
+                            <span className="card-line" />
+                            <span className="card-line short" />
+                            <span className="card-quote" />
+                            <span className="card-source" />
+                            <span className="card-tags">
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   {index === 3 && (
-                    <div className="cogita-card-stack is-timeline">
-                      <span />
-                      <span />
-                      <span />
-                      <span />
-                      <div className="cogita-timeline-pulse" />
+                    <div className="cogita-round-board" key={`round-${roundKey}`}>
+                      <div className="round-cards">
+                        {roundCards.map((card, idx) => (
+                          <div
+                            key={card.id}
+                            className={`round-card ${idx === activeRoundCard ? 'is-active' : ''}`}
+                            style={
+                              {
+                                '--card-x': card.x,
+                                '--card-y': card.y
+                              } as CSSProperties
+                            }
+                          >
+                            <span className="card-title" />
+                            <span className="card-line" />
+                            <span className="card-line short" />
+                          </div>
+                        ))}
+                        {roundCards[activeRoundCard] && (
+                          <span
+                            className="round-ring"
+                            style={
+                              {
+                                '--card-x': roundCards[activeRoundCard].x,
+                                '--card-y': `calc(${roundCards[activeRoundCard].y} - var(--round-card-lift))`
+                              } as CSSProperties
+                            }
+                          />
+                        )}
+                      </div>
+                      <div className="round-players">
+                        {roundPlayers.map((player, idx) => (
+                          <span
+                            key={player.id}
+                            className="player-dot"
+                            style={
+                              {
+                                left: player.x,
+                                top: player.y,
+                                '--jitter-x': player.jitterX,
+                                '--jitter-y': player.jitterY,
+                                '--breath-delay': player.delay
+                              } as CSSProperties
+                            }
+                          />
+                        ))}
+                      </div>
+                      <svg className="round-link-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        {roundLinks.map((link) => (
+                          <line
+                            key={link.id}
+                            className="round-link"
+                            x1={link.from.xNum}
+                            y1={link.from.yNum}
+                            x2={link.to.xNum}
+                            y2={link.to.yNum}
+                            style={{ '--delay': link.delay } as CSSProperties}
+                          />
+                        ))}
+                      </svg>
+                      <div className="round-flows">
+                        {roundPlayers.map((player, idx) => {
+                          const result = roundResults[idx] ?? 'good';
+                          const active = roundCards[activeRoundCard];
+                          if (!active) return null;
+                          const activeLiftedY = `calc(${active.y} - var(--round-card-lift))`;
+                          return (
+                            <div key={`${player.id}-${roundKey}`} className="round-flow">
+                              <span
+                                className="flow-dot"
+                                style={
+                                  {
+                                    '--from-x': player.x,
+                                    '--from-y': player.y,
+                                    '--to-x': active.x,
+                                    '--to-y': activeLiftedY,
+                                    '--delay': `${idx * 0.12}s`
+                                  } as CSSProperties
+                                }
+                              />
+                              <span
+                                className={`return-dot is-${result}`}
+                                style={
+                                  {
+                                    '--from-x': active.x,
+                                    '--from-y': activeLiftedY,
+                                    '--to-x': player.x,
+                                    '--to-y': player.y,
+                                    '--delay': `${idx * 0.12}s`
+                                  } as CSSProperties
+                                }
+                              />
+                              <span
+                                className={`result-pop is-${result}`}
+                                style={
+                                  {
+                                    '--at-x': player.x,
+                                    '--at-y': player.y,
+                                    '--delay': `${idx * 0.12}s`
+                                  } as CSSProperties
+                                }
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                   {index === 4 && (
-                    <div className="cogita-answers">
-                      <div className="cogita-answers-bars">
-                        <span />
-                        <span />
-                        <span />
-                        <span />
+                    <div className="cogita-progress-story">
+                      <div className="progress-chart">
+                        <svg className="progress-svg" viewBox="0 0 300 200" role="presentation">
+                          <g className="chart-grid">
+                            <line x1="30" y1="24" x2="30" y2="174" />
+                            <line x1="70" y1="24" x2="70" y2="174" />
+                            <line x1="110" y1="24" x2="110" y2="174" />
+                            <line x1="150" y1="24" x2="150" y2="174" />
+                            <line x1="190" y1="24" x2="190" y2="174" />
+                            <line x1="230" y1="24" x2="230" y2="174" />
+                          </g>
+                          <g className="chart-history">
+                            <path
+                              className="chart-line line-main"
+                              d="M30 168 L60 148 L90 150 L120 128 L150 120 L180 104 L210 96 L230 78"
+                            />
+                            <path
+                              className="chart-range"
+                              d="M30 172 L60 156 L90 158 L120 140 L150 132 L180 118 L210 112 L230 96 L230 112 L210 124 L180 136 L150 144 L120 152 L90 160 L60 166 L30 176 Z"
+                            />
+                          </g>
+                          <path
+                            className="chart-line line-peer peer-1"
+                            d="M30 172 L60 156 L90 158 L120 142 L150 136 L180 124 L210 120 L230 110"
+                          />
+                          <path
+                            className="chart-line line-peer peer-2"
+                            d="M30 176 L60 162 L90 166 L120 150 L150 146 L180 136 L210 134 L230 126"
+                          />
+                          <g className="chart-future">
+                            <path
+                              className="chart-line line-improve improve-1"
+                              d="M150 174 L190 132 L230 100"
+                            />
+                            <path
+                              className="chart-line line-improve improve-2"
+                              d="M150 178 L190 140 L230 112"
+                            />
+                            <path
+                              className="chart-line line-improve improve-3"
+                              d="M150 182 L190 146 L230 122"
+                            />
+                          </g>
+                        </svg>
+                        <span className="chart-dot dot-main" />
+                        <span className="chart-dot dot-peer dot-peer-1" />
+                        <span className="chart-dot dot-peer dot-peer-2" />
                       </div>
-                      <div className="cogita-answers-dots">
-                        {answerDots.map((dot, idx) => (
-                          <span key={String(idx)} style={{ left: dot.x, top: dot.y }} />
-                        ))}
+                      <div className="progress-triangle">
+                        <svg viewBox="0 0 160 120" role="presentation">
+                          <circle className="triangle-ring" cx="80" cy="62" r="38" />
+                          <polygon className="triangle-edge" points="80,18 32,96 128,96" />
+                        </svg>
+                        <div className="triangle-orbit">
+                          <span className="orbit-dot orbit-1" />
+                          <span className="orbit-dot orbit-2" />
+                          <span className="orbit-dot orbit-3" />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -842,14 +1649,6 @@ function CogitaIntroSlides({
           <button type="button" className="cogita-intro-skip" onClick={onExit}>
             Pomiń
           </button>
-          <div className="cogita-intro-nav">
-            <button type="button" className="ghost" onClick={onPrev} disabled={activeIndex === 0}>
-              Wstecz
-            </button>
-            <button type="button" className="ghost" onClick={onNext}>
-              Dalej
-            </button>
-          </div>
         </>
       )}
     </div>
