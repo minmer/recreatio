@@ -3040,6 +3040,24 @@
     grid-row: 2;
     margin-top: 1.6rem;
   }
+
+  .cogita-intro-text h1 {
+    font-size: clamp(2.1rem, 8vw, 3rem);
+  }
+
+  .cogita-intro-text h2 {
+    font-size: clamp(1.9rem, 7.4vw, 2.6rem);
+  }
+
+  .cogita-intro-subtitle,
+  .cogita-intro-text p {
+    font-size: clamp(0.95rem, 3.6vw, 1.08rem);
+  }
+
+  .cogita-intro-kicker {
+    letter-spacing: 0.28em;
+    font-size: 0.7rem;
+  }
 }
 .cogita-intro-slide.slide-2.is-active .cogita-intro-text,
 .cogita-intro-slide.slide-3.is-active .cogita-intro-text,
