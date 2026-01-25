@@ -324,12 +324,12 @@ export function CogitaPage({
     };
     const config = {
       colors: {
-        filaments: 'rgba(143, 208, 255, 0.15)',
-        glow: 'rgba(167, 224, 255, 0.47)'
+        filaments: 'rgba(143, 208, 255, 0.25)',
+        glow: 'rgba(167, 224, 255, 0.35)'
       },
       filamentCount: 1,
-      segments: 40,
-      waveBandPx: 190,
+      segments: 20,
+      waveBandPx: 120,
       crestThickness: 40,
       waveCenter: 0.82,
       amp1: 48,
@@ -339,7 +339,7 @@ export function CogitaPage({
       jitterA: 12,
       jitterB: 8,
       xJitter: 4,
-      glowAlpha: 0.1,
+      glowAlpha: 0.25,
       depthLayers: 2
     };
 
@@ -550,7 +550,7 @@ export function CogitaPage({
     <div className="portal-page cogita">
       <header className="portal-header cogita-header">
         <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
-          <img src="/logo_new.svg" alt={copy.loginCard.title} />
+          <img src="/logo_inv.svg" alt={copy.loginCard.title} />
         </button>
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <AuthAction

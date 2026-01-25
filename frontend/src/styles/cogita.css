@@ -929,6 +929,7 @@
 .cogita-logo-layer.is-recreatio {
   z-index: 1;
   opacity: 1;
+  filter: none;
 }
 
 .cogita-logo-layer.is-bubble {
