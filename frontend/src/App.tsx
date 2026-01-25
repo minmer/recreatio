@@ -12,6 +12,7 @@ import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 import { ParishPage } from './pages/parish/ParishPage';
 import { CogitaPage } from './pages/cogita/CogitaPage';
+import { CogitaUserPage } from './pages/cogita/CogitaUserPage';
 import { AccountPage } from './pages/account/AccountPage';
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
@@ -343,27 +344,41 @@ export default function App() {
           parishSlug={pathname.startsWith('/parish/') ? pathname.split('/')[2] : undefined}
         />
       )}
-      {pathname === '/cogita' && (
-        <CogitaPage
-          copy={t}
-          onAuthAction={() => {
-            if (isAuthenticated) {
-              handleProtectedNavigation('account', 'cogita');
-            } else {
-              openLoginCard('cogita');
-            }
-          }}
-          authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
-          showProfileMenu={isAuthenticated}
-          onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-          onToggleSecureMode={handleToggleMode}
-          onLogout={handleLogout}
-          secureMode={secureMode}
-          onNavigate={navigateRoute}
-          language={language}
-          onLanguageChange={setLanguage}
-        />
-      )}
+      {pathname === '/cogita' &&
+        (isAuthenticated ? (
+          <CogitaUserPage
+            copy={t}
+            authLabel={t.nav.account}
+            showProfileMenu
+            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        ) : (
+          <CogitaPage
+            copy={t}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'cogita');
+              } else {
+                openLoginCard('cogita');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        ))}
       {pathname === '/account' && session && (
         <AccountPage
           copy={t}
