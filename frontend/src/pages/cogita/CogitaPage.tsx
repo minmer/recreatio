@@ -328,7 +328,7 @@ export function CogitaPage({
         glow: 'rgba(167, 224, 255, 0.37)'
       },
       filamentCount: 1,
-      segments: 120,
+      segments: 60,
       waveBandPx: 190,
       crestThickness: 40,
       waveCenter: 0.82,
