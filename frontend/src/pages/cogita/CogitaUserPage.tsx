@@ -1,7 +1,11 @@
+import { useRef } from 'react';
 import { AuthAction } from '../../components/AuthAction';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
+import { CogitaLibrarySection } from './library/components/CogitaLibrarySection';
+import { CogitaUserOverview } from './library/components/CogitaUserOverview';
+import { useIndexCardLibrary } from './library/useIndexCardLibrary';
 
 export function CogitaUserPage({
   copy,
@@ -26,6 +30,18 @@ export function CogitaUserPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
 }) {
+  const overviewRef = useRef<HTMLElement | null>(null);
+  const libraryRef = useRef<HTMLElement | null>(null);
+  const library = useIndexCardLibrary();
+
+  const openLibrary = () => {
+    libraryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const backToOverview = () => {
+    overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="portal-page cogita">
       <header className="portal-header cogita-header">
@@ -46,22 +62,15 @@ export function CogitaUserPage({
         />
       </header>
       <main className="cogita-main">
-        <section className="cogita-section cogita-user">
-          <div className="cogita-user-panel">
-            <p className="cogita-user-kicker">Cogita</p>
-            <h1 className="cogita-user-title">{copy.cogita.title}</h1>
-            <p className="cogita-user-subtitle">{copy.cogita.subtitle}</p>
-            <ul className="cogita-user-list">
-              {copy.cogita.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            <p className="cogita-user-note">{copy.cogita.note}</p>
-            <button type="button" className="cta" onClick={() => onNavigate('account')}>
-              {copy.nav.account}
-            </button>
-          </div>
-        </section>
+        <CogitaUserOverview
+          ref={overviewRef}
+          copy={copy}
+          totalCards={library.totalCards}
+          totalTags={library.totalTags}
+          onAccount={() => onNavigate('account')}
+          onOpenLibrary={openLibrary}
+        />
+        <CogitaLibrarySection ref={libraryRef} library={library} onBackToOverview={backToOverview} />
       </main>
       <footer className="portal-footer cogita-footer">
         <span>{copy.footer.headline}</span>
