@@ -27,6 +27,26 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<AuthLedgerEntry> AuthLedger => Set<AuthLedgerEntry>();
     public DbSet<KeyLedgerEntry> KeyLedger => Set<KeyLedgerEntry>();
     public DbSet<BusinessLedgerEntry> BusinessLedger => Set<BusinessLedgerEntry>();
+    public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
+    public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
+    public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
+    public DbSet<Data.Cogita.CogitaWord> CogitaWords => Set<Data.Cogita.CogitaWord>();
+    public DbSet<Data.Cogita.CogitaSentence> CogitaSentences => Set<Data.Cogita.CogitaSentence>();
+    public DbSet<Data.Cogita.CogitaTopic> CogitaTopics => Set<Data.Cogita.CogitaTopic>();
+    public DbSet<Data.Cogita.CogitaPerson> CogitaPersons => Set<Data.Cogita.CogitaPerson>();
+    public DbSet<Data.Cogita.CogitaAddress> CogitaAddresses => Set<Data.Cogita.CogitaAddress>();
+    public DbSet<Data.Cogita.CogitaEmail> CogitaEmails => Set<Data.Cogita.CogitaEmail>();
+    public DbSet<Data.Cogita.CogitaPhone> CogitaPhones => Set<Data.Cogita.CogitaPhone>();
+    public DbSet<Data.Cogita.CogitaBook> CogitaBooks => Set<Data.Cogita.CogitaBook>();
+    public DbSet<Data.Cogita.CogitaMedia> CogitaMedia => Set<Data.Cogita.CogitaMedia>();
+    public DbSet<Data.Cogita.CogitaGeoFeature> CogitaGeoFeatures => Set<Data.Cogita.CogitaGeoFeature>();
+    public DbSet<Data.Cogita.CogitaMusicPiece> CogitaMusicPieces => Set<Data.Cogita.CogitaMusicPiece>();
+    public DbSet<Data.Cogita.CogitaMusicFragment> CogitaMusicFragments => Set<Data.Cogita.CogitaMusicFragment>();
+    public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
+    public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
+    public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
+    public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
+    public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,5 +86,24 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<PendingDataShare>()
             .HasIndex(x => new { x.TargetRoleId, x.Status });
+
+        modelBuilder.Entity<Data.Cogita.CogitaLibrary>()
+            .HasIndex(x => x.RoleId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaInfo>()
+            .HasIndex(x => new { x.LibraryId, x.InfoType });
+
+        modelBuilder.Entity<Data.Cogita.CogitaConnectionItem>()
+            .HasIndex(x => new { x.ConnectionId, x.InfoId })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
+            .HasIndex(x => new { x.GroupId, x.InfoId })
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
+            .HasIndex(x => new { x.GroupId, x.ConnectionId })
+            .IsUnique();
     }
 }

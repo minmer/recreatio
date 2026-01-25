@@ -19,6 +19,26 @@ IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleR
 IF OBJECT_ID(N'dbo.RoleRecoveryKeys', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryKeys;
 IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
 IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
+IF OBJECT_ID(N'dbo.CogitaGroupConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroupConnections;
+IF OBJECT_ID(N'dbo.CogitaGroupItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroupItems;
+IF OBJECT_ID(N'dbo.CogitaGroups', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroups;
+IF OBJECT_ID(N'dbo.CogitaConnectionItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaConnectionItems;
+IF OBJECT_ID(N'dbo.CogitaConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaConnections;
+IF OBJECT_ID(N'dbo.CogitaMusicFragments', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicFragments;
+IF OBJECT_ID(N'dbo.CogitaMusicPieces', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicPieces;
+IF OBJECT_ID(N'dbo.CogitaGeoFeatures', N'U') IS NOT NULL DROP TABLE dbo.CogitaGeoFeatures;
+IF OBJECT_ID(N'dbo.CogitaMedia', N'U') IS NOT NULL DROP TABLE dbo.CogitaMedia;
+IF OBJECT_ID(N'dbo.CogitaBooks', N'U') IS NOT NULL DROP TABLE dbo.CogitaBooks;
+IF OBJECT_ID(N'dbo.CogitaPhones', N'U') IS NOT NULL DROP TABLE dbo.CogitaPhones;
+IF OBJECT_ID(N'dbo.CogitaEmails', N'U') IS NOT NULL DROP TABLE dbo.CogitaEmails;
+IF OBJECT_ID(N'dbo.CogitaAddresses', N'U') IS NOT NULL DROP TABLE dbo.CogitaAddresses;
+IF OBJECT_ID(N'dbo.CogitaPersons', N'U') IS NOT NULL DROP TABLE dbo.CogitaPersons;
+IF OBJECT_ID(N'dbo.CogitaTopics', N'U') IS NOT NULL DROP TABLE dbo.CogitaTopics;
+IF OBJECT_ID(N'dbo.CogitaSentences', N'U') IS NOT NULL DROP TABLE dbo.CogitaSentences;
+IF OBJECT_ID(N'dbo.CogitaWords', N'U') IS NOT NULL DROP TABLE dbo.CogitaWords;
+IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLanguages;
+IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
+IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
 IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
@@ -350,4 +370,245 @@ CREATE TABLE dbo.RoleRecoveryApprovals
 GO
 
 CREATE UNIQUE INDEX UX_RoleRecoveryApprovals_Request_Approver ON dbo.RoleRecoveryApprovals(RequestId, ApproverRoleId);
+GO
+
+CREATE TABLE dbo.CogitaLibraries
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaLibraries_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaLibraries_RoleId ON dbo.CogitaLibraries(RoleId);
+GO
+
+CREATE TABLE dbo.CogitaInfos
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    InfoType NVARCHAR(64) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaInfos_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaInfos_Library_Type ON dbo.CogitaInfos(LibraryId, InfoType);
+GO
+
+CREATE TABLE dbo.CogitaLanguages
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaLanguages_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaWords
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaWords_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaSentences
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaSentences_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaTopics
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaTopics_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaPersons
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaPersons_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaAddresses
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaAddresses_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaEmails
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaEmails_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaPhones
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaPhones_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaBooks
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaBooks_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaMedia
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaMedia_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaGeoFeatures
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaGeoFeatures_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaMusicPieces
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaMusicPieces_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaMusicFragments
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaMusicFragments_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaConnections
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    ConnectionType NVARCHAR(96) NOT NULL,
+    ConnectionTypeHash VARBINARY(64) NOT NULL,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaConnections_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaConnections_Library_Type ON dbo.CogitaConnections(LibraryId, ConnectionType);
+GO
+
+CREATE TABLE dbo.CogitaConnectionItems
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ConnectionId UNIQUEIDENTIFIER NOT NULL,
+    InfoId UNIQUEIDENTIFIER NOT NULL,
+    SortOrder INT NOT NULL,
+    CONSTRAINT FK_CogitaConnectionItems_Connection FOREIGN KEY (ConnectionId) REFERENCES dbo.CogitaConnections(Id),
+    CONSTRAINT FK_CogitaConnectionItems_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaConnectionItems_Link ON dbo.CogitaConnectionItems(ConnectionId, InfoId);
+GO
+
+CREATE TABLE dbo.CogitaGroups
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    GroupType NVARCHAR(96) NOT NULL,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaGroups_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaGroupItems
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    GroupId UNIQUEIDENTIFIER NOT NULL,
+    InfoId UNIQUEIDENTIFIER NOT NULL,
+    SortOrder INT NOT NULL,
+    CONSTRAINT FK_CogitaGroupItems_Group FOREIGN KEY (GroupId) REFERENCES dbo.CogitaGroups(Id),
+    CONSTRAINT FK_CogitaGroupItems_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaGroupItems_Link ON dbo.CogitaGroupItems(GroupId, InfoId);
+GO
+
+CREATE TABLE dbo.CogitaGroupConnections
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    GroupId UNIQUEIDENTIFIER NOT NULL,
+    ConnectionId UNIQUEIDENTIFIER NOT NULL,
+    CONSTRAINT FK_CogitaGroupConnections_Group FOREIGN KEY (GroupId) REFERENCES dbo.CogitaGroups(Id),
+    CONSTRAINT FK_CogitaGroupConnections_Connection FOREIGN KEY (ConnectionId) REFERENCES dbo.CogitaConnections(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaGroupConnections_Link ON dbo.CogitaGroupConnections(GroupId, ConnectionId);
 GO

@@ -14,7 +14,7 @@ import { ParishPage } from './pages/parish/ParishPage';
 import { CogitaPage } from './pages/cogita/CogitaPage';
 import { CogitaUserPage } from './pages/cogita/CogitaUserPage';
 import { CogitaLibraryPage } from './pages/cogita/library/CogitaLibraryPage';
-import type { LibraryMode } from './pages/cogita/library/types';
+import type { CogitaLibraryMode } from './pages/cogita/library/types';
 import { AccountPage } from './pages/account/AccountPage';
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
@@ -55,8 +55,9 @@ export default function App() {
   const isCogitaPath = pathname.startsWith('/cogita');
   const isCogitaLibraryPath = pathname.startsWith('/cogita/library');
   const cogitaSegments = pathname.split('/').filter(Boolean);
-  const libraryModeSegment = cogitaSegments[2];
-  const libraryMode: LibraryMode =
+  const cogitaLibraryId = cogitaSegments[1] === 'library' ? cogitaSegments[2] : undefined;
+  const libraryModeSegment = cogitaSegments[3];
+  const libraryMode: CogitaLibraryMode =
     libraryModeSegment === 'collection' || libraryModeSegment === 'list' ? libraryModeSegment : 'detail';
   const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
@@ -354,7 +355,7 @@ export default function App() {
       )}
       {isCogitaPath &&
         (isAuthenticated ? (
-          isCogitaLibraryPath ? (
+          isCogitaLibraryPath && cogitaLibraryId ? (
             <CogitaLibraryPage
               copy={t}
               authLabel={t.nav.account}
@@ -366,9 +367,14 @@ export default function App() {
               onNavigate={navigateRoute}
               language={language}
               onLanguageChange={setLanguage}
+              libraryId={cogitaLibraryId}
               mode={libraryMode}
               onModeChange={(nextMode) => {
-                navigate(nextMode === 'detail' ? '/cogita/library' : `/cogita/library/${nextMode}`);
+                navigate(
+                  nextMode === 'detail'
+                    ? `/cogita/library/${cogitaLibraryId}`
+                    : `/cogita/library/${cogitaLibraryId}/${nextMode}`
+                );
               }}
               onBackToOverview={() => navigate('/cogita')}
             />
@@ -384,7 +390,7 @@ export default function App() {
               onNavigate={navigateRoute}
               language={language}
               onLanguageChange={setLanguage}
-              onOpenLibrary={() => navigate('/cogita/library')}
+              onOpenLibrary={(libraryId) => navigate(`/cogita/library/${libraryId}`)}
             />
           )
         ) : (

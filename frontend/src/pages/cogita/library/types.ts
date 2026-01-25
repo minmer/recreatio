@@ -1,43 +1,43 @@
-export type CardTypeId = 'vocab-bidi' | 'definition' | 'quote' | 'process';
+export type CogitaInfoType =
+  | 'language'
+  | 'word'
+  | 'sentence'
+  | 'topic'
+  | 'person'
+  | 'address'
+  | 'email'
+  | 'phone'
+  | 'book'
+  | 'media'
+  | 'geo'
+  | 'music_piece'
+  | 'music_fragment';
 
-export type CardType = {
-  id: CardTypeId;
+export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation';
+
+export type CogitaGroupType = 'vocab';
+
+export type CogitaLibraryMode = 'detail' | 'collection' | 'list';
+
+export type CogitaSearchScope = {
   label: string;
-  description: string;
-  helper: string;
-  available: boolean;
+  infoType: CogitaInfoType | 'any';
 };
 
-export type IndexCard = {
-  id: string;
-  type: CardTypeId;
-  sideA: string;
-  sideB: string;
-  sideALabel?: string;
-  sideBLabel?: string;
-  tags: string[];
-  note?: string;
-  createdAt: string;
-  lastReviewed?: string;
+export type CogitaInfoForm = {
+  infoType: CogitaInfoType;
+  label: string;
+  payload: Record<string, string>;
 };
 
-export type DraftCard = {
-  sideA: string;
-  sideB: string;
-  sideALabel: string;
-  sideBLabel: string;
-  note: string;
-  tags: string[];
+export type CogitaConnectionForm = {
+  connectionType: CogitaConnectionType;
+  infoIds: string[];
+  payload: Record<string, string>;
 };
 
-export type ViewMode = 'grid' | 'list';
-
-export type ReviewDirection = 'A_TO_B' | 'B_TO_A';
-
-export type LibraryMode = 'detail' | 'collection' | 'list';
-
-export const normalizeTag = (value: string) =>
-  value.trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, '-');
-
-export const buildCardId = () =>
-  `card-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+export type CogitaGroupForm = {
+  groupType: CogitaGroupType;
+  infoItems: Array<{ infoType: CogitaInfoType; payload: Record<string, string> }>;
+  connections: Array<{ connectionType: CogitaConnectionType; infoIds: string[] }>;
+};

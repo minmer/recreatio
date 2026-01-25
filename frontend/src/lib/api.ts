@@ -477,3 +477,134 @@ export function completeRecoveryRequest(roleId: string, requestId: string) {
     }
   );
 }
+
+export type CogitaLibrary = {
+  libraryId: string;
+  roleId: string;
+  name: string;
+  createdUtc: string;
+};
+
+export type CogitaLibraryStats = {
+  totalInfos: number;
+  totalConnections: number;
+  totalGroups: number;
+  totalLanguages: number;
+  totalWords: number;
+  totalSentences: number;
+  totalTopics: number;
+};
+
+export type CogitaInfoSearchResult = {
+  infoId: string;
+  infoType: string;
+  label: string;
+};
+
+export type CogitaInfoCreateResponse = {
+  infoId: string;
+  infoType: string;
+};
+
+export type CogitaConnectionCreateResponse = {
+  connectionId: string;
+  connectionType: string;
+};
+
+export type CogitaGroupCreateResponse = {
+  groupId: string;
+  groupType: string;
+};
+
+export function getCogitaLibraries() {
+  return request<CogitaLibrary[]>('/cogita/libraries', {
+    method: 'GET'
+  });
+}
+
+export function createCogitaLibrary(payload: { name: string; signatureBase64?: string | null }) {
+  return request<CogitaLibrary>('/cogita/libraries', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function getCogitaLibraryStats(libraryId: string) {
+  return request<CogitaLibraryStats>(`/cogita/libraries/${libraryId}/stats`, {
+    method: 'GET'
+  });
+}
+
+export function searchCogitaInfos(payload: { libraryId: string; type?: string; query?: string }) {
+  const params = new URLSearchParams();
+  if (payload.type) params.set('type', payload.type);
+  if (payload.query) params.set('query', payload.query);
+  const qs = params.toString();
+  return request<CogitaInfoSearchResult[]>(
+    `/cogita/libraries/${payload.libraryId}/infos${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function createCogitaInfo(payload: {
+  libraryId: string;
+  infoType: string;
+  dataKeyId?: string | null;
+  payload: unknown;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaInfoCreateResponse>(`/cogita/libraries/${payload.libraryId}/infos`, {
+    method: 'POST',
+    body: JSON.stringify({
+      infoType: payload.infoType,
+      payload: payload.payload,
+      dataKeyId: payload.dataKeyId ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function createCogitaConnection(payload: {
+  libraryId: string;
+  connectionType: string;
+  infoIds: string[];
+  dataKeyId?: string | null;
+  payload?: unknown;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaConnectionCreateResponse>(`/cogita/libraries/${payload.libraryId}/connections`, {
+    method: 'POST',
+    body: JSON.stringify({
+      connectionType: payload.connectionType,
+      infoIds: payload.infoIds,
+      payload: payload.payload ?? null,
+      dataKeyId: payload.dataKeyId ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function createCogitaGroup(payload: {
+  libraryId: string;
+  groupType: string;
+  infoItems: Array<{ infoId?: string | null; infoType: string; payload: unknown }>;
+  connections: Array<{ connectionId?: string | null; connectionType: string; infoIds: string[]; payload?: unknown }>;
+  payload?: unknown;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaGroupCreateResponse>(`/cogita/libraries/${payload.libraryId}/groups`, {
+    method: 'POST',
+    body: JSON.stringify({
+      groupType: payload.groupType,
+      infoItems: payload.infoItems,
+      connections: payload.connections,
+      payload: payload.payload ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}

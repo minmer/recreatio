@@ -1,4 +1,5 @@
 using Recreatio.Api.Endpoints;
+using Recreatio.Api.Endpoints.Cogita;
 
 namespace Recreatio.Api.Hosting;
 
@@ -20,6 +21,7 @@ public static class ApplicationBuilderExtensions
         app.MapAuthEndpoints();
         app.MapAccountEndpoints();
         app.MapRoleEndpoints();
+        app.MapCogitaEndpoints();
 
         return app;
     }
