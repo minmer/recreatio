@@ -34,6 +34,8 @@ export type ViewMode = 'grid' | 'list';
 
 export type ReviewDirection = 'A_TO_B' | 'B_TO_A';
 
+export type LibraryMode = 'detail' | 'collection' | 'list';
+
 export const normalizeTag = (value: string) =>
   value.trim().toLowerCase().replace(/^#/, '').replace(/\s+/g, '-');
 

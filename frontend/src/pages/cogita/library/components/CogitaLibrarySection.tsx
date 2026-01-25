@@ -1,5 +1,6 @@
 import { forwardRef, useRef } from 'react';
 import { CARD_TYPES } from '../data';
+import type { LibraryMode } from '../types';
 import type { IndexCardLibraryState } from '../useIndexCardLibrary';
 import { CogitaCardCreate } from './CogitaCardCreate';
 import { CogitaCardDetail } from './CogitaCardDetail';
@@ -8,16 +9,21 @@ import { CogitaLibraryFilters } from './CogitaLibraryFilters';
 
 export const CogitaLibrarySection = forwardRef<HTMLElement, {
   library: IndexCardLibraryState;
+  mode: LibraryMode;
   onBackToOverview: () => void;
-}>(function CogitaLibrarySection({ library, onBackToOverview }, ref) {
+  onModeChange: (mode: LibraryMode) => void;
+}>(function CogitaLibrarySection({ library, mode, onBackToOverview, onModeChange }, ref) {
   const addFormRef = useRef<HTMLDivElement | null>(null);
+  const effectiveViewMode = mode === 'detail' ? library.viewMode : mode === 'collection' ? 'grid' : 'list';
+  const showDetailPanel = mode === 'detail';
+  const showViewToggle = mode === 'detail';
 
   const openAddForm = () => {
     addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
-    <section className="cogita-library" ref={ref} id="cogita-library">
+    <section className="cogita-library" ref={ref} id="cogita-library" data-mode={mode}>
       <div className="cogita-library-inner">
         <header className="cogita-library-header">
           <div>
@@ -26,6 +32,19 @@ export const CogitaLibrarySection = forwardRef<HTMLElement, {
             <p className="cogita-library-subtitle">
               Search by tag, review two-way vocabulary cards, and add new ones.
             </p>
+            <div className="cogita-library-modes">
+              {(['detail', 'collection', 'list'] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className="ghost"
+                  data-active={mode === item}
+                  onClick={() => onModeChange(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="cogita-library-actions">
             <button type="button" className="cta ghost" onClick={onBackToOverview}>
@@ -46,8 +65,9 @@ export const CogitaLibrarySection = forwardRef<HTMLElement, {
               visibleTagCounts={library.visibleTagCounts}
               onToggleTag={library.toggleTagFilter}
               onClearFilters={library.clearFilters}
-              viewMode={library.viewMode}
+              viewMode={effectiveViewMode}
               onViewModeChange={library.setViewMode}
+              showViewToggle={showViewToggle}
             />
 
             <div className="cogita-card-count">
@@ -59,7 +79,7 @@ export const CogitaLibrarySection = forwardRef<HTMLElement, {
               cards={library.filteredCards}
               selectedCardId={library.selectedCardId}
               activeTags={library.activeTags}
-              viewMode={library.viewMode}
+              viewMode={effectiveViewMode}
               cardTypeLabel={library.cardTypeLabel}
               onSelectCard={library.setSelectedCardId}
               onToggleTag={library.toggleTagFilter}
@@ -68,50 +88,75 @@ export const CogitaLibrarySection = forwardRef<HTMLElement, {
             />
           </div>
 
-          <div className="cogita-library-panel">
-            <CogitaCardDetail
-              selectedCard={library.selectedCard}
-              activeTags={library.activeTags}
-              cardTypeLabel={library.cardTypeLabel}
-              directionLabel={library.directionLabel}
-              frontLabel={library.frontLabel}
-              backLabel={library.backLabel}
-              frontValue={library.frontValue}
-              backValue={library.backValue}
-              isFlipped={library.isFlipped}
-              onSetFlipped={library.setIsFlipped}
-              onToggleFlip={() => library.setIsFlipped((prev) => !prev)}
-              onSwapDirection={() => {
-                library.setDirection((prev) => (prev === 'A_TO_B' ? 'B_TO_A' : 'A_TO_B'));
-                library.setIsFlipped(false);
-              }}
-              onRemoveCard={library.removeCard}
-              onSelectRelative={library.selectRelativeCard}
-              onToggleTag={library.toggleTagFilter}
-              onOpenAddForm={openAddForm}
-            />
+          {showDetailPanel ? (
+            <div className="cogita-library-panel">
+              <CogitaCardDetail
+                selectedCard={library.selectedCard}
+                activeTags={library.activeTags}
+                cardTypeLabel={library.cardTypeLabel}
+                directionLabel={library.directionLabel}
+                frontLabel={library.frontLabel}
+                backLabel={library.backLabel}
+                frontValue={library.frontValue}
+                backValue={library.backValue}
+                isFlipped={library.isFlipped}
+                onSetFlipped={library.setIsFlipped}
+                onToggleFlip={() => library.setIsFlipped((prev) => !prev)}
+                onSwapDirection={() => {
+                  library.setDirection((prev) => (prev === 'A_TO_B' ? 'B_TO_A' : 'A_TO_B'));
+                  library.setIsFlipped(false);
+                }}
+                onRemoveCard={library.removeCard}
+                onSelectRelative={library.selectRelativeCard}
+                onToggleTag={library.toggleTagFilter}
+                onOpenAddForm={openAddForm}
+              />
 
-            <CogitaCardCreate
-              ref={addFormRef}
-              cardTypes={CARD_TYPES}
-              selectedTypeId={library.newCardType}
-              onSelectType={library.setNewCardType}
-              canCreateType={library.canCreateType}
-              draft={library.draft}
-              onUpdateDraft={library.updateDraft}
-              draftTagInput={library.draftTagInput}
-              onDraftTagInputChange={library.setDraftTagInput}
-              onCommitDraftTag={library.commitDraftTag}
-              onAddDraftTag={library.addDraftTag}
-              onRemoveDraftTag={library.removeDraftTag}
-              onUseActiveTags={library.useActiveTags}
-              tagSuggestions={library.tagSuggestions}
-              formError={library.formError}
-              isFormValid={library.isFormValid}
-              onSubmit={library.addNewCard}
-              onReset={library.resetDraft}
-            />
-          </div>
+              <CogitaCardCreate
+                ref={addFormRef}
+                cardTypes={CARD_TYPES}
+                selectedTypeId={library.newCardType}
+                onSelectType={library.setNewCardType}
+                canCreateType={library.canCreateType}
+                draft={library.draft}
+                onUpdateDraft={library.updateDraft}
+                draftTagInput={library.draftTagInput}
+                onDraftTagInputChange={library.setDraftTagInput}
+                onCommitDraftTag={library.commitDraftTag}
+                onAddDraftTag={library.addDraftTag}
+                onRemoveDraftTag={library.removeDraftTag}
+                onUseActiveTags={library.useActiveTags}
+                tagSuggestions={library.tagSuggestions}
+                formError={library.formError}
+                isFormValid={library.isFormValid}
+                onSubmit={library.addNewCard}
+                onReset={library.resetDraft}
+              />
+            </div>
+          ) : (
+            <div className="cogita-library-panel">
+              <CogitaCardCreate
+                ref={addFormRef}
+                cardTypes={CARD_TYPES}
+                selectedTypeId={library.newCardType}
+                onSelectType={library.setNewCardType}
+                canCreateType={library.canCreateType}
+                draft={library.draft}
+                onUpdateDraft={library.updateDraft}
+                draftTagInput={library.draftTagInput}
+                onDraftTagInputChange={library.setDraftTagInput}
+                onCommitDraftTag={library.commitDraftTag}
+                onAddDraftTag={library.addDraftTag}
+                onRemoveDraftTag={library.removeDraftTag}
+                onUseActiveTags={library.useActiveTags}
+                tagSuggestions={library.tagSuggestions}
+                formError={library.formError}
+                isFormValid={library.isFormValid}
+                onSubmit={library.addNewCard}
+                onReset={library.resetDraft}
+              />
+            </div>
+          )}
         </div>
       </div>
     </section>

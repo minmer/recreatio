@@ -1,16 +1,11 @@
-import { CogitaShell } from './CogitaShell';
-import { CogitaUserOverview } from './library/components/CogitaUserOverview';
-import type { Copy } from '../../content/types';
-import type { RouteKey } from '../../types/navigation';
-import { MOCK_INDEX_CARDS } from './library/data';
+import { CogitaShell } from '../CogitaShell';
+import type { Copy } from '../../../content/types';
+import type { RouteKey } from '../../../types/navigation';
+import type { LibraryMode } from './types';
+import { CogitaLibrarySection } from './components/CogitaLibrarySection';
+import { useIndexCardLibrary } from './useIndexCardLibrary';
 
-const uniqueTags = (cards: typeof MOCK_INDEX_CARDS) => {
-  const tags = new Set<string>();
-  cards.forEach((card) => card.tags.forEach((tag) => tags.add(tag)));
-  return tags;
-};
-
-export function CogitaUserPage({
+export function CogitaLibraryPage({
   copy,
   authLabel,
   showProfileMenu,
@@ -21,7 +16,9 @@ export function CogitaUserPage({
   onNavigate,
   language,
   onLanguageChange,
-  onOpenLibrary
+  mode,
+  onModeChange,
+  onBackToOverview
 }: {
   copy: Copy;
   authLabel: string;
@@ -33,10 +30,11 @@ export function CogitaUserPage({
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  onOpenLibrary: () => void;
+  mode: LibraryMode;
+  onModeChange: (mode: LibraryMode) => void;
+  onBackToOverview: () => void;
 }) {
-  const totalCards = MOCK_INDEX_CARDS.length;
-  const totalTags = uniqueTags(MOCK_INDEX_CARDS).size;
+  const library = useIndexCardLibrary();
 
   return (
     <CogitaShell
@@ -51,13 +49,7 @@ export function CogitaUserPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <CogitaUserOverview
-        copy={copy}
-        totalCards={totalCards}
-        totalTags={totalTags}
-        onAccount={() => onNavigate('account')}
-        onOpenLibrary={onOpenLibrary}
-      />
+      <CogitaLibrarySection library={library} mode={mode} onBackToOverview={onBackToOverview} onModeChange={onModeChange} />
     </CogitaShell>
   );
 }

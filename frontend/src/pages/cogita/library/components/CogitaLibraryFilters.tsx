@@ -8,7 +8,8 @@ export function CogitaLibraryFilters({
   onToggleTag,
   onClearFilters,
   viewMode,
-  onViewModeChange
+  onViewModeChange,
+  showViewToggle
 }: {
   tagQuery: string;
   onTagQueryChange: (value: string) => void;
@@ -17,7 +18,8 @@ export function CogitaLibraryFilters({
   onToggleTag: (tag: string) => void;
   onClearFilters: () => void;
   viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
+  onViewModeChange?: (mode: ViewMode) => void;
+  showViewToggle?: boolean;
 }) {
   return (
     <div className="cogita-library-controls">
@@ -70,27 +72,29 @@ export function CogitaLibraryFilters({
         ) : null}
       </div>
 
-      <div className="cogita-library-view">
-        <p className="cogita-user-kicker">View</p>
-        <div className="cogita-view-toggle">
-          <button
-            type="button"
-            aria-pressed={viewMode === 'grid'}
-            data-active={viewMode === 'grid'}
-            onClick={() => onViewModeChange('grid')}
-          >
-            Grid
-          </button>
-          <button
-            type="button"
-            aria-pressed={viewMode === 'list'}
-            data-active={viewMode === 'list'}
-            onClick={() => onViewModeChange('list')}
-          >
-            List
-          </button>
+      {showViewToggle ? (
+        <div className="cogita-library-view">
+          <p className="cogita-user-kicker">View</p>
+          <div className="cogita-view-toggle">
+            <button
+              type="button"
+              aria-pressed={viewMode === 'grid'}
+              data-active={viewMode === 'grid'}
+              onClick={() => onViewModeChange?.('grid')}
+            >
+              Grid
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === 'list'}
+              data-active={viewMode === 'list'}
+              onClick={() => onViewModeChange?.('list')}
+            >
+              List
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
