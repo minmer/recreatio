@@ -324,11 +324,11 @@ export function CogitaPage({
     };
     const config = {
       colors: {
-        filaments: 'rgba(143, 208, 255, 0.32)',
-        glow: 'rgba(167, 224, 255, 0.37)'
+        filaments: 'rgba(143, 208, 255, 0.15)',
+        glow: 'rgba(167, 224, 255, 0.47)'
       },
       filamentCount: 1,
-      segments: 60,
+      segments: 40,
       waveBandPx: 190,
       crestThickness: 40,
       waveCenter: 0.82,
@@ -804,7 +804,7 @@ function CogitaIntroSlides({
     const totalX = end.x - start.x;
     const totalY = start.y - end.y;
     const stepX = totalX / segments;
-    const weights = [0.3, 0.45, 0.6, 0.65, 1.1, 2.2];
+    const weights = [0.3, 0.45, 0.6, 0.65, 1.4, 2.2];
     const weightSum = weights.reduce((sum, value) => sum + value, 0);
     const stepYs = weights.map((weight) => (totalY * weight) / weightSum);
     const points = [start];
