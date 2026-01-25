@@ -343,14 +343,20 @@
 
 
 
-@media (max-width: 61.25em) {
+@media (max-width: 80em) {
     .cogita-intro-visual {
   transform: scale(0.66) translateY(-25%);
   }
+  .cogita-intro[data-slide="1"] .cogita-intro-logo {
+  --logo-scale: .9;
 }
-@media (max-width: 40em) {
+}
+@media (max-width: 60em) {
     .cogita-intro-visual {
   transform: scale(0.5) translateY(-100%);
+    }
+  .cogita-intro[data-slide="1"] .cogita-intro-logo {
+  --logo-scale: .75;
   }
 }
 
