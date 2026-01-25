@@ -88,6 +88,8 @@
 }
 
 .cogita-home-canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -95,27 +97,67 @@
   opacity: 0.9;
 }
 
+.cogita-home-canvas-layer {
+  transform-origin: 50% 80%;
+  animation: cogita-mesh-layer var(--mesh-sway-duration, 240s) ease-in-out infinite;
+  animation-delay: var(--mesh-sway-delay, 0s);
+}
+
 .cogita-home-wave {
   position: absolute;
-  left: -20%;
-  right: -20%;
-  bottom: -40%;
+  left: -40%;
+  right: -40%;
+  bottom: var(--wave-bottom, -40%);
   height: 60%;
-  background:
-    radial-gradient(circle at 30% 45%, rgba(80, 120, 160, 0.12), transparent 55%),
-    radial-gradient(circle at 70% 55%, rgba(80, 120, 160, 0.1), transparent 60%);
-  filter: blur(60px);
-  opacity: 0.3;
+  filter: blur(var(--wave-blur, 60px));
+  opacity: var(--wave-opacity, 0.3);
   transform: translate3d(0, 0, 0);
-  animation: cogita-drift 14s ease-in-out infinite alternate;
+  animation: cogita-wave-drift var(--wave-drift-duration, 200s) ease-in-out infinite;
+  animation-direction: var(--wave-drift-dir, alternate);
+  animation-delay: var(--wave-drift-delay, 0s);
   pointer-events: none;
 }
 
-.cogita-home-wave.wave-2 {
-  bottom: -50%;
-  opacity: 0.55;
-  filter: blur(60px);
-  animation-duration: 18s;
+.cogita-home-wave-sway {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 80%;
+  animation: cogita-wave-scale var(--wave-scale-duration, 180s) ease-in-out infinite;
+  animation-direction: var(--wave-scale-dir, alternate);
+  animation-delay: var(--wave-scale-delay, 0s);
+}
+
+.cogita-home-wave-shape {
+  width: 100%;
+  height: 100%;
+  transform: scaleX(1.15);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(6, 16, 32, 0.45) 0%,
+      rgba(6, 16, 32, 0.2) 45%,
+      rgba(6, 16, 32, 0.3) 70%,
+      rgba(6, 16, 32, 0) 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 46%,
+      hsla(var(--wave-hue, 200), 60%, 72%, calc(var(--wave-glow, 0.16) * 0.7)) 50%,
+      transparent 54%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      transparent 52%,
+      hsla(var(--wave-hue, 200), 55%, 68%, calc(var(--wave-glow, 0.16) * 0.5)) 56%,
+      transparent 60%,
+      transparent 100%
+    );
+  animation: cogita-wave-sway var(--wave-sway-duration, 160s) ease-in-out infinite;
+  animation-direction: var(--wave-sway-dir, alternate);
+  animation-delay: var(--wave-sway-delay, 0s);
 }
 
 .cogita-home-glow {
@@ -618,7 +660,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cogita-home-wave,
+  .cogita-home-wave-sway,
+  .cogita-home-wave-shape,
   .cogita-home-bg::before,
+  .cogita-home-canvas-layer,
   .cogita-logo-hero,
   .cogita-bubbles span,
   .cogita-card-stack span,
@@ -636,6 +681,83 @@
   }
   to {
     transform: translate3d(2%, 0, 0) scale(1.05);
+  }
+}
+
+@keyframes cogita-mesh-layer {
+  0% {
+    transform: translate3d(var(--mesh-x0, 0%), var(--mesh-y0, 0%), 0) scaleY(1);
+  }
+  14% {
+    transform: translate3d(calc(var(--mesh-x0, 0%) + var(--mesh-xshift, 3%)), calc(var(--mesh-y0, 0%) + var(--mesh-shift, 6%)), 0)
+      scaleY(calc(1 + var(--mesh-scale, 0.1)));
+  }
+  29% {
+    transform: translate3d(calc(var(--mesh-x0, 0%) + var(--mesh-xshift, 3%) * -0.6), calc(var(--mesh-y0, 0%) + var(--mesh-shift, 6%) * 0.4), 0)
+      scaleY(calc(1 - var(--mesh-scale, 0.1)));
+  }
+  46% {
+    transform: translate3d(calc(var(--mesh-x0, 0%) + var(--mesh-xshift, 3%) * 0.2), calc(var(--mesh-y0, 0%) + var(--mesh-shift, 6%) * -0.8), 0)
+      scaleY(calc(1 + var(--mesh-scale, 0.1) * 0.6));
+  }
+  63% {
+    transform: translate3d(calc(var(--mesh-x0, 0%) + var(--mesh-xshift, 3%) * -0.9), calc(var(--mesh-y0, 0%) + var(--mesh-shift, 6%) * 0.7), 0)
+      scaleY(calc(1 - var(--mesh-scale, 0.1) * 0.7));
+  }
+  81% {
+    transform: translate3d(calc(var(--mesh-x0, 0%) + var(--mesh-xshift, 3%) * 0.7), calc(var(--mesh-y0, 0%) + var(--mesh-shift, 6%) * -0.2), 0)
+      scaleY(calc(1 + var(--mesh-scale, 0.1) * 0.4));
+  }
+  100% {
+    transform: translate3d(var(--mesh-x0, 0%), var(--mesh-y0, 0%), 0) scaleY(1);
+  }
+}
+
+@keyframes cogita-wave-sway {
+  0% {
+    transform: translateY(var(--wave-y0, 0%)) translateX(var(--wave-x0, 0%));
+  }
+  24% {
+    transform: translateY(calc(var(--wave-y0, 0%) + var(--wave-shift, 4%)))
+      translateX(calc(var(--wave-x0, 0%) + var(--wave-xshift, 3%)));
+  }
+  52% {
+    transform: translateY(calc(var(--wave-y0, 0%) + var(--wave-shift, 4%) * -0.9))
+      translateX(calc(var(--wave-x0, 0%) + var(--wave-xshift, 3%) * -0.8));
+  }
+  78% {
+    transform: translateY(calc(var(--wave-y0, 0%) + var(--wave-shift, 4%) * 1.2))
+      translateX(calc(var(--wave-x0, 0%) + var(--wave-xshift, 3%) * 1.1));
+  }
+  100% {
+    transform: translateY(var(--wave-y0, 0%)) translateX(var(--wave-x0, 0%));
+  }
+}
+
+@keyframes cogita-wave-drift {
+  0% {
+    transform: translateY(calc(var(--wave-shift, 4%) * -0.6))
+      translateX(calc(var(--wave-xshift, 3%) * 0.4));
+  }
+  50% {
+    transform: translateY(var(--wave-shift, 4%))
+      translateX(calc(var(--wave-xshift, 3%) * -0.5));
+  }
+  100% {
+    transform: translateY(calc(var(--wave-shift, 4%) * -0.4))
+      translateX(calc(var(--wave-xshift, 3%) * 0.3));
+  }
+}
+
+@keyframes cogita-wave-scale {
+  0% {
+    transform: scaleY(calc(1 + var(--wave-scale, 0.12)));
+  }
+  48% {
+    transform: scaleY(calc(1 - var(--wave-scale, 0.12)));
+  }
+  100% {
+    transform: scaleY(calc(1 + var(--wave-scale, 0.12) * 0.6));
   }
 }
 
@@ -976,7 +1098,7 @@
   position: relative;
   z-index: 2;
   max-width: 640px;
-  grid-column: 2;
+  grid-column: 3;
   justify-self: center;
 }
 
@@ -1432,64 +1554,285 @@
   border-radius: 18px;
   border: 1px solid rgba(150, 200, 245, 0.22);
   background: rgba(10, 22, 36, 0.28);
-  overflow: hidden;
-  --step-cycle: 6s;
-  --step-delay: 0.6s;
+  overflow: visible;
+  box-sizing: border-box;
+  --step-cycle: 12s;
+  --step-delay: 0s;
+  --orbit-x: 52%;
+  --orbit-y: 122%;
+  --orbit-size: clamp(80px, 18vmin, 120px);
+  --orbit-radius: calc(var(--orbit-size) / 2);
+  --orbit-dot-radius: calc(var(--orbit-radius) * 0.68);
+  --step-cycle: 24s;
+}
+
+.cogita-progress-story .progress-chart--steps .progress-chart-content {
+  position: absolute;
+  inset: 0;
+  transform-origin: 25% 75%;
+  clip-path: inset(0 0 0 0);
+  animation: chart-zoom-out var(--step-cycle) linear infinite,
+    chart-clip-reveal var(--step-cycle) linear infinite,
+    chart-loop-fade var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .progress-svg {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-ring {
+  position: absolute;
+  width: var(--orbit-size);
+  height: var(--orbit-size);
+  left: calc(var(--orbit-x) - var(--orbit-radius));
+  top: calc(var(--orbit-y) - var(--orbit-radius));
+  border-radius: 50%;
+  background: rgba(10, 22, 36, 0.45);
+  border: 1.5px solid rgba(170, 220, 255, 0.45);
+  box-shadow: 0 0 14px rgba(160, 220, 255, 0.18);
+  opacity: 0;
+  animation: chart-orbit-ring var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle {
+  position: absolute;
+  width: calc(var(--orbit-dot-radius) * 2);
+  height: calc(var(--orbit-dot-radius) * 2);
+  left: calc(var(--orbit-x) - var(--orbit-dot-radius));
+  top: calc(var(--orbit-y) - var(--orbit-dot-radius));
+  opacity: 0;
+  transform-origin: 50% 50%;
+  animation: chart-orbit-triangle var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle polygon {
+  fill: rgba(140, 210, 255, 0.2);
+  stroke: rgba(185, 235, 255, 0.7);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: chart-orbit-fill var(--step-cycle) linear infinite,
+    chart-orbit-glow var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle.accent {
+  width: calc(var(--orbit-dot-radius) * 2.3);
+  height: calc(var(--orbit-dot-radius) * 2.3);
+  left: calc(var(--orbit-x) - (var(--orbit-dot-radius) * 1.15));
+  top: calc(var(--orbit-y) - (var(--orbit-dot-radius) * 1.15));
+  opacity: 0;
+  mix-blend-mode: screen;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle.accent polygon {
+  fill: rgba(120, 200, 255, 0.08);
+  stroke: rgba(160, 220, 255, 0.35);
+  stroke-width: 1.2;
+  animation: chart-orbit-fill var(--step-cycle) linear infinite,
+    chart-orbit-glow var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle.accent.fast {
+  animation: chart-orbit-triangle-fast var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-orbit-triangle.accent.slow {
+  animation: chart-orbit-triangle-slow var(--step-cycle) linear infinite;
 }
 
 .cogita-progress-story .progress-chart--steps .chart-grid line {
   stroke: rgba(130, 190, 245, 0.18);
   stroke-width: 1;
-  opacity: 0;
-  animation: chart-grid-in 1s ease forwards;
+  opacity: 0.8;
 }
+
 
 .cogita-progress-story .progress-chart--steps .chart-axes line {
   stroke: rgba(170, 220, 255, 0.55);
   stroke-width: 1.4;
   opacity: 0;
-  animation: chart-axes-in 1.2s ease forwards;
+  animation: chart-axes-in 1.2s linear forwards;
   animation-delay: 0.2s;
 }
 
 .cogita-progress-story .progress-chart--steps .chart-seg {
   fill: none;
-  stroke: rgba(190, 235, 255, 0.9);
+  stroke: rgba(200, 245, 255, 1);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-dasharray: 100;
   stroke-dashoffset: 100;
+  opacity: 1;
+  animation: chart-fade-out var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-range-fill {
+  fill: rgba(130, 195, 245, 0.24);
+  stroke: transparent;
+  opacity: 0.85;
+  mix-blend-mode: screen;
+  animation: chart-fade-out var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-range-line {
+  fill: none;
+  stroke: rgba(170, 230, 255, 0.75);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
+  animation: chart-fade-out var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .seg-1 {
-  animation: chart-seg-1 var(--step-cycle) ease-in-out infinite;
+  animation: chart-seg-1 var(--step-cycle) linear infinite;
   animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .seg-2 {
-  animation: chart-seg-2 var(--step-cycle) ease-in-out infinite;
+  animation: chart-seg-2 var(--step-cycle) linear infinite;
   animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .seg-3 {
-  animation: chart-seg-3 var(--step-cycle) ease-in-out infinite;
+  animation: chart-seg-3 var(--step-cycle) linear infinite;
   animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .seg-4 {
-  animation: chart-seg-4 var(--step-cycle) ease-in-out infinite;
+  animation: chart-seg-4 var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .seg-5 {
+  animation: chart-seg-5 var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .seg-6 {
+  animation: chart-seg-6 var(--step-cycle) linear infinite;
   animation-delay: var(--step-delay);
 }
 
 .cogita-progress-story .progress-chart--steps .chart-dot-step {
-  fill: rgba(210, 245, 255, 0.95);
-  filter: drop-shadow(0 0 10px rgba(180, 230, 255, 0.75));
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(210, 245, 255, 0.95);
+  box-shadow: 0 0 12px rgba(180, 230, 255, 0.75);
+  left: var(--p0x);
+  top: var(--p0y);
+  transform: translate(-50%, -50%);
+  animation: chart-dot-step var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg {
+  fill: none;
+  stroke: rgba(165, 220, 255, 0.85);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  opacity: 1;
+  animation: chart-fade-out var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-1 {
+  animation: chart-peer-seg-1 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-2 {
+  animation: chart-peer-seg-2 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-3 {
+  animation: chart-peer-seg-3 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-4 {
+  animation: chart-peer-seg-4 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-5 {
+  animation: chart-peer-seg-5 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-1.seg-6 {
+  animation: chart-peer-seg-6 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-1 {
+  animation: chart-peer-seg-1 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-2 {
+  animation: chart-peer-seg-2 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-3 {
+  animation: chart-peer-seg-3 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-4 {
+  animation: chart-peer-seg-4 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-5 {
+  animation: chart-peer-seg-5 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-peer-seg.peer-2.seg-6 {
+  animation: chart-peer-seg-6 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .chart-dot-peer {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(175, 230, 255, 0.9);
+  box-shadow: 0 0 10px rgba(160, 220, 255, 0.7);
+  left: var(--q0x);
+  top: var(--q0y);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: chart-peer-dot var(--step-cycle) linear infinite;
+  animation-delay: var(--step-delay);
+  animation-fill-mode: both;
+}
+
+.cogita-progress-story .progress-chart--steps .dot-peer-1 {
+  animation: chart-peer-dot-1 var(--step-cycle) linear infinite;
+}
+
+.cogita-progress-story .progress-chart--steps .dot-peer-2 {
+  animation: chart-peer-dot-2 var(--step-cycle) linear infinite;
 }
 
 @keyframes chart-grid-in {
@@ -1501,6 +1844,7 @@
   }
 }
 
+
 @keyframes chart-axes-in {
   from {
     opacity: 0;
@@ -1510,82 +1854,639 @@
   }
 }
 
+@keyframes chart-range-reveal {
+  0%,
+  16.7% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  29.2% {
+    opacity: 0.9;
+    clip-path: inset(0 0 0 0);
+  }
+  60% {
+    opacity: 0.7;
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    opacity: 0.6;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 @keyframes chart-seg-1 {
   0% {
     stroke-dashoffset: 100;
+  }
+  9% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+
+@keyframes chart-dot-step {
+  0% {
+    left: var(--p0x);
+    top: var(--p0y);
+    transform: translate(-50%, -50%);
+  }
+  9% {
+    left: var(--p1x);
+    top: var(--p1y);
+  }
+  14% {
+    left: var(--p2x);
+    top: var(--p2y);
+  }
+  19% {
+    left: var(--p3x);
+    top: var(--p3y);
+  }
+  25% {
+    left: var(--p4x);
+    top: var(--p4y);
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    left: var(--p4x);
+    top: var(--p4y);
+    transform: translate(-50%, -50%);
+  }
+  54.167% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(0deg) translateX(var(--orbit-dot-radius));
+  }
+  66.667% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(180deg) translateX(var(--orbit-dot-radius));
+  }
+  70.833% {
+    left: var(--p4x);
+    top: var(--p4y);
+    transform: translate(-50%, -50%);
+  }
+  75% {
+    left: var(--p4x);
+    top: var(--p4y);
+    transform: translate(-50%, -50%);
+  }
+  83.333% {
+    left: var(--p5x);
+    top: var(--p5y);
+    transform: translate(-50%, -50%);
+  }
+  91.667% {
+    left: var(--p6x);
+    top: var(--p6y);
+    transform: translate(-50%, -50%);
+  }
+  95% {
+    left: var(--p6x);
+    top: var(--p6y);
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    left: var(--p0x);
+    top: var(--p0y);
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes chart-fade-out {
+  0% {
     opacity: 0;
   }
-  18% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  80% {
-    stroke-dashoffset: 0;
+  2%,
+  95% {
     opacity: 1;
   }
   100% {
-    stroke-dashoffset: 100;
     opacity: 0;
+  }
+}
+
+@keyframes chart-peer-dot-1 {
+  0%,
+  33.333% {
+    opacity: 0;
+    left: var(--q0x);
+    top: var(--q0y);
+    transform: translate(-50%, -50%);
+  }
+  33.334% {
+    opacity: 0;
+    left: var(--q0x);
+    top: var(--q0y);
+    transform: translate(-50%, -50%);
+  }
+  38.666% {
+    opacity: 1;
+    left: var(--q1x);
+    top: var(--q1y);
+    transform: translate(-50%, -50%);
+  }
+  42% {
+    left: var(--q2x);
+    top: var(--q2y);
+    transform: translate(-50%, -50%);
+  }
+  45.333% {
+    left: var(--q3x);
+    top: var(--q3y);
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  54.167% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(120deg) translateX(var(--orbit-dot-radius));
+  }
+  66.667% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(300deg) translateX(var(--orbit-dot-radius));
+  }
+  70.833% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  75% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  83.333% {
+    left: var(--q5x);
+    top: var(--q5y);
+    transform: translate(-50%, -50%);
+  }
+  91.667% {
+    left: var(--q6x);
+    top: var(--q6y);
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 1;
+    left: var(--q6x);
+    top: var(--q6y);
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes chart-peer-dot-2 {
+  0%,
+  33.333% {
+    opacity: 0;
+    left: var(--q0x);
+    top: var(--q0y);
+    transform: translate(-50%, -50%);
+  }
+  33.334% {
+    opacity: 0;
+    left: var(--q0x);
+    top: var(--q0y);
+    transform: translate(-50%, -50%);
+  }
+  38.666% {
+    opacity: 1;
+    left: var(--q1x);
+    top: var(--q1y);
+    transform: translate(-50%, -50%);
+  }
+  42% {
+    left: var(--q2x);
+    top: var(--q2y);
+    transform: translate(-50%, -50%);
+  }
+  45.333% {
+    left: var(--q3x);
+    top: var(--q3y);
+    transform: translate(-50%, -50%);
+  }
+  50% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  54.167% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(240deg) translateX(var(--orbit-dot-radius));
+  }
+  66.667% {
+    left: var(--orbit-x);
+    top: var(--orbit-y);
+    transform: translate(-50%, -50%) rotate(420deg) translateX(var(--orbit-dot-radius));
+  }
+  70.833% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  75% {
+    left: var(--q4x);
+    top: var(--q4y);
+    transform: translate(-50%, -50%);
+  }
+  83.333% {
+    left: var(--q5x);
+    top: var(--q5y);
+    transform: translate(-50%, -50%);
+  }
+  91.667% {
+    left: var(--q6x);
+    top: var(--q6y);
+    transform: translate(-50%, -50%);
+  }
+  100% {
+    opacity: 1;
+    left: var(--q6x);
+    top: var(--q6y);
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes chart-orbit-ring {
+  0%,
+  49.999% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  54.167% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  66.667% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes chart-orbit-triangle {
+  0%,
+  54.166% {
+    opacity: 0;
+    transform: rotate(0deg);
+  }
+  54.167% {
+    opacity: 0.7;
+    transform: rotate(0deg);
+  }
+  66.667% {
+    opacity: 0.7;
+    transform: rotate(180deg);
+  }
+  70.833% {
+    opacity: 0;
+    transform: rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes chart-orbit-triangle-fast {
+  0%,
+  54.166% {
+    opacity: 0;
+    transform: rotate(0deg) scale(1.2);
+  }
+  54.167% {
+    opacity: 0.55;
+    transform: rotate(0deg) scale(1.1);
+  }
+  66.667% {
+    opacity: 0.55;
+    transform: rotate(720deg) scale(0.15);
+  }
+  70.833% {
+    opacity: 0;
+    transform: rotate(720deg) scale(0.1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(720deg) scale(0.1);
+  }
+}
+
+@keyframes chart-orbit-triangle-slow {
+  0%,
+  54.166% {
+    opacity: 0;
+    transform: rotate(0deg) scale(1.3);
+  }
+  54.167% {
+    opacity: 0.45;
+    transform: rotate(0deg) scale(1.15);
+  }
+  66.667% {
+    opacity: 0.45;
+    transform: rotate(360deg) scale(0.25);
+  }
+  70.833% {
+    opacity: 0;
+    transform: rotate(360deg) scale(0.2);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(360deg) scale(0.2);
+  }
+}
+
+@keyframes chart-zoom-out {
+  0%,
+  70.833% {
+    transform: scale(1.5);
+  }
+  75% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes chart-orbit-fill {
+  0%,
+  54.166% {
+    fill-opacity: 0;
+  }
+  58% {
+    fill-opacity: 0.45;
+  }
+  62% {
+    fill-opacity: 0.2;
+  }
+  66.667% {
+    fill-opacity: 0.4;
+  }
+  70.833%,
+  100% {
+    fill-opacity: 0;
+  }
+}
+
+@keyframes chart-orbit-glow {
+  0%,
+  54.166% {
+    stroke-opacity: 0.25;
+    filter: drop-shadow(0 0 0 rgba(140, 210, 255, 0));
+  }
+  58% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(140, 210, 255, 0.7));
+  }
+  62% {
+    stroke-opacity: 0.55;
+    filter: drop-shadow(0 0 8px rgba(140, 210, 255, 0.45));
+  }
+  66.667% {
+    stroke-opacity: 0.95;
+    filter: drop-shadow(0 0 16px rgba(140, 210, 255, 0.75));
+  }
+  70.833%,
+  100% {
+    stroke-opacity: 0.2;
+    filter: drop-shadow(0 0 0 rgba(140, 210, 255, 0));
+  }
+}
+
+@keyframes chart-clip-reveal {
+  0%,
+  72.833% {
+    clip-path: inset(30% 30% -100% -100%);
+  }
+  75% {
+    clip-path: inset(0 0 0 0);
+  }
+  89% {
+    clip-path: inset(0 0 0 0);
+  }
+  98% , 100%{
+    clip-path: inset(30% 30% -100% -100%);
+  }
+}
+
+@keyframes chart-loop-fade {
+  0% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  2%,
+  70.833% {
+    opacity: 1;
+    transform: scale(1.5);
+  }
+  75%,
+  91.667% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  95% {
+    opacity: 0.2;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes chart-peer-seg-1 {
+  0%,
+  33.333% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  33.334% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  38.666% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-peer-seg-2 {
+  0%,
+  38.666% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  38.667% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  42% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-peer-seg-3 {
+  0%,
+  42% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  42.001% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  45.333% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-peer-seg-4 {
+  0%,
+  45.333% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  45.334% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-seg-5 {
+  0%,
+  75% {
+    stroke-dashoffset: 100;
+  }
+  83.333% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-seg-6 {
+  0%,
+  83.333% {
+    stroke-dashoffset: 100;
+  }
+  91.667% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-peer-seg-5 {
+  0%,
+  75% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  75.001% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  83.333% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes chart-peer-seg-6 {
+  0%,
+  83.333% {
+    opacity: 0;
+    stroke-dashoffset: 100;
+  }
+  83.334% {
+    opacity: 1;
+    stroke-dashoffset: 100;
+  }
+  91.667% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
   }
 }
 
 @keyframes chart-seg-2 {
   0%,
-  18% {
+  9% {
     stroke-dashoffset: 100;
-    opacity: 0;
   }
-  36% {
+  14% {
     stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  80% {
-    stroke-dashoffset: 0;
-    opacity: 1;
   }
   100% {
-    stroke-dashoffset: 100;
-    opacity: 0;
+    stroke-dashoffset: 0;
   }
 }
 
 @keyframes chart-seg-3 {
   0%,
-  36% {
+  14% {
     stroke-dashoffset: 100;
-    opacity: 0;
   }
-  54% {
+  19% {
     stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  80% {
-    stroke-dashoffset: 0;
-    opacity: 1;
   }
   100% {
-    stroke-dashoffset: 100;
-    opacity: 0;
+    stroke-dashoffset: 0;
   }
 }
 
 @keyframes chart-seg-4 {
   0%,
-  54% {
+  19% {
     stroke-dashoffset: 100;
-    opacity: 0;
   }
-  72% {
+  25% {
     stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  80% {
-    stroke-dashoffset: 0;
-    opacity: 1;
   }
   100% {
-    stroke-dashoffset: 100;
-    opacity: 0;
+    stroke-dashoffset: 0;
   }
 }
 
@@ -1871,13 +2772,18 @@
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   padding: 0;
   max-width: 1160px;
   width: 100%;
   margin: 0 auto;
   z-index: 2;
+}
+
+.cogita-intro-static .cogita-intro-text {
+  grid-column: 2;
+  justify-self: center;
 }
 
 .cogita-intro-dots {
@@ -3050,6 +3956,10 @@
     margin-top: 0.6rem;
     transform: scale(1.28);
     transform-origin: top center;
+  }
+
+  .cogita-intro-slide.slide-5 .cogita-intro-visual {
+    transform: scale(1.09);
   }
 
   .cogita-intro-slide:not(.slide-1) .cogita-intro-text {
