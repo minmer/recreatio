@@ -28,6 +28,13 @@
   border: 1px solid rgba(140, 190, 235, 0.3);
 }
 
+.portal-page.cogita .portal-header.cogita-header .profile-button:hover,
+.portal-page.cogita .portal-header.cogita-header .profile-menu.open .profile-button {
+  background: rgba(12, 32, 54, 0.95);
+  border-color: rgba(170, 215, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(12, 32, 54, 0.6);
+}
+
 .portal-page.cogita .portal-header.cogita-header .profile-dropdown,
 .portal-page.cogita .portal-header.cogita-header .lang-menu {
   background: rgba(10, 26, 46, 0.95);
