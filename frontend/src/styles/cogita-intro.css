@@ -343,12 +343,12 @@
 
 
 
-@media (max-width: 980px) {
+@media (max-width: 61.25em) {
     .cogita-intro-visual {
   transform: scale(0.66) translateY(-25%);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 40em) {
     .cogita-intro-visual {
   transform: scale(0.5) translateY(-100%);
   }
@@ -2027,7 +2027,7 @@
 
 /* Cogita user (authenticated) view */
 /* Cogita intro deck styles (split from cogita.css). */
-@media (max-width: 960px) {
+@media (max-width: 60em) {
   .cogita-intro-nav {
     left: 6vw;
   }
@@ -2037,7 +2037,7 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 40em) {
   .cogita-intro-panel {
     border-radius: 22px;
   }
