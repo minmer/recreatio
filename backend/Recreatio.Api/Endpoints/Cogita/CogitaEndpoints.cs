@@ -1274,6 +1274,8 @@ public static class CogitaEndpoints
             UpdatedUtc = now
         });
 
+        await dbContext.SaveChangesAsync(ct);
+
         var sort = 0;
         foreach (var infoId in request.InfoIds.Distinct())
         {
