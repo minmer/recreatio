@@ -179,6 +179,7 @@ public sealed class AuthService : IAuthService
             LedgerRefId = roleKindLedger.Id,
             CreatedUtc = now
         });
+        await _dbContext.SaveChangesAsync(ct);
         _dbContext.KeyEntryBindings.Add(new KeyEntryBinding
         {
             Id = Guid.NewGuid(),

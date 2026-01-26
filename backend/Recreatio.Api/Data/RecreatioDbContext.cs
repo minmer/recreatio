@@ -74,6 +74,10 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => x.KeyEntryId);
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.EntryId);
+        modelBuilder.Entity<KeyEntryBinding>()
+            .HasOne<KeyEntry>()
+            .WithMany()
+            .HasForeignKey(x => x.KeyEntryId);
 
         modelBuilder.Entity<DataKeyGrant>()
             .HasIndex(x => new { x.DataItemId, x.RoleId })
