@@ -537,6 +537,275 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/cards", async (
+            Guid libraryId,
+            string? type,
+            string? query,
+            int? limit,
+            string? cursor,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var cardType = string.IsNullOrWhiteSpace(type) ? "any" : type.Trim().ToLowerInvariant();
+            if (cardType != "any" && cardType != "vocab" && !SupportedInfoTypes.Contains(cardType))
+            {
+                return Results.BadRequest(new { error = "CardType is invalid." });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var loweredQuery = query?.Trim().ToLowerInvariant();
+            var pageSize = Math.Clamp(limit ?? 30, 1, 100);
+            DateTimeOffset? cursorCreatedUtc = null;
+            Guid? cursorId = null;
+            if (!string.IsNullOrWhiteSpace(cursor))
+            {
+                var parts = cursor.Split(':', 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2 &&
+                    DateTimeOffset.TryParse(parts[0], out var parsedTime) &&
+                    Guid.TryParse(parts[1], out var parsedId))
+                {
+                    cursorCreatedUtc = parsedTime;
+                    cursorId = parsedId;
+                }
+            }
+
+            var responses = new List<CogitaCardSearchResponse>();
+            var nextCursor = (string?)null;
+            var total = 0;
+
+            var includeInfos = cardType != "vocab";
+            if (includeInfos)
+            {
+                var infoFilter = cardType == "any" ? null : cardType;
+                var infoQuery = dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && (infoFilter == null || x.InfoType == infoFilter));
+
+                total = await infoQuery.CountAsync(ct);
+
+                if (cursorCreatedUtc.HasValue && cursorId.HasValue)
+                {
+                    infoQuery = infoQuery.Where(x =>
+                        x.CreatedUtc < cursorCreatedUtc.Value ||
+                        (x.CreatedUtc == cursorCreatedUtc.Value && x.Id.CompareTo(cursorId.Value) < 0));
+                }
+
+                var infosPage = await infoQuery
+                    .OrderByDescending(x => x.CreatedUtc)
+                    .ThenByDescending(x => x.Id)
+                    .Take(pageSize)
+                    .ToListAsync(ct);
+
+                var lookup = new Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>();
+                foreach (var info in infosPage)
+                {
+                    var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+                    if (payload is null)
+                    {
+                        continue;
+                    }
+                    lookup[info.Id] = (info.Id, info.InfoType, payload.Value.DataKeyId, payload.Value.EncryptedBlob);
+                }
+
+                if (infosPage.Count > 0)
+                {
+                    var last = infosPage[^1];
+                    nextCursor = $"{last.CreatedUtc:O}:{last.Id}";
+                }
+
+                var dataKeyIds = lookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+                var keyEntryById = await dbContext.Keys.AsNoTracking()
+                    .Where(x => dataKeyIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, ct);
+
+                var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
+                    .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+
+                var languageLabels = await ResolveInfoLabelsAsync(
+                    libraryId,
+                    "language",
+                    readKey,
+                    keyRingService,
+                    encryptionService,
+                    dbContext,
+                    ct);
+
+                foreach (var entry in lookup.Values)
+                {
+                    if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+                    {
+                        continue;
+                    }
+
+                    byte[] dataKey;
+                    try
+                    {
+                        dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                    }
+                    catch (CryptographicException)
+                    {
+                        continue;
+                    }
+
+                    string label;
+                    string description;
+                    try
+                    {
+                        var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                        using var doc = JsonDocument.Parse(plain);
+                        label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                        description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                    }
+                    catch (CryptographicException)
+                    {
+                        continue;
+                    }
+
+                    if (entry.InfoType == "word" && wordLanguageMap.TryGetValue(entry.InfoId, out var languageInfoId))
+                    {
+                        if (languageLabels.TryGetValue(languageInfoId, out var langLabel) && !string.IsNullOrWhiteSpace(langLabel))
+                        {
+                            description = $"Language: {langLabel}";
+                        }
+                    }
+
+                    var matchText = $"{label} {description}".ToLowerInvariant();
+                    if (!string.IsNullOrWhiteSpace(loweredQuery) && !matchText.Contains(loweredQuery))
+                    {
+                        continue;
+                    }
+
+                    responses.Add(new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType));
+                }
+            }
+
+            if (cardType == "vocab" || cardType == "any")
+            {
+                var connectionQuery = dbContext.CogitaConnections.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && x.ConnectionType == "translation");
+
+                if (cardType == "vocab")
+                {
+                    total = await connectionQuery.CountAsync(ct);
+                }
+
+                if (cursorCreatedUtc.HasValue && cursorId.HasValue)
+                {
+                    connectionQuery = connectionQuery.Where(x =>
+                        x.CreatedUtc < cursorCreatedUtc.Value ||
+                        (x.CreatedUtc == cursorCreatedUtc.Value && x.Id.CompareTo(cursorId.Value) < 0));
+                }
+
+                var translations = await connectionQuery
+                    .OrderByDescending(x => x.CreatedUtc)
+                    .ThenByDescending(x => x.Id)
+                    .Take(pageSize)
+                    .Select(x => new { x.Id, x.CreatedUtc })
+                    .ToListAsync(ct);
+
+                if (translations.Count > 0)
+                {
+                    if (cardType == "vocab" || total == 0)
+                    {
+                        total = await dbContext.CogitaConnections.AsNoTracking()
+                            .CountAsync(x => x.LibraryId == libraryId && x.ConnectionType == "translation", ct);
+                    }
+
+                    var items = await dbContext.CogitaConnectionItems.AsNoTracking()
+                        .Where(x => translations.Select(t => t.Id).Contains(x.ConnectionId))
+                        .OrderBy(x => x.SortOrder)
+                        .ToListAsync(ct);
+
+                    var itemsByConnection = items.GroupBy(x => x.ConnectionId)
+                        .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
+
+                    var wordLabels = await ResolveInfoLabelsAsync(
+                        libraryId,
+                        "word",
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
+                    var languageLabels = await ResolveInfoLabelsAsync(
+                        libraryId,
+                        "language",
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
+                    var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
+                        .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+
+                    foreach (var pair in itemsByConnection)
+                    {
+                        if (pair.Value.Count < 2)
+                        {
+                            continue;
+                        }
+
+                        var wordA = pair.Value[0];
+                        var wordB = pair.Value[1];
+                        var wordALabel = wordLabels.TryGetValue(wordA, out var w1) ? w1 : "Word";
+                        var wordBLabel = wordLabels.TryGetValue(wordB, out var w2) ? w2 : "Word";
+
+                        var langALabel = wordLanguageMap.TryGetValue(wordA, out var langA) && languageLabels.TryGetValue(langA, out var l1)
+                            ? l1
+                            : "Language";
+                        var langBLabel = wordLanguageMap.TryGetValue(wordB, out var langB) && languageLabels.TryGetValue(langB, out var l2)
+                            ? l2
+                            : "Language";
+
+                        var label = $"{wordALabel} ↔ {wordBLabel}";
+                        var description = $"{langALabel} ↔ {langBLabel}";
+
+                        var matchText = $"{label} {description}".ToLowerInvariant();
+                        if (!string.IsNullOrWhiteSpace(loweredQuery) && !matchText.Contains(loweredQuery))
+                        {
+                            continue;
+                        }
+
+                        responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null));
+                    }
+
+                    var last = translations[^1];
+                    nextCursor = $"{last.CreatedUtc:O}:{last.Id}";
+                }
+            }
+
+            return Results.Ok(new CogitaCardSearchBundleResponse(total, pageSize, nextCursor, responses));
+        });
+
         group.MapPost("/libraries/{libraryId:guid}/infos", async (
             Guid libraryId,
             CogitaCreateInfoRequest request,
@@ -1023,6 +1292,81 @@ public static class CogitaEndpoints
         }
 
         return infoType;
+    }
+
+    private static string? ResolveDescription(JsonElement payload, string infoType)
+    {
+        if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (payload.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.String)
+            {
+                return notes.GetString();
+            }
+            if (payload.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String)
+            {
+                return description.GetString();
+            }
+            if (payload.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+            {
+                return text.GetString();
+            }
+        }
+
+        return infoType;
+    }
+
+    private static async Task<Dictionary<Guid, string>> ResolveInfoLabelsAsync(
+        Guid libraryId,
+        string infoType,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var lookup = await BuildInfoLookupAsync(libraryId, infoType, dbContext, ct);
+        if (lookup.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var dataKeyIds = lookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+        var keyEntryById = await dbContext.Keys.AsNoTracking()
+            .Where(x => dataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var labels = new Dictionary<Guid, string>();
+        foreach (var entry in lookup.Values)
+        {
+            if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                var label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                labels[entry.InfoId] = label;
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+        }
+
+        return labels;
     }
 
     private static async Task<Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>> BuildInfoLookupAsync(

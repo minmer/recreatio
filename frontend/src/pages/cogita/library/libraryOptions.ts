@@ -26,3 +26,9 @@ export const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: 
 export const groupTypeOptions: Array<{ value: CogitaGroupType; label: string }> = [
   { value: 'vocab', label: 'Vocabulary card' }
 ];
+
+export const cardSearchOptions: Array<{ value: CogitaInfoType | 'any' | 'vocab'; label: string }> = [
+  { value: 'any', label: 'All index cards' },
+  { value: 'vocab', label: 'Vocabulary card' },
+  ...infoTypeOptions.filter((option) => option.value !== 'any')
+];

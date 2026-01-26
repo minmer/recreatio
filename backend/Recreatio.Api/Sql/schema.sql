@@ -430,6 +430,9 @@ GO
 CREATE INDEX IX_CogitaInfos_Library_Type ON dbo.CogitaInfos(LibraryId, InfoType);
 GO
 
+CREATE INDEX IX_CogitaInfos_Library_Type_Created ON dbo.CogitaInfos(LibraryId, InfoType, CreatedUtc, Id);
+GO
+
 CREATE TABLE dbo.CogitaLanguages
 (
     InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -602,6 +605,9 @@ CREATE TABLE dbo.CogitaConnections
 GO
 
 CREATE INDEX IX_CogitaConnections_Library_Type ON dbo.CogitaConnections(LibraryId, ConnectionType);
+GO
+
+CREATE INDEX IX_CogitaConnections_Library_Type_Created ON dbo.CogitaConnections(LibraryId, ConnectionType, CreatedUtc, Id);
 GO
 
 CREATE TABLE dbo.CogitaConnectionItems

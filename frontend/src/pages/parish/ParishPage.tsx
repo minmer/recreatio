@@ -608,6 +608,13 @@ export function ParishPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   parishSlug?: string;
 }) {
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    onNavigate('home');
+  };
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState<PageId>('start');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -732,6 +739,9 @@ export function ParishPage({
               <span className="parish-name">Parafie</span>
             </button>
             <div className="parish-controls">
+              <button type="button" className="parish-back" onClick={handleBack}>
+                Back
+              </button>
               <button type="button" className="parish-login" onClick={onAuthAction}>
                 {authLabel}
               </button>
@@ -836,6 +846,11 @@ export function ParishPage({
                 );
               })}
             </nav>
+            <div className="parish-back-control">
+              <button type="button" className="parish-back" onClick={handleBack}>
+                Back
+              </button>
+            </div>
             <div className="parish-menu-control">
               <button
                 type="button"

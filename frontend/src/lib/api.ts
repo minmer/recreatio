@@ -501,6 +501,21 @@ export type CogitaInfoSearchResult = {
   label: string;
 };
 
+export type CogitaCardSearchResult = {
+  cardId: string;
+  cardType: string;
+  label: string;
+  description: string;
+  infoType?: string | null;
+};
+
+export type CogitaCardSearchBundle = {
+  total: number;
+  pageSize: number;
+  nextCursor?: string | null;
+  items: CogitaCardSearchResult[];
+};
+
 export type CogitaInfoCreateResponse = {
   infoId: string;
   infoType: string;
@@ -550,6 +565,21 @@ export function searchCogitaInfos(payload: { libraryId: string; type?: string; q
   const qs = params.toString();
   return request<CogitaInfoSearchResult[]>(
     `/cogita/libraries/${payload.libraryId}/infos${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function searchCogitaCards(payload: { libraryId: string; type?: string; query?: string; limit?: number; cursor?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.type) params.set('type', payload.type);
+  if (payload.query) params.set('query', payload.query);
+  if (payload.limit) params.set('limit', String(payload.limit));
+  if (payload.cursor) params.set('cursor', payload.cursor);
+  const qs = params.toString();
+  return request<CogitaCardSearchBundle>(
+    `/cogita/libraries/${payload.libraryId}/cards${qs ? `?${qs}` : ''}`,
     {
       method: 'GET'
     }

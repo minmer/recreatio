@@ -30,6 +30,21 @@ public sealed record CogitaInfoSearchResponse(
     string Label
 );
 
+public sealed record CogitaCardSearchResponse(
+    Guid CardId,
+    string CardType,
+    string Label,
+    string Description,
+    string? InfoType
+);
+
+public sealed record CogitaCardSearchBundleResponse(
+    int Total,
+    int PageSize,
+    string? NextCursor,
+    List<CogitaCardSearchResponse> Items
+);
+
 public sealed record CogitaCreateInfoRequest(
     string InfoType,
     JsonElement Payload,

@@ -73,6 +73,21 @@
   flex-wrap: wrap;
 }
 
+.parish-back-control {
+  display: flex;
+  align-items: center;
+}
+
+.parish-back {
+  border-radius: 999px;
+  border: 1px solid var(--parish-line);
+  background: transparent;
+  color: var(--parish-ink);
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .parish-login {
   border-radius: 999px;
   border: 1px solid var(--parish-line);

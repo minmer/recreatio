@@ -29,12 +29,25 @@ export function CogitaShell({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   children: ReactNode;
 }) {
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    onNavigate('home');
+  };
+
   return (
     <div className="portal-page cogita">
       <header className="portal-header cogita-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
-          <img src="/logo_inv.svg" alt={copy.loginCard.title} />
-        </button>
+        <div className="portal-header-left">
+          <button type="button" className="ghost portal-back" onClick={handleBack}>
+            Back
+          </button>
+          <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+            <img src="/logo_inv.svg" alt={copy.loginCard.title} />
+          </button>
+        </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <AuthAction
           copy={copy}

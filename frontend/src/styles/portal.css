@@ -54,6 +54,16 @@
   z-index: 5;
 }
 
+.portal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.portal-back {
+  font-weight: 600;
+}
+
 .portal-brand {
   border: none;
   background: transparent;

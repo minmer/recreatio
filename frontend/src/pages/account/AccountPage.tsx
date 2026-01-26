@@ -29,6 +29,13 @@ export function AccountPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
 }) {
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    onNavigate('home');
+  };
   const sections = useMemo(
     () => [
       { id: 'overview', label: copy.account.sections.overview },
@@ -160,9 +167,14 @@ export function AccountPage({
   return (
     <div className="portal-page account-page">
       <header className="portal-header">
-        <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
-          <img src="/logo_new.svg" alt={copy.loginCard.title} />
-        </button>
+        <div className="portal-header-left">
+          <button type="button" className="ghost portal-back" onClick={handleBack}>
+            Back
+          </button>
+          <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+            <img src="/logo_new.svg" alt={copy.loginCard.title} />
+          </button>
+        </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <AuthAction
           copy={copy}

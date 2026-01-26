@@ -112,10 +112,14 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Cogita.CogitaInfo>()
             .HasIndex(x => new { x.LibraryId, x.InfoType });
+        modelBuilder.Entity<Data.Cogita.CogitaInfo>()
+            .HasIndex(x => new { x.LibraryId, x.InfoType, x.CreatedUtc, x.Id });
 
         modelBuilder.Entity<Data.Cogita.CogitaConnectionItem>()
             .HasIndex(x => new { x.ConnectionId, x.InfoId })
             .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaConnection>()
+            .HasIndex(x => new { x.LibraryId, x.ConnectionType, x.CreatedUtc, x.Id });
 
         modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
             .HasIndex(x => new { x.GroupId, x.InfoId })

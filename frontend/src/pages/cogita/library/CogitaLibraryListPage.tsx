@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { searchCogitaInfos, type CogitaInfoSearchResult } from '../../../lib/api';
+import { searchCogitaCards, type CogitaCardSearchResult } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import type { CogitaInfoType, CogitaLibraryMode } from './types';
-import { infoTypeOptions } from './libraryOptions';
+import { cardSearchOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 
 export function CogitaLibraryListPage({
@@ -43,33 +43,60 @@ export function CogitaLibraryListPage({
   onOpenAdd: () => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
-  const [searchType, setSearchType] = useState<CogitaInfoType | 'any'>('any');
+  const [searchType, setSearchType] = useState<CogitaInfoType | 'any' | 'vocab'>('any');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<CogitaInfoSearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<CogitaCardSearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
-  const [selectedInfo, setSelectedInfo] = useState<CogitaInfoSearchResult | null>(null);
+  const [selectedInfo, setSelectedInfo] = useState<CogitaCardSearchResult | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   useEffect(() => {
     setSearchStatus('loading');
     const handle = window.setTimeout(() => {
-      searchCogitaInfos({
+      searchCogitaCards({
         libraryId,
         type: searchType === 'any' ? undefined : searchType,
-        query: searchQuery.trim() || undefined
+        query: searchQuery.trim() || undefined,
+        limit: 30
       })
-        .then((results) => {
-          setSearchResults(results);
+        .then((bundle) => {
+          setSearchResults(bundle.items);
+          setTotalCount(bundle.total);
+          setNextCursor(bundle.nextCursor ?? null);
           setSearchStatus('ready');
-          setSelectedInfo(results[0] ?? null);
+          setSelectedInfo(bundle.items[0] ?? null);
         })
         .catch(() => {
           setSearchResults([]);
+          setTotalCount(0);
+          setNextCursor(null);
           setSearchStatus('ready');
         });
     }, 240);
 
     return () => window.clearTimeout(handle);
   }, [libraryId, searchQuery, searchType]);
+
+  const handleLoadMore = async () => {
+    if (!nextCursor) return;
+    setSearchStatus('loading');
+    try {
+      const bundle = await searchCogitaCards({
+        libraryId,
+        type: searchType === 'any' ? undefined : searchType,
+        query: searchQuery.trim() || undefined,
+        limit: 30,
+        cursor: nextCursor
+      });
+      setSearchResults((prev) => [...prev, ...bundle.items]);
+      setNextCursor(bundle.nextCursor ?? null);
+      setTotalCount(bundle.total);
+      setSearchStatus('ready');
+    } catch {
+      setSearchStatus('ready');
+    }
+  };
 
   const cardsView = useMemo(() => (mode === 'collection' ? 'grid' : mode === 'list' ? 'list' : 'detail'), [mode]);
 
@@ -120,8 +147,8 @@ export function CogitaLibraryListPage({
               <div className="cogita-library-search">
                 <p className="cogita-user-kicker">Search</p>
                 <div className="cogita-search-field">
-                  <select value={searchType} onChange={(event) => setSearchType(event.target.value as CogitaInfoType | 'any')}>
-                    {infoTypeOptions.map((option) => (
+                  <select value={searchType} onChange={(event) => setSearchType(event.target.value as CogitaInfoType | 'any' | 'vocab')}>
+                    {cardSearchOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -138,23 +165,25 @@ export function CogitaLibraryListPage({
             </div>
 
             <div className="cogita-card-count">
-              <span>{searchResults.length} infos</span>
-              <span>{searchStatus === 'loading' ? 'Searching...' : 'Ready'}</span>
+              <span>
+                {searchResults.length} of {totalCount || searchResults.length} cards
+              </span>
+              <span>{searchStatus === 'loading' ? 'Loading...' : 'Ready'}</span>
             </div>
 
             <div className="cogita-card-list" data-view={mode === 'collection' ? 'grid' : 'list'}>
               {searchResults.length ? (
                 searchResults.map((result) => (
                   <button
-                    key={result.infoId}
+                    key={result.cardId}
                     type="button"
                     className="cogita-card-item"
-                    data-selected={selectedInfo?.infoId === result.infoId}
+                    data-selected={selectedInfo?.cardId === result.cardId}
                     onClick={() => setSelectedInfo(result)}
                   >
-                    <div className="cogita-card-type">{result.infoType}</div>
+                    <div className="cogita-card-type">{result.cardType}</div>
                     <h3 className="cogita-card-title">{result.label}</h3>
-                    <p className="cogita-card-subtitle">Encrypted info</p>
+                    <p className="cogita-card-subtitle">{result.description}</p>
                   </button>
                 ))
               ) : (
@@ -166,6 +195,13 @@ export function CogitaLibraryListPage({
                 </div>
               )}
             </div>
+            {nextCursor ? (
+              <div className="cogita-form-actions">
+                <button type="button" className="cta ghost" onClick={handleLoadMore}>
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="cogita-library-panel">
@@ -183,7 +219,7 @@ export function CogitaLibraryListPage({
               </div>
               {selectedInfo ? (
                 <div className="cogita-detail-body">
-                  <p>Type: {selectedInfo.infoType}</p>
+                  <p>Type: {selectedInfo.cardType}</p>
                   <p>Use the add page to create connections or vocabulary links.</p>
                 </div>
               ) : (
