@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Recreatio.Api.Data.Cogita;
 
-public sealed class Cogita${name}
+public sealed class CogitaMusicFragment
 {
     [Key]
     public Guid InfoId { get; set; }

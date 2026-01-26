@@ -81,7 +81,8 @@ public static class CogitaEndpoints
             }
 
             var roleFields = await dbContext.RoleFields.AsNoTracking()
-                .Where(x => roleIds.Contains(x.RoleId) && x.FieldType == RoleFieldTypes.Nick)
+                .Where(x => roleIds.Contains(x.RoleId) &&
+                            (x.FieldType == RoleFieldTypes.Nick || x.FieldType == RoleFieldTypes.RoleKind))
                 .ToListAsync(ct);
             var keyIds = roleFields.Select(x => x.DataKeyId).Distinct().ToList();
             var keyEntries = await dbContext.Keys.AsNoTracking()
@@ -90,12 +91,22 @@ public static class CogitaEndpoints
 
             var libraryResponses = libraries.Select(library =>
             {
+                var roleKindField = roleFields.FirstOrDefault(field =>
+                    field.RoleId == library.RoleId && field.FieldType == RoleFieldTypes.RoleKind);
+                var roleKind = roleKindField is null
+                    ? null
+                    : fieldValueService.TryGetPlainValue(roleKindField, keyRing, keyEntries);
+                if (!string.Equals(roleKind, "cogita-library", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
                 var nameField = roleFields.FirstOrDefault(field => field.RoleId == library.RoleId);
                 var name = nameField is null
                     ? "Cogita Library"
                     : fieldValueService.TryGetPlainValue(nameField, keyRing, keyEntries) ?? "Cogita Library";
                 return new CogitaLibraryResponse(library.Id, library.RoleId, name, library.CreatedUtc);
-            }).ToList();
+            }).Where(response => response is not null).Select(response => response!).ToList();
 
             return Results.Ok(libraryResponses);
         });
@@ -248,7 +259,7 @@ public static class CogitaEndpoints
             var fieldRequests = new List<(string FieldType, string Value)>
             {
                 (RoleFieldTypes.Nick, name),
-                (RoleFieldTypes.RoleKind, "CogitaLibrary")
+                (RoleFieldTypes.RoleKind, "cogita-library")
             };
 
             foreach (var field in fieldRequests)
@@ -1047,7 +1058,9 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
-            default:\n                return null;\n        }
+            default:
+                return null;
+        }
     }
 
     private static void AddInfoPayload(
