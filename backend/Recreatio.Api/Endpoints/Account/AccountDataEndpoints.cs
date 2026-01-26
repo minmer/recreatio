@@ -646,11 +646,6 @@ public static class AccountDataEndpoints
             share.Status = "Accepted";
             share.AcceptedUtc = DateTimeOffset.UtcNow;
 
-            if (!keyRing.TryGetOwnerKey(share.TargetRoleId, out var targetOwnerKey))
-            {
-                return Results.Forbid();
-            }
-
             var signingContext = await roleCryptoService.TryGetSigningContextAsync(share.TargetRoleId, targetOwnerKey, ct);
             await ledgerService.AppendKeyAsync(
                 "DataShareAccepted",

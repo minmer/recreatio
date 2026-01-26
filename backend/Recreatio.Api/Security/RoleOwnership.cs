@@ -4,7 +4,7 @@ namespace Recreatio.Api.Security;
 
 public static class RoleOwnership
 {
-    public static async Task<HashSet<Guid>> GetOwnedRoleIdsAsync(
+    public static Task<HashSet<Guid>> GetOwnedRoleIdsAsync(
         IEnumerable<Guid> ownerRoots,
         IReadOnlyCollection<Guid> accessibleRoleIds,
         RecreatioDbContext dbContext,
@@ -13,7 +13,7 @@ public static class RoleOwnership
         var owned = new HashSet<Guid>();
         if (accessibleRoleIds.Count == 0)
         {
-            return owned;
+            return Task.FromResult(owned);
         }
         foreach (var rootId in ownerRoots)
         {
@@ -23,6 +23,6 @@ public static class RoleOwnership
             }
         }
 
-        return owned;
+        return Task.FromResult(owned);
     }
 }

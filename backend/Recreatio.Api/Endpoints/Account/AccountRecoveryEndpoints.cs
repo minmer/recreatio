@@ -386,7 +386,8 @@ public static class AccountRecoveryEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetWriteKey(roleId, out _) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }

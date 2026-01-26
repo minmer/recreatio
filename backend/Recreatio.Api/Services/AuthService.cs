@@ -136,6 +136,7 @@ public sealed class AuthService : IAuthService
         var roleKindFieldType = RoleFieldTypes.RoleKind;
         var roleKindValue = "MasterRole";
         var roleKindKeyId = Guid.NewGuid();
+        var roleKindFieldId = Guid.NewGuid();
         var roleKindKey = RandomNumberGenerator.GetBytes(32);
         var encryptedRoleKindKey = _keyRingService.EncryptDataKey(roleReadKey, roleKindKey, roleKindKeyId);
         var encryptedRoleKindFieldType = _keyRingService.EncryptRoleFieldType(roleReadKey, roleKindFieldType, roleKindFieldId);
@@ -165,7 +166,6 @@ public sealed class AuthService : IAuthService
             ct,
             signingContext);
 
-        var roleKindFieldId = Guid.NewGuid();
         _dbContext.Keys.Add(new KeyEntry
         {
             Id = roleKindKeyId,
