@@ -79,7 +79,9 @@ public static class AccountRoleCreationEndpoints
                 return Fail("RelationshipType must be Owner for subroles.");
             }
 
-            if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) || !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
+            if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) ||
+                !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey) ||
+                !keyRing.TryGetOwnerKey(parentRoleId, out var parentOwnerKey))
             {
                 logger.LogWarning("Create role failed: parent role keys not available for user {UserId}, parent {ParentRoleId}.", userId, parentRoleId);
                 return Results.Forbid();
@@ -93,13 +95,7 @@ public static class AccountRoleCreationEndpoints
                 return Results.NotFound();
             }
 
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(parentRoleId))
             {
                 logger.LogWarning("Create role failed: parent role {ParentRoleId} not owned by user {UserId}.", parentRoleId, userId);
@@ -143,8 +139,10 @@ public static class AccountRoleCreationEndpoints
             var roleId = Guid.NewGuid();
             var readKey = RandomNumberGenerator.GetBytes(32);
             var writeKey = RandomNumberGenerator.GetBytes(32);
+            var ownerKey = RandomNumberGenerator.GetBytes(32);
             var encryptedReadKeyCopy = encryptionService.Encrypt(parentReadKey, readKey, roleId.ToByteArray());
             var encryptedWriteKeyCopy = encryptionService.Encrypt(parentWriteKey, writeKey, roleId.ToByteArray());
+            var encryptedOwnerKeyCopy = encryptionService.Encrypt(parentOwnerKey, ownerKey, roleId.ToByteArray());
 
             using var encryptionRsa = RSA.Create(2048);
             var publicEncryptionKey = encryptionRsa.ExportSubjectPublicKeyInfo();
@@ -161,7 +159,7 @@ public static class AccountRoleCreationEndpoints
                 "RSA-OAEP-SHA256",
                 Convert.ToBase64String(privateSigningKey),
                 "RSA-SHA256");
-            var encryptedRoleBlob = encryptionService.Encrypt(writeKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
+            var encryptedRoleBlob = encryptionService.Encrypt(ownerKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
 
             var role = new Role
             {
@@ -178,7 +176,7 @@ public static class AccountRoleCreationEndpoints
             dbContext.Roles.Add(role);
             await dbContext.SaveChangesAsync(ct);
 
-            var signingContext = LedgerSigning.TryCreate(parentRole, parentWriteKey, encryptionService);
+            var signingContext = LedgerSigning.TryCreate(parentRole, parentOwnerKey, encryptionService);
 
             var roleReadKeyLedger = await ledgerService.AppendKeyAsync(
                 "RoleReadKeyCreated",
@@ -194,12 +192,19 @@ public static class AccountRoleCreationEndpoints
                 OwnerRoleId = roleId,
                 Version = 1,
                 EncryptedKeyBlob = encryptionService.Encrypt(masterKey, readKey, roleId.ToByteArray()),
-                MetadataJson = "{}",
+                ScopeType = "role-key",
+                ScopeSubtype = "read",
                 LedgerRefId = roleReadKeyLedger.Id,
                 CreatedUtc = now
             });
             var roleWriteKeyLedger = await ledgerService.AppendKeyAsync(
                 "RoleWriteKeyCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
+                ct,
+                signingContext);
+            var roleOwnerKeyLedger = await ledgerService.AppendKeyAsync(
+                "RoleOwnerKeyCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
                 ct,
@@ -211,13 +216,27 @@ public static class AccountRoleCreationEndpoints
                 OwnerRoleId = roleId,
                 Version = 1,
                 EncryptedKeyBlob = encryptionService.Encrypt(masterKey, writeKey, roleId.ToByteArray()),
-                MetadataJson = "{}",
+                ScopeType = "role-key",
+                ScopeSubtype = "write",
                 LedgerRefId = roleWriteKeyLedger.Id,
+                CreatedUtc = now
+            });
+            dbContext.Keys.Add(new KeyEntry
+            {
+                Id = Guid.NewGuid(),
+                KeyType = KeyType.RoleOwnerKey,
+                OwnerRoleId = roleId,
+                Version = 1,
+                EncryptedKeyBlob = encryptionService.Encrypt(masterKey, ownerKey, roleId.ToByteArray()),
+                ScopeType = "role-key",
+                ScopeSubtype = "owner",
+                LedgerRefId = roleOwnerKeyLedger.Id,
                 CreatedUtc = now
             });
             await dbContext.SaveChangesAsync(ct);
 
             var roleFields = new List<RoleField>();
+            var roleFieldsByType = new Dictionary<string, RoleField>(StringComparer.OrdinalIgnoreCase);
             foreach (var field in fields)
             {
                 var fieldType = field.FieldType.Trim().ToLowerInvariant();
@@ -228,8 +247,11 @@ public static class AccountRoleCreationEndpoints
                 }
 
                 var dataKeyId = Guid.NewGuid();
+                var roleFieldId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
                 var encryptedDataKey = keyRingService.EncryptDataKey(readKey, dataKey, dataKeyId);
+                var encryptedFieldType = keyRingService.EncryptRoleFieldType(readKey, fieldType, roleFieldId);
+                var fieldTypeHash = HMACSHA256.HashData(readKey, System.Text.Encoding.UTF8.GetBytes(fieldType));
                 var keyLedger = await ledgerService.AppendKeyAsync(
                     "RoleFieldKeyCreated",
                     userId.ToString(),
@@ -244,24 +266,39 @@ public static class AccountRoleCreationEndpoints
                     OwnerRoleId = roleId,
                     Version = 1,
                     EncryptedKeyBlob = encryptedDataKey,
-                    MetadataJson = JsonSerializer.Serialize(new { fieldType }),
+                    ScopeType = "role-field",
+                    ScopeSubtype = fieldType,
+                    BoundEntryId = roleFieldId,
                     LedgerRefId = keyLedger.Id,
                     CreatedUtc = now
                 };
                 dbContext.Keys.Add(keyEntry);
-                await dbContext.SaveChangesAsync(ct);
-
-                roleFields.Add(new RoleField
+                dbContext.KeyEntryBindings.Add(new KeyEntryBinding
                 {
                     Id = Guid.NewGuid(),
+                    KeyEntryId = dataKeyId,
+                    EntryId = roleFieldId,
+                    EntryType = "role-field",
+                    EntrySubtype = fieldType,
+                    CreatedUtc = now
+                });
+                await dbContext.SaveChangesAsync(ct);
+
+                var roleField = new RoleField
+                {
+                    Id = roleFieldId,
                     RoleId = roleId,
-                    FieldType = fieldType,
+                    FieldType = string.Empty,
+                    EncryptedFieldType = encryptedFieldType,
+                    FieldTypeHash = fieldTypeHash,
                     DataKeyId = dataKeyId,
                     EncryptedValue = keyRingService.EncryptFieldValue(dataKey, plainValue, roleId, fieldType),
                     CreatedUtc = now,
                     UpdatedUtc = now
-                });
-                dbContext.RoleFields.Add(roleFields[^1]);
+                };
+                roleFields.Add(roleField);
+                roleFieldsByType[fieldType] = roleField;
+                dbContext.RoleFields.Add(roleField);
                 await dbContext.SaveChangesAsync(ct);
             }
 
@@ -272,14 +309,20 @@ public static class AccountRoleCreationEndpoints
                 ct,
                 signingContext);
 
+            var edgeId = Guid.NewGuid();
+            var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(parentReadKey, relationshipType, edgeId);
+            var relationshipTypeHash = HMACSHA256.HashData(parentReadKey, System.Text.Encoding.UTF8.GetBytes(relationshipType));
             dbContext.RoleEdges.Add(new RoleEdge
             {
-                Id = Guid.NewGuid(),
+                Id = edgeId,
                 ParentRoleId = parentRoleId,
                 ChildRoleId = roleId,
-                RelationshipType = relationshipType,
+                RelationshipType = string.Empty,
+                EncryptedRelationshipType = encryptedRelationshipType,
+                RelationshipTypeHash = relationshipTypeHash,
                 EncryptedReadKeyCopy = encryptedReadKeyCopy,
                 EncryptedWriteKeyCopy = RoleRelationships.AllowsWrite(relationshipType) ? encryptedWriteKeyCopy : null,
+                EncryptedOwnerKeyCopy = RoleRelationships.IsOwner(relationshipType) ? encryptedOwnerKeyCopy : null,
                 CreatedUtc = now
             });
 
@@ -310,11 +353,11 @@ public static class AccountRoleCreationEndpoints
                 role.Id,
                 role.PublicSigningKey is null ? null : Convert.ToBase64String(role.PublicSigningKey),
                 role.PublicSigningKeyAlg,
-                roleFields.Select(field => new RoleFieldResponse(
-                    field.Id,
-                    field.FieldType,
-                    plainByField.GetValueOrDefault(field.FieldType),
-                    field.DataKeyId
+                roleFieldsByType.Select(pair => new RoleFieldResponse(
+                    pair.Value.Id,
+                    pair.Key,
+                    plainByField.GetValueOrDefault(pair.Key),
+                    pair.Value.DataKeyId
                 )).ToList()
             );
 

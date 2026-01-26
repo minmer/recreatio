@@ -46,7 +46,8 @@ public static class AccountRecoveryEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -63,13 +64,7 @@ public static class AccountRecoveryEndpoints
                 return Results.BadRequest(new { error = "At least one SharedWithRoleId is required." });
             }
 
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(roleId))
             {
                 return Results.Forbid();
@@ -147,7 +142,7 @@ public static class AccountRecoveryEndpoints
                 CreatedUtc = now
             });
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
             await ledgerService.AppendKeyAsync(
                 "RecoveryKeyActivated",
                 userId.ToString(),
@@ -186,7 +181,8 @@ public static class AccountRecoveryEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -212,7 +208,7 @@ public static class AccountRecoveryEndpoints
             };
 
             dbContext.RoleRecoveryRequests.Add(recovery);
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
 
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCreated",
@@ -248,7 +244,8 @@ public static class AccountRecoveryEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(request.ApproverRoleId, out var approverWriteKey))
+            if (!keyRing.TryGetWriteKey(request.ApproverRoleId, out var approverWriteKey) ||
+                !keyRing.TryGetOwnerKey(request.ApproverRoleId, out var approverOwnerKey))
             {
                 return Results.Forbid();
             }
@@ -287,7 +284,7 @@ public static class AccountRecoveryEndpoints
                 CreatedUtc = DateTimeOffset.UtcNow
             });
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(request.ApproverRoleId, approverWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(request.ApproverRoleId, approverOwnerKey, ct);
 
             await ledgerService.AppendAuthAsync(
                 "RecoveryApprovalAdded",
@@ -334,7 +331,8 @@ public static class AccountRecoveryEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -353,7 +351,7 @@ public static class AccountRecoveryEndpoints
             recovery.Status = "Canceled";
             recovery.CanceledUtc = DateTimeOffset.UtcNow;
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
 
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCanceled",
@@ -421,7 +419,7 @@ public static class AccountRecoveryEndpoints
                 share.RevokedUtc = DateTimeOffset.UtcNow;
             }
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
 
             await ledgerService.AppendAuthAsync(
                 "RecoveryRequestCompleted",

@@ -7,7 +7,7 @@ namespace Recreatio.Api.Security;
 
 public static class LedgerSigning
 {
-    public static LedgerSigningContext? TryCreate(Role role, byte[] writeKey, IEncryptionService encryptionService)
+    public static LedgerSigningContext? TryCreate(Role role, byte[] ownerKey, IEncryptionService encryptionService)
     {
         if (role.EncryptedRoleBlob.Length == 0)
         {
@@ -16,7 +16,7 @@ public static class LedgerSigning
 
         try
         {
-            var json = encryptionService.Decrypt(writeKey, role.EncryptedRoleBlob);
+            var json = encryptionService.Decrypt(ownerKey, role.EncryptedRoleBlob);
             var crypto = JsonSerializer.Deserialize<RoleCryptoMaterial>(json);
             if (crypto is null || string.IsNullOrWhiteSpace(crypto.PrivateSigningKeyBase64))
             {

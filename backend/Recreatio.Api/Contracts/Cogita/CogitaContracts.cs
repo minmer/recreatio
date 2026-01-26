@@ -77,6 +77,7 @@ public sealed record CogitaCreateGroupRequest(
 );
 
 public sealed record CogitaCreateGroupResponse(
-    Guid GroupId,
-    string GroupType
+    string GroupType,
+    List<Guid> InfoIds,
+    List<Guid> ConnectionIds
 );

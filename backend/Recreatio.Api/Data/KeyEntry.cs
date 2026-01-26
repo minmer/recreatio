@@ -15,8 +15,13 @@ public sealed class KeyEntry
 
     public byte[] EncryptedKeyBlob { get; set; } = Array.Empty<byte>();
 
-    [MaxLength(256)]
-    public string MetadataJson { get; set; } = "{}";
+    [MaxLength(64)]
+    public string ScopeType { get; set; } = string.Empty;
+
+    [MaxLength(128)]
+    public string? ScopeSubtype { get; set; }
+
+    public Guid? BoundEntryId { get; set; }
 
     public Guid LedgerRefId { get; set; }
 

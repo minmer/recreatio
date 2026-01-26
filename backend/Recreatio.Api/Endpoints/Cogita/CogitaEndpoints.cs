@@ -47,7 +47,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
-            IRoleFieldValueService fieldValueService,
+            IRoleFieldQueryService fieldQueryService,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId))
@@ -81,30 +81,27 @@ public static class CogitaEndpoints
             }
 
             var roleFields = await dbContext.RoleFields.AsNoTracking()
-                .Where(x => roleIds.Contains(x.RoleId) &&
-                            (x.FieldType == RoleFieldTypes.Nick || x.FieldType == RoleFieldTypes.RoleKind))
+                .Where(x => roleIds.Contains(x.RoleId))
                 .ToListAsync(ct);
-            var keyIds = roleFields.Select(x => x.DataKeyId).Distinct().ToList();
-            var keyEntries = await dbContext.Keys.AsNoTracking()
-                .Where(x => keyIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, ct);
+            var lookup = await fieldQueryService.LoadAsync(roleFields, keyRing, ct);
+            var valuesByRole = lookup.ValuesByRole;
 
             var libraryResponses = libraries.Select(library =>
             {
-                var roleKindField = roleFields.FirstOrDefault(field =>
-                    field.RoleId == library.RoleId && field.FieldType == RoleFieldTypes.RoleKind);
-                var roleKind = roleKindField is null
-                    ? null
-                    : fieldValueService.TryGetPlainValue(roleKindField, keyRing, keyEntries);
-                if (!string.Equals(roleKind, "cogita-library", StringComparison.OrdinalIgnoreCase))
+                if (!valuesByRole.TryGetValue(library.RoleId, out var fieldsByType))
                 {
                     return null;
                 }
 
-                var nameField = roleFields.FirstOrDefault(field => field.RoleId == library.RoleId);
-                var name = nameField is null
-                    ? "Cogita Library"
-                    : fieldValueService.TryGetPlainValue(nameField, keyRing, keyEntries) ?? "Cogita Library";
+                if (!fieldsByType.TryGetValue(RoleFieldTypes.RoleKind, out var roleKind) ||
+                    !string.Equals(roleKind, "cogita-library", StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+
+                var name = fieldsByType.TryGetValue(RoleFieldTypes.Nick, out var nick)
+                    ? nick
+                    : "Cogita Library";
                 return new CogitaLibraryResponse(library.Id, library.RoleId, name, library.CreatedUtc);
             }).Where(response => response is not null).Select(response => response!).ToList();
 
@@ -152,7 +149,8 @@ public static class CogitaEndpoints
             }
 
             if (!keyRing.TryGetReadKey(account.MasterRoleId, out var parentReadKey) ||
-                !keyRing.TryGetWriteKey(account.MasterRoleId, out var parentWriteKey))
+                !keyRing.TryGetWriteKey(account.MasterRoleId, out var parentWriteKey) ||
+                !keyRing.TryGetOwnerKey(account.MasterRoleId, out var parentOwnerKey))
             {
                 return Results.Forbid();
             }
@@ -182,8 +180,10 @@ public static class CogitaEndpoints
             var roleId = Guid.NewGuid();
             var readKey = RandomNumberGenerator.GetBytes(32);
             var writeKey = RandomNumberGenerator.GetBytes(32);
+            var ownerKey = RandomNumberGenerator.GetBytes(32);
             var encryptedReadKeyCopy = encryptionService.Encrypt(parentReadKey, readKey, roleId.ToByteArray());
             var encryptedWriteKeyCopy = encryptionService.Encrypt(parentWriteKey, writeKey, roleId.ToByteArray());
+            var encryptedOwnerKeyCopy = encryptionService.Encrypt(parentOwnerKey, ownerKey, roleId.ToByteArray());
 
             using var encryptionRsa = RSA.Create(2048);
             var publicEncryptionKey = encryptionRsa.ExportSubjectPublicKeyInfo();
@@ -200,7 +200,7 @@ public static class CogitaEndpoints
                 "RSA-OAEP-SHA256",
                 Convert.ToBase64String(privateSigningKey),
                 "RSA-SHA256");
-            var encryptedRoleBlob = encryptionService.Encrypt(writeKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
+            var encryptedRoleBlob = encryptionService.Encrypt(ownerKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
 
             var role = new Role
             {
@@ -217,7 +217,7 @@ public static class CogitaEndpoints
             dbContext.Roles.Add(role);
             await dbContext.SaveChangesAsync(ct);
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(account.MasterRoleId, parentWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(account.MasterRoleId, parentOwnerKey, ct);
 
             var roleReadKeyLedger = await ledgerService.AppendKeyAsync(
                 "RoleReadKeyCreated",
@@ -233,12 +233,19 @@ public static class CogitaEndpoints
                 OwnerRoleId = roleId,
                 Version = 1,
                 EncryptedKeyBlob = encryptionService.Encrypt(masterKey, readKey, roleId.ToByteArray()),
-                MetadataJson = "{}",
+                ScopeType = "role-key",
+                ScopeSubtype = "read",
                 LedgerRefId = roleReadKeyLedger.Id,
                 CreatedUtc = now
             });
             var roleWriteKeyLedger = await ledgerService.AppendKeyAsync(
                 "RoleWriteKeyCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
+                ct,
+                signingContext);
+            var roleOwnerKeyLedger = await ledgerService.AppendKeyAsync(
+                "RoleOwnerKeyCreated",
                 userId.ToString(),
                 JsonSerializer.Serialize(new { roleId, signature = request.SignatureBase64 }),
                 ct,
@@ -250,8 +257,21 @@ public static class CogitaEndpoints
                 OwnerRoleId = roleId,
                 Version = 1,
                 EncryptedKeyBlob = encryptionService.Encrypt(masterKey, writeKey, roleId.ToByteArray()),
-                MetadataJson = "{}",
+                ScopeType = "role-key",
+                ScopeSubtype = "write",
                 LedgerRefId = roleWriteKeyLedger.Id,
+                CreatedUtc = now
+            });
+            dbContext.Keys.Add(new KeyEntry
+            {
+                Id = Guid.NewGuid(),
+                KeyType = KeyType.RoleOwnerKey,
+                OwnerRoleId = roleId,
+                Version = 1,
+                EncryptedKeyBlob = encryptionService.Encrypt(masterKey, ownerKey, roleId.ToByteArray()),
+                ScopeType = "role-key",
+                ScopeSubtype = "owner",
+                LedgerRefId = roleOwnerKeyLedger.Id,
                 CreatedUtc = now
             });
             await dbContext.SaveChangesAsync(ct);
@@ -265,8 +285,11 @@ public static class CogitaEndpoints
             foreach (var field in fieldRequests)
             {
                 var dataKeyId = Guid.NewGuid();
+                var fieldId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
                 var encryptedDataKey = keyRingService.EncryptDataKey(readKey, dataKey, dataKeyId);
+                var encryptedFieldType = keyRingService.EncryptRoleFieldType(readKey, field.FieldType, fieldId);
+                var fieldTypeHash = HMACSHA256.HashData(readKey, System.Text.Encoding.UTF8.GetBytes(field.FieldType));
                 var keyLedger = await ledgerService.AppendKeyAsync(
                     "RoleFieldKeyCreated",
                     userId.ToString(),
@@ -281,15 +304,28 @@ public static class CogitaEndpoints
                     OwnerRoleId = roleId,
                     Version = 1,
                     EncryptedKeyBlob = encryptedDataKey,
-                    MetadataJson = JsonSerializer.Serialize(new { fieldType = field.FieldType }),
+                    ScopeType = "role-field",
+                    ScopeSubtype = field.FieldType,
+                    BoundEntryId = fieldId,
                     LedgerRefId = keyLedger.Id,
+                    CreatedUtc = now
+                });
+                dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+                {
+                    Id = Guid.NewGuid(),
+                    KeyEntryId = dataKeyId,
+                    EntryId = fieldId,
+                    EntryType = "role-field",
+                    EntrySubtype = field.FieldType,
                     CreatedUtc = now
                 });
                 dbContext.RoleFields.Add(new RoleField
                 {
-                    Id = Guid.NewGuid(),
+                    Id = fieldId,
                     RoleId = roleId,
-                    FieldType = field.FieldType,
+                    FieldType = string.Empty,
+                    EncryptedFieldType = encryptedFieldType,
+                    FieldTypeHash = fieldTypeHash,
                     DataKeyId = dataKeyId,
                     EncryptedValue = keyRingService.EncryptFieldValue(dataKey, field.Value, roleId, field.FieldType),
                     CreatedUtc = now,
@@ -305,14 +341,20 @@ public static class CogitaEndpoints
                 ct,
                 signingContext);
 
+            var edgeId = Guid.NewGuid();
+            var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(parentReadKey, RoleRelationships.Owner, edgeId);
+            var relationshipTypeHash = HMACSHA256.HashData(parentReadKey, System.Text.Encoding.UTF8.GetBytes(RoleRelationships.Owner));
             dbContext.RoleEdges.Add(new RoleEdge
             {
-                Id = Guid.NewGuid(),
+                Id = edgeId,
                 ParentRoleId = account.MasterRoleId,
                 ChildRoleId = roleId,
-                RelationshipType = RoleRelationships.Owner,
+                RelationshipType = string.Empty,
+                EncryptedRelationshipType = encryptedRelationshipType,
+                RelationshipTypeHash = relationshipTypeHash,
                 EncryptedReadKeyCopy = encryptedReadKeyCopy,
                 EncryptedWriteKeyCopy = encryptedWriteKeyCopy,
+                EncryptedOwnerKeyCopy = encryptedOwnerKeyCopy,
                 CreatedUtc = now
             });
 
@@ -385,7 +427,7 @@ public static class CogitaEndpoints
 
             var totalInfos = await dbContext.CogitaInfos.AsNoTracking().CountAsync(x => x.LibraryId == libraryId, ct);
             var totalConnections = await dbContext.CogitaConnections.AsNoTracking().CountAsync(x => x.LibraryId == libraryId, ct);
-            var totalGroups = await dbContext.CogitaGroups.AsNoTracking().CountAsync(x => x.LibraryId == libraryId, ct);
+            var totalGroups = 0;
             var totalLanguages = await dbContext.CogitaInfos.AsNoTracking().CountAsync(x => x.LibraryId == libraryId && x.InfoType == "language", ct);
             var totalWords = await dbContext.CogitaInfos.AsNoTracking().CountAsync(x => x.LibraryId == libraryId && x.InfoType == "word", ct);
             var totalSentences = await dbContext.CogitaInfos.AsNoTracking().CountAsync(x => x.LibraryId == libraryId && x.InfoType == "sentence", ct);
@@ -535,7 +577,8 @@ public static class CogitaEndpoints
             }
 
             if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
-                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey))
+                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -550,7 +593,7 @@ public static class CogitaEndpoints
                     request.DataKeyId,
                     infoType,
                     readKey,
-                    writeKey,
+                    ownerKey,
                     userId,
                     keyRingService,
                     roleCryptoService,
@@ -622,7 +665,8 @@ public static class CogitaEndpoints
             }
 
             if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
-                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey))
+                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -642,6 +686,44 @@ public static class CogitaEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var connectionId = Guid.NewGuid();
+            Guid? languageInfoId = null;
+            Guid? wordInfoId = null;
+
+            if (connectionType == "word-language")
+            {
+                if (infoIds.Count != 2)
+                {
+                    return Results.BadRequest(new { error = "Word-language connections require exactly two infos." });
+                }
+
+                var infoTypes = await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => infoIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.InfoType })
+                    .ToListAsync(ct);
+                foreach (var info in infoTypes)
+                {
+                    if (info.InfoType == "language")
+                    {
+                        languageInfoId = info.Id;
+                    }
+                    else if (info.InfoType == "word")
+                    {
+                        wordInfoId = info.Id;
+                    }
+                }
+
+                if (!languageInfoId.HasValue || !wordInfoId.HasValue)
+                {
+                    return Results.BadRequest(new { error = "Word-language connections require one language and one word." });
+                }
+
+                var exists = await dbContext.CogitaWordLanguages.AsNoTracking()
+                    .AnyAsync(x => x.LanguageInfoId == languageInfoId.Value && x.WordInfoId == wordInfoId.Value, ct);
+                if (exists)
+                {
+                    return Results.Conflict(new { error = "Word is already connected to this language." });
+                }
+            }
             (Guid DataKeyId, byte[] DataKey) dataKeyResult;
             try
             {
@@ -650,7 +732,7 @@ public static class CogitaEndpoints
                     request.DataKeyId,
                     $"connection:{connectionType}",
                     readKey,
-                    writeKey,
+                    ownerKey,
                     userId,
                     keyRingService,
                     roleCryptoService,
@@ -682,6 +764,19 @@ public static class CogitaEndpoints
                 UpdatedUtc = now
             });
 
+            await dbContext.SaveChangesAsync(ct);
+
+            if (connectionType == "word-language" && languageInfoId.HasValue && wordInfoId.HasValue)
+            {
+                dbContext.CogitaWordLanguages.Add(new CogitaWordLanguage
+                {
+                    LanguageInfoId = languageInfoId.Value,
+                    WordInfoId = wordInfoId.Value,
+                    CreatedUtc = now
+                });
+                await dbContext.SaveChangesAsync(ct);
+            }
+
             var sort = 0;
             foreach (var infoId in infoIds)
             {
@@ -697,6 +792,65 @@ public static class CogitaEndpoints
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new CogitaCreateConnectionResponse(connectionId, connectionType));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/word-languages", async (
+            Guid libraryId,
+            Guid languageId,
+            Guid wordId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var infoTypes = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && (x.Id == languageId || x.Id == wordId))
+                .Select(x => new { x.Id, x.InfoType })
+                .ToListAsync(ct);
+            if (infoTypes.Count != 2)
+            {
+                return Results.Ok(new { exists = false });
+            }
+
+            var languageOk = infoTypes.Any(x => x.Id == languageId && x.InfoType == "language");
+            var wordOk = infoTypes.Any(x => x.Id == wordId && x.InfoType == "word");
+            if (!languageOk || !wordOk)
+            {
+                return Results.Ok(new { exists = false });
+            }
+
+            var exists = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .AnyAsync(x => x.LanguageInfoId == languageId && x.WordInfoId == wordId, ct);
+
+            return Results.Ok(new { exists });
         });
 
         group.MapPost("/libraries/{libraryId:guid}/groups", async (
@@ -743,13 +897,13 @@ public static class CogitaEndpoints
                 }
 
                 if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
-                    !keyRing.TryGetWriteKey(library.RoleId, out var writeKey))
+                    !keyRing.TryGetWriteKey(library.RoleId, out var writeKey) ||
+                    !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
                 {
                     return Results.Forbid();
                 }
 
                 await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-                var now = DateTimeOffset.UtcNow;
                 var infoIds = new List<Guid>();
                 var infoTypeMap = new List<(Guid InfoId, string InfoType)>();
 
@@ -775,7 +929,7 @@ public static class CogitaEndpoints
                         library,
                         createRequest,
                         readKey,
-                        writeKey,
+                        ownerKey,
                         userId,
                         keyRingService,
                         encryptionService,
@@ -817,7 +971,7 @@ public static class CogitaEndpoints
                         library,
                         createRequest,
                         readKey,
-                        writeKey,
+                        ownerKey,
                         userId,
                         keyRingService,
                         encryptionService,
@@ -829,62 +983,10 @@ public static class CogitaEndpoints
                     connectionIds.Add(connectionResult.ConnectionId);
                 }
 
-                var groupId = Guid.NewGuid();
-                var dataKeyResult = await ResolveDataKeyAsync(
-                    library.RoleId,
-                    null,
-                    $"group:{groupType}",
-                    readKey,
-                    writeKey,
-                    userId,
-                    keyRingService,
-                    roleCryptoService,
-                    ledgerService,
-                    dbContext,
-                    ct);
-
-                var payloadBytes = request.Payload.HasValue
-                    ? JsonSerializer.SerializeToUtf8Bytes(request.Payload.Value)
-                    : JsonSerializer.SerializeToUtf8Bytes(new { infoIds, connectionIds });
-                var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, groupId.ToByteArray());
-
-                dbContext.CogitaGroups.Add(new CogitaGroup
-                {
-                    Id = groupId,
-                    LibraryId = libraryId,
-                    GroupType = groupType,
-                    DataKeyId = dataKeyResult.DataKeyId,
-                    EncryptedBlob = encrypted,
-                    CreatedUtc = now,
-                    UpdatedUtc = now
-                });
-
-                var sort = 0;
-                foreach (var infoId in infoIds)
-                {
-                    dbContext.CogitaGroupItems.Add(new CogitaGroupItem
-                    {
-                        Id = Guid.NewGuid(),
-                        GroupId = groupId,
-                        InfoId = infoId,
-                        SortOrder = sort++
-                    });
-                }
-
-                foreach (var connectionId in connectionIds)
-                {
-                    dbContext.CogitaGroupConnections.Add(new CogitaGroupConnection
-                    {
-                        Id = Guid.NewGuid(),
-                        GroupId = groupId,
-                        ConnectionId = connectionId
-                    });
-                }
-
                 await dbContext.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
-                return Results.Ok(new CogitaCreateGroupResponse(groupId, groupType));
+                return Results.Ok(new CogitaCreateGroupResponse(groupType, infoIds, connectionIds));
             }
             catch (InvalidOperationException ex)
             {
@@ -1120,7 +1222,7 @@ public static class CogitaEndpoints
         Guid? dataKeyId,
         string metadata,
         byte[] readKey,
-        byte[] writeKey,
+        byte[] ownerKey,
         Guid userId,
         IKeyRingService keyRingService,
         IRoleCryptoService roleCryptoService,
@@ -1144,7 +1246,7 @@ public static class CogitaEndpoints
         var newKeyId = Guid.NewGuid();
         var newKey = RandomNumberGenerator.GetBytes(32);
         var encryptedDataKey = keyRingService.EncryptDataKey(readKey, newKey, newKeyId);
-        var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+        var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
         var keyLedger = await ledgerService.AppendKeyAsync(
             "CogitaDataKeyCreated",
             userId.ToString(),
@@ -1159,7 +1261,8 @@ public static class CogitaEndpoints
             OwnerRoleId = roleId,
             Version = 1,
             EncryptedKeyBlob = encryptedDataKey,
-            MetadataJson = JsonSerializer.Serialize(new { metadata }),
+            ScopeType = "cogita",
+            ScopeSubtype = metadata,
             LedgerRefId = keyLedger.Id,
             CreatedUtc = DateTimeOffset.UtcNow
         });
@@ -1173,7 +1276,7 @@ public static class CogitaEndpoints
         CogitaLibrary library,
         CogitaCreateInfoRequest request,
         byte[] readKey,
-        byte[] writeKey,
+        byte[] ownerKey,
         Guid userId,
         IKeyRingService keyRingService,
         IEncryptionService encryptionService,
@@ -1195,7 +1298,7 @@ public static class CogitaEndpoints
             request.DataKeyId,
             infoType,
             readKey,
-            writeKey,
+            ownerKey,
             userId,
             keyRingService,
             roleCryptoService,
@@ -1216,6 +1319,15 @@ public static class CogitaEndpoints
         });
 
         AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
+        dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+        {
+            Id = Guid.NewGuid(),
+            KeyEntryId = dataKeyResult.DataKeyId,
+            EntryId = infoId,
+            EntryType = "cogita-info",
+            EntrySubtype = infoType,
+            CreatedUtc = now
+        });
 
         await dbContext.SaveChangesAsync(ct);
 
@@ -1226,7 +1338,7 @@ public static class CogitaEndpoints
         CogitaLibrary library,
         CogitaCreateConnectionRequest request,
         byte[] readKey,
-        byte[] writeKey,
+        byte[] ownerKey,
         Guid userId,
         IKeyRingService keyRingService,
         IEncryptionService encryptionService,
@@ -1243,12 +1355,56 @@ public static class CogitaEndpoints
 
         var now = DateTimeOffset.UtcNow;
         var connectionId = Guid.NewGuid();
+        Guid? languageInfoId = null;
+        Guid? wordInfoId = null;
+
+        if (connectionType == "word-language")
+        {
+            var distinctIds = request.InfoIds.Distinct().ToList();
+            if (distinctIds.Count != 2)
+            {
+                throw new InvalidOperationException("Word-language connections require exactly two infos.");
+            }
+
+            var infoTypes = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => distinctIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.InfoType })
+                .ToListAsync(ct);
+            if (infoTypes.Count != 2)
+            {
+                throw new InvalidOperationException("Word-language infos were not found.");
+            }
+
+            foreach (var info in infoTypes)
+            {
+                if (info.InfoType == "language")
+                {
+                    languageInfoId = info.Id;
+                }
+                else if (info.InfoType == "word")
+                {
+                    wordInfoId = info.Id;
+                }
+            }
+
+            if (!languageInfoId.HasValue || !wordInfoId.HasValue)
+            {
+                throw new InvalidOperationException("Word-language connections require one language and one word.");
+            }
+
+            var exists = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .AnyAsync(x => x.LanguageInfoId == languageInfoId.Value && x.WordInfoId == wordInfoId.Value, ct);
+            if (exists)
+            {
+                throw new InvalidOperationException("Word is already connected to this language.");
+            }
+        }
         var dataKeyResult = await ResolveDataKeyAsync(
             library.RoleId,
             request.DataKeyId,
             $"connection:{connectionType}",
             readKey,
-            writeKey,
+            ownerKey,
             userId,
             keyRingService,
             roleCryptoService,
@@ -1273,8 +1429,28 @@ public static class CogitaEndpoints
             CreatedUtc = now,
             UpdatedUtc = now
         });
+        dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+        {
+            Id = Guid.NewGuid(),
+            KeyEntryId = dataKeyResult.DataKeyId,
+            EntryId = connectionId,
+            EntryType = "cogita-connection",
+            EntrySubtype = connectionType,
+            CreatedUtc = now
+        });
 
         await dbContext.SaveChangesAsync(ct);
+
+        if (connectionType == "word-language" && languageInfoId.HasValue && wordInfoId.HasValue)
+        {
+            dbContext.CogitaWordLanguages.Add(new CogitaWordLanguage
+            {
+                LanguageInfoId = languageInfoId.Value,
+                WordInfoId = wordInfoId.Value,
+                CreatedUtc = now
+            });
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         var sort = 0;
         foreach (var infoId in request.InfoIds.Distinct())

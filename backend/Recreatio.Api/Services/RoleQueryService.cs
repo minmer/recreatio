@@ -20,17 +20,20 @@ public sealed class RoleQueryService : IRoleQueryService
     private readonly IRoleFieldQueryService _fieldQueryService;
     private readonly IRoleFieldValueService _fieldValueService;
     private readonly IEncryptionService _encryptionService;
+    private readonly IKeyRingService _keyRingService;
 
     public RoleQueryService(
         RecreatioDbContext dbContext,
         IRoleFieldQueryService fieldQueryService,
         IRoleFieldValueService fieldValueService,
-        IEncryptionService encryptionService)
+        IEncryptionService encryptionService,
+        IKeyRingService keyRingService)
     {
         _dbContext = dbContext;
         _fieldQueryService = fieldQueryService;
         _fieldValueService = fieldValueService;
         _encryptionService = encryptionService;
+        _keyRingService = keyRingService;
     }
 
     public async Task<IReadOnlyList<RoleSearchResponse>> SearchAsync(string query, RoleKeyRing keyRing, CancellationToken ct)
@@ -41,18 +44,12 @@ public sealed class RoleQueryService : IRoleQueryService
             return Array.Empty<RoleSearchResponse>();
         }
 
-        var nickFields = await _dbContext.RoleFields.AsNoTracking()
-            .Where(x => x.FieldType == RoleFieldTypes.Nick)
+        var allFields = await _dbContext.RoleFields.AsNoTracking()
             .ToListAsync(ct);
-        if (nickFields.Count == 0)
+        if (allFields.Count == 0)
         {
             return Array.Empty<RoleSearchResponse>();
         }
-
-        var roleKindFields = await _dbContext.RoleFields.AsNoTracking()
-            .Where(x => x.FieldType == RoleFieldTypes.RoleKind)
-            .ToListAsync(ct);
-        var allFields = nickFields.Concat(roleKindFields).ToList();
 
         var lookup = await _fieldQueryService.LoadAsync(allFields, keyRing, ct);
         var matches = new List<RoleSearchResponse>();
@@ -98,12 +95,16 @@ public sealed class RoleQueryService : IRoleQueryService
             .GroupBy(x => x.RoleId)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(field => new RoleFieldResponse(
-                    field.Id,
-                    field.FieldType,
-                    _fieldValueService.TryGetPlainValue(field, keyRing, lookup.KeyEntryById),
-                    field.DataKeyId
-                )).ToList()
+                group => group.Select(field =>
+                {
+                    var plainValue = _fieldValueService.TryGetPlainValue(field, keyRing, lookup.KeyEntryById);
+                    return new RoleFieldResponse(
+                        field.Id,
+                        field.FieldType,
+                        plainValue,
+                        field.DataKeyId
+                    );
+                }).ToList()
             );
 
         return roles
@@ -124,9 +125,6 @@ public sealed class RoleQueryService : IRoleQueryService
             return new RoleGraphResponse(new List<RoleGraphNode>(), new List<RoleGraphEdge>());
         }
 
-        var account = await _dbContext.UserAccounts.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == userId, ct);
-
         var roleIdSet = roleIds.ToHashSet();
         var roles = await _dbContext.Roles.AsNoTracking()
             .Where(role => roleIdSet.Contains(role.Id))
@@ -139,24 +137,8 @@ public sealed class RoleQueryService : IRoleQueryService
         var lookup = await _fieldQueryService.LoadAsync(fields, keyRing, ct);
         var valuesByRole = lookup.ValuesByRole;
 
-        var membershipEdges = account is null
-            ? new List<Membership>()
-            : await _dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId)
-                .ToListAsync(ct);
-        var ownerRoots = new List<Guid>();
-        if (account is not null)
-        {
-            ownerRoots.Add(account.MasterRoleId);
-            ownerRoots.AddRange(membershipEdges
-                .Where(edge => edge.RelationshipType == RoleRelationships.Owner)
-                .Select(edge => edge.RoleId));
-        }
-
         var nodes = new List<RoleGraphNode>();
-        var ownerRoleIds = account is null
-            ? new HashSet<Guid>()
-            : await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, roleIdSet, _dbContext, ct);
+        var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
         var writeRoleIds = keyRing.WriteKeys.Keys.ToHashSet();
         foreach (var role in roles)
         {
@@ -196,19 +178,26 @@ public sealed class RoleQueryService : IRoleQueryService
             var grantsByItem = dataGrants.GroupBy(grant => grant.DataItemId)
                 .ToDictionary(group => group.Key, group => group.ToList());
 
-            static byte[] BuildDataItemAad(Guid dataItemId, string itemName)
-            {
-                return System.Text.Encoding.UTF8.GetBytes($"{dataItemId:D}:{itemName}");
-            }
-
             foreach (var item in dataItems)
             {
                 var itemGrants = grantsByItem.TryGetValue(item.Id, out var list) ? list : new List<DataKeyGrant>();
                 var canOwner = itemGrants.Any(grant => grant.PermissionType == RoleRelationships.Owner);
                 var canWrite = itemGrants.Any(grant => RoleRelationships.AllowsWrite(grant.PermissionType));
 
+                string? itemName = null;
+                string itemType = "data";
+                if (keyRing.TryGetReadKey(item.OwnerRoleId, out var ownerReadKey))
+                {
+                    itemName = _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemName, item.Id, "item-name");
+                    var resolvedType = _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemType, item.Id, "item-type");
+                    if (!string.IsNullOrWhiteSpace(resolvedType))
+                    {
+                        itemType = resolvedType;
+                    }
+                }
+
                 string? value = null;
-                if (item.EncryptedValue is not null)
+                if (item.EncryptedValue is not null && !string.IsNullOrWhiteSpace(itemName))
                 {
                     foreach (var grant in itemGrants)
                     {
@@ -219,7 +208,7 @@ public sealed class RoleQueryService : IRoleQueryService
                         try
                         {
                             var dataKey = _encryptionService.Decrypt(readKey, grant.EncryptedDataKeyBlob, item.Id.ToByteArray());
-                            var aad = BuildDataItemAad(item.Id, item.ItemName);
+                            var aad = System.Text.Encoding.UTF8.GetBytes($"{item.Id:D}:{itemName}");
                             var plaintext = _encryptionService.Decrypt(dataKey, item.EncryptedValue, aad);
                             value = System.Text.Encoding.UTF8.GetString(plaintext);
                             break;
@@ -231,16 +220,18 @@ public sealed class RoleQueryService : IRoleQueryService
                     }
                 }
 
-                var nodeType = item.ItemType == "key" || item.EncryptedValue is null ? "key" : "data";
+                var normalizedType = itemType.Trim().ToLowerInvariant();
+                var nodeType = normalizedType == "key" || item.EncryptedValue is null ? "key" : "data";
                 var dataNodeId = $"{nodeType}:{item.Id:N}";
+                var label = string.IsNullOrWhiteSpace(itemName) ? $"Data {item.Id.ToString()[..8]}" : itemName;
                 nodes.Add(new RoleGraphNode(
                     dataNodeId,
-                    item.ItemName,
+                    label,
                     nodeType,
-                    item.ItemType,
+                    normalizedType,
                     value,
                     item.OwnerRoleId,
-                    item.ItemName,
+                    itemName,
                     item.Id,
                     canOwner,
                     canWrite));
@@ -301,11 +292,33 @@ public sealed class RoleQueryService : IRoleQueryService
         var roleEdges = await _dbContext.RoleEdges.AsNoTracking().ToListAsync(ct);
         edges.AddRange(roleEdges
             .Where(edge => roleIdSet.Contains(edge.ParentRoleId) && roleIdSet.Contains(edge.ChildRoleId))
-            .Select(edge => new RoleGraphEdge(
-                $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{ResolveVisiblePermission(edge.ParentRoleId, edge.RelationshipType, keyRing)}",
-                $"role:{edge.ParentRoleId:N}",
-                $"role:{edge.ChildRoleId:N}",
-                ResolveVisiblePermission(edge.ParentRoleId, edge.RelationshipType, keyRing))));
+            .Select(edge =>
+            {
+                var relationship = RoleRelationships.Read;
+                if (keyRing.TryGetReadKey(edge.ParentRoleId, out var parentReadKey))
+                {
+                    var decrypted = _keyRingService.TryDecryptRoleRelationshipType(parentReadKey, edge.EncryptedRelationshipType, edge.Id);
+                    if (!string.IsNullOrWhiteSpace(decrypted))
+                    {
+                        relationship = RoleRelationships.Normalize(decrypted);
+                    }
+                }
+
+                var permission = ResolveVisiblePermission(edge.ParentRoleId, relationship, keyRing);
+                return new RoleGraphEdge(
+                    $"{edge.ParentRoleId:N}:{edge.ChildRoleId:N}:{permission}",
+                    $"role:{edge.ParentRoleId:N}",
+                    $"role:{edge.ChildRoleId:N}",
+                    permission);
+            }));
+
+        var account = await _dbContext.UserAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, ct);
+        var membershipEdges = account is null
+            ? new List<Membership>()
+            : await _dbContext.Memberships.AsNoTracking()
+                .Where(edge => edge.UserId == userId)
+                .ToListAsync(ct);
 
         if (account is not null)
         {
@@ -329,9 +342,17 @@ public sealed class RoleQueryService : IRoleQueryService
             return normalized;
         }
 
+        if (normalized == RoleRelationships.Owner)
+        {
+            if (keyRing.TryGetOwnerKey(roleId, out _))
+            {
+                return RoleRelationships.Owner;
+            }
+        }
+
         if (keyRing.TryGetWriteKey(roleId, out _))
         {
-            return normalized;
+            return normalized == RoleRelationships.Owner ? RoleRelationships.Write : normalized;
         }
 
         return RoleRelationships.Read;

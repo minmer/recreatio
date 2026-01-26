@@ -79,6 +79,7 @@ public sealed class AuthService : IAuthService
 
         var roleReadKey = RandomNumberGenerator.GetBytes(32);
         var roleWriteKey = RandomNumberGenerator.GetBytes(32);
+        var roleOwnerKey = RandomNumberGenerator.GetBytes(32);
 
         using var encryptionRsa = RSA.Create(2048);
         var publicEncryptionKey = encryptionRsa.ExportSubjectPublicKeyInfo();
@@ -96,7 +97,7 @@ public sealed class AuthService : IAuthService
             Convert.ToBase64String(privateSigningKey),
             "RSA-SHA256");
 
-        var encryptedRoleBlob = _encryptionService.Encrypt(roleWriteKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
+        var encryptedRoleBlob = _encryptionService.Encrypt(roleOwnerKey, JsonSerializer.SerializeToUtf8Bytes(roleCrypto));
         var signingContext = new LedgerSigningContext(
             masterRoleId,
             Convert.FromBase64String(roleCrypto.PrivateSigningKeyBase64),
@@ -137,6 +138,8 @@ public sealed class AuthService : IAuthService
         var roleKindKeyId = Guid.NewGuid();
         var roleKindKey = RandomNumberGenerator.GetBytes(32);
         var encryptedRoleKindKey = _keyRingService.EncryptDataKey(roleReadKey, roleKindKey, roleKindKeyId);
+        var encryptedRoleKindFieldType = _keyRingService.EncryptRoleFieldType(roleReadKey, roleKindFieldType, roleKindFieldId);
+        var roleKindFieldTypeHash = HMACSHA256.HashData(roleReadKey, System.Text.Encoding.UTF8.GetBytes(roleKindFieldType));
         var readKeyLedger = await _ledgerService.AppendKeyAsync(
             "RoleReadKeyCreated",
             userId.ToString(),
@@ -149,6 +152,12 @@ public sealed class AuthService : IAuthService
             JsonSerializer.Serialize(new { RoleId = masterRoleId }),
             ct,
             signingContext);
+        var ownerKeyLedger = await _ledgerService.AppendKeyAsync(
+            "RoleOwnerKeyCreated",
+            userId.ToString(),
+            JsonSerializer.Serialize(new { RoleId = masterRoleId }),
+            ct,
+            signingContext);
         var roleKindLedger = await _ledgerService.AppendKeyAsync(
             "RoleKindKeyCreated",
             userId.ToString(),
@@ -156,6 +165,7 @@ public sealed class AuthService : IAuthService
             ct,
             signingContext);
 
+        var roleKindFieldId = Guid.NewGuid();
         _dbContext.Keys.Add(new KeyEntry
         {
             Id = roleKindKeyId,
@@ -163,8 +173,19 @@ public sealed class AuthService : IAuthService
             OwnerRoleId = masterRoleId,
             Version = 1,
             EncryptedKeyBlob = encryptedRoleKindKey,
-            MetadataJson = JsonSerializer.Serialize(new { fieldType = roleKindFieldType }),
+            ScopeType = "role-field",
+            ScopeSubtype = roleKindFieldType,
+            BoundEntryId = roleKindFieldId,
             LedgerRefId = roleKindLedger.Id,
+            CreatedUtc = now
+        });
+        _dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+        {
+            Id = Guid.NewGuid(),
+            KeyEntryId = roleKindKeyId,
+            EntryId = roleKindFieldId,
+            EntryType = "role-field",
+            EntrySubtype = roleKindFieldType,
             CreatedUtc = now
         });
 
@@ -175,7 +196,8 @@ public sealed class AuthService : IAuthService
             OwnerRoleId = masterRoleId,
             Version = 1,
             EncryptedKeyBlob = _encryptionService.Encrypt(masterKey, roleReadKey, masterRoleId.ToByteArray()),
-            MetadataJson = "{}",
+            ScopeType = "role-key",
+            ScopeSubtype = "read",
             LedgerRefId = readKeyLedger.Id,
             CreatedUtc = now
         });
@@ -187,16 +209,31 @@ public sealed class AuthService : IAuthService
             OwnerRoleId = masterRoleId,
             Version = 1,
             EncryptedKeyBlob = _encryptionService.Encrypt(masterKey, roleWriteKey, masterRoleId.ToByteArray()),
-            MetadataJson = "{}",
+            ScopeType = "role-key",
+            ScopeSubtype = "write",
             LedgerRefId = writeKeyLedger.Id,
             CreatedUtc = now
         });
-
-        _dbContext.RoleFields.Add(new RoleField
+        _dbContext.Keys.Add(new KeyEntry
         {
             Id = Guid.NewGuid(),
+            KeyType = KeyType.RoleOwnerKey,
+            OwnerRoleId = masterRoleId,
+            Version = 1,
+            EncryptedKeyBlob = _encryptionService.Encrypt(masterKey, roleOwnerKey, masterRoleId.ToByteArray()),
+            ScopeType = "role-key",
+            ScopeSubtype = "owner",
+            LedgerRefId = ownerKeyLedger.Id,
+            CreatedUtc = now
+        });
+ 
+        _dbContext.RoleFields.Add(new RoleField
+        {
+            Id = roleKindFieldId,
             RoleId = masterRoleId,
-            FieldType = roleKindFieldType,
+            FieldType = string.Empty,
+            EncryptedFieldType = encryptedRoleKindFieldType,
+            FieldTypeHash = roleKindFieldTypeHash,
             DataKeyId = roleKindKeyId,
             EncryptedValue = _keyRingService.EncryptFieldValue(roleKindKey, roleKindValue, masterRoleId, roleKindFieldType),
             CreatedUtc = now,
@@ -285,25 +322,25 @@ public sealed class AuthService : IAuthService
             throw new InvalidOperationException("Master role missing.");
         }
 
-        var writeKeyEntry = await _dbContext.Keys.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.OwnerRoleId == account.MasterRoleId && x.KeyType == KeyType.RoleWriteKey, ct);
-        if (writeKeyEntry is null)
+        var ownerKeyEntry = await _dbContext.Keys.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OwnerRoleId == account.MasterRoleId && x.KeyType == KeyType.RoleOwnerKey, ct);
+        if (ownerKeyEntry is null)
         {
-            throw new InvalidOperationException("Role write key missing.");
+            throw new InvalidOperationException("Role owner key missing.");
         }
 
-        byte[] roleWriteKey;
+        byte[] roleOwnerKey;
         try
         {
-            roleWriteKey = _encryptionService.Decrypt(masterKey, writeKeyEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
+            roleOwnerKey = _encryptionService.Decrypt(masterKey, ownerKeyEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
         }
         catch (CryptographicException)
         {
-            throw new InvalidOperationException("Role write key invalid.");
+            throw new InvalidOperationException("Role owner key invalid.");
         }
 
-        _ = _encryptionService.Decrypt(roleWriteKey, account.MasterRole.EncryptedRoleBlob);
-        var signingContext = LedgerSigning.TryCreate(account.MasterRole, roleWriteKey, _encryptionService);
+        _ = _encryptionService.Decrypt(roleOwnerKey, account.MasterRole.EncryptedRoleBlob);
+        var signingContext = LedgerSigning.TryCreate(account.MasterRole, roleOwnerKey, _encryptionService);
 
         var sessionId = CreateSessionId();
         var session = new Session
@@ -361,14 +398,14 @@ public sealed class AuthService : IAuthService
         var masterKeyNew = _masterKeyService.DeriveMasterKey(h3New, account.Id);
 
         LedgerSigningContext? signingContext = null;
-        var writeKeyEntry = await _dbContext.Keys.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.OwnerRoleId == account.MasterRoleId && x.KeyType == KeyType.RoleWriteKey, ct);
-        if (writeKeyEntry is not null)
+        var ownerKeyEntry = await _dbContext.Keys.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.OwnerRoleId == account.MasterRoleId && x.KeyType == KeyType.RoleOwnerKey, ct);
+        if (ownerKeyEntry is not null)
         {
             try
             {
-                var roleWriteKey = _encryptionService.Decrypt(masterKeyOld, writeKeyEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
-                signingContext = LedgerSigning.TryCreate(account.MasterRole, roleWriteKey, _encryptionService);
+                var roleOwnerKey = _encryptionService.Decrypt(masterKeyOld, ownerKeyEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
+                signingContext = LedgerSigning.TryCreate(account.MasterRole, roleOwnerKey, _encryptionService);
             }
             catch (CryptographicException)
             {
@@ -377,7 +414,7 @@ public sealed class AuthService : IAuthService
         }
 
         var roleKeyEntries = await _dbContext.Keys
-            .Where(x => x.OwnerRoleId == account.MasterRoleId && (x.KeyType == KeyType.RoleReadKey || x.KeyType == KeyType.RoleWriteKey))
+            .Where(x => x.OwnerRoleId == account.MasterRoleId && (x.KeyType == KeyType.RoleReadKey || x.KeyType == KeyType.RoleWriteKey || x.KeyType == KeyType.RoleOwnerKey))
             .ToListAsync(ct);
         foreach (var entry in roleKeyEntries)
         {
@@ -399,6 +436,11 @@ public sealed class AuthService : IAuthService
             {
                 var writeKey = _encryptionService.Decrypt(masterKeyOld, membership.EncryptedWriteKeyCopy, membership.RoleId.ToByteArray());
                 membership.EncryptedWriteKeyCopy = _encryptionService.Encrypt(masterKeyNew, writeKey, membership.RoleId.ToByteArray());
+            }
+            if (membership.EncryptedOwnerKeyCopy is { Length: > 0 })
+            {
+                var ownerKey = _encryptionService.Decrypt(masterKeyOld, membership.EncryptedOwnerKeyCopy, membership.RoleId.ToByteArray());
+                membership.EncryptedOwnerKeyCopy = _encryptionService.Encrypt(masterKeyNew, ownerKey, membership.RoleId.ToByteArray());
             }
         }
 

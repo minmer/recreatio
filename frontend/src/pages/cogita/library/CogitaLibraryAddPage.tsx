@@ -1,0 +1,533 @@
+import { useEffect, useState } from 'react';
+import { checkCogitaWordLanguage, createCogitaConnection, createCogitaInfo } from '../../../lib/api';
+import { CogitaShell } from '../CogitaShell';
+import type { Copy } from '../../../content/types';
+import type { RouteKey } from '../../../types/navigation';
+import type { CogitaConnectionType, CogitaGroupType, CogitaInfoOption, CogitaInfoType } from './types';
+import { InfoSearchSelect } from './components/InfoSearchSelect';
+import { connectionTypeOptions, groupTypeOptions, infoTypeOptions } from './libraryOptions';
+import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+
+export function CogitaLibraryAddPage({
+  copy,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  language,
+  onLanguageChange,
+  libraryId,
+  onBackToOverview,
+  onBackToList,
+  onBackToCogita
+}: {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  onBackToOverview: () => void;
+  onBackToList: () => void;
+  onBackToCogita: () => void;
+}) {
+  const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const [activeTab, setActiveTab] = useState<'info' | 'connection' | 'group'>('info');
+  const [infoForm, setInfoForm] = useState({
+    infoType: 'word' as CogitaInfoType,
+    label: '',
+    language: null as CogitaInfoOption | null,
+    notes: ''
+  });
+  const [connectionForm, setConnectionForm] = useState({
+    connectionType: 'translation' as CogitaConnectionType,
+    language: null as CogitaInfoOption | null,
+    word: null as CogitaInfoOption | null,
+    wordA: null as CogitaInfoOption | null,
+    wordB: null as CogitaInfoOption | null,
+    sentence: null as CogitaInfoOption | null,
+    note: ''
+  });
+  const [groupForm, setGroupForm] = useState({
+    groupType: 'vocab' as CogitaGroupType,
+    languageA: null as CogitaInfoOption | null,
+    wordA: null as CogitaInfoOption | null,
+    languageB: null as CogitaInfoOption | null,
+    wordB: null as CogitaInfoOption | null,
+    note: ''
+  });
+  const [formStatus, setFormStatus] = useState<string | null>(null);
+  const [pairStatus, setPairStatus] = useState<string | null>(null);
+  const [groupPairStatusA, setGroupPairStatusA] = useState<string | null>(null);
+  const [groupPairStatusB, setGroupPairStatusB] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!connectionForm.language || !connectionForm.word) {
+      setPairStatus(null);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      checkCogitaWordLanguage({
+        libraryId,
+        languageId: connectionForm.language!.id,
+        wordId: connectionForm.word!.id
+      })
+        .then((result) => {
+          setPairStatus(result.exists ? 'This word already belongs to that language.' : null);
+        })
+        .catch(() => {
+          setPairStatus(null);
+        });
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [libraryId, connectionForm.language, connectionForm.word]);
+
+  useEffect(() => {
+    if (!groupForm.languageA || !groupForm.wordA) {
+      setGroupPairStatusA(null);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      checkCogitaWordLanguage({
+        libraryId,
+        languageId: groupForm.languageA!.id,
+        wordId: groupForm.wordA!.id
+      })
+        .then((result) => {
+          setGroupPairStatusA(result.exists ? 'Word A already belongs to Language A.' : null);
+        })
+        .catch(() => {
+          setGroupPairStatusA(null);
+        });
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [libraryId, groupForm.languageA, groupForm.wordA]);
+
+  useEffect(() => {
+    if (!groupForm.languageB || !groupForm.wordB) {
+      setGroupPairStatusB(null);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      checkCogitaWordLanguage({
+        libraryId,
+        languageId: groupForm.languageB!.id,
+        wordId: groupForm.wordB!.id
+      })
+        .then((result) => {
+          setGroupPairStatusB(result.exists ? 'Word B already belongs to Language B.' : null);
+        })
+        .catch(() => {
+          setGroupPairStatusB(null);
+        });
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [libraryId, groupForm.languageB, groupForm.wordB]);
+
+  const handleCreateInfo = async () => {
+    setFormStatus(null);
+    try {
+      const payload: Record<string, string> = {
+        label: infoForm.label,
+        notes: infoForm.notes
+      };
+      if (infoForm.language) {
+        payload.languageId = infoForm.language.id;
+      }
+      await createCogitaInfo({
+        libraryId,
+        infoType: infoForm.infoType,
+        payload
+      });
+      setFormStatus('Info saved.');
+      setInfoForm({ infoType: infoForm.infoType, label: '', language: null, notes: '' });
+    } catch {
+      setFormStatus('Failed to save info.');
+    }
+  };
+
+  const handleCreateConnection = async () => {
+    setFormStatus(null);
+    try {
+      if (connectionForm.connectionType === 'word-language') {
+        if (!connectionForm.language || !connectionForm.word) {
+          setFormStatus('Select a language and a word.');
+          return;
+        }
+        await createCogitaConnection({
+          libraryId,
+          connectionType: connectionForm.connectionType,
+          infoIds: [connectionForm.language.id, connectionForm.word.id],
+          payload: { note: connectionForm.note }
+        });
+      } else if (connectionForm.connectionType === 'translation') {
+        if (!connectionForm.wordA || !connectionForm.wordB) {
+          setFormStatus('Select two words to link.');
+          return;
+        }
+        await createCogitaConnection({
+          libraryId,
+          connectionType: connectionForm.connectionType,
+          infoIds: [connectionForm.wordA.id, connectionForm.wordB.id],
+          payload: { note: connectionForm.note }
+        });
+      } else if (connectionForm.connectionType === 'language-sentence') {
+        if (!connectionForm.language || !connectionForm.sentence) {
+          setFormStatus('Select a language and a sentence.');
+          return;
+        }
+        await createCogitaConnection({
+          libraryId,
+          connectionType: connectionForm.connectionType,
+          infoIds: [connectionForm.language.id, connectionForm.sentence.id],
+          payload: { note: connectionForm.note }
+        });
+      }
+      setFormStatus('Connection saved.');
+      setConnectionForm({
+        connectionType: connectionForm.connectionType,
+        language: null,
+        word: null,
+        wordA: null,
+        wordB: null,
+        sentence: null,
+        note: ''
+      });
+    } catch {
+      setFormStatus('Failed to save connection.');
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    setFormStatus(null);
+    try {
+      if (!groupForm.languageA || !groupForm.wordA || !groupForm.languageB || !groupForm.wordB) {
+        setFormStatus('Select both languages and both words.');
+        return;
+      }
+
+      if (!groupPairStatusA) {
+        await createCogitaConnection({
+          libraryId,
+          connectionType: 'word-language',
+          infoIds: [groupForm.languageA.id, groupForm.wordA.id],
+          payload: { note: groupForm.note }
+        });
+      }
+
+      if (!groupPairStatusB) {
+        await createCogitaConnection({
+          libraryId,
+          connectionType: 'word-language',
+          infoIds: [groupForm.languageB.id, groupForm.wordB.id],
+          payload: { note: groupForm.note }
+        });
+      }
+
+      await createCogitaConnection({
+        libraryId,
+        connectionType: 'translation',
+        infoIds: [groupForm.wordA.id, groupForm.wordB.id],
+        payload: { note: groupForm.note }
+      });
+
+      setFormStatus('Vocabulary connections saved.');
+      setGroupForm({
+        groupType: groupForm.groupType,
+        languageA: null,
+        wordA: null,
+        languageB: null,
+        wordB: null,
+        note: ''
+      });
+    } catch {
+      setFormStatus('Failed to save vocabulary connections.');
+    }
+  };
+
+  return (
+    <CogitaShell
+      copy={copy}
+      authLabel={authLabel}
+      showProfileMenu={showProfileMenu}
+      onProfileNavigate={onProfileNavigate}
+      onToggleSecureMode={onToggleSecureMode}
+      onLogout={onLogout}
+      secureMode={secureMode}
+      onNavigate={onNavigate}
+      language={language}
+      onLanguageChange={onLanguageChange}
+    >
+      <section className="cogita-library-dashboard" data-mode="detail">
+        <header className="cogita-library-dashboard-header">
+          <div>
+            <p className="cogita-user-kicker">Add info</p>
+            <h1 className="cogita-library-title">{libraryName}</h1>
+            <p className="cogita-library-subtitle">Create new info cards, connections, or vocabulary links.</p>
+          </div>
+          <div className="cogita-library-actions">
+            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+              Back to Cogita
+            </button>
+            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+              Library overview
+            </button>
+            <button type="button" className="cta ghost" onClick={onBackToList}>
+              Open list
+            </button>
+          </div>
+        </header>
+
+        <div className="cogita-library-grid">
+          <div className="cogita-library-pane">
+            <div className="cogita-library-controls">
+              <p className="cogita-user-kicker">Create</p>
+              <div className="cogita-type-grid">
+                {(['info', 'connection', 'group'] as const).map((tab) => (
+                  <button key={tab} type="button" className="cogita-type-card" data-active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+                    <span className="cogita-type-label">{tab}</span>
+                    <span className="cogita-type-desc">
+                      {tab === 'info' && 'Add a language, word, sentence, topic, person, or data item.'}
+                      {tab === 'connection' && 'Connect two or more infos with a typed relation.'}
+                      {tab === 'group' && 'Create vocab links using words, languages, and translations.'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="cogita-library-panel">
+            <section className="cogita-library-create">
+              {activeTab === 'info' ? (
+                <div className="cogita-form-grid">
+                  <label className="cogita-field full">
+                    <span>Info type</span>
+                    <select
+                      value={infoForm.infoType}
+                      onChange={(event) => setInfoForm((prev) => ({ ...prev, infoType: event.target.value as CogitaInfoType }))}
+                    >
+                      {infoTypeOptions
+                        .filter((option) => option.value !== 'any')
+                        .map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="cogita-field full">
+                    <span>Label</span>
+                    <input
+                      type="text"
+                      value={infoForm.label}
+                      onChange={(event) => setInfoForm((prev) => ({ ...prev, label: event.target.value }))}
+                      placeholder="Title, name, or main text"
+                    />
+                  </label>
+                  {(infoForm.infoType === 'word' || infoForm.infoType === 'sentence') && (
+                    <InfoSearchSelect
+                      libraryId={libraryId}
+                      infoType="language"
+                      label="Language"
+                      placeholder="Search or create a language"
+                      value={infoForm.language}
+                      onChange={(value) => setInfoForm((prev) => ({ ...prev, language: value }))}
+                    />
+                  )}
+                  <label className="cogita-field full">
+                    <span>Notes</span>
+                    <textarea
+                      value={infoForm.notes}
+                      onChange={(event) => setInfoForm((prev) => ({ ...prev, notes: event.target.value }))}
+                      placeholder="Description, citation source, or extra metadata"
+                    />
+                  </label>
+                  <div className="cogita-form-actions full">
+                    <button type="button" className="cta" onClick={handleCreateInfo}>
+                      Save info
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === 'connection' ? (
+                <div className="cogita-form-grid">
+                  <label className="cogita-field full">
+                    <span>Connection type</span>
+                    <select
+                      value={connectionForm.connectionType}
+                      onChange={(event) =>
+                        setConnectionForm((prev) => ({
+                          ...prev,
+                          connectionType: event.target.value as CogitaConnectionType
+                        }))
+                      }
+                    >
+                      {connectionTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {connectionForm.connectionType === 'word-language' && (
+                    <>
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label="Language"
+                        placeholder="Search or create a language"
+                        value={connectionForm.language}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, language: value }))}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="word"
+                        label="Word"
+                        placeholder="Search or create a word"
+                        value={connectionForm.word}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, word: value }))}
+                      />
+                      {pairStatus && <p className="cogita-help">{pairStatus}</p>}
+                    </>
+                  )}
+                  {connectionForm.connectionType === 'translation' && (
+                    <>
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="word"
+                        label="Word A"
+                        placeholder="Search or create word A"
+                        value={connectionForm.wordA}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, wordA: value }))}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="word"
+                        label="Word B"
+                        placeholder="Search or create word B"
+                        value={connectionForm.wordB}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, wordB: value }))}
+                      />
+                    </>
+                  )}
+                  {connectionForm.connectionType === 'language-sentence' && (
+                    <>
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label="Language"
+                        placeholder="Search or create a language"
+                        value={connectionForm.language}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, language: value }))}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="sentence"
+                        label="Sentence"
+                        placeholder="Search or create a sentence"
+                        value={connectionForm.sentence}
+                        onChange={(value) => setConnectionForm((prev) => ({ ...prev, sentence: value }))}
+                      />
+                    </>
+                  )}
+                  <label className="cogita-field full">
+                    <span>Note</span>
+                    <textarea
+                      value={connectionForm.note}
+                      onChange={(event) => setConnectionForm((prev) => ({ ...prev, note: event.target.value }))}
+                      placeholder="Optional context for the connection"
+                    />
+                  </label>
+                  <div className="cogita-form-actions full">
+                    <button type="button" className="cta" onClick={handleCreateConnection}>
+                      Save connection
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeTab === 'group' ? (
+                <div className="cogita-form-grid">
+                  <label className="cogita-field full">
+                    <span>Group type</span>
+                    <select
+                      value={groupForm.groupType}
+                      onChange={(event) =>
+                        setGroupForm((prev) => ({ ...prev, groupType: event.target.value as CogitaGroupType }))
+                      }
+                    >
+                      {groupTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <InfoSearchSelect
+                    libraryId={libraryId}
+                    infoType="language"
+                    label="Language A"
+                    placeholder="Search or create Language A"
+                    value={groupForm.languageA}
+                    onChange={(value) => setGroupForm((prev) => ({ ...prev, languageA: value }))}
+                  />
+                  <InfoSearchSelect
+                    libraryId={libraryId}
+                    infoType="word"
+                    label="Word A"
+                    placeholder="Search or create Word A"
+                    value={groupForm.wordA}
+                    onChange={(value) => setGroupForm((prev) => ({ ...prev, wordA: value }))}
+                  />
+                  {groupPairStatusA && <p className="cogita-help">{groupPairStatusA}</p>}
+                  <InfoSearchSelect
+                    libraryId={libraryId}
+                    infoType="language"
+                    label="Language B"
+                    placeholder="Search or create Language B"
+                    value={groupForm.languageB}
+                    onChange={(value) => setGroupForm((prev) => ({ ...prev, languageB: value }))}
+                  />
+                  <InfoSearchSelect
+                    libraryId={libraryId}
+                    infoType="word"
+                    label="Word B"
+                    placeholder="Search or create Word B"
+                    value={groupForm.wordB}
+                    onChange={(value) => setGroupForm((prev) => ({ ...prev, wordB: value }))}
+                  />
+                  {groupPairStatusB && <p className="cogita-help">{groupPairStatusB}</p>}
+                  <label className="cogita-field full">
+                    <span>Notes</span>
+                    <textarea
+                      value={groupForm.note}
+                      onChange={(event) => setGroupForm((prev) => ({ ...prev, note: event.target.value }))}
+                      placeholder="Optional context for the vocabulary card"
+                    />
+                  </label>
+                  <div className="cogita-form-actions full">
+                    <button type="button" className="cta" onClick={handleCreateGroup}>
+                      Save vocabulary links
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {formStatus ? <p className="cogita-form-error">{formStatus}</p> : null}
+            </section>
+          </div>
+        </div>
+      </section>
+    </CogitaShell>
+  );
+}

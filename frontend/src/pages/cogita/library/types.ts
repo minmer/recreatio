@@ -24,6 +24,12 @@ export type CogitaSearchScope = {
   infoType: CogitaInfoType | 'any';
 };
 
+export type CogitaInfoOption = {
+  id: string;
+  label: string;
+  infoType: CogitaInfoType;
+};
+
 export type CogitaInfoForm = {
   infoType: CogitaInfoType;
   label: string;
@@ -32,12 +38,19 @@ export type CogitaInfoForm = {
 
 export type CogitaConnectionForm = {
   connectionType: CogitaConnectionType;
-  infoIds: string[];
+  language: CogitaInfoOption | null;
+  word: CogitaInfoOption | null;
+  wordA: CogitaInfoOption | null;
+  wordB: CogitaInfoOption | null;
+  sentence: CogitaInfoOption | null;
   payload: Record<string, string>;
 };
 
 export type CogitaGroupForm = {
   groupType: CogitaGroupType;
-  infoItems: Array<{ infoType: CogitaInfoType; payload: Record<string, string> }>;
-  connections: Array<{ connectionType: CogitaConnectionType; infoIds: string[] }>;
+  languageA: CogitaInfoOption | null;
+  wordA: CogitaInfoOption | null;
+  languageB: CogitaInfoOption | null;
+  wordB: CogitaInfoOption | null;
+  note: string;
 };

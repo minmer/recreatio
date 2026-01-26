@@ -78,13 +78,7 @@ public static class AccountShareEndpoints
                 return Results.NotFound();
             }
 
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(roleId))
             {
                 return Results.Forbid();
@@ -100,33 +94,50 @@ public static class AccountShareEndpoints
                 return Results.Forbid();
             }
 
+            if (!keyRing.TryGetOwnerKey(roleId, out var roleOwnerKey))
+            {
+                return Results.Forbid();
+            }
+
             var writeKeyToShare = RoleRelationships.AllowsWrite(relationshipType) ? roleWriteKey : null;
+            var ownerKeyToShare = RoleRelationships.IsOwner(relationshipType) ? roleOwnerKey : null;
 
             if (keyRing.TryGetReadKey(request.TargetRoleId, out var targetReadKey) &&
-                (!RoleRelationships.AllowsWrite(relationshipType) || keyRing.TryGetWriteKey(request.TargetRoleId, out _)))
+                (!RoleRelationships.AllowsWrite(relationshipType) || keyRing.TryGetWriteKey(request.TargetRoleId, out _)) &&
+                (!RoleRelationships.IsOwner(relationshipType) || keyRing.TryGetOwnerKey(request.TargetRoleId, out _)))
             {
                 keyRing.TryGetWriteKey(request.TargetRoleId, out var targetWriteKey);
+                keyRing.TryGetOwnerKey(request.TargetRoleId, out var targetOwnerKey);
                 var directReadCopy = encryptionService.Encrypt(targetReadKey, readKey, roleId.ToByteArray());
                 var directWriteCopy = writeKeyToShare is null
                     ? null
                     : encryptionService.Encrypt(targetWriteKey, writeKeyToShare, roleId.ToByteArray());
+                var directOwnerCopy = ownerKeyToShare is null
+                    ? null
+                    : encryptionService.Encrypt(targetOwnerKey, ownerKeyToShare, roleId.ToByteArray());
 
                 if (!await dbContext.RoleEdges.AsNoTracking()
                         .AnyAsync(x => x.ParentRoleId == request.TargetRoleId && x.ChildRoleId == roleId, ct))
                 {
+                    var edgeId = Guid.NewGuid();
+                    var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(targetReadKey, relationshipType, edgeId);
+                    var relationshipTypeHash = HMACSHA256.HashData(targetReadKey, System.Text.Encoding.UTF8.GetBytes(relationshipType));
                     dbContext.RoleEdges.Add(new RoleEdge
                     {
-                        Id = Guid.NewGuid(),
+                        Id = edgeId,
                         ParentRoleId = request.TargetRoleId,
                         ChildRoleId = roleId,
-                        RelationshipType = relationshipType,
+                        RelationshipType = string.Empty,
+                        EncryptedRelationshipType = encryptedRelationshipType,
+                        RelationshipTypeHash = relationshipTypeHash,
                         EncryptedReadKeyCopy = directReadCopy,
                         EncryptedWriteKeyCopy = directWriteCopy,
+                        EncryptedOwnerKeyCopy = directOwnerCopy,
                         CreatedUtc = DateTimeOffset.UtcNow
                     });
                 }
 
-                var directSigningContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
+                var directSigningContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleOwnerKey, ct);
                 await ledgerService.AppendKeyAsync(
                     "RoleShareGranted",
                     userId.ToString(),
@@ -148,8 +159,14 @@ public static class AccountShareEndpoints
                     targetRole.PublicEncryptionKey,
                     targetRole.PublicEncryptionKeyAlg,
                     writeKeyToShare);
+            var encryptedOwnerKey = ownerKeyToShare is null
+                ? null
+                : asymmetricEncryptionService.EncryptWithPublicKey(
+                    targetRole.PublicEncryptionKey,
+                    targetRole.PublicEncryptionKeyAlg,
+                    ownerKeyToShare);
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleOwnerKey, ct);
 
             var ledger = await ledgerService.AppendKeyAsync(
                 "RoleSharePending",
@@ -166,6 +183,7 @@ public static class AccountShareEndpoints
                 RelationshipType = relationshipType,
                 EncryptedReadKeyBlob = encryptedReadKey,
                 EncryptedWriteKeyBlob = encryptedWriteKey,
+                EncryptedOwnerKeyBlob = encryptedOwnerKey,
                 EncryptionAlg = targetRole.PublicEncryptionKeyAlg,
                 Status = "Pending",
                 LedgerRefId = ledger.Id,
@@ -262,12 +280,13 @@ public static class AccountShareEndpoints
             }
 
             if (!keyRing.TryGetReadKey(share.TargetRoleId, out var targetReadKey) ||
-                !keyRing.TryGetWriteKey(share.TargetRoleId, out var targetWriteKey))
+                !keyRing.TryGetWriteKey(share.TargetRoleId, out var targetWriteKey) ||
+                !keyRing.TryGetOwnerKey(share.TargetRoleId, out var targetOwnerKey))
             {
                 return Results.Forbid();
             }
 
-            var cryptoMaterial = roleCryptoService.TryReadRoleCryptoMaterial(targetRole, targetWriteKey);
+            var cryptoMaterial = roleCryptoService.TryReadRoleCryptoMaterial(targetRole, targetOwnerKey);
             if (cryptoMaterial is null)
             {
                 return Results.BadRequest(new { error = "Target role crypto material missing." });
@@ -302,22 +321,47 @@ public static class AccountShareEndpoints
                 }
             }
 
+            byte[]? sharedOwnerKey = null;
+            if (share.EncryptedOwnerKeyBlob is { Length: > 0 })
+            {
+                try
+                {
+                    sharedOwnerKey = asymmetricEncryptionService.DecryptWithPrivateKey(
+                        Convert.FromBase64String(cryptoMaterial.PrivateEncryptionKeyBase64),
+                        cryptoMaterial.PrivateEncryptionKeyAlg,
+                        share.EncryptedOwnerKeyBlob);
+                }
+                catch (CryptographicException)
+                {
+                    return Results.BadRequest(new { error = "Unable to decrypt shared owner key." });
+                }
+            }
+
             var encryptedReadCopy = encryptionService.Encrypt(targetReadKey, sharedReadKey, share.SourceRoleId.ToByteArray());
             var encryptedWriteCopy = sharedWriteKey is null
                 ? null
                 : encryptionService.Encrypt(targetWriteKey, sharedWriteKey, share.SourceRoleId.ToByteArray());
+            var encryptedOwnerCopy = sharedOwnerKey is null
+                ? null
+                : encryptionService.Encrypt(targetOwnerKey, sharedOwnerKey, share.SourceRoleId.ToByteArray());
 
             var normalizedShareType = RoleRelationships.Normalize(share.RelationshipType);
             if (!await dbContext.RoleEdges.AsNoTracking().AnyAsync(x => x.ParentRoleId == share.TargetRoleId && x.ChildRoleId == share.SourceRoleId, ct))
             {
+                var edgeId = Guid.NewGuid();
+                var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(targetReadKey, normalizedShareType, edgeId);
+                var relationshipTypeHash = HMACSHA256.HashData(targetReadKey, System.Text.Encoding.UTF8.GetBytes(normalizedShareType));
                 dbContext.RoleEdges.Add(new RoleEdge
                 {
-                    Id = Guid.NewGuid(),
+                    Id = edgeId,
                     ParentRoleId = share.TargetRoleId,
                     ChildRoleId = share.SourceRoleId,
-                    RelationshipType = normalizedShareType,
+                    RelationshipType = string.Empty,
+                    EncryptedRelationshipType = encryptedRelationshipType,
+                    RelationshipTypeHash = relationshipTypeHash,
                     EncryptedReadKeyCopy = encryptedReadCopy,
                     EncryptedWriteKeyCopy = encryptedWriteCopy,
+                    EncryptedOwnerKeyCopy = encryptedOwnerCopy,
                     CreatedUtc = DateTimeOffset.UtcNow
                 });
             }
@@ -325,7 +369,7 @@ public static class AccountShareEndpoints
             share.Status = "Accepted";
             share.AcceptedUtc = DateTimeOffset.UtcNow;
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(share.TargetRoleId, targetWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(share.TargetRoleId, targetOwnerKey, ct);
 
             await ledgerService.AppendKeyAsync(
                 "RoleShareAccepted",

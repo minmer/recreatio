@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Data;
-using Recreatio.Api.Domain;
 
 namespace Recreatio.Api.Security;
 
@@ -22,37 +20,6 @@ public static class RoleOwnership
             if (accessibleRoleIds.Contains(rootId))
             {
                 owned.Add(rootId);
-            }
-        }
-
-        var ownerEdges = await dbContext.RoleEdges.AsNoTracking()
-            .Where(edge => edge.RelationshipType == RoleRelationships.Owner || edge.RelationshipType == RoleRelationships.Owner.ToLowerInvariant())
-            .ToListAsync(ct);
-
-        var edgesByParent = ownerEdges
-            .GroupBy(edge => edge.ParentRoleId)
-            .ToDictionary(group => group.Key, group => group.ToList());
-
-        var queue = new Queue<Guid>(owned);
-        while (queue.Count > 0)
-        {
-            var parentRoleId = queue.Dequeue();
-            if (!edgesByParent.TryGetValue(parentRoleId, out var edges))
-            {
-                continue;
-            }
-
-            foreach (var edge in edges)
-            {
-                if (!accessibleRoleIds.Contains(edge.ChildRoleId))
-                {
-                    continue;
-                }
-
-                if (owned.Add(edge.ChildRoleId))
-                {
-                    queue.Enqueue(edge.ChildRoleId);
-                }
             }
         }
 

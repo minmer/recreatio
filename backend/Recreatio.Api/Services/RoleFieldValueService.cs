@@ -31,6 +31,12 @@ public sealed class RoleFieldValueService : IRoleFieldValueService
             return null;
         }
 
+        var fieldType = _keyRingService.TryDecryptRoleFieldType(readKey, field.EncryptedFieldType, field.Id);
+        if (string.IsNullOrWhiteSpace(fieldType))
+        {
+            return null;
+        }
+
         if (!keyEntryById.TryGetValue(field.DataKeyId, out var keyEntry) || keyEntry.KeyType != KeyType.DataKey)
         {
             return null;
@@ -46,6 +52,7 @@ public sealed class RoleFieldValueService : IRoleFieldValueService
             return null;
         }
 
-        return _keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, field.FieldType);
+        field.FieldType = fieldType;
+        return _keyRingService.TryDecryptFieldValue(dataKey, field.EncryptedValue, field.RoleId, fieldType);
     }
 }

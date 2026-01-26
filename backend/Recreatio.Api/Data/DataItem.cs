@@ -13,6 +13,10 @@ public sealed class DataItem
 
     public string ItemName { get; set; } = string.Empty;
 
+    public byte[] EncryptedItemType { get; set; } = Array.Empty<byte>();
+
+    public byte[] EncryptedItemName { get; set; } = Array.Empty<byte>();
+
     public byte[]? EncryptedValue { get; set; }
 
     public byte[] PublicSigningKey { get; set; } = Array.Empty<byte>();

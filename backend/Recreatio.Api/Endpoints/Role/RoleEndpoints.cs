@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
@@ -114,13 +115,7 @@ public static class RoleEndpoints
                 return Results.NotFound();
             }
 
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(parentRoleId))
             {
                 logger.LogWarning("Create edge failed: parent role not owned. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
@@ -128,7 +123,8 @@ public static class RoleEndpoints
             }
 
             if (!keyRing.TryGetReadKey(parentRoleId, out var parentReadKey) ||
-                !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey))
+                !keyRing.TryGetWriteKey(parentRoleId, out var parentWriteKey) ||
+                !keyRing.TryGetOwnerKey(parentRoleId, out var parentOwnerKey))
             {
                 logger.LogWarning("Create edge failed: parent keys missing. Parent {ParentRoleId}, user {UserId}.", parentRoleId, userId);
                 return Forbidden("Parent role keys not available.");
@@ -166,21 +162,40 @@ public static class RoleEndpoints
                 }
                 childWriteKey = resolvedWriteKey;
             }
+            byte[]? childOwnerKey = null;
+            if (RoleRelationships.IsOwner(relationshipType))
+            {
+                if (!keyRing.TryGetOwnerKey(request.ChildRoleId, out var resolvedOwnerKey))
+                {
+                    logger.LogWarning("Create edge failed: child owner key missing. Parent {ParentRoleId}, child {ChildRoleId}, user {UserId}.", parentRoleId, request.ChildRoleId, userId);
+                    return Forbidden("Child role owner key not available.");
+                }
+                childOwnerKey = resolvedOwnerKey;
+            }
 
             var encryptedReadCopy = encryptionService.Encrypt(parentReadKey, childReadKey, request.ChildRoleId.ToByteArray());
             var encryptedWriteCopy = childWriteKey is null
                 ? null
                 : encryptionService.Encrypt(parentWriteKey, childWriteKey, request.ChildRoleId.ToByteArray());
+            var encryptedOwnerCopy = childOwnerKey is null
+                ? null
+                : encryptionService.Encrypt(parentOwnerKey, childOwnerKey, request.ChildRoleId.ToByteArray());
 
             var now = DateTimeOffset.UtcNow;
+            var edgeId = Guid.NewGuid();
+            var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(parentReadKey, relationshipType, edgeId);
+            var relationshipTypeHash = HMACSHA256.HashData(parentReadKey, System.Text.Encoding.UTF8.GetBytes(relationshipType));
             var edge = new RoleEdge
             {
-                Id = Guid.NewGuid(),
+                Id = edgeId,
                 ParentRoleId = parentRoleId,
                 ChildRoleId = request.ChildRoleId,
-                RelationshipType = relationshipType,
+                RelationshipType = string.Empty,
+                EncryptedRelationshipType = encryptedRelationshipType,
+                RelationshipTypeHash = relationshipTypeHash,
                 EncryptedReadKeyCopy = encryptedReadCopy,
                 EncryptedWriteKeyCopy = encryptedWriteCopy,
+                EncryptedOwnerKeyCopy = encryptedOwnerCopy,
                 CreatedUtc = now
             };
 
@@ -189,7 +204,7 @@ public static class RoleEndpoints
                 userId.ToString(),
                 JsonSerializer.Serialize(new { parentRoleId, childRoleId = request.ChildRoleId, relationshipType, signature = request.SignatureBase64 }),
                 ct,
-                LedgerSigning.TryCreate(parentRole, parentWriteKey, encryptionService));
+                LedgerSigning.TryCreate(parentRole, parentOwnerKey, encryptionService));
 
             dbContext.RoleEdges.Add(edge);
             await dbContext.SaveChangesAsync(ct);

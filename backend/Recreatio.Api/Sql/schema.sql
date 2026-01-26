@@ -36,6 +36,7 @@ IF OBJECT_ID(N'dbo.CogitaPersons', N'U') IS NOT NULL DROP TABLE dbo.CogitaPerson
 IF OBJECT_ID(N'dbo.CogitaTopics', N'U') IS NOT NULL DROP TABLE dbo.CogitaTopics;
 IF OBJECT_ID(N'dbo.CogitaSentences', N'U') IS NOT NULL DROP TABLE dbo.CogitaSentences;
 IF OBJECT_ID(N'dbo.CogitaWords', N'U') IS NOT NULL DROP TABLE dbo.CogitaWords;
+IF OBJECT_ID(N'dbo.CogitaWordLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaWordLanguages;
 IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLanguages;
 IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
@@ -47,6 +48,7 @@ IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
 IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
 IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
 IF OBJECT_ID(N'dbo.Sessions', N'U') IS NOT NULL DROP TABLE dbo.Sessions;
+IF OBJECT_ID(N'dbo.KeyEntryBindings', N'U') IS NOT NULL DROP TABLE dbo.KeyEntryBindings;
 IF OBJECT_ID(N'dbo.Keys', N'U') IS NOT NULL DROP TABLE dbo.Keys;
 IF OBJECT_ID(N'dbo.UserAccounts', N'U') IS NOT NULL DROP TABLE dbo.UserAccounts;
 IF OBJECT_ID(N'dbo.Roles', N'U') IS NOT NULL DROP TABLE dbo.Roles;
@@ -140,12 +142,32 @@ CREATE TABLE dbo.Keys
     OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
     Version INT NOT NULL,
     EncryptedKeyBlob VARBINARY(MAX) NOT NULL,
-    MetadataJson NVARCHAR(256) NOT NULL,
+    ScopeType NVARCHAR(64) NOT NULL,
+    ScopeSubtype NVARCHAR(128) NULL,
+    BoundEntryId UNIQUEIDENTIFIER NULL,
     LedgerRefId UNIQUEIDENTIFIER NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_Keys_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_Keys_Ledger FOREIGN KEY (LedgerRefId) REFERENCES dbo.KeyLedger(Id)
 );
+GO
+
+CREATE TABLE dbo.KeyEntryBindings
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    KeyEntryId UNIQUEIDENTIFIER NOT NULL,
+    EntryId UNIQUEIDENTIFIER NOT NULL,
+    EntryType NVARCHAR(64) NOT NULL,
+    EntrySubtype NVARCHAR(128) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_KeyEntryBindings_Key FOREIGN KEY (KeyEntryId) REFERENCES dbo.Keys(Id)
+);
+GO
+
+CREATE INDEX IX_KeyEntryBindings_KeyEntryId ON dbo.KeyEntryBindings(KeyEntryId);
+GO
+
+CREATE INDEX IX_KeyEntryBindings_EntryId ON dbo.KeyEntryBindings(EntryId);
 GO
 
 CREATE TABLE dbo.Sessions
@@ -170,9 +192,12 @@ CREATE TABLE dbo.RoleEdges
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     ParentRoleId UNIQUEIDENTIFIER NOT NULL,
     ChildRoleId UNIQUEIDENTIFIER NOT NULL,
-    RelationshipType NVARCHAR(64) NOT NULL,
+    RelationshipType NVARCHAR(64) NULL,
+    EncryptedRelationshipType VARBINARY(MAX) NOT NULL,
+    RelationshipTypeHash VARBINARY(64) NOT NULL,
     EncryptedReadKeyCopy VARBINARY(MAX) NOT NULL,
     EncryptedWriteKeyCopy VARBINARY(MAX) NULL,
+    EncryptedOwnerKeyCopy VARBINARY(MAX) NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_RoleEdges_ParentRole FOREIGN KEY (ParentRoleId) REFERENCES dbo.Roles(Id),
     CONSTRAINT FK_RoleEdges_ChildRole FOREIGN KEY (ChildRoleId) REFERENCES dbo.Roles(Id)
@@ -187,6 +212,7 @@ CREATE TABLE dbo.PendingRoleShares
     RelationshipType NVARCHAR(64) NOT NULL,
     EncryptedReadKeyBlob VARBINARY(MAX) NOT NULL,
     EncryptedWriteKeyBlob VARBINARY(MAX) NULL,
+    EncryptedOwnerKeyBlob VARBINARY(MAX) NULL,
     EncryptionAlg NVARCHAR(64) NOT NULL,
     Status NVARCHAR(32) NOT NULL,
     LedgerRefId UNIQUEIDENTIFIER NOT NULL,
@@ -208,6 +234,7 @@ CREATE TABLE dbo.Memberships
     RelationshipType NVARCHAR(64) NOT NULL,
     EncryptedReadKeyCopy VARBINARY(MAX) NOT NULL,
     EncryptedWriteKeyCopy VARBINARY(MAX) NULL,
+    EncryptedOwnerKeyCopy VARBINARY(MAX) NULL,
     LedgerRefId UNIQUEIDENTIFIER NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
@@ -234,7 +261,9 @@ CREATE TABLE dbo.RoleFields
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     RoleId UNIQUEIDENTIFIER NOT NULL,
-    FieldType NVARCHAR(64) NOT NULL,
+    FieldType NVARCHAR(64) NULL,
+    EncryptedFieldType VARBINARY(MAX) NOT NULL,
+    FieldTypeHash VARBINARY(64) NOT NULL,
     DataKeyId UNIQUEIDENTIFIER NOT NULL,
     EncryptedValue VARBINARY(MAX) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
@@ -244,15 +273,17 @@ CREATE TABLE dbo.RoleFields
 );
 GO
 
-CREATE UNIQUE INDEX UX_RoleFields_Role_FieldType ON dbo.RoleFields(RoleId, FieldType);
+CREATE UNIQUE INDEX UX_RoleFields_Role_FieldTypeHash ON dbo.RoleFields(RoleId, FieldTypeHash);
 GO
 
 CREATE TABLE dbo.DataItems
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
-    ItemType NVARCHAR(32) NOT NULL,
-    ItemName NVARCHAR(128) NOT NULL,
+    ItemType NVARCHAR(32) NULL,
+    ItemName NVARCHAR(128) NULL,
+    EncryptedItemType VARBINARY(MAX) NOT NULL,
+    EncryptedItemName VARBINARY(MAX) NOT NULL,
     EncryptedValue VARBINARY(MAX) NULL,
     PublicSigningKey VARBINARY(MAX) NOT NULL,
     PublicSigningKeyAlg NVARCHAR(64) NOT NULL,
@@ -419,6 +450,20 @@ CREATE TABLE dbo.CogitaWords
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaWords_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
 );
+GO
+
+CREATE TABLE dbo.CogitaWordLanguages
+(
+    LanguageInfoId UNIQUEIDENTIFIER NOT NULL,
+    WordInfoId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT PK_CogitaWordLanguages PRIMARY KEY (LanguageInfoId, WordInfoId),
+    CONSTRAINT FK_CogitaWordLanguages_Language FOREIGN KEY (LanguageInfoId) REFERENCES dbo.CogitaInfos(Id),
+    CONSTRAINT FK_CogitaWordLanguages_Word FOREIGN KEY (WordInfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaWordLanguages_Word ON dbo.CogitaWordLanguages(WordInfoId);
 GO
 
 CREATE TABLE dbo.CogitaSentences

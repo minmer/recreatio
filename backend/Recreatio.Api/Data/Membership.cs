@@ -18,6 +18,8 @@ public sealed class Membership
 
     public byte[]? EncryptedWriteKeyCopy { get; set; }
 
+    public byte[]? EncryptedOwnerKeyCopy { get; set; }
+
     public Guid LedgerRefId { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }

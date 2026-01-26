@@ -512,8 +512,13 @@ export type CogitaConnectionCreateResponse = {
 };
 
 export type CogitaGroupCreateResponse = {
-  groupId: string;
   groupType: string;
+  infoIds: string[];
+  connectionIds: string[];
+};
+
+export type CogitaWordLanguageCheck = {
+  exists: boolean;
 };
 
 export function getCogitaLibraries() {
@@ -607,4 +612,17 @@ export function createCogitaGroup(payload: {
       signatureBase64: payload.signatureBase64 ?? null
     })
   });
+}
+
+export function checkCogitaWordLanguage(payload: { libraryId: string; languageId: string; wordId: string }) {
+  const params = new URLSearchParams({
+    languageId: payload.languageId,
+    wordId: payload.wordId
+  });
+  return request<CogitaWordLanguageCheck>(
+    `/cogita/libraries/${payload.libraryId}/word-languages?${params.toString()}`,
+    {
+      method: 'GET'
+    }
+  );
 }

@@ -53,25 +53,13 @@ public static class AccountDataEndpoints
             }
 
             if (!keyRing.TryGetReadKey(roleId, out var roleReadKey) ||
-                !keyRing.TryGetWriteKey(roleId, out var roleWriteKey))
+                !keyRing.TryGetWriteKey(roleId, out var roleWriteKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var roleOwnerKey))
             {
                 return Results.Forbid();
             }
 
-            var account = await dbContext.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == userId, ct);
-            if (account is null)
-            {
-                return Results.NotFound();
-            }
-
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(roleId))
             {
                 return Results.Forbid();
@@ -103,12 +91,17 @@ public static class AccountDataEndpoints
                 dataSignature = signingService.Sign(privateSigningKey, signatureAlg, encryptedValue);
             }
 
+            var encryptedItemName = keyRingService.EncryptDataItemMeta(roleReadKey, itemName, dataItemId, "item-name");
+            var encryptedItemType = keyRingService.EncryptDataItemMeta(roleReadKey, itemType, dataItemId, "item-type");
+
             var item = new DataItem
             {
                 Id = dataItemId,
                 OwnerRoleId = roleId,
-                ItemType = itemType,
-                ItemName = itemName,
+                ItemType = string.Empty,
+                ItemName = string.Empty,
+                EncryptedItemType = encryptedItemType,
+                EncryptedItemName = encryptedItemName,
                 EncryptedValue = encryptedValue,
                 PublicSigningKey = publicSigningKey,
                 PublicSigningKeyAlg = signatureAlg,
@@ -122,7 +115,7 @@ public static class AccountDataEndpoints
             var encryptedDataKey = encryptionService.Encrypt(roleReadKey, dataKey, dataItemId.ToByteArray());
             var encryptedSigningKey = encryptionService.Encrypt(roleWriteKey, privateSigningKey, dataItemId.ToByteArray());
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleOwnerKey, ct);
             var ledger = await ledgerService.AppendKeyAsync(
                 "DataItemCreated",
                 userId.ToString(),
@@ -190,7 +183,19 @@ public static class AccountDataEndpoints
             {
                 return Results.NotFound();
             }
-            if (dataItem.ItemType.Equals("key", StringComparison.OrdinalIgnoreCase))
+            if (!keyRing.TryGetReadKey(dataItem.OwnerRoleId, out var dataItemReadKey))
+            {
+                return Results.Forbid();
+            }
+
+            var itemType = keyRingService.TryDecryptDataItemMeta(dataItemReadKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
+            var itemName = keyRingService.TryDecryptDataItemMeta(dataItemReadKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
+            if (string.IsNullOrWhiteSpace(itemType) || string.IsNullOrWhiteSpace(itemName))
+            {
+                return Results.BadRequest(new { error = "Unable to decrypt data item metadata." });
+            }
+
+            if (itemType.Equals("key", StringComparison.OrdinalIgnoreCase))
             {
                 return Results.BadRequest(new { error = "Key items do not support values." });
             }
@@ -211,6 +216,7 @@ public static class AccountDataEndpoints
 
             keyRing.TryGetReadKey(writeGrant.RoleId, out var roleReadKey);
             keyRing.TryGetWriteKey(writeGrant.RoleId, out var roleWriteKey);
+            var hasOwnerKey = keyRing.TryGetOwnerKey(writeGrant.RoleId, out var roleOwnerKey);
 
             var dataKey = encryptionService.Decrypt(roleReadKey, writeGrant.EncryptedDataKeyBlob, dataItemId.ToByteArray());
             if (writeGrant.EncryptedSigningKeyBlob is null)
@@ -219,7 +225,7 @@ public static class AccountDataEndpoints
             }
             var privateSigningKey = encryptionService.Decrypt(roleWriteKey, writeGrant.EncryptedSigningKeyBlob, dataItemId.ToByteArray());
 
-            var encryptedValue = keyRingService.EncryptDataItemValue(dataKey, plainValue, dataItemId, dataItem.ItemName);
+            var encryptedValue = keyRingService.EncryptDataItemValue(dataKey, plainValue, dataItemId, itemName);
             var signatureAlg = dataItem.PublicSigningKeyAlg;
             var signature = signingService.Sign(privateSigningKey, signatureAlg, encryptedValue);
 
@@ -229,7 +235,11 @@ public static class AccountDataEndpoints
             dataItem.DataSignatureRoleId = writeGrant.RoleId;
             dataItem.UpdatedUtc = DateTimeOffset.UtcNow;
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(writeGrant.RoleId, roleWriteKey, ct);
+            LedgerSigningContext? signingContext = null;
+            if (hasOwnerKey)
+            {
+                signingContext = await roleCryptoService.TryGetSigningContextAsync(writeGrant.RoleId, roleOwnerKey, ct);
+            }
             await ledgerService.AppendBusinessAsync(
                 "DataItemUpdated",
                 userId.ToString(),
@@ -238,7 +248,7 @@ public static class AccountDataEndpoints
                 signingContext);
 
             await dbContext.SaveChangesAsync(ct);
-            return Results.Ok(new DataItemResponse(dataItemId, dataItem.ItemName, dataItem.ItemType, plainValue));
+            return Results.Ok(new DataItemResponse(dataItemId, itemName, itemType, plainValue));
         });
 
         group.MapDelete("/data/{dataItemId:guid}", async (
@@ -282,15 +292,15 @@ public static class AccountDataEndpoints
 
             var ownerGrant = grants.FirstOrDefault(grant =>
                 grant.PermissionType == RoleRelationships.Owner &&
-                keyRing.TryGetWriteKey(grant.RoleId, out _));
+                keyRing.TryGetOwnerKey(grant.RoleId, out _));
 
             if (ownerGrant is null)
             {
                 return Results.Forbid();
             }
 
-            keyRing.TryGetWriteKey(ownerGrant.RoleId, out var ownerWriteKey);
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerWriteKey, ct);
+            keyRing.TryGetOwnerKey(ownerGrant.RoleId, out var ownerKey);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerKey, ct);
             await ledgerService.AppendBusinessAsync(
                 "DataItemDeleted",
                 userId.ToString(),
@@ -372,7 +382,8 @@ public static class AccountDataEndpoints
             var ownerGrant = grants.FirstOrDefault(grant =>
                 grant.PermissionType == RoleRelationships.Owner &&
                 keyRing.TryGetReadKey(grant.RoleId, out _) &&
-                keyRing.TryGetWriteKey(grant.RoleId, out _));
+                keyRing.TryGetWriteKey(grant.RoleId, out _) &&
+                keyRing.TryGetOwnerKey(grant.RoleId, out _));
 
             if (ownerGrant is null)
             {
@@ -381,12 +392,13 @@ public static class AccountDataEndpoints
 
             keyRing.TryGetReadKey(ownerGrant.RoleId, out var ownerReadKey);
             keyRing.TryGetWriteKey(ownerGrant.RoleId, out var ownerWriteKey);
+            keyRing.TryGetOwnerKey(ownerGrant.RoleId, out var ownerKey);
             var dataKey = encryptionService.Decrypt(ownerReadKey, ownerGrant.EncryptedDataKeyBlob, dataItemId.ToByteArray());
             var privateSigningKey = ownerGrant.EncryptedSigningKeyBlob is null
                 ? null
                 : encryptionService.Decrypt(ownerWriteKey, ownerGrant.EncryptedSigningKeyBlob, dataItemId.ToByteArray());
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerWriteKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(ownerGrant.RoleId, ownerKey, ct);
             var normalizedPermission = RoleRelationships.Normalize(request.PermissionType);
             var needsWrite = RoleRelationships.AllowsWrite(normalizedPermission);
             if (keyRing.TryGetReadKey(request.TargetRoleId, out var targetReadKey) &&
@@ -570,12 +582,13 @@ public static class AccountDataEndpoints
             }
 
             if (!keyRing.TryGetReadKey(share.TargetRoleId, out var targetReadKey) ||
-                !keyRing.TryGetWriteKey(share.TargetRoleId, out var targetWriteKey))
+                !keyRing.TryGetWriteKey(share.TargetRoleId, out var targetWriteKey) ||
+                !keyRing.TryGetOwnerKey(share.TargetRoleId, out var targetOwnerKey))
             {
                 return Results.Forbid();
             }
 
-            var cryptoMaterial = roleCryptoService.TryReadRoleCryptoMaterial(targetRole, targetWriteKey);
+            var cryptoMaterial = roleCryptoService.TryReadRoleCryptoMaterial(targetRole, targetOwnerKey);
             if (cryptoMaterial is null)
             {
                 return Results.BadRequest(new { error = "Target role crypto material missing." });
@@ -633,7 +646,12 @@ public static class AccountDataEndpoints
             share.Status = "Accepted";
             share.AcceptedUtc = DateTimeOffset.UtcNow;
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(share.TargetRoleId, targetWriteKey, ct);
+            if (!keyRing.TryGetOwnerKey(share.TargetRoleId, out var targetOwnerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(share.TargetRoleId, targetOwnerKey, ct);
             await ledgerService.AppendKeyAsync(
                 "DataShareAccepted",
                 userId.ToString(),

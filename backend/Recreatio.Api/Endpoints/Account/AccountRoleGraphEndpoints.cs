@@ -74,19 +74,7 @@ public static class AccountRoleGraphEndpoints
                 }
             }
 
-            var account = await dbContext.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == userId, ct);
-            var ownerRoleIds = new HashSet<Guid>();
-            if (account is not null)
-            {
-                var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                    .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                    .Select(x => x.RoleId)
-                    .ToListAsync(ct);
-                var ownerRoots = new List<Guid> { account.MasterRoleId };
-                ownerRoots.AddRange(membershipOwners);
-                ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
-            }
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
 
             var nodeType = canRead ? "role" : "external";
             var response = new RoleLookupResponse(

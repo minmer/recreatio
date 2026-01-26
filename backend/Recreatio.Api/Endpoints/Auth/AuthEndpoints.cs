@@ -180,11 +180,11 @@ public static class AuthEndpoints
             return null;
         }
 
-        if (!keyRing.TryGetWriteKey(account.MasterRoleId, out var writeKey))
+        if (!keyRing.TryGetOwnerKey(account.MasterRoleId, out var ownerKey))
         {
             return null;
         }
 
-        return LedgerSigning.TryCreate(account.MasterRole, writeKey, encryptionService);
+        return LedgerSigning.TryCreate(account.MasterRole, ownerKey, encryptionService);
     }
 }

@@ -13,6 +13,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<RoleEdge> RoleEdges => Set<RoleEdge>();
     public DbSet<PendingRoleShare> PendingRoleShares => Set<PendingRoleShare>();
     public DbSet<KeyEntry> Keys => Set<KeyEntry>();
+    public DbSet<KeyEntryBinding> KeyEntryBindings => Set<KeyEntryBinding>();
     public DbSet<Membership> Memberships => Set<Membership>();
     public DbSet<Session> Sessions => Set<Session>();
     public DbSet<SharedView> SharedViews => Set<SharedView>();
@@ -42,6 +43,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaGeoFeature> CogitaGeoFeatures => Set<Data.Cogita.CogitaGeoFeature>();
     public DbSet<Data.Cogita.CogitaMusicPiece> CogitaMusicPieces => Set<Data.Cogita.CogitaMusicPiece>();
     public DbSet<Data.Cogita.CogitaMusicFragment> CogitaMusicFragments => Set<Data.Cogita.CogitaMusicFragment>();
+    public DbSet<Data.Cogita.CogitaWordLanguage> CogitaWordLanguages => Set<Data.Cogita.CogitaWordLanguage>();
     public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
     public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
     public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
@@ -59,11 +61,19 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
 
         modelBuilder.Entity<RoleField>()
-            .HasIndex(x => new { x.RoleId, x.FieldType })
+            .HasIndex(x => new { x.RoleId, x.FieldTypeHash })
             .IsUnique();
 
         modelBuilder.Entity<DataItem>()
             .HasIndex(x => x.OwnerRoleId);
+
+        modelBuilder.Entity<KeyEntry>()
+            .HasIndex(x => x.OwnerRoleId);
+
+        modelBuilder.Entity<KeyEntryBinding>()
+            .HasIndex(x => x.KeyEntryId);
+        modelBuilder.Entity<KeyEntryBinding>()
+            .HasIndex(x => x.EntryId);
 
         modelBuilder.Entity<DataKeyGrant>()
             .HasIndex(x => new { x.DataItemId, x.RoleId })
@@ -90,6 +100,11 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaLibrary>()
             .HasIndex(x => x.RoleId)
             .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaWordLanguage>()
+            .HasKey(x => new { x.LanguageInfoId, x.WordInfoId });
+        modelBuilder.Entity<Data.Cogita.CogitaWordLanguage>()
+            .HasIndex(x => x.WordInfoId);
 
         modelBuilder.Entity<Data.Cogita.CogitaInfo>()
             .HasIndex(x => new { x.LibraryId, x.InfoType });

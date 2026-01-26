@@ -12,6 +12,10 @@ public sealed class RoleField
     [MaxLength(64)]
     public string FieldType { get; set; } = string.Empty;
 
+    public byte[] EncryptedFieldType { get; set; } = Array.Empty<byte>();
+
+    public byte[] FieldTypeHash { get; set; } = Array.Empty<byte>();
+
     public byte[] EncryptedValue { get; set; } = Array.Empty<byte>();
 
     public Guid DataKeyId { get; set; }

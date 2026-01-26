@@ -1,0 +1,133 @@
+import { CogitaShell } from '../CogitaShell';
+import type { Copy } from '../../../content/types';
+import type { RouteKey } from '../../../types/navigation';
+import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+
+export function CogitaLibraryOverviewPage({
+  copy,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  language,
+  onLanguageChange,
+  libraryId,
+  onBackToCogita,
+  onOpenList,
+  onOpenAdd
+}: {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  onBackToCogita: () => void;
+  onOpenList: () => void;
+  onOpenAdd: () => void;
+}) {
+  const { libraryName, stats } = useCogitaLibraryMeta(libraryId);
+
+  return (
+    <CogitaShell
+      copy={copy}
+      authLabel={authLabel}
+      showProfileMenu={showProfileMenu}
+      onProfileNavigate={onProfileNavigate}
+      onToggleSecureMode={onToggleSecureMode}
+      onLogout={onLogout}
+      secureMode={secureMode}
+      onNavigate={onNavigate}
+      language={language}
+      onLanguageChange={onLanguageChange}
+    >
+      <section className="cogita-library-dashboard" data-mode="detail">
+        <header className="cogita-library-dashboard-header">
+          <div>
+            <p className="cogita-user-kicker">Library</p>
+            <h1 className="cogita-library-title">{libraryName}</h1>
+            <p className="cogita-library-subtitle">Overview of your encrypted index card library.</p>
+          </div>
+          <div className="cogita-library-actions">
+            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+              Back to Cogita
+            </button>
+            <button type="button" className="cta ghost" onClick={onOpenList}>
+              Open list
+            </button>
+            <button type="button" className="cta" onClick={onOpenAdd}>
+              Add new info
+            </button>
+          </div>
+        </header>
+
+        <div className="cogita-library-stats">
+          <div className="cogita-stat-card">
+            <span>Total infos</span>
+            <strong>{stats?.totalInfos ?? 0}</strong>
+          </div>
+          <div className="cogita-stat-card">
+            <span>Connections</span>
+            <strong>{stats?.totalConnections ?? 0}</strong>
+          </div>
+          <div className="cogita-stat-card">
+            <span>Words</span>
+            <strong>{stats?.totalWords ?? 0}</strong>
+          </div>
+          <div className="cogita-stat-card">
+            <span>Sentences</span>
+            <strong>{stats?.totalSentences ?? 0}</strong>
+          </div>
+          <div className="cogita-stat-card">
+            <span>Languages</span>
+            <strong>{stats?.totalLanguages ?? 0}</strong>
+          </div>
+        </div>
+
+        <div className="cogita-library-grid">
+          <div className="cogita-library-pane">
+            <div className="cogita-library-controls">
+              <div className="cogita-library-search">
+                <p className="cogita-user-kicker">Quick actions</p>
+                <div className="cogita-card-empty">
+                  <p>Jump into the list to browse cards or add a new entry.</p>
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta ghost" onClick={onOpenList}>
+                      Browse list
+                    </button>
+                    <button type="button" className="cta" onClick={onOpenAdd}>
+                      Add info
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="cogita-library-panel">
+            <section className="cogita-library-detail">
+              <div className="cogita-detail-header">
+                <div>
+                  <p className="cogita-user-kicker">Library focus</p>
+                  <h3 className="cogita-detail-title">What is inside?</h3>
+                </div>
+              </div>
+              <div className="cogita-detail-body">
+                <p>Every info card is encrypted and linked through relationships.</p>
+                <p>Use the list to explore, then add or connect new knowledge nodes.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </CogitaShell>
+  );
+}

@@ -43,7 +43,9 @@ public static class AccountRoleFieldEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetReadKey(roleId, out var readKey) || !keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetReadKey(roleId, out var readKey) ||
+                !keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -60,16 +62,19 @@ public static class AccountRoleFieldEndpoints
                 return Results.BadRequest(new { error = "PlainValue is required." });
             }
 
+            var fieldTypeHash = HMACSHA256.HashData(readKey, System.Text.Encoding.UTF8.GetBytes(fieldType));
             var existing = await dbContext.RoleFields
-                .FirstOrDefaultAsync(x => x.RoleId == roleId && x.FieldType == fieldType, ct);
+                .FirstOrDefaultAsync(x => x.RoleId == roleId && x.FieldTypeHash == fieldTypeHash, ct);
 
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
             var now = DateTimeOffset.UtcNow;
             if (existing is null)
             {
                 var dataKeyId = Guid.NewGuid();
+                var roleFieldId = Guid.NewGuid();
                 var dataKey = RandomNumberGenerator.GetBytes(32);
                 var encryptedDataKey = keyRingService.EncryptDataKey(readKey, dataKey, dataKeyId);
+                var encryptedFieldType = keyRingService.EncryptRoleFieldType(readKey, fieldType, roleFieldId);
                 var keyLedger = await ledgerService.AppendKeyAsync(
                     "RoleFieldKeyCreated",
                     userId.ToString(),
@@ -84,16 +89,29 @@ public static class AccountRoleFieldEndpoints
                     OwnerRoleId = roleId,
                     Version = 1,
                     EncryptedKeyBlob = encryptedDataKey,
-                    MetadataJson = JsonSerializer.Serialize(new { fieldType }),
+                    ScopeType = "role-field",
+                    ScopeSubtype = fieldType,
+                    BoundEntryId = roleFieldId,
                     LedgerRefId = keyLedger.Id,
+                    CreatedUtc = now
+                });
+                dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+                {
+                    Id = Guid.NewGuid(),
+                    KeyEntryId = dataKeyId,
+                    EntryId = roleFieldId,
+                    EntryType = "role-field",
+                    EntrySubtype = fieldType,
                     CreatedUtc = now
                 });
 
                 existing = new RoleField
                 {
-                    Id = Guid.NewGuid(),
+                    Id = roleFieldId,
                     RoleId = roleId,
-                    FieldType = fieldType,
+                    FieldType = string.Empty,
+                    EncryptedFieldType = encryptedFieldType,
+                    FieldTypeHash = fieldTypeHash,
                     DataKeyId = dataKeyId,
                     EncryptedValue = keyRingService.EncryptFieldValue(dataKey, plainValue, roleId, fieldType),
                     CreatedUtc = now,
@@ -126,7 +144,7 @@ public static class AccountRoleFieldEndpoints
 
             return Results.Ok(new RoleFieldResponse(
                 existing.Id,
-                existing.FieldType,
+                fieldType,
                 plainValue,
                 existing.DataKeyId
             ));
@@ -162,7 +180,9 @@ public static class AccountRoleFieldEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetReadKey(roleId, out var readKey) ||
+                !keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -174,7 +194,13 @@ public static class AccountRoleFieldEndpoints
                 return Results.NotFound();
             }
 
-            if (RoleFieldTypes.IsSystemField(field.FieldType))
+            var decryptedFieldType = keyRingService.TryDecryptRoleFieldType(readKey, field.EncryptedFieldType, field.Id);
+            if (string.IsNullOrWhiteSpace(decryptedFieldType))
+            {
+                return Results.BadRequest(new { error = "Unable to decrypt field type." });
+            }
+
+            if (RoleFieldTypes.IsSystemField(decryptedFieldType))
             {
                 return Results.BadRequest(new { error = "System fields cannot be deleted." });
             }
@@ -189,12 +215,12 @@ public static class AccountRoleFieldEndpoints
             {
                 dbContext.Keys.Remove(dataKey);
             }
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
 
             await ledgerService.AppendBusinessAsync(
                 "RoleFieldDeleted",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { roleId, fieldId, fieldType = field.FieldType }),
+                JsonSerializer.Serialize(new { roleId, fieldId, fieldType = decryptedFieldType }),
                 ct,
                 signingContext);
 

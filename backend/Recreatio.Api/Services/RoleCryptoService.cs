@@ -9,8 +9,8 @@ namespace Recreatio.Api.Services;
 
 public interface IRoleCryptoService
 {
-    RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] writeKey);
-    Task<LedgerSigningContext?> TryGetSigningContextAsync(Guid roleId, byte[] writeKey, CancellationToken ct);
+    RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] ownerKey);
+    Task<LedgerSigningContext?> TryGetSigningContextAsync(Guid roleId, byte[] ownerKey, CancellationToken ct);
 }
 
 public sealed class RoleCryptoService : IRoleCryptoService
@@ -24,7 +24,7 @@ public sealed class RoleCryptoService : IRoleCryptoService
         _encryptionService = encryptionService;
     }
 
-    public RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] writeKey)
+    public RoleCryptoMaterial? TryReadRoleCryptoMaterial(Role role, byte[] ownerKey)
     {
         if (role.EncryptedRoleBlob.Length == 0)
         {
@@ -33,7 +33,7 @@ public sealed class RoleCryptoService : IRoleCryptoService
 
         try
         {
-            var json = _encryptionService.Decrypt(writeKey, role.EncryptedRoleBlob);
+            var json = _encryptionService.Decrypt(ownerKey, role.EncryptedRoleBlob);
             return JsonSerializer.Deserialize<RoleCryptoMaterial>(json);
         }
         catch (JsonException)
@@ -46,7 +46,7 @@ public sealed class RoleCryptoService : IRoleCryptoService
         }
     }
 
-    public async Task<LedgerSigningContext?> TryGetSigningContextAsync(Guid roleId, byte[] writeKey, CancellationToken ct)
+    public async Task<LedgerSigningContext?> TryGetSigningContextAsync(Guid roleId, byte[] ownerKey, CancellationToken ct)
     {
         var role = await _dbContext.Roles.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == roleId, ct);
@@ -55,6 +55,6 @@ public sealed class RoleCryptoService : IRoleCryptoService
             return null;
         }
 
-        return LedgerSigning.TryCreate(role, writeKey, _encryptionService);
+        return LedgerSigning.TryCreate(role, ownerKey, _encryptionService);
     }
 }

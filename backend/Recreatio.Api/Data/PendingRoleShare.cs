@@ -18,6 +18,8 @@ public sealed class PendingRoleShare
 
     public byte[]? EncryptedWriteKeyBlob { get; set; }
 
+    public byte[]? EncryptedOwnerKeyBlob { get; set; }
+
     [MaxLength(64)]
     public string EncryptionAlg { get; set; } = string.Empty;
 

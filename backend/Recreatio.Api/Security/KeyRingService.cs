@@ -18,6 +18,12 @@ public interface IKeyRingService
     string? TryDecryptFieldValue(byte[] dataKey, byte[] encryptedValue, Guid roleId, string fieldType);
     byte[] EncryptDataItemValue(byte[] dataKey, string value, Guid dataItemId, string itemName);
     string? TryDecryptDataItemValue(byte[] dataKey, byte[] encryptedValue, Guid dataItemId, string itemName);
+    byte[] EncryptRoleFieldType(byte[] readKey, string fieldType, Guid fieldId);
+    string? TryDecryptRoleFieldType(byte[] readKey, byte[] encryptedValue, Guid fieldId);
+    byte[] EncryptRoleRelationshipType(byte[] readKey, string relationshipType, Guid edgeId);
+    string? TryDecryptRoleRelationshipType(byte[] readKey, byte[] encryptedValue, Guid edgeId);
+    byte[] EncryptDataItemMeta(byte[] readKey, string value, Guid dataItemId, string metaName);
+    string? TryDecryptDataItemMeta(byte[] readKey, byte[] encryptedValue, Guid dataItemId, string metaName);
 }
 
 public sealed class KeyRingService : IKeyRingService
@@ -88,17 +94,19 @@ public sealed class KeyRingService : IKeyRingService
         var masterKey = RequireMasterKey(context, userId, sessionId);
         var readKeys = new Dictionary<Guid, byte[]>();
         var writeKeys = new Dictionary<Guid, byte[]>();
+        var ownerKeys = new Dictionary<Guid, byte[]>();
         var account = await _dbContext.UserAccounts.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == userId, ct);
         if (account is not null)
         {
             var rootKeyEntries = await _dbContext.Keys.AsNoTracking()
                 .Where(key => key.OwnerRoleId == account.MasterRoleId
-                    && (key.KeyType == KeyType.RoleReadKey || key.KeyType == KeyType.RoleWriteKey))
+                    && (key.KeyType == KeyType.RoleReadKey || key.KeyType == KeyType.RoleWriteKey || key.KeyType == KeyType.RoleOwnerKey))
                 .ToListAsync(ct);
 
             var readEntry = rootKeyEntries.FirstOrDefault(x => x.KeyType == KeyType.RoleReadKey);
             var writeEntry = rootKeyEntries.FirstOrDefault(x => x.KeyType == KeyType.RoleWriteKey);
+            var ownerEntry = rootKeyEntries.FirstOrDefault(x => x.KeyType == KeyType.RoleOwnerKey);
             if (readEntry is not null)
             {
                 readKeys[account.MasterRoleId] = _encryptionService.Decrypt(masterKey, readEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
@@ -106,6 +114,10 @@ public sealed class KeyRingService : IKeyRingService
             if (writeEntry is not null)
             {
                 writeKeys[account.MasterRoleId] = _encryptionService.Decrypt(masterKey, writeEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
+            }
+            if (ownerEntry is not null)
+            {
+                ownerKeys[account.MasterRoleId] = _encryptionService.Decrypt(masterKey, ownerEntry.EncryptedKeyBlob, account.MasterRoleId.ToByteArray());
             }
         }
 
@@ -140,11 +152,24 @@ public sealed class KeyRingService : IKeyRingService
                     _logger.LogWarning("Failed to decrypt membership write key copy for role {RoleId}.", membership.RoleId);
                 }
             }
+
+            if (membership.EncryptedOwnerKeyCopy is { Length: > 0 })
+            {
+                try
+                {
+                    var ownerKey = _encryptionService.Decrypt(masterKey, membership.EncryptedOwnerKeyCopy, membership.RoleId.ToByteArray());
+                    ownerKeys[membership.RoleId] = ownerKey;
+                }
+                catch (CryptographicException)
+                {
+                    _logger.LogWarning("Failed to decrypt membership owner key copy for role {RoleId}.", membership.RoleId);
+                }
+            }
         }
 
         if (readKeys.Count == 0)
         {
-            return new RoleKeyRing(readKeys, writeKeys);
+            return new RoleKeyRing(readKeys, writeKeys, ownerKeys);
         }
 
         var edges = await _dbContext.RoleEdges.AsNoTracking().ToListAsync(ct);
@@ -223,7 +248,43 @@ public sealed class KeyRingService : IKeyRingService
             }
         }
 
-        var ring = new RoleKeyRing(readKeys, writeKeys);
+        var ownerQueue = new Queue<Guid>(ownerKeys.Keys);
+        while (ownerQueue.Count > 0)
+        {
+            var parentRoleId = ownerQueue.Dequeue();
+            if (!edgesByParent.TryGetValue(parentRoleId, out var childEdges))
+            {
+                continue;
+            }
+
+            var parentOwnerKey = ownerKeys[parentRoleId];
+            foreach (var edge in childEdges)
+            {
+                if (ownerKeys.ContainsKey(edge.ChildRoleId))
+                {
+                    continue;
+                }
+
+                if (edge.EncryptedOwnerKeyCopy is not { Length: > 0 })
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var childKey = _encryptionService.Decrypt(parentOwnerKey, edge.EncryptedOwnerKeyCopy, edge.ChildRoleId.ToByteArray());
+                    ownerKeys[edge.ChildRoleId] = childKey;
+                    ownerQueue.Enqueue(edge.ChildRoleId);
+                }
+                catch (CryptographicException)
+                {
+                    _logger.LogWarning("Failed to decrypt role edge owner key copy from {ParentRoleId} to {ChildRoleId}.", parentRoleId, edge.ChildRoleId);
+                    continue;
+                }
+            }
+        }
+
+        var ring = new RoleKeyRing(readKeys, writeKeys, ownerKeys);
         if (!secureMode)
         {
             if (_sessionSecretCache.TryGet(sessionId, out var existing))
@@ -281,6 +342,66 @@ public sealed class KeyRingService : IKeyRingService
         try
         {
             var plaintext = _encryptionService.Decrypt(dataKey, encryptedValue, aad);
+            return Utf8.GetString(plaintext);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    public byte[] EncryptRoleFieldType(byte[] readKey, string fieldType, Guid fieldId)
+    {
+        var aad = Utf8.GetBytes($"{fieldId:D}:role-field-type");
+        return _encryptionService.Encrypt(readKey, Utf8.GetBytes(fieldType), aad);
+    }
+
+    public string? TryDecryptRoleFieldType(byte[] readKey, byte[] encryptedValue, Guid fieldId)
+    {
+        var aad = Utf8.GetBytes($"{fieldId:D}:role-field-type");
+        try
+        {
+            var plaintext = _encryptionService.Decrypt(readKey, encryptedValue, aad);
+            return Utf8.GetString(plaintext);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    public byte[] EncryptRoleRelationshipType(byte[] readKey, string relationshipType, Guid edgeId)
+    {
+        var aad = Utf8.GetBytes($"{edgeId:D}:role-edge-type");
+        return _encryptionService.Encrypt(readKey, Utf8.GetBytes(relationshipType), aad);
+    }
+
+    public string? TryDecryptRoleRelationshipType(byte[] readKey, byte[] encryptedValue, Guid edgeId)
+    {
+        var aad = Utf8.GetBytes($"{edgeId:D}:role-edge-type");
+        try
+        {
+            var plaintext = _encryptionService.Decrypt(readKey, encryptedValue, aad);
+            return Utf8.GetString(plaintext);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    public byte[] EncryptDataItemMeta(byte[] readKey, string value, Guid dataItemId, string metaName)
+    {
+        var aad = Utf8.GetBytes($"{dataItemId:D}:{metaName}");
+        return _encryptionService.Encrypt(readKey, Utf8.GetBytes(value), aad);
+    }
+
+    public string? TryDecryptDataItemMeta(byte[] readKey, byte[] encryptedValue, Guid dataItemId, string metaName)
+    {
+        var aad = Utf8.GetBytes($"{dataItemId:D}:{metaName}");
+        try
+        {
+            var plaintext = _encryptionService.Decrypt(readKey, encryptedValue, aad);
             return Utf8.GetString(plaintext);
         }
         catch (CryptographicException)

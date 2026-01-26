@@ -54,7 +54,7 @@ public static class AccountRoleAccessEndpoints
 
             var parentRoleIds = edges.Select(edge => edge.ParentRoleId).Distinct().ToList();
             var kindFields = await dbContext.RoleFields.AsNoTracking()
-                .Where(field => field.FieldType == RoleFieldTypes.RoleKind && parentRoleIds.Contains(field.RoleId))
+                .Where(field => parentRoleIds.Contains(field.RoleId))
                 .ToListAsync(ct);
 
             var lookup = await fieldQueryService.LoadAsync(kindFields, keyRing, ct);
@@ -68,10 +68,22 @@ public static class AccountRoleAccessEndpoints
             }
 
             var roleEdges = edges
-                .Select(edge => new RoleAccessRoleResponse(
-                    edge.ParentRoleId,
-                    roleKindById.GetValueOrDefault(edge.ParentRoleId, "Role"),
-                    edge.RelationshipType))
+                .Select(edge =>
+                {
+                    var relationship = RoleRelationships.Read;
+                    if (keyRing.TryGetReadKey(edge.ParentRoleId, out var parentReadKey))
+                    {
+                        var decrypted = keyRingService.TryDecryptRoleRelationshipType(parentReadKey, edge.EncryptedRelationshipType, edge.Id);
+                        if (!string.IsNullOrWhiteSpace(decrypted))
+                        {
+                            relationship = RoleRelationships.Normalize(decrypted);
+                        }
+                    }
+                    return new RoleAccessRoleResponse(
+                        edge.ParentRoleId,
+                        roleKindById.GetValueOrDefault(edge.ParentRoleId, "Role"),
+                        relationship);
+                })
                 .ToList();
 
             var response = new RoleAccessResponse(roleId, roleEdges);

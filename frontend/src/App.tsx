@@ -13,7 +13,9 @@ import { HomePage } from './pages/HomePage';
 import { ParishPage } from './pages/parish/ParishPage';
 import { CogitaPage } from './pages/cogita/CogitaPage';
 import { CogitaUserPage } from './pages/cogita/CogitaUserPage';
-import { CogitaLibraryPage } from './pages/cogita/library/CogitaLibraryPage';
+import { CogitaLibraryOverviewPage } from './pages/cogita/library/CogitaLibraryOverviewPage';
+import { CogitaLibraryListPage } from './pages/cogita/library/CogitaLibraryListPage';
+import { CogitaLibraryAddPage } from './pages/cogita/library/CogitaLibraryAddPage';
 import type { CogitaLibraryMode } from './pages/cogita/library/types';
 import { AccountPage } from './pages/account/AccountPage';
 
@@ -58,7 +60,15 @@ export default function App() {
   const cogitaLibraryId = cogitaSegments[1] === 'library' ? cogitaSegments[2] : undefined;
   const libraryModeSegment = cogitaSegments[3];
   const libraryMode: CogitaLibraryMode =
-    libraryModeSegment === 'collection' || libraryModeSegment === 'list' ? libraryModeSegment : 'detail';
+    libraryModeSegment === 'collection' || libraryModeSegment === 'list' || libraryModeSegment === 'detail'
+      ? libraryModeSegment
+      : 'detail';
+  const libraryView =
+    libraryModeSegment === 'new' || libraryModeSegment === 'add'
+      ? 'add'
+      : libraryModeSegment === 'list' || libraryModeSegment === 'collection' || libraryModeSegment === 'detail'
+        ? 'list'
+        : 'overview';
   const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
     pathname === '/faq' || pathname === '/legal' || pathname === '/login'
@@ -356,28 +366,62 @@ export default function App() {
       {isCogitaPath &&
         (isAuthenticated ? (
           isCogitaLibraryPath && cogitaLibraryId ? (
-            <CogitaLibraryPage
-              copy={t}
-              authLabel={t.nav.account}
-              showProfileMenu
-              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-              onToggleSecureMode={handleToggleMode}
-              onLogout={handleLogout}
-              secureMode={secureMode}
-              onNavigate={navigateRoute}
-              language={language}
-              onLanguageChange={setLanguage}
-              libraryId={cogitaLibraryId}
-              mode={libraryMode}
-              onModeChange={(nextMode) => {
-                navigate(
-                  nextMode === 'detail'
-                    ? `/cogita/library/${cogitaLibraryId}`
-                    : `/cogita/library/${cogitaLibraryId}/${nextMode}`
-                );
-              }}
-              onBackToOverview={() => navigate('/cogita')}
-            />
+            libraryView === 'add' ? (
+              <CogitaLibraryAddPage
+                copy={t}
+                authLabel={t.nav.account}
+                showProfileMenu
+                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                onToggleSecureMode={handleToggleMode}
+                onLogout={handleLogout}
+                secureMode={secureMode}
+                onNavigate={navigateRoute}
+                language={language}
+                onLanguageChange={setLanguage}
+                libraryId={cogitaLibraryId}
+                onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
+                onBackToList={() => navigate(`/cogita/library/${cogitaLibraryId}/list`)}
+                onBackToCogita={() => navigate('/cogita')}
+              />
+            ) : libraryView === 'list' ? (
+              <CogitaLibraryListPage
+                copy={t}
+                authLabel={t.nav.account}
+                showProfileMenu
+                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                onToggleSecureMode={handleToggleMode}
+                onLogout={handleLogout}
+                secureMode={secureMode}
+                onNavigate={navigateRoute}
+                language={language}
+                onLanguageChange={setLanguage}
+                libraryId={cogitaLibraryId}
+                mode={libraryMode}
+                onModeChange={(nextMode) => {
+                  navigate(`/cogita/library/${cogitaLibraryId}/${nextMode}`);
+                }}
+                onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
+                onBackToCogita={() => navigate('/cogita')}
+                onOpenAdd={() => navigate(`/cogita/library/${cogitaLibraryId}/new`)}
+              />
+            ) : (
+              <CogitaLibraryOverviewPage
+                copy={t}
+                authLabel={t.nav.account}
+                showProfileMenu
+                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                onToggleSecureMode={handleToggleMode}
+                onLogout={handleLogout}
+                secureMode={secureMode}
+                onNavigate={navigateRoute}
+                language={language}
+                onLanguageChange={setLanguage}
+                libraryId={cogitaLibraryId}
+                onBackToCogita={() => navigate('/cogita')}
+                onOpenList={() => navigate(`/cogita/library/${cogitaLibraryId}/list`)}
+                onOpenAdd={() => navigate(`/cogita/library/${cogitaLibraryId}/new`)}
+              />
+            )
           ) : (
             <CogitaUserPage
               copy={t}

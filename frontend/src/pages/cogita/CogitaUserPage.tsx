@@ -107,7 +107,7 @@ export function CogitaUserPage({
               <p className="cogita-user-kicker">Libraries</p>
               <h2 className="cogita-library-title">Your knowledge libraries</h2>
               <p className="cogita-library-subtitle">
-                Create a library role, then enter it to manage encrypted index cards, connections, and groups.
+                Create a library role, then enter it to manage encrypted index cards and connections.
               </p>
             </div>
           </header>

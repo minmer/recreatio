@@ -43,7 +43,8 @@ public static class AccountRoleParentEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetWriteKey(roleId, out var writeKey))
+            if (!keyRing.TryGetWriteKey(roleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -55,13 +56,7 @@ public static class AccountRoleParentEndpoints
                 return Results.NotFound();
             }
 
-            var membershipOwners = await dbContext.Memberships.AsNoTracking()
-                .Where(x => x.UserId == userId && x.RelationshipType == RoleRelationships.Owner)
-                .Select(x => x.RoleId)
-                .ToListAsync(ct);
-            var ownerRoots = new List<Guid> { account.MasterRoleId };
-            ownerRoots.AddRange(membershipOwners);
-            var ownerRoleIds = await RoleOwnership.GetOwnedRoleIdsAsync(ownerRoots, keyRing.ReadKeys.Keys.ToHashSet(), dbContext, ct);
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
             if (!ownerRoleIds.Contains(roleId))
             {
                 return Results.Forbid();
@@ -74,22 +69,51 @@ public static class AccountRoleParentEndpoints
                 return Results.NotFound();
             }
 
-            if (edge.RelationshipType == RoleRelationships.Owner && roleId != account.MasterRoleId)
+            var edgeRelationship = RoleRelationships.Read;
+            if (keyRing.TryGetReadKey(parentRoleId, out var parentReadKey))
             {
-                var remainingOwners = await dbContext.RoleEdges.AsNoTracking()
-                    .CountAsync(x => x.ChildRoleId == roleId && x.RelationshipType == RoleRelationships.Owner && x.ParentRoleId != parentRoleId, ct);
-                if (remainingOwners == 0)
+                var decrypted = keyRingService.TryDecryptRoleRelationshipType(parentReadKey, edge.EncryptedRelationshipType, edge.Id);
+                if (!string.IsNullOrWhiteSpace(decrypted))
+                {
+                    edgeRelationship = RoleRelationships.Normalize(decrypted);
+                }
+            }
+
+            if (edgeRelationship == RoleRelationships.Owner && roleId != account.MasterRoleId)
+            {
+                var remainingEdges = await dbContext.RoleEdges.AsNoTracking()
+                    .Where(x => x.ChildRoleId == roleId && x.ParentRoleId != parentRoleId)
+                    .ToListAsync(ct);
+
+                var hasOwner = false;
+                foreach (var remaining in remainingEdges)
+                {
+                    if (!keyRing.TryGetReadKey(remaining.ParentRoleId, out var remainingReadKey))
+                    {
+                        continue;
+                    }
+
+                    var decrypted = keyRingService.TryDecryptRoleRelationshipType(remainingReadKey, remaining.EncryptedRelationshipType, remaining.Id);
+                    if (!string.IsNullOrWhiteSpace(decrypted) &&
+                        RoleRelationships.Normalize(decrypted) == RoleRelationships.Owner)
+                    {
+                        hasOwner = true;
+                        break;
+                    }
+                }
+
+                if (!hasOwner)
                 {
                     return Results.BadRequest(new { error = "At least one Owner relation is required." });
                 }
             }
 
             dbContext.RoleEdges.Remove(edge);
-            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, writeKey, ct);
+            var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, ownerKey, ct);
             await ledgerService.AppendKeyAsync(
                 "RoleEdgeDeleted",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { parentRoleId, roleId, relationshipType = edge.RelationshipType }),
+                JsonSerializer.Serialize(new { parentRoleId, roleId, relationshipType = edgeRelationship }),
                 ct,
                 signingContext);
 
@@ -131,8 +155,22 @@ public static class AccountRoleParentEndpoints
 
             var parentLinks = await dbContext.RoleEdges.AsNoTracking()
                 .Where(edge => edge.ChildRoleId == roleId)
-                .Select(edge => new RoleParentLinkResponse(edge.ParentRoleId, RoleRelationships.Normalize(edge.RelationshipType)))
                 .ToListAsync(ct);
+
+            var linkResponses = parentLinks.Select(edge =>
+            {
+                var relationship = RoleRelationships.Read;
+                if (keyRing.TryGetReadKey(edge.ParentRoleId, out var parentReadKey))
+                {
+                    var decrypted = keyRingService.TryDecryptRoleRelationshipType(parentReadKey, edge.EncryptedRelationshipType, edge.Id);
+                    if (!string.IsNullOrWhiteSpace(decrypted))
+                    {
+                        relationship = RoleRelationships.Normalize(decrypted);
+                    }
+                }
+
+                return new RoleParentLinkResponse(edge.ParentRoleId, relationship);
+            }).ToList();
 
             var account = await dbContext.UserAccounts.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == userId, ct);
@@ -140,13 +178,13 @@ public static class AccountRoleParentEndpoints
             {
                 var isMembership = await dbContext.Memberships.AsNoTracking()
                     .AnyAsync(x => x.UserId == userId && x.RoleId == roleId, ct);
-                if (isMembership && parentLinks.All(link => link.ParentRoleId != account.MasterRoleId))
+                if (isMembership && linkResponses.All(link => link.ParentRoleId != account.MasterRoleId))
                 {
-                    parentLinks.Add(new RoleParentLinkResponse(account.MasterRoleId, RoleRelationships.Owner));
+                    linkResponses.Add(new RoleParentLinkResponse(account.MasterRoleId, RoleRelationships.Owner));
                 }
             }
 
-            return Results.Ok(new RoleParentsResponse(roleId, parentLinks));
+            return Results.Ok(new RoleParentsResponse(roleId, linkResponses));
         });
     }
 }
