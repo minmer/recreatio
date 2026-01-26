@@ -708,68 +708,70 @@ public static class CogitaEndpoints
             IEncryptionService encryptionService,
             IRoleCryptoService roleCryptoService,
             ILedgerService ledgerService,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
+            var logger = loggerFactory.CreateLogger("CogitaEndpoints");
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
                 !EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
                 return Results.Unauthorized();
             }
 
-            var groupType = request.GroupType.Trim().ToLowerInvariant();
-            if (!SupportedGroupTypes.Contains(groupType))
-            {
-                return Results.BadRequest(new { error = "GroupType is invalid." });
-            }
-
-            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
-            if (library is null)
-            {
-                return Results.NotFound();
-            }
-
-            RoleKeyRing keyRing;
             try
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            }
-
-            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
-                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey))
-            {
-                return Results.Forbid();
-            }
-
-            var now = DateTimeOffset.UtcNow;
-            var infoIds = new List<Guid>();
-            var infoTypeMap = new List<(Guid InfoId, string InfoType)>();
-
-            var infoRequests = request.InfoItems ?? new List<CogitaGroupInfoRequest>();
-            var connectionRequests = request.Connections ?? new List<CogitaGroupConnectionRequest>();
-
-            foreach (var infoRequest in infoRequests)
-            {
-                if (infoRequest.InfoId.HasValue)
+                var groupType = request.GroupType.Trim().ToLowerInvariant();
+                if (!SupportedGroupTypes.Contains(groupType))
                 {
-                    var resolvedId = infoRequest.InfoId.Value;
-                    infoIds.Add(resolvedId);
-                    infoTypeMap.Add((resolvedId, infoRequest.InfoType.Trim().ToLowerInvariant()));
-                    continue;
+                    return Results.BadRequest(new { error = "GroupType is invalid." });
                 }
 
-                var createRequest = new CogitaCreateInfoRequest(
-                    infoRequest.InfoType,
-                    infoRequest.Payload,
-                    null,
-                    request.SignatureBase64);
-                CogitaCreateInfoResponse infoResult;
+                var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+                if (library is null)
+                {
+                    return Results.NotFound();
+                }
+
+                RoleKeyRing keyRing;
                 try
                 {
-                    infoResult = await CreateInfoInternalAsync(
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+
+                if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                    !keyRing.TryGetWriteKey(library.RoleId, out var writeKey))
+                {
+                    return Results.Forbid();
+                }
+
+                await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+                var now = DateTimeOffset.UtcNow;
+                var infoIds = new List<Guid>();
+                var infoTypeMap = new List<(Guid InfoId, string InfoType)>();
+
+                var infoRequests = request.InfoItems ?? new List<CogitaGroupInfoRequest>();
+                var connectionRequests = request.Connections ?? new List<CogitaGroupConnectionRequest>();
+
+                foreach (var infoRequest in infoRequests)
+                {
+                    if (infoRequest.InfoId.HasValue)
+                    {
+                        var resolvedId = infoRequest.InfoId.Value;
+                        infoIds.Add(resolvedId);
+                        infoTypeMap.Add((resolvedId, infoRequest.InfoType.Trim().ToLowerInvariant()));
+                        continue;
+                    }
+
+                    var createRequest = new CogitaCreateInfoRequest(
+                        infoRequest.InfoType,
+                        infoRequest.Payload,
+                        null,
+                        request.SignatureBase64);
+                    var infoResult = await CreateInfoInternalAsync(
                         library,
                         createRequest,
                         readKey,
@@ -781,45 +783,37 @@ public static class CogitaEndpoints
                         ledgerService,
                         dbContext,
                         ct);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    return Results.BadRequest(new { error = ex.Message });
-                }
 
-                infoIds.Add(infoResult.InfoId);
-                infoTypeMap.Add((infoResult.InfoId, infoResult.InfoType));
-            }
-
-            var connectionIds = new List<Guid>();
-            foreach (var connectionRequest in connectionRequests)
-            {
-                if (connectionRequest.ConnectionId.HasValue)
-                {
-                    connectionIds.Add(connectionRequest.ConnectionId.Value);
-                    continue;
+                    infoIds.Add(infoResult.InfoId);
+                    infoTypeMap.Add((infoResult.InfoId, infoResult.InfoType));
                 }
 
-                var resolvedInfoIds = connectionRequest.InfoIds;
-                if (resolvedInfoIds.Count == 0)
+                var connectionIds = new List<Guid>();
+                foreach (var connectionRequest in connectionRequests)
                 {
-                    var wordIds = infoTypeMap
-                        .Where(item => item.InfoType == "word")
-                        .Select(item => item.InfoId)
-                        .ToList();
-                    resolvedInfoIds = wordIds.Count >= 2 ? wordIds : infoIds;
-                }
+                    if (connectionRequest.ConnectionId.HasValue)
+                    {
+                        connectionIds.Add(connectionRequest.ConnectionId.Value);
+                        continue;
+                    }
 
-                var createRequest = new CogitaCreateConnectionRequest(
-                    connectionRequest.ConnectionType,
-                    resolvedInfoIds,
-                    connectionRequest.Payload,
-                    null,
-                    request.SignatureBase64);
-                CogitaCreateConnectionResponse connectionResult;
-                try
-                {
-                    connectionResult = await CreateConnectionInternalAsync(
+                    var resolvedInfoIds = connectionRequest.InfoIds;
+                    if (resolvedInfoIds.Count == 0)
+                    {
+                        var wordIds = infoTypeMap
+                            .Where(item => item.InfoType == "word")
+                            .Select(item => item.InfoId)
+                            .ToList();
+                        resolvedInfoIds = wordIds.Count >= 2 ? wordIds : infoIds;
+                    }
+
+                    var createRequest = new CogitaCreateConnectionRequest(
+                        connectionRequest.ConnectionType,
+                        resolvedInfoIds,
+                        connectionRequest.Payload,
+                        null,
+                        request.SignatureBase64);
+                    var connectionResult = await CreateConnectionInternalAsync(
                         library,
                         createRequest,
                         readKey,
@@ -831,70 +825,76 @@ public static class CogitaEndpoints
                         ledgerService,
                         dbContext,
                         ct);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    return Results.BadRequest(new { error = ex.Message });
+
+                    connectionIds.Add(connectionResult.ConnectionId);
                 }
 
-                connectionIds.Add(connectionResult.ConnectionId);
-            }
+                var groupId = Guid.NewGuid();
+                var dataKeyResult = await ResolveDataKeyAsync(
+                    library.RoleId,
+                    null,
+                    $"group:{groupType}",
+                    readKey,
+                    writeKey,
+                    userId,
+                    keyRingService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
 
-            var groupId = Guid.NewGuid();
-            var dataKeyResult = await ResolveDataKeyAsync(
-                library.RoleId,
-                null,
-                $"group:{groupType}",
-                readKey,
-                writeKey,
-                userId,
-                keyRingService,
-                roleCryptoService,
-                ledgerService,
-                dbContext,
-                ct);
+                var payloadBytes = request.Payload.HasValue
+                    ? JsonSerializer.SerializeToUtf8Bytes(request.Payload.Value)
+                    : JsonSerializer.SerializeToUtf8Bytes(new { infoIds, connectionIds });
+                var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, groupId.ToByteArray());
 
-            var payloadBytes = request.Payload.HasValue
-                ? JsonSerializer.SerializeToUtf8Bytes(request.Payload.Value)
-                : JsonSerializer.SerializeToUtf8Bytes(new { infoIds, connectionIds });
-            var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, groupId.ToByteArray());
-
-            dbContext.CogitaGroups.Add(new CogitaGroup
-            {
-                Id = groupId,
-                LibraryId = libraryId,
-                GroupType = groupType,
-                DataKeyId = dataKeyResult.DataKeyId,
-                EncryptedBlob = encrypted,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            });
-
-            var sort = 0;
-            foreach (var infoId in infoIds)
-            {
-                dbContext.CogitaGroupItems.Add(new CogitaGroupItem
+                dbContext.CogitaGroups.Add(new CogitaGroup
                 {
-                    Id = Guid.NewGuid(),
-                    GroupId = groupId,
-                    InfoId = infoId,
-                    SortOrder = sort++
+                    Id = groupId,
+                    LibraryId = libraryId,
+                    GroupType = groupType,
+                    DataKeyId = dataKeyResult.DataKeyId,
+                    EncryptedBlob = encrypted,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
                 });
-            }
 
-            foreach (var connectionId in connectionIds)
-            {
-                dbContext.CogitaGroupConnections.Add(new CogitaGroupConnection
+                var sort = 0;
+                foreach (var infoId in infoIds)
                 {
-                    Id = Guid.NewGuid(),
-                    GroupId = groupId,
-                    ConnectionId = connectionId
-                });
+                    dbContext.CogitaGroupItems.Add(new CogitaGroupItem
+                    {
+                        Id = Guid.NewGuid(),
+                        GroupId = groupId,
+                        InfoId = infoId,
+                        SortOrder = sort++
+                    });
+                }
+
+                foreach (var connectionId in connectionIds)
+                {
+                    dbContext.CogitaGroupConnections.Add(new CogitaGroupConnection
+                    {
+                        Id = Guid.NewGuid(),
+                        GroupId = groupId,
+                        ConnectionId = connectionId
+                    });
+                }
+
+                await dbContext.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+
+                return Results.Ok(new CogitaCreateGroupResponse(groupId, groupType));
             }
-
-            await dbContext.SaveChangesAsync(ct);
-
-            return Results.Ok(new CogitaCreateGroupResponse(groupId, groupType));
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to create cogita group.");
+                return Results.Problem("Failed to create group.");
+            }
         });
     }
 
