@@ -1414,6 +1414,22 @@
   gap: 1rem;
 }
 
+.cogita-add-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.cogita-add-center {
+  display: flex;
+  justify-content: center;
+}
+
+.cogita-add-center .cogita-library-panel {
+  width: min(860px, 100%);
+}
+
 .cogita-type-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

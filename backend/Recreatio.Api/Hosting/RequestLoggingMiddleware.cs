@@ -18,7 +18,8 @@ public sealed class RequestLoggingMiddleware
         var path = context.Request.Path.Value ?? string.Empty;
         var captureBody = path.StartsWith("/account", StringComparison.OrdinalIgnoreCase)
             || path.StartsWith("/roles", StringComparison.OrdinalIgnoreCase)
-            || path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase);
+            || path.StartsWith("/auth", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/cogita", StringComparison.OrdinalIgnoreCase);
 
         string? requestBody = null;
         if (captureBody && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))

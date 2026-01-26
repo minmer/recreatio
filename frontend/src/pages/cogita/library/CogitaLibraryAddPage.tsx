@@ -286,25 +286,20 @@ export function CogitaLibraryAddPage({
           </div>
         </header>
 
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <div className="cogita-library-controls">
-              <p className="cogita-user-kicker">Create</p>
-              <div className="cogita-type-grid">
-                {(['info', 'connection', 'group'] as const).map((tab) => (
-                  <button key={tab} type="button" className="cogita-type-card" data-active={activeTab === tab} onClick={() => setActiveTab(tab)}>
-                    <span className="cogita-type-label">{tab}</span>
-                    <span className="cogita-type-desc">
-                      {tab === 'info' && 'Add a language, word, sentence, topic, person, or data item.'}
-                      {tab === 'connection' && 'Connect two or more infos with a typed relation.'}
-                      {tab === 'group' && 'Create vocab links using words, languages, and translations.'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+        <div className="cogita-add-tabs">
+          {(['info', 'connection', 'group'] as const).map((tab) => (
+            <button key={tab} type="button" className="cogita-type-card" data-active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+              <span className="cogita-type-label">{tab}</span>
+              <span className="cogita-type-desc">
+                {tab === 'info' && 'Add a language, word, sentence, topic, person, or data item.'}
+                {tab === 'connection' && 'Connect two or more infos with a typed relation.'}
+                {tab === 'group' && 'Create vocab links using words, languages, and translations.'}
+              </span>
+            </button>
+          ))}
+        </div>
 
+        <div className="cogita-add-center">
           <div className="cogita-library-panel">
             <section className="cogita-library-create">
               {activeTab === 'info' ? (
@@ -351,12 +346,12 @@ export function CogitaLibraryAddPage({
                       placeholder="Description, citation source, or extra metadata"
                     />
                   </label>
-                  <div className="cogita-form-actions full">
-                    <button type="button" className="cta" onClick={handleCreateInfo}>
-                      Save info
-                    </button>
-                  </div>
+                <div className="cogita-form-actions full">
+                  <button type="button" className="cta" onClick={handleCreateInfo}>
+                    Save info
+                  </button>
                 </div>
+              </div>
               ) : null}
 
               {activeTab === 'connection' ? (
@@ -448,12 +443,12 @@ export function CogitaLibraryAddPage({
                       placeholder="Optional context for the connection"
                     />
                   </label>
-                  <div className="cogita-form-actions full">
-                    <button type="button" className="cta" onClick={handleCreateConnection}>
-                      Save connection
-                    </button>
-                  </div>
+                <div className="cogita-form-actions full">
+                  <button type="button" className="cta" onClick={handleCreateConnection}>
+                    Save connection
+                  </button>
                 </div>
+              </div>
               ) : null}
 
               {activeTab === 'group' ? (
@@ -515,12 +510,12 @@ export function CogitaLibraryAddPage({
                       placeholder="Optional context for the vocabulary card"
                     />
                   </label>
-                  <div className="cogita-form-actions full">
-                    <button type="button" className="cta" onClick={handleCreateGroup}>
-                      Save vocabulary links
-                    </button>
-                  </div>
+                <div className="cogita-form-actions full">
+                  <button type="button" className="cta" onClick={handleCreateGroup}>
+                    Save vocabulary links
+                  </button>
                 </div>
+              </div>
               ) : null}
 
               {formStatus ? <p className="cogita-form-error">{formStatus}</p> : null}
