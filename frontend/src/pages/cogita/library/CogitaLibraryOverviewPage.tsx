@@ -16,11 +16,7 @@ export function CogitaLibraryOverviewPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId,
-  onBackToCogita,
-  onOpenList,
-  onOpenAdd,
-  onOpenCollections
+  libraryId
 }: {
   copy: Copy;
   authLabel: string;
@@ -33,13 +29,10 @@ export function CogitaLibraryOverviewPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  onBackToCogita: () => void;
-  onOpenList: () => void;
-  onOpenAdd: () => void;
-  onOpenCollections: () => void;
 }) {
   const { libraryName, stats } = useCogitaLibraryMeta(libraryId);
   const [mockStatus, setMockStatus] = useState<string | null>(null);
+  const baseHref = `/#/cogita/library/${libraryId}`;
 
   const handleMockData = async () => {
     setMockStatus(null);
@@ -72,18 +65,18 @@ export function CogitaLibraryOverviewPage({
             <p className="cogita-library-subtitle">Overview of your encrypted index card library.</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onOpenList}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/list`}>
               Open list
-            </button>
-            <button type="button" className="cta ghost" onClick={onOpenCollections}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections`}>
               Collections
-            </button>
-            <button type="button" className="cta" onClick={onOpenAdd}>
+            </a>
+            <a className="cta" href={`${baseHref}/new`}>
               Add new info
-            </button>
+            </a>
           </div>
         </header>
 
@@ -122,15 +115,15 @@ export function CogitaLibraryOverviewPage({
                 <div className="cogita-card-empty">
                   <p>Jump into the list to browse cards or add a new entry.</p>
                   <div className="cogita-form-actions">
-                    <button type="button" className="cta ghost" onClick={onOpenList}>
+                    <a className="cta ghost" href={`${baseHref}/list`}>
                       Browse list
-                    </button>
-                    <button type="button" className="cta ghost" onClick={onOpenCollections}>
+                    </a>
+                    <a className="cta ghost" href={`${baseHref}/collections`}>
                       View collections
-                    </button>
-                    <button type="button" className="cta" onClick={onOpenAdd}>
+                    </a>
+                    <a className="cta" href={`${baseHref}/new`}>
                       Add info
-                    </button>
+                    </a>
                   </div>
                   <div className="cogita-form-actions">
                     <button type="button" className="cta ghost" onClick={handleMockData}>

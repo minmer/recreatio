@@ -19,12 +19,7 @@ export function CogitaLibraryListPage({
   language,
   onLanguageChange,
   libraryId,
-  mode,
-  onModeChange,
-  onBackToOverview,
-  onBackToCogita,
-  onOpenAdd,
-  onOpenCollections
+  mode
 }: {
   copy: Copy;
   authLabel: string;
@@ -38,13 +33,9 @@ export function CogitaLibraryListPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   mode: CogitaLibraryMode;
-  onModeChange: (mode: CogitaLibraryMode) => void;
-  onBackToOverview: () => void;
-  onBackToCogita: () => void;
-  onOpenAdd: () => void;
-  onOpenCollections: () => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any' | 'vocab'>('any');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CogitaCardSearchResult[]>([]);
@@ -123,26 +114,26 @@ export function CogitaLibraryListPage({
             <p className="cogita-library-subtitle">Browse all encrypted info cards.</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta ghost" onClick={onOpenCollections}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections`}>
               Collections
-            </button>
-            <button type="button" className="cta" onClick={onOpenAdd}>
+            </a>
+            <a className="cta" href={`${baseHref}/new`}>
               Add new info
-            </button>
+            </a>
           </div>
         </header>
 
         <div className="cogita-library-modes">
           {(['detail', 'collection', 'list'] as const).map((item) => (
-            <button key={item} type="button" className="ghost" data-active={mode === item} onClick={() => onModeChange(item)}>
+            <a key={item} className="ghost" data-active={mode === item} href={`${baseHref}/${item}`}>
               {item}
-            </button>
+            </a>
           ))}
         </div>
 
@@ -194,9 +185,9 @@ export function CogitaLibraryListPage({
               ) : (
                 <div className="cogita-card-empty">
                   <p>No matching info found.</p>
-                  <button type="button" className="ghost" onClick={onOpenAdd}>
+                  <a className="ghost" href={`${baseHref}/new`}>
                     Add information
-                  </button>
+                  </a>
                 </div>
               )}
             </div>
@@ -217,9 +208,9 @@ export function CogitaLibraryListPage({
                   <h3 className="cogita-detail-title">{selectedInfo?.label ?? 'Pick an info card'}</h3>
                 </div>
                 <div className="cogita-detail-actions">
-                  <button type="button" className="ghost" onClick={onOpenAdd}>
+                  <a className="ghost" href={`${baseHref}/new`}>
                     Add info
-                  </button>
+                  </a>
                 </div>
               </div>
               {selectedInfo ? (

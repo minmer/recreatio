@@ -14,9 +14,7 @@ export function CogitaUserPage({
   secureMode,
   onNavigate,
   language,
-  onLanguageChange,
-  onOpenLibrary,
-  onOpenLibraryList
+  onLanguageChange
 }: {
   copy: Copy;
   authLabel: string;
@@ -28,8 +26,6 @@ export function CogitaUserPage({
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  onOpenLibrary: (libraryId: string) => void;
-  onOpenLibraryList: (libraryId: string) => void;
 }) {
   const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +60,9 @@ export function CogitaUserPage({
       const library = await createCogitaLibrary({ name });
       setLibraries((prev) => [library, ...prev]);
       setNewLibraryName('');
-      onOpenLibrary(library.libraryId);
+      if (typeof window !== 'undefined') {
+        window.location.href = `/#/cogita/library/${library.libraryId}`;
+      }
     } catch {
       setStatus('Could not create the library yet.');
     }
@@ -143,22 +141,18 @@ export function CogitaUserPage({
                 <div className="cogita-card-list" data-view="list">
                   {libraries.map((library) => (
                     <div key={library.libraryId} className="cogita-card-item">
-                      <button
-                        type="button"
-                        className="cogita-card-select"
-                        onClick={() => onOpenLibrary(library.libraryId)}
-                      >
+                      <a className="cogita-card-select" href={`/#/cogita/library/${library.libraryId}`}>
                         <div className="cogita-card-type">Library role</div>
                         <h3 className="cogita-card-title">{library.name}</h3>
                         <p className="cogita-card-subtitle">{library.libraryId}</p>
-                      </button>
+                      </a>
                       <div className="cogita-card-actions">
-                        <button type="button" className="ghost" onClick={() => onOpenLibrary(library.libraryId)}>
+                        <a className="ghost" href={`/#/cogita/library/${library.libraryId}`}>
                           Open overview
-                        </button>
-                        <button type="button" className="ghost" onClick={() => onOpenLibraryList(library.libraryId)}>
+                        </a>
+                        <a className="ghost" href={`/#/cogita/library/${library.libraryId}/list`}>
                           Open cards
-                        </button>
+                        </a>
                       </div>
                     </div>
                   ))}

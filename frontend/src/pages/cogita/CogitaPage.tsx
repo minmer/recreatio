@@ -281,7 +281,15 @@ export function CogitaPage({
       const target = event.target as HTMLElement | null;
       if (!target) return;
       const tag = target.tagName;
-      if (target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+      if (
+        target.isContentEditable ||
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        tag === 'BUTTON' ||
+        tag === 'A' ||
+        target.closest('button, a, [role="button"], [role="link"]')
+      ) {
         return;
       }
       if (event.key === 'Escape') {
@@ -564,9 +572,12 @@ export function CogitaPage({
           <button type="button" className="ghost portal-back" onClick={handleBack}>
             Back
           </button>
-          <button type="button" className="portal-brand" onClick={() => onNavigate('cogita')}>
+          <a className="ghost portal-up" href="/#/cogita">
+            Up
+          </a>
+          <a className="portal-brand" href="/#/cogita">
             <img src="/cogita/logo/Cogita_Plain.svg" alt="Cogita" />
-          </button>
+          </a>
         </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
         <AuthAction
@@ -619,9 +630,9 @@ export function CogitaPage({
         </section>
       </main>
       <footer className="portal-footer cogita-footer">
-        <button type="button" className="portal-brand portal-footer-brand" onClick={() => onNavigate('home')}>
+        <a className="portal-brand portal-footer-brand" href="/#/">
           <img src="/logo_new.svg" alt="Recreatio" />
-        </button>
+        </a>
         <span>{copy.footer.headline}</span>
       </footer>
     </div>

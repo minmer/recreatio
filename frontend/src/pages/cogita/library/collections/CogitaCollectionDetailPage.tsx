@@ -17,11 +17,7 @@ export function CogitaCollectionDetailPage({
   language,
   onLanguageChange,
   libraryId,
-  collectionId,
-  onBackToCollections,
-  onBackToOverview,
-  onBackToCogita,
-  onStartRevision
+  collectionId
 }: {
   copy: Copy;
   authLabel: string;
@@ -35,12 +31,9 @@ export function CogitaCollectionDetailPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   collectionId: string;
-  onBackToCollections: () => void;
-  onBackToOverview: () => void;
-  onBackToCogita: () => void;
-  onStartRevision: () => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const [collectionName, setCollectionName] = useState('Collection');
   const [collectionNotes, setCollectionNotes] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -112,18 +105,18 @@ export function CogitaCollectionDetailPage({
             <p className="cogita-library-subtitle">{collectionNotes || libraryName}</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToCollections}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections`}>
               Collections list
-            </button>
-            <button type="button" className="cta" onClick={onStartRevision}>
+            </a>
+            <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
               Start revision
-            </button>
+            </a>
           </div>
         </header>
 
@@ -175,9 +168,9 @@ export function CogitaCollectionDetailPage({
                 <p>Start a revision run when you are ready. Random ordering is enabled by default.</p>
               </div>
               <div className="cogita-form-actions">
-                <button type="button" className="cta" onClick={onStartRevision}>
+                <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
                   Start revision
-                </button>
+                </a>
               </div>
             </section>
           </div>

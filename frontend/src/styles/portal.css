@@ -14,6 +14,8 @@
 
 .portal-page.cogita .portal-header.cogita-header .portal-brand img {
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
+  height: 32px;
+  width: auto;
 }
 
 .portal-page.cogita .portal-header.cogita-header button,
@@ -69,6 +71,15 @@
   background: transparent;
   padding: 0;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.portal-brand:focus-visible {
+  outline: 2px solid rgba(140, 190, 235, 0.7);
+  outline-offset: 4px;
+  border-radius: 10px;
 }
 
 .portal-brand img {
@@ -109,6 +120,17 @@
 
 .portal-footer-brand img {
   width: 140px;
+  height: auto;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  filter: none;
+}
+
+.portal-page.cogita .portal-footer .portal-brand {
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .portal-login {

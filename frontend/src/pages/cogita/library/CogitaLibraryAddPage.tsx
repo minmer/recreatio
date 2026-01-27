@@ -19,10 +19,7 @@ export function CogitaLibraryAddPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId,
-  onBackToOverview,
-  onBackToList,
-  onBackToCogita
+  libraryId
 }: {
   copy: Copy;
   authLabel: string;
@@ -35,11 +32,9 @@ export function CogitaLibraryAddPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  onBackToOverview: () => void;
-  onBackToList: () => void;
-  onBackToCogita: () => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const [activeTab, setActiveTab] = useState<'info' | 'connection' | 'group'>('info');
   const [infoForm, setInfoForm] = useState({
     infoType: 'word' as CogitaInfoType,
@@ -274,15 +269,15 @@ export function CogitaLibraryAddPage({
             <p className="cogita-library-subtitle">Create new info cards, connections, or vocabulary links.</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToList}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/list`}>
               Open list
-            </button>
+            </a>
           </div>
         </header>
 

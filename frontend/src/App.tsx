@@ -399,9 +399,6 @@ export default function App() {
                   language={language}
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
-                  onBackToCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
-                  onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                  onBackToCogita={() => navigate('/cogita')}
                   onCreated={(newCollectionId) => navigate(`/cogita/library/${cogitaLibraryId}/collections/${newCollectionId}`)}
                 />
               ) : collectionView === 'detail' && collectionId ? (
@@ -418,10 +415,6 @@ export default function App() {
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
                   collectionId={collectionId}
-                  onBackToCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
-                  onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                  onBackToCogita={() => navigate('/cogita')}
-                  onStartRevision={() => navigate(`/cogita/library/${cogitaLibraryId}/collections/${collectionId}/revision`)}
                 />
               ) : collectionView === 'settings' && collectionId ? (
                 <CogitaRevisionSettingsPage
@@ -437,18 +430,6 @@ export default function App() {
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
                   collectionId={collectionId}
-                  onBackToCollection={() => navigate(`/cogita/library/${cogitaLibraryId}/collections/${collectionId}`)}
-                  onBackToCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
-                  onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                  onBackToCogita={() => navigate('/cogita')}
-                  onStartRevision={(settings) => {
-                    const query = new URLSearchParams({
-                      mode: settings.mode,
-                      check: settings.check,
-                      limit: String(settings.limit)
-                    }).toString();
-                    navigate(`/cogita/library/${cogitaLibraryId}/collections/${collectionId}/revision/run?${query}`);
-                  }}
                 />
               ) : collectionView === 'revision' && collectionId ? (
                 <CogitaRevisionRunPage
@@ -464,10 +445,6 @@ export default function App() {
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
                   collectionId={collectionId}
-                  onBackToCollection={() => navigate(`/cogita/library/${cogitaLibraryId}/collections/${collectionId}`)}
-                  onBackToCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
-                  onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                  onBackToCogita={() => navigate('/cogita')}
                 />
               ) : (
                 <CogitaCollectionListPage
@@ -482,10 +459,6 @@ export default function App() {
                   language={language}
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
-                  onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                  onBackToCogita={() => navigate('/cogita')}
-                  onOpenCreate={() => navigate(`/cogita/library/${cogitaLibraryId}/collections/new`)}
-                  onOpenCollection={(collectionId) => navigate(`/cogita/library/${cogitaLibraryId}/collections/${collectionId}`)}
                 />
               )
             ) : libraryView === 'add' ? (
@@ -501,9 +474,6 @@ export default function App() {
                 language={language}
                 onLanguageChange={setLanguage}
                 libraryId={cogitaLibraryId}
-                onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                onBackToList={() => navigate(`/cogita/library/${cogitaLibraryId}/list`)}
-                onBackToCogita={() => navigate('/cogita')}
               />
             ) : libraryView === 'list' ? (
               <CogitaLibraryListPage
@@ -519,13 +489,6 @@ export default function App() {
                 onLanguageChange={setLanguage}
                 libraryId={cogitaLibraryId}
                 mode={libraryMode}
-                onModeChange={(nextMode) => {
-                  navigate(`/cogita/library/${cogitaLibraryId}/${nextMode}`);
-                }}
-                onBackToOverview={() => navigate(`/cogita/library/${cogitaLibraryId}`)}
-                onBackToCogita={() => navigate('/cogita')}
-                onOpenCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
-                onOpenAdd={() => navigate(`/cogita/library/${cogitaLibraryId}/new`)}
               />
             ) : (
               <CogitaLibraryOverviewPage
@@ -540,10 +503,6 @@ export default function App() {
                 language={language}
                 onLanguageChange={setLanguage}
                 libraryId={cogitaLibraryId}
-                onBackToCogita={() => navigate('/cogita')}
-                onOpenList={() => navigate(`/cogita/library/${cogitaLibraryId}/list`)}
-                onOpenAdd={() => navigate(`/cogita/library/${cogitaLibraryId}/new`)}
-                onOpenCollections={() => navigate(`/cogita/library/${cogitaLibraryId}/collections`)}
               />
             )
           ) : (
@@ -558,8 +517,6 @@ export default function App() {
               onNavigate={navigateRoute}
               language={language}
               onLanguageChange={setLanguage}
-              onOpenLibrary={(libraryId) => navigate(`/cogita/library/${libraryId}`)}
-              onOpenLibraryList={(libraryId) => navigate(`/cogita/library/${libraryId}/list`)}
             />
           )
         ) : (

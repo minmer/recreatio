@@ -34,11 +34,7 @@ export function CogitaRevisionRunPage({
   language,
   onLanguageChange,
   libraryId,
-  collectionId,
-  onBackToCollection,
-  onBackToCollections,
-  onBackToOverview,
-  onBackToCogita
+  collectionId
 }: {
   copy: Copy;
   authLabel: string;
@@ -52,12 +48,9 @@ export function CogitaRevisionRunPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   collectionId: string;
-  onBackToCollection: () => void;
-  onBackToCollections: () => void;
-  onBackToOverview: () => void;
-  onBackToCogita: () => void;
 }) {
   const location = useLocation();
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const limit = Math.max(1, Number(params.get('limit') ?? 20));
   const mode = params.get('mode') ?? 'random';
@@ -210,18 +203,18 @@ export function CogitaRevisionRunPage({
             <p className="cogita-library-subtitle">Mode: {mode} · Check: {check}</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToCollections}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections`}>
               Collections list
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToCollection}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
               Collection detail
-            </button>
+            </a>
           </div>
         </header>
 
@@ -321,9 +314,9 @@ export function CogitaRevisionRunPage({
                 <div className="cogita-card-empty">
                   <p>Revision completed. Great job!</p>
                   <div className="cogita-form-actions">
-                    <button type="button" className="cta" onClick={onBackToCollection}>
+                    <a className="cta" href={`${baseHref}/collections/${collectionId}`}>
                       Back to collection
-                    </button>
+                    </a>
                   </div>
                 </div>
               )}

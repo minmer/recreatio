@@ -52,6 +52,8 @@
   background: transparent;
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+  color: inherit;
 }
 
 .parish-logo {
@@ -76,6 +78,7 @@
 .parish-back-control {
   display: flex;
   align-items: center;
+  gap: 0.6rem;
 }
 
 .parish-back {
@@ -86,6 +89,18 @@
   padding: 0.45rem 0.9rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.parish-up {
+  border-radius: 999px;
+  border: 1px solid var(--parish-line);
+  background: transparent;
+  color: var(--parish-ink);
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
 .parish-login {
@@ -1238,6 +1253,8 @@
   gap: 1rem;
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
+  color: inherit;
 }
 
 .about-grid {

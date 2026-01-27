@@ -16,11 +16,7 @@ export function CogitaCollectionListPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId,
-  onBackToOverview,
-  onBackToCogita,
-  onOpenCreate,
-  onOpenCollection
+  libraryId
 }: {
   copy: Copy;
   authLabel: string;
@@ -33,12 +29,9 @@ export function CogitaCollectionListPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  onBackToOverview: () => void;
-  onBackToCogita: () => void;
-  onOpenCreate: () => void;
-  onOpenCollection: (collectionId: string) => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const [query, setQuery] = useState('');
   const [collections, setCollections] = useState<CogitaCollectionSummary[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
@@ -105,15 +98,15 @@ export function CogitaCollectionListPage({
             <p className="cogita-library-subtitle">Curated stacks of index cards for revision.</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta" onClick={onOpenCreate}>
+            </a>
+            <a className="cta" href={`${baseHref}/collections/new`}>
               Create collection
-            </button>
+            </a>
           </div>
         </header>
 
@@ -144,25 +137,21 @@ export function CogitaCollectionListPage({
               {collections.length ? (
                 collections.map((collection) => (
                   <div key={collection.collectionId} className="cogita-card-item">
-                    <button
-                      type="button"
-                      className="cogita-card-select"
-                      onClick={() => onOpenCollection(collection.collectionId)}
-                    >
+                    <a className="cogita-card-select" href={`${baseHref}/collections/${collection.collectionId}`}>
                       <div className="cogita-card-type">Collection</div>
                       <h3 className="cogita-card-title">{collection.name}</h3>
                       <p className="cogita-card-subtitle">
                         {collection.itemCount} cards · {collection.notes || 'No notes yet'}
                       </p>
-                    </button>
+                    </a>
                   </div>
                 ))
               ) : (
                 <div className="cogita-card-empty">
                   <p>No collections yet.</p>
-                  <button type="button" className="ghost" onClick={onOpenCreate}>
+                  <a className="ghost" href={`${baseHref}/collections/new`}>
                     Create the first collection
-                  </button>
+                  </a>
                 </div>
               )}
             </div>

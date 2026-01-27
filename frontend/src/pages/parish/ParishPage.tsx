@@ -734,14 +734,17 @@ export function ParishPage({
       {view === 'chooser' ? (
         <>
           <header className="parish-header parish-header--chooser">
-            <button type="button" className="parish-brand" onClick={() => onNavigate('home')}>
+            <a className="parish-brand" href="/#/">
               <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
               <span className="parish-name">Parafie</span>
-            </button>
+            </a>
             <div className="parish-controls">
               <button type="button" className="parish-back" onClick={handleBack}>
                 Back
               </button>
+              <a className="parish-up" href="/#/">
+                Up
+              </a>
               <button type="button" className="parish-login" onClick={onAuthAction}>
                 {authLabel}
               </button>
@@ -757,23 +760,17 @@ export function ParishPage({
                 </div>
                 <div className="chooser-list">
                   {parishes.slice(0, 1).map((item) => (
-                    <button
+                    <a
                       key={item.id}
-                      type="button"
                       className="chooser-item"
-                      onClick={() => {
-                        handleParishChange(item.id);
-                        setView('parish');
-                        setActivePage('start');
-                        navigate(`/parish/${item.slug}`);
-                      }}
+                      href={`/#/parish/${item.slug}`}
                     >
                       <div>
                         <strong>{item.name}</strong>
                         <span className="muted">{item.location}</span>
                       </div>
                       <span className="pill">Wejdź</span>
-                    </button>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -850,6 +847,9 @@ export function ParishPage({
               <button type="button" className="parish-back" onClick={handleBack}>
                 Back
               </button>
+              <a className="parish-up" href="/#/parish">
+                Up
+              </a>
             </div>
             <div className="parish-menu-control">
               <button
@@ -1816,9 +1816,9 @@ export function ParishPage({
               </div>
             </div>
             <div className="parish-footer-brand">
-              <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+              <a className="portal-brand" href="/#/">
                 <img src="/logo_new.svg" alt="Recreatio" className="parish-footer-logo" />
-              </button>
+              </a>
             </div>
           </footer>
         </>

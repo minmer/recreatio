@@ -27,9 +27,6 @@ export function CogitaCollectionCreatePage({
   language,
   onLanguageChange,
   libraryId,
-  onBackToCollections,
-  onBackToOverview,
-  onBackToCogita,
   onCreated
 }: {
   copy: Copy;
@@ -43,12 +40,10 @@ export function CogitaCollectionCreatePage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  onBackToCollections: () => void;
-  onBackToOverview: () => void;
-  onBackToCogita: () => void;
   onCreated: (collectionId: string) => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const baseHref = `/#/cogita/library/${libraryId}`;
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any' | 'vocab'>('any');
@@ -138,15 +133,15 @@ export function CogitaCollectionCreatePage({
             <p className="cogita-library-subtitle">Bundle cards for focused revision.</p>
           </div>
           <div className="cogita-library-actions">
-            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+            <a className="cta ghost" href="/#/cogita">
               Back to Cogita
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+            </a>
+            <a className="cta ghost" href={baseHref}>
               Library overview
-            </button>
-            <button type="button" className="cta ghost" onClick={onBackToCollections}>
+            </a>
+            <a className="cta ghost" href={`${baseHref}/collections`}>
               Collections list
-            </button>
+            </a>
             <button type="button" className="cta" onClick={handleCreate}>
               Save collection
             </button>
