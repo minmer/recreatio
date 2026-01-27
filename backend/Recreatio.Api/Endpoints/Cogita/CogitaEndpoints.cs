@@ -828,6 +828,18 @@ public static class CogitaEndpoints
                                 {
                                     tags.Add(topicGuid);
                                 }
+                                if (doc.RootElement.TryGetProperty("tagIds", out var tagArray) &&
+                                    tagArray.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var element in tagArray.EnumerateArray())
+                                    {
+                                        if (element.ValueKind == JsonValueKind.String &&
+                                            Guid.TryParse(element.GetString(), out var tagGuid))
+                                        {
+                                            tags.Add(tagGuid);
+                                        }
+                                    }
+                                }
                                 if (tags.Count > 0)
                                 {
                                     connectionTags[payload.Id] = tags;

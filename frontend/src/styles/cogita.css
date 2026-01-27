@@ -1596,6 +1596,30 @@
   gap: 0.35rem;
 }
 
+.cogita-lookup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.cogita-lookup-chip {
+  border: 1px solid rgba(120, 170, 220, 0.35);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  background: rgba(11, 26, 44, 0.85);
+  color: rgba(220, 235, 255, 0.9);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.cogita-lookup-chip span {
+  color: rgba(200, 220, 245, 0.7);
+}
+
 .cogita-help {
   font-size: 0.78rem;
   color: rgba(170, 195, 225, 0.65);

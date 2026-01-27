@@ -1,22 +1,42 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { createCogitaInfo, searchCogitaInfos } from '../../../../lib/api';
 import type { CogitaInfoOption, CogitaInfoType } from '../types';
 
-type InfoSearchSelectProps = {
+type InfoSearchSelectCommonProps = {
   libraryId: string;
   infoType: CogitaInfoType;
   label: string;
   placeholder?: string;
-  value: CogitaInfoOption | null;
-  onChange: (value: CogitaInfoOption | null) => void;
   helperText?: string;
   searchFailedText?: string;
   createFailedText?: string;
   createLabel?: string;
   savingLabel?: string;
+  inputRef?: Ref<HTMLInputElement>;
+  autoAdvance?: boolean;
+  onCommit?: () => void;
 };
 
+type InfoSearchSelectSingleProps = InfoSearchSelectCommonProps & {
+  multiple?: false;
+  value: CogitaInfoOption | null;
+  onChange: (value: CogitaInfoOption | null) => void;
+  values?: never;
+  onChangeMultiple?: never;
+};
+
+type InfoSearchSelectMultiProps = InfoSearchSelectCommonProps & {
+  multiple: true;
+  values: CogitaInfoOption[];
+  onChangeMultiple: (values: CogitaInfoOption[]) => void;
+  value?: never;
+  onChange?: never;
+};
+
+type InfoSearchSelectProps = InfoSearchSelectSingleProps | InfoSearchSelectMultiProps;
+
 const MAX_RESULTS = 5;
+const EMPTY_OPTIONS: CogitaInfoOption[] = [];
 
 export function InfoSearchSelect({
   libraryId,
@@ -25,24 +45,38 @@ export function InfoSearchSelect({
   placeholder,
   value,
   onChange,
+  values,
+  onChangeMultiple,
   helperText,
   searchFailedText,
   createFailedText,
   createLabel,
-  savingLabel
+  savingLabel,
+  inputRef,
+  autoAdvance,
+  onCommit,
+  multiple
 }: InfoSearchSelectProps) {
-  const [query, setQuery] = useState(value?.label ?? '');
+  const selectedValues = multiple ? values ?? EMPTY_OPTIONS : EMPTY_OPTIONS;
+  const [query, setQuery] = useState(multiple ? '' : value?.label ?? '');
   const [results, setResults] = useState<CogitaInfoOption[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastRequest = useRef(0);
 
-  const showCreate = useMemo(() => query.trim().length > 0 && !value, [query, value]);
+  const showCreate = useMemo(() => {
+    if (multiple) {
+      return query.trim().length > 0;
+    }
+    return query.trim().length > 0 && !value;
+  }, [query, value, multiple]);
 
   useEffect(() => {
-    setQuery(value?.label ?? '');
-  }, [value]);
+    if (!multiple) {
+      setQuery(value?.label ?? '');
+    }
+  }, [value, multiple]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -60,13 +94,17 @@ export function InfoSearchSelect({
       try {
         const matches = await searchCogitaInfos({ libraryId, type: infoType, query: trimmed });
         if (lastRequest.current !== currentRequest) return;
-        setResults(
-          matches.slice(0, MAX_RESULTS).map((match) => ({
+        const mapped = matches.slice(0, MAX_RESULTS).map((match) => ({
             id: match.infoId,
             label: match.label,
             infoType: match.infoType as CogitaInfoType
-          }))
-        );
+        }));
+        if (multiple && selectedValues.length > 0) {
+          const selectedIds = new Set(selectedValues.map((item) => item.id));
+          setResults(mapped.filter((item) => !selectedIds.has(item.id)));
+        } else {
+          setResults(mapped);
+        }
         setIsOpen(true);
       } catch {
         if (lastRequest.current !== currentRequest) return;
@@ -79,12 +117,24 @@ export function InfoSearchSelect({
     }, 250);
 
     return () => window.clearTimeout(requestId);
-  }, [libraryId, infoType, query]);
+  }, [libraryId, infoType, query, selectedValues]);
 
   const handleSelect = (option: CogitaInfoOption) => {
-    onChange(option);
+    if (multiple) {
+      const next = selectedValues.some((item) => item.id === option.id)
+        ? selectedValues
+        : [...selectedValues, option];
+      onChangeMultiple?.(next);
+      setQuery('');
+      setIsOpen(false);
+      return;
+    }
+    onChange?.(option);
     setQuery(option.label);
     setIsOpen(false);
+    if (autoAdvance) {
+      onCommit?.();
+    }
   };
 
   const handleCreate = async () => {
@@ -98,8 +148,18 @@ export function InfoSearchSelect({
         infoType,
         payload: { label: trimmed }
       });
-      onChange({ id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType });
+      const createdOption = { id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType };
+      if (multiple) {
+        onChangeMultiple?.([...selectedValues, createdOption]);
+        setQuery('');
+        setIsOpen(false);
+        return;
+      }
+      onChange?.(createdOption);
       setIsOpen(false);
+      if (autoAdvance) {
+        onCommit?.();
+      }
     } catch {
       setError(createFailedText ?? 'Create failed.');
     } finally {
@@ -116,7 +176,7 @@ export function InfoSearchSelect({
           placeholder={placeholder}
           onChange={(event) => {
             setQuery(event.target.value);
-            if (value) onChange(null);
+            if (!multiple && value) onChange?.(null);
           }}
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return;
@@ -133,8 +193,24 @@ export function InfoSearchSelect({
             if (results.length > 0) setIsOpen(true);
           }}
           autoComplete="off"
+          ref={inputRef}
         />
       </label>
+      {multiple && selectedValues.length > 0 && (
+        <div className="cogita-lookup-chips">
+          {selectedValues.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              className="cogita-lookup-chip"
+              onClick={() => onChangeMultiple?.(selectedValues.filter((entry) => entry.id !== item.id))}
+            >
+              {item.label}
+              <span aria-hidden="true">×</span>
+            </button>
+          ))}
+        </div>
+      )}
       {helperText && <p className="cogita-help">{helperText}</p>}
       {error && <p className="cogita-error">{error}</p>}
       {isOpen && results.length > 0 && (

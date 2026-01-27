@@ -305,20 +305,20 @@ export type Copy = {
         };
         group: {
           typeLabel: string;
-          topicLabel: string;
-          topicPlaceholder: string;
-          levelLabel: string;
-          levelPlaceholder: string;
           languageALabel: string;
           languageAPlaceholder: string;
+          wordATagsLabel: string;
+          wordATagsPlaceholder: string;
+          wordBTagsLabel: string;
+          wordBTagsPlaceholder: string;
+          translationTagsLabel: string;
+          translationTagsPlaceholder: string;
           wordALabel: string;
           wordAPlaceholder: string;
           languageBLabel: string;
           languageBPlaceholder: string;
           wordBLabel: string;
           wordBPlaceholder: string;
-          notesLabel: string;
-          notesPlaceholder: string;
           save: string;
           saved: string;
           failed: string;

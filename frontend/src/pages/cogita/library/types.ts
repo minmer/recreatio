@@ -54,7 +54,7 @@ export type CogitaGroupForm = {
   wordA: CogitaInfoOption | null;
   languageB: CogitaInfoOption | null;
   wordB: CogitaInfoOption | null;
-  topic: CogitaInfoOption | null;
-  level: CogitaInfoOption | null;
-  note: string;
+  wordATags: CogitaInfoOption[];
+  wordBTags: CogitaInfoOption[];
+  translationTags: CogitaInfoOption[];
 };
