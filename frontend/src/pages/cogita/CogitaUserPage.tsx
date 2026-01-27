@@ -52,7 +52,7 @@ export function CogitaUserPage({
   const handleCreateLibrary = async () => {
     const name = newLibraryName.trim();
     if (!name) {
-      setStatus('Library name is required.');
+      setStatus(copy.cogita.user.libraryNameRequired);
       return;
     }
     setStatus(null);
@@ -64,7 +64,7 @@ export function CogitaUserPage({
         window.location.href = `/#/cogita/library/${library.libraryId}`;
       }
     } catch {
-      setStatus('Could not create the library yet.');
+      setStatus(copy.cogita.user.libraryCreateFailed);
     }
   };
 
@@ -104,30 +104,28 @@ export function CogitaUserPage({
         <div className="cogita-library-home-inner">
           <header className="cogita-library-header">
             <div>
-              <p className="cogita-user-kicker">Libraries</p>
-              <h2 className="cogita-library-title">Your knowledge libraries</h2>
-              <p className="cogita-library-subtitle">
-                Create a library role, then enter it to manage encrypted index cards and connections.
-              </p>
+              <p className="cogita-user-kicker">{copy.cogita.user.librariesKicker}</p>
+              <h2 className="cogita-library-title">{copy.cogita.user.librariesTitle}</h2>
+              <p className="cogita-library-subtitle">{copy.cogita.user.librariesSubtitle}</p>
             </div>
           </header>
 
           <div className="cogita-library-grid">
             <div className="cogita-library-pane">
-              <p className="cogita-user-kicker">Create new library</p>
+              <p className="cogita-user-kicker">{copy.cogita.user.createLibraryTitle}</p>
               <div className="cogita-form-grid">
                 <label className="cogita-field full">
-                  <span>Library name</span>
+                  <span>{copy.cogita.user.libraryNameLabel}</span>
                   <input
                     type="text"
                     value={newLibraryName}
                     onChange={(event) => setNewLibraryName(event.target.value)}
-                    placeholder="e.g. Medieval theology"
+                    placeholder={copy.cogita.user.libraryNamePlaceholder}
                   />
                 </label>
                 <div className="cogita-form-actions full">
                   <button type="button" className="cta" onClick={handleCreateLibrary}>
-                    Create library
+                    {copy.cogita.user.createLibraryAction}
                   </button>
                 </div>
                 {status ? <p className="cogita-form-error">{status}</p> : null}
@@ -135,30 +133,30 @@ export function CogitaUserPage({
             </div>
 
             <div className="cogita-library-panel">
-              <p className="cogita-user-kicker">Available libraries</p>
-              {loading ? <p className="cogita-library-subtitle">Loading libraries...</p> : null}
+              <p className="cogita-user-kicker">{copy.cogita.user.availableLibraries}</p>
+              {loading ? <p className="cogita-library-subtitle">{copy.cogita.user.loadingLibraries}</p> : null}
               {libraries.length ? (
                 <div className="cogita-card-list" data-view="list">
                   {libraries.map((library) => (
                     <div key={library.libraryId} className="cogita-card-item">
                       <a className="cogita-card-select" href={`/#/cogita/library/${library.libraryId}`}>
-                        <div className="cogita-card-type">Library role</div>
+                        <div className="cogita-card-type">{copy.cogita.user.libraryRoleLabel}</div>
                         <h3 className="cogita-card-title">{library.name}</h3>
                         <p className="cogita-card-subtitle">{library.libraryId}</p>
                       </a>
                       <div className="cogita-card-actions">
                         <a className="ghost" href={`/#/cogita/library/${library.libraryId}`}>
-                          Open overview
+                          {copy.cogita.user.openOverview}
                         </a>
                         <a className="ghost" href={`/#/cogita/library/${library.libraryId}/list`}>
-                          Open cards
+                          {copy.cogita.user.openCards}
                         </a>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="cogita-library-subtitle">No libraries yet. Create one to begin.</p>
+                <p className="cogita-library-subtitle">{copy.cogita.user.noLibraries}</p>
               )}
             </div>
           </div>

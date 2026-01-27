@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import { CogitaLibraryNav } from '../components/CogitaLibraryNav';
 
 export function CogitaCollectionDetailPage({
   copy,
@@ -34,12 +35,19 @@ export function CogitaCollectionDetailPage({
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
-  const [collectionName, setCollectionName] = useState('Collection');
+  const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
   const [collectionNotes, setCollectionNotes] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [cards, setCards] = useState<CogitaCardSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const cardCountLabel = useMemo(
+    () =>
+      copy.cogita.library.list.cardCount
+        .replace('{shown}', String(cards.length))
+        .replace('{total}', String(totalCount || cards.length)),
+    [copy, cards.length, totalCount]
+  );
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
@@ -49,7 +57,7 @@ export function CogitaCollectionDetailPage({
         setTotalCount(detail.itemCount);
       })
       .catch(() => {
-        setCollectionName('Collection');
+        setCollectionName(copy.cogita.library.collections.defaultName);
         setCollectionNotes(null);
       });
   }, [libraryId, collectionId]);
@@ -100,49 +108,56 @@ export function CogitaCollectionDetailPage({
       <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">Collection detail</p>
+            <p className="cogita-user-kicker">{copy.cogita.library.collections.detailKicker}</p>
             <h1 className="cogita-library-title">{collectionName}</h1>
-            <p className="cogita-library-subtitle">{collectionNotes || libraryName}</p>
+            <p className="cogita-library-subtitle">{collectionNotes || copy.cogita.library.collections.detailSubtitle}</p>
           </div>
           <div className="cogita-library-actions">
             <a className="cta ghost" href="/#/cogita">
-              Back to Cogita
+              {copy.cogita.library.actions.backToCogita}
             </a>
             <a className="cta ghost" href={baseHref}>
-              Library overview
+              {copy.cogita.library.actions.libraryOverview}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections`}>
-              Collections list
+              {copy.cogita.library.actions.collections}
             </a>
             <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
-              Start revision
+              {copy.cogita.library.actions.startRevision}
             </a>
           </div>
         </header>
 
         <div className="cogita-library-grid">
           <div className="cogita-library-pane">
+            <div className="cogita-library-controls">
+              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
+            </div>
             <div className="cogita-card-count">
-              <span>
-                {cards.length} of {totalCount || cards.length} cards
-              </span>
-              <span>{status === 'loading' ? 'Loading...' : 'Ready'}</span>
+              <span>{cardCountLabel}</span>
+              <span>{status === 'loading' ? copy.cogita.library.collections.loading : copy.cogita.library.collections.ready}</span>
             </div>
 
             <div className="cogita-card-list" data-view="list">
               {cards.length ? (
                 cards.map((card) => (
-                  <div key={`${card.cardType}-${card.cardId}`} className="cogita-card-item">
-                    <div className="cogita-card-select">
-                      <div className="cogita-card-type">{card.cardType}</div>
-                      <h3 className="cogita-card-title">{card.label}</h3>
-                      <p className="cogita-card-subtitle">{card.description}</p>
+                    <div key={`${card.cardType}-${card.cardId}`} className="cogita-card-item">
+                      <div className="cogita-card-select">
+                      <div className="cogita-card-type">
+                        {card.cardType === 'vocab'
+                          ? copy.cogita.library.list.cardTypeVocab
+                          : card.cardType === 'connection'
+                          ? copy.cogita.library.list.cardTypeConnection
+                          : copy.cogita.library.list.cardTypeInfo}
+                      </div>
+                        <h3 className="cogita-card-title">{card.label}</h3>
+                        <p className="cogita-card-subtitle">{card.description}</p>
+                      </div>
                     </div>
-                  </div>
                 ))
               ) : (
                 <div className="cogita-card-empty">
-                  <p>No cards stored in this collection yet.</p>
+                  <p>{copy.cogita.library.collections.noCards}</p>
                 </div>
               )}
             </div>
@@ -150,7 +165,7 @@ export function CogitaCollectionDetailPage({
             {nextCursor ? (
               <div className="cogita-form-actions">
                 <button type="button" className="cta ghost" onClick={handleLoadMore}>
-                  Load more
+                  {copy.cogita.library.list.loadMore}
                 </button>
               </div>
             ) : null}
@@ -160,16 +175,16 @@ export function CogitaCollectionDetailPage({
             <section className="cogita-library-detail">
               <div className="cogita-detail-header">
                 <div>
-                  <p className="cogita-user-kicker">Revision prep</p>
-                  <h3 className="cogita-detail-title">Ready to practice?</h3>
+                  <p className="cogita-user-kicker">{copy.cogita.library.collections.detailKicker}</p>
+                  <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
                 </div>
               </div>
               <div className="cogita-detail-body">
-                <p>Start a revision run when you are ready. Random ordering is enabled by default.</p>
+                <p>{copy.cogita.library.collections.detailFocusBody}</p>
               </div>
               <div className="cogita-form-actions">
                 <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
-                  Start revision
+                  {copy.cogita.library.actions.startRevision}
                 </a>
               </div>
             </section>

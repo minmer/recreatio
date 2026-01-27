@@ -42,10 +42,10 @@ export function CogitaShell({
       <header className="portal-header cogita-header">
         <div className="portal-header-left">
           <button type="button" className="ghost portal-back" onClick={handleBack}>
-            Back
+            {copy.cogita.shell.back}
           </button>
           <a className="ghost portal-up" href="/#/cogita">
-            Up
+            {copy.cogita.shell.up}
           </a>
           <a className="portal-brand" href="/#/cogita">
             <img src="/cogita/logo/Cogita_Plain.svg" alt="Cogita" />
@@ -67,7 +67,7 @@ export function CogitaShell({
       <main className="cogita-main">{children}</main>
       <footer className="portal-footer cogita-footer">
         <a className="portal-brand portal-footer-brand" href="/#/">
-          <img src="/logo_new.svg" alt="Recreatio" />
+          <img src="/logo_inv.svg" alt="Recreatio" />
         </a>
         <span>{copy.footer.headline}</span>
       </footer>

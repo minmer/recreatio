@@ -4,6 +4,7 @@ import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import { CogitaLibraryNav } from '../components/CogitaLibraryNav';
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -34,7 +35,7 @@ export function CogitaRevisionSettingsPage({
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
-  const [collectionName, setCollectionName] = useState('Collection');
+  const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
   const [limit, setLimit] = useState(20);
   const [mode] = useState('random');
   const [check] = useState('exact');
@@ -42,7 +43,7 @@ export function CogitaRevisionSettingsPage({
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
       .then((detail) => setCollectionName(detail.name))
-      .catch(() => setCollectionName('Collection'));
+      .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
   }, [libraryId, collectionId]);
 
   return (
@@ -61,28 +62,28 @@ export function CogitaRevisionSettingsPage({
       <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">Revision settings</p>
+            <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
             <h1 className="cogita-library-title">{collectionName}</h1>
             <p className="cogita-library-subtitle">{libraryName}</p>
           </div>
           <div className="cogita-library-actions">
             <a className="cta ghost" href="/#/cogita">
-              Back to Cogita
+              {copy.cogita.library.actions.backToCogita}
             </a>
             <a className="cta ghost" href={baseHref}>
-              Library overview
+              {copy.cogita.library.actions.libraryOverview}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections`}>
-              Collections list
+              {copy.cogita.library.actions.collections}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
-              Collection detail
+              {copy.cogita.library.actions.collectionDetail}
             </a>
             <a
               className="cta"
               href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
             >
-              Start revision
+              {copy.cogita.library.actions.startRevision}
             </a>
           </div>
         </header>
@@ -90,18 +91,19 @@ export function CogitaRevisionSettingsPage({
         <div className="cogita-library-grid">
           <div className="cogita-library-pane">
             <div className="cogita-library-controls">
+              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
               <div className="cogita-library-search">
-                <p className="cogita-user-kicker">Revision mode</p>
+                <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
                 <label className="cogita-field">
-                  <span>Mode</span>
-                  <input value="Random" disabled />
+                  <span>{copy.cogita.library.revision.modeLabel}</span>
+                  <input value={copy.cogita.library.revision.modeValue} disabled />
                 </label>
                 <label className="cogita-field">
-                  <span>Check</span>
-                  <input value="Exact match" disabled />
+                  <span>{copy.cogita.library.revision.checkLabel}</span>
+                  <input value={copy.cogita.library.revision.checkValue} disabled />
                 </label>
                 <label className="cogita-field">
-                  <span>Cards per session</span>
+                  <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
                   <input
                     type="number"
                     min={1}
@@ -118,20 +120,20 @@ export function CogitaRevisionSettingsPage({
             <section className="cogita-library-detail">
               <div className="cogita-detail-header">
                 <div>
-                  <p className="cogita-user-kicker">Preview</p>
-                  <h3 className="cogita-detail-title">Random order, strict answers</h3>
+                  <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
+                  <h3 className="cogita-detail-title">{copy.cogita.library.revision.previewTitle}</h3>
                 </div>
               </div>
               <div className="cogita-detail-body">
-                <p>Vocabulary cards will prompt a translation.</p>
-                <p>Word cards will ask you to select the correct language.</p>
+                <p>{copy.cogita.library.revision.previewBody1}</p>
+                <p>{copy.cogita.library.revision.previewBody2}</p>
               </div>
               <div className="cogita-form-actions">
                 <a
                   className="cta"
                   href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
                 >
-                  Start revision
+                  {copy.cogita.library.actions.startRevision}
                 </a>
               </div>
             </section>

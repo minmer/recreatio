@@ -1061,6 +1061,57 @@
   gap: 1.2rem;
 }
 
+.cogita-library-nav {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.2rem;
+  border-radius: 16px;
+  background: rgba(8, 18, 30, 0.55);
+  border: 1px solid rgba(110, 160, 210, 0.2);
+}
+
+.cogita-library-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  border-radius: 12px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  color: rgba(220, 236, 255, 0.8);
+  border: 1px solid transparent;
+  background: rgba(10, 24, 40, 0.35);
+}
+
+.cogita-library-nav a[data-active='true'] {
+  background: rgba(120, 190, 235, 0.2);
+  border-color: rgba(140, 200, 245, 0.5);
+  color: #f3f7ff;
+}
+
+.cogita-library-filters {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cogita-filter-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.cogita-file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.cogita-file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .cogita-search-field {
   display: flex;
   align-items: center;

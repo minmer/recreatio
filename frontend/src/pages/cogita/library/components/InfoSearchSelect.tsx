@@ -10,6 +10,10 @@ type InfoSearchSelectProps = {
   value: CogitaInfoOption | null;
   onChange: (value: CogitaInfoOption | null) => void;
   helperText?: string;
+  searchFailedText?: string;
+  createFailedText?: string;
+  createLabel?: string;
+  savingLabel?: string;
 };
 
 const MAX_RESULTS = 5;
@@ -21,7 +25,11 @@ export function InfoSearchSelect({
   placeholder,
   value,
   onChange,
-  helperText
+  helperText,
+  searchFailedText,
+  createFailedText,
+  createLabel,
+  savingLabel
 }: InfoSearchSelectProps) {
   const [query, setQuery] = useState(value?.label ?? '');
   const [results, setResults] = useState<CogitaInfoOption[]>([]);
@@ -62,7 +70,7 @@ export function InfoSearchSelect({
         setIsOpen(true);
       } catch {
         if (lastRequest.current !== currentRequest) return;
-        setError('Search failed.');
+        setError(searchFailedText ?? 'Search failed.');
       } finally {
         if (lastRequest.current === currentRequest) {
           setIsLoading(false);
@@ -93,7 +101,7 @@ export function InfoSearchSelect({
       onChange({ id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType });
       setIsOpen(false);
     } catch {
-      setError('Create failed.');
+      setError(createFailedText ?? 'Create failed.');
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +117,17 @@ export function InfoSearchSelect({
           onChange={(event) => {
             setQuery(event.target.value);
             if (value) onChange(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            if (results.length > 0) {
+              handleSelect(results[0]);
+              return;
+            }
+            if (showCreate) {
+              handleCreate();
+            }
           }}
           onFocus={() => {
             if (results.length > 0) setIsOpen(true);
@@ -135,7 +154,7 @@ export function InfoSearchSelect({
       )}
       {showCreate && (
         <button type="button" className="cogita-lookup-create" onClick={handleCreate} disabled={isLoading}>
-          {isLoading ? 'Saving...' : `Create new ${infoType}`}
+          {isLoading ? savingLabel ?? 'Saving...' : createLabel ?? `Create new ${infoType}`}
         </button>
       )}
     </div>

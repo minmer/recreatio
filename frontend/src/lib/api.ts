@@ -611,12 +611,26 @@ export function searchCogitaInfos(payload: { libraryId: string; type?: string; q
   );
 }
 
-export function searchCogitaCards(payload: { libraryId: string; type?: string; query?: string; limit?: number; cursor?: string | null }) {
+export function searchCogitaCards(payload: {
+  libraryId: string;
+  type?: string;
+  query?: string;
+  limit?: number;
+  cursor?: string | null;
+  languageAId?: string;
+  languageBId?: string;
+  topicId?: string;
+  levelId?: string;
+}) {
   const params = new URLSearchParams();
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
   if (payload.limit) params.set('limit', String(payload.limit));
   if (payload.cursor) params.set('cursor', payload.cursor);
+  if (payload.languageAId) params.set('languageAId', payload.languageAId);
+  if (payload.languageBId) params.set('languageBId', payload.languageBId);
+  if (payload.topicId) params.set('topicId', payload.topicId);
+  if (payload.levelId) params.set('levelId', payload.levelId);
   const qs = params.toString();
   return request<CogitaCardSearchBundle>(
     `/cogita/libraries/${payload.libraryId}/cards${qs ? `?${qs}` : ''}`,
@@ -741,6 +755,56 @@ export function createCogitaMockData(libraryId: string) {
   return request<CogitaMockDataResponse>(`/cogita/libraries/${libraryId}/mock-data`, {
     method: 'POST',
     body: JSON.stringify({})
+  });
+}
+
+export type CogitaExportInfo = {
+  infoId: string;
+  infoType: string;
+  payload: unknown;
+};
+
+export type CogitaExportConnection = {
+  connectionId: string;
+  connectionType: string;
+  infoIds: string[];
+  payload?: unknown | null;
+};
+
+export type CogitaExportCollectionItem = {
+  itemType: 'info' | 'connection';
+  itemId: string;
+  sortOrder: number;
+};
+
+export type CogitaExportCollection = {
+  collectionInfoId: string;
+  items: CogitaExportCollectionItem[];
+};
+
+export type CogitaLibraryExport = {
+  version: number;
+  infos: CogitaExportInfo[];
+  connections: CogitaExportConnection[];
+  collections: CogitaExportCollection[];
+};
+
+export type CogitaLibraryImportResponse = {
+  infosImported: number;
+  connectionsImported: number;
+  collectionsImported: number;
+};
+
+export function exportCogitaLibrary(libraryId: string) {
+  return request<CogitaLibraryExport>(`/cogita/libraries/${libraryId}/export`, {
+    method: 'GET'
+  });
+}
+
+export function importCogitaLibrary(libraryId: string, payload: CogitaLibraryExport) {
+  return request<CogitaLibraryImportResponse>(`/cogita/libraries/${libraryId}/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
   });
 }
 

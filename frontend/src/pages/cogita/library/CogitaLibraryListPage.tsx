@@ -3,9 +3,11 @@ import { searchCogitaCards, type CogitaCardSearchResult } from '../../../lib/api
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
-import type { CogitaInfoType, CogitaLibraryMode } from './types';
-import { cardSearchOptions } from './libraryOptions';
+import type { CogitaInfoOption, CogitaInfoType, CogitaLibraryMode } from './types';
+import { getCardSearchOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+import { InfoSearchSelect } from './components/InfoSearchSelect';
+import { CogitaLibraryNav } from './components/CogitaLibraryNav';
 
 export function CogitaLibraryListPage({
   copy,
@@ -43,6 +45,21 @@ export function CogitaLibraryListPage({
   const [selectedInfo, setSelectedInfo] = useState<CogitaCardSearchResult | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [filterLanguageA, setFilterLanguageA] = useState<CogitaInfoOption | null>(null);
+  const [filterLanguageB, setFilterLanguageB] = useState<CogitaInfoOption | null>(null);
+  const [filterTopic, setFilterTopic] = useState<CogitaInfoOption | null>(null);
+  const [filterLevel, setFilterLevel] = useState<CogitaInfoOption | null>(null);
+
+  const filterState = useMemo(
+    () => ({
+      languageAId: filterLanguageA?.id ?? undefined,
+      languageBId: filterLanguageB?.id ?? undefined,
+      topicId: filterTopic?.id ?? undefined,
+      levelId: filterLevel?.id ?? undefined
+    }),
+    [filterLanguageA, filterLanguageB, filterTopic, filterLevel]
+  );
+  const applyFilters = useMemo(() => searchType === 'vocab' || searchType === 'any', [searchType]);
 
   useEffect(() => {
     setSearchStatus('loading');
@@ -51,7 +68,11 @@ export function CogitaLibraryListPage({
         libraryId,
         type: searchType === 'any' ? undefined : searchType,
         query: searchQuery.trim() || undefined,
-        limit: 30
+        limit: 30,
+        languageAId: applyFilters ? filterState.languageAId : undefined,
+        languageBId: applyFilters ? filterState.languageBId : undefined,
+        topicId: applyFilters ? filterState.topicId : undefined,
+        levelId: applyFilters ? filterState.levelId : undefined
       })
         .then((bundle) => {
           setSearchResults(bundle.items);
@@ -69,7 +90,7 @@ export function CogitaLibraryListPage({
     }, 240);
 
     return () => window.clearTimeout(handle);
-  }, [libraryId, searchQuery, searchType]);
+  }, [libraryId, searchQuery, searchType, applyFilters, filterState]);
 
   const handleLoadMore = async () => {
     if (!nextCursor) return;
@@ -80,7 +101,11 @@ export function CogitaLibraryListPage({
         type: searchType === 'any' ? undefined : searchType,
         query: searchQuery.trim() || undefined,
         limit: 30,
-        cursor: nextCursor
+        cursor: nextCursor,
+        languageAId: applyFilters ? filterState.languageAId : undefined,
+        languageBId: applyFilters ? filterState.languageBId : undefined,
+        topicId: applyFilters ? filterState.topicId : undefined,
+        levelId: applyFilters ? filterState.levelId : undefined
       });
       setSearchResults((prev) => [...prev, ...bundle.items]);
       setNextCursor(bundle.nextCursor ?? null);
@@ -92,6 +117,13 @@ export function CogitaLibraryListPage({
   };
 
   const cardsView = useMemo(() => (mode === 'collection' ? 'grid' : mode === 'list' ? 'list' : 'detail'), [mode]);
+  const cardSearchOptions = useMemo(() => getCardSearchOptions(copy), [copy]);
+  const cardCountLabel = useMemo(() => {
+    const total = totalCount || searchResults.length;
+    return copy.cogita.library.list.cardCount
+      .replace('{shown}', String(searchResults.length))
+      .replace('{total}', String(total));
+  }, [copy, searchResults.length, totalCount]);
 
   return (
     <CogitaShell
@@ -109,22 +141,22 @@ export function CogitaLibraryListPage({
       <section className="cogita-library-dashboard" data-mode={cardsView}>
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">Library list</p>
+            <p className="cogita-user-kicker">{copy.cogita.library.list.kicker}</p>
             <h1 className="cogita-library-title">{libraryName}</h1>
-            <p className="cogita-library-subtitle">Browse all encrypted info cards.</p>
+            <p className="cogita-library-subtitle">{copy.cogita.library.list.subtitle}</p>
           </div>
           <div className="cogita-library-actions">
             <a className="cta ghost" href="/#/cogita">
-              Back to Cogita
+              {copy.cogita.library.actions.backToCogita}
             </a>
             <a className="cta ghost" href={baseHref}>
-              Library overview
+              {copy.cogita.library.actions.libraryOverview}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections`}>
-              Collections
+              {copy.cogita.library.actions.collections}
             </a>
             <a className="cta" href={`${baseHref}/new`}>
-              Add new info
+              {copy.cogita.library.actions.addInfo}
             </a>
           </div>
         </header>
@@ -132,7 +164,11 @@ export function CogitaLibraryListPage({
         <div className="cogita-library-modes">
           {(['detail', 'collection', 'list'] as const).map((item) => (
             <a key={item} className="ghost" data-active={mode === item} href={`${baseHref}/${item}`}>
-              {item}
+              {item === 'detail'
+                ? copy.cogita.library.list.modes.detail
+                : item === 'collection'
+                ? copy.cogita.library.list.modes.collection
+                : copy.cogita.library.list.modes.list}
             </a>
           ))}
         </div>
@@ -140,8 +176,9 @@ export function CogitaLibraryListPage({
         <div className="cogita-library-grid">
           <div className="cogita-library-pane">
             <div className="cogita-library-controls">
+              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
               <div className="cogita-library-search">
-                <p className="cogita-user-kicker">Search</p>
+                <p className="cogita-user-kicker">{copy.cogita.library.list.searchTitle}</p>
                 <div className="cogita-search-field">
                   <select value={searchType} onChange={(event) => setSearchType(event.target.value as CogitaInfoType | 'any' | 'vocab')}>
                     {cardSearchOptions.map((option) => (
@@ -154,17 +191,85 @@ export function CogitaLibraryListPage({
                     type="text"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search text, name, or label"
+                    placeholder={copy.cogita.library.list.searchPlaceholder}
                   />
                 </div>
               </div>
+
+                {(searchType === 'vocab' || searchType === 'any') && (
+                  <div className="cogita-library-filters">
+                    <p className="cogita-user-kicker">{copy.cogita.library.filters.title}</p>
+                    <div className="cogita-filter-grid">
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label={copy.cogita.library.filters.languageA}
+                        placeholder={copy.cogita.library.filters.placeholderLanguageA}
+                        value={filterLanguageA}
+                        onChange={setFilterLanguageA}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label={copy.cogita.library.filters.languageB}
+                        placeholder={copy.cogita.library.filters.placeholderLanguageB}
+                        value={filterLanguageB}
+                        onChange={setFilterLanguageB}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="topic"
+                        label={copy.cogita.library.filters.topic}
+                        placeholder={copy.cogita.library.filters.placeholderTopic}
+                        value={filterTopic}
+                        onChange={setFilterTopic}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.topic)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="topic"
+                        label={copy.cogita.library.filters.level}
+                        placeholder={copy.cogita.library.filters.placeholderLevel}
+                        value={filterLevel}
+                        onChange={setFilterLevel}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.filters.level)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                      />
+                    </div>
+                    {(filterLanguageA || filterLanguageB || filterTopic || filterLevel) && (
+                      <button
+                        type="button"
+                      className="ghost"
+                      onClick={() => {
+                        setFilterLanguageA(null);
+                        setFilterLanguageB(null);
+                        setFilterTopic(null);
+                        setFilterLevel(null);
+                      }}
+                      >
+                        {copy.cogita.library.filters.clear}
+                      </button>
+                    )}
+                  </div>
+                )}
             </div>
 
             <div className="cogita-card-count">
-              <span>
-                {searchResults.length} of {totalCount || searchResults.length} cards
-              </span>
-              <span>{searchStatus === 'loading' ? 'Loading...' : 'Ready'}</span>
+              <span>{cardCountLabel}</span>
+              <span>{searchStatus === 'loading' ? copy.cogita.library.list.loading : copy.cogita.library.list.ready}</span>
             </div>
 
             <div className="cogita-card-list" data-view={mode === 'collection' ? 'grid' : 'list'}>
@@ -177,16 +282,22 @@ export function CogitaLibraryListPage({
                     data-selected={selectedInfo?.cardId === result.cardId}
                     onClick={() => setSelectedInfo(result)}
                   >
-                    <div className="cogita-card-type">{result.cardType}</div>
+                    <div className="cogita-card-type">
+                      {result.cardType === 'vocab'
+                        ? copy.cogita.library.list.cardTypeVocab
+                        : result.cardType === 'connection'
+                        ? copy.cogita.library.list.cardTypeConnection
+                        : copy.cogita.library.list.cardTypeInfo}
+                    </div>
                     <h3 className="cogita-card-title">{result.label}</h3>
                     <p className="cogita-card-subtitle">{result.description}</p>
                   </button>
                 ))
               ) : (
                 <div className="cogita-card-empty">
-                  <p>No matching info found.</p>
+                  <p>{copy.cogita.library.list.noMatch}</p>
                   <a className="ghost" href={`${baseHref}/new`}>
-                    Add information
+                    {copy.cogita.library.list.addInfo}
                   </a>
                 </div>
               )}
@@ -194,7 +305,7 @@ export function CogitaLibraryListPage({
             {nextCursor ? (
               <div className="cogita-form-actions">
                 <button type="button" className="cta ghost" onClick={handleLoadMore}>
-                  Load more
+                  {copy.cogita.library.list.loadMore}
                 </button>
               </div>
             ) : null}
@@ -204,23 +315,29 @@ export function CogitaLibraryListPage({
             <section className="cogita-library-detail">
               <div className="cogita-detail-header">
                 <div>
-                  <p className="cogita-user-kicker">Selected info</p>
-                  <h3 className="cogita-detail-title">{selectedInfo?.label ?? 'Pick an info card'}</h3>
+                  <p className="cogita-user-kicker">{copy.cogita.library.list.selectedTitle}</p>
+                  <h3 className="cogita-detail-title">{selectedInfo?.label ?? copy.cogita.library.list.selectedEmpty}</h3>
                 </div>
                 <div className="cogita-detail-actions">
                   <a className="ghost" href={`${baseHref}/new`}>
-                    Add info
+                    {copy.cogita.library.actions.addInfo}
                   </a>
                 </div>
               </div>
               {selectedInfo ? (
                 <div className="cogita-detail-body">
-                  <p>Type: {selectedInfo.cardType}</p>
-                  <p>Use the add page to create connections or vocabulary links.</p>
+                  <p>
+                    {selectedInfo.cardType === 'vocab'
+                      ? copy.cogita.library.list.cardTypeVocab
+                      : selectedInfo.cardType === 'connection'
+                      ? copy.cogita.library.list.cardTypeConnection
+                      : copy.cogita.library.list.cardTypeInfo}
+                  </p>
+                  <p>{copy.cogita.library.list.selectedHint}</p>
                 </div>
               ) : (
                 <div className="cogita-card-empty">
-                  <p>No info selected yet.</p>
+                  <p>{copy.cogita.library.list.selectedEmpty}</p>
                 </div>
               )}
             </section>

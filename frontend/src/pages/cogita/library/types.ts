@@ -14,7 +14,7 @@ export type CogitaInfoType =
   | 'music_piece'
   | 'music_fragment';
 
-export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation';
+export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation' | 'word-topic';
 
 export type CogitaGroupType = 'vocab';
 
@@ -44,6 +44,7 @@ export type CogitaConnectionForm = {
   wordA: CogitaInfoOption | null;
   wordB: CogitaInfoOption | null;
   sentence: CogitaInfoOption | null;
+  topic: CogitaInfoOption | null;
   payload: Record<string, string>;
 };
 
@@ -53,5 +54,7 @@ export type CogitaGroupForm = {
   wordA: CogitaInfoOption | null;
   languageB: CogitaInfoOption | null;
   wordB: CogitaInfoOption | null;
+  topic: CogitaInfoOption | null;
+  level: CogitaInfoOption | null;
   note: string;
 };

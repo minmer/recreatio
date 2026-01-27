@@ -144,3 +144,47 @@ public sealed record CogitaMockDataResponse(
     int WordLanguageLinks,
     int Translations
 );
+
+public sealed record CogitaExportInfo(
+    Guid InfoId,
+    string InfoType,
+    JsonElement Payload
+);
+
+public sealed record CogitaExportConnection(
+    Guid ConnectionId,
+    string ConnectionType,
+    List<Guid> InfoIds,
+    JsonElement? Payload
+);
+
+public sealed record CogitaExportCollectionItem(
+    string ItemType,
+    Guid ItemId,
+    int SortOrder
+);
+
+public sealed record CogitaExportCollection(
+    Guid CollectionInfoId,
+    List<CogitaExportCollectionItem> Items
+);
+
+public sealed record CogitaLibraryExportResponse(
+    int Version,
+    List<CogitaExportInfo> Infos,
+    List<CogitaExportConnection> Connections,
+    List<CogitaExportCollection> Collections
+);
+
+public sealed record CogitaLibraryImportRequest(
+    int Version,
+    List<CogitaExportInfo> Infos,
+    List<CogitaExportConnection> Connections,
+    List<CogitaExportCollection> Collections
+);
+
+public sealed record CogitaLibraryImportResponse(
+    int InfosImported,
+    int ConnectionsImported,
+    int CollectionsImported
+);

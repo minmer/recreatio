@@ -10,6 +10,8 @@ import {
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
+import type { CogitaInfoType } from '../types';
+import { getInfoTypeLabel } from '../libraryOptions';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 
@@ -55,8 +57,10 @@ export function CogitaRevisionRunPage({
   const limit = Math.max(1, Number(params.get('limit') ?? 20));
   const mode = params.get('mode') ?? 'random';
   const check = params.get('check') ?? 'exact';
+  const modeLabel = useMemo(() => (mode === 'random' ? copy.cogita.library.revision.modeValue : mode), [copy, mode]);
+  const checkLabel = useMemo(() => (check === 'exact' ? copy.cogita.library.revision.checkValue : check), [copy, check]);
 
-  const [collectionName, setCollectionName] = useState('Collection');
+  const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
   const [queue, setQueue] = useState<CogitaCardSearchResult[]>([]);
   const [languages, setLanguages] = useState<CogitaInfoSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -67,11 +71,17 @@ export function CogitaRevisionRunPage({
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
 
   const currentCard = queue[currentIndex] ?? null;
+  const currentTypeLabel = useMemo(() => {
+    if (!currentCard) return '';
+    if (currentCard.cardType === 'vocab') return copy.cogita.library.revision.vocabLabel;
+    if (currentCard.infoType) return getInfoTypeLabel(copy, currentCard.infoType as CogitaInfoType);
+    return copy.cogita.library.revision.infoLabel;
+  }, [copy, currentCard]);
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
       .then((detail) => setCollectionName(detail.name))
-      .catch(() => setCollectionName('Collection'));
+      .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
   }, [libraryId, collectionId]);
 
   useEffect(() => {
@@ -198,22 +208,24 @@ export function CogitaRevisionRunPage({
       <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">Revision</p>
+            <p className="cogita-user-kicker">{copy.cogita.library.revision.runKicker}</p>
             <h1 className="cogita-library-title">{collectionName}</h1>
-            <p className="cogita-library-subtitle">Mode: {mode} · Check: {check}</p>
+            <p className="cogita-library-subtitle">
+              {copy.cogita.library.revision.modeSummary.replace('{mode}', modeLabel).replace('{check}', checkLabel)}
+            </p>
           </div>
           <div className="cogita-library-actions">
             <a className="cta ghost" href="/#/cogita">
-              Back to Cogita
+              {copy.cogita.library.actions.backToCogita}
             </a>
             <a className="cta ghost" href={baseHref}>
-              Library overview
+              {copy.cogita.library.actions.libraryOverview}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections`}>
-              Collections list
+              {copy.cogita.library.actions.collections}
             </a>
             <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
-              Collection detail
+              {copy.cogita.library.actions.collectionDetail}
             </a>
           </div>
         </header>
@@ -223,16 +235,16 @@ export function CogitaRevisionRunPage({
             <section className="cogita-library-detail">
               <div className="cogita-detail-header">
                 <div>
-                  <p className="cogita-user-kicker">Progress</p>
+                  <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
                   <h3 className="cogita-detail-title">
                     {queue.length ? `${Math.min(currentIndex + 1, queue.length)} / ${queue.length}` : '0 / 0'}
                   </h3>
                 </div>
               </div>
               <div className="cogita-detail-body">
-                {status === 'loading' && <p>Loading revision cards...</p>}
-                {status === 'error' && <p>Failed to load cards.</p>}
-                {status === 'ready' && queue.length === 0 && <p>No cards available for revision.</p>}
+                {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
+                {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
+                {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
               </div>
             </section>
           </div>
@@ -242,7 +254,7 @@ export function CogitaRevisionRunPage({
               {currentCard ? (
                 <>
                   <div className="cogita-revision-header">
-                    <span>{currentCard.cardType === 'vocab' ? 'Vocabulary' : currentCard.infoType ?? 'Info'}</span>
+                    <span>{currentTypeLabel}</span>
                     <strong>{currentCard.description}</strong>
                   </div>
 
@@ -250,10 +262,11 @@ export function CogitaRevisionRunPage({
                     <div className="cogita-revision-body">
                       <h2>{prompt}</h2>
                       <label className="cogita-field">
-                        <span>Your answer</span>
+                        <span>{copy.cogita.library.revision.answerLabel}</span>
                         <input
                           value={answer}
                           onChange={(event) => setAnswer(event.target.value)}
+                          placeholder={copy.cogita.library.revision.answerPlaceholder}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') handleCheckAnswer();
                           }}
@@ -261,17 +274,17 @@ export function CogitaRevisionRunPage({
                       </label>
                       <div className="cogita-form-actions">
                         <button type="button" className="cta" onClick={handleCheckAnswer}>
-                          Check
+                          {copy.cogita.library.revision.checkAnswer}
                         </button>
                         <button type="button" className="ghost" onClick={advanceCard}>
-                          Skip
+                          {copy.cogita.library.revision.skip}
                         </button>
                       </div>
                     </div>
                   ) : currentCard.cardType === 'info' && currentCard.infoType === 'word' ? (
                     <div className="cogita-revision-body">
                       <h2>{prompt}</h2>
-                      <p className="cogita-revision-hint">Select the language for this word.</p>
+                      <p className="cogita-revision-hint">{copy.cogita.library.revision.hintSelectLanguage}</p>
                       <div className="cogita-choice-grid">
                         {languages.length ? (
                           languages.map((lang) => (
@@ -280,25 +293,25 @@ export function CogitaRevisionRunPage({
                             </button>
                           ))
                         ) : (
-                          <span className="cogita-revision-hint">No languages found.</span>
+                          <span className="cogita-revision-hint">{copy.cogita.library.revision.noLanguages}</span>
                         )}
                       </div>
                       <div className="cogita-form-actions">
                         <button type="button" className="ghost" onClick={advanceCard}>
-                          Skip
+                          {copy.cogita.library.revision.skip}
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="cogita-revision-body">
                       <h2>{prompt}</h2>
-                      <p className="cogita-revision-hint">Review this card and mark as done.</p>
+                      <p className="cogita-revision-hint">{copy.cogita.library.revision.hintReview}</p>
                       <div className="cogita-form-actions">
                         <button type="button" className="cta" onClick={handleMarkReviewed}>
-                          Mark reviewed
+                          {copy.cogita.library.revision.markDone}
                         </button>
                         <button type="button" className="ghost" onClick={advanceCard}>
-                          Skip
+                          {copy.cogita.library.revision.skip}
                         </button>
                       </div>
                     </div>
@@ -306,16 +319,16 @@ export function CogitaRevisionRunPage({
 
                   {feedback && (
                     <div className="cogita-revision-feedback" data-state={feedback}>
-                      {feedback === 'correct' ? 'Correct' : 'Try again'}
+                      {feedback === 'correct' ? copy.cogita.library.revision.correct : copy.cogita.library.revision.tryAgain}
                     </div>
                   )}
                 </>
               ) : (
                 <div className="cogita-card-empty">
-                  <p>Revision completed. Great job!</p>
+                  <p>{copy.cogita.library.revision.completed}</p>
                   <div className="cogita-form-actions">
                     <a className="cta" href={`${baseHref}/collections/${collectionId}`}>
-                      Back to collection
+                      {copy.cogita.library.actions.collectionDetail}
                     </a>
                   </div>
                 </div>

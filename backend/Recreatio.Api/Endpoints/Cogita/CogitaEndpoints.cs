@@ -35,7 +35,8 @@ public static class CogitaEndpoints
     {
         "word-language",
         "language-sentence",
-        "translation"
+        "translation",
+        "word-topic"
     };
 
     private static readonly string[] SupportedGroupTypes = { "vocab" };
@@ -544,6 +545,10 @@ public static class CogitaEndpoints
             Guid libraryId,
             string? type,
             string? query,
+            Guid? languageAId,
+            Guid? languageBId,
+            Guid? topicId,
+            Guid? levelId,
             int? limit,
             string? cursor,
             HttpContext context,
@@ -779,6 +784,61 @@ public static class CogitaEndpoints
                         ct);
                     var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
                         .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+                    var connectionTags = new Dictionary<Guid, HashSet<Guid>>();
+                    if (topicId.HasValue || levelId.HasValue)
+                    {
+                        var translationIds = translations.Select(t => t.Id).ToList();
+                        var connectionPayloads = await dbContext.CogitaConnections.AsNoTracking()
+                            .Where(x => translationIds.Contains(x.Id))
+                            .Select(x => new { x.Id, x.DataKeyId, x.EncryptedBlob })
+                            .ToListAsync(ct);
+                        var keyEntries = await dbContext.Keys.AsNoTracking()
+                            .Where(x => connectionPayloads.Select(p => p.DataKeyId).Contains(x.Id))
+                            .ToDictionaryAsync(x => x.Id, ct);
+                        foreach (var payload in connectionPayloads)
+                        {
+                            if (!keyEntries.TryGetValue(payload.DataKeyId, out var keyEntry))
+                            {
+                                continue;
+                            }
+                            byte[] dataKey;
+                            try
+                            {
+                                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                            }
+                            catch (CryptographicException)
+                            {
+                                continue;
+                            }
+
+                            try
+                            {
+                                var plain = encryptionService.Decrypt(dataKey, payload.EncryptedBlob, payload.Id.ToByteArray());
+                                using var doc = JsonDocument.Parse(plain);
+                                var tags = new HashSet<Guid>();
+                                if (doc.RootElement.TryGetProperty("levelId", out var levelProp) &&
+                                    levelProp.ValueKind == JsonValueKind.String &&
+                                    Guid.TryParse(levelProp.GetString(), out var levelGuid))
+                                {
+                                    tags.Add(levelGuid);
+                                }
+                                if (doc.RootElement.TryGetProperty("topicId", out var topicProp) &&
+                                    topicProp.ValueKind == JsonValueKind.String &&
+                                    Guid.TryParse(topicProp.GetString(), out var topicGuid))
+                                {
+                                    tags.Add(topicGuid);
+                                }
+                                if (tags.Count > 0)
+                                {
+                                    connectionTags[payload.Id] = tags;
+                                }
+                            }
+                            catch (CryptographicException)
+                            {
+                                continue;
+                            }
+                        }
+                    }
 
                     foreach (var pair in itemsByConnection)
                     {
@@ -792,10 +852,39 @@ public static class CogitaEndpoints
                         var wordALabel = wordLabels.TryGetValue(wordA, out var w1) ? w1 : "Word";
                         var wordBLabel = wordLabels.TryGetValue(wordB, out var w2) ? w2 : "Word";
 
-                        var langALabel = wordLanguageMap.TryGetValue(wordA, out var langA) && languageLabels.TryGetValue(langA, out var l1)
+                        var langAId = wordLanguageMap.TryGetValue(wordA, out var langA) ? langA : Guid.Empty;
+                        var langBId = wordLanguageMap.TryGetValue(wordB, out var langB) ? langB : Guid.Empty;
+
+                        if (languageAId.HasValue && languageBId.HasValue)
+                        {
+                            var matches = (langAId == languageAId.Value && langBId == languageBId.Value) ||
+                                          (langAId == languageBId.Value && langBId == languageAId.Value);
+                            if (!matches)
+                            {
+                                continue;
+                            }
+                        }
+
+                        if (topicId.HasValue || levelId.HasValue)
+                        {
+                            if (!connectionTags.TryGetValue(pair.Key, out var tags))
+                            {
+                                continue;
+                            }
+                            if (topicId.HasValue && !tags.Contains(topicId.Value))
+                            {
+                                continue;
+                            }
+                            if (levelId.HasValue && !tags.Contains(levelId.Value))
+                            {
+                                continue;
+                            }
+                        }
+
+                        var langALabel = langAId != Guid.Empty && languageLabels.TryGetValue(langAId, out var l1)
                             ? l1
                             : "Language";
-                        var langBLabel = wordLanguageMap.TryGetValue(wordB, out var langB) && languageLabels.TryGetValue(langB, out var l2)
+                        var langBLabel = langBId != Guid.Empty && languageLabels.TryGetValue(langBId, out var l2)
                             ? l2
                             : "Language";
 
@@ -1672,6 +1761,286 @@ public static class CogitaEndpoints
                 wordCount,
                 wordLanguageLinks,
                 translationCount
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/export", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var infos = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId)
+                .ToListAsync(ct);
+            var exportInfos = new List<CogitaExportInfo>();
+            foreach (var info in infos)
+            {
+                var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+                if (payload is null)
+                {
+                    continue;
+                }
+
+                var keyEntry = await dbContext.Keys.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+                if (keyEntry is null)
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    exportInfos.Add(new CogitaExportInfo(info.Id, info.InfoType, doc.RootElement.Clone()));
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+            }
+
+            var connections = await dbContext.CogitaConnections.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId)
+                .ToListAsync(ct);
+            var connectionItems = await dbContext.CogitaConnectionItems.AsNoTracking()
+                .Where(x => connections.Select(c => c.Id).Contains(x.ConnectionId))
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync(ct);
+            var connectionItemsLookup = connectionItems
+                .GroupBy(x => x.ConnectionId)
+                .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
+            var exportConnections = new List<CogitaExportConnection>();
+            foreach (var connection in connections)
+            {
+                var keyEntry = await dbContext.Keys.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == connection.DataKeyId, ct);
+                if (keyEntry is null)
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                JsonElement? payload = null;
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, connection.EncryptedBlob, connection.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    payload = doc.RootElement.Clone();
+                }
+                catch (CryptographicException)
+                {
+                    payload = null;
+                }
+
+                exportConnections.Add(new CogitaExportConnection(
+                    connection.Id,
+                    connection.ConnectionType,
+                    connectionItemsLookup.TryGetValue(connection.Id, out var infoIds) ? infoIds : new List<Guid>(),
+                    payload
+                ));
+            }
+
+            var collectionItems = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .Where(x => infos.Select(info => info.Id).Contains(x.CollectionInfoId))
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync(ct);
+            var exportCollections = collectionItems
+                .GroupBy(x => x.CollectionInfoId)
+                .Select(group => new CogitaExportCollection(
+                    group.Key,
+                    group.Select(item => new CogitaExportCollectionItem(item.ItemType, item.ItemId, item.SortOrder)).ToList()
+                ))
+                .ToList();
+
+            return Results.Ok(new CogitaLibraryExportResponse(1, exportInfos, exportConnections, exportCollections));
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/import", async (
+            Guid libraryId,
+            CogitaLibraryImportRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var infoMap = new Dictionary<Guid, Guid>();
+            var connectionMap = new Dictionary<Guid, Guid>();
+
+            foreach (var info in request.Infos)
+            {
+                if (!SupportedInfoTypes.Contains(info.InfoType))
+                {
+                    continue;
+                }
+                var created = await CreateInfoInternalAsync(
+                    library,
+                    new CogitaCreateInfoRequest(info.InfoType, info.Payload, null, null),
+                    readKey,
+                    ownerKey,
+                    userId,
+                    keyRingService,
+                    encryptionService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
+                infoMap[info.InfoId] = created.InfoId;
+            }
+
+            foreach (var connection in request.Connections)
+            {
+                if (!SupportedConnectionTypes.Contains(connection.ConnectionType))
+                {
+                    continue;
+                }
+                var mappedIds = connection.InfoIds
+                    .Where(id => infoMap.ContainsKey(id))
+                    .Select(id => infoMap[id])
+                    .ToList();
+                if (mappedIds.Count == 0)
+                {
+                    continue;
+                }
+                var created = await CreateConnectionInternalAsync(
+                    library,
+                    new CogitaCreateConnectionRequest(connection.ConnectionType, mappedIds, connection.Payload, null, null),
+                    readKey,
+                    ownerKey,
+                    userId,
+                    keyRingService,
+                    encryptionService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
+                connectionMap[connection.ConnectionId] = created.ConnectionId;
+            }
+
+            foreach (var collection in request.Collections)
+            {
+                if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
+                {
+                    continue;
+                }
+
+                foreach (var item in collection.Items.OrderBy(x => x.SortOrder))
+                {
+                    Guid mappedId;
+                    if (item.ItemType == "info")
+                    {
+                        if (!infoMap.TryGetValue(item.ItemId, out mappedId))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (!connectionMap.TryGetValue(item.ItemId, out mappedId))
+                        {
+                            continue;
+                        }
+                    }
+
+                    dbContext.CogitaCollectionItems.Add(new CogitaCollectionItem
+                    {
+                        Id = Guid.NewGuid(),
+                        CollectionInfoId = collectionInfoId,
+                        ItemType = item.ItemType,
+                        ItemId = mappedId,
+                        SortOrder = item.SortOrder,
+                        CreatedUtc = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaLibraryImportResponse(
+                infoMap.Count,
+                connectionMap.Count,
+                request.Collections.Count
             ));
         });
 
