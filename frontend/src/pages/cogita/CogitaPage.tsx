@@ -565,7 +565,7 @@ export function CogitaPage({
             Back
           </button>
           <button type="button" className="portal-brand" onClick={() => onNavigate('cogita')}>
-            <img src="/cogita_plain.svg" alt="Cogita" />
+            <img src="/cogita/logo/Cogita_Plain.svg" alt="Cogita" />
           </button>
         </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />

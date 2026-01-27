@@ -491,15 +491,18 @@ CREATE TABLE dbo.CogitaTopics
 );
 GO
 
-CREATE TABLE dbo.CogitaCollections
-(
-    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    DataKeyId UNIQUEIDENTIFIER NOT NULL,
-    EncryptedBlob VARBINARY(MAX) NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaCollections_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
-);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollections' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollections
+    (
+        InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollections_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
 GO
 
 CREATE TABLE dbo.CogitaPersons
@@ -635,22 +638,31 @@ GO
 CREATE UNIQUE INDEX UX_CogitaConnectionItems_Link ON dbo.CogitaConnectionItems(ConnectionId, InfoId);
 GO
 
-CREATE TABLE dbo.CogitaCollectionItems
-(
-    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    CollectionInfoId UNIQUEIDENTIFIER NOT NULL,
-    ItemType NVARCHAR(32) NOT NULL,
-    ItemId UNIQUEIDENTIFIER NOT NULL,
-    SortOrder INT NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaCollectionItems_Collection FOREIGN KEY (CollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
-);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionItems' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollectionItems
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        CollectionInfoId UNIQUEIDENTIFIER NOT NULL,
+        ItemType NVARCHAR(32) NOT NULL,
+        ItemId UNIQUEIDENTIFIER NOT NULL,
+        SortOrder INT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollectionItems_Collection FOREIGN KEY (CollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
 GO
 
-CREATE UNIQUE INDEX UX_CogitaCollectionItems_Link ON dbo.CogitaCollectionItems(CollectionInfoId, ItemType, ItemId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaCollectionItems_Link' AND object_id = OBJECT_ID('dbo.CogitaCollectionItems'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaCollectionItems_Link ON dbo.CogitaCollectionItems(CollectionInfoId, ItemType, ItemId);
+END
 GO
 
-CREATE INDEX IX_CogitaCollectionItems_Collection_Order ON dbo.CogitaCollectionItems(CollectionInfoId, SortOrder);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCollectionItems_Collection_Order' AND object_id = OBJECT_ID('dbo.CogitaCollectionItems'))
+BEGIN
+    CREATE INDEX IX_CogitaCollectionItems_Collection_Order ON dbo.CogitaCollectionItems(CollectionInfoId, SortOrder);
+END
 GO
 
 CREATE TABLE dbo.CogitaGroups
