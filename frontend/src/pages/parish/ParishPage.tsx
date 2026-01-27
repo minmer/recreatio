@@ -1815,6 +1815,11 @@ export function ParishPage({
                 </select>
               </div>
             </div>
+            <div className="parish-footer-brand">
+              <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
+                <img src="/logo_new.svg" alt="Recreatio" className="parish-footer-logo" />
+              </button>
+            </div>
           </footer>
         </>
       )}

@@ -1186,6 +1186,16 @@
   color: var(--parish-ink);
 }
 
+.parish-footer-brand {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.parish-footer-logo {
+  width: 140px;
+}
+
 .language-label {
   font-size: 0.75rem;
   text-transform: uppercase;

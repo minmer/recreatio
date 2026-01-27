@@ -918,22 +918,28 @@
   align-items: center;
 }
 
+.portal-page.cogita .cta,
 .cogita-user .cta,
-.cogita-library .cta {
+.cogita-library .cta,
+.cogita-library-dashboard .cta {
   background: rgba(126, 200, 255, 0.92);
   color: #071424;
   box-shadow: 0 12px 28px rgba(40, 80, 120, 0.35);
 }
 
+.portal-page.cogita .cta.ghost,
 .cogita-user .cta.ghost,
-.cogita-library .cta.ghost {
+.cogita-library .cta.ghost,
+.cogita-library-dashboard .cta.ghost {
   background: transparent;
   color: rgba(220, 236, 255, 0.92);
   border: 1px solid rgba(140, 190, 235, 0.45);
 }
 
+.portal-page.cogita .ghost:not(.cta),
 .cogita-user .ghost:not(.cta),
-.cogita-library .ghost:not(.cta) {
+.cogita-library .ghost:not(.cta),
+.cogita-library-dashboard .ghost:not(.cta) {
   border: 1px solid rgba(140, 190, 235, 0.35);
   color: rgba(220, 236, 255, 0.9);
   background: transparent;

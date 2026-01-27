@@ -44,8 +44,8 @@ export function CogitaShell({
           <button type="button" className="ghost portal-back" onClick={handleBack}>
             Back
           </button>
-          <button type="button" className="portal-brand" onClick={() => onNavigate('home')}>
-            <img src="/logo_inv.svg" alt={copy.loginCard.title} />
+          <button type="button" className="portal-brand" onClick={() => onNavigate('cogita')}>
+            <img src="/cogita_plain.svg" alt="Cogita" />
           </button>
         </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
@@ -63,18 +63,10 @@ export function CogitaShell({
       </header>
       <main className="cogita-main">{children}</main>
       <footer className="portal-footer cogita-footer">
+        <button type="button" className="portal-brand portal-footer-brand" onClick={() => onNavigate('home')}>
+          <img src="/logo_new.svg" alt="Recreatio" />
+        </button>
         <span>{copy.footer.headline}</span>
-        <AuthAction
-          copy={copy}
-          label={authLabel}
-          isAuthenticated={showProfileMenu}
-          secureMode={secureMode}
-          onLogin={() => onNavigate('home')}
-          onProfileNavigate={onProfileNavigate}
-          onToggleSecureMode={onToggleSecureMode}
-          onLogout={onLogout}
-          variant="ghost"
-        />
       </footer>
     </div>
   );
