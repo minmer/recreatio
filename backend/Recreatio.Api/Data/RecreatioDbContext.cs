@@ -129,6 +129,122 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaCollectionItem>()
             .HasIndex(x => new { x.CollectionInfoId, x.SortOrder });
 
+        modelBuilder.Entity<Data.Cogita.CogitaCollection>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaLibrary>()
+            .HasOne<Role>()
+            .WithMany()
+            .HasForeignKey(x => x.RoleId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaInfo>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaLanguage>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaWord>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaSentence>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaTopic>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaPerson>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaAddress>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaEmail>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaPhone>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaBook>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaMedia>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaGeoFeature>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaMusicPiece>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaMusicFragment>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaWordLanguage>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.LanguageInfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaWordLanguage>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.WordInfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaConnection>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaConnectionItem>()
+            .HasOne<Data.Cogita.CogitaConnection>()
+            .WithMany()
+            .HasForeignKey(x => x.ConnectionId);
+        modelBuilder.Entity<Data.Cogita.CogitaConnectionItem>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionItem>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.CollectionInfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGroup>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
+            .HasOne<Data.Cogita.CogitaGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId);
+        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
+            .HasOne<Data.Cogita.CogitaGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId);
+        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
+            .HasOne<Data.Cogita.CogitaConnection>()
+            .WithMany()
+            .HasForeignKey(x => x.ConnectionId);
+
         modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
             .HasIndex(x => new { x.GroupId, x.InfoId })
             .IsUnique();
