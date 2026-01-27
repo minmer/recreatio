@@ -605,6 +605,8 @@ public static class CogitaEndpoints
             var responses = new List<CogitaCardSearchResponse>();
             var nextCursor = (string?)null;
             var total = 0;
+            var infoTotal = 0;
+            var translationTotal = 0;
 
             var includeInfos = cardType != "vocab";
             if (includeInfos)
@@ -613,7 +615,8 @@ public static class CogitaEndpoints
                 var infoQuery = dbContext.CogitaInfos.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && (infoFilter == null || x.InfoType == infoFilter));
 
-                total = await infoQuery.CountAsync(ct);
+                infoTotal = await infoQuery.CountAsync(ct);
+                total = infoTotal;
 
                 if (cursorCreatedUtc.HasValue && cursorId.HasValue)
                 {
@@ -718,10 +721,16 @@ public static class CogitaEndpoints
 
                 if (cardType == "vocab")
                 {
-                    total = await connectionQuery.CountAsync(ct);
+                    translationTotal = await connectionQuery.CountAsync(ct);
+                    total = translationTotal;
+                }
+                else if (cardType == "any")
+                {
+                    translationTotal = await connectionQuery.CountAsync(ct);
+                    total = infoTotal + translationTotal;
                 }
 
-                if (cursorCreatedUtc.HasValue && cursorId.HasValue)
+                if (cardType == "vocab" && cursorCreatedUtc.HasValue && cursorId.HasValue)
                 {
                     connectionQuery = connectionQuery.Where(x =>
                         x.CreatedUtc < cursorCreatedUtc.Value ||
@@ -737,10 +746,11 @@ public static class CogitaEndpoints
 
                 if (translations.Count > 0)
                 {
-                    if (cardType == "vocab" || total == 0)
+                    if (cardType == "vocab" && translationTotal == 0)
                     {
-                        total = await dbContext.CogitaConnections.AsNoTracking()
+                        translationTotal = await dbContext.CogitaConnections.AsNoTracking()
                             .CountAsync(x => x.LibraryId == libraryId && x.ConnectionType == "translation", ct);
+                        total = translationTotal;
                     }
 
                     var items = await dbContext.CogitaConnectionItems.AsNoTracking()
@@ -1503,6 +1513,35 @@ public static class CogitaEndpoints
             }
 
             var languageNames = new[] { "English", "German", "Polish", "Spanish" };
+            var translationRows = new (string English, string German, string Polish, string Spanish)[]
+            {
+                ("house", "haus", "dom", "casa"),
+                ("book", "buch", "ksiazka", "libro"),
+                ("water", "wasser", "woda", "agua"),
+                ("sun", "sonne", "slonce", "sol"),
+                ("moon", "mond", "ksiezyc", "luna"),
+                ("tree", "baum", "drzewo", "arbol"),
+                ("city", "stadt", "miasto", "ciudad"),
+                ("school", "schule", "szkola", "escuela"),
+                ("bread", "brot", "chleb", "pan"),
+                ("milk", "milch", "mleko", "leche"),
+                ("coffee", "kaffee", "kawa", "cafe"),
+                ("road", "strasse", "droga", "camino"),
+                ("bridge", "brucke", "most", "puente"),
+                ("river", "fluss", "rzeka", "rio"),
+                ("mountain", "berg", "gora", "montana"),
+                ("friend", "freund", "przyjaciel", "amigo"),
+                ("family", "familie", "rodzina", "familia"),
+                ("work", "arbeit", "praca", "trabajo"),
+                ("time", "zeit", "czas", "tiempo"),
+                ("music", "musik", "muzyka", "musica"),
+                ("language", "sprache", "jezyk", "idioma"),
+                ("picture", "bild", "obraz", "imagen"),
+                ("market", "markt", "targ", "mercado"),
+                ("garden", "garten", "ogrod", "jardin"),
+                ("story", "geschichte", "opowiesc", "historia")
+            };
+
             var languages = new Dictionary<string, Guid>();
             var wordsByLanguage = new Dictionary<string, List<Guid>>();
 
@@ -1529,11 +1568,19 @@ public static class CogitaEndpoints
                 wordsByLanguage[name] = new List<Guid>();
             }
 
-            for (var index = 1; index <= 25; index++)
+            foreach (var row in translationRows)
             {
+                var rowByLanguage = new Dictionary<string, string>
+                {
+                    ["English"] = row.English,
+                    ["German"] = row.German,
+                    ["Polish"] = row.Polish,
+                    ["Spanish"] = row.Spanish
+                };
+
                 foreach (var (langName, langId) in languages)
                 {
-                    var wordLabel = $"{langName} Word {index}";
+                    var wordLabel = rowByLanguage[langName];
                     var payload = JsonSerializer.SerializeToElement(new { label = wordLabel, notes = "Mock word" });
                     var wordResponse = await CreateInfoInternalAsync(
                         library,
@@ -1578,7 +1625,7 @@ public static class CogitaEndpoints
                 {
                     var langA = languageList[i];
                     var langB = languageList[j];
-                    for (var index = 0; index < 25; index++)
+                    for (var index = 0; index < translationRows.Length; index++)
                     {
                         var wordA = wordsByLanguage[langA][index];
                         var wordB = wordsByLanguage[langB][index];
