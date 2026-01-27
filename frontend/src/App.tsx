@@ -435,6 +435,7 @@ export default function App() {
               language={language}
               onLanguageChange={setLanguage}
               onOpenLibrary={(libraryId) => navigate(`/cogita/library/${libraryId}`)}
+              onOpenLibraryList={(libraryId) => navigate(`/cogita/library/${libraryId}/list`)}
             />
           )
         ) : (

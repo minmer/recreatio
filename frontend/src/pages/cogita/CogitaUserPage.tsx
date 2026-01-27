@@ -15,7 +15,8 @@ export function CogitaUserPage({
   onNavigate,
   language,
   onLanguageChange,
-  onOpenLibrary
+  onOpenLibrary,
+  onOpenLibraryList
 }: {
   copy: Copy;
   authLabel: string;
@@ -28,6 +29,7 @@ export function CogitaUserPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   onOpenLibrary: (libraryId: string) => void;
+  onOpenLibraryList: (libraryId: string) => void;
 }) {
   const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,16 +142,25 @@ export function CogitaUserPage({
               {libraries.length ? (
                 <div className="cogita-card-list" data-view="list">
                   {libraries.map((library) => (
-                    <button
-                      key={library.libraryId}
-                      type="button"
-                      className="cogita-card-item"
-                      onClick={() => onOpenLibrary(library.libraryId)}
-                    >
-                      <div className="cogita-card-type">Library role</div>
-                      <h3 className="cogita-card-title">{library.name}</h3>
-                      <p className="cogita-card-subtitle">{library.libraryId}</p>
-                    </button>
+                    <div key={library.libraryId} className="cogita-card-item">
+                      <button
+                        type="button"
+                        className="cogita-card-select"
+                        onClick={() => onOpenLibrary(library.libraryId)}
+                      >
+                        <div className="cogita-card-type">Library role</div>
+                        <h3 className="cogita-card-title">{library.name}</h3>
+                        <p className="cogita-card-subtitle">{library.libraryId}</p>
+                      </button>
+                      <div className="cogita-card-actions">
+                        <button type="button" className="ghost" onClick={() => onOpenLibrary(library.libraryId)}>
+                          Open overview
+                        </button>
+                        <button type="button" className="ghost" onClick={() => onOpenLibraryList(library.libraryId)}>
+                          Open cards
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
