@@ -489,6 +489,7 @@ export type CogitaLibraryStats = {
   totalInfos: number;
   totalConnections: number;
   totalGroups: number;
+  totalCollections: number;
   totalLanguages: number;
   totalWords: number;
   totalSentences: number;
@@ -514,6 +515,45 @@ export type CogitaCardSearchBundle = {
   pageSize: number;
   nextCursor?: string | null;
   items: CogitaCardSearchResult[];
+};
+
+export type CogitaCollectionSummary = {
+  collectionId: string;
+  name: string;
+  notes?: string | null;
+  itemCount: number;
+  createdUtc: string;
+};
+
+export type CogitaCollectionBundle = {
+  total: number;
+  pageSize: number;
+  nextCursor?: string | null;
+  items: CogitaCollectionSummary[];
+};
+
+export type CogitaCollectionDetail = {
+  collectionId: string;
+  name: string;
+  notes?: string | null;
+  itemCount: number;
+  createdUtc: string;
+};
+
+export type CogitaCollectionItemRequest = {
+  itemType: 'info' | 'connection';
+  itemId: string;
+};
+
+export type CogitaCollectionCreateResponse = {
+  collectionId: string;
+};
+
+export type CogitaMockDataResponse = {
+  languages: number;
+  words: number;
+  wordLanguageLinks: number;
+  translations: number;
 };
 
 export type CogitaInfoCreateResponse = {
@@ -586,6 +626,39 @@ export function searchCogitaCards(payload: { libraryId: string; type?: string; q
   );
 }
 
+export function getCogitaCollections(payload: { libraryId: string; query?: string; limit?: number; cursor?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.query) params.set('query', payload.query);
+  if (payload.limit) params.set('limit', String(payload.limit));
+  if (payload.cursor) params.set('cursor', payload.cursor);
+  const qs = params.toString();
+  return request<CogitaCollectionBundle>(
+    `/cogita/libraries/${payload.libraryId}/collections${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function getCogitaCollection(libraryId: string, collectionId: string) {
+  return request<CogitaCollectionDetail>(`/cogita/libraries/${libraryId}/collections/${collectionId}`, {
+    method: 'GET'
+  });
+}
+
+export function getCogitaCollectionCards(payload: { libraryId: string; collectionId: string; limit?: number; cursor?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.limit) params.set('limit', String(payload.limit));
+  if (payload.cursor) params.set('cursor', payload.cursor);
+  const qs = params.toString();
+  return request<CogitaCardSearchBundle>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/cards${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
 export function createCogitaInfo(payload: {
   libraryId: string;
   infoType: string;
@@ -641,6 +714,33 @@ export function createCogitaGroup(payload: {
       payload: payload.payload ?? null,
       signatureBase64: payload.signatureBase64 ?? null
     })
+  });
+}
+
+export function createCogitaCollection(payload: {
+  libraryId: string;
+  name: string;
+  notes?: string | null;
+  items: CogitaCollectionItemRequest[];
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaCollectionCreateResponse>(`/cogita/libraries/${payload.libraryId}/collections`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      notes: payload.notes ?? null,
+      items: payload.items,
+      dataKeyId: payload.dataKeyId ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function createCogitaMockData(libraryId: string) {
+  return request<CogitaMockDataResponse>(`/cogita/libraries/${libraryId}/mock-data`, {
+    method: 'POST',
+    body: JSON.stringify({})
   });
 }
 

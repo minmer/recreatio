@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { createCogitaMockData } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -17,7 +19,8 @@ export function CogitaLibraryOverviewPage({
   libraryId,
   onBackToCogita,
   onOpenList,
-  onOpenAdd
+  onOpenAdd,
+  onOpenCollections
 }: {
   copy: Copy;
   authLabel: string;
@@ -33,8 +36,20 @@ export function CogitaLibraryOverviewPage({
   onBackToCogita: () => void;
   onOpenList: () => void;
   onOpenAdd: () => void;
+  onOpenCollections: () => void;
 }) {
   const { libraryName, stats } = useCogitaLibraryMeta(libraryId);
+  const [mockStatus, setMockStatus] = useState<string | null>(null);
+
+  const handleMockData = async () => {
+    setMockStatus(null);
+    try {
+      const result = await createCogitaMockData(libraryId);
+      setMockStatus(`Mock data ready: ${result.languages} languages, ${result.translations} vocab cards.`);
+    } catch {
+      setMockStatus('Failed to create mock data.');
+    }
+  };
 
   return (
     <CogitaShell
@@ -63,6 +78,9 @@ export function CogitaLibraryOverviewPage({
             <button type="button" className="cta ghost" onClick={onOpenList}>
               Open list
             </button>
+            <button type="button" className="cta ghost" onClick={onOpenCollections}>
+              Collections
+            </button>
             <button type="button" className="cta" onClick={onOpenAdd}>
               Add new info
             </button>
@@ -90,6 +108,10 @@ export function CogitaLibraryOverviewPage({
             <span>Languages</span>
             <strong>{stats?.totalLanguages ?? 0}</strong>
           </div>
+          <div className="cogita-stat-card">
+            <span>Collections</span>
+            <strong>{stats?.totalCollections ?? 0}</strong>
+          </div>
         </div>
 
         <div className="cogita-library-grid">
@@ -103,9 +125,18 @@ export function CogitaLibraryOverviewPage({
                     <button type="button" className="cta ghost" onClick={onOpenList}>
                       Browse list
                     </button>
+                    <button type="button" className="cta ghost" onClick={onOpenCollections}>
+                      View collections
+                    </button>
                     <button type="button" className="cta" onClick={onOpenAdd}>
                       Add info
                     </button>
+                  </div>
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta ghost" onClick={handleMockData}>
+                      Seed mock data
+                    </button>
+                    {mockStatus ? <p className="cogita-help">{mockStatus}</p> : null}
                   </div>
                 </div>
               </div>

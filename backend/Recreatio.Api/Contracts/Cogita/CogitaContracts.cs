@@ -18,6 +18,7 @@ public sealed record CogitaLibraryStatsResponse(
     int TotalInfos,
     int TotalConnections,
     int TotalGroups,
+    int TotalCollections,
     int TotalLanguages,
     int TotalWords,
     int TotalSentences,
@@ -95,4 +96,51 @@ public sealed record CogitaCreateGroupResponse(
     string GroupType,
     List<Guid> InfoIds,
     List<Guid> ConnectionIds
+);
+
+public sealed record CogitaCollectionItemRequest(
+    string ItemType,
+    Guid ItemId
+);
+
+public sealed record CogitaCreateCollectionRequest(
+    string Name,
+    string? Notes,
+    List<CogitaCollectionItemRequest> Items,
+    Guid? DataKeyId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaCreateCollectionResponse(
+    Guid CollectionId
+);
+
+public sealed record CogitaCollectionSummaryResponse(
+    Guid CollectionId,
+    string Name,
+    string? Notes,
+    int ItemCount,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaCollectionBundleResponse(
+    int Total,
+    int PageSize,
+    string? NextCursor,
+    List<CogitaCollectionSummaryResponse> Items
+);
+
+public sealed record CogitaCollectionDetailResponse(
+    Guid CollectionId,
+    string Name,
+    string? Notes,
+    int ItemCount,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaMockDataResponse(
+    int Languages,
+    int Words,
+    int WordLanguageLinks,
+    int Translations
 );

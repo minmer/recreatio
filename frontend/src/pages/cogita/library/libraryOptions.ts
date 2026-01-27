@@ -6,6 +6,7 @@ export const infoTypeOptions: Array<{ value: CogitaInfoType | 'any'; label: stri
   { value: 'word', label: 'Word' },
   { value: 'sentence', label: 'Sentence / citation' },
   { value: 'topic', label: 'Topic' },
+  { value: 'collection', label: 'Collection' },
   { value: 'person', label: 'Person' },
   { value: 'address', label: 'Address' },
   { value: 'email', label: 'Email' },

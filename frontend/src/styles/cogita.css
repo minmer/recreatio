@@ -1831,3 +1831,109 @@
     font-size: 1.5rem;
   }
 }
+
+.cogita-revision-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid rgba(120, 170, 220, 0.25);
+  background: rgba(6, 18, 32, 0.8);
+  padding: clamp(1.4rem, 3vw, 2.4rem);
+  display: grid;
+  gap: 1.4rem;
+  box-shadow: 0 24px 50px rgba(5, 14, 24, 0.4);
+  backdrop-filter: blur(14px);
+}
+
+.cogita-revision-card[data-feedback='correct'] {
+  border-color: rgba(100, 210, 150, 0.7);
+  box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
+}
+
+.cogita-revision-card[data-feedback='incorrect'] {
+  border-color: rgba(230, 110, 120, 0.7);
+  box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
+}
+
+.cogita-revision-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: rgba(200, 220, 245, 0.75);
+}
+
+.cogita-revision-header span {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.68rem;
+  color: rgba(170, 205, 240, 0.9);
+}
+
+.cogita-revision-header strong {
+  font-weight: 500;
+  color: rgba(225, 238, 255, 0.85);
+}
+
+.cogita-revision-body {
+  display: grid;
+  gap: 1rem;
+}
+
+.cogita-revision-body h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+  color: #f2f7ff;
+}
+
+.cogita-revision-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(190, 210, 235, 0.7);
+}
+
+.cogita-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.cogita-choice-grid button {
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+}
+
+.cogita-revision-feedback {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  animation: cogita-feedback-pop 450ms ease;
+}
+
+.cogita-revision-feedback[data-state='correct'] {
+  background: rgba(90, 200, 140, 0.2);
+  color: rgba(180, 245, 210, 0.9);
+  border: 1px solid rgba(110, 220, 160, 0.7);
+}
+
+.cogita-revision-feedback[data-state='incorrect'] {
+  background: rgba(210, 80, 90, 0.2);
+  color: rgba(255, 185, 190, 0.9);
+  border: 1px solid rgba(230, 120, 130, 0.7);
+}
+
+@keyframes cogita-feedback-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

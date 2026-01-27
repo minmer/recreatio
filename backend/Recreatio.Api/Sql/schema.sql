@@ -491,6 +491,17 @@ CREATE TABLE dbo.CogitaTopics
 );
 GO
 
+CREATE TABLE dbo.CogitaCollections
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaCollections_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
 CREATE TABLE dbo.CogitaPersons
 (
     InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -622,6 +633,24 @@ CREATE TABLE dbo.CogitaConnectionItems
 GO
 
 CREATE UNIQUE INDEX UX_CogitaConnectionItems_Link ON dbo.CogitaConnectionItems(ConnectionId, InfoId);
+GO
+
+CREATE TABLE dbo.CogitaCollectionItems
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    CollectionInfoId UNIQUEIDENTIFIER NOT NULL,
+    ItemType NVARCHAR(32) NOT NULL,
+    ItemId UNIQUEIDENTIFIER NOT NULL,
+    SortOrder INT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaCollectionItems_Collection FOREIGN KEY (CollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaCollectionItems_Link ON dbo.CogitaCollectionItems(CollectionInfoId, ItemType, ItemId);
+GO
+
+CREATE INDEX IX_CogitaCollectionItems_Collection_Order ON dbo.CogitaCollectionItems(CollectionInfoId, SortOrder);
 GO
 
 CREATE TABLE dbo.CogitaGroups

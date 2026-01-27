@@ -3,6 +3,7 @@ export type CogitaInfoType =
   | 'word'
   | 'sentence'
   | 'topic'
+  | 'collection'
   | 'person'
   | 'address'
   | 'email'

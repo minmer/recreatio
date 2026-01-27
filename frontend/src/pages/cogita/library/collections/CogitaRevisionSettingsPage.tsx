@@ -1,0 +1,146 @@
+import { useEffect, useState } from 'react';
+import { getCogitaCollection } from '../../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+
+export function CogitaRevisionSettingsPage({
+  copy,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  language,
+  onLanguageChange,
+  libraryId,
+  collectionId,
+  onBackToCollection,
+  onBackToCollections,
+  onBackToOverview,
+  onBackToCogita,
+  onStartRevision
+}: {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  collectionId: string;
+  onBackToCollection: () => void;
+  onBackToCollections: () => void;
+  onBackToOverview: () => void;
+  onBackToCogita: () => void;
+  onStartRevision: (settings: { mode: string; check: string; limit: number }) => void;
+}) {
+  const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const [collectionName, setCollectionName] = useState('Collection');
+  const [limit, setLimit] = useState(20);
+  const [mode] = useState('random');
+  const [check] = useState('exact');
+
+  useEffect(() => {
+    getCogitaCollection(libraryId, collectionId)
+      .then((detail) => setCollectionName(detail.name))
+      .catch(() => setCollectionName('Collection'));
+  }, [libraryId, collectionId]);
+
+  return (
+    <CogitaShell
+      copy={copy}
+      authLabel={authLabel}
+      showProfileMenu={showProfileMenu}
+      onProfileNavigate={onProfileNavigate}
+      onToggleSecureMode={onToggleSecureMode}
+      onLogout={onLogout}
+      secureMode={secureMode}
+      onNavigate={onNavigate}
+      language={language}
+      onLanguageChange={onLanguageChange}
+    >
+      <section className="cogita-library-dashboard" data-mode="detail">
+        <header className="cogita-library-dashboard-header">
+          <div>
+            <p className="cogita-user-kicker">Revision settings</p>
+            <h1 className="cogita-library-title">{collectionName}</h1>
+            <p className="cogita-library-subtitle">{libraryName}</p>
+          </div>
+          <div className="cogita-library-actions">
+            <button type="button" className="cta ghost" onClick={onBackToCogita}>
+              Back to Cogita
+            </button>
+            <button type="button" className="cta ghost" onClick={onBackToOverview}>
+              Library overview
+            </button>
+            <button type="button" className="cta ghost" onClick={onBackToCollections}>
+              Collections list
+            </button>
+            <button type="button" className="cta ghost" onClick={onBackToCollection}>
+              Collection detail
+            </button>
+            <button type="button" className="cta" onClick={() => onStartRevision({ mode, check, limit })}>
+              Start revision
+            </button>
+          </div>
+        </header>
+
+        <div className="cogita-library-grid">
+          <div className="cogita-library-pane">
+            <div className="cogita-library-controls">
+              <div className="cogita-library-search">
+                <p className="cogita-user-kicker">Revision mode</p>
+                <label className="cogita-field">
+                  <span>Mode</span>
+                  <input value="Random" disabled />
+                </label>
+                <label className="cogita-field">
+                  <span>Check</span>
+                  <input value="Exact match" disabled />
+                </label>
+                <label className="cogita-field">
+                  <span>Cards per session</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={limit}
+                    onChange={(event) => setLimit(Number(event.target.value || 1))}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="cogita-library-panel">
+            <section className="cogita-library-detail">
+              <div className="cogita-detail-header">
+                <div>
+                  <p className="cogita-user-kicker">Preview</p>
+                  <h3 className="cogita-detail-title">Random order, strict answers</h3>
+                </div>
+              </div>
+              <div className="cogita-detail-body">
+                <p>Vocabulary cards will prompt a translation.</p>
+                <p>Word cards will ask you to select the correct language.</p>
+              </div>
+              <div className="cogita-form-actions">
+                <button type="button" className="cta" onClick={() => onStartRevision({ mode, check, limit })}>
+                  Start revision
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </CogitaShell>
+  );
+}

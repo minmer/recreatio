@@ -23,7 +23,8 @@ export function CogitaLibraryListPage({
   onModeChange,
   onBackToOverview,
   onBackToCogita,
-  onOpenAdd
+  onOpenAdd,
+  onOpenCollections
 }: {
   copy: Copy;
   authLabel: string;
@@ -41,6 +42,7 @@ export function CogitaLibraryListPage({
   onBackToOverview: () => void;
   onBackToCogita: () => void;
   onOpenAdd: () => void;
+  onOpenCollections: () => void;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any' | 'vocab'>('any');
@@ -126,6 +128,9 @@ export function CogitaLibraryListPage({
             </button>
             <button type="button" className="cta ghost" onClick={onBackToOverview}>
               Library overview
+            </button>
+            <button type="button" className="cta ghost" onClick={onOpenCollections}>
+              Collections
             </button>
             <button type="button" className="cta" onClick={onOpenAdd}>
               Add new info
