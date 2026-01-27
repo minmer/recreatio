@@ -1545,10 +1545,6 @@ public static class CogitaEndpoints
             var languages = new Dictionary<string, Guid>();
             var wordsByLanguage = new Dictionary<string, List<Guid>>();
 
-            var wordCount = 0;
-            var wordLanguageLinks = 0;
-            var translationCount = 0;
-
             foreach (var name in languageNames)
             {
                 var payload = JsonSerializer.SerializeToElement(new { label = name, notes = "Mock language" });
@@ -1595,26 +1591,31 @@ public static class CogitaEndpoints
                         dbContext,
                         ct);
                     wordsByLanguage[langName].Add(wordResponse.InfoId);
-                    wordCount++;
 
-                    await CreateConnectionInternalAsync(
-                        library,
-                        new CogitaCreateConnectionRequest(
-                            "word-language",
-                            new List<Guid> { langId, wordResponse.InfoId },
-                            JsonSerializer.SerializeToElement(new { note = "Mock word-language" }),
-                            null,
-                            null),
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct);
-                    wordLanguageLinks++;
+                    try
+                    {
+                        await CreateConnectionInternalAsync(
+                            library,
+                            new CogitaCreateConnectionRequest(
+                                "word-language",
+                                new List<Guid> { langId, wordResponse.InfoId },
+                                JsonSerializer.SerializeToElement(new { note = "Mock word-language" }),
+                                null,
+                                null),
+                            readKey,
+                            ownerKey,
+                            userId,
+                            keyRingService,
+                            encryptionService,
+                            roleCryptoService,
+                            ledgerService,
+                            dbContext,
+                            ct);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Ignore existing or invalid word-language links to keep mock data seeding robust.
+                    }
                 }
             }
 
@@ -1629,30 +1630,45 @@ public static class CogitaEndpoints
                     {
                         var wordA = wordsByLanguage[langA][index];
                         var wordB = wordsByLanguage[langB][index];
-                        await CreateConnectionInternalAsync(
-                            library,
-                            new CogitaCreateConnectionRequest(
-                                "translation",
-                                new List<Guid> { wordA, wordB },
-                                JsonSerializer.SerializeToElement(new { note = "Mock translation" }),
-                                null,
-                                null),
-                            readKey,
-                            ownerKey,
-                            userId,
-                            keyRingService,
-                            encryptionService,
-                            roleCryptoService,
-                            ledgerService,
-                            dbContext,
-                            ct);
-                        translationCount++;
+                        try
+                        {
+                            await CreateConnectionInternalAsync(
+                                library,
+                                new CogitaCreateConnectionRequest(
+                                    "translation",
+                                    new List<Guid> { wordA, wordB },
+                                    JsonSerializer.SerializeToElement(new { note = "Mock translation" }),
+                                    null,
+                                    null),
+                                readKey,
+                                ownerKey,
+                                userId,
+                                keyRingService,
+                                encryptionService,
+                                roleCryptoService,
+                                ledgerService,
+                                dbContext,
+                                ct);
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // Skip duplicates if mock data was already seeded.
+                        }
                     }
                 }
             }
 
+            var languageCount = await dbContext.CogitaInfos.AsNoTracking()
+                .CountAsync(x => x.LibraryId == libraryId && x.InfoType == "language", ct);
+            var wordCount = await dbContext.CogitaInfos.AsNoTracking()
+                .CountAsync(x => x.LibraryId == libraryId && x.InfoType == "word", ct);
+            var wordLanguageLinks = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .CountAsync(ct);
+            var translationCount = await dbContext.CogitaConnections.AsNoTracking()
+                .CountAsync(x => x.LibraryId == libraryId && x.ConnectionType == "translation", ct);
+
             return Results.Ok(new CogitaMockDataResponse(
-                languages.Count,
+                languageCount,
                 wordCount,
                 wordLanguageLinks,
                 translationCount
