@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Recreatio.Api.Data.Cogita;
 
 public sealed class CogitaComputedInfo
 {
+    [Key]
     public Guid InfoId { get; set; }
     public Guid DataKeyId { get; set; }
     public byte[] EncryptedBlob { get; set; } = Array.Empty<byte>();
