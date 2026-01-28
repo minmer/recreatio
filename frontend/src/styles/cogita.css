@@ -1611,6 +1611,29 @@
   outline: none;
 }
 
+.cogita-detail-sample {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(120, 170, 220, 0.18);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cogita-detail-sample-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.cogita-detail-sample-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 170, 220, 0.2);
+  background: rgba(9, 22, 38, 0.55);
+}
+
 .cogita-library-detail:focus-visible {
   outline: 2px solid rgba(170, 215, 255, 0.6);
   outline-offset: 2px;

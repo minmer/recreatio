@@ -616,7 +616,12 @@ export const pl: Copy = {
         addInfo: 'Dodaj informację',
         loadMore: 'Załaduj więcej',
         loading: 'Ładowanie...',
-        ready: 'Gotowe'
+        ready: 'Gotowe',
+        computedSampleTitle: 'Przykład obliczeniowy',
+        computedPromptLabel: 'Zadanie:',
+        computedAnswerLabel: 'Odpowiedź:',
+        computedLoading: 'Tworzenie przykładu…',
+        computedEmpty: 'Brak dostępnego przykładu.'
       },
       filters: {
         title: 'Filtry',

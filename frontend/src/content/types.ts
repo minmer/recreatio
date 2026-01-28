@@ -317,6 +317,11 @@ export type Copy = {
         loadMore: string;
         loading: string;
         ready: string;
+        computedSampleTitle: string;
+        computedPromptLabel: string;
+        computedAnswerLabel: string;
+        computedLoading: string;
+        computedEmpty: string;
       };
       filters: {
         title: string;

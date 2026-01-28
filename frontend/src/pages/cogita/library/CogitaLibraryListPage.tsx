@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { searchCogitaCards, type CogitaCardSearchResult } from '../../../lib/api';
+import { getCogitaComputedSample, searchCogitaCards, type CogitaCardSearchResult, type CogitaComputedSample } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -43,6 +43,8 @@ export function CogitaLibraryListPage({
   const [searchResults, setSearchResults] = useState<CogitaCardSearchResult[]>([]);
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [selectedInfo, setSelectedInfo] = useState<CogitaCardSearchResult | null>(null);
+  const [computedSample, setComputedSample] = useState<CogitaComputedSample | null>(null);
+  const [computedSampleStatus, setComputedSampleStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [totalCount, setTotalCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [filterLanguageA, setFilterLanguageA] = useState<CogitaInfoOption | null>(null);
@@ -91,6 +93,24 @@ export function CogitaLibraryListPage({
 
     return () => window.clearTimeout(handle);
   }, [libraryId, searchQuery, searchType, applyFilters, filterState]);
+
+  useEffect(() => {
+    if (!selectedInfo || selectedInfo.cardType !== 'info' || selectedInfo.infoType !== 'computed') {
+      setComputedSample(null);
+      setComputedSampleStatus('idle');
+      return;
+    }
+    setComputedSampleStatus('loading');
+    getCogitaComputedSample({ libraryId, infoId: selectedInfo.cardId })
+      .then((sample) => {
+        setComputedSample(sample);
+        setComputedSampleStatus('ready');
+      })
+      .catch(() => {
+        setComputedSample(null);
+        setComputedSampleStatus('ready');
+      });
+  }, [libraryId, selectedInfo]);
 
   const handleLoadMore = async () => {
     if (!nextCursor) return;
@@ -340,6 +360,35 @@ export function CogitaLibraryListPage({
                           : copy.cogita.library.list.cardTypeInfo}
                       </p>
                       <p>{copy.cogita.library.list.selectedHint}</p>
+                      {selectedInfo.cardType === 'info' && selectedInfo.infoType === 'computed' && (
+                        <div className="cogita-detail-sample">
+                          <p className="cogita-user-kicker">{copy.cogita.library.list.computedSampleTitle}</p>
+                          {computedSampleStatus === 'loading' && <p>{copy.cogita.library.list.computedLoading}</p>}
+                          {computedSampleStatus !== 'loading' && computedSample ? (
+                            <>
+                              <p>
+                                <strong>{copy.cogita.library.list.computedPromptLabel}</strong> {computedSample.prompt}
+                              </p>
+                              {computedSample.expectedAnswers && Object.keys(computedSample.expectedAnswers).length > 0 ? (
+                                <div className="cogita-detail-sample-grid">
+                                  {Object.entries(computedSample.expectedAnswers).map(([key, value]) => (
+                                    <div key={key} className="cogita-detail-sample-item">
+                                      <span>{key}</span>
+                                      <strong>{value}</strong>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p>
+                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong> {computedSample.expectedAnswer}
+                                </p>
+                              )}
+                            </>
+                          ) : computedSampleStatus !== 'loading' ? (
+                            <p>{copy.cogita.library.list.computedEmpty}</p>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="cogita-card-empty">
