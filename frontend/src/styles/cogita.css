@@ -1344,6 +1344,10 @@
   gap: 0.8rem;
 }
 
+.katex {
+  color: #e9f3ff;
+}
+
 .cogita-graph-node-title {
   font-size: 1rem;
   color: #f2f7ff;

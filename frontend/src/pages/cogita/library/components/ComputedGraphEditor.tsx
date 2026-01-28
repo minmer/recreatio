@@ -21,6 +21,7 @@ export type ComputedGraphNodePayload = {
   min?: number;
   max?: number;
   value?: number;
+  list?: string[];
   inputs?: string[];
   inputsByHandle?: Record<string, string[]>;
 };
@@ -51,8 +52,19 @@ type ComputedNodeMeta = {
 function ComputedGraphNode({
   data
 }: {
-  data: { title: string; subtitle: string; handles: NodeInputHandle[]; output?: boolean; name?: string; value?: number | null };
+  data: {
+    title: string;
+    subtitle: string;
+    handles: NodeInputHandle[];
+    output?: boolean;
+    name?: string;
+    value?: number | string | null;
+  };
 }) {
+  const showValue =
+    data.value !== undefined &&
+    data.value !== null &&
+    (typeof data.value === 'string' ? data.value.trim() !== '' : Number.isFinite(data.value));
   return (
     <div className="cogita-graph-node">
       <div className="cogita-graph-node-labels">
@@ -60,7 +72,7 @@ function ComputedGraphNode({
         <span>{data.subtitle}</span>
       </div>
       {data.name ? <div className="cogita-graph-node-meta">{data.name}</div> : null}
-      {Number.isFinite(data.value) ? <div className="cogita-graph-node-value">{data.value}</div> : null}
+      {showValue ? <div className="cogita-graph-node-value">{data.value}</div> : null}
       {data.handles.map((handle, index) => (
         <Handle
           key={handle.id}
@@ -69,7 +81,7 @@ function ComputedGraphNode({
           position={Position.Left}
           style={{ top: 36 + index * 22 }}
         >
-          <span className="cogita-graph-handle-label">{handle.label}</span>
+          {handle.id !== 'in' ? <span className="cogita-graph-handle-label">{handle.label}</span> : null}
         </Handle>
       ))}
       {data.output !== false ? <Handle type="source" id="out" position={Position.Right} /> : null}
@@ -82,6 +94,11 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     () => ({
       'input.random': { label: copy.cogita.library.graph.nodeTypes.inputRandom, handles: [], output: true },
       'input.const': { label: copy.cogita.library.graph.nodeTypes.inputConst, handles: [], output: true },
+      'input.list': {
+        label: copy.cogita.library.graph.nodeTypes.inputList,
+        handles: [{ id: 'index', label: copy.cogita.library.graph.handleLabels.index, limitOne: true }],
+        output: true
+      },
       'compute.add': {
         label: copy.cogita.library.graph.nodeTypes.add,
         handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
@@ -192,6 +209,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         min: node.min,
         max: node.max,
         value: node.value,
+        list: node.list,
         handles: nodeMeta[node.type]?.handles ?? [],
         output: nodeMeta[node.type]?.output ?? true
       }
@@ -244,6 +262,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         min: node.data?.min,
         max: node.data?.max,
         value: node.data?.value,
+        list: node.data?.list,
         inputs: inputsByHandle.get(node.id)?.in,
         inputsByHandle: inputsByHandle.get(node.id)
       })),
@@ -290,24 +309,32 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       entry[handleId].push(edge.source);
     });
 
-    const values = new Map<string, number>();
+    const values = new Map<string, number | string>();
     const visiting = new Set<string>();
 
-    const resolveInputs = (node: Node, handle?: string) => {
-      const list = handle
-        ? inputsByHandle.get(node.id)?.[handle] ?? []
-        : inputsByHandle.get(node.id)?.in ?? [];
-      return list.map((id: string) => evaluateNode(id));
+    const asNumber = (value: number | string | undefined): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      return 0;
     };
 
-    const evaluateNode = (nodeId: string): number => {
+    const resolveInputIds = (node: Node, handle?: string): string[] =>
+      handle ? inputsByHandle.get(node.id)?.[handle] ?? [] : inputsByHandle.get(node.id)?.in ?? [];
+
+    const resolveInputs = (node: Node, handle?: string): number[] =>
+      resolveInputIds(node, handle).map((id) => asNumber(evaluateNode(id)));
+
+    const evaluateNode = (nodeId: string): number | string => {
       if (values.has(nodeId)) return values.get(nodeId)!;
       if (visiting.has(nodeId)) return 0;
       const node = nodeMap.get(nodeId);
       if (!node) return 0;
       visiting.add(nodeId);
       const type = node.data?.type ?? '';
-      let result = 0;
+      let result: number | string = 0;
       switch (type) {
         case 'input.random': {
           result = randomValues[nodeId] ?? 0;
@@ -315,6 +342,13 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         }
         case 'input.const': {
           result = Number.isFinite(node.data?.value) ? Number(node.data?.value) : 0;
+          break;
+        }
+        case 'input.list': {
+          const list = (node.data?.list ?? []).filter(Boolean);
+          const index = Math.round(resolveInputs(node, 'index')[0] ?? 0);
+          const selected = list.length ? list[Math.max(0, Math.min(list.length - 1, index))] : '';
+          result = selected || String(index);
           break;
         }
         case 'compute.add': {
@@ -390,7 +424,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           break;
         }
         case 'output': {
-          result = resolveInputs(node, 'in')[0] ?? 0;
+          const inputId = resolveInputIds(node, 'in')[0];
+          result = inputId ? evaluateNode(inputId) : 0;
           break;
         }
         default:
@@ -405,17 +440,23 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     return values;
   }, [nodes, edges, randomValues]);
 
-  useEffect(() => {
-    setNodes((prev) =>
-      prev.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          value: computedValues.get(node.id)
+  const renderNodes = useMemo(
+    () =>
+      nodes.map((node) => {
+        const value = computedValues.get(node.id);
+        if (value === undefined || value === node.data?.value) {
+          return node;
         }
-      }))
-    );
-  }, [computedValues, setNodes]);
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            value
+          }
+        };
+      }),
+    [nodes, computedValues]
+  );
 
   const onConnect = (connection: Connection) => {
     if (!connection.target || !connection.targetHandle) {
@@ -450,13 +491,14 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           type: nodeType,
           name: '',
           handles: meta.handles,
+          list: nodeType === 'input.list' ? [] : undefined,
           output: meta.output ?? true
         }
       }
     ]);
   };
 
-  const updateSelectedNode = (updates: Partial<{ type: string; name: string; min: number; max: number; value: number }>) => {
+  const updateSelectedNode = (updates: Partial<{ type: string; name: string; min: number; max: number; value: number; list: string[] }>) => {
     if (!selectedNodeId) return;
     if (updates.name !== undefined) {
       const trimmed = updates.name.trim();
@@ -511,7 +553,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
           nodeTypes={{ computed: ComputedGraphNode }}
-          nodes={nodes}
+          nodes={renderNodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
@@ -532,6 +574,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
             </button>
             <button type="button" onClick={() => addNode('input.const')}>
               {copy.cogita.library.graph.nodeTypes.inputConst}
+            </button>
+            <button type="button" onClick={() => addNode('input.list')}>
+              {copy.cogita.library.graph.nodeTypes.inputList}
             </button>
             <button type="button" onClick={() => addNode('compute.add')}>
               {copy.cogita.library.graph.nodeTypes.add}
@@ -626,6 +671,23 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
                     type="number"
                     value={selectedNode.data?.value ?? 0}
                     onChange={(event) => updateSelectedNode({ value: Number(event.target.value) })}
+                  />
+                </label>
+              )}
+              {selectedNode.data?.type === 'input.list' && (
+                <label className="cogita-field">
+                  <span>{copy.cogita.library.graph.listLabel}</span>
+                  <textarea
+                    value={(selectedNode.data?.list ?? []).join('\n')}
+                    onChange={(event) =>
+                      updateSelectedNode({
+                        list: event.target.value
+                          .split('\n')
+                          .map((line) => line.trim())
+                          .filter(Boolean)
+                      })
+                    }
+                    placeholder={copy.cogita.library.graph.listPlaceholder}
                   />
                 </label>
               )}

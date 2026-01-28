@@ -817,9 +817,12 @@ export const pl: Copy = {
         regenerateRandom: 'Nowa wartość losowa',
         deleteNode: 'Usuń węzeł',
         noParams: 'Ten węzeł nie ma parametrów.',
+        listLabel: 'Elementy listy',
+        listPlaceholder: 'Jeden wpis na linię',
         nodeTypes: {
           inputRandom: 'Losowe wejście',
           inputConst: 'Stała',
+          inputList: 'Element listy',
           add: 'Dodawanie',
           sub: 'Odejmowanie',
           mul: 'Mnożenie',
@@ -844,7 +847,8 @@ export const pl: Copy = {
           denominator: 'Mianownik',
           base: 'Podstawa',
           exponent: 'Wykładnik',
-          value: 'Wartość'
+          value: 'Wartość',
+          index: 'Indeks'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Wyszukaj tag',

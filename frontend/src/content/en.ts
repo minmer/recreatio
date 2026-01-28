@@ -817,9 +817,12 @@ export const en: Copy = {
         regenerateRandom: 'New random value',
         deleteNode: 'Delete node',
         noParams: 'No parameters for this node.',
+        listLabel: 'List entries',
+        listPlaceholder: 'One item per line',
         nodeTypes: {
           inputRandom: 'Random input',
           inputConst: 'Constant',
+          inputList: 'List entry',
           add: 'Add',
           sub: 'Subtract',
           mul: 'Multiply',
@@ -844,7 +847,8 @@ export const en: Copy = {
           denominator: 'Denominator',
           base: 'Base',
           exponent: 'Exponent',
-          value: 'Value'
+          value: 'Value',
+          index: 'Index'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Search tag',

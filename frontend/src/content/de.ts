@@ -817,9 +817,12 @@ export const de: Copy = {
         regenerateRandom: 'Neuer Zufallswert',
         deleteNode: 'Knoten löschen',
         noParams: 'Dieser Knoten hat keine Parameter.',
+        listLabel: 'Listeneinträge',
+        listPlaceholder: 'Ein Eintrag pro Zeile',
         nodeTypes: {
           inputRandom: 'Zufallseingabe',
           inputConst: 'Konstante',
+          inputList: 'Listeneintrag',
           add: 'Addieren',
           sub: 'Subtrahieren',
           mul: 'Multiplizieren',
@@ -844,7 +847,8 @@ export const de: Copy = {
           denominator: 'Nenner',
           base: 'Basis',
           exponent: 'Exponent',
-          value: 'Wert'
+          value: 'Wert',
+          index: 'Index'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Tag suchen',

@@ -205,10 +205,19 @@ export function CogitaLibraryAddPage({
   const buildComputedPreview = () => {
     if (!computedGraph) return null;
     const nodeMap = new Map(computedGraph.nodes.map((node) => [node.id, node]));
-    const values = new Map<string, number>();
+    const values = new Map<string, number | string>();
     const visiting = new Set<string>();
 
-    const evaluateNode = (nodeId: string): number => {
+    const toNumber = (value: number | string | undefined): number => {
+      if (typeof value === 'number') return value;
+      if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      return 0;
+    };
+
+    const evaluateNode = (nodeId: string): number | string => {
       if (values.has(nodeId)) return values.get(nodeId)!;
       if (visiting.has(nodeId)) return 0;
       const node = nodeMap.get(nodeId);
@@ -222,7 +231,7 @@ export function CogitaLibraryAddPage({
         return ids.map((id) => evaluateNode(id));
       };
 
-      let result = 0;
+      let result: number | string = 0;
       switch (node.type) {
         case 'input.random': {
           const min = node.min ?? 0;
@@ -236,75 +245,83 @@ export function CogitaLibraryAddPage({
           result = node.value ?? 0;
           break;
         }
+        case 'input.list': {
+          const list = (node.list ?? []).filter(Boolean);
+          const index = Math.round(toNumber(resolveInputs('index')[0]));
+          result = list.length ? list[Math.max(0, Math.min(list.length - 1, index))] : String(index);
+          break;
+        }
         case 'compute.add': {
-          result = resolveInputs('in').reduce((sum, value) => sum + value, 0);
+          result = resolveInputs('in').reduce((sum, value) => sum + toNumber(value), 0);
           break;
         }
         case 'compute.sub': {
           const addValues = resolveInputs('add');
           const subValues = resolveInputs('sub');
-          result = addValues.reduce((sum, value) => sum + value, 0) - subValues.reduce((sum, value) => sum + value, 0);
+          result =
+            addValues.reduce((sum, value) => sum + toNumber(value), 0) -
+            subValues.reduce((sum, value) => sum + toNumber(value), 0);
           break;
         }
         case 'compute.mul': {
           const list = resolveInputs('in');
-          result = list.length ? list.reduce((prod, value) => prod * value, 1) : 0;
+          result = list.length ? list.reduce((prod, value) => prod * toNumber(value), 1) : 0;
           break;
         }
         case 'compute.div': {
-          const numerator = resolveInputs('num')[0] ?? 0;
-          const denominator = resolveInputs('den').reduce((sum, value) => sum + value, 0);
+          const numerator = toNumber(resolveInputs('num')[0]);
+          const denominator = resolveInputs('den').reduce((sum, value) => sum + toNumber(value), 0);
           result = Math.abs(denominator) < Number.EPSILON ? 0 : numerator / denominator;
           break;
         }
         case 'compute.pow': {
-          const base = resolveInputs('base')[0] ?? 0;
-          const exp = resolveInputs('exp')[0] ?? 0;
+          const base = toNumber(resolveInputs('base')[0]);
+          const exp = toNumber(resolveInputs('exp')[0]);
           result = Math.pow(base, exp);
           break;
         }
         case 'compute.exp': {
-          const base = resolveInputs('base')[0] ?? 0;
-          const exp = resolveInputs('exp')[0] ?? 0;
+          const base = toNumber(resolveInputs('base')[0]);
+          const exp = toNumber(resolveInputs('exp')[0]);
           result = Math.pow(base, exp);
           break;
         }
         case 'compute.log': {
-          const value = resolveInputs('value')[0] ?? 0;
-          const base = resolveInputs('base')[0] ?? 0;
+          const value = toNumber(resolveInputs('value')[0]);
+          const base = toNumber(resolveInputs('base')[0]);
           const safeValue = Math.max(value, Number.EPSILON);
           result = Math.abs(base) < Number.EPSILON ? Math.log(safeValue) : Math.log(safeValue) / Math.log(base);
           break;
         }
         case 'compute.abs': {
-          result = Math.abs(resolveInputs('in')[0] ?? 0);
+          result = Math.abs(toNumber(resolveInputs('in')[0]));
           break;
         }
         case 'compute.min': {
-          const list = resolveInputs('in');
+          const list = resolveInputs('in').map((value) => toNumber(value));
           result = list.length ? Math.min(...list) : 0;
           break;
         }
         case 'compute.max': {
-          const list = resolveInputs('in');
+          const list = resolveInputs('in').map((value) => toNumber(value));
           result = list.length ? Math.max(...list) : 0;
           break;
         }
         case 'compute.floor': {
-          result = Math.floor(resolveInputs('in')[0] ?? 0);
+          result = Math.floor(toNumber(resolveInputs('in')[0]));
           break;
         }
         case 'compute.ceil': {
-          result = Math.ceil(resolveInputs('in')[0] ?? 0);
+          result = Math.ceil(toNumber(resolveInputs('in')[0]));
           break;
         }
         case 'compute.round': {
-          result = Math.round(resolveInputs('in')[0] ?? 0);
+          result = Math.round(toNumber(resolveInputs('in')[0]));
           break;
         }
         case 'compute.mod': {
-          const a = resolveInputs('a')[0] ?? 0;
-          const b = resolveInputs('b')[0] ?? 0;
+          const a = toNumber(resolveInputs('a')[0]);
+          const b = toNumber(resolveInputs('b')[0]);
           result = Math.abs(b) < Number.EPSILON ? 0 : a % b;
           break;
         }
@@ -333,13 +350,15 @@ export function CogitaLibraryAddPage({
       if (Math.abs(value % 1) < 0.00001) return String(Math.round(value));
       return value.toFixed(3).replace(/\.?0+$/, '');
     };
+    const formatValue = (value: number | string | undefined) =>
+      typeof value === 'number' ? formatNumber(value) : value ?? '';
 
     const answers: Record<string, string> = {};
     outputs.forEach((id) => {
       const node = nodeMap.get(id);
       if (!node) return;
       const name = node.name?.trim() || id;
-      answers[name] = formatNumber(values.get(id) ?? 0);
+      answers[name] = formatValue(values.get(id));
     });
 
     let prompt = computedPrompt.trim();
@@ -348,7 +367,7 @@ export function CogitaLibraryAddPage({
     }
     computedGraph.nodes.forEach((node) => {
       if (!values.has(node.id)) return;
-      const value = formatNumber(values.get(node.id) ?? 0);
+      const value = formatValue(values.get(node.id));
       prompt = prompt.replace(new RegExp(`\\{${node.id}\\}`, 'gi'), value);
       if (node.name) {
         prompt = prompt.replace(new RegExp(`\\{${node.name}\\}`, 'gi'), value);

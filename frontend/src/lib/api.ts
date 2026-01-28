@@ -627,7 +627,7 @@ export type CogitaComputedSample = {
   prompt: string;
   expectedAnswer: string;
   expectedAnswers?: Record<string, string>;
-  values: Record<string, number>;
+  values: Record<string, number | string>;
 };
 
 export type CogitaCollectionCreateResponse = {

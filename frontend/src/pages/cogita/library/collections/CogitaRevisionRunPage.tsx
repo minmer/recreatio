@@ -78,7 +78,7 @@ export function CogitaRevisionRunPage({
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
   const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
-  const [computedValues, setComputedValues] = useState<Record<string, number> | null>(null);
+  const [computedValues, setComputedValues] = useState<Record<string, number | string> | null>(null);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
 
   const currentCard = queue[currentIndex] ?? null;

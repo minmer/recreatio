@@ -520,6 +520,7 @@ export type Copy = {
         nodeTypes: {
           inputRandom: string;
           inputConst: string;
+          inputList: string;
           add: string;
           sub: string;
           mul: string;
@@ -545,7 +546,10 @@ export type Copy = {
           base: string;
           exponent: string;
           value: string;
+          index: string;
         };
+        listLabel: string;
+        listPlaceholder: string;
         tagLabel: string;
         tagPlaceholder: string;
         languageLabel: string;

@@ -5298,28 +5298,40 @@ public static class CogitaEndpoints
         }
 
         var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var valuesRaw = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        double EvaluateNode(string nodeId)
+        double ToNumber(object? value)
         {
-            if (values.TryGetValue(nodeId, out var cached))
+            if (value is null) return 0;
+            if (value is double dbl) return dbl;
+            if (value is float flt) return flt;
+            if (value is int i) return i;
+            if (value is long l) return l;
+            if (value is string str && double.TryParse(str, out var parsed)) return parsed;
+            return 0;
+        }
+
+        object EvaluateNode(string nodeId)
+        {
+            if (valuesRaw.TryGetValue(nodeId, out var cached))
             {
                 return cached;
             }
             if (!nodes.TryGetValue(nodeId, out var node))
             {
-                return 0;
+                return 0.0;
             }
             if (!visiting.Add(nodeId))
             {
-                return 0;
+                return 0.0;
             }
 
             var nodeType = node.TryGetProperty("type", out var typeEl) && typeEl.ValueKind == JsonValueKind.String
                 ? typeEl.GetString() ?? string.Empty
                 : string.Empty;
 
-            double result;
+            object result;
             if (nodeType.Equals("input.random", StringComparison.OrdinalIgnoreCase))
             {
                 var min = node.TryGetProperty("min", out var minEl) && minEl.TryGetDouble(out var minVal) ? minVal : 0;
@@ -5330,20 +5342,85 @@ public static class CogitaEndpoints
                 }
                 result = Math.Floor(Random.Shared.NextDouble() * (max - min + 1)) + min;
             }
+            else if (nodeType.Equals("input.list", StringComparison.OrdinalIgnoreCase))
+            {
+                var entries = new List<string>();
+                if (node.TryGetProperty("list", out var listEl) && listEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in listEl.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.String)
+                        {
+                            var value = item.GetString();
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                entries.Add(value);
+                            }
+                        }
+                    }
+                }
+                var inputsByHandle = GetNodeInputsByHandle(node);
+                var indexIds = inputsByHandle.TryGetValue("index", out var handleList)
+                    ? handleList
+                    : GetNodeInputs(node);
+                var indexValue = indexIds.Count > 0 ? ToNumber(EvaluateNode(indexIds[0])) : 0;
+                var index = (int)Math.Round(indexValue);
+                if (entries.Count == 0)
+                {
+                    result = index.ToString();
+                }
+                else
+                {
+                    var clamped = Math.Clamp(index, 0, entries.Count - 1);
+                    result = entries[clamped];
+                }
+            }
             else if (nodeType.StartsWith("compute.", StringComparison.OrdinalIgnoreCase))
             {
                 var inputsByHandle = GetNodeInputsByHandle(node);
                 var allInputs = inputsByHandle.Count == 0
                     ? GetNodeInputs(node)
                     : inputsByHandle.SelectMany(pair => pair.Value).ToList();
-                var inputValues = allInputs.Select(EvaluateNode).ToList();
+                var inputValues = allInputs.Select(id => ToNumber(EvaluateNode(id))).ToList();
                 List<double> handleValues(string handle)
                 {
                     if (!inputsByHandle.TryGetValue(handle, out var list))
                     {
                         return new List<double>();
                     }
-                    return list.Select(EvaluateNode).ToList();
+                    return list.Select(id => ToNumber(EvaluateNode(id))).ToList();
+                }
+                double ComputeDiv()
+                {
+                    var numList = handleValues("num");
+                    var denList = handleValues("den");
+                    var numerator = numList.FirstOrDefault();
+                    var denominator = denList.Sum();
+                    return Math.Abs(denominator) < double.Epsilon ? 0 : numerator / denominator;
+                }
+                double ComputePow()
+                {
+                    var baseVal = handleValues("base").FirstOrDefault();
+                    var expVal = handleValues("exp").FirstOrDefault();
+                    return Math.Pow(baseVal, expVal);
+                }
+                double ComputeExp()
+                {
+                    var baseVal = handleValues("base").FirstOrDefault();
+                    var expVal = handleValues("exp").FirstOrDefault();
+                    return Math.Pow(baseVal, expVal);
+                }
+                double ComputeLog()
+                {
+                    var value = Math.Max(handleValues("value").FirstOrDefault(), double.Epsilon);
+                    var baseVal = handleValues("base").FirstOrDefault();
+                    return Math.Abs(baseVal) < double.Epsilon ? Math.Log(value) : Math.Log(value, baseVal);
+                }
+                double ComputeMod()
+                {
+                    var a = handleValues("a").FirstOrDefault();
+                    var b = handleValues("b").FirstOrDefault();
+                    return Math.Abs(b) < double.Epsilon ? 0 : a % b;
                 }
                 var op = nodeType["compute.".Length..].ToLowerInvariant();
                 result = op switch
@@ -5355,38 +5432,16 @@ public static class CogitaEndpoints
                     "mul" => inputValues.Count == 0 ? 0 : inputValues.Aggregate(1.0, (acc, val) => acc * val),
                     "div" => inputsByHandle.Count == 0
                         ? (inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => val == 0 ? acc : acc / val))
-                        : (() =>
-                        {
-                            var numList = handleValues("num");
-                            var denList = handleValues("den");
-                            var numerator = numList.FirstOrDefault();
-                            var denominator = denList.Sum();
-                            return Math.Abs(denominator) < double.Epsilon ? 0 : numerator / denominator;
-                        })(),
+                        : ComputeDiv(),
                     "pow" => inputsByHandle.Count == 0
                         ? (inputValues.Count < 2 ? (inputValues.Count == 1 ? inputValues[0] : 0) : Math.Pow(inputValues[0], inputValues[1]))
-                        : (() =>
-                        {
-                            var baseVal = handleValues("base").FirstOrDefault();
-                            var expVal = handleValues("exp").FirstOrDefault();
-                            return Math.Pow(baseVal, expVal);
-                        })(),
+                        : ComputePow(),
                     "exp" => inputsByHandle.Count == 0
                         ? (inputValues.Count == 0 ? 0 : Math.Exp(inputValues[0]))
-                        : (() =>
-                        {
-                            var baseVal = handleValues("base").FirstOrDefault();
-                            var expVal = handleValues("exp").FirstOrDefault();
-                            return Math.Pow(baseVal, expVal);
-                        })(),
+                        : ComputeExp(),
                     "log" => inputsByHandle.Count == 0
                         ? (inputValues.Count == 0 ? 0 : Math.Log(Math.Max(inputValues[0], double.Epsilon)))
-                        : (() =>
-                        {
-                            var value = Math.Max(handleValues("value").FirstOrDefault(), double.Epsilon);
-                            var baseVal = handleValues("base").FirstOrDefault();
-                            return Math.Abs(baseVal) < double.Epsilon ? Math.Log(value) : Math.Log(value, baseVal);
-                        })(),
+                        : ComputeLog(),
                     "abs" => inputValues.Count == 0 ? 0 : Math.Abs(inputValues[0]),
                     "min" => inputValues.Count == 0 ? 0 : inputValues.Min(),
                     "max" => inputValues.Count == 0 ? 0 : inputValues.Max(),
@@ -5395,31 +5450,46 @@ public static class CogitaEndpoints
                     "round" => inputValues.Count == 0 ? 0 : Math.Round(inputValues[0]),
                     "mod" => inputsByHandle.Count == 0
                         ? (inputValues.Count < 2 ? 0 : (inputValues[1] == 0 ? 0 : inputValues[0] % inputValues[1]))
-                        : (() =>
-                        {
-                            var a = handleValues("a").FirstOrDefault();
-                            var b = handleValues("b").FirstOrDefault();
-                            return Math.Abs(b) < double.Epsilon ? 0 : a % b;
-                        })(),
-                    _ => 0
+                        : ComputeMod(),
+                    _ => 0.0
                 };
             }
             else if (nodeType.Equals("output", StringComparison.OrdinalIgnoreCase))
             {
                 var inputs = GetNodeInputs(node);
-                result = inputs.Count > 0 ? EvaluateNode(inputs[0]) : 0;
+                result = inputs.Count > 0 ? EvaluateNode(inputs[0]) : 0.0;
             }
             else if (nodeType.Equals("input.const", StringComparison.OrdinalIgnoreCase))
             {
-                result = node.TryGetProperty("value", out var valueEl) && valueEl.TryGetDouble(out var constVal) ? constVal : 0;
+                result = node.TryGetProperty("value", out var valueEl) && valueEl.TryGetDouble(out var constVal) ? constVal : 0.0;
             }
             else
             {
-                result = 0;
+                result = 0.0;
             }
 
             visiting.Remove(nodeId);
-            values[nodeId] = result;
+            valuesRaw[nodeId] = result;
+            if (result is double dbl)
+            {
+                values[nodeId] = dbl;
+            }
+            else if (result is float flt)
+            {
+                values[nodeId] = flt;
+            }
+            else if (result is int i)
+            {
+                values[nodeId] = i;
+            }
+            else if (result is long l)
+            {
+                values[nodeId] = l;
+            }
+            else if (result is string str && double.TryParse(str, out var parsed))
+            {
+                values[nodeId] = parsed;
+            }
             return result;
         }
 
@@ -5437,12 +5507,12 @@ public static class CogitaEndpoints
             prompt = outputIds.Count == 0 ? "Compute" : $"Compute {string.Join(", ", outputIds)}";
         }
 
-        foreach (var pair in values)
+        foreach (var pair in valuesRaw)
         {
-            prompt = prompt.Replace($"{{{pair.Key}}}", FormatNumber(pair.Value), StringComparison.OrdinalIgnoreCase);
+            prompt = prompt.Replace($"{{{pair.Key}}}", FormatAny(pair.Value), StringComparison.OrdinalIgnoreCase);
             if (nodeNames.TryGetValue(pair.Key, out var name))
             {
-                prompt = prompt.Replace($"{{{name}}}", FormatNumber(pair.Value), StringComparison.OrdinalIgnoreCase);
+                prompt = prompt.Replace($"{{{name}}}", FormatAny(pair.Value), StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -5450,15 +5520,15 @@ public static class CogitaEndpoints
         foreach (var outputId in outputIds)
         {
             if (string.IsNullOrWhiteSpace(outputId)) continue;
-            if (!values.TryGetValue(outputId, out var outputValue)) continue;
+            if (!valuesRaw.TryGetValue(outputId, out var outputValue)) continue;
             var key = nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
                 ? name
                 : outputId;
-            expectedAnswers[key] = FormatNumber(outputValue);
+            expectedAnswers[key] = FormatAny(outputValue);
         }
 
-        var expected = outputIds.Count > 0 && values.TryGetValue(outputIds[0], out var primaryValue)
-            ? FormatNumber(primaryValue)
+        var expected = outputIds.Count > 0 && valuesRaw.TryGetValue(outputIds[0], out var primaryValue)
+            ? FormatAny(primaryValue)
             : string.Empty;
 
         return new ComputedGraphResult(prompt, expected, expectedAnswers, values);
@@ -5534,6 +5604,31 @@ public static class CogitaEndpoints
             return ((int)Math.Round(value)).ToString();
         }
         return value.ToString("0.###");
+    }
+
+    private static string FormatAny(object? value)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+        if (value is double dbl)
+        {
+            return FormatNumber(dbl);
+        }
+        if (value is float flt)
+        {
+            return FormatNumber(flt);
+        }
+        if (value is int i)
+        {
+            return i.ToString();
+        }
+        if (value is long l)
+        {
+            return l.ToString();
+        }
+        return value.ToString() ?? string.Empty;
     }
 
     private static GraphDataset UnionDatasets(IEnumerable<GraphDataset> datasets)
