@@ -6,8 +6,8 @@ import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
 import { CogitaIntroSlides, type IntroSlide } from './components/CogitaIntroSlides';
 
-const WAVE_LAYER_COUNT = 10;
-const MESH_LAYER_COUNT = 8;
+const WAVE_LAYER_COUNT = 6;
+const MESH_LAYER_COUNT = 4;
 
 export function CogitaPage({
   copy,

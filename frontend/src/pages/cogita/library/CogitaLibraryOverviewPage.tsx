@@ -1,5 +1,10 @@
 import { useRef, useState, type ChangeEvent } from 'react';
-import { createCogitaMockData, exportCogitaLibrary, importCogitaLibrary, type CogitaLibraryExport } from '../../../lib/api';
+import {
+  createCogitaMockData,
+  exportCogitaLibraryStream,
+  importCogitaLibraryStream,
+  type TransferProgress
+} from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -35,8 +40,20 @@ export function CogitaLibraryOverviewPage({
   const [mockStatus, setMockStatus] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState<TransferProgress | null>(null);
+  const [importProgress, setImportProgress] = useState<TransferProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const baseHref = `/#/cogita/library/${libraryId}`;
+  const formatBytes = (bytes: number) => {
+    if (!Number.isFinite(bytes)) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(1)} MB`;
+    const gb = mb / 1024;
+    return `${gb.toFixed(1)} GB`;
+  };
 
   const handleMockData = async () => {
     setMockStatus(null);
@@ -54,9 +71,10 @@ export function CogitaLibraryOverviewPage({
 
   const handleExport = async () => {
     setExportStatus(null);
+    setExportProgress({ loadedBytes: 0, totalBytes: null, percent: null });
     try {
-      const exportData = await exportCogitaLibrary(libraryId);
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      setExportStatus(copy.cogita.library.overview.exporting);
+      const blob = await exportCogitaLibraryStream(libraryId, setExportProgress);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -66,6 +84,8 @@ export function CogitaLibraryOverviewPage({
       setExportStatus(copy.cogita.library.overview.exportReady);
     } catch {
       setExportStatus(copy.cogita.library.overview.exportFail);
+    } finally {
+      setExportProgress((current) => current ?? { loadedBytes: 0, totalBytes: null, percent: null });
     }
   };
 
@@ -74,9 +94,9 @@ export function CogitaLibraryOverviewPage({
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const text = await file.text();
-      const payload = JSON.parse(text) as CogitaLibraryExport;
-      await importCogitaLibrary(libraryId, payload);
+      setImportStatus(copy.cogita.library.overview.importing);
+      setImportProgress({ loadedBytes: 0, totalBytes: file.size, percent: 0 });
+      await importCogitaLibraryStream(libraryId, file, setImportProgress);
       setImportStatus(copy.cogita.library.overview.importDone);
     } catch {
       setImportStatus(copy.cogita.library.overview.importFail);
@@ -213,6 +233,40 @@ export function CogitaLibraryOverviewPage({
                         <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} />
                       </label>
                     </div>
+                    {exportProgress ? (
+                      <div className="cogita-progress">
+                        <progress
+                          value={exportProgress.percent ?? undefined}
+                          max={exportProgress.totalBytes ? 100 : undefined}
+                        />
+                        <span>
+                          {copy.cogita.library.overview.exportProgress.replace(
+                            '{loaded}',
+                            formatBytes(exportProgress.loadedBytes)
+                          ).replace(
+                            '{total}',
+                            exportProgress.totalBytes ? formatBytes(exportProgress.totalBytes) : copy.cogita.library.overview.progressUnknown
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+                    {importProgress ? (
+                      <div className="cogita-progress">
+                        <progress
+                          value={importProgress.percent ?? undefined}
+                          max={importProgress.totalBytes ? 100 : undefined}
+                        />
+                        <span>
+                          {copy.cogita.library.overview.importProgress.replace(
+                            '{loaded}',
+                            formatBytes(importProgress.loadedBytes)
+                          ).replace(
+                            '{total}',
+                            importProgress.totalBytes ? formatBytes(importProgress.totalBytes) : copy.cogita.library.overview.progressUnknown
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
                     {exportStatus ? <p className="cogita-help">{exportStatus}</p> : null}
                     {importStatus ? <p className="cogita-help">{importStatus}</p> : null}
                   </div>

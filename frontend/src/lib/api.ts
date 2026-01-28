@@ -857,16 +857,109 @@ export type CogitaLibraryImportResponse = {
   collectionsImported: number;
 };
 
-export function exportCogitaLibrary(libraryId: string) {
-  return request<CogitaLibraryExport>(`/cogita/libraries/${libraryId}/export`, {
-    method: 'GET'
-  });
+export type TransferProgress = {
+  loadedBytes: number;
+  totalBytes?: number | null;
+  percent?: number | null;
+};
+
+function reportTransferProgress(
+  handler: ((progress: TransferProgress) => void) | undefined,
+  loadedBytes: number,
+  totalBytes?: number | null
+) {
+  if (!handler) return;
+  const percent = totalBytes && totalBytes > 0 ? Math.round((loadedBytes / totalBytes) * 100) : null;
+  handler({ loadedBytes, totalBytes: totalBytes ?? null, percent });
 }
 
-export function importCogitaLibrary(libraryId: string, payload: CogitaLibraryExport) {
-  return request<CogitaLibraryImportResponse>(`/cogita/libraries/${libraryId}/import`, {
-    method: 'POST',
-    body: JSON.stringify(payload)
+export async function exportCogitaLibraryStream(
+  libraryId: string,
+  onProgress?: (progress: TransferProgress) => void
+) {
+  const csrfToken = getCsrfToken();
+  const response = await fetch(`${apiBase}/cogita/libraries/${libraryId}/export`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {})
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  if (!response.body) {
+    const blob = await response.blob();
+    reportTransferProgress(onProgress, blob.size, blob.size);
+    return blob;
+  }
+
+  const totalHeader = response.headers.get('Content-Length');
+  const totalBytes = totalHeader ? Number.parseInt(totalHeader, 10) : null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loadedBytes = 0;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      loadedBytes += value.length;
+      reportTransferProgress(onProgress, loadedBytes, totalBytes);
+    }
+  }
+
+  reportTransferProgress(onProgress, loadedBytes, totalBytes ?? loadedBytes);
+  return new Blob(chunks, { type: 'application/json' });
+}
+
+export function importCogitaLibraryStream(
+  libraryId: string,
+  file: Blob,
+  onProgress?: (progress: TransferProgress) => void
+) {
+  const csrfToken = getCsrfToken();
+  return new Promise<CogitaLibraryImportResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${apiBase}/cogita/libraries/${libraryId}/import`);
+    xhr.responseType = 'json';
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (csrfToken) {
+      xhr.setRequestHeader('X-XSRF-TOKEN', csrfToken);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        reportTransferProgress(onProgress, event.loaded, null);
+        return;
+      }
+      reportTransferProgress(onProgress, event.loaded, event.total);
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response as CogitaLibraryImportResponse);
+        return;
+      }
+      const message =
+        typeof xhr.response === 'string'
+          ? xhr.response
+          : xhr.response
+            ? JSON.stringify(xhr.response)
+            : xhr.statusText;
+      reject(new ApiError(xhr.status, message || 'Import failed'));
+    };
+
+    xhr.onerror = () => {
+      reject(new ApiError(xhr.status || 500, xhr.statusText || 'Import failed'));
+    };
+
+    xhr.send(file);
   });
 }
 

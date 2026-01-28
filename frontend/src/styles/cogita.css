@@ -1755,6 +1755,35 @@
   grid-column: 1 / -1;
 }
 
+.cogita-progress {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  color: rgba(200, 220, 245, 0.75);
+  font-size: 0.78rem;
+}
+
+.cogita-progress progress {
+  width: 100%;
+  height: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  appearance: none;
+  background: rgba(18, 32, 52, 0.9);
+}
+
+.cogita-progress progress::-webkit-progress-bar {
+  background: rgba(18, 32, 52, 0.9);
+}
+
+.cogita-progress progress::-webkit-progress-value {
+  background: linear-gradient(90deg, rgba(105, 190, 255, 0.95), rgba(110, 255, 200, 0.9));
+}
+
+.cogita-progress progress::-moz-progress-bar {
+  background: linear-gradient(90deg, rgba(105, 190, 255, 0.95), rgba(110, 255, 200, 0.9));
+}
+
 .cogita-error {
   font-size: 0.78rem;
   color: #f2a0a5;

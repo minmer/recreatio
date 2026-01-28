@@ -233,6 +233,11 @@ export type Copy = {
         transferBody: string;
         export: string;
         import: string;
+        exporting: string;
+        importing: string;
+        exportProgress: string;
+        importProgress: string;
+        progressUnknown: string;
         exportReady: string;
         exportFail: string;
         importDone: string;
