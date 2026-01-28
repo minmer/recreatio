@@ -1129,6 +1129,57 @@
   backdrop-filter: blur(14px);
 }
 
+.cogita-collection-graph {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(220px, 320px);
+  gap: 1.2rem;
+}
+
+.cogita-graph-palette,
+.cogita-graph-panel {
+  background: rgba(8, 20, 36, 0.78);
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 18px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cogita-graph-palette-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.cogita-graph-canvas {
+  background: rgba(8, 20, 36, 0.6);
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 18px;
+  min-height: 520px;
+  height: 520px;
+  overflow: hidden;
+}
+
+.cogita-graph-canvas .react-flow__renderer {
+  border-radius: 18px;
+}
+
+.cogita-graph-preview {
+  font-size: 0.85rem;
+  color: rgba(200, 220, 245, 0.8);
+  display: grid;
+  gap: 0.3rem;
+}
+
+.cogita-graph-panel-body {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cogita-graph-node-title {
+  font-size: 1rem;
+  color: #f2f7ff;
+}
+
 .cogita-library-pane {
   display: grid;
   gap: 1.6rem;
@@ -1966,6 +2017,12 @@
   }
   .cogita-library-sidebar {
     position: static;
+  }
+  .cogita-collection-graph {
+    grid-template-columns: 1fr;
+  }
+  .cogita-graph-canvas {
+    height: 420px;
   }
 }
 

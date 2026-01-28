@@ -545,6 +545,32 @@ export type CogitaCollectionItemRequest = {
   itemId: string;
 };
 
+export type CogitaCollectionGraphNode = {
+  nodeId: string;
+  nodeType: string;
+  payload: unknown;
+};
+
+export type CogitaCollectionGraphEdge = {
+  edgeId: string;
+  fromNodeId: string;
+  fromPort?: string | null;
+  toNodeId: string;
+  toPort?: string | null;
+};
+
+export type CogitaCollectionGraph = {
+  graphId: string;
+  nodes: CogitaCollectionGraphNode[];
+  edges: CogitaCollectionGraphEdge[];
+};
+
+export type CogitaCollectionGraphPreview = {
+  total: number;
+  connections: number;
+  infos: number;
+};
+
 export type CogitaCollectionCreateResponse = {
   collectionId: string;
 };
@@ -670,6 +696,42 @@ export function getCogitaCollectionCards(payload: { libraryId: string; collectio
     {
       method: 'GET'
     }
+  );
+}
+
+export function getCogitaCollectionGraph(payload: { libraryId: string; collectionId: string }) {
+  return request<CogitaCollectionGraph>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/graph`,
+    { method: 'GET' }
+  );
+}
+
+export function saveCogitaCollectionGraph(payload: {
+  libraryId: string;
+  collectionId: string;
+  nodes: Array<{ nodeId?: string | null; nodeType: string; payload: unknown }>;
+  edges: Array<{ edgeId?: string | null; fromNodeId: string; fromPort?: string | null; toNodeId: string; toPort?: string | null }>;
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaCollectionGraph>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/graph`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        nodes: payload.nodes,
+        edges: payload.edges,
+        dataKeyId: payload.dataKeyId ?? null,
+        signatureBase64: payload.signatureBase64 ?? null
+      })
+    }
+  );
+}
+
+export function previewCogitaCollectionGraph(payload: { libraryId: string; collectionId: string }) {
+  return request<CogitaCollectionGraphPreview>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/graph/preview`,
+    { method: 'POST', body: JSON.stringify({}) }
   );
 }
 

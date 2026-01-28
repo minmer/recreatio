@@ -45,6 +45,9 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaMusicFragment> CogitaMusicFragments => Set<Data.Cogita.CogitaMusicFragment>();
     public DbSet<Data.Cogita.CogitaCollection> CogitaCollections => Set<Data.Cogita.CogitaCollection>();
     public DbSet<Data.Cogita.CogitaCollectionItem> CogitaCollectionItems => Set<Data.Cogita.CogitaCollectionItem>();
+    public DbSet<Data.Cogita.CogitaCollectionGraph> CogitaCollectionGraphs => Set<Data.Cogita.CogitaCollectionGraph>();
+    public DbSet<Data.Cogita.CogitaCollectionGraphNode> CogitaCollectionGraphNodes => Set<Data.Cogita.CogitaCollectionGraphNode>();
+    public DbSet<Data.Cogita.CogitaCollectionGraphEdge> CogitaCollectionGraphEdges => Set<Data.Cogita.CogitaCollectionGraphEdge>();
     public DbSet<Data.Cogita.CogitaWordLanguage> CogitaWordLanguages => Set<Data.Cogita.CogitaWordLanguage>();
     public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
     public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
@@ -128,6 +131,16 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaCollectionItem>()
             .HasIndex(x => new { x.CollectionInfoId, x.SortOrder });
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraph>()
+            .HasIndex(x => x.CollectionInfoId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphNode>()
+            .HasIndex(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphEdge>()
+            .HasIndex(x => x.GraphId);
 
         modelBuilder.Entity<Data.Cogita.CogitaCollection>()
             .HasOne<Data.Cogita.CogitaInfo>()
@@ -223,6 +236,21 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaInfo>()
             .WithMany()
             .HasForeignKey(x => x.CollectionInfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraph>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.CollectionInfoId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphNode>()
+            .HasOne<Data.Cogita.CogitaCollectionGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphEdge>()
+            .HasOne<Data.Cogita.CogitaCollectionGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
 
         modelBuilder.Entity<Data.Cogita.CogitaGroup>()
             .HasOne<Data.Cogita.CogitaLibrary>()

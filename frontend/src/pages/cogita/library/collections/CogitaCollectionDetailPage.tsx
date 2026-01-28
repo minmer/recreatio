@@ -122,6 +122,9 @@ export function CogitaCollectionDetailPage({
             <a className="cta ghost" href={`${baseHref}/collections`}>
               {copy.cogita.library.actions.collections}
             </a>
+            <a className="cta ghost" href={`${baseHref}/collections/${collectionId}/graph`}>
+              {copy.cogita.library.graph.kicker}
+            </a>
             <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
               {copy.cogita.library.actions.startRevision}
             </a>

@@ -21,6 +21,7 @@ import { CogitaCollectionCreatePage } from './pages/cogita/library/collections/C
 import { CogitaCollectionDetailPage } from './pages/cogita/library/collections/CogitaCollectionDetailPage';
 import { CogitaRevisionSettingsPage } from './pages/cogita/library/collections/CogitaRevisionSettingsPage';
 import { CogitaRevisionRunPage } from './pages/cogita/library/collections/CogitaRevisionRunPage';
+import { CogitaCollectionGraphPage } from './pages/cogita/library/collections/CogitaCollectionGraphPage';
 import type { CogitaLibraryMode } from './pages/cogita/library/types';
 import { AccountPage } from './pages/account/AccountPage';
 
@@ -72,11 +73,13 @@ export default function App() {
       ? 'list'
       : collectionSegment === 'new'
         ? 'create'
-        : cogitaSegments[5] === 'revision'
-          ? cogitaSegments[6] === 'run'
-            ? 'revision'
-            : 'settings'
-          : 'detail';
+        : cogitaSegments[5] === 'graph'
+          ? 'graph'
+          : cogitaSegments[5] === 'revision'
+            ? cogitaSegments[6] === 'run'
+              ? 'revision'
+              : 'settings'
+            : 'detail';
   const libraryModeSegment = cogitaSegments[3];
   const libraryMode: CogitaLibraryMode =
     libraryModeSegment === 'collection' || libraryModeSegment === 'list' || libraryModeSegment === 'detail'
@@ -418,6 +421,21 @@ export default function App() {
                 />
               ) : collectionView === 'settings' && collectionId ? (
                 <CogitaRevisionSettingsPage
+                  copy={t}
+                  authLabel={t.nav.account}
+                  showProfileMenu
+                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                  onToggleSecureMode={handleToggleMode}
+                  onLogout={handleLogout}
+                  secureMode={secureMode}
+                  onNavigate={navigateRoute}
+                  language={language}
+                  onLanguageChange={setLanguage}
+                  libraryId={cogitaLibraryId}
+                  collectionId={collectionId}
+                />
+              ) : collectionView === 'graph' && collectionId ? (
+                <CogitaCollectionGraphPage
                   copy={t}
                   authLabel={t.nav.account}
                   showProfileMenu

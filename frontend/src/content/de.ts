@@ -464,6 +464,7 @@ export const de: Copy = {
           collections: 'Alle Sammlungen',
           createCollection: 'Sammlung erstellen',
           collectionDetail: 'Sammlungsdetails',
+          collectionGraph: 'Sammlungsgraph',
           revisionSettings: 'Wiederholungseinstellungen',
           revisionRun: 'Wiederholung starten'
         }
@@ -721,6 +722,35 @@ export const de: Copy = {
         createNew: 'Neu erstellen {type}',
         saving: 'Speichern...',
         loadMore: 'Mehr anzeigen'
+      },
+      graph: {
+        kicker: 'Sammlungsgraph',
+        subtitle: 'Filterlogik mit Knoten bauen und mit dem Output verbinden.',
+        palette: 'Knoten hinzufügen',
+        inspector: 'Knoten-Inspector',
+        save: 'Graph speichern',
+        saveSuccess: 'Graph gespeichert.',
+        saveFail: 'Graph konnte nicht gespeichert werden.',
+        preview: 'Vorschau',
+        previewLabel: '{total} passende Karten',
+        previewBreakdown: '{connections} Verknüpfungen · {infos} Infos',
+        emptyInspector: 'Wähle einen Knoten, um Parameter zu bearbeiten.',
+        noParams: 'Dieser Knoten hat keine Parameter.',
+        tagLabel: 'Tag',
+        tagPlaceholder: 'Tag suchen',
+        languageLabel: 'Sprache',
+        languagePlaceholder: 'Sprache suchen',
+        scopeLabel: 'Bereich',
+        scopeAny: 'Beliebig',
+        scopeTranslation: 'Übersetzungs-Tags',
+        scopeWordA: 'Wort A',
+        scopeWordB: 'Wort B',
+        infoTypeLabel: 'Infotyp',
+        specificInfoLabel: 'Spezifische Info',
+        specificInfoPlaceholder: 'Info suchen',
+        connectionTypeLabel: 'Verbindungstyp',
+        connectionIdLabel: 'Spezifische Verbindung',
+        connectionIdPlaceholder: 'Verbindungs-GUID einfügen'
       }
     }
   },

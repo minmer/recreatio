@@ -138,6 +138,53 @@ public sealed record CogitaCollectionDetailResponse(
     DateTimeOffset CreatedUtc
 );
 
+public sealed record CogitaCollectionGraphNodeRequest(
+    Guid? NodeId,
+    string NodeType,
+    JsonElement Payload
+);
+
+public sealed record CogitaCollectionGraphEdgeRequest(
+    Guid? EdgeId,
+    Guid FromNodeId,
+    string? FromPort,
+    Guid ToNodeId,
+    string? ToPort
+);
+
+public sealed record CogitaCollectionGraphRequest(
+    List<CogitaCollectionGraphNodeRequest> Nodes,
+    List<CogitaCollectionGraphEdgeRequest> Edges,
+    Guid? DataKeyId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaCollectionGraphNodeResponse(
+    Guid NodeId,
+    string NodeType,
+    JsonElement Payload
+);
+
+public sealed record CogitaCollectionGraphEdgeResponse(
+    Guid EdgeId,
+    Guid FromNodeId,
+    string? FromPort,
+    Guid ToNodeId,
+    string? ToPort
+);
+
+public sealed record CogitaCollectionGraphResponse(
+    Guid GraphId,
+    List<CogitaCollectionGraphNodeResponse> Nodes,
+    List<CogitaCollectionGraphEdgeResponse> Edges
+);
+
+public sealed record CogitaCollectionGraphPreviewResponse(
+    int Total,
+    int Connections,
+    int Infos
+);
+
 public sealed record CogitaMockDataResponse(
     int Languages,
     int Words,

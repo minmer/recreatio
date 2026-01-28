@@ -653,6 +653,71 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionGraphs' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollectionGraphs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCollectionGraphs PRIMARY KEY,
+        CollectionInfoId UNIQUEIDENTIFIER NOT NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(8000) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollectionGraphs_Collection FOREIGN KEY (CollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaCollectionGraphs_Collection' AND object_id = OBJECT_ID('dbo.CogitaCollectionGraphs'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaCollectionGraphs_Collection ON dbo.CogitaCollectionGraphs(CollectionInfoId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionGraphNodes' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollectionGraphNodes
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCollectionGraphNodes PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        NodeType NVARCHAR(64) NOT NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(8000) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollectionGraphNodes_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaCollectionGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCollectionGraphNodes_Graph' AND object_id = OBJECT_ID('dbo.CogitaCollectionGraphNodes'))
+BEGIN
+    CREATE INDEX IX_CogitaCollectionGraphNodes_Graph ON dbo.CogitaCollectionGraphNodes(GraphId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionGraphEdges' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollectionGraphEdges
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCollectionGraphEdges PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        FromNodeId UNIQUEIDENTIFIER NOT NULL,
+        FromPort NVARCHAR(64) NULL,
+        ToNodeId UNIQUEIDENTIFIER NOT NULL,
+        ToPort NVARCHAR(64) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollectionGraphEdges_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaCollectionGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCollectionGraphEdges_Graph' AND object_id = OBJECT_ID('dbo.CogitaCollectionGraphEdges'))
+BEGIN
+    CREATE INDEX IX_CogitaCollectionGraphEdges_Graph ON dbo.CogitaCollectionGraphEdges(GraphId);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaCollectionItems_Link' AND object_id = OBJECT_ID('dbo.CogitaCollectionItems'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaCollectionItems_Link ON dbo.CogitaCollectionItems(CollectionInfoId, ItemType, ItemId);

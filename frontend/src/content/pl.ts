@@ -464,6 +464,7 @@ export const pl: Copy = {
           collections: 'Wszystkie kolekcje',
           createCollection: 'Utwórz kolekcję',
           collectionDetail: 'Szczegóły kolekcji',
+          collectionGraph: 'Graf kolekcji',
           revisionSettings: 'Ustawienia powtórki',
           revisionRun: 'Start powtórki'
         }
@@ -721,6 +722,35 @@ export const pl: Copy = {
         createNew: 'Utwórz nowe {type}',
         saving: 'Zapisywanie...',
         loadMore: 'Pokaż więcej'
+      },
+      graph: {
+        kicker: 'Graf kolekcji',
+        subtitle: 'Buduj logikę filtrów za pomocą węzłów i podłącz do wyjścia.',
+        palette: 'Dodaj węzły',
+        inspector: 'Inspektor węzła',
+        save: 'Zapisz graf',
+        saveSuccess: 'Graf zapisany.',
+        saveFail: 'Nie udało się zapisać grafu.',
+        preview: 'Podgląd',
+        previewLabel: '{total} pasujących kart',
+        previewBreakdown: '{connections} połączeń · {infos} informacji',
+        emptyInspector: 'Wybierz węzeł, aby edytować parametry.',
+        noParams: 'Ten węzeł nie ma parametrów.',
+        tagLabel: 'Tag',
+        tagPlaceholder: 'Wyszukaj tag',
+        languageLabel: 'Język',
+        languagePlaceholder: 'Wyszukaj język',
+        scopeLabel: 'Zakres',
+        scopeAny: 'Dowolny',
+        scopeTranslation: 'Tagi tłumaczenia',
+        scopeWordA: 'Słowo A',
+        scopeWordB: 'Słowo B',
+        infoTypeLabel: 'Typ informacji',
+        specificInfoLabel: 'Konkretna informacja',
+        specificInfoPlaceholder: 'Wyszukaj informację',
+        connectionTypeLabel: 'Typ połączenia',
+        connectionIdLabel: 'Konkretne połączenie',
+        connectionIdPlaceholder: 'Wklej GUID połączenia'
       }
     }
   },

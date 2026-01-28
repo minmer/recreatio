@@ -464,6 +464,7 @@ export const en: Copy = {
           collections: 'All collections',
           createCollection: 'Create collection',
           collectionDetail: 'Collection detail',
+          collectionGraph: 'Collection graph',
           revisionSettings: 'Revision settings',
           revisionRun: 'Start revision'
         }
@@ -721,6 +722,35 @@ export const en: Copy = {
         createNew: 'Create new {type}',
         saving: 'Saving...',
         loadMore: 'Load more'
+      },
+      graph: {
+        kicker: 'Collection graph',
+        subtitle: 'Build filter logic with nodes and connect to the output.',
+        palette: 'Add nodes',
+        inspector: 'Node inspector',
+        save: 'Save graph',
+        saveSuccess: 'Graph saved.',
+        saveFail: 'Failed to save graph.',
+        preview: 'Preview',
+        previewLabel: '{total} cards matched',
+        previewBreakdown: '{connections} connections · {infos} infos',
+        emptyInspector: 'Select a node to edit its parameters.',
+        noParams: 'No parameters for this node.',
+        tagLabel: 'Tag',
+        tagPlaceholder: 'Search tag',
+        languageLabel: 'Language',
+        languagePlaceholder: 'Search language',
+        scopeLabel: 'Scope',
+        scopeAny: 'Any',
+        scopeTranslation: 'Translation tags',
+        scopeWordA: 'Word A',
+        scopeWordB: 'Word B',
+        infoTypeLabel: 'Info type',
+        specificInfoLabel: 'Specific info',
+        specificInfoPlaceholder: 'Search info',
+        connectionTypeLabel: 'Connection type',
+        connectionIdLabel: 'Specific connection',
+        connectionIdPlaceholder: 'Paste connection GUID'
       }
     }
   },

@@ -19,6 +19,7 @@ type CogitaLibrarySidebarProps = {
       collections: string;
       createCollection: string;
       collectionDetail: string;
+      collectionGraph: string;
       revisionSettings: string;
       revisionRun: string;
     };
@@ -56,6 +57,7 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
       title: labels.sections.currentCollection,
       items: [
         { label: labels.items.collectionDetail, href: `${base}/collections/${collectionId}` },
+        { label: labels.items.collectionGraph, href: `${base}/collections/${collectionId}/graph` },
         { label: labels.items.revisionSettings, href: `${base}/collections/${collectionId}/revision` },
         { label: labels.items.revisionRun, href: `${base}/collections/${collectionId}/revision/run` }
       ]
