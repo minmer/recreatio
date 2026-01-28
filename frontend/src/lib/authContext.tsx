@@ -69,8 +69,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await apiLogout();
-    setSession(null);
+    try {
+      await apiLogout();
+    } catch {
+      // Best-effort logout: always clear local session to avoid sticky auth UI.
+    } finally {
+      setSession(null);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
