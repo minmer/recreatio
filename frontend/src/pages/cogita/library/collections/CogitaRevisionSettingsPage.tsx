@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react';
-import { getCogitaCollection, getCogitaReviewers, type CogitaReviewer } from '../../../../lib/api';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  createCogitaRevisionShare,
+  getCogitaCollection,
+  getCogitaRevisionShares,
+  getCogitaReviewers,
+  revokeCogitaRevisionShare,
+  type CogitaReviewer,
+  type CogitaRevisionShare
+} from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
@@ -41,6 +49,15 @@ export function CogitaRevisionSettingsPage({
   const [check] = useState('exact');
   const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
   const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
+  const [shares, setShares] = useState<CogitaRevisionShare[]>([]);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [shareListStatus, setShareListStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const shareBase = useMemo(() => {
+    if (typeof window === 'undefined') return '/#/cogita/shared/revision';
+    return `${window.location.origin}/#/cogita/shared/revision`;
+  }, []);
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
@@ -60,6 +77,61 @@ export function CogitaRevisionSettingsPage({
         setReviewers([]);
       });
   }, [libraryId]);
+
+  const loadShares = () => {
+    setShareListStatus('loading');
+    getCogitaRevisionShares({ libraryId })
+      .then((list) => {
+        setShares(list);
+        setShareListStatus('idle');
+      })
+      .catch(() => {
+        setShares([]);
+        setShareListStatus('error');
+      });
+  };
+
+  useEffect(() => {
+    loadShares();
+  }, [libraryId]);
+
+  const handleCreateShare = async () => {
+    setShareStatus('working');
+    setShareCopyStatus('idle');
+    try {
+      const response = await createCogitaRevisionShare({
+        libraryId,
+        collectionId,
+        mode,
+        check,
+        limit
+      });
+      setShareLink(`${shareBase}/${response.shareId}?key=${response.shareKey}`);
+      setShareStatus('ready');
+      loadShares();
+    } catch {
+      setShareStatus('error');
+    }
+  };
+
+  const handleCopyShare = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShareCopyStatus('copied');
+    } catch {
+      setShareCopyStatus('failed');
+    }
+  };
+
+  const handleRevokeShare = async (shareId: string) => {
+    try {
+      await revokeCogitaRevisionShare({ libraryId, shareId });
+      loadShares();
+    } catch {
+      loadShares();
+    }
+  };
 
   return (
     <CogitaShell
@@ -169,6 +241,71 @@ export function CogitaRevisionSettingsPage({
                     >
                       {copy.cogita.library.actions.startRevision}
                     </a>
+                  </div>
+                </section>
+
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.shareKicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.revision.shareTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.revision.shareBody}</p>
+                    {shareLink ? (
+                      <div className="cogita-field">
+                        <span>{copy.cogita.library.revision.shareLinkLabel}</span>
+                        <input value={shareLink} readOnly />
+                      </div>
+                    ) : null}
+                    {shareStatus === 'error' ? (
+                      <p className="cogita-help">{copy.cogita.library.revision.shareError}</p>
+                    ) : null}
+                    {shareCopyStatus === 'copied' ? (
+                      <p className="cogita-help">{copy.cogita.library.revision.shareCopied}</p>
+                    ) : shareCopyStatus === 'failed' ? (
+                      <p className="cogita-help">{copy.cogita.library.revision.shareCopyError}</p>
+                    ) : null}
+                  </div>
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta" onClick={handleCreateShare} disabled={shareStatus === 'working'}>
+                      {shareStatus === 'working'
+                        ? copy.cogita.library.revision.shareWorking
+                        : copy.cogita.library.revision.shareAction}
+                    </button>
+                    {shareLink ? (
+                      <button type="button" className="cta ghost" onClick={handleCopyShare}>
+                        {copy.cogita.library.revision.shareCopyAction}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p className="cogita-user-kicker">{copy.cogita.library.revision.shareListTitle}</p>
+                    {shareListStatus === 'loading' ? (
+                      <p>{copy.cogita.library.revision.shareListLoading}</p>
+                    ) : shares.length === 0 ? (
+                      <p>{copy.cogita.library.revision.shareListEmpty}</p>
+                    ) : (
+                      <div className="cogita-share-list">
+                        {shares.map((share) => (
+                          <div className="cogita-share-row" key={share.shareId} data-state={share.revokedUtc ? 'revoked' : 'active'}>
+                            <div>
+                              <strong>{share.collectionName}</strong>
+                              <div className="cogita-share-meta">
+                                {new Date(share.createdUtc).toLocaleString()}
+                                {share.revokedUtc ? ` · ${copy.cogita.library.revision.shareRevoked}` : ''}
+                              </div>
+                            </div>
+                            {!share.revokedUtc ? (
+                              <button type="button" className="ghost" onClick={() => handleRevokeShare(share.shareId)}>
+                                {copy.cogita.library.revision.shareRevokeAction}
+                              </button>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </section>
               </div>

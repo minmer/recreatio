@@ -180,6 +180,46 @@ public sealed record CogitaReviewerResponse(
     string Label
 );
 
+public sealed record CogitaRevisionShareCreateRequest(
+    Guid CollectionId,
+    string Mode,
+    string Check,
+    int Limit,
+    string? SignatureBase64
+);
+
+public sealed record CogitaRevisionShareCreateResponse(
+    Guid ShareId,
+    Guid CollectionId,
+    string ShareKey,
+    string Mode,
+    string Check,
+    int Limit,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaRevisionShareResponse(
+    Guid ShareId,
+    Guid CollectionId,
+    string CollectionName,
+    string Mode,
+    string Check,
+    int Limit,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? RevokedUtc
+);
+
+public sealed record CogitaPublicRevisionShareResponse(
+    Guid ShareId,
+    Guid LibraryId,
+    Guid CollectionId,
+    string CollectionName,
+    string LibraryName,
+    string Mode,
+    string Check,
+    int Limit
+);
+
 public sealed record CogitaComputedSampleResponse(
     string Prompt,
     string ExpectedAnswer,

@@ -59,6 +59,7 @@ function ComputedGraphNode({
     output?: boolean;
     name?: string;
     value?: number | string | null;
+    onSelect?: () => void;
   };
 }) {
   const showValue =
@@ -68,8 +69,17 @@ function ComputedGraphNode({
   const showSubtitle =
     data.subtitle &&
     (!data.title || data.subtitle.trim().toLowerCase() !== data.title.trim().toLowerCase());
+  const handleCount = data.handles.length;
+  const extraHeight = handleCount > 1 ? (handleCount - 1) * 14 : 0;
   return (
-    <div className="cogita-graph-node">
+    <div
+      className="cogita-graph-node"
+      style={{ minHeight: 86 + extraHeight, paddingBottom: 12 + extraHeight * 0.4 }}
+      onClick={(event) => {
+        event.stopPropagation();
+        data.onSelect?.();
+      }}
+    >
       <div className="cogita-graph-node-labels">
         <strong>{data.title}</strong>
         {showSubtitle ? <span>{data.subtitle}</span> : null}
@@ -213,6 +223,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         max: node.max,
         value: node.value,
         list: node.list,
+        onSelect: () => setSelectedNodeId(node.id),
         handles: nodeMeta[node.type]?.handles ?? [],
         output: nodeMeta[node.type]?.output ?? true
       }
@@ -306,7 +317,6 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           node.data?.name ?? '',
           node.data?.min ?? '',
           node.data?.max ?? '',
-          node.data?.value ?? '',
           listValue
         ].join(':');
       })
@@ -470,13 +480,19 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   useEffect(() => {
     setNodes((prev) =>
-      prev.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          value: computedValues.get(node.id)
+      prev.map((node) => {
+        const nextValue = computedValues.get(node.id);
+        if (nextValue === node.data?.value) {
+          return node;
         }
-      }))
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            value: nextValue
+          }
+        };
+      })
     );
   }, [computedValues, setNodes]);
 
@@ -512,6 +528,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           subtitle: meta.label,
           type: nodeType,
           name: '',
+          onSelect: () => setSelectedNodeId(id),
           handles: meta.handles,
           list: nodeType === 'input.list' ? [] : undefined,
           output: meta.output ?? true

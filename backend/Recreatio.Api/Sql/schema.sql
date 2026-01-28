@@ -40,6 +40,7 @@ IF OBJECT_ID(N'dbo.CogitaWordLanguages', N'U') IS NOT NULL DROP TABLE dbo.Cogita
 IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLanguages;
 IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
+IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
 IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
@@ -852,6 +853,34 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaReviewEvents_Person_Item' AND object_id = OBJECT_ID('dbo.CogitaReviewEvents'))
 BEGIN
     CREATE INDEX IX_CogitaReviewEvents_Person_Item ON dbo.CogitaReviewEvents(PersonRoleId, ItemType, ItemId, CreatedUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisionShares' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaRevisionShares
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        CollectionId UNIQUEIDENTIFIER NOT NULL,
+        OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+        SharedViewId UNIQUEIDENTIFIER NOT NULL,
+        Mode NVARCHAR(32) NOT NULL,
+        CheckMode NVARCHAR(32) NOT NULL,
+        CardLimit INT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CogitaRevisionShares_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaRevisionShares_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id),
+        CONSTRAINT FK_CogitaRevisionShares_SharedView FOREIGN KEY (SharedViewId) REFERENCES dbo.SharedViews(Id),
+        CONSTRAINT FK_CogitaRevisionShares_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_Library_Revoked' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisionShares_Library_Revoked ON dbo.CogitaRevisionShares(LibraryId, RevokedUtc);
 END
 GO
 
