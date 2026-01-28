@@ -5087,7 +5087,9 @@ public static class CogitaEndpoints
             return new GraphEvaluationResult(new List<(string, Guid)>(), 0, 0);
         }
 
-        var nodeLookup = nodes.ToDictionary(x => x.Id, x => x);
+        var nodeLookup = nodes
+            .GroupBy(x => x.Id)
+            .ToDictionary(group => group.Key, group => group.First());
         var incoming = edges.GroupBy(x => x.ToNodeId).ToDictionary(x => x.Key, x => x.Select(e => e.FromNodeId).ToList());
 
         var translationLookup = await LoadTranslationGraphItemsAsync(

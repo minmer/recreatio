@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -86,12 +86,21 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   }, [value]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
+  const onChangeRef = useRef(onChange);
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
+    [nodes, selectedNodeId]
+  );
 
   useEffect(() => {
     setNameWarning(null);
-  }, [selectedNode]);
+  }, [selectedNodeId]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     const inputsByNode = new Map<string, string[]>();
@@ -118,8 +127,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       output: outputs[0] ?? null,
       outputs
     };
-    onChange(definition);
-  }, [nodes, edges, onChange]);
+    onChangeRef.current(definition);
+  }, [nodes, edges]);
 
   const onConnect = (connection: Connection) => {
     setEdges((prev) => addEdge(connection, prev));
@@ -140,7 +149,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   };
 
   const updateSelectedNode = (updates: Partial<{ type: string; name: string; min: number; max: number; value: number }>) => {
-    if (!selectedNode) return;
+    if (!selectedNodeId) return;
     if (updates.name !== undefined) {
       const trimmed = updates.name.trim();
       if (!trimmed) {
@@ -148,7 +157,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       } else {
         const collision = nodes.find(
           (node) =>
-            node.id !== selectedNode.id &&
+            node.id !== selectedNodeId &&
             node.data?.name &&
             node.data.name.trim().toLowerCase() === trimmed.toLowerCase()
         );
@@ -157,7 +166,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     }
     setNodes((prev) =>
       prev.map((node) =>
-        node.id === selectedNode.id
+        node.id === selectedNodeId
           ? {
               ...node,
               data: {
@@ -176,10 +185,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   };
 
   const deleteSelectedNode = () => {
-    if (!selectedNode) return;
-    setNodes((prev) => prev.filter((node) => node.id !== selectedNode.id));
-    setEdges((prev) => prev.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id));
-    setSelectedNode(null);
+    if (!selectedNodeId) return;
+    setNodes((prev) => prev.filter((node) => node.id !== selectedNodeId));
+    setEdges((prev) => prev.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId));
+    setSelectedNodeId(null);
     setNameWarning(null);
   };
 
@@ -192,7 +201,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeClick={(_, node) => setSelectedNode(node)}
+          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
           fitView
         >
           <Background gap={18} size={1} />
