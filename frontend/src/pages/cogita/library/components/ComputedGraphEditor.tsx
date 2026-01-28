@@ -65,11 +65,14 @@ function ComputedGraphNode({
     data.value !== undefined &&
     data.value !== null &&
     (typeof data.value === 'string' ? data.value.trim() !== '' : Number.isFinite(data.value));
+  const showSubtitle =
+    data.subtitle &&
+    (!data.title || data.subtitle.trim().toLowerCase() !== data.title.trim().toLowerCase());
   return (
     <div className="cogita-graph-node">
       <div className="cogita-graph-node-labels">
         <strong>{data.title}</strong>
-        <span>{data.subtitle}</span>
+        {showSubtitle ? <span>{data.subtitle}</span> : null}
       </div>
       {data.name ? <div className="cogita-graph-node-meta">{data.name}</div> : null}
       {showValue ? <div className="cogita-graph-node-value">{data.value}</div> : null}
@@ -293,6 +296,31 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     }
   }, [nodes, randomValues, refreshTick]);
 
+  const nodeSignature = useMemo(() => {
+    const list = nodes
+      .map((node) => {
+        const listValue = (node.data?.list ?? []).join(',');
+        return [
+          node.id,
+          node.data?.type ?? '',
+          node.data?.name ?? '',
+          node.data?.min ?? '',
+          node.data?.max ?? '',
+          node.data?.value ?? '',
+          listValue
+        ].join(':');
+      })
+      .sort();
+    return list.join('|');
+  }, [nodes]);
+
+  const edgeSignature = useMemo(() => {
+    const list = edges
+      .map((edge) => `${edge.source}:${edge.target}:${edge.targetHandle ?? ''}`)
+      .sort();
+    return list.join('|');
+  }, [edges]);
+
   const computedValues = useMemo(() => {
     const nodeMap = new Map(nodes.map((node) => [node.id, node]));
     const inputsByHandle = new Map<string, Record<string, string[]>>();
@@ -438,25 +466,19 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
     nodes.forEach((node) => evaluateNode(node.id));
     return values;
-  }, [nodes, edges, randomValues]);
+  }, [nodeSignature, edgeSignature, randomValues]);
 
-  const renderNodes = useMemo(
-    () =>
-      nodes.map((node) => {
-        const value = computedValues.get(node.id);
-        if (value === undefined || value === node.data?.value) {
-          return node;
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          value: computedValues.get(node.id)
         }
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            value
-          }
-        };
-      }),
-    [nodes, computedValues]
-  );
+      }))
+    );
+  }, [computedValues, setNodes]);
 
   const onConnect = (connection: Connection) => {
     if (!connection.target || !connection.targetHandle) {
@@ -553,7 +575,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
           nodeTypes={{ computed: ComputedGraphNode }}
-          nodes={renderNodes}
+          nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
