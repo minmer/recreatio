@@ -670,7 +670,8 @@ public static class CogitaEndpoints
                     .ToDictionaryAsync(x => x.Id, ct);
 
                 var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-                    .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+                    .GroupBy(x => x.WordInfoId)
+                    .ToDictionaryAsync(group => group.Key, group => group.Select(x => x.LanguageInfoId).First(), ct);
 
                 var languageLabels = await ResolveInfoLabelsAsync(
                     libraryId,
