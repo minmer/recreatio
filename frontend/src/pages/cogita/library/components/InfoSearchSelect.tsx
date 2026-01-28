@@ -12,6 +12,7 @@ type InfoSearchSelectCommonProps = {
   createFailedText?: string;
   createLabel?: string;
   savingLabel?: string;
+  loadMoreLabel?: string;
   inputRef?: Ref<HTMLInputElement>;
   autoAdvance?: boolean;
   onCommit?: () => void;
@@ -52,6 +53,7 @@ export function InfoSearchSelect({
   createFailedText,
   createLabel,
   savingLabel,
+  loadMoreLabel,
   inputRef,
   autoAdvance,
   onCommit,
@@ -60,6 +62,8 @@ export function InfoSearchSelect({
   const selectedValues = multiple ? values ?? EMPTY_OPTIONS : EMPTY_OPTIONS;
   const [query, setQuery] = useState(multiple ? '' : value?.label ?? '');
   const [results, setResults] = useState<CogitaInfoOption[]>([]);
+  const [visibleCount, setVisibleCount] = useState(MAX_RESULTS);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +87,8 @@ export function InfoSearchSelect({
     if (!trimmed) {
       setResults([]);
       setIsOpen(false);
+      setVisibleCount(MAX_RESULTS);
+      setHighlightedIndex(-1);
       return;
     }
 
@@ -105,6 +111,8 @@ export function InfoSearchSelect({
         } else {
           setResults(mapped);
         }
+        setVisibleCount(MAX_RESULTS);
+        setHighlightedIndex(-1);
         setIsOpen(true);
       } catch {
         if (lastRequest.current !== currentRequest) return;
@@ -127,11 +135,13 @@ export function InfoSearchSelect({
       onChangeMultiple?.(next);
       setQuery('');
       setIsOpen(false);
+      setHighlightedIndex(-1);
       return;
     }
     onChange?.(option);
     setQuery(option.label);
     setIsOpen(false);
+    setHighlightedIndex(-1);
     if (autoAdvance) {
       onCommit?.();
     }
@@ -153,10 +163,12 @@ export function InfoSearchSelect({
         onChangeMultiple?.([...selectedValues, createdOption]);
         setQuery('');
         setIsOpen(false);
+        setHighlightedIndex(-1);
         return;
       }
       onChange?.(createdOption);
       setIsOpen(false);
+      setHighlightedIndex(-1);
       if (autoAdvance) {
         onCommit?.();
       }
@@ -179,14 +191,35 @@ export function InfoSearchSelect({
             if (!multiple && value) onChange?.(null);
           }}
           onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              if (!results.length) return;
+              setIsOpen(true);
+              setHighlightedIndex((prev) => {
+                const next = prev < 0 ? 0 : Math.min(prev + 1, Math.min(results.length, visibleCount) - 1);
+                return next;
+              });
+              return;
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              if (!results.length) return;
+              setIsOpen(true);
+              setHighlightedIndex((prev) => {
+                const next = prev <= 0 ? 0 : prev - 1;
+                return next;
+              });
+              return;
+            }
             if (event.key !== 'Enter') return;
             event.preventDefault();
-            if (results.length > 0) {
-              handleSelect(results[0]);
+            if (highlightedIndex >= 0 && results[highlightedIndex]) {
+              handleSelect(results[highlightedIndex]);
               return;
             }
             if (showCreate) {
               handleCreate();
+              return;
             }
           }}
           onFocus={() => {
@@ -215,17 +248,27 @@ export function InfoSearchSelect({
       {error && <p className="cogita-error">{error}</p>}
       {isOpen && results.length > 0 && (
         <div className="cogita-lookup-results">
-          {results.map((result) => (
+          {results.slice(0, visibleCount).map((result, index) => (
             <button
               type="button"
               key={result.id}
               className="cogita-lookup-option"
+              data-active={index === highlightedIndex}
               onClick={() => handleSelect(result)}
             >
               <strong>{result.label}</strong>
               <span>{result.infoType}</span>
             </button>
           ))}
+          {visibleCount < results.length && (
+            <button
+              type="button"
+              className="cogita-lookup-more"
+              onClick={() => setVisibleCount((prev) => Math.min(prev + MAX_RESULTS, results.length))}
+            >
+              {loadMoreLabel ?? 'Load more'}
+            </button>
+          )}
         </div>
       )}
       {showCreate && (

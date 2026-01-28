@@ -4,7 +4,7 @@ import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
-import { CogitaLibraryNav } from '../components/CogitaLibraryNav';
+import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 
 export function CogitaCollectionListPage({
   copy,
@@ -111,75 +111,79 @@ export function CogitaCollectionListPage({
           </div>
         </header>
 
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <div className="cogita-library-controls">
-              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
-              <div className="cogita-library-search">
-                <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
-                <div className="cogita-search-field">
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={copy.cogita.library.collections.searchPlaceholder}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="cogita-card-count">
-              <span>{copy.cogita.library.collections.countLabel
-                .replace('{shown}', String(collections.length))
-                .replace('{total}', String(totalCount || collections.length))}</span>
-              <span>{status === 'loading' ? copy.cogita.library.collections.loading : copy.cogita.library.collections.ready}</span>
-            </div>
-
-            <div className="cogita-card-list" data-view="list">
-              {collections.length ? (
-                collections.map((collection) => (
-                    <div key={collection.collectionId} className="cogita-card-item">
-                      <a className="cogita-card-select" href={`${baseHref}/collections/${collection.collectionId}`}>
-                      <div className="cogita-card-type">{copy.cogita.library.collections.collectionLabel}</div>
-                      <h3 className="cogita-card-title">{collection.name}</h3>
-                      <p className="cogita-card-subtitle">
-                        {copy.cogita.library.collections.itemCountLabel.replace('{count}', String(collection.itemCount))} ·{' '}
-                        {collection.notes || copy.cogita.library.collections.noNotes}
-                      </p>
-                    </a>
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-library-grid">
+              <div className="cogita-library-pane">
+                <div className="cogita-library-controls">
+                  <div className="cogita-library-search">
+                    <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
+                    <div className="cogita-search-field">
+                      <input
+                        type="text"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder={copy.cogita.library.collections.searchPlaceholder}
+                      />
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div className="cogita-card-empty">
-                  <p>{copy.cogita.library.collections.emptyTitle}</p>
-                  <a className="ghost" href={`${baseHref}/collections/new`}>
-                    {copy.cogita.library.collections.emptyAction}
-                  </a>
                 </div>
-              )}
+
+                <div className="cogita-card-count">
+                  <span>{copy.cogita.library.collections.countLabel
+                    .replace('{shown}', String(collections.length))
+                    .replace('{total}', String(totalCount || collections.length))}</span>
+                  <span>{status === 'loading' ? copy.cogita.library.collections.loading : copy.cogita.library.collections.ready}</span>
+                </div>
+
+                <div className="cogita-card-list" data-view="list">
+                  {collections.length ? (
+                    collections.map((collection) => (
+                      <div key={collection.collectionId} className="cogita-card-item">
+                        <a className="cogita-card-select" href={`${baseHref}/collections/${collection.collectionId}`}>
+                          <div className="cogita-card-type">{copy.cogita.library.collections.collectionLabel}</div>
+                          <h3 className="cogita-card-title">{collection.name}</h3>
+                          <p className="cogita-card-subtitle">
+                            {copy.cogita.library.collections.itemCountLabel.replace('{count}', String(collection.itemCount))} ·{' '}
+                            {collection.notes || copy.cogita.library.collections.noNotes}
+                          </p>
+                        </a>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="cogita-card-empty">
+                      <p>{copy.cogita.library.collections.emptyTitle}</p>
+                      <a className="ghost" href={`${baseHref}/collections/new`}>
+                        {copy.cogita.library.collections.emptyAction}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {nextCursor ? (
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta ghost" onClick={handleLoadMore}>
+                      {copy.cogita.library.list.loadMore}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="cogita-library-panel">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.collections.detailFocusBody}</p>
+                  </div>
+                </section>
+              </div>
             </div>
-
-            {nextCursor ? (
-              <div className="cogita-form-actions">
-                <button type="button" className="cta ghost" onClick={handleLoadMore}>
-                  {copy.cogita.library.list.loadMore}
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="cogita-library-panel">
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
-                  <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
-                </div>
-              </div>
-              <div className="cogita-detail-body">
-                <p>{copy.cogita.library.collections.detailFocusBody}</p>
-              </div>
-            </section>
           </div>
         </div>
       </section>

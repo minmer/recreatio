@@ -4,7 +4,7 @@ import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
-import { CogitaLibraryNav } from '../components/CogitaLibraryNav';
+import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -88,55 +88,59 @@ export function CogitaRevisionSettingsPage({
           </div>
         </header>
 
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <div className="cogita-library-controls">
-              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
-              <div className="cogita-library-search">
-                <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-                <label className="cogita-field">
-                  <span>{copy.cogita.library.revision.modeLabel}</span>
-                  <input value={copy.cogita.library.revision.modeValue} disabled />
-                </label>
-                <label className="cogita-field">
-                  <span>{copy.cogita.library.revision.checkLabel}</span>
-                  <input value={copy.cogita.library.revision.checkValue} disabled />
-                </label>
-                <label className="cogita-field">
-                  <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    value={limit}
-                    onChange={(event) => setLimit(Number(event.target.value || 1))}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="cogita-library-panel">
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-                  <h3 className="cogita-detail-title">{copy.cogita.library.revision.previewTitle}</h3>
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-library-grid">
+              <div className="cogita-library-pane">
+                <div className="cogita-library-controls">
+                  <div className="cogita-library-search">
+                    <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.library.revision.modeLabel}</span>
+                      <input value={copy.cogita.library.revision.modeValue} disabled />
+                    </label>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.library.revision.checkLabel}</span>
+                      <input value={copy.cogita.library.revision.checkValue} disabled />
+                    </label>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={200}
+                        value={limit}
+                        onChange={(event) => setLimit(Number(event.target.value || 1))}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
-              <div className="cogita-detail-body">
-                <p>{copy.cogita.library.revision.previewBody1}</p>
-                <p>{copy.cogita.library.revision.previewBody2}</p>
+
+              <div className="cogita-library-panel">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.revision.previewTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.revision.previewBody1}</p>
+                    <p>{copy.cogita.library.revision.previewBody2}</p>
+                  </div>
+                  <div className="cogita-form-actions">
+                    <a
+                      className="cta"
+                      href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
+                    >
+                      {copy.cogita.library.actions.startRevision}
+                    </a>
+                  </div>
+                </section>
               </div>
-              <div className="cogita-form-actions">
-                <a
-                  className="cta"
-                  href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
-                >
-                  {copy.cogita.library.actions.startRevision}
-                </a>
-              </div>
-            </section>
+            </div>
           </div>
         </div>
       </section>

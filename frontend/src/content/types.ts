@@ -148,6 +148,25 @@ export type Copy = {
         add: string;
         collections: string;
       };
+      sidebar: {
+        title: string;
+        sections: {
+          library: string;
+          cards: string;
+          collections: string;
+          currentCollection: string;
+        };
+        items: {
+          overview: string;
+          list: string;
+          add: string;
+          collections: string;
+          createCollection: string;
+          collectionDetail: string;
+          revisionSettings: string;
+          revisionRun: string;
+        };
+      };
       navLabel: string;
       actions: {
         backToCogita: string;
@@ -401,6 +420,7 @@ export type Copy = {
         createFailed: string;
         createNew: string;
         saving: string;
+        loadMore: string;
       };
     };
   };

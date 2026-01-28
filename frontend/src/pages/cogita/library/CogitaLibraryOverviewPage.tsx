@@ -4,7 +4,7 @@ import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaLibraryNav } from './components/CogitaLibraryNav';
+import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 
 export function CogitaLibraryOverviewPage({
   copy,
@@ -123,98 +123,102 @@ export function CogitaLibraryOverviewPage({
           </div>
         </header>
 
-        <div className="cogita-library-stats">
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.totalInfos}</span>
-            <strong>{stats?.totalInfos ?? 0}</strong>
-          </div>
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.connections}</span>
-            <strong>{stats?.totalConnections ?? 0}</strong>
-          </div>
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.words}</span>
-            <strong>{stats?.totalWords ?? 0}</strong>
-          </div>
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.sentences}</span>
-            <strong>{stats?.totalSentences ?? 0}</strong>
-          </div>
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.languages}</span>
-            <strong>{stats?.totalLanguages ?? 0}</strong>
-          </div>
-          <div className="cogita-stat-card">
-            <span>{copy.cogita.library.overview.stats.collections}</span>
-            <strong>{stats?.totalCollections ?? 0}</strong>
-          </div>
-        </div>
-
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <div className="cogita-library-controls">
-              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
-              <div className="cogita-library-search">
-                <p className="cogita-user-kicker">{copy.cogita.library.overview.quickActionsTitle}</p>
-                <div className="cogita-card-empty">
-                  <p>{copy.cogita.library.overview.quickActionsText}</p>
-                  <div className="cogita-form-actions">
-                    <a className="cta ghost" href={`${baseHref}/list`}>
-                      {copy.cogita.library.overview.browseList}
-                    </a>
-                    <a className="cta ghost" href={`${baseHref}/collections`}>
-                      {copy.cogita.library.overview.viewCollections}
-                    </a>
-                    <a className="cta" href={`${baseHref}/new`}>
-                      {copy.cogita.library.overview.addInfo}
-                    </a>
-                  </div>
-                  <div className="cogita-form-actions">
-                    <button type="button" className="cta ghost" onClick={handleMockData}>
-                      {copy.cogita.library.overview.seedMock}
-                    </button>
-                    {mockStatus ? <p className="cogita-help">{mockStatus}</p> : null}
-                  </div>
-                </div>
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-library-stats">
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.totalInfos}</span>
+                <strong>{stats?.totalInfos ?? 0}</strong>
+              </div>
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.connections}</span>
+                <strong>{stats?.totalConnections ?? 0}</strong>
+              </div>
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.words}</span>
+                <strong>{stats?.totalWords ?? 0}</strong>
+              </div>
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.sentences}</span>
+                <strong>{stats?.totalSentences ?? 0}</strong>
+              </div>
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.languages}</span>
+                <strong>{stats?.totalLanguages ?? 0}</strong>
+              </div>
+              <div className="cogita-stat-card">
+                <span>{copy.cogita.library.overview.stats.collections}</span>
+                <strong>{stats?.totalCollections ?? 0}</strong>
               </div>
             </div>
-          </div>
 
-          <div className="cogita-library-panel">
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.overview.kicker}</p>
-                  <h3 className="cogita-detail-title">{copy.cogita.library.overview.focusTitle}</h3>
+            <div className="cogita-library-grid">
+              <div className="cogita-library-pane">
+                <div className="cogita-library-controls">
+                  <div className="cogita-library-search">
+                    <p className="cogita-user-kicker">{copy.cogita.library.overview.quickActionsTitle}</p>
+                    <div className="cogita-card-empty">
+                      <p>{copy.cogita.library.overview.quickActionsText}</p>
+                      <div className="cogita-form-actions">
+                        <a className="cta ghost" href={`${baseHref}/list`}>
+                          {copy.cogita.library.overview.browseList}
+                        </a>
+                        <a className="cta ghost" href={`${baseHref}/collections`}>
+                          {copy.cogita.library.overview.viewCollections}
+                        </a>
+                        <a className="cta" href={`${baseHref}/new`}>
+                          {copy.cogita.library.overview.addInfo}
+                        </a>
+                      </div>
+                      <div className="cogita-form-actions">
+                        <button type="button" className="cta ghost" onClick={handleMockData}>
+                          {copy.cogita.library.overview.seedMock}
+                        </button>
+                        {mockStatus ? <p className="cogita-help">{mockStatus}</p> : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="cogita-detail-body">
-                <p>{copy.cogita.library.overview.focusBody1}</p>
-                <p>{copy.cogita.library.overview.focusBody2}</p>
+
+              <div className="cogita-library-panel">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.overview.kicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.overview.focusTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.overview.focusBody1}</p>
+                    <p>{copy.cogita.library.overview.focusBody2}</p>
+                  </div>
+                </section>
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.overview.kicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.overview.transferTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.overview.transferBody}</p>
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={handleExport}>
+                        {copy.cogita.library.overview.export}
+                      </button>
+                      <label className="cta ghost cogita-file-button">
+                        {copy.cogita.library.overview.import}
+                        <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} />
+                      </label>
+                    </div>
+                    {exportStatus ? <p className="cogita-help">{exportStatus}</p> : null}
+                    {importStatus ? <p className="cogita-help">{importStatus}</p> : null}
+                  </div>
+                </section>
               </div>
-            </section>
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.overview.kicker}</p>
-                  <h3 className="cogita-detail-title">{copy.cogita.library.overview.transferTitle}</h3>
-                </div>
-              </div>
-              <div className="cogita-detail-body">
-                <p>{copy.cogita.library.overview.transferBody}</p>
-                <div className="cogita-form-actions">
-                  <button type="button" className="cta" onClick={handleExport}>
-                    {copy.cogita.library.overview.export}
-                  </button>
-                  <label className="cta ghost cogita-file-button">
-                    {copy.cogita.library.overview.import}
-                    <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} />
-                  </label>
-                </div>
-                {exportStatus ? <p className="cogita-help">{exportStatus}</p> : null}
-                {importStatus ? <p className="cogita-help">{importStatus}</p> : null}
-              </div>
-            </section>
+            </div>
           </div>
         </div>
       </section>

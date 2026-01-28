@@ -12,6 +12,7 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import type { CogitaInfoType } from '../types';
 import { getInfoTypeLabel } from '../libraryOptions';
+import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 
@@ -230,26 +231,29 @@ export function CogitaRevisionRunPage({
           </div>
         </header>
 
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
-                  <h3 className="cogita-detail-title">
-                    {queue.length ? `${Math.min(currentIndex + 1, queue.length)} / ${queue.length}` : '0 / 0'}
-                  </h3>
-                </div>
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-library-grid">
+              <div className="cogita-library-pane">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
+                      <h3 className="cogita-detail-title">
+                        {queue.length ? `${Math.min(currentIndex + 1, queue.length)} / ${queue.length}` : '0 / 0'}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
+                    {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
+                    {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
+                  </div>
+                </section>
               </div>
-              <div className="cogita-detail-body">
-                {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
-                {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
-                {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
-              </div>
-            </section>
-          </div>
 
-          <div className="cogita-library-panel">
+              <div className="cogita-library-panel">
             <section className="cogita-revision-card" data-feedback={feedback ?? 'idle'}>
               {currentCard ? (
                 <>
@@ -334,6 +338,8 @@ export function CogitaRevisionRunPage({
                 </div>
               )}
             </section>
+              </div>
+            </div>
           </div>
         </div>
       </section>

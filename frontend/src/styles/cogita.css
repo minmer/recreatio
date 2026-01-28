@@ -1024,6 +1024,84 @@
   flex-wrap: wrap;
 }
 
+.cogita-library-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 1.6rem;
+  align-items: start;
+  margin-top: 2rem;
+}
+
+.cogita-library-content {
+  display: grid;
+  gap: 1.4rem;
+  min-width: 0;
+}
+
+.cogita-library-sidebar {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+  background: rgba(7, 18, 32, 0.85);
+  border: 1px solid rgba(120, 170, 220, 0.2);
+  border-radius: 20px;
+  padding: 1.1rem;
+  box-shadow: 0 20px 50px rgba(4, 12, 20, 0.4);
+}
+
+.cogita-sidebar-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: rgba(170, 195, 220, 0.8);
+  margin-bottom: 1rem;
+}
+
+.cogita-sidebar-section {
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 0.8rem;
+  margin-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(110, 160, 210, 0.15);
+}
+
+.cogita-sidebar-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.cogita-sidebar-section-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgba(145, 180, 220, 0.7);
+}
+
+.cogita-sidebar-links {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cogita-sidebar-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  text-decoration: none;
+  font-size: 0.9rem;
+  color: rgba(220, 236, 255, 0.82);
+  border: 1px solid transparent;
+  background: rgba(9, 22, 38, 0.55);
+}
+
+.cogita-sidebar-links a[data-active='true'] {
+  background: rgba(120, 190, 235, 0.22);
+  border-color: rgba(140, 200, 245, 0.5);
+  color: #f3f7ff;
+}
+
 .cogita-library-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
@@ -1654,6 +1732,23 @@
   cursor: pointer;
 }
 
+.cogita-lookup-option[data-active='true'] {
+  background: rgba(120, 190, 235, 0.2);
+  border-color: rgba(140, 200, 245, 0.5);
+}
+
+.cogita-lookup-more {
+  border: 1px dashed rgba(120, 170, 220, 0.35);
+  border-radius: 10px;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  color: rgba(200, 225, 250, 0.85);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
 .cogita-lookup-option span {
   font-size: 0.75rem;
   color: rgba(170, 195, 225, 0.7);
@@ -1865,6 +1960,12 @@
 @media (max-width: 1100px) {
   .cogita-library-grid {
     grid-template-columns: 1fr;
+  }
+  .cogita-library-layout {
+    grid-template-columns: 1fr;
+  }
+  .cogita-library-sidebar {
+    position: static;
   }
 }
 

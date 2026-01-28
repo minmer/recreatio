@@ -449,6 +449,25 @@ export const pl: Copy = {
         collections: 'Kolekcje'
       },
       navLabel: 'Nawigacja biblioteki',
+      sidebar: {
+        title: 'Mapa biblioteki',
+        sections: {
+          library: 'Biblioteka',
+          cards: 'Karty',
+          collections: 'Kolekcje',
+          currentCollection: 'Bieżąca kolekcja'
+        },
+        items: {
+          overview: 'Przegląd',
+          list: 'Przeglądaj karty',
+          add: 'Dodaj nowe info',
+          collections: 'Wszystkie kolekcje',
+          createCollection: 'Utwórz kolekcję',
+          collectionDetail: 'Szczegóły kolekcji',
+          revisionSettings: 'Ustawienia powtórki',
+          revisionRun: 'Start powtórki'
+        }
+      },
       actions: {
         backToCogita: 'Wróć do Cogita',
         libraryOverview: 'Przegląd biblioteki',
@@ -700,7 +719,8 @@ export const pl: Copy = {
         searchFailed: 'Wyszukiwanie nieudane.',
         createFailed: 'Tworzenie nieudane.',
         createNew: 'Utwórz nowe {type}',
-        saving: 'Zapisywanie...'
+        saving: 'Zapisywanie...',
+        loadMore: 'Pokaż więcej'
       }
     }
   },

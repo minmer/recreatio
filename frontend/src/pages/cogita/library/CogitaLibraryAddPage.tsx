@@ -7,7 +7,7 @@ import type { CogitaConnectionType, CogitaGroupType, CogitaInfoOption, CogitaInf
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import { getConnectionTypeOptions, getGroupTypeOptions, getInfoTypeOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaLibraryNav } from './components/CogitaLibraryNav';
+import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 
 export function CogitaLibraryAddPage({
   copy,
@@ -341,11 +341,13 @@ export function CogitaLibraryAddPage({
           ))}
         </div>
 
-        <div className="cogita-add-center">
-          <div className="cogita-library-panel">
-            <section className="cogita-library-create">
-              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
-              {activeTab === 'info' ? (
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-add-center">
+              <div className="cogita-library-panel">
+                <section className="cogita-library-create">
+                  {activeTab === 'info' ? (
                 <div className="cogita-form-grid">
                   <label className="cogita-field full">
                     <span>{copy.cogita.library.add.info.typeLabel}</span>
@@ -383,6 +385,7 @@ export function CogitaLibraryAddPage({
                       createFailedText={copy.cogita.library.lookup.createFailed}
                       createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
                       savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                     />
                   )}
                   <label className="cogita-field full">
@@ -434,6 +437,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -446,6 +450,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                       {pairStatus && <p className="cogita-help">{pairStatus}</p>}
                     </>
@@ -463,6 +468,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -475,6 +481,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.topic)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                     </>
                   )}
@@ -491,6 +498,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -503,6 +511,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                     </>
                   )}
@@ -519,6 +528,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -531,6 +541,7 @@ export function CogitaLibraryAddPage({
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.sentence)}
                         savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
                     </>
                   )}
@@ -578,6 +589,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                   />
                   <InfoSearchSelect
                     libraryId={libraryId}
@@ -590,6 +602,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                   />
                   <InfoSearchSelect
                     libraryId={libraryId}
@@ -603,6 +616,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.topic)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                   />
                   <InfoSearchSelect
                     libraryId={libraryId}
@@ -616,6 +630,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.topic)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                   />
                   <InfoSearchSelect
                     libraryId={libraryId}
@@ -629,6 +644,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.topic)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                   />
                   <InfoSearchSelect
                     libraryId={libraryId}
@@ -641,6 +657,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                     inputRef={wordARef}
                     autoAdvance
                     onCommit={() => wordBRef.current?.focus()}
@@ -656,6 +673,7 @@ export function CogitaLibraryAddPage({
                     createFailedText={copy.cogita.library.lookup.createFailed}
                     createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.word)}
                     savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
                     inputRef={wordBRef}
                     autoAdvance
                     onCommit={() => groupConfirmRef.current?.focus()}
@@ -670,8 +688,10 @@ export function CogitaLibraryAddPage({
               </div>
               ) : null}
 
-              {formStatus ? <p className="cogita-form-error">{formStatus}</p> : null}
-            </section>
+                  {formStatus ? <p className="cogita-form-error">{formStatus}</p> : null}
+                </section>
+              </div>
+            </div>
           </div>
         </div>
       </section>

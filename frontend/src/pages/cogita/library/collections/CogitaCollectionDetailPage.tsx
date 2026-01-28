@@ -4,7 +4,7 @@ import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
-import { CogitaLibraryNav } from '../components/CogitaLibraryNav';
+import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 
 export function CogitaCollectionDetailPage({
   copy,
@@ -128,66 +128,68 @@ export function CogitaCollectionDetailPage({
           </div>
         </header>
 
-        <div className="cogita-library-grid">
-          <div className="cogita-library-pane">
-            <div className="cogita-library-controls">
-              <CogitaLibraryNav libraryId={libraryId} labels={copy.cogita.library.nav} ariaLabel={copy.cogita.library.navLabel} />
-            </div>
-            <div className="cogita-card-count">
-              <span>{cardCountLabel}</span>
-              <span>{status === 'loading' ? copy.cogita.library.collections.loading : copy.cogita.library.collections.ready}</span>
-            </div>
+        <div className="cogita-library-layout">
+          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
+          <div className="cogita-library-content">
+            <div className="cogita-library-grid">
+              <div className="cogita-library-pane">
+                <div className="cogita-card-count">
+                  <span>{cardCountLabel}</span>
+                  <span>{status === 'loading' ? copy.cogita.library.collections.loading : copy.cogita.library.collections.ready}</span>
+                </div>
 
-            <div className="cogita-card-list" data-view="list">
-              {cards.length ? (
-                cards.map((card) => (
-                    <div key={`${card.cardType}-${card.cardId}`} className="cogita-card-item">
-                      <div className="cogita-card-select">
-                      <div className="cogita-card-type">
-                        {card.cardType === 'vocab'
-                          ? copy.cogita.library.list.cardTypeVocab
-                          : card.cardType === 'connection'
-                          ? copy.cogita.library.list.cardTypeConnection
-                          : copy.cogita.library.list.cardTypeInfo}
+                <div className="cogita-card-list" data-view="list">
+                  {cards.length ? (
+                    cards.map((card) => (
+                      <div key={`${card.cardType}-${card.cardId}`} className="cogita-card-item">
+                        <div className="cogita-card-select">
+                          <div className="cogita-card-type">
+                            {card.cardType === 'vocab'
+                              ? copy.cogita.library.list.cardTypeVocab
+                              : card.cardType === 'connection'
+                              ? copy.cogita.library.list.cardTypeConnection
+                              : copy.cogita.library.list.cardTypeInfo}
+                          </div>
+                          <h3 className="cogita-card-title">{card.label}</h3>
+                          <p className="cogita-card-subtitle">{card.description}</p>
+                        </div>
                       </div>
-                        <h3 className="cogita-card-title">{card.label}</h3>
-                        <p className="cogita-card-subtitle">{card.description}</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="cogita-card-empty">
+                      <p>{copy.cogita.library.collections.noCards}</p>
                     </div>
-                ))
-              ) : (
-                <div className="cogita-card-empty">
-                  <p>{copy.cogita.library.collections.noCards}</p>
+                  )}
                 </div>
-              )}
+
+                {nextCursor ? (
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta ghost" onClick={handleLoadMore}>
+                      {copy.cogita.library.list.loadMore}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="cogita-library-panel">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.collections.detailKicker}</p>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.collections.detailFocusBody}</p>
+                  </div>
+                  <div className="cogita-form-actions">
+                    <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
+                      {copy.cogita.library.actions.startRevision}
+                    </a>
+                  </div>
+                </section>
+              </div>
             </div>
-
-            {nextCursor ? (
-              <div className="cogita-form-actions">
-                <button type="button" className="cta ghost" onClick={handleLoadMore}>
-                  {copy.cogita.library.list.loadMore}
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="cogita-library-panel">
-            <section className="cogita-library-detail">
-              <div className="cogita-detail-header">
-                <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.collections.detailKicker}</p>
-                  <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
-                </div>
-              </div>
-              <div className="cogita-detail-body">
-                <p>{copy.cogita.library.collections.detailFocusBody}</p>
-              </div>
-              <div className="cogita-form-actions">
-                <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
-                  {copy.cogita.library.actions.startRevision}
-                </a>
-              </div>
-            </section>
           </div>
         </div>
       </section>
