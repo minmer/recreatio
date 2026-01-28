@@ -457,6 +457,15 @@ export const pl: Copy = {
           collections: 'Kolekcje',
           currentCollection: 'Bieżąca kolekcja'
         },
+        groups: {
+          libraryOverview: 'Przegląd',
+          libraryGraph: 'Grafy',
+          cardsBrowse: 'Przeglądanie',
+          cardsAdd: 'Dodawanie',
+          collectionsManage: 'Zarządzanie',
+          currentOverview: 'Przegląd',
+          currentRevision: 'Powtórka'
+        },
         items: {
           overview: 'Przegląd',
           list: 'Przeglądaj karty',
@@ -543,6 +552,11 @@ export const pl: Copy = {
         exportReady: 'Eksport gotowy.',
         exportFail: 'Eksport nieudany.',
         importDone: 'Import zakończony.',
+        importStageInfos: 'Informacje',
+        importStageConnections: 'Połączenia',
+        importStageCollections: 'Kolekcje',
+        importLiveProgress: '{stage}: {done}/{total} (info {infos}, połączeń {connections}, kolekcji {collections})',
+        importSummary: 'Zaimportowano: {infos} informacji, {connections} połączeń, {collections} kolekcji.',
         importFail: 'Import nieudany.'
       },
       list: {
@@ -748,6 +762,10 @@ export const pl: Copy = {
         previewLabel: '{total} pasujących kart',
         previewBreakdown: '{connections} połączeń · {infos} informacji',
         emptyInspector: 'Wybierz węzeł, aby edytować parametry.',
+        nameLabel: 'Nazwa zmiennej',
+        namePlaceholder: 'np. wynik',
+        duplicateName: 'Nazwa już użyta. Wybierz unikalną.',
+        deleteNode: 'Usuń węzeł',
         noParams: 'Ten węzeł nie ma parametrów.',
         tagLabel: 'Tag',
         tagPlaceholder: 'Wyszukaj tag',

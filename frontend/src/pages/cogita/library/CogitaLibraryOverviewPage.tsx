@@ -3,6 +3,7 @@ import {
   createCogitaMockData,
   exportCogitaLibraryStream,
   importCogitaLibraryStream,
+  type CogitaImportProgress,
   type TransferProgress
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
@@ -40,6 +41,8 @@ export function CogitaLibraryOverviewPage({
   const [mockStatus, setMockStatus] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<{ infos: number; connections: number; collections: number } | null>(null);
+  const [importLiveStatus, setImportLiveStatus] = useState<string | null>(null);
   const [exportProgress, setExportProgress] = useState<TransferProgress | null>(null);
   const [importProgress, setImportProgress] = useState<TransferProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,12 +94,34 @@ export function CogitaLibraryOverviewPage({
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     setImportStatus(null);
+    setImportResult(null);
+    setImportLiveStatus(null);
     const file = event.target.files?.[0];
     if (!file) return;
     try {
       setImportStatus(copy.cogita.library.overview.importing);
       setImportProgress({ loadedBytes: 0, totalBytes: file.size, percent: 0 });
-      await importCogitaLibraryStream(libraryId, file, setImportProgress);
+      const result = await importCogitaLibraryStream(libraryId, file, setImportProgress, (progress: CogitaImportProgress) => {
+        const stageLabel = progress.stage === 'infos'
+          ? copy.cogita.library.overview.importStageInfos
+          : progress.stage === 'connections'
+            ? copy.cogita.library.overview.importStageConnections
+            : copy.cogita.library.overview.importStageCollections;
+        setImportLiveStatus(
+          copy.cogita.library.overview.importLiveProgress
+            .replace('{stage}', stageLabel)
+            .replace('{done}', String(progress.processed))
+            .replace('{total}', String(progress.total))
+            .replace('{infos}', String(progress.infos))
+            .replace('{connections}', String(progress.connections))
+            .replace('{collections}', String(progress.collections))
+        );
+      });
+      setImportResult({
+        infos: result.infosImported,
+        connections: result.connectionsImported,
+        collections: result.collectionsImported
+      });
       setImportStatus(copy.cogita.library.overview.importDone);
     } catch {
       setImportStatus(copy.cogita.library.overview.importFail);
@@ -269,6 +294,18 @@ export function CogitaLibraryOverviewPage({
                     ) : null}
                     {exportStatus ? <p className="cogita-help">{exportStatus}</p> : null}
                     {importStatus ? <p className="cogita-help">{importStatus}</p> : null}
+                    {importLiveStatus ? <p className="cogita-help">{importLiveStatus}</p> : null}
+                    {importResult ? (
+                      <p className="cogita-help">
+                        {copy.cogita.library.overview.importSummary.replace(
+                          '{infos}',
+                          String(importResult.infos)
+                        ).replace('{connections}', String(importResult.connections)).replace(
+                          '{collections}',
+                          String(importResult.collections)
+                        )}
+                      </p>
+                    ) : null}
                   </div>
                 </section>
               </div>

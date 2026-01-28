@@ -15,6 +15,7 @@ import type { Copy } from '../../../../content/types';
 export type ComputedGraphNodePayload = {
   id: string;
   type: string;
+  name?: string;
   min?: number;
   max?: number;
   value?: number;
@@ -24,6 +25,7 @@ export type ComputedGraphNodePayload = {
 export type ComputedGraphDefinition = {
   nodes: ComputedGraphNodePayload[];
   output?: string | null;
+  outputs?: string[];
 };
 
 type ComputedGraphEditorProps = {
@@ -37,25 +39,25 @@ const defaultNodes: Node[] = [
     id: 'a',
     type: 'default',
     position: { x: 40, y: 40 },
-    data: { label: 'A (random)', type: 'input.random', min: 1, max: 10 }
+    data: { label: 'A (random)', type: 'input.random', min: 1, max: 10, name: 'a' }
   },
   {
     id: 'b',
     type: 'default',
     position: { x: 40, y: 140 },
-    data: { label: 'B (random)', type: 'input.random', min: 1, max: 10 }
+    data: { label: 'B (random)', type: 'input.random', min: 1, max: 10, name: 'b' }
   },
   {
     id: 'sum',
     type: 'default',
     position: { x: 280, y: 90 },
-    data: { label: 'Add', type: 'compute.add' }
+    data: { label: 'Add', type: 'compute.add', name: 'sum' }
   },
   {
     id: 'out',
     type: 'default',
     position: { x: 520, y: 90 },
-    data: { label: 'Output', type: 'output' }
+    data: { label: 'Output', type: 'output', name: 'result' }
   }
 ];
 
@@ -73,8 +75,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       type: 'default',
       position: { x: 40 + index * 160, y: 60 + (index % 3) * 80 },
       data: {
-        label: node.type,
+        label: node.name || node.type,
         type: node.type,
+        name: node.name,
         min: node.min,
         max: node.max,
         value: node.value
@@ -84,9 +87,13 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [nameWarning, setNameWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    setNameWarning(null);
+  }, [selectedNode]);
+
+  useEffect(() => {
     const inputsByNode = new Map<string, string[]>();
     edges.forEach((edge) => {
       if (!inputsByNode.has(edge.target)) {
@@ -95,16 +102,21 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       inputsByNode.get(edge.target)!.push(edge.source);
     });
 
+    const outputs = nodes
+      .filter((node) => node.data?.type === 'output')
+      .map((node) => node.id);
     const definition: ComputedGraphDefinition = {
       nodes: nodes.map((node) => ({
         id: node.id,
         type: node.data?.type ?? 'compute.add',
+        name: node.data?.name,
         min: node.data?.min,
         max: node.data?.max,
         value: node.data?.value,
         inputs: inputsByNode.get(node.id)
       })),
-      output: nodes.find((node) => node.data?.type === 'output')?.id ?? null
+      output: outputs[0] ?? null,
+      outputs
     };
     onChange(definition);
   }, [nodes, edges, onChange]);
@@ -127,8 +139,22 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     ]);
   };
 
-  const updateSelectedNode = (updates: Partial<{ type: string; min: number; max: number; value: number }>) => {
+  const updateSelectedNode = (updates: Partial<{ type: string; name: string; min: number; max: number; value: number }>) => {
     if (!selectedNode) return;
+    if (updates.name !== undefined) {
+      const trimmed = updates.name.trim();
+      if (!trimmed) {
+        setNameWarning(null);
+      } else {
+        const collision = nodes.find(
+          (node) =>
+            node.id !== selectedNode.id &&
+            node.data?.name &&
+            node.data.name.trim().toLowerCase() === trimmed.toLowerCase()
+        );
+        setNameWarning(collision ? copy.cogita.library.graph.duplicateName : null);
+      }
+    }
     setNodes((prev) =>
       prev.map((node) =>
         node.id === selectedNode.id
@@ -137,12 +163,24 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
               data: {
                 ...node.data,
                 ...updates,
-                label: updates.type ? updates.type.replace('.', ' ') : node.data?.label
+                label: updates.name
+                  ? updates.name
+                  : updates.type
+                    ? updates.type.replace('.', ' ')
+                    : node.data?.label
               }
             }
           : node
       )
     );
+  };
+
+  const deleteSelectedNode = () => {
+    if (!selectedNode) return;
+    setNodes((prev) => prev.filter((node) => node.id !== selectedNode.id));
+    setEdges((prev) => prev.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id));
+    setSelectedNode(null);
+    setNameWarning(null);
   };
 
   return (
@@ -193,6 +231,16 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           {selectedNode ? (
             <div className="cogita-graph-inspector">
               <label className="cogita-field">
+                <span>{copy.cogita.library.graph.nameLabel}</span>
+                <input
+                  type="text"
+                  value={selectedNode.data?.name ?? ''}
+                  placeholder={copy.cogita.library.graph.namePlaceholder}
+                  onChange={(event) => updateSelectedNode({ name: event.target.value })}
+                />
+                {nameWarning ? <em className="cogita-help">{nameWarning}</em> : null}
+              </label>
+              <label className="cogita-field">
                 <span>Type</span>
                 <select
                   value={selectedNode.data?.type ?? 'compute.add'}
@@ -237,6 +285,11 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
                   />
                 </label>
               )}
+              <div className="cogita-form-actions">
+                <button type="button" className="ghost" onClick={deleteSelectedNode}>
+                  {copy.cogita.library.graph.deleteNode}
+                </button>
+              </div>
             </div>
           ) : (
             <p className="cogita-help">{copy.cogita.library.graph.emptyInspector}</p>

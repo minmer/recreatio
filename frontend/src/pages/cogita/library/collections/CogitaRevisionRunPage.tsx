@@ -75,6 +75,8 @@ export function CogitaRevisionRunPage({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
+  const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
+  const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedValues, setComputedValues] = useState<Record<string, number> | null>(null);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
 
@@ -137,6 +139,8 @@ export function CogitaRevisionRunPage({
   useEffect(() => {
     setAnswer('');
     setFeedback(null);
+    setComputedExpected([]);
+    setComputedAnswers({});
     if (!currentCard) {
       setPrompt(null);
       setExpectedAnswer(null);
@@ -168,12 +172,28 @@ export function CogitaRevisionRunPage({
       setPrompt(copy.cogita.library.revision.loadingComputed);
       setExpectedAnswer(null);
       setComputedValues(null);
+      setComputedExpected([]);
+      setComputedAnswers({});
       let mounted = true;
       getCogitaComputedSample({ libraryId, infoId: currentCard.cardId })
         .then((sample) => {
           if (!mounted) return;
           setPrompt(sample.prompt);
-          setExpectedAnswer(sample.expectedAnswer || null);
+          const expectedEntries = sample.expectedAnswers
+            ? Object.entries(sample.expectedAnswers).map(([key, value]) => ({ key, expected: value }))
+            : [];
+          if (expectedEntries.length > 0) {
+            setComputedExpected(expectedEntries);
+            setComputedAnswers(
+              expectedEntries.reduce<Record<string, string>>((acc, entry) => {
+                acc[entry.key] = '';
+                return acc;
+              }, {})
+            );
+            setExpectedAnswer(null);
+          } else {
+            setExpectedAnswer(sample.expectedAnswer || null);
+          }
           setComputedValues(sample.values ?? null);
         })
         .catch(() => {
@@ -230,16 +250,34 @@ export function CogitaRevisionRunPage({
     return buffer;
   };
 
-  const submitReview = (correct: boolean, answerValue: string, expectedValue: string | null, direction: string | null) => {
-    if (!currentCard || !expectedValue) return;
-    const mask = buildMask(expectedValue, answerValue);
+  const submitReview = (options: {
+    correct: boolean;
+    direction: string | null;
+    expected?: string | null;
+    answer?: string;
+    expectedMap?: Record<string, string>;
+    answerMap?: Record<string, string>;
+  }) => {
+    if (!currentCard) return;
+    const expectedValue = options.expected ?? null;
+    const answerValue = options.answer ?? '';
+    let maskValue = expectedValue ?? '';
+    let maskAnswer = answerValue;
+    if (!expectedValue && options.expectedMap && options.answerMap) {
+      const keys = Object.keys(options.expectedMap).sort((a, b) => a.localeCompare(b));
+      maskValue = keys.map((key) => options.expectedMap?.[key] ?? '').join('|');
+      maskAnswer = keys.map((key) => options.answerMap?.[key] ?? '').join('|');
+    }
+    const mask = maskValue ? buildMask(maskValue, maskAnswer) : new Uint8Array();
     const payload = {
-      direction,
+      direction: options.direction,
       prompt: prompt ?? '',
       expected: expectedValue,
       answer: answerValue,
-      correct,
-      maskBase64: toBase64(mask),
+      expectedAnswers: options.expectedMap ?? null,
+      answers: options.answerMap ?? null,
+      correct: options.correct,
+      maskBase64: mask.length ? toBase64(mask) : null,
       values: computedValues ?? null
     };
     const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
@@ -247,22 +285,63 @@ export function CogitaRevisionRunPage({
       libraryId,
       itemType: currentCard.cardType === 'info' ? 'info' : 'connection',
       itemId: currentCard.cardId,
-      direction,
+      direction: options.direction,
       payloadBase64: toBase64(payloadBytes),
       personRoleId: reviewer
     });
   };
 
   const handleCheckAnswer = () => {
+    if (computedExpected.length > 0) {
+      const allCorrect = computedExpected.every(({ key, expected }) => {
+        const actual = computedAnswers[key] ?? '';
+        return check === 'exact' && normalizeAnswer(actual) === normalizeAnswer(expected);
+      });
+      if (allCorrect) {
+        setFeedback('correct');
+        submitReview({
+          correct: true,
+          direction: prompt ? `${prompt} -> computed` : 'computed',
+          expectedMap: computedExpected.reduce<Record<string, string>>((acc, entry) => {
+            acc[entry.key] = entry.expected;
+            return acc;
+          }, {}),
+          answerMap: computedAnswers
+        });
+        window.setTimeout(() => advanceCard(), 650);
+      } else {
+        setFeedback('incorrect');
+        submitReview({
+          correct: false,
+          direction: prompt ? `${prompt} -> computed` : 'computed',
+          expectedMap: computedExpected.reduce<Record<string, string>>((acc, entry) => {
+            acc[entry.key] = entry.expected;
+            return acc;
+          }, {}),
+          answerMap: computedAnswers
+        });
+      }
+      return;
+    }
     if (!expectedAnswer) return;
     const isCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
-      submitReview(true, answer, expectedAnswer, prompt ? `${prompt} -> ${expectedAnswer}` : null);
+      submitReview({
+        correct: true,
+        direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
+        expected: expectedAnswer,
+        answer
+      });
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
-      submitReview(false, answer, expectedAnswer, prompt ? `${prompt} -> ${expectedAnswer}` : null);
+      submitReview({
+        correct: false,
+        direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
+        expected: expectedAnswer,
+        answer
+      });
     }
   };
 
@@ -271,18 +350,18 @@ export function CogitaRevisionRunPage({
     const isCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
-      submitReview(true, label, expectedAnswer, `word->language`);
+      submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label });
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
-      submitReview(false, label, expectedAnswer, `word->language`);
+      submitReview({ correct: false, direction: `word->language`, expected: expectedAnswer, answer: label });
     }
   };
 
   const handleMarkReviewed = () => {
     setFeedback('correct');
     if (expectedAnswer) {
-      submitReview(true, answer, expectedAnswer, 'manual');
+      submitReview({ correct: true, direction: 'manual', expected: expectedAnswer, answer });
     }
     window.setTimeout(() => advanceCard(), 450);
   };
@@ -401,6 +480,49 @@ export function CogitaRevisionRunPage({
                           }}
                         />
                       </label>
+                      <div className="cogita-form-actions">
+                        <button type="button" className="cta" onClick={handleCheckAnswer}>
+                          {copy.cogita.library.revision.checkAnswer}
+                        </button>
+                        <button type="button" className="ghost" onClick={advanceCard}>
+                          {copy.cogita.library.revision.skip}
+                        </button>
+                      </div>
+                    </div>
+                  ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
+                    <div className="cogita-revision-body">
+                      <h2>{prompt}</h2>
+                      <div className="cogita-form-grid">
+                        {computedExpected.length > 0 ? (
+                          computedExpected.map((entry) => (
+                            <label key={entry.key} className="cogita-field">
+                              <span>{entry.key}</span>
+                              <input
+                                value={computedAnswers[entry.key] ?? ''}
+                                onChange={(event) =>
+                                  setComputedAnswers((prev) => ({ ...prev, [entry.key]: event.target.value }))
+                                }
+                                placeholder={copy.cogita.library.revision.answerPlaceholder}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') handleCheckAnswer();
+                                }}
+                              />
+                            </label>
+                          ))
+                        ) : (
+                          <label className="cogita-field">
+                            <span>{copy.cogita.library.revision.answerLabel}</span>
+                            <input
+                              value={answer}
+                              onChange={(event) => setAnswer(event.target.value)}
+                              placeholder={copy.cogita.library.revision.answerPlaceholder}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') handleCheckAnswer();
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
                       <div className="cogita-form-actions">
                         <button type="button" className="cta" onClick={handleCheckAnswer}>
                           {copy.cogita.library.revision.checkAnswer}

@@ -183,6 +183,7 @@ public sealed record CogitaReviewerResponse(
 public sealed record CogitaComputedSampleResponse(
     string Prompt,
     string ExpectedAnswer,
+    Dictionary<string, string> ExpectedAnswers,
     Dictionary<string, double> Values
 );
 

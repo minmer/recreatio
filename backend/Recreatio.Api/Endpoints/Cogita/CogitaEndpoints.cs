@@ -3676,6 +3676,322 @@ public static class CogitaEndpoints
             ));
         });
 
+        group.MapPost("/libraries/{libraryId:guid}/import/stream", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            CogitaLibraryImportRequest? request;
+            try
+            {
+                request = await JsonSerializer.DeserializeAsync<CogitaLibraryImportRequest>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
+                    ct);
+            }
+            catch (JsonException)
+            {
+                return Results.BadRequest(new { error = "Invalid import payload." });
+            }
+
+            if (request is null)
+            {
+                return Results.BadRequest(new { error = "Import payload is empty." });
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetWriteKey(library.RoleId, out var writeKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            context.Response.Headers.CacheControl = "no-cache";
+            context.Response.Headers.Pragma = "no-cache";
+            context.Response.Headers["X-Accel-Buffering"] = "no";
+            context.Response.ContentType = "text/plain; charset=utf-8";
+
+            await using var writer = new StreamWriter(context.Response.Body, leaveOpen: true);
+            async Task WriteProgressAsync(string stage, int processed, int total, int infos, int connections, int collections)
+            {
+                var payload = JsonSerializer.Serialize(new
+                {
+                    stage,
+                    processed,
+                    total,
+                    infos,
+                    connections,
+                    collections
+                });
+                await writer.WriteLineAsync($"progress {payload}");
+                await writer.FlushAsync();
+            }
+
+            var infoMap = new Dictionary<Guid, Guid>();
+            var connectionMap = new Dictionary<Guid, Guid>();
+            var infoKeyMap = new Dictionary<string, Guid>();
+            var connectionKeyMap = new Dictionary<string, Guid>();
+            var importBatchSize = 200;
+            var previousDetectChanges = dbContext.ChangeTracker.AutoDetectChangesEnabled;
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+
+            try
+            {
+                foreach (var infoType in request.Infos.Select(x => x.InfoType.Trim().ToLowerInvariant()).Distinct())
+                {
+                    if (!SupportedInfoTypes.Contains(infoType))
+                    {
+                        continue;
+                    }
+
+                    var keyResult = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        null,
+                        $"info:{infoType}",
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    infoKeyMap[infoType] = keyResult.DataKeyId;
+                }
+
+                foreach (var connectionType in request.Connections.Select(x => x.ConnectionType.Trim().ToLowerInvariant()).Distinct())
+                {
+                    if (!SupportedConnectionTypes.Contains(connectionType))
+                    {
+                        continue;
+                    }
+
+                    var keyResult = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        null,
+                        $"connection:{connectionType}",
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    connectionKeyMap[connectionType] = keyResult.DataKeyId;
+                }
+
+                if (infoKeyMap.Count > 0 || connectionKeyMap.Count > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                }
+
+                var totalInfos = request.Infos.Count;
+                var totalConnections = request.Connections.Count;
+                var totalCollections = request.Collections.Count;
+                var pendingInfos = 0;
+                var processedInfos = 0;
+                foreach (var info in request.Infos)
+                {
+                    var infoType = info.InfoType.Trim().ToLowerInvariant();
+                    if (!SupportedInfoTypes.Contains(infoType))
+                    {
+                        processedInfos++;
+                        continue;
+                    }
+
+                    infoKeyMap.TryGetValue(infoType, out var infoKeyId);
+                    var created = await CreateInfoInternalAsync(
+                        library,
+                        new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    infoMap[info.InfoId] = created.InfoId;
+                    pendingInfos++;
+                    processedInfos++;
+                    if (pendingInfos >= importBatchSize)
+                    {
+                        await dbContext.SaveChangesAsync(ct);
+                        dbContext.ChangeTracker.Clear();
+                        pendingInfos = 0;
+                        await WriteProgressAsync("infos", processedInfos, totalInfos, infoMap.Count, connectionMap.Count, 0);
+                    }
+                }
+
+                if (pendingInfos > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                    await WriteProgressAsync("infos", processedInfos, totalInfos, infoMap.Count, connectionMap.Count, 0);
+                }
+
+                var pendingConnections = 0;
+                var processedConnections = 0;
+                foreach (var connection in request.Connections)
+                {
+                    var connectionType = connection.ConnectionType.Trim().ToLowerInvariant();
+                    if (!SupportedConnectionTypes.Contains(connectionType))
+                    {
+                        processedConnections++;
+                        continue;
+                    }
+                    var mappedIds = connection.InfoIds
+                        .Where(id => infoMap.ContainsKey(id))
+                        .Select(id => infoMap[id])
+                        .ToList();
+                    if (mappedIds.Count == 0)
+                    {
+                        processedConnections++;
+                        continue;
+                    }
+
+                    connectionKeyMap.TryGetValue(connectionType, out var connectionKeyId);
+                    var created = await CreateConnectionInternalAsync(
+                        library,
+                        new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    connectionMap[connection.ConnectionId] = created.ConnectionId;
+                    pendingConnections++;
+                    processedConnections++;
+                    if (pendingConnections >= importBatchSize)
+                    {
+                        await dbContext.SaveChangesAsync(ct);
+                        dbContext.ChangeTracker.Clear();
+                        pendingConnections = 0;
+                        await WriteProgressAsync("connections", processedConnections, totalConnections, infoMap.Count, connectionMap.Count, 0);
+                    }
+                }
+
+                if (pendingConnections > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                    await WriteProgressAsync("connections", processedConnections, totalConnections, infoMap.Count, connectionMap.Count, 0);
+                }
+
+                var pendingCollections = 0;
+                var processedCollections = 0;
+                foreach (var collection in request.Collections)
+                {
+                    if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
+                    {
+                        processedCollections++;
+                        continue;
+                    }
+
+                    foreach (var item in collection.Items.OrderBy(x => x.SortOrder))
+                    {
+                        Guid mappedId;
+                        if (item.ItemType == "info")
+                        {
+                            if (!infoMap.TryGetValue(item.ItemId, out mappedId))
+                            {
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            if (!connectionMap.TryGetValue(item.ItemId, out mappedId))
+                            {
+                                continue;
+                            }
+                        }
+
+                        dbContext.CogitaCollectionItems.Add(new CogitaCollectionItem
+                        {
+                            Id = Guid.NewGuid(),
+                            CollectionInfoId = collectionInfoId,
+                            ItemType = item.ItemType,
+                            ItemId = mappedId,
+                            SortOrder = item.SortOrder,
+                            CreatedUtc = DateTimeOffset.UtcNow
+                        });
+                        pendingCollections++;
+                        if (pendingCollections >= importBatchSize)
+                        {
+                            await dbContext.SaveChangesAsync(ct);
+                            dbContext.ChangeTracker.Clear();
+                            pendingCollections = 0;
+                        }
+                    }
+
+                    processedCollections++;
+                    if (processedCollections % Math.Max(1, importBatchSize / 5) == 0)
+                    {
+                        await WriteProgressAsync("collections", processedCollections, totalCollections, infoMap.Count, connectionMap.Count, processedCollections);
+                    }
+                }
+
+                if (pendingCollections > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                }
+
+                await WriteProgressAsync("collections", totalCollections, totalCollections, infoMap.Count, connectionMap.Count, processedCollections);
+            }
+            finally
+            {
+                dbContext.ChangeTracker.AutoDetectChangesEnabled = previousDetectChanges;
+            }
+
+            var response = new CogitaLibraryImportResponse(
+                infoMap.Count,
+                connectionMap.Count,
+                request.Collections.Count
+            );
+            await writer.WriteLineAsync($"done {JsonSerializer.Serialize(response)}");
+            await writer.FlushAsync();
+            return Results.Empty;
+        });
+
         group.MapPost("/libraries/{libraryId:guid}/infos", async (
             Guid libraryId,
             CogitaCreateInfoRequest request,
@@ -4751,6 +5067,7 @@ public static class CogitaEndpoints
     private sealed record ComputedGraphResult(
         string Prompt,
         string ExpectedAnswer,
+        Dictionary<string, string> ExpectedAnswers,
         Dictionary<string, double> Values
     );
 
@@ -4901,18 +5218,19 @@ public static class CogitaEndpoints
 
         if (graphResult is not null)
         {
-            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.Values);
+            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.ExpectedAnswers, graphResult.Values);
         }
 
         var fallbackLabel = payload.TryGetProperty("label", out var labelEl) && labelEl.ValueKind == JsonValueKind.String
             ? labelEl.GetString() ?? "Computed"
             : "Computed";
-        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, values);
+        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, new Dictionary<string, string>(), values);
     }
 
     private static ComputedGraphResult EvaluateComputedGraph(JsonElement graphElement, string promptTemplate)
     {
         var nodes = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        var nodeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (graphElement.TryGetProperty("nodes", out var nodesElement) && nodesElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var node in nodesElement.EnumerateArray())
@@ -4923,16 +5241,58 @@ public static class CogitaEndpoints
                     if (!string.IsNullOrWhiteSpace(nodeId))
                     {
                         nodes[nodeId] = node;
+                        if (node.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                        {
+                            var name = nameEl.GetString();
+                            if (!string.IsNullOrWhiteSpace(name))
+                            {
+                                nodeNames[nodeId] = name;
+                            }
+                        }
                     }
                 }
             }
         }
 
-        var outputNodeId = graphElement.TryGetProperty("output", out var outputEl) && outputEl.ValueKind == JsonValueKind.String
-            ? outputEl.GetString()
-            : graphElement.TryGetProperty("outputNodeId", out var outputIdEl) && outputIdEl.ValueKind == JsonValueKind.String
-                ? outputIdEl.GetString()
-                : nodes.Keys.LastOrDefault();
+        var outputIds = new List<string>();
+        if (graphElement.TryGetProperty("outputs", out var outputsEl) && outputsEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in outputsEl.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var id = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(id))
+                    {
+                        outputIds.Add(id);
+                    }
+                }
+            }
+        }
+        if (outputIds.Count == 0)
+        {
+            var outputNodeId = graphElement.TryGetProperty("output", out var outputEl) && outputEl.ValueKind == JsonValueKind.String
+                ? outputEl.GetString()
+                : graphElement.TryGetProperty("outputNodeId", out var outputIdEl) && outputIdEl.ValueKind == JsonValueKind.String
+                    ? outputIdEl.GetString()
+                    : null;
+            if (!string.IsNullOrWhiteSpace(outputNodeId))
+            {
+                outputIds.Add(outputNodeId!);
+            }
+        }
+        if (outputIds.Count == 0)
+        {
+            foreach (var pair in nodes)
+            {
+                if (pair.Value.TryGetProperty("type", out var typeEl) &&
+                    typeEl.ValueKind == JsonValueKind.String &&
+                    typeEl.GetString()?.Equals("output", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    outputIds.Add(pair.Key);
+                }
+            }
+        }
 
         var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -5000,27 +5360,45 @@ public static class CogitaEndpoints
             return result;
         }
 
-        if (!string.IsNullOrWhiteSpace(outputNodeId))
+        foreach (var outputId in outputIds)
         {
-            EvaluateNode(outputNodeId);
+            if (!string.IsNullOrWhiteSpace(outputId))
+            {
+                EvaluateNode(outputId);
+            }
         }
 
         var prompt = promptTemplate;
         if (string.IsNullOrWhiteSpace(prompt))
         {
-            prompt = outputNodeId is null ? "Compute" : $"Compute {outputNodeId}";
+            prompt = outputIds.Count == 0 ? "Compute" : $"Compute {string.Join(", ", outputIds)}";
         }
 
         foreach (var pair in values)
         {
             prompt = prompt.Replace($"{{{pair.Key}}}", FormatNumber(pair.Value), StringComparison.OrdinalIgnoreCase);
+            if (nodeNames.TryGetValue(pair.Key, out var name))
+            {
+                prompt = prompt.Replace($"{{{name}}}", FormatNumber(pair.Value), StringComparison.OrdinalIgnoreCase);
+            }
         }
 
-        var expected = outputNodeId is not null && values.TryGetValue(outputNodeId, out var outputValue)
-            ? FormatNumber(outputValue)
+        var expectedAnswers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var outputId in outputIds)
+        {
+            if (string.IsNullOrWhiteSpace(outputId)) continue;
+            if (!values.TryGetValue(outputId, out var outputValue)) continue;
+            var key = nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
+                ? name
+                : outputId;
+            expectedAnswers[key] = FormatNumber(outputValue);
+        }
+
+        var expected = outputIds.Count > 0 && values.TryGetValue(outputIds[0], out var primaryValue)
+            ? FormatNumber(primaryValue)
             : string.Empty;
 
-        return new ComputedGraphResult(prompt, expected, values);
+        return new ComputedGraphResult(prompt, expected, expectedAnswers, values);
     }
 
     private static List<string> GetNodeInputs(JsonElement node)

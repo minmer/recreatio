@@ -417,8 +417,7 @@ export function CogitaLibraryAddPage({
                     <>
                       <label className="cogita-field full">
                         <span>{copy.cogita.library.add.info.computedLabel}</span>
-                        <input
-                          type="text"
+                        <textarea
                           value={computedPrompt}
                           onChange={(event) => setComputedPrompt(event.target.value)}
                           placeholder={copy.cogita.library.add.info.computedPlaceholder}

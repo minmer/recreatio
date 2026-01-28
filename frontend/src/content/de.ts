@@ -457,6 +457,15 @@ export const de: Copy = {
           collections: 'Sammlungen',
           currentCollection: 'Aktuelle Sammlung'
         },
+        groups: {
+          libraryOverview: 'Übersicht',
+          libraryGraph: 'Graphen',
+          cardsBrowse: 'Durchsuchen',
+          cardsAdd: 'Hinzufügen',
+          collectionsManage: 'Verwalten',
+          currentOverview: 'Übersicht',
+          currentRevision: 'Wiederholung'
+        },
         items: {
           overview: 'Übersicht',
           list: 'Karten durchsuchen',
@@ -543,6 +552,11 @@ export const de: Copy = {
         exportReady: 'Export bereit.',
         exportFail: 'Export fehlgeschlagen.',
         importDone: 'Import abgeschlossen.',
+        importStageInfos: 'Infos',
+        importStageConnections: 'Verknüpfungen',
+        importStageCollections: 'Sammlungen',
+        importLiveProgress: '{stage}: {done}/{total} (Infos {infos}, Verknüpfungen {connections}, Sammlungen {collections})',
+        importSummary: 'Importiert: {infos} Infos, {connections} Verknüpfungen, {collections} Sammlungen.',
         importFail: 'Import fehlgeschlagen.'
       },
       list: {
@@ -748,6 +762,10 @@ export const de: Copy = {
         previewLabel: '{total} passende Karten',
         previewBreakdown: '{connections} Verknüpfungen · {infos} Infos',
         emptyInspector: 'Wähle einen Knoten, um Parameter zu bearbeiten.',
+        nameLabel: 'Variablenname',
+        namePlaceholder: 'z. B. resultat',
+        duplicateName: 'Name bereits vergeben. Bitte einen eindeutigen wählen.',
+        deleteNode: 'Knoten löschen',
         noParams: 'Dieser Knoten hat keine Parameter.',
         tagLabel: 'Tag',
         tagPlaceholder: 'Tag suchen',

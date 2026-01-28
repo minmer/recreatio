@@ -457,6 +457,15 @@ export const en: Copy = {
           collections: 'Collections',
           currentCollection: 'Current collection'
         },
+        groups: {
+          libraryOverview: 'Overview',
+          libraryGraph: 'Graphs',
+          cardsBrowse: 'Browse',
+          cardsAdd: 'Add',
+          collectionsManage: 'Manage',
+          currentOverview: 'Overview',
+          currentRevision: 'Revision'
+        },
         items: {
           overview: 'Overview',
           list: 'Browse cards',
@@ -543,6 +552,11 @@ export const en: Copy = {
         exportReady: 'Export ready.',
         exportFail: 'Export failed.',
         importDone: 'Import finished.',
+        importStageInfos: 'Infos',
+        importStageConnections: 'Connections',
+        importStageCollections: 'Collections',
+        importLiveProgress: '{stage}: {done}/{total} (infos {infos}, connections {connections}, collections {collections})',
+        importSummary: 'Imported {infos} infos, {connections} connections, {collections} collections.',
         importFail: 'Import failed.'
       },
       list: {
@@ -748,6 +762,10 @@ export const en: Copy = {
         previewLabel: '{total} cards matched',
         previewBreakdown: '{connections} connections · {infos} infos',
         emptyInspector: 'Select a node to edit its parameters.',
+        nameLabel: 'Variable name',
+        namePlaceholder: 'e.g. result',
+        duplicateName: 'Name already used. Choose a unique variable.',
+        deleteNode: 'Delete node',
         noParams: 'No parameters for this node.',
         tagLabel: 'Tag',
         tagPlaceholder: 'Search tag',

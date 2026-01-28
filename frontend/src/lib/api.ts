@@ -626,6 +626,7 @@ export type CogitaReviewSummary = {
 export type CogitaComputedSample = {
   prompt: string;
   expectedAnswer: string;
+  expectedAnswers?: Record<string, string>;
   values: Record<string, number>;
 };
 
@@ -1022,6 +1023,17 @@ export type TransferProgress = {
   percent?: number | null;
 };
 
+export type CogitaImportStage = 'infos' | 'connections' | 'collections';
+
+export type CogitaImportProgress = {
+  stage: CogitaImportStage;
+  processed: number;
+  total: number;
+  infos: number;
+  connections: number;
+  collections: number;
+};
+
 function reportTransferProgress(
   handler: ((progress: TransferProgress) => void) | undefined,
   loadedBytes: number,
@@ -1079,13 +1091,14 @@ export async function exportCogitaLibraryStream(
 export function importCogitaLibraryStream(
   libraryId: string,
   file: Blob,
-  onProgress?: (progress: TransferProgress) => void
+  onProgress?: (progress: TransferProgress) => void,
+  onStageProgress?: (progress: CogitaImportProgress) => void
 ) {
   const csrfToken = getCsrfToken();
   return new Promise<CogitaLibraryImportResponse>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${apiBase}/cogita/libraries/${libraryId}/import`);
-    xhr.responseType = 'json';
+    xhr.open('POST', `${apiBase}/cogita/libraries/${libraryId}/import/stream`);
+    xhr.responseType = 'text';
     xhr.withCredentials = true;
     xhr.setRequestHeader('Content-Type', 'application/json');
     if (csrfToken) {
@@ -1100,10 +1113,54 @@ export function importCogitaLibraryStream(
       reportTransferProgress(onProgress, event.loaded, event.total);
     };
 
+    let responseCursor = 0;
+    const handleStreamText = (text: string) => {
+      const chunk = text.slice(responseCursor);
+      responseCursor = text.length;
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (trimmed.startsWith('progress ')) {
+          try {
+            const payload = JSON.parse(trimmed.replace('progress ', '')) as CogitaImportProgress;
+            onStageProgress?.(payload);
+          } catch {
+            // ignore malformed progress payloads
+          }
+        } else if (trimmed.startsWith('done ')) {
+          try {
+            const payload = JSON.parse(trimmed.replace('done ', '')) as CogitaLibraryImportResponse;
+            resolve(payload);
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error('Import parsing failed'));
+          }
+        }
+      }
+    };
+
+    xhr.onprogress = () => {
+      if (typeof xhr.responseText === 'string') {
+        handleStreamText(xhr.responseText);
+      }
+    };
+
     xhr.onload = () => {
+      if (typeof xhr.responseText === 'string') {
+        handleStreamText(xhr.responseText);
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.response as CogitaLibraryImportResponse);
-        return;
+        if (typeof xhr.responseText === 'string' && xhr.responseText.includes('done ')) {
+          return;
+        }
+        try {
+          const fallback = JSON.parse(xhr.responseText || '{}') as CogitaLibraryImportResponse;
+          resolve(fallback);
+          return;
+        } catch {
+          resolve({ infosImported: 0, connectionsImported: 0, collectionsImported: 0 });
+          return;
+        }
       }
       const message =
         typeof xhr.response === 'string'

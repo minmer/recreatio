@@ -12,12 +12,22 @@ type CogitaLibrarySidebarProps = {
       collections: string;
       currentCollection: string;
     };
+    groups: {
+      libraryOverview: string;
+      libraryGraph: string;
+      cardsBrowse: string;
+      cardsAdd: string;
+      collectionsManage: string;
+      currentOverview: string;
+      currentRevision: string;
+    };
     items: {
       overview: string;
+      dependencies: string;
       list: string;
       add: string;
-      collections: string;
       createCollection: string;
+      collections: string;
       collectionDetail: string;
       collectionGraph: string;
       revisionSettings: string;
@@ -27,7 +37,8 @@ type CogitaLibrarySidebarProps = {
 };
 
 type SidebarItem = { label: string; href: string };
-type SidebarSection = { key: string; title: string; items: SidebarItem[] };
+type SidebarGroup = { key: string; title: string; items: SidebarItem[] };
+type SidebarSection = { key: string; title: string; groups: SidebarGroup[] };
 
 const buildSections = (libraryId: string, collectionId: string | undefined, labels: CogitaLibrarySidebarProps['labels']) => {
   const base = `/#/cogita/library/${libraryId}`;
@@ -35,25 +46,47 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
     {
       key: 'library',
       title: labels.sections.library,
-      items: [
-        { label: labels.items.overview, href: base },
-        { label: labels.items.dependencies, href: `${base}/dependencies` }
+      groups: [
+        {
+          key: 'libraryOverview',
+          title: labels.groups.libraryOverview,
+          items: [{ label: labels.items.overview, href: base }]
+        },
+        {
+          key: 'libraryGraph',
+          title: labels.groups.libraryGraph,
+          items: [{ label: labels.items.dependencies, href: `${base}/dependencies` }]
+        }
       ]
     },
     {
       key: 'cards',
       title: labels.sections.cards,
-      items: [
-        { label: labels.items.list, href: `${base}/list` },
-        { label: labels.items.add, href: `${base}/new` }
+      groups: [
+        {
+          key: 'cardsBrowse',
+          title: labels.groups.cardsBrowse,
+          items: [{ label: labels.items.list, href: `${base}/list` }]
+        },
+        {
+          key: 'cardsAdd',
+          title: labels.groups.cardsAdd,
+          items: [{ label: labels.items.add, href: `${base}/new` }]
+        }
       ]
     },
     {
       key: 'collections',
       title: labels.sections.collections,
-      items: [
-        { label: labels.items.collections, href: `${base}/collections` },
-        { label: labels.items.createCollection, href: `${base}/collections/new` }
+      groups: [
+        {
+          key: 'collectionsManage',
+          title: labels.groups.collectionsManage,
+          items: [
+            { label: labels.items.collections, href: `${base}/collections` },
+            { label: labels.items.createCollection, href: `${base}/collections/new` }
+          ]
+        }
       ]
     }
   ];
@@ -62,11 +95,23 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
     sections.push({
       key: 'currentCollection',
       title: labels.sections.currentCollection,
-      items: [
-        { label: labels.items.collectionDetail, href: `${base}/collections/${collectionId}` },
-        { label: labels.items.collectionGraph, href: `${base}/collections/${collectionId}/graph` },
-        { label: labels.items.revisionSettings, href: `${base}/collections/${collectionId}/revision` },
-        { label: labels.items.revisionRun, href: `${base}/collections/${collectionId}/revision/run` }
+      groups: [
+        {
+          key: 'currentOverview',
+          title: labels.groups.currentOverview,
+          items: [
+            { label: labels.items.collectionDetail, href: `${base}/collections/${collectionId}` },
+            { label: labels.items.collectionGraph, href: `${base}/collections/${collectionId}/graph` }
+          ]
+        },
+        {
+          key: 'currentRevision',
+          title: labels.groups.currentRevision,
+          items: [
+            { label: labels.items.revisionSettings, href: `${base}/collections/${collectionId}/revision` },
+            { label: labels.items.revisionRun, href: `${base}/collections/${collectionId}/revision/run` }
+          ]
+        }
       ]
     });
   }
@@ -98,7 +143,7 @@ export function CogitaLibrarySidebar({ libraryId, collectionId, labels }: Cogita
   const initialExpanded = useMemo(() => {
     const expanded: Record<string, boolean> = {};
     sections.forEach((section) => {
-      expanded[section.key] = section.items.some((item) => isActive(item.href));
+      expanded[section.key] = section.groups.some((group) => group.items.some((item) => isActive(item.href)));
     });
     return expanded;
   }, [sections, active, basePath]);
@@ -108,7 +153,7 @@ export function CogitaLibrarySidebar({ libraryId, collectionId, labels }: Cogita
     setExpandedSections((prev) => {
       const next = { ...prev };
       sections.forEach((section) => {
-        if (section.items.some((item) => isActive(item.href))) {
+        if (section.groups.some((group) => group.items.some((item) => isActive(item.href)))) {
           next[section.key] = true;
         }
       });
@@ -136,10 +181,17 @@ export function CogitaLibrarySidebar({ libraryId, collectionId, labels }: Cogita
           </button>
           {expandedSections[section.key] && (
             <div className="cogita-sidebar-links">
-              {section.items.map((item) => (
-                <a key={item.href} href={item.href} data-active={isActive(item.href)}>
-                  {item.label}
-                </a>
+              {section.groups.map((group) => (
+                <div key={group.key} className="cogita-sidebar-subsection">
+                  <p className="cogita-sidebar-subtitle">{group.title}</p>
+                  <div className="cogita-sidebar-sublinks">
+                    {group.items.map((item) => (
+                      <a key={item.href} href={item.href} data-active={isActive(item.href)}>
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

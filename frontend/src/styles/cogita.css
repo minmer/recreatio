@@ -1025,10 +1025,8 @@
 }
 
 .cogita-library-layout {
-  display: grid;
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-  gap: 1.6rem;
-  align-items: start;
+  position: relative;
+  display: block;
   margin-top: 2rem;
 }
 
@@ -1039,16 +1037,19 @@
 }
 
 .cogita-library-sidebar {
-  position: sticky;
-  top: 6.5rem;
-  height: calc(100vh - 8rem);
+  position: fixed;
+  left: 0;
+  top: var(--header-h);
+  bottom: var(--footer-h);
+  width: var(--sidebar-w);
+  height: auto;
   overflow-y: auto;
   align-self: start;
-  background: rgba(7, 18, 32, 0.85);
-  border: 1px solid rgba(120, 170, 220, 0.2);
-  border-radius: 20px;
-  padding: 1.1rem;
-  box-shadow: 0 20px 50px rgba(4, 12, 20, 0.4);
+  background: rgba(7, 18, 32, 0.92);
+  border-right: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 0 22px 22px 0;
+  padding: 1.2rem 1rem;
+  box-shadow: 0 20px 60px rgba(4, 12, 20, 0.55);
 }
 
 .cogita-sidebar-title {
@@ -1106,7 +1107,26 @@
   padding-left: 0.3rem;
 }
 
-.cogita-sidebar-links a {
+.cogita-sidebar-subsection {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cogita-sidebar-subtitle {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(190, 215, 242, 0.75);
+  margin: 0.2rem 0 0.2rem;
+}
+
+.cogita-sidebar-sublinks {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cogita-sidebar-links a,
+.cogita-sidebar-sublinks a {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -1119,7 +1139,8 @@
   background: rgba(9, 22, 38, 0.55);
 }
 
-.cogita-sidebar-links a[data-active='true'] {
+.cogita-sidebar-links a[data-active='true'],
+.cogita-sidebar-sublinks a[data-active='true'] {
   background: rgba(120, 190, 235, 0.22);
   border-color: rgba(140, 200, 245, 0.5);
   color: #f3f7ff;
@@ -1159,7 +1180,22 @@
 }
 
 .cogita-computed-graph {
-  min-height: 420px;
+  min-height: 620px;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr) minmax(260px, 360px);
+}
+
+.cogita-collection-graph-canvas {
+  background: rgba(8, 20, 36, 0.6);
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 18px;
+  min-height: 520px;
+  height: 520px;
+  overflow: hidden;
+}
+
+.cogita-computed-graph .cogita-collection-graph-canvas {
+  min-height: 620px;
+  height: min(72vh, 720px);
 }
 
 .cogita-graph-palette,
@@ -1995,7 +2031,9 @@
 }
 
 .cogita-library-dashboard {
+  --sidebar-w: 280px;
   padding: 3.5rem 6vw 5rem;
+  padding-left: calc(6vw + var(--sidebar-w) + 1.5rem);
   display: grid;
   gap: 2rem;
 }
@@ -2072,11 +2110,15 @@
   .cogita-library-grid {
     grid-template-columns: 1fr;
   }
-  .cogita-library-layout {
-    grid-template-columns: 1fr;
+  .cogita-library-dashboard {
+    padding-left: 6vw;
   }
   .cogita-library-sidebar {
     position: static;
+    width: auto;
+    height: auto;
+    border-radius: 20px;
+    border: 1px solid rgba(120, 170, 220, 0.2);
   }
   .cogita-collection-graph {
     grid-template-columns: 1fr;

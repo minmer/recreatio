@@ -156,16 +156,25 @@ export type Copy = {
           collections: string;
           currentCollection: string;
         };
-      items: {
-        overview: string;
-        list: string;
-        add: string;
-        dependencies: string;
-        collections: string;
-        createCollection: string;
-        collectionDetail: string;
-        collectionGraph: string;
-        revisionSettings: string;
+        groups: {
+          libraryOverview: string;
+          libraryGraph: string;
+          cardsBrowse: string;
+          cardsAdd: string;
+          collectionsManage: string;
+          currentOverview: string;
+          currentRevision: string;
+        };
+        items: {
+          overview: string;
+          dependencies: string;
+          list: string;
+          add: string;
+          collections: string;
+          createCollection: string;
+          collectionDetail: string;
+          collectionGraph: string;
+          revisionSettings: string;
           revisionRun: string;
         };
       };
@@ -243,6 +252,11 @@ export type Copy = {
         exportReady: string;
         exportFail: string;
         importDone: string;
+        importStageInfos: string;
+        importStageConnections: string;
+        importStageCollections: string;
+        importLiveProgress: string;
+        importSummary: string;
         importFail: string;
       };
       list: {
@@ -448,6 +462,10 @@ export type Copy = {
         previewLabel: string;
         previewBreakdown: string;
         emptyInspector: string;
+        nameLabel: string;
+        namePlaceholder: string;
+        duplicateName: string;
+        deleteNode: string;
         noParams: string;
         tagLabel: string;
         tagPlaceholder: string;
