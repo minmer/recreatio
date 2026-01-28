@@ -461,6 +461,7 @@ export const en: Copy = {
           overview: 'Overview',
           list: 'Browse cards',
           add: 'Add new info',
+          dependencies: 'Dependencies graph',
           collections: 'All collections',
           createCollection: 'Create collection',
           collectionDetail: 'Collection detail',
@@ -496,7 +497,8 @@ export const en: Copy = {
         media: 'Media',
         geo: 'Geo',
         musicPiece: 'Music piece',
-        musicFragment: 'Music fragment'
+        musicFragment: 'Music fragment',
+        computed: 'Computed'
       },
       connectionTypes: {
         wordLanguage: 'Word - language',
@@ -599,6 +601,10 @@ export const en: Copy = {
           languagePlaceholder: 'Search or create a language',
           notesLabel: 'Notes',
           notesPlaceholder: 'Description, citation source, or extra metadata',
+          computedLabel: 'Prompt template',
+          computedPlaceholder: 'Example: {a} + {b} = ?',
+          computedRequired: 'A computed graph is required.',
+          computedInvalid: 'Computed definition must be valid JSON.',
           save: 'Save info',
           saved: 'Info saved.',
           failed: 'Failed to save info.'
@@ -699,12 +705,14 @@ export const en: Copy = {
         checkLabel: 'Check',
         checkValue: 'Exact match',
         cardsPerSessionLabel: 'Cards per session',
+        reviewerLabel: 'Reviewer',
         previewTitle: 'Random order, strict answers',
         previewBody1: 'Vocabulary cards will prompt a translation.',
         previewBody2: 'Word cards will ask you to select the correct language.',
         start: 'Start revision',
         progressTitle: 'Progress',
         loading: 'Loading revision cards...',
+        loadingComputed: 'Generating computed card...',
         error: 'Failed to load cards.',
         empty: 'No cards available for revision.',
         completed: 'Revision completed. Great job!',

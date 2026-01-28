@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
+  createCogitaReviewEvent,
   getCogitaCollection,
   getCogitaCollectionCards,
+  getCogitaComputedSample,
+  getCogitaReviewSummary,
   searchCogitaInfos,
   type CogitaCardSearchResult,
   type CogitaInfoSearchResult
 } from '../../../../lib/api';
+import { toBase64 } from '../../../../lib/crypto';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
@@ -58,6 +62,7 @@ export function CogitaRevisionRunPage({
   const limit = Math.max(1, Number(params.get('limit') ?? 20));
   const mode = params.get('mode') ?? 'random';
   const check = params.get('check') ?? 'exact';
+  const reviewer = params.get('reviewer');
   const modeLabel = useMemo(() => (mode === 'random' ? copy.cogita.library.revision.modeValue : mode), [copy, mode]);
   const checkLabel = useMemo(() => (check === 'exact' ? copy.cogita.library.revision.checkValue : check), [copy, check]);
 
@@ -70,6 +75,8 @@ export function CogitaRevisionRunPage({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
+  const [computedValues, setComputedValues] = useState<Record<string, number> | null>(null);
+  const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
 
   const currentCard = queue[currentIndex] ?? null;
   const currentTypeLabel = useMemo(() => {
@@ -133,6 +140,8 @@ export function CogitaRevisionRunPage({
     if (!currentCard) {
       setPrompt(null);
       setExpectedAnswer(null);
+      setComputedValues(null);
+      setReviewSummary(null);
       return;
     }
 
@@ -154,11 +163,55 @@ export function CogitaRevisionRunPage({
         ? currentCard.description.replace('Language: ', '')
         : null;
       setExpectedAnswer(match);
+      setComputedValues(null);
+    } else if (currentCard.cardType === 'info' && currentCard.infoType === 'computed') {
+      setPrompt(copy.cogita.library.revision.loadingComputed);
+      setExpectedAnswer(null);
+      setComputedValues(null);
+      let mounted = true;
+      getCogitaComputedSample({ libraryId, infoId: currentCard.cardId })
+        .then((sample) => {
+          if (!mounted) return;
+          setPrompt(sample.prompt);
+          setExpectedAnswer(sample.expectedAnswer || null);
+          setComputedValues(sample.values ?? null);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setPrompt(currentCard.label);
+          setExpectedAnswer(null);
+        });
+      return () => {
+        mounted = false;
+      };
     } else {
       setPrompt(currentCard.label);
       setExpectedAnswer(null);
+      setComputedValues(null);
     }
   }, [currentCard]);
+
+  useEffect(() => {
+    if (!currentCard) {
+      setReviewSummary(null);
+      return;
+    }
+    getCogitaReviewSummary({
+      libraryId,
+      itemType: currentCard.cardType === 'info' ? 'info' : 'connection',
+      itemId: currentCard.cardId,
+      personRoleId: reviewer
+    })
+      .then((summary) => {
+        setReviewSummary({
+          score: summary.score,
+          total: summary.totalReviews,
+          correct: summary.correctReviews,
+          lastReviewedUtc: summary.lastReviewedUtc ?? null
+        });
+      })
+      .catch(() => setReviewSummary(null));
+  }, [libraryId, currentCard, reviewer]);
 
   const advanceCard = () => {
     setFeedback(null);
@@ -166,14 +219,50 @@ export function CogitaRevisionRunPage({
     setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
   };
 
+  const buildMask = (expected: string, answerValue: string) => {
+    const expectedChars = expected.split('');
+    const answerChars = answerValue.split('');
+    const buffer = new Uint8Array(expectedChars.length);
+    expectedChars.forEach((char, index) => {
+      const match = answerChars[index] ?? '';
+      buffer[index] = char.toLowerCase() === match.toLowerCase() ? 1 : 0;
+    });
+    return buffer;
+  };
+
+  const submitReview = (correct: boolean, answerValue: string, expectedValue: string | null, direction: string | null) => {
+    if (!currentCard || !expectedValue) return;
+    const mask = buildMask(expectedValue, answerValue);
+    const payload = {
+      direction,
+      prompt: prompt ?? '',
+      expected: expectedValue,
+      answer: answerValue,
+      correct,
+      maskBase64: toBase64(mask),
+      values: computedValues ?? null
+    };
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+    void createCogitaReviewEvent({
+      libraryId,
+      itemType: currentCard.cardType === 'info' ? 'info' : 'connection',
+      itemId: currentCard.cardId,
+      direction,
+      payloadBase64: toBase64(payloadBytes),
+      personRoleId: reviewer
+    });
+  };
+
   const handleCheckAnswer = () => {
     if (!expectedAnswer) return;
     const isCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
+      submitReview(true, answer, expectedAnswer, prompt ? `${prompt} -> ${expectedAnswer}` : null);
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
+      submitReview(false, answer, expectedAnswer, prompt ? `${prompt} -> ${expectedAnswer}` : null);
     }
   };
 
@@ -182,14 +271,19 @@ export function CogitaRevisionRunPage({
     const isCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
+      submitReview(true, label, expectedAnswer, `word->language`);
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
+      submitReview(false, label, expectedAnswer, `word->language`);
     }
   };
 
   const handleMarkReviewed = () => {
     setFeedback('correct');
+    if (expectedAnswer) {
+      submitReview(true, answer, expectedAnswer, 'manual');
+    }
     window.setTimeout(() => advanceCard(), 450);
   };
 
@@ -249,6 +343,37 @@ export function CogitaRevisionRunPage({
                     {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
                     {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
                     {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
+                  </div>
+                </section>
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.knownessTitle}</p>
+                      <h3 className="cogita-detail-title">
+                        {reviewSummary ? `${reviewSummary.score.toFixed(1)} / 100` : copy.cogita.library.revision.knownessEmpty}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    {reviewSummary ? (
+                      <>
+                        <p>
+                          {copy.cogita.library.revision.knownessStats
+                            .replace('{correct}', String(reviewSummary.correct))
+                            .replace('{total}', String(reviewSummary.total))}
+                        </p>
+                        {reviewSummary.lastReviewedUtc && (
+                          <p>
+                            {copy.cogita.library.revision.knownessLast.replace(
+                              '{date}',
+                              new Date(reviewSummary.lastReviewedUtc).toLocaleString()
+                            )}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p>{copy.cogita.library.revision.knownessHint}</p>
+                    )}
                   </div>
                 </section>
               </div>

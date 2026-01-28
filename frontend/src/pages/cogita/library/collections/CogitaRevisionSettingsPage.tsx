@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getCogitaCollection } from '../../../../lib/api';
+import { getCogitaCollection, getCogitaReviewers, type CogitaReviewer } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
@@ -39,12 +39,27 @@ export function CogitaRevisionSettingsPage({
   const [limit, setLimit] = useState(20);
   const [mode] = useState('random');
   const [check] = useState('exact');
+  const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
+  const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
       .then((detail) => setCollectionName(detail.name))
       .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
   }, [libraryId, collectionId]);
+
+  useEffect(() => {
+    getCogitaReviewers({ libraryId })
+      .then((list) => {
+        setReviewers(list);
+        if (!reviewerRoleId && list.length > 0) {
+          setReviewerRoleId(list[0].roleId);
+        }
+      })
+      .catch(() => {
+        setReviewers([]);
+      });
+  }, [libraryId]);
 
   return (
     <CogitaShell
@@ -81,7 +96,9 @@ export function CogitaRevisionSettingsPage({
             </a>
             <a
               className="cta"
-              href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
+              href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+                reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
+              }`}
             >
               {copy.cogita.library.actions.startRevision}
             </a>
@@ -114,6 +131,19 @@ export function CogitaRevisionSettingsPage({
                         onChange={(event) => setLimit(Number(event.target.value || 1))}
                       />
                     </label>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.library.revision.reviewerLabel}</span>
+                      <select
+                        value={reviewerRoleId ?? ''}
+                        onChange={(event) => setReviewerRoleId(event.target.value || null)}
+                      >
+                        {reviewers.map((reviewer) => (
+                          <option key={reviewer.roleId} value={reviewer.roleId}>
+                            {reviewer.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -133,7 +163,9 @@ export function CogitaRevisionSettingsPage({
                   <div className="cogita-form-actions">
                     <a
                       className="cta"
-                      href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}`}
+                      href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+                        reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
+                      }`}
                     >
                       {copy.cogita.library.actions.startRevision}
                     </a>

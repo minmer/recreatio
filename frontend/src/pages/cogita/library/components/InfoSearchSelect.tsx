@@ -37,6 +37,7 @@ type InfoSearchSelectMultiProps = InfoSearchSelectCommonProps & {
 type InfoSearchSelectProps = InfoSearchSelectSingleProps | InfoSearchSelectMultiProps;
 
 const MAX_RESULTS = 5;
+const MAX_RESULTS_PER_REQUEST = 50;
 const EMPTY_OPTIONS: CogitaInfoOption[] = [];
 
 export function InfoSearchSelect({
@@ -100,7 +101,7 @@ export function InfoSearchSelect({
       try {
         const matches = await searchCogitaInfos({ libraryId, type: infoType, query: trimmed });
         if (lastRequest.current !== currentRequest) return;
-        const mapped = matches.slice(0, MAX_RESULTS).map((match) => ({
+        const mapped = matches.slice(0, MAX_RESULTS_PER_REQUEST).map((match) => ({
             id: match.infoId,
             label: match.label,
             infoType: match.infoType as CogitaInfoType
@@ -196,7 +197,12 @@ export function InfoSearchSelect({
               if (!results.length) return;
               setIsOpen(true);
               setHighlightedIndex((prev) => {
-                const next = prev < 0 ? 0 : Math.min(prev + 1, Math.min(results.length, visibleCount) - 1);
+                const maxVisibleIndex = Math.min(results.length, visibleCount) - 1;
+                const next = prev < 0 ? 0 : Math.min(prev + 1, maxVisibleIndex);
+                if (next === maxVisibleIndex && results.length > visibleCount) {
+                  setVisibleCount((count) => Math.min(count + MAX_RESULTS, results.length));
+                  return Math.min(prev + 1, Math.min(results.length, visibleCount + MAX_RESULTS) - 1);
+                }
                 return next;
               });
               return;

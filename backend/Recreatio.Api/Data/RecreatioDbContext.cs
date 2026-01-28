@@ -43,17 +43,23 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaGeoFeature> CogitaGeoFeatures => Set<Data.Cogita.CogitaGeoFeature>();
     public DbSet<Data.Cogita.CogitaMusicPiece> CogitaMusicPieces => Set<Data.Cogita.CogitaMusicPiece>();
     public DbSet<Data.Cogita.CogitaMusicFragment> CogitaMusicFragments => Set<Data.Cogita.CogitaMusicFragment>();
+    public DbSet<Data.Cogita.CogitaComputedInfo> CogitaComputedInfos => Set<Data.Cogita.CogitaComputedInfo>();
     public DbSet<Data.Cogita.CogitaCollection> CogitaCollections => Set<Data.Cogita.CogitaCollection>();
     public DbSet<Data.Cogita.CogitaCollectionItem> CogitaCollectionItems => Set<Data.Cogita.CogitaCollectionItem>();
+    public DbSet<Data.Cogita.CogitaCollectionDependency> CogitaCollectionDependencies => Set<Data.Cogita.CogitaCollectionDependency>();
     public DbSet<Data.Cogita.CogitaCollectionGraph> CogitaCollectionGraphs => Set<Data.Cogita.CogitaCollectionGraph>();
     public DbSet<Data.Cogita.CogitaCollectionGraphNode> CogitaCollectionGraphNodes => Set<Data.Cogita.CogitaCollectionGraphNode>();
     public DbSet<Data.Cogita.CogitaCollectionGraphEdge> CogitaCollectionGraphEdges => Set<Data.Cogita.CogitaCollectionGraphEdge>();
+    public DbSet<Data.Cogita.CogitaDependencyGraph> CogitaDependencyGraphs => Set<Data.Cogita.CogitaDependencyGraph>();
+    public DbSet<Data.Cogita.CogitaDependencyGraphNode> CogitaDependencyGraphNodes => Set<Data.Cogita.CogitaDependencyGraphNode>();
+    public DbSet<Data.Cogita.CogitaDependencyGraphEdge> CogitaDependencyGraphEdges => Set<Data.Cogita.CogitaDependencyGraphEdge>();
     public DbSet<Data.Cogita.CogitaWordLanguage> CogitaWordLanguages => Set<Data.Cogita.CogitaWordLanguage>();
     public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
     public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
     public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
     public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
     public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
+    public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -209,6 +215,10 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaInfo>()
             .WithMany()
             .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaComputedInfo>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
 
         modelBuilder.Entity<Data.Cogita.CogitaWordLanguage>()
             .HasOne<Data.Cogita.CogitaInfo>()
@@ -236,6 +246,17 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaInfo>()
             .WithMany()
             .HasForeignKey(x => x.CollectionInfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionDependency>()
+            .HasIndex(x => new { x.ParentCollectionInfoId, x.ChildCollectionInfoId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionDependency>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.ParentCollectionInfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaCollectionDependency>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.ChildCollectionInfoId);
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionGraph>()
             .HasOne<Data.Cogita.CogitaInfo>()
@@ -249,6 +270,21 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphEdge>()
             .HasOne<Data.Cogita.CogitaCollectionGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaDependencyGraph>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaDependencyGraphNode>()
+            .HasOne<Data.Cogita.CogitaDependencyGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaDependencyGraphEdge>()
+            .HasOne<Data.Cogita.CogitaDependencyGraph>()
             .WithMany()
             .HasForeignKey(x => x.GraphId);
 
@@ -280,5 +316,12 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
             .HasIndex(x => new { x.GroupId, x.ConnectionId })
             .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
+            .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
     }
 }

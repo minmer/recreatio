@@ -461,6 +461,7 @@ export const pl: Copy = {
           overview: 'Przegląd',
           list: 'Przeglądaj karty',
           add: 'Dodaj nowe info',
+          dependencies: 'Graf zależności',
           collections: 'Wszystkie kolekcje',
           createCollection: 'Utwórz kolekcję',
           collectionDetail: 'Szczegóły kolekcji',
@@ -496,7 +497,8 @@ export const pl: Copy = {
         media: 'Media',
         geo: 'Geo',
         musicPiece: 'Utwór muzyczny',
-        musicFragment: 'Fragment muzyczny'
+        musicFragment: 'Fragment muzyczny',
+        computed: 'Obliczane'
       },
       connectionTypes: {
         wordLanguage: 'Słowo - język',
@@ -599,6 +601,10 @@ export const pl: Copy = {
           languagePlaceholder: 'Wyszukaj lub utwórz język',
           notesLabel: 'Notatki',
           notesPlaceholder: 'Opis, źródło cytatu lub metadane',
+          computedLabel: 'Szablon pytania',
+          computedPlaceholder: 'Przykład: {a} + {b} = ?',
+          computedRequired: 'Graf obliczeń jest wymagany.',
+          computedInvalid: 'Definicja obliczeń musi być poprawnym JSON.',
           save: 'Zapisz informację',
           saved: 'Informacja zapisana.',
           failed: 'Nie udało się zapisać informacji.'
@@ -699,12 +705,14 @@ export const pl: Copy = {
         checkLabel: 'Sprawdzanie',
         checkValue: 'Dokładne dopasowanie',
         cardsPerSessionLabel: 'Karty na sesję',
+        reviewerLabel: 'Osoba',
         previewTitle: 'Losowa kolejność, ścisłe odpowiedzi',
         previewBody1: 'Karty słownictwa proszą o tłumaczenie.',
         previewBody2: 'Karty słów proszą o wybór języka.',
         start: 'Rozpocznij powtórkę',
         progressTitle: 'Postęp',
         loading: 'Ładowanie kart powtórki...',
+        loadingComputed: 'Tworzenie karty obliczeniowej...',
         error: 'Nie udało się wczytać kart.',
         empty: 'Brak kart do powtórki.',
         completed: 'Powtórka zakończona. Świetna robota!',

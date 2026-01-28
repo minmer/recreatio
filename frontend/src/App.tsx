@@ -16,6 +16,7 @@ import { CogitaUserPage } from './pages/cogita/CogitaUserPage';
 import { CogitaLibraryOverviewPage } from './pages/cogita/library/CogitaLibraryOverviewPage';
 import { CogitaLibraryListPage } from './pages/cogita/library/CogitaLibraryListPage';
 import { CogitaLibraryAddPage } from './pages/cogita/library/CogitaLibraryAddPage';
+import { CogitaDependencyGraphPage } from './pages/cogita/library/CogitaDependencyGraphPage';
 import { CogitaCollectionListPage } from './pages/cogita/library/collections/CogitaCollectionListPage';
 import { CogitaCollectionCreatePage } from './pages/cogita/library/collections/CogitaCollectionCreatePage';
 import { CogitaCollectionDetailPage } from './pages/cogita/library/collections/CogitaCollectionDetailPage';
@@ -88,9 +89,11 @@ export default function App() {
   const libraryView =
     libraryModeSegment === 'new' || libraryModeSegment === 'add'
       ? 'add'
-      : libraryModeSegment === 'list' || libraryModeSegment === 'collection' || libraryModeSegment === 'detail'
-        ? 'list'
-        : 'overview';
+      : libraryModeSegment === 'dependencies'
+        ? 'dependencies'
+        : libraryModeSegment === 'list' || libraryModeSegment === 'collection' || libraryModeSegment === 'detail'
+          ? 'list'
+          : 'overview';
   const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
     pathname === '/faq' || pathname === '/legal' || pathname === '/login'
@@ -481,6 +484,20 @@ export default function App() {
               )
             ) : libraryView === 'add' ? (
               <CogitaLibraryAddPage
+                copy={t}
+                authLabel={t.nav.account}
+                showProfileMenu
+                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                onToggleSecureMode={handleToggleMode}
+                onLogout={handleLogout}
+                secureMode={secureMode}
+                onNavigate={navigateRoute}
+                language={language}
+                onLanguageChange={setLanguage}
+                libraryId={cogitaLibraryId}
+              />
+            ) : libraryView === 'dependencies' ? (
+              <CogitaDependencyGraphPage
                 copy={t}
                 authLabel={t.nav.account}
                 showProfileMenu

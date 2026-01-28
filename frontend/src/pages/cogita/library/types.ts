@@ -12,7 +12,8 @@ export type CogitaInfoType =
   | 'media'
   | 'geo'
   | 'music_piece'
-  | 'music_fragment';
+  | 'music_fragment'
+  | 'computed';
 
 export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation' | 'word-topic';
 

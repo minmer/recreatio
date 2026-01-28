@@ -28,7 +28,8 @@ public static class CogitaEndpoints
         "media",
         "geo",
         "music_piece",
-        "music_fragment"
+        "music_fragment",
+        "computed"
     };
 
     private static readonly string[] SupportedConnectionTypes =
@@ -1363,6 +1364,537 @@ public static class CogitaEndpoints
             ));
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}/dependencies", async (
+            Guid libraryId,
+            Guid collectionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out _) ||
+                !EndpointHelpers.TryGetSessionId(context, out _))
+            {
+                return Results.Unauthorized();
+            }
+
+            var collectionExists = await dbContext.CogitaInfos.AsNoTracking()
+                .AnyAsync(x => x.Id == collectionId && x.LibraryId == libraryId && x.InfoType == "collection", ct);
+            if (!collectionExists)
+            {
+                return Results.NotFound();
+            }
+
+            var parentDeps = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                .Where(x => x.ChildCollectionInfoId == collectionId)
+                .ToListAsync(ct);
+            var childDeps = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                .Where(x => x.ParentCollectionInfoId == collectionId)
+                .ToListAsync(ct);
+
+            var parentIds = parentDeps.Select(x => x.ParentCollectionInfoId).ToHashSet();
+            var childIds = childDeps.Select(x => x.ChildCollectionInfoId).ToHashSet();
+
+            var validCollections = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.InfoType == "collection" &&
+                            (parentIds.Contains(x.Id) || childIds.Contains(x.Id)))
+                .Select(x => x.Id)
+                .ToListAsync(ct);
+            var validSet = validCollections.ToHashSet();
+
+            var parents = parentDeps
+                .Where(x => validSet.Contains(x.ParentCollectionInfoId))
+                .Select(x => new CogitaCollectionDependencyResponse(x.ParentCollectionInfoId, x.ChildCollectionInfoId))
+                .ToList();
+            var children = childDeps
+                .Where(x => validSet.Contains(x.ChildCollectionInfoId))
+                .Select(x => new CogitaCollectionDependencyResponse(x.ParentCollectionInfoId, x.ChildCollectionInfoId))
+                .ToList();
+
+            return Results.Ok(new CogitaCollectionDependencyBundleResponse(parents, children));
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/collections/{collectionId:guid}/dependencies", async (
+            Guid libraryId,
+            Guid collectionId,
+            CogitaCollectionDependencyRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out _) ||
+                !EndpointHelpers.TryGetSessionId(context, out _))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (request.ParentCollectionId == Guid.Empty || request.ChildCollectionId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "ParentCollectionId and ChildCollectionId are required." });
+            }
+
+            if (request.ParentCollectionId != collectionId && request.ChildCollectionId != collectionId)
+            {
+                return Results.BadRequest(new { error = "CollectionId must match parent or child." });
+            }
+
+            var collectionIds = new[] { request.ParentCollectionId, request.ChildCollectionId };
+            var collections = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.InfoType == "collection" && collectionIds.Contains(x.Id))
+                .Select(x => x.Id)
+                .ToListAsync(ct);
+            if (collections.Count != 2)
+            {
+                return Results.BadRequest(new { error = "Both collections must belong to the library." });
+            }
+
+            var exists = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                .AnyAsync(x => x.ParentCollectionInfoId == request.ParentCollectionId && x.ChildCollectionInfoId == request.ChildCollectionId, ct);
+            if (exists)
+            {
+                return Results.Ok(new CogitaCollectionDependencyResponse(request.ParentCollectionId, request.ChildCollectionId));
+            }
+
+            dbContext.CogitaCollectionDependencies.Add(new CogitaCollectionDependency
+            {
+                Id = Guid.NewGuid(),
+                ParentCollectionInfoId = request.ParentCollectionId,
+                ChildCollectionInfoId = request.ChildCollectionId,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaCollectionDependencyResponse(request.ParentCollectionId, request.ChildCollectionId));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/reviewers", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IRoleFieldQueryService fieldQueryService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var reviewerRoleIds = keyRing.WriteKeys.Keys.ToHashSet();
+            if (reviewerRoleIds.Count == 0)
+            {
+                return Results.Ok(new List<CogitaReviewerResponse>());
+            }
+
+            var fields = await dbContext.RoleFields.AsNoTracking()
+                .Where(field => reviewerRoleIds.Contains(field.RoleId))
+                .ToListAsync(ct);
+            var lookup = await fieldQueryService.LoadAsync(fields, keyRing, ct);
+
+            var responses = reviewerRoleIds
+                .Select(roleId =>
+                {
+                    var label = lookup.ValuesByRole.TryGetValue(roleId, out var values) &&
+                                values.TryGetValue(RoleFieldTypes.Nick, out var nick)
+                        ? nick
+                        : $"Role {roleId:N}";
+                    return new CogitaReviewerResponse(roleId, label);
+                })
+                .OrderBy(x => x.Label)
+                .ToList();
+
+            return Results.Ok(responses);
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/reviews", async (
+            Guid libraryId,
+            CogitaReviewEventRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var personRoleId = request.PersonRoleId ?? account.MasterRoleId;
+            if (!keyRing.WriteKeys.ContainsKey(personRoleId))
+            {
+                return Results.Forbid();
+            }
+            if (!keyRing.TryGetReadKey(personRoleId, out var personReadKey))
+            {
+                return Results.Forbid();
+            }
+            var hasOwnerKey = keyRing.TryGetOwnerKey(personRoleId, out var personOwnerKey);
+            if (!hasOwnerKey)
+            {
+                personOwnerKey = Array.Empty<byte>();
+            }
+
+            var itemType = request.ItemType.Trim().ToLowerInvariant();
+            if (itemType != "info" && itemType != "connection")
+            {
+                return Results.BadRequest(new { error = "ItemType must be info or connection." });
+            }
+
+            var itemExists = itemType == "info"
+                ? await dbContext.CogitaInfos.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.Id == request.ItemId, ct)
+                : await dbContext.CogitaConnections.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.Id == request.ItemId, ct);
+
+            if (!itemExists)
+            {
+                return Results.BadRequest(new { error = "Item does not belong to the library." });
+            }
+
+            byte[] payloadBytes;
+            try
+            {
+                payloadBytes = Convert.FromBase64String(request.PayloadBase64);
+            }
+            catch (FormatException)
+            {
+                return Results.BadRequest(new { error = "PayloadBase64 is invalid." });
+            }
+
+            var existingKey = await dbContext.Keys.AsNoTracking()
+                .Where(x => x.OwnerRoleId == personRoleId && x.KeyType == KeyType.DataKey && x.ScopeType == "cogita" && x.ScopeSubtype == "review-event")
+                .OrderByDescending(x => x.CreatedUtc)
+                .FirstOrDefaultAsync(ct);
+
+            Guid dataKeyId;
+            byte[] dataKey;
+            if (existingKey is not null)
+            {
+                dataKeyId = existingKey.Id;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(existingKey, personReadKey);
+                }
+                catch (CryptographicException)
+                {
+                    return Results.Forbid();
+                }
+            }
+            else
+            {
+                if (!hasOwnerKey)
+                {
+                    return Results.Forbid();
+                }
+                var keyResult = await ResolveDataKeyAsync(
+                    personRoleId,
+                    null,
+                    "review-event",
+                    personReadKey,
+                    personOwnerKey,
+                    userId,
+                    keyRingService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
+                dataKeyId = keyResult.DataKeyId;
+                dataKey = keyResult.DataKey;
+            }
+
+            var reviewId = Guid.NewGuid();
+            var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, reviewId.ToByteArray());
+
+            dbContext.CogitaReviewEvents.Add(new CogitaReviewEvent
+            {
+                Id = reviewId,
+                LibraryId = libraryId,
+                PersonRoleId = personRoleId,
+                ItemType = itemType,
+                ItemId = request.ItemId,
+                Direction = string.IsNullOrWhiteSpace(request.Direction) ? null : request.Direction,
+                DataKeyId = dataKeyId,
+                EncryptedBlob = encrypted,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+
+            dbContext.KeyEntryBindings.Add(new KeyEntryBinding
+            {
+                Id = Guid.NewGuid(),
+                KeyEntryId = dataKeyId,
+                EntryId = reviewId,
+                EntryType = "cogita-review",
+                EntrySubtype = itemType,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaReviewEventResponse(reviewId, DateTimeOffset.UtcNow));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/reviews/{itemType}/{itemId:guid}/summary", async (
+            Guid libraryId,
+            string itemType,
+            Guid itemId,
+            Guid? personRoleId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var normalizedType = itemType.Trim().ToLowerInvariant();
+            if (normalizedType != "info" && normalizedType != "connection")
+            {
+                return Results.BadRequest(new { error = "ItemType must be info or connection." });
+            }
+
+            var itemExists = normalizedType == "info"
+                ? await dbContext.CogitaInfos.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.Id == itemId, ct)
+                : await dbContext.CogitaConnections.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.Id == itemId, ct);
+
+            if (!itemExists)
+            {
+                return Results.BadRequest(new { error = "Item does not belong to the library." });
+            }
+
+            var account = await dbContext.UserAccounts.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, ct);
+            if (account is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var reviewerRoleId = personRoleId ?? account.MasterRoleId;
+            if (!keyRing.WriteKeys.ContainsKey(reviewerRoleId))
+            {
+                return Results.Forbid();
+            }
+            if (!keyRing.TryGetReadKey(reviewerRoleId, out var personReadKey))
+            {
+                return Results.Forbid();
+            }
+
+            var events = await dbContext.CogitaReviewEvents.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.PersonRoleId == reviewerRoleId &&
+                            x.ItemType == normalizedType && x.ItemId == itemId)
+                .OrderByDescending(x => x.CreatedUtc)
+                .Take(50)
+                .ToListAsync(ct);
+
+            if (events.Count == 0)
+            {
+                return Results.Ok(new CogitaReviewSummaryResponse(normalizedType, itemId, 0, 0, null, 0));
+            }
+
+            var dataKeyIds = events.Select(x => x.DataKeyId).Distinct().ToList();
+            var keyEntries = await dbContext.Keys.AsNoTracking()
+                .Where(x => dataKeyIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, ct);
+
+            var total = 0;
+            var correct = 0;
+            foreach (var review in events)
+            {
+                if (!keyEntries.TryGetValue(review.DataKeyId, out var keyEntry))
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, personReadKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, review.EncryptedBlob, review.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    total++;
+                    if (doc.RootElement.TryGetProperty("correct", out var correctEl) &&
+                        correctEl.ValueKind == JsonValueKind.True)
+                    {
+                        correct++;
+                    }
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+            }
+
+            var lastReviewed = events.Max(x => x.CreatedUtc);
+            var daysSince = (DateTimeOffset.UtcNow - lastReviewed).TotalDays;
+            var recencyWeight = Math.Exp(-daysSince / 30.0);
+            var accuracy = total == 0 ? 0 : (double)correct / total;
+            var score = Math.Round(accuracy * 100 * recencyWeight, 2);
+
+            return Results.Ok(new CogitaReviewSummaryResponse(
+                normalizedType,
+                itemId,
+                total,
+                correct,
+                lastReviewed,
+                score
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/computed/{infoId:guid}/sample", async (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId && x.InfoType == "computed", ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                var sample = BuildComputedSample(doc.RootElement);
+                return Results.Ok(sample);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}/graph", async (
             Guid libraryId,
             Guid collectionId,
@@ -1664,6 +2196,328 @@ public static class CogitaEndpoints
                 ct);
 
             return Results.Ok(new CogitaCollectionGraphPreviewResponse(result.Total, result.ConnectionCount, result.InfoCount));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/dependency-graph", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var graph = await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+
+            if (graph is null)
+            {
+                return Results.Ok(new CogitaDependencyGraphResponse(Guid.Empty, new List<CogitaDependencyGraphNodeResponse>(), new List<CogitaDependencyGraphEdgeResponse>()));
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == graph.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            var nodes = await dbContext.CogitaDependencyGraphNodes.AsNoTracking()
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+            var edges = await dbContext.CogitaDependencyGraphEdges.AsNoTracking()
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+
+            var nodeResponses = new List<CogitaDependencyGraphNodeResponse>();
+            foreach (var node in nodes)
+            {
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, node.EncryptedBlob, node.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    nodeResponses.Add(new CogitaDependencyGraphNodeResponse(node.Id, node.NodeType, doc.RootElement.Clone()));
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+            }
+
+            var edgeResponses = edges.Select(edge => new CogitaDependencyGraphEdgeResponse(edge.Id, edge.FromNodeId, edge.ToNodeId)).ToList();
+
+            return Results.Ok(new CogitaDependencyGraphResponse(graph.Id, nodeResponses, edgeResponses));
+        });
+
+        group.MapPut("/libraries/{libraryId:guid}/dependency-graph", async (
+            Guid libraryId,
+            CogitaDependencyGraphRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var graph = await dbContext.CogitaDependencyGraphs.FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+            var now = DateTimeOffset.UtcNow;
+            byte[] dataKey;
+            Guid dataKeyId;
+
+            if (graph is null)
+            {
+                var keyResult = await ResolveDataKeyAsync(
+                    library.RoleId,
+                    request.DataKeyId,
+                    "dependency-graph",
+                    readKey,
+                    ownerKey,
+                    userId,
+                    keyRingService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
+                dataKey = keyResult.DataKey;
+                dataKeyId = keyResult.DataKeyId;
+                graph = new CogitaDependencyGraph
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    DataKeyId = dataKeyId,
+                    EncryptedBlob = encryptionService.Encrypt(dataKey, JsonSerializer.SerializeToUtf8Bytes(new { version = 1 }), libraryId.ToByteArray()),
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaDependencyGraphs.Add(graph);
+            }
+            else
+            {
+                var keyEntry = await dbContext.Keys.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == graph.DataKeyId, ct);
+                if (keyEntry is null)
+                {
+                    return Results.NotFound();
+                }
+                dataKeyId = graph.DataKeyId;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                }
+                catch (CryptographicException)
+                {
+                    return Results.Forbid();
+                }
+                graph.EncryptedBlob = encryptionService.Encrypt(dataKey, JsonSerializer.SerializeToUtf8Bytes(new { version = 1 }), libraryId.ToByteArray());
+                graph.UpdatedUtc = now;
+            }
+
+            var existingNodes = await dbContext.CogitaDependencyGraphNodes
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+            var existingEdges = await dbContext.CogitaDependencyGraphEdges
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+            dbContext.CogitaDependencyGraphEdges.RemoveRange(existingEdges);
+            dbContext.CogitaDependencyGraphNodes.RemoveRange(existingNodes);
+
+            var nodeIdMap = new Dictionary<Guid, Guid>();
+            var responseNodes = new List<CogitaDependencyGraphNodeResponse>();
+            foreach (var node in request.Nodes)
+            {
+                var nodeId = node.NodeId ?? Guid.NewGuid();
+                nodeIdMap[nodeId] = nodeId;
+                var encryptedPayload = encryptionService.Encrypt(
+                    dataKey,
+                    JsonSerializer.SerializeToUtf8Bytes(node.Payload),
+                    nodeId.ToByteArray());
+                dbContext.CogitaDependencyGraphNodes.Add(new CogitaDependencyGraphNode
+                {
+                    Id = nodeId,
+                    GraphId = graph.Id,
+                    NodeType = node.NodeType.Trim(),
+                    DataKeyId = dataKeyId,
+                    EncryptedBlob = encryptedPayload,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                });
+                responseNodes.Add(new CogitaDependencyGraphNodeResponse(nodeId, node.NodeType, node.Payload));
+            }
+
+            var responseEdges = new List<CogitaDependencyGraphEdgeResponse>();
+            foreach (var edge in request.Edges)
+            {
+                if (!nodeIdMap.ContainsKey(edge.FromNodeId) || !nodeIdMap.ContainsKey(edge.ToNodeId))
+                {
+                    continue;
+                }
+                var edgeId = edge.EdgeId ?? Guid.NewGuid();
+                dbContext.CogitaDependencyGraphEdges.Add(new CogitaDependencyGraphEdge
+                {
+                    Id = edgeId,
+                    GraphId = graph.Id,
+                    FromNodeId = edge.FromNodeId,
+                    ToNodeId = edge.ToNodeId,
+                    CreatedUtc = now
+                });
+                responseEdges.Add(new CogitaDependencyGraphEdgeResponse(edgeId, edge.FromNodeId, edge.ToNodeId));
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaDependencyGraphResponse(graph.Id, responseNodes, responseEdges));
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/dependency-graph/preview", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var graph = await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+            if (graph is null)
+            {
+                return Results.Ok(new CogitaDependencyGraphPreviewResponse(0, new List<Guid>()));
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == graph.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            var nodes = await dbContext.CogitaDependencyGraphNodes.AsNoTracking()
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+
+            var collectionIds = new HashSet<Guid>();
+            foreach (var node in nodes)
+            {
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, node.EncryptedBlob, node.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    if (doc.RootElement.TryGetProperty("collectionId", out var idEl) && idEl.ValueKind == JsonValueKind.String &&
+                        Guid.TryParse(idEl.GetString(), out var collectionId))
+                    {
+                        collectionIds.Add(collectionId);
+                    }
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+            }
+
+            return Results.Ok(new CogitaDependencyGraphPreviewResponse(collectionIds.Count, collectionIds.ToList()));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}/cards", async (
@@ -2612,95 +3466,208 @@ public static class CogitaEndpoints
 
             var infoMap = new Dictionary<Guid, Guid>();
             var connectionMap = new Dictionary<Guid, Guid>();
+            const int importBatchSize = 250;
+            var previousDetectChanges = dbContext.ChangeTracker.AutoDetectChangesEnabled;
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            foreach (var info in request.Infos)
+            try
             {
-                if (!SupportedInfoTypes.Contains(info.InfoType))
-                {
-                    continue;
-                }
-                var created = await CreateInfoInternalAsync(
-                    library,
-                    new CogitaCreateInfoRequest(info.InfoType, info.Payload, null, null),
-                    readKey,
-                    ownerKey,
-                    userId,
-                    keyRingService,
-                    encryptionService,
-                    roleCryptoService,
-                    ledgerService,
-                    dbContext,
-                    ct);
-                infoMap[info.InfoId] = created.InfoId;
-            }
+                var infoKeyMap = new Dictionary<string, Guid>();
+                var connectionKeyMap = new Dictionary<string, Guid>();
 
-            foreach (var connection in request.Connections)
-            {
-                if (!SupportedConnectionTypes.Contains(connection.ConnectionType))
+                foreach (var infoType in request.Infos.Select(x => x.InfoType.Trim().ToLowerInvariant()).Distinct())
                 {
-                    continue;
-                }
-                var mappedIds = connection.InfoIds
-                    .Where(id => infoMap.ContainsKey(id))
-                    .Select(id => infoMap[id])
-                    .ToList();
-                if (mappedIds.Count == 0)
-                {
-                    continue;
-                }
-                var created = await CreateConnectionInternalAsync(
-                    library,
-                    new CogitaCreateConnectionRequest(connection.ConnectionType, mappedIds, connection.Payload, null, null),
-                    readKey,
-                    ownerKey,
-                    userId,
-                    keyRingService,
-                    encryptionService,
-                    roleCryptoService,
-                    ledgerService,
-                    dbContext,
-                    ct);
-                connectionMap[connection.ConnectionId] = created.ConnectionId;
-            }
-
-            foreach (var collection in request.Collections)
-            {
-                if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
-                {
-                    continue;
-                }
-
-                foreach (var item in collection.Items.OrderBy(x => x.SortOrder))
-                {
-                    Guid mappedId;
-                    if (item.ItemType == "info")
+                    if (!SupportedInfoTypes.Contains(infoType))
                     {
-                        if (!infoMap.TryGetValue(item.ItemId, out mappedId))
-                        {
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        if (!connectionMap.TryGetValue(item.ItemId, out mappedId))
-                        {
-                            continue;
-                        }
+                        continue;
                     }
 
-                    dbContext.CogitaCollectionItems.Add(new CogitaCollectionItem
+                    var keyResult = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        null,
+                        infoType,
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    infoKeyMap[infoType] = keyResult.DataKeyId;
+                }
+
+                foreach (var connectionType in request.Connections.Select(x => x.ConnectionType.Trim().ToLowerInvariant()).Distinct())
+                {
+                    if (!SupportedConnectionTypes.Contains(connectionType))
                     {
-                        Id = Guid.NewGuid(),
-                        CollectionInfoId = collectionInfoId,
-                        ItemType = item.ItemType,
-                        ItemId = mappedId,
-                        SortOrder = item.SortOrder,
-                        CreatedUtc = DateTimeOffset.UtcNow
-                    });
+                        continue;
+                    }
+
+                    var keyResult = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        null,
+                        $"connection:{connectionType}",
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    connectionKeyMap[connectionType] = keyResult.DataKeyId;
+                }
+
+                if (infoKeyMap.Count > 0 || connectionKeyMap.Count > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                }
+
+                var pendingInfos = 0;
+                foreach (var info in request.Infos)
+                {
+                    var infoType = info.InfoType.Trim().ToLowerInvariant();
+                    if (!SupportedInfoTypes.Contains(infoType))
+                    {
+                        continue;
+                    }
+
+                    infoKeyMap.TryGetValue(infoType, out var infoKeyId);
+                    var created = await CreateInfoInternalAsync(
+                        library,
+                        new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    infoMap[info.InfoId] = created.InfoId;
+                    pendingInfos++;
+                    if (pendingInfos >= importBatchSize)
+                    {
+                        await dbContext.SaveChangesAsync(ct);
+                        dbContext.ChangeTracker.Clear();
+                        pendingInfos = 0;
+                    }
+                }
+
+                if (pendingInfos > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                }
+
+                var pendingConnections = 0;
+                foreach (var connection in request.Connections)
+                {
+                    var connectionType = connection.ConnectionType.Trim().ToLowerInvariant();
+                    if (!SupportedConnectionTypes.Contains(connectionType))
+                    {
+                        continue;
+                    }
+                    var mappedIds = connection.InfoIds
+                        .Where(id => infoMap.ContainsKey(id))
+                        .Select(id => infoMap[id])
+                        .ToList();
+                    if (mappedIds.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    connectionKeyMap.TryGetValue(connectionType, out var connectionKeyId);
+                    var created = await CreateConnectionInternalAsync(
+                        library,
+                        new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: false);
+                    connectionMap[connection.ConnectionId] = created.ConnectionId;
+                    pendingConnections++;
+                    if (pendingConnections >= importBatchSize)
+                    {
+                        await dbContext.SaveChangesAsync(ct);
+                        dbContext.ChangeTracker.Clear();
+                        pendingConnections = 0;
+                    }
+                }
+
+                if (pendingConnections > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
+                }
+
+                var pendingCollections = 0;
+                foreach (var collection in request.Collections)
+                {
+                    if (!infoMap.TryGetValue(collection.CollectionInfoId, out var collectionInfoId))
+                    {
+                        continue;
+                    }
+
+                    foreach (var item in collection.Items.OrderBy(x => x.SortOrder))
+                    {
+                        Guid mappedId;
+                        if (item.ItemType == "info")
+                        {
+                            if (!infoMap.TryGetValue(item.ItemId, out mappedId))
+                            {
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            if (!connectionMap.TryGetValue(item.ItemId, out mappedId))
+                            {
+                                continue;
+                            }
+                        }
+
+                        dbContext.CogitaCollectionItems.Add(new CogitaCollectionItem
+                        {
+                            Id = Guid.NewGuid(),
+                            CollectionInfoId = collectionInfoId,
+                            ItemType = item.ItemType,
+                            ItemId = mappedId,
+                            SortOrder = item.SortOrder,
+                            CreatedUtc = DateTimeOffset.UtcNow
+                        });
+                        pendingCollections++;
+                        if (pendingCollections >= importBatchSize)
+                        {
+                            await dbContext.SaveChangesAsync(ct);
+                            dbContext.ChangeTracker.Clear();
+                            pendingCollections = 0;
+                        }
+                    }
+                }
+
+                if (pendingCollections > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                    dbContext.ChangeTracker.Clear();
                 }
             }
-
-            await dbContext.SaveChangesAsync(ct);
+            finally
+            {
+                dbContext.ChangeTracker.AutoDetectChangesEnabled = previousDetectChanges;
+            }
 
             return Results.Ok(new CogitaLibraryImportResponse(
                 infoMap.Count,
@@ -3415,6 +4382,14 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
+            case "computed":
+                {
+                    var row = await dbContext.CogitaComputedInfos.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
             default:
                 return null;
         }
@@ -3472,6 +4447,9 @@ public static class CogitaEndpoints
             case "music_fragment":
                 dbContext.CogitaMusicFragments.Add(new CogitaMusicFragment { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
+            case "computed":
+                dbContext.CogitaComputedInfos.Add(new CogitaComputedInfo { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
         }
     }
 
@@ -3486,7 +4464,8 @@ public static class CogitaEndpoints
         IRoleCryptoService roleCryptoService,
         ILedgerService ledgerService,
         RecreatioDbContext dbContext,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool saveChanges = true)
     {
         if (dataKeyId.HasValue)
         {
@@ -3525,7 +4504,10 @@ public static class CogitaEndpoints
             CreatedUtc = DateTimeOffset.UtcNow
         });
 
-        await dbContext.SaveChangesAsync(ct);
+        if (saveChanges)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         return (newKeyId, newKey);
     }
@@ -3541,7 +4523,8 @@ public static class CogitaEndpoints
         IRoleCryptoService roleCryptoService,
         ILedgerService ledgerService,
         RecreatioDbContext dbContext,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool saveChanges = true)
     {
         var infoType = request.InfoType.Trim().ToLowerInvariant();
         if (!SupportedInfoTypes.Contains(infoType))
@@ -3562,7 +4545,8 @@ public static class CogitaEndpoints
             roleCryptoService,
             ledgerService,
             dbContext,
-            ct);
+            ct,
+            saveChanges);
 
         var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(request.Payload);
         var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
@@ -3587,7 +4571,10 @@ public static class CogitaEndpoints
             CreatedUtc = now
         });
 
-        await dbContext.SaveChangesAsync(ct);
+        if (saveChanges)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         return new CogitaCreateInfoResponse(infoId, infoType);
     }
@@ -3603,7 +4590,8 @@ public static class CogitaEndpoints
         IRoleCryptoService roleCryptoService,
         ILedgerService ledgerService,
         RecreatioDbContext dbContext,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool saveChanges = true)
     {
         var connectionType = request.ConnectionType.Trim().ToLowerInvariant();
         if (!SupportedConnectionTypes.Contains(connectionType))
@@ -3668,7 +4656,8 @@ public static class CogitaEndpoints
             roleCryptoService,
             ledgerService,
             dbContext,
-            ct);
+            ct,
+            saveChanges);
 
         var payload = request.Payload.HasValue
             ? JsonSerializer.SerializeToUtf8Bytes(request.Payload.Value)
@@ -3697,7 +4686,10 @@ public static class CogitaEndpoints
             CreatedUtc = now
         });
 
-        await dbContext.SaveChangesAsync(ct);
+        if (saveChanges)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         if (connectionType == "word-language" && languageInfoId.HasValue && wordInfoId.HasValue)
         {
@@ -3707,7 +4699,10 @@ public static class CogitaEndpoints
                 WordInfoId = wordInfoId.Value,
                 CreatedUtc = now
             });
-            await dbContext.SaveChangesAsync(ct);
+            if (saveChanges)
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
         }
 
         var sort = 0;
@@ -3722,7 +4717,10 @@ public static class CogitaEndpoints
             });
         }
 
-        await dbContext.SaveChangesAsync(ct);
+        if (saveChanges)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
 
         return new CogitaCreateConnectionResponse(connectionId, connectionType);
     }
@@ -3749,6 +4747,12 @@ public static class CogitaEndpoints
     {
         public int Total => ConnectionCount + InfoCount;
     }
+
+    private sealed record ComputedGraphResult(
+        string Prompt,
+        string ExpectedAnswer,
+        Dictionary<string, double> Values
+    );
 
     private static async Task<GraphEvaluationResult> EvaluateCollectionGraphAsync(
         Guid libraryId,
@@ -3859,6 +4863,207 @@ public static class CogitaEndpoints
             .Concat(outputDataset.Infos.Select(id => ("info", id)))
             .ToList();
         return new GraphEvaluationResult(items, outputDataset.Connections.Count, outputDataset.Infos.Count);
+    }
+
+    private static CogitaComputedSampleResponse BuildComputedSample(JsonElement payload)
+    {
+        var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var promptTemplate = payload.TryGetProperty("promptTemplate", out var promptElement) && promptElement.ValueKind == JsonValueKind.String
+            ? promptElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        ComputedGraphResult? graphResult = null;
+        JsonElement? definition = null;
+        if (payload.TryGetProperty("definition", out var definitionEl) && definitionEl.ValueKind == JsonValueKind.Object)
+        {
+            definition = definitionEl;
+        }
+
+        if (definition.HasValue)
+        {
+            if (definition.Value.TryGetProperty("promptTemplate", out var defPrompt) && defPrompt.ValueKind == JsonValueKind.String)
+            {
+                promptTemplate = defPrompt.GetString() ?? promptTemplate;
+            }
+            if (definition.Value.TryGetProperty("graph", out var defGraph) && defGraph.ValueKind == JsonValueKind.Object)
+            {
+                graphResult = EvaluateComputedGraph(defGraph, promptTemplate);
+            }
+            else
+            {
+                graphResult = EvaluateComputedGraph(definition.Value, promptTemplate);
+            }
+        }
+        else if (payload.TryGetProperty("graph", out var graphElement) && graphElement.ValueKind == JsonValueKind.Object)
+        {
+            graphResult = EvaluateComputedGraph(graphElement, promptTemplate);
+        }
+
+        if (graphResult is not null)
+        {
+            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.Values);
+        }
+
+        var fallbackLabel = payload.TryGetProperty("label", out var labelEl) && labelEl.ValueKind == JsonValueKind.String
+            ? labelEl.GetString() ?? "Computed"
+            : "Computed";
+        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, values);
+    }
+
+    private static ComputedGraphResult EvaluateComputedGraph(JsonElement graphElement, string promptTemplate)
+    {
+        var nodes = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        if (graphElement.TryGetProperty("nodes", out var nodesElement) && nodesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var node in nodesElement.EnumerateArray())
+            {
+                if (node.TryGetProperty("id", out var idEl) && idEl.ValueKind == JsonValueKind.String)
+                {
+                    var nodeId = idEl.GetString();
+                    if (!string.IsNullOrWhiteSpace(nodeId))
+                    {
+                        nodes[nodeId] = node;
+                    }
+                }
+            }
+        }
+
+        var outputNodeId = graphElement.TryGetProperty("output", out var outputEl) && outputEl.ValueKind == JsonValueKind.String
+            ? outputEl.GetString()
+            : graphElement.TryGetProperty("outputNodeId", out var outputIdEl) && outputIdEl.ValueKind == JsonValueKind.String
+                ? outputIdEl.GetString()
+                : nodes.Keys.LastOrDefault();
+
+        var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        double EvaluateNode(string nodeId)
+        {
+            if (values.TryGetValue(nodeId, out var cached))
+            {
+                return cached;
+            }
+            if (!nodes.TryGetValue(nodeId, out var node))
+            {
+                return 0;
+            }
+            if (!visiting.Add(nodeId))
+            {
+                return 0;
+            }
+
+            var nodeType = node.TryGetProperty("type", out var typeEl) && typeEl.ValueKind == JsonValueKind.String
+                ? typeEl.GetString() ?? string.Empty
+                : string.Empty;
+
+            double result;
+            if (nodeType.Equals("input.random", StringComparison.OrdinalIgnoreCase))
+            {
+                var min = node.TryGetProperty("min", out var minEl) && minEl.TryGetDouble(out var minVal) ? minVal : 0;
+                var max = node.TryGetProperty("max", out var maxEl) && maxEl.TryGetDouble(out var maxVal) ? maxVal : min + 10;
+                if (max < min)
+                {
+                    (min, max) = (max, min);
+                }
+                result = Math.Floor(Random.Shared.NextDouble() * (max - min + 1)) + min;
+            }
+            else if (nodeType.StartsWith("compute.", StringComparison.OrdinalIgnoreCase))
+            {
+                var inputs = GetNodeInputs(node);
+                var inputValues = inputs.Select(EvaluateNode).ToList();
+                var op = nodeType["compute.".Length..].ToLowerInvariant();
+                result = op switch
+                {
+                    "add" => inputValues.Sum(),
+                    "sub" => inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => acc - val),
+                    "mul" => inputValues.Count == 0 ? 0 : inputValues.Aggregate(1.0, (acc, val) => acc * val),
+                    "div" => inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => val == 0 ? acc : acc / val),
+                    _ => 0
+                };
+            }
+            else if (nodeType.Equals("output", StringComparison.OrdinalIgnoreCase))
+            {
+                var inputs = GetNodeInputs(node);
+                result = inputs.Count > 0 ? EvaluateNode(inputs[0]) : 0;
+            }
+            else if (nodeType.Equals("input.const", StringComparison.OrdinalIgnoreCase))
+            {
+                result = node.TryGetProperty("value", out var valueEl) && valueEl.TryGetDouble(out var constVal) ? constVal : 0;
+            }
+            else
+            {
+                result = 0;
+            }
+
+            visiting.Remove(nodeId);
+            values[nodeId] = result;
+            return result;
+        }
+
+        if (!string.IsNullOrWhiteSpace(outputNodeId))
+        {
+            EvaluateNode(outputNodeId);
+        }
+
+        var prompt = promptTemplate;
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            prompt = outputNodeId is null ? "Compute" : $"Compute {outputNodeId}";
+        }
+
+        foreach (var pair in values)
+        {
+            prompt = prompt.Replace($"{{{pair.Key}}}", FormatNumber(pair.Value), StringComparison.OrdinalIgnoreCase);
+        }
+
+        var expected = outputNodeId is not null && values.TryGetValue(outputNodeId, out var outputValue)
+            ? FormatNumber(outputValue)
+            : string.Empty;
+
+        return new ComputedGraphResult(prompt, expected, values);
+    }
+
+    private static List<string> GetNodeInputs(JsonElement node)
+    {
+        var inputs = new List<string>();
+        if (node.TryGetProperty("inputs", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in inputsEl.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var value = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        inputs.Add(value);
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (node.TryGetProperty("left", out var leftEl) && leftEl.ValueKind == JsonValueKind.String)
+            {
+                var left = leftEl.GetString();
+                if (!string.IsNullOrWhiteSpace(left)) inputs.Add(left);
+            }
+            if (node.TryGetProperty("right", out var rightEl) && rightEl.ValueKind == JsonValueKind.String)
+            {
+                var right = rightEl.GetString();
+                if (!string.IsNullOrWhiteSpace(right)) inputs.Add(right);
+            }
+        }
+
+        return inputs;
+    }
+
+    private static string FormatNumber(double value)
+    {
+        if (Math.Abs(value % 1) < 0.00001)
+        {
+            return ((int)Math.Round(value)).ToString();
+        }
+        return value.ToString("0.###");
     }
 
     private static GraphDataset UnionDatasets(IEnumerable<GraphDataset> datasets)

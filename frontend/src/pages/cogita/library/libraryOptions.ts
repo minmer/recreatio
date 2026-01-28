@@ -19,7 +19,8 @@ export const getInfoTypeLabel = (copy: Copy, type: CogitaInfoType | 'any' | 'voc
     media: labels.media,
     geo: labels.geo,
     music_piece: labels.musicPiece,
-    music_fragment: labels.musicFragment
+    music_fragment: labels.musicFragment,
+    computed: labels.computed
   };
   return map[type] ?? String(type);
 };
@@ -39,7 +40,8 @@ export const getInfoTypeOptions = (copy: Copy): Array<{ value: CogitaInfoType | 
   { value: 'media', label: getInfoTypeLabel(copy, 'media') },
   { value: 'geo', label: getInfoTypeLabel(copy, 'geo') },
   { value: 'music_piece', label: getInfoTypeLabel(copy, 'music_piece') },
-  { value: 'music_fragment', label: getInfoTypeLabel(copy, 'music_fragment') }
+  { value: 'music_fragment', label: getInfoTypeLabel(copy, 'music_fragment') },
+  { value: 'computed', label: getInfoTypeLabel(copy, 'computed') }
 ];
 
 export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConnectionType; label: string }> => [

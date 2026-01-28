@@ -461,6 +461,7 @@ export const de: Copy = {
           overview: 'Übersicht',
           list: 'Karten durchsuchen',
           add: 'Neue Info hinzufügen',
+          dependencies: 'Abhängigkeitsgraf',
           collections: 'Alle Sammlungen',
           createCollection: 'Sammlung erstellen',
           collectionDetail: 'Sammlungsdetails',
@@ -496,7 +497,8 @@ export const de: Copy = {
         media: 'Medien',
         geo: 'Geo',
         musicPiece: 'Musikstück',
-        musicFragment: 'Musikfragment'
+        musicFragment: 'Musikfragment',
+        computed: 'Berechnet'
       },
       connectionTypes: {
         wordLanguage: 'Wort - Sprache',
@@ -599,6 +601,10 @@ export const de: Copy = {
           languagePlaceholder: 'Sprache suchen oder erstellen',
           notesLabel: 'Notizen',
           notesPlaceholder: 'Beschreibung, Zitathinweis oder Metadaten',
+          computedLabel: 'Prompt-Vorlage',
+          computedPlaceholder: 'Beispiel: {a} + {b} = ?',
+          computedRequired: 'Ein Berechnungsgraph ist erforderlich.',
+          computedInvalid: 'Die Berechnungsdefinition muss gültiges JSON sein.',
           save: 'Info speichern',
           saved: 'Info gespeichert.',
           failed: 'Info konnte nicht gespeichert werden.'
@@ -699,12 +705,14 @@ export const de: Copy = {
         checkLabel: 'Prüfung',
         checkValue: 'Exakte Übereinstimmung',
         cardsPerSessionLabel: 'Karten pro Sitzung',
+        reviewerLabel: 'Person',
         previewTitle: 'Zufällige Reihenfolge, exakte Antworten',
         previewBody1: 'Vokabelkarten fragen nach der Übersetzung.',
         previewBody2: 'Wortkarten fragen nach der Sprache.',
         start: 'Wiederholung starten',
         progressTitle: 'Fortschritt',
         loading: 'Wiederholungskarten werden geladen...',
+        loadingComputed: 'Berechnete Karte wird erstellt...',
         error: 'Karten konnten nicht geladen werden.',
         empty: 'Keine Karten für die Wiederholung.',
         completed: 'Wiederholung abgeschlossen. Gut gemacht!',

@@ -1026,7 +1026,7 @@
 
 .cogita-library-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
   gap: 1.6rem;
   align-items: start;
   margin-top: 2rem;
@@ -1040,7 +1040,9 @@
 
 .cogita-library-sidebar {
   position: sticky;
-  top: 1.5rem;
+  top: 6.5rem;
+  height: calc(100vh - 8rem);
+  overflow-y: auto;
   align-self: start;
   background: rgba(7, 18, 32, 0.85);
   border: 1px solid rgba(120, 170, 220, 0.2);
@@ -1072,15 +1074,36 @@
 }
 
 .cogita-sidebar-section-title {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: rgba(145, 180, 220, 0.7);
 }
 
+.cogita-sidebar-section-title::after {
+  content: '▸';
+  font-size: 0.7rem;
+  color: rgba(160, 200, 240, 0.7);
+  transform: rotate(0deg);
+  transition: transform 0.2s ease;
+}
+
+.cogita-sidebar-section-title[data-expanded='true']::after {
+  transform: rotate(90deg);
+}
+
 .cogita-sidebar-links {
   display: grid;
   gap: 0.4rem;
+  padding-left: 0.3rem;
 }
 
 .cogita-sidebar-links a {
@@ -1133,6 +1156,10 @@
   display: grid;
   grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(220px, 320px);
   gap: 1.2rem;
+}
+
+.cogita-computed-graph {
+  min-height: 420px;
 }
 
 .cogita-graph-palette,
@@ -1723,6 +1750,10 @@
   position: relative;
   display: grid;
   gap: 0.35rem;
+}
+
+.cogita-lookup.full {
+  grid-column: 1 / -1;
 }
 
 .cogita-lookup-chips {

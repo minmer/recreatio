@@ -138,6 +138,54 @@ public sealed record CogitaCollectionDetailResponse(
     DateTimeOffset CreatedUtc
 );
 
+public sealed record CogitaCollectionDependencyRequest(
+    Guid ParentCollectionId,
+    Guid ChildCollectionId
+);
+
+public sealed record CogitaCollectionDependencyResponse(
+    Guid ParentCollectionId,
+    Guid ChildCollectionId
+);
+
+public sealed record CogitaCollectionDependencyBundleResponse(
+    List<CogitaCollectionDependencyResponse> Parents,
+    List<CogitaCollectionDependencyResponse> Children
+);
+
+public sealed record CogitaReviewEventRequest(
+    string ItemType,
+    Guid ItemId,
+    string? Direction,
+    string PayloadBase64,
+    Guid? PersonRoleId
+);
+
+public sealed record CogitaReviewEventResponse(
+    Guid ReviewId,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaReviewSummaryResponse(
+    string ItemType,
+    Guid ItemId,
+    int TotalReviews,
+    int CorrectReviews,
+    DateTimeOffset? LastReviewedUtc,
+    double Score
+);
+
+public sealed record CogitaReviewerResponse(
+    Guid RoleId,
+    string Label
+);
+
+public sealed record CogitaComputedSampleResponse(
+    string Prompt,
+    string ExpectedAnswer,
+    Dictionary<string, double> Values
+);
+
 public sealed record CogitaCollectionGraphNodeRequest(
     Guid? NodeId,
     string NodeType,
@@ -183,6 +231,48 @@ public sealed record CogitaCollectionGraphPreviewResponse(
     int Total,
     int Connections,
     int Infos
+);
+
+public sealed record CogitaDependencyGraphNodeRequest(
+    Guid? NodeId,
+    string NodeType,
+    JsonElement Payload
+);
+
+public sealed record CogitaDependencyGraphEdgeRequest(
+    Guid? EdgeId,
+    Guid FromNodeId,
+    Guid ToNodeId
+);
+
+public sealed record CogitaDependencyGraphRequest(
+    List<CogitaDependencyGraphNodeRequest> Nodes,
+    List<CogitaDependencyGraphEdgeRequest> Edges,
+    Guid? DataKeyId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaDependencyGraphNodeResponse(
+    Guid NodeId,
+    string NodeType,
+    JsonElement Payload
+);
+
+public sealed record CogitaDependencyGraphEdgeResponse(
+    Guid EdgeId,
+    Guid FromNodeId,
+    Guid ToNodeId
+);
+
+public sealed record CogitaDependencyGraphResponse(
+    Guid GraphId,
+    List<CogitaDependencyGraphNodeResponse> Nodes,
+    List<CogitaDependencyGraphEdgeResponse> Edges
+);
+
+public sealed record CogitaDependencyGraphPreviewResponse(
+    int TotalCollections,
+    List<Guid> CollectionIds
 );
 
 public sealed record CogitaMockDataResponse(

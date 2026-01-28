@@ -156,15 +156,16 @@ export type Copy = {
           collections: string;
           currentCollection: string;
         };
-        items: {
-          overview: string;
-          list: string;
-          add: string;
-          collections: string;
-          createCollection: string;
-          collectionDetail: string;
-          collectionGraph: string;
-          revisionSettings: string;
+      items: {
+        overview: string;
+        list: string;
+        add: string;
+        dependencies: string;
+        collections: string;
+        createCollection: string;
+        collectionDetail: string;
+        collectionGraph: string;
+        revisionSettings: string;
           revisionRun: string;
         };
       };
@@ -197,6 +198,7 @@ export type Copy = {
         geo: string;
         musicPiece: string;
         musicFragment: string;
+        computed: string;
       };
       connectionTypes: {
         wordLanguage: string;
@@ -299,6 +301,10 @@ export type Copy = {
           languagePlaceholder: string;
           notesLabel: string;
           notesPlaceholder: string;
+          computedLabel: string;
+          computedPlaceholder: string;
+          computedRequired: string;
+          computedInvalid: string;
           save: string;
           saved: string;
           failed: string;
@@ -399,12 +405,14 @@ export type Copy = {
         checkLabel: string;
         checkValue: string;
         cardsPerSessionLabel: string;
+        reviewerLabel: string;
         previewTitle: string;
         previewBody1: string;
         previewBody2: string;
         start: string;
         progressTitle: string;
         loading: string;
+        loadingComputed: string;
         error: string;
         empty: string;
         completed: string;

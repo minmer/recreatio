@@ -540,6 +540,16 @@ export type CogitaCollectionDetail = {
   createdUtc: string;
 };
 
+export type CogitaCollectionDependency = {
+  parentCollectionId: string;
+  childCollectionId: string;
+};
+
+export type CogitaCollectionDependencies = {
+  parents: CogitaCollectionDependency[];
+  children: CogitaCollectionDependency[];
+};
+
 export type CogitaCollectionItemRequest = {
   itemType: 'info' | 'connection';
   itemId: string;
@@ -569,6 +579,54 @@ export type CogitaCollectionGraphPreview = {
   total: number;
   connections: number;
   infos: number;
+};
+
+export type CogitaDependencyGraphNode = {
+  nodeId: string;
+  nodeType: string;
+  payload: unknown;
+};
+
+export type CogitaDependencyGraphEdge = {
+  edgeId: string;
+  fromNodeId: string;
+  toNodeId: string;
+};
+
+export type CogitaDependencyGraph = {
+  graphId: string;
+  nodes: CogitaDependencyGraphNode[];
+  edges: CogitaDependencyGraphEdge[];
+};
+
+export type CogitaDependencyGraphPreview = {
+  totalCollections: number;
+  collectionIds: string[];
+};
+
+export type CogitaReviewEventResponse = {
+  reviewId: string;
+  createdUtc: string;
+};
+
+export type CogitaReviewer = {
+  roleId: string;
+  label: string;
+};
+
+export type CogitaReviewSummary = {
+  itemType: string;
+  itemId: string;
+  totalReviews: number;
+  correctReviews: number;
+  lastReviewedUtc?: string | null;
+  score: number;
+};
+
+export type CogitaComputedSample = {
+  prompt: string;
+  expectedAnswer: string;
+  values: Record<string, number>;
 };
 
 export type CogitaCollectionCreateResponse = {
@@ -686,6 +744,27 @@ export function getCogitaCollection(libraryId: string, collectionId: string) {
   });
 }
 
+export function getCogitaCollectionDependencies(libraryId: string, collectionId: string) {
+  return request<CogitaCollectionDependencies>(
+    `/cogita/libraries/${libraryId}/collections/${collectionId}/dependencies`,
+    { method: 'GET' }
+  );
+}
+
+export function createCogitaCollectionDependency(
+  libraryId: string,
+  collectionId: string,
+  payload: CogitaCollectionDependency
+) {
+  return request<CogitaCollectionDependency>(
+    `/cogita/libraries/${libraryId}/collections/${collectionId}/dependencies`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
 export function getCogitaCollectionCards(payload: { libraryId: string; collectionId: string; limit?: number; cursor?: string | null }) {
   const params = new URLSearchParams();
   if (payload.limit) params.set('limit', String(payload.limit));
@@ -697,6 +776,86 @@ export function getCogitaCollectionCards(payload: { libraryId: string; collectio
       method: 'GET'
     }
   );
+}
+
+export function createCogitaReviewEvent(payload: {
+  libraryId: string;
+  itemType: 'info' | 'connection';
+  itemId: string;
+  direction?: string | null;
+  payloadBase64: string;
+  personRoleId?: string | null;
+}) {
+  return request<CogitaReviewEventResponse>(`/cogita/libraries/${payload.libraryId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({
+      itemType: payload.itemType,
+      itemId: payload.itemId,
+      direction: payload.direction ?? null,
+      payloadBase64: payload.payloadBase64,
+      personRoleId: payload.personRoleId ?? null
+    })
+  });
+}
+
+export function getCogitaComputedSample(payload: { libraryId: string; infoId: string }) {
+  return request<CogitaComputedSample>(`/cogita/libraries/${payload.libraryId}/computed/${payload.infoId}/sample`, {
+    method: 'GET'
+  });
+}
+
+export function getCogitaReviewers(payload: { libraryId: string }) {
+  return request<CogitaReviewer[]>(`/cogita/libraries/${payload.libraryId}/reviewers`, {
+    method: 'GET'
+  });
+}
+
+export function getCogitaReviewSummary(payload: {
+  libraryId: string;
+  itemType: 'info' | 'connection';
+  itemId: string;
+  personRoleId?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (payload.personRoleId) params.set('personRoleId', payload.personRoleId);
+  const qs = params.toString();
+  return request<CogitaReviewSummary>(
+    `/cogita/libraries/${payload.libraryId}/reviews/${payload.itemType}/${payload.itemId}/summary${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function getCogitaDependencyGraph(payload: { libraryId: string }) {
+  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph`, {
+    method: 'GET'
+  });
+}
+
+export function saveCogitaDependencyGraph(payload: {
+  libraryId: string;
+  nodes: Array<{ nodeId?: string | null; nodeType: string; payload: unknown }>;
+  edges: Array<{ edgeId?: string | null; fromNodeId: string; toNodeId: string }>;
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      nodes: payload.nodes,
+      edges: payload.edges,
+      dataKeyId: payload.dataKeyId ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function previewCogitaDependencyGraph(payload: { libraryId: string }) {
+  return request<CogitaDependencyGraphPreview>(`/cogita/libraries/${payload.libraryId}/dependency-graph/preview`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
 }
 
 export function getCogitaCollectionGraph(payload: { libraryId: string; collectionId: string }) {

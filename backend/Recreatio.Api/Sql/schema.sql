@@ -604,6 +604,17 @@ CREATE TABLE dbo.CogitaMusicFragments
 );
 GO
 
+CREATE TABLE dbo.CogitaComputedInfos
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaComputedInfos_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
 CREATE TABLE dbo.CogitaConnections
 (
     Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -650,6 +661,32 @@ BEGIN
         CreatedUtc DATETIMEOFFSET NOT NULL,
         CONSTRAINT FK_CogitaCollectionItems_Collection FOREIGN KEY (CollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
     );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionDependencies' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCollectionDependencies
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ParentCollectionInfoId UNIQUEIDENTIFIER NOT NULL,
+        ChildCollectionInfoId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCollectionDependencies_Parent FOREIGN KEY (ParentCollectionInfoId) REFERENCES dbo.CogitaInfos(Id),
+        CONSTRAINT FK_CogitaCollectionDependencies_Child FOREIGN KEY (ChildCollectionInfoId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaCollectionDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaCollectionDependencies'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaCollectionDependencies_Link ON dbo.CogitaCollectionDependencies(ParentCollectionInfoId, ChildCollectionInfoId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCollectionDependencies_Child' AND object_id = OBJECT_ID('dbo.CogitaCollectionDependencies'))
+BEGIN
+    CREATE INDEX IX_CogitaCollectionDependencies_Child ON dbo.CogitaCollectionDependencies(ChildCollectionInfoId);
 END
 GO
 
@@ -718,6 +755,69 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaDependencyGraphs' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaDependencyGraphs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDependencyGraphs PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(8000) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaDependencyGraphs_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaDependencyGraphs_Library' AND object_id = OBJECT_ID('dbo.CogitaDependencyGraphs'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs(LibraryId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaDependencyGraphNodes' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaDependencyGraphNodes
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDependencyGraphNodes PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        NodeType NVARCHAR(64) NOT NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(8000) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaDependencyGraphNodes_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaDependencyGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaDependencyGraphNodes_Graph' AND object_id = OBJECT_ID('dbo.CogitaDependencyGraphNodes'))
+BEGIN
+    CREATE INDEX IX_CogitaDependencyGraphNodes_Graph ON dbo.CogitaDependencyGraphNodes(GraphId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaDependencyGraphEdges' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaDependencyGraphEdges
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDependencyGraphEdges PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        FromNodeId UNIQUEIDENTIFIER NOT NULL,
+        ToNodeId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaDependencyGraphEdges_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaDependencyGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaDependencyGraphEdges_Graph' AND object_id = OBJECT_ID('dbo.CogitaDependencyGraphEdges'))
+BEGIN
+    CREATE INDEX IX_CogitaDependencyGraphEdges_Graph ON dbo.CogitaDependencyGraphEdges(GraphId);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaCollectionItems_Link' AND object_id = OBJECT_ID('dbo.CogitaCollectionItems'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaCollectionItems_Link ON dbo.CogitaCollectionItems(CollectionInfoId, ItemType, ItemId);
@@ -727,6 +827,31 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCollectionItems_Collection_Order' AND object_id = OBJECT_ID('dbo.CogitaCollectionItems'))
 BEGIN
     CREATE INDEX IX_CogitaCollectionItems_Collection_Order ON dbo.CogitaCollectionItems(CollectionInfoId, SortOrder);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaReviewEvents' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaReviewEvents
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        PersonRoleId UNIQUEIDENTIFIER NOT NULL,
+        ItemType NVARCHAR(32) NOT NULL,
+        ItemId UNIQUEIDENTIFIER NOT NULL,
+        Direction NVARCHAR(64) NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaReviewEvents_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaReviewEvents_Role FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaReviewEvents_Person_Item' AND object_id = OBJECT_ID('dbo.CogitaReviewEvents'))
+BEGIN
+    CREATE INDEX IX_CogitaReviewEvents_Person_Item ON dbo.CogitaReviewEvents(PersonRoleId, ItemType, ItemId, CreatedUtc DESC);
 END
 GO
 

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 type CogitaLibrarySidebarProps = {
@@ -27,16 +27,21 @@ type CogitaLibrarySidebarProps = {
 };
 
 type SidebarItem = { label: string; href: string };
-type SidebarSection = { title: string; items: SidebarItem[] };
+type SidebarSection = { key: string; title: string; items: SidebarItem[] };
 
 const buildSections = (libraryId: string, collectionId: string | undefined, labels: CogitaLibrarySidebarProps['labels']) => {
   const base = `/#/cogita/library/${libraryId}`;
   const sections: SidebarSection[] = [
     {
+      key: 'library',
       title: labels.sections.library,
-      items: [{ label: labels.items.overview, href: base }]
+      items: [
+        { label: labels.items.overview, href: base },
+        { label: labels.items.dependencies, href: `${base}/dependencies` }
+      ]
     },
     {
+      key: 'cards',
       title: labels.sections.cards,
       items: [
         { label: labels.items.list, href: `${base}/list` },
@@ -44,6 +49,7 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
       ]
     },
     {
+      key: 'collections',
       title: labels.sections.collections,
       items: [
         { label: labels.items.collections, href: `${base}/collections` },
@@ -54,6 +60,7 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
 
   if (collectionId) {
     sections.push({
+      key: 'currentCollection',
       title: labels.sections.currentCollection,
       items: [
         { label: labels.items.collectionDetail, href: `${base}/collections/${collectionId}` },
@@ -88,19 +95,54 @@ export function CogitaLibrarySidebar({ libraryId, collectionId, labels }: Cogita
     return active.startsWith(path);
   };
 
+  const initialExpanded = useMemo(() => {
+    const expanded: Record<string, boolean> = {};
+    sections.forEach((section) => {
+      expanded[section.key] = section.items.some((item) => isActive(item.href));
+    });
+    return expanded;
+  }, [sections, active, basePath]);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(initialExpanded);
+
+  useEffect(() => {
+    setExpandedSections((prev) => {
+      const next = { ...prev };
+      sections.forEach((section) => {
+        if (section.items.some((item) => isActive(item.href))) {
+          next[section.key] = true;
+        }
+      });
+      return next;
+    });
+  }, [sections, active, basePath]);
+
   return (
     <aside className="cogita-library-sidebar" aria-label={labels.title}>
       <p className="cogita-sidebar-title">{labels.title}</p>
       {sections.map((section) => (
         <div className="cogita-sidebar-section" key={section.title}>
-          <p className="cogita-sidebar-section-title">{section.title}</p>
-          <div className="cogita-sidebar-links">
-            {section.items.map((item) => (
-              <a key={item.href} href={item.href} data-active={isActive(item.href)}>
-                {item.label}
-              </a>
-            ))}
-          </div>
+          <button
+            type="button"
+            className="cogita-sidebar-section-title"
+            data-expanded={expandedSections[section.key]}
+            onClick={() =>
+              setExpandedSections((prev) => ({
+                ...prev,
+                [section.key]: !prev[section.key]
+              }))
+            }
+          >
+            {section.title}
+          </button>
+          {expandedSections[section.key] && (
+            <div className="cogita-sidebar-links">
+              {section.items.map((item) => (
+                <a key={item.href} href={item.href} data-active={isActive(item.href)}>
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </aside>
