@@ -6,6 +6,7 @@ import type { RouteKey } from '../../../types/navigation';
 import type { CogitaConnectionType, CogitaGroupType, CogitaInfoOption, CogitaInfoType } from './types';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import { ComputedGraphEditor, type ComputedGraphDefinition } from './components/ComputedGraphEditor';
+import { LatexBlock, LatexInline } from '../../../components/LatexText';
 import { getConnectionTypeOptions, getGroupTypeOptions, getInfoTypeOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
@@ -46,6 +47,8 @@ export function CogitaLibraryAddPage({
   });
   const [computedPrompt, setComputedPrompt] = useState('');
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
+  const [computedPreview, setComputedPreview] = useState<{ prompt: string; answers: Record<string, string> } | null>(null);
+  const [computedPreviewStatus, setComputedPreviewStatus] = useState<'idle' | 'ready' | 'error'>('idle');
   const [connectionForm, setConnectionForm] = useState({
     connectionType: 'translation' as CogitaConnectionType,
     language: null as CogitaInfoOption | null,
@@ -155,6 +158,21 @@ export function CogitaLibraryAddPage({
           setFormStatus(copy.cogita.library.add.info.computedRequired);
           return;
         }
+        const invalidName = computedGraph.nodes.find((node) => node.name && !/^[A-Za-z][A-Za-z0-9_]*$/.test(node.name));
+        if (invalidName) {
+          setFormStatus(copy.cogita.library.add.info.computedInvalidName);
+          return;
+        }
+        const names = computedGraph.nodes.map((node) => node.name?.trim()).filter(Boolean) as string[];
+        const nameSet = new Set<string>();
+        for (const name of names) {
+          const key = name.toLowerCase();
+          if (nameSet.has(key)) {
+            setFormStatus(copy.cogita.library.add.info.computedDuplicateName);
+            return;
+          }
+          nameSet.add(key);
+        }
         payload.definition = {
           promptTemplate: computedPrompt,
           graph: computedGraph
@@ -176,10 +194,185 @@ export function CogitaLibraryAddPage({
       if (infoForm.infoType === 'computed') {
         setComputedPrompt('');
         setComputedGraph(null);
+        setComputedPreview(null);
+        setComputedPreviewStatus('idle');
       }
     } catch {
       setFormStatus(copy.cogita.library.add.info.failed);
     }
+  };
+
+  const buildComputedPreview = () => {
+    if (!computedGraph) return null;
+    const nodeMap = new Map(computedGraph.nodes.map((node) => [node.id, node]));
+    const values = new Map<string, number>();
+    const visiting = new Set<string>();
+
+    const evaluateNode = (nodeId: string): number => {
+      if (values.has(nodeId)) return values.get(nodeId)!;
+      if (visiting.has(nodeId)) return 0;
+      const node = nodeMap.get(nodeId);
+      if (!node) return 0;
+      visiting.add(nodeId);
+
+      const resolveInputs = (handle?: string) => {
+        const ids = handle
+          ? node.inputsByHandle?.[handle] ?? []
+          : node.inputs ?? node.inputsByHandle?.in ?? [];
+        return ids.map((id) => evaluateNode(id));
+      };
+
+      let result = 0;
+      switch (node.type) {
+        case 'input.random': {
+          const min = node.min ?? 0;
+          const max = node.max ?? min + 10;
+          const low = Math.min(min, max);
+          const high = Math.max(min, max);
+          result = Math.floor(Math.random() * (high - low + 1)) + low;
+          break;
+        }
+        case 'input.const': {
+          result = node.value ?? 0;
+          break;
+        }
+        case 'compute.add': {
+          result = resolveInputs('in').reduce((sum, value) => sum + value, 0);
+          break;
+        }
+        case 'compute.sub': {
+          const addValues = resolveInputs('add');
+          const subValues = resolveInputs('sub');
+          result = addValues.reduce((sum, value) => sum + value, 0) - subValues.reduce((sum, value) => sum + value, 0);
+          break;
+        }
+        case 'compute.mul': {
+          const list = resolveInputs('in');
+          result = list.length ? list.reduce((prod, value) => prod * value, 1) : 0;
+          break;
+        }
+        case 'compute.div': {
+          const numerator = resolveInputs('num')[0] ?? 0;
+          const denominator = resolveInputs('den').reduce((sum, value) => sum + value, 0);
+          result = Math.abs(denominator) < Number.EPSILON ? 0 : numerator / denominator;
+          break;
+        }
+        case 'compute.pow': {
+          const base = resolveInputs('base')[0] ?? 0;
+          const exp = resolveInputs('exp')[0] ?? 0;
+          result = Math.pow(base, exp);
+          break;
+        }
+        case 'compute.exp': {
+          const base = resolveInputs('base')[0] ?? 0;
+          const exp = resolveInputs('exp')[0] ?? 0;
+          result = Math.pow(base, exp);
+          break;
+        }
+        case 'compute.log': {
+          const value = resolveInputs('value')[0] ?? 0;
+          const base = resolveInputs('base')[0] ?? 0;
+          const safeValue = Math.max(value, Number.EPSILON);
+          result = Math.abs(base) < Number.EPSILON ? Math.log(safeValue) : Math.log(safeValue) / Math.log(base);
+          break;
+        }
+        case 'compute.abs': {
+          result = Math.abs(resolveInputs('in')[0] ?? 0);
+          break;
+        }
+        case 'compute.min': {
+          const list = resolveInputs('in');
+          result = list.length ? Math.min(...list) : 0;
+          break;
+        }
+        case 'compute.max': {
+          const list = resolveInputs('in');
+          result = list.length ? Math.max(...list) : 0;
+          break;
+        }
+        case 'compute.floor': {
+          result = Math.floor(resolveInputs('in')[0] ?? 0);
+          break;
+        }
+        case 'compute.ceil': {
+          result = Math.ceil(resolveInputs('in')[0] ?? 0);
+          break;
+        }
+        case 'compute.round': {
+          result = Math.round(resolveInputs('in')[0] ?? 0);
+          break;
+        }
+        case 'compute.mod': {
+          const a = resolveInputs('a')[0] ?? 0;
+          const b = resolveInputs('b')[0] ?? 0;
+          result = Math.abs(b) < Number.EPSILON ? 0 : a % b;
+          break;
+        }
+        case 'output': {
+          result = resolveInputs('in')[0] ?? 0;
+          break;
+        }
+        default:
+          result = 0;
+      }
+
+      visiting.delete(nodeId);
+      values.set(nodeId, result);
+      return result;
+    };
+
+    const outputs = computedGraph.outputs && computedGraph.outputs.length > 0
+      ? computedGraph.outputs
+      : computedGraph.output
+        ? [computedGraph.output]
+        : computedGraph.nodes.filter((node) => node.type === 'output').map((node) => node.id);
+
+    outputs.forEach((id) => evaluateNode(id));
+
+    const formatNumber = (value: number) => {
+      if (Math.abs(value % 1) < 0.00001) return String(Math.round(value));
+      return value.toFixed(3).replace(/\.?0+$/, '');
+    };
+
+    const answers: Record<string, string> = {};
+    outputs.forEach((id) => {
+      const node = nodeMap.get(id);
+      if (!node) return;
+      const name = node.name?.trim() || id;
+      answers[name] = formatNumber(values.get(id) ?? 0);
+    });
+
+    let prompt = computedPrompt.trim();
+    if (!prompt) {
+      prompt = outputs.length ? `Compute ${outputs.join(', ')}` : 'Compute';
+    }
+    computedGraph.nodes.forEach((node) => {
+      if (!values.has(node.id)) return;
+      const value = formatNumber(values.get(node.id) ?? 0);
+      prompt = prompt.replace(new RegExp(`\\{${node.id}\\}`, 'gi'), value);
+      if (node.name) {
+        prompt = prompt.replace(new RegExp(`\\{${node.name}\\}`, 'gi'), value);
+      }
+    });
+
+    return { prompt, answers };
+  };
+
+  const handleComputedPreview = () => {
+    setComputedPreviewStatus('idle');
+    if (!computedGraph) {
+      setComputedPreview(null);
+      setComputedPreviewStatus('error');
+      return;
+    }
+    const preview = buildComputedPreview();
+    if (!preview) {
+      setComputedPreview(null);
+      setComputedPreviewStatus('error');
+      return;
+    }
+    setComputedPreview(preview);
+    setComputedPreviewStatus('ready');
   };
 
   const handleCreateConnection = async () => {
@@ -430,6 +623,27 @@ export function CogitaLibraryAddPage({
                           onChange={(definition) => setComputedGraph(definition)}
                         />
                       </div>
+                      <div className="cogita-form-actions full">
+                        <button type="button" className="cta ghost" onClick={handleComputedPreview}>
+                          {copy.cogita.library.add.info.computedPreview}
+                        </button>
+                      </div>
+                      {computedPreview && computedPreviewStatus === 'ready' ? (
+                        <div className="cogita-detail-sample">
+                          <p className="cogita-user-kicker">{copy.cogita.library.add.info.computedPreviewTitle}</p>
+                          <LatexBlock value={computedPreview.prompt} />
+                          <div className="cogita-detail-sample-grid">
+                            {Object.entries(computedPreview.answers).map(([key, value]) => (
+                              <div key={key} className="cogita-detail-sample-item">
+                                <span>{key}</span>
+                                <LatexInline value={value} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : computedPreviewStatus === 'error' ? (
+                        <p className="cogita-help">{copy.cogita.library.add.info.computedPreviewFail}</p>
+                      ) : null}
                     </>
                   )}
                 <div className="cogita-form-actions full">

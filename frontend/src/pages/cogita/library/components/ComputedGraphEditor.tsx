@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
+  Handle,
+  Position,
   addEdge,
   useEdgesState,
   useNodesState,
@@ -20,6 +22,7 @@ export type ComputedGraphNodePayload = {
   max?: number;
   value?: number;
   inputs?: string[];
+  inputsByHandle?: Record<string, string[]>;
 };
 
 export type ComputedGraphDefinition = {
@@ -34,60 +37,173 @@ type ComputedGraphEditorProps = {
   onChange: (definition: ComputedGraphDefinition) => void;
 };
 
-const defaultNodes: Node[] = [
-  {
-    id: 'a',
-    type: 'default',
-    position: { x: 40, y: 40 },
-    data: { label: 'A (random)', type: 'input.random', min: 1, max: 10, name: 'a' }
-  },
-  {
-    id: 'b',
-    type: 'default',
-    position: { x: 40, y: 140 },
-    data: { label: 'B (random)', type: 'input.random', min: 1, max: 10, name: 'b' }
-  },
-  {
-    id: 'sum',
-    type: 'default',
-    position: { x: 280, y: 90 },
-    data: { label: 'Add', type: 'compute.add', name: 'sum' }
-  },
-  {
-    id: 'out',
-    type: 'default',
-    position: { x: 520, y: 90 },
-    data: { label: 'Output', type: 'output', name: 'result' }
-  }
-];
+const defaultNodes: Node[] = [];
+const defaultEdges: Edge[] = [];
 
-const defaultEdges: Edge[] = [
-  { id: 'e-a-sum', source: 'a', target: 'sum' },
-  { id: 'e-b-sum', source: 'b', target: 'sum' },
-  { id: 'e-sum-out', source: 'sum', target: 'out' }
-];
+type NodeInputHandle = { id: string; label: string; limitOne?: boolean };
+
+type ComputedNodeMeta = {
+  label: string;
+  handles: NodeInputHandle[];
+  output?: boolean;
+};
+
+function ComputedGraphNode({
+  data
+}: {
+  data: { title: string; subtitle: string; handles: NodeInputHandle[]; output?: boolean; name?: string; value?: number | null };
+}) {
+  return (
+    <div className="cogita-graph-node">
+      <div className="cogita-graph-node-labels">
+        <strong>{data.title}</strong>
+        <span>{data.subtitle}</span>
+      </div>
+      {data.name ? <div className="cogita-graph-node-meta">{data.name}</div> : null}
+      {Number.isFinite(data.value) ? <div className="cogita-graph-node-value">{data.value}</div> : null}
+      {data.handles.map((handle, index) => (
+        <Handle
+          key={handle.id}
+          type="target"
+          id={handle.id}
+          position={Position.Left}
+          style={{ top: 36 + index * 22 }}
+        >
+          <span className="cogita-graph-handle-label">{handle.label}</span>
+        </Handle>
+      ))}
+      {data.output !== false ? <Handle type="source" id="out" position={Position.Right} /> : null}
+    </div>
+  );
+}
 
 export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEditorProps) {
+  const nodeMeta = useMemo<Record<string, ComputedNodeMeta>>(
+    () => ({
+      'input.random': { label: copy.cogita.library.graph.nodeTypes.inputRandom, handles: [], output: true },
+      'input.const': { label: copy.cogita.library.graph.nodeTypes.inputConst, handles: [], output: true },
+      'compute.add': {
+        label: copy.cogita.library.graph.nodeTypes.add,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        output: true
+      },
+      'compute.sub': {
+        label: copy.cogita.library.graph.nodeTypes.sub,
+        handles: [
+          { id: 'add', label: copy.cogita.library.graph.handleLabels.add },
+          { id: 'sub', label: copy.cogita.library.graph.handleLabels.sub }
+        ],
+        output: true
+      },
+      'compute.mul': {
+        label: copy.cogita.library.graph.nodeTypes.mul,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        output: true
+      },
+      'compute.div': {
+        label: copy.cogita.library.graph.nodeTypes.div,
+        handles: [
+          { id: 'num', label: copy.cogita.library.graph.handleLabels.numerator, limitOne: true },
+          { id: 'den', label: copy.cogita.library.graph.handleLabels.denominator }
+        ],
+        output: true
+      },
+      'compute.pow': {
+        label: copy.cogita.library.graph.nodeTypes.pow,
+        handles: [
+          { id: 'base', label: copy.cogita.library.graph.handleLabels.base, limitOne: true },
+          { id: 'exp', label: copy.cogita.library.graph.handleLabels.exponent, limitOne: true }
+        ],
+        output: true
+      },
+      'compute.exp': {
+        label: copy.cogita.library.graph.nodeTypes.exp,
+        handles: [
+          { id: 'base', label: copy.cogita.library.graph.handleLabels.base, limitOne: true },
+          { id: 'exp', label: copy.cogita.library.graph.handleLabels.exponent, limitOne: true }
+        ],
+        output: true
+      },
+      'compute.log': {
+        label: copy.cogita.library.graph.nodeTypes.log,
+        handles: [
+          { id: 'value', label: copy.cogita.library.graph.handleLabels.value, limitOne: true },
+          { id: 'base', label: copy.cogita.library.graph.handleLabels.base, limitOne: true }
+        ],
+        output: true
+      },
+      'compute.abs': {
+        label: copy.cogita.library.graph.nodeTypes.abs,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        output: true
+      },
+      'compute.min': {
+        label: copy.cogita.library.graph.nodeTypes.min,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        output: true
+      },
+      'compute.max': {
+        label: copy.cogita.library.graph.nodeTypes.max,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        output: true
+      },
+      'compute.floor': {
+        label: copy.cogita.library.graph.nodeTypes.floor,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        output: true
+      },
+      'compute.ceil': {
+        label: copy.cogita.library.graph.nodeTypes.ceil,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        output: true
+      },
+      'compute.round': {
+        label: copy.cogita.library.graph.nodeTypes.round,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        output: true
+      },
+      'compute.mod': {
+        label: copy.cogita.library.graph.nodeTypes.mod,
+        handles: [
+          { id: 'a', label: copy.cogita.library.graph.handleLabels.numerator, limitOne: true },
+          { id: 'b', label: copy.cogita.library.graph.handleLabels.denominator, limitOne: true }
+        ],
+        output: true
+      },
+      output: {
+        label: copy.cogita.library.graph.nodeTypes.output,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        output: false
+      }
+    }),
+    [copy]
+  );
   const initialNodes = useMemo(() => {
     if (!value || value.nodes.length === 0) return defaultNodes;
     return value.nodes.map((node, index) => ({
       id: node.id,
-      type: 'default',
+      type: 'computed',
       position: { x: 40 + index * 160, y: 60 + (index % 3) * 80 },
       data: {
-        label: node.name || node.type,
+        title: node.name || nodeMeta[node.type]?.label || node.type,
+        subtitle: nodeMeta[node.type]?.label || node.type,
         type: node.type,
         name: node.name,
         min: node.min,
         max: node.max,
-        value: node.value
+        value: node.value,
+        handles: nodeMeta[node.type]?.handles ?? [],
+        output: nodeMeta[node.type]?.output ?? true
       }
     })) as Node[];
-  }, [value]);
+  }, [value, nodeMeta]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [randomValues, setRandomValues] = useState<Record<string, number>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
   const onChangeRef = useRef(onChange);
   const selectedNode = useMemo(
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
@@ -96,6 +212,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   useEffect(() => {
     setNameWarning(null);
+    setNameError(null);
   }, [selectedNodeId]);
 
   useEffect(() => {
@@ -103,17 +220,22 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   }, [onChange]);
 
   useEffect(() => {
-    const inputsByNode = new Map<string, string[]>();
-    edges.forEach((edge) => {
-      if (!inputsByNode.has(edge.target)) {
-        inputsByNode.set(edge.target, []);
-      }
-      inputsByNode.get(edge.target)!.push(edge.source);
-    });
-
     const outputs = nodes
       .filter((node) => node.data?.type === 'output')
       .map((node) => node.id);
+    const inputsByHandle = new Map<string, Record<string, string[]>>();
+    edges.forEach((edge) => {
+      let entry: Record<string, string[]> | undefined = inputsByHandle.get(edge.target);
+      if (!entry) {
+        entry = {};
+        inputsByHandle.set(edge.target, entry);
+      }
+      const handleId = edge.targetHandle || 'in';
+      if (!entry[handleId]) {
+        entry[handleId] = [];
+      }
+      entry[handleId].push(edge.source);
+    });
     const definition: ComputedGraphDefinition = {
       nodes: nodes.map((node) => ({
         id: node.id,
@@ -122,7 +244,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         min: node.data?.min,
         max: node.data?.max,
         value: node.data?.value,
-        inputs: inputsByNode.get(node.id)
+        inputs: inputsByHandle.get(node.id)?.in,
+        inputsByHandle: inputsByHandle.get(node.id)
       })),
       output: outputs[0] ?? null,
       outputs
@@ -130,20 +253,205 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     onChangeRef.current(definition);
   }, [nodes, edges]);
 
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    let changed = false;
+    nodes.forEach((node) => {
+      if (node.data?.type !== 'input.random') return;
+      if (randomValues[node.id] !== undefined) {
+        next[node.id] = randomValues[node.id];
+        return;
+      }
+      const min = Number.isFinite(node.data?.min) ? Number(node.data?.min) : 0;
+      const max = Number.isFinite(node.data?.max) ? Number(node.data?.max) : min + 10;
+      const low = Math.min(min, max);
+      const high = Math.max(min, max);
+      next[node.id] = Math.floor(Math.random() * (high - low + 1)) + low;
+      changed = true;
+    });
+    if (changed || Object.keys(next).length !== Object.keys(randomValues).length) {
+      setRandomValues(next);
+    }
+  }, [nodes, randomValues, refreshTick]);
+
+  const computedValues = useMemo(() => {
+    const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+    const inputsByHandle = new Map<string, Record<string, string[]>>();
+    edges.forEach((edge) => {
+      let entry: Record<string, string[]> | undefined = inputsByHandle.get(edge.target);
+      if (!entry) {
+        entry = {};
+        inputsByHandle.set(edge.target, entry);
+      }
+      const handleId = edge.targetHandle || 'in';
+      if (!entry[handleId]) {
+        entry[handleId] = [];
+      }
+      entry[handleId].push(edge.source);
+    });
+
+    const values = new Map<string, number>();
+    const visiting = new Set<string>();
+
+    const resolveInputs = (node: Node, handle?: string) => {
+      const list = handle
+        ? inputsByHandle.get(node.id)?.[handle] ?? []
+        : inputsByHandle.get(node.id)?.in ?? [];
+      return list.map((id: string) => evaluateNode(id));
+    };
+
+    const evaluateNode = (nodeId: string): number => {
+      if (values.has(nodeId)) return values.get(nodeId)!;
+      if (visiting.has(nodeId)) return 0;
+      const node = nodeMap.get(nodeId);
+      if (!node) return 0;
+      visiting.add(nodeId);
+      const type = node.data?.type ?? '';
+      let result = 0;
+      switch (type) {
+        case 'input.random': {
+          result = randomValues[nodeId] ?? 0;
+          break;
+        }
+        case 'input.const': {
+          result = Number.isFinite(node.data?.value) ? Number(node.data?.value) : 0;
+          break;
+        }
+        case 'compute.add': {
+          result = resolveInputs(node, 'in').reduce((sum: number, value: number) => sum + value, 0);
+          break;
+        }
+        case 'compute.sub': {
+          result =
+            resolveInputs(node, 'add').reduce((sum: number, value: number) => sum + value, 0) -
+            resolveInputs(node, 'sub').reduce((sum: number, value: number) => sum + value, 0);
+          break;
+        }
+        case 'compute.mul': {
+          const list = resolveInputs(node, 'in');
+          result = list.length ? list.reduce((prod: number, value: number) => prod * value, 1) : 0;
+          break;
+        }
+        case 'compute.div': {
+          const numerator = resolveInputs(node, 'num')[0] ?? 0;
+          const denominator = resolveInputs(node, 'den').reduce((sum: number, value: number) => sum + value, 0);
+          result = Math.abs(denominator) < Number.EPSILON ? 0 : numerator / denominator;
+          break;
+        }
+        case 'compute.pow': {
+          const base = resolveInputs(node, 'base')[0] ?? 0;
+          const exp = resolveInputs(node, 'exp')[0] ?? 0;
+          result = Math.pow(base, exp);
+          break;
+        }
+        case 'compute.exp': {
+          const base = resolveInputs(node, 'base')[0] ?? 0;
+          const exp = resolveInputs(node, 'exp')[0] ?? 0;
+          result = Math.pow(base, exp);
+          break;
+        }
+        case 'compute.log': {
+          const value = resolveInputs(node, 'value')[0] ?? 0;
+          const base = resolveInputs(node, 'base')[0] ?? 0;
+          const safeValue = Math.max(value, Number.EPSILON);
+          result = Math.abs(base) < Number.EPSILON ? Math.log(safeValue) : Math.log(safeValue) / Math.log(base);
+          break;
+        }
+        case 'compute.abs': {
+          result = Math.abs(resolveInputs(node, 'in')[0] ?? 0);
+          break;
+        }
+        case 'compute.min': {
+          const list = resolveInputs(node, 'in');
+          result = list.length ? Math.min(...list) : 0;
+          break;
+        }
+        case 'compute.max': {
+          const list = resolveInputs(node, 'in');
+          result = list.length ? Math.max(...list) : 0;
+          break;
+        }
+        case 'compute.floor': {
+          result = Math.floor(resolveInputs(node, 'in')[0] ?? 0);
+          break;
+        }
+        case 'compute.ceil': {
+          result = Math.ceil(resolveInputs(node, 'in')[0] ?? 0);
+          break;
+        }
+        case 'compute.round': {
+          result = Math.round(resolveInputs(node, 'in')[0] ?? 0);
+          break;
+        }
+        case 'compute.mod': {
+          const a = resolveInputs(node, 'a')[0] ?? 0;
+          const b = resolveInputs(node, 'b')[0] ?? 0;
+          result = Math.abs(b) < Number.EPSILON ? 0 : a % b;
+          break;
+        }
+        case 'output': {
+          result = resolveInputs(node, 'in')[0] ?? 0;
+          break;
+        }
+        default:
+          result = 0;
+      }
+      visiting.delete(nodeId);
+      values.set(nodeId, result);
+      return result;
+    };
+
+    nodes.forEach((node) => evaluateNode(node.id));
+    return values;
+  }, [nodes, edges, randomValues]);
+
+  useEffect(() => {
+    setNodes((prev) =>
+      prev.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          value: computedValues.get(node.id)
+        }
+      }))
+    );
+  }, [computedValues, setNodes]);
+
   const onConnect = (connection: Connection) => {
-    setEdges((prev) => addEdge(connection, prev));
+    if (!connection.target || !connection.targetHandle) {
+      setEdges((prev) => addEdge(connection, prev));
+      return;
+    }
+    const targetNode = nodes.find((node) => node.id === connection.target);
+    const meta = targetNode ? nodeMeta[targetNode.data?.type ?? ''] : null;
+    const handleConfig = meta?.handles.find((handle) => handle.id === connection.targetHandle);
+    setEdges((prev) => {
+      let next = prev;
+      if (handleConfig?.limitOne) {
+        next = prev.filter((edge) => !(edge.target === connection.target && edge.targetHandle === connection.targetHandle));
+      }
+      return addEdge(connection, next);
+    });
   };
 
   const addNode = (nodeType: string) => {
     const id = crypto.randomUUID();
-    const label = nodeType.replace('.', ' ');
+    const meta = nodeMeta[nodeType] ?? { label: nodeType, handles: [] };
+    const label = meta.label;
     setNodes((prev) => [
       ...prev,
       {
         id,
-        type: 'default',
+        type: 'computed',
         position: { x: 80 + prev.length * 40, y: 80 + prev.length * 30 },
-        data: { label, type: nodeType }
+        data: {
+          title: label,
+          subtitle: meta.label,
+          type: nodeType,
+          name: '',
+          handles: meta.handles,
+          output: meta.output ?? true
+        }
       }
     ]);
   };
@@ -152,6 +460,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     if (!selectedNodeId) return;
     if (updates.name !== undefined) {
       const trimmed = updates.name.trim();
+      const latexOk = trimmed === '' || /^[A-Za-z][A-Za-z0-9_]*$/.test(trimmed);
+      setNameError(latexOk ? null : copy.cogita.library.graph.invalidName);
       if (!trimmed) {
         setNameWarning(null);
       } else {
@@ -172,11 +482,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
               data: {
                 ...node.data,
                 ...updates,
-                label: updates.name
+                title: updates.name
                   ? updates.name
-                  : updates.type
-                    ? updates.type.replace('.', ' ')
-                    : node.data?.label
+                  : node.data?.title,
+                subtitle: nodeMeta[updates.type ?? node.data?.type ?? '']?.label ?? node.data?.subtitle
               }
             }
           : node
@@ -188,6 +497,11 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     if (!selectedNodeId) return;
     setNodes((prev) => prev.filter((node) => node.id !== selectedNodeId));
     setEdges((prev) => prev.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId));
+    setRandomValues((prev) => {
+      const next = { ...prev };
+      delete next[selectedNodeId];
+      return next;
+    });
     setSelectedNodeId(null);
     setNameWarning(null);
   };
@@ -196,6 +510,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
+          nodeTypes={{ computed: ComputedGraphNode }}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -213,25 +528,55 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           <p className="cogita-graph-section-title">{copy.cogita.library.graph.palette}</p>
           <div className="cogita-graph-palette">
             <button type="button" onClick={() => addNode('input.random')}>
-              Random
+              {copy.cogita.library.graph.nodeTypes.inputRandom}
             </button>
             <button type="button" onClick={() => addNode('input.const')}>
-              Constant
+              {copy.cogita.library.graph.nodeTypes.inputConst}
             </button>
             <button type="button" onClick={() => addNode('compute.add')}>
-              Add
+              {copy.cogita.library.graph.nodeTypes.add}
             </button>
             <button type="button" onClick={() => addNode('compute.sub')}>
-              Subtract
+              {copy.cogita.library.graph.nodeTypes.sub}
             </button>
             <button type="button" onClick={() => addNode('compute.mul')}>
-              Multiply
+              {copy.cogita.library.graph.nodeTypes.mul}
             </button>
             <button type="button" onClick={() => addNode('compute.div')}>
-              Divide
+              {copy.cogita.library.graph.nodeTypes.div}
+            </button>
+            <button type="button" onClick={() => addNode('compute.pow')}>
+              {copy.cogita.library.graph.nodeTypes.pow}
+            </button>
+            <button type="button" onClick={() => addNode('compute.exp')}>
+              {copy.cogita.library.graph.nodeTypes.exp}
+            </button>
+            <button type="button" onClick={() => addNode('compute.log')}>
+              {copy.cogita.library.graph.nodeTypes.log}
+            </button>
+            <button type="button" onClick={() => addNode('compute.abs')}>
+              {copy.cogita.library.graph.nodeTypes.abs}
+            </button>
+            <button type="button" onClick={() => addNode('compute.min')}>
+              {copy.cogita.library.graph.nodeTypes.min}
+            </button>
+            <button type="button" onClick={() => addNode('compute.max')}>
+              {copy.cogita.library.graph.nodeTypes.max}
+            </button>
+            <button type="button" onClick={() => addNode('compute.floor')}>
+              {copy.cogita.library.graph.nodeTypes.floor}
+            </button>
+            <button type="button" onClick={() => addNode('compute.ceil')}>
+              {copy.cogita.library.graph.nodeTypes.ceil}
+            </button>
+            <button type="button" onClick={() => addNode('compute.round')}>
+              {copy.cogita.library.graph.nodeTypes.round}
+            </button>
+            <button type="button" onClick={() => addNode('compute.mod')}>
+              {copy.cogita.library.graph.nodeTypes.mod}
             </button>
             <button type="button" onClick={() => addNode('output')}>
-              Output
+              {copy.cogita.library.graph.nodeTypes.output}
             </button>
           </div>
         </div>
@@ -248,22 +593,12 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
                   onChange={(event) => updateSelectedNode({ name: event.target.value })}
                 />
                 {nameWarning ? <em className="cogita-help">{nameWarning}</em> : null}
+                {nameError ? <em className="cogita-help">{nameError}</em> : null}
+                <em className="cogita-help">{copy.cogita.library.graph.nameHint}</em>
               </label>
-              <label className="cogita-field">
-                <span>Type</span>
-                <select
-                  value={selectedNode.data?.type ?? 'compute.add'}
-                  onChange={(event) => updateSelectedNode({ type: event.target.value })}
-                >
-                  <option value="input.random">Random</option>
-                  <option value="input.const">Constant</option>
-                  <option value="compute.add">Add</option>
-                  <option value="compute.sub">Subtract</option>
-                  <option value="compute.mul">Multiply</option>
-                  <option value="compute.div">Divide</option>
-                  <option value="output">Output</option>
-                </select>
-              </label>
+              <p className="cogita-graph-readonly">
+                {copy.cogita.library.graph.typeLabel} {nodeMeta[selectedNode.data?.type ?? '']?.label ?? selectedNode.data?.type}
+              </p>
               {selectedNode.data?.type === 'input.random' && (
                 <>
                   <label className="cogita-field">
@@ -293,6 +628,30 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
                     onChange={(event) => updateSelectedNode({ value: Number(event.target.value) })}
                   />
                 </label>
+              )}
+              {selectedNode.data?.type === 'input.random' && (
+                <div className="cogita-form-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      if (!selectedNodeId) return;
+                      setRandomValues((prev) => {
+                        const min = Number.isFinite(selectedNode.data?.min) ? Number(selectedNode.data?.min) : 0;
+                        const max = Number.isFinite(selectedNode.data?.max) ? Number(selectedNode.data?.max) : min + 10;
+                        const low = Math.min(min, max);
+                        const high = Math.max(min, max);
+                        return {
+                          ...prev,
+                          [selectedNodeId]: Math.floor(Math.random() * (high - low + 1)) + low
+                        };
+                      });
+                      setRefreshTick((prev) => prev + 1);
+                    }}
+                  >
+                    {copy.cogita.library.graph.regenerateRandom}
+                  </button>
+                </div>
               )}
               <div className="cogita-form-actions">
                 <button type="button" className="ghost" onClick={deleteSelectedNode}>

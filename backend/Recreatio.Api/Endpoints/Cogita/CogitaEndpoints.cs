@@ -5332,15 +5332,75 @@ public static class CogitaEndpoints
             }
             else if (nodeType.StartsWith("compute.", StringComparison.OrdinalIgnoreCase))
             {
-                var inputs = GetNodeInputs(node);
-                var inputValues = inputs.Select(EvaluateNode).ToList();
+                var inputsByHandle = GetNodeInputsByHandle(node);
+                var allInputs = inputsByHandle.Count == 0
+                    ? GetNodeInputs(node)
+                    : inputsByHandle.SelectMany(pair => pair.Value).ToList();
+                var inputValues = allInputs.Select(EvaluateNode).ToList();
+                List<double> handleValues(string handle)
+                {
+                    if (!inputsByHandle.TryGetValue(handle, out var list))
+                    {
+                        return new List<double>();
+                    }
+                    return list.Select(EvaluateNode).ToList();
+                }
                 var op = nodeType["compute.".Length..].ToLowerInvariant();
                 result = op switch
                 {
                     "add" => inputValues.Sum(),
-                    "sub" => inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => acc - val),
+                    "sub" => inputsByHandle.Count == 0
+                        ? (inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => acc - val))
+                        : handleValues("add").Sum() - handleValues("sub").Sum(),
                     "mul" => inputValues.Count == 0 ? 0 : inputValues.Aggregate(1.0, (acc, val) => acc * val),
-                    "div" => inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => val == 0 ? acc : acc / val),
+                    "div" => inputsByHandle.Count == 0
+                        ? (inputValues.Count == 0 ? 0 : inputValues.Skip(1).Aggregate(inputValues.First(), (acc, val) => val == 0 ? acc : acc / val))
+                        : (() =>
+                        {
+                            var numList = handleValues("num");
+                            var denList = handleValues("den");
+                            var numerator = numList.FirstOrDefault();
+                            var denominator = denList.Sum();
+                            return Math.Abs(denominator) < double.Epsilon ? 0 : numerator / denominator;
+                        })(),
+                    "pow" => inputsByHandle.Count == 0
+                        ? (inputValues.Count < 2 ? (inputValues.Count == 1 ? inputValues[0] : 0) : Math.Pow(inputValues[0], inputValues[1]))
+                        : (() =>
+                        {
+                            var baseVal = handleValues("base").FirstOrDefault();
+                            var expVal = handleValues("exp").FirstOrDefault();
+                            return Math.Pow(baseVal, expVal);
+                        })(),
+                    "exp" => inputsByHandle.Count == 0
+                        ? (inputValues.Count == 0 ? 0 : Math.Exp(inputValues[0]))
+                        : (() =>
+                        {
+                            var baseVal = handleValues("base").FirstOrDefault();
+                            var expVal = handleValues("exp").FirstOrDefault();
+                            return Math.Pow(baseVal, expVal);
+                        })(),
+                    "log" => inputsByHandle.Count == 0
+                        ? (inputValues.Count == 0 ? 0 : Math.Log(Math.Max(inputValues[0], double.Epsilon)))
+                        : (() =>
+                        {
+                            var value = Math.Max(handleValues("value").FirstOrDefault(), double.Epsilon);
+                            var baseVal = handleValues("base").FirstOrDefault();
+                            return Math.Abs(baseVal) < double.Epsilon ? Math.Log(value) : Math.Log(value, baseVal);
+                        })(),
+                    "abs" => inputValues.Count == 0 ? 0 : Math.Abs(inputValues[0]),
+                    "min" => inputValues.Count == 0 ? 0 : inputValues.Min(),
+                    "max" => inputValues.Count == 0 ? 0 : inputValues.Max(),
+                    "floor" => inputValues.Count == 0 ? 0 : Math.Floor(inputValues[0]),
+                    "ceil" => inputValues.Count == 0 ? 0 : Math.Ceiling(inputValues[0]),
+                    "round" => inputValues.Count == 0 ? 0 : Math.Round(inputValues[0]),
+                    "mod" => inputsByHandle.Count == 0
+                        ? (inputValues.Count < 2 ? 0 : (inputValues[1] == 0 ? 0 : inputValues[0] % inputValues[1]))
+                        : (() =>
+                        {
+                            var a = handleValues("a").FirstOrDefault();
+                            var b = handleValues("b").FirstOrDefault();
+                            return Math.Abs(b) < double.Epsilon ? 0 : a % b;
+                        })(),
                     _ => 0
                 };
             }
@@ -5436,6 +5496,35 @@ public static class CogitaEndpoints
         }
 
         return inputs;
+    }
+
+    private static Dictionary<string, List<string>> GetNodeInputsByHandle(JsonElement node)
+    {
+        var result = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (node.TryGetProperty("inputsByHandle", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in inputsEl.EnumerateObject())
+            {
+                if (prop.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+                var list = new List<string>();
+                foreach (var item in prop.Value.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            list.Add(value);
+                        }
+                    }
+                }
+                result[prop.Name] = list;
+            }
+        }
+        return result;
     }
 
     private static string FormatNumber(double value)

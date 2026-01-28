@@ -1279,6 +1279,59 @@
   border-radius: 18px;
 }
 
+.cogita-graph-node {
+  min-width: 160px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.28);
+  background: rgba(6, 18, 32, 0.85);
+  color: #ecf3ff;
+  font-size: 0.85rem;
+}
+
+.cogita-graph-node-labels {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.cogita-graph-node-labels strong {
+  font-size: 0.95rem;
+}
+
+.cogita-graph-node-labels span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(170, 205, 235, 0.75);
+}
+
+.cogita-graph-node-meta {
+  font-size: 0.75rem;
+  color: rgba(210, 230, 248, 0.9);
+  margin-top: 0.35rem;
+}
+
+.cogita-graph-node-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f5fbff;
+  margin-top: 0.2rem;
+}
+
+.cogita-graph-handle-label {
+  position: absolute;
+  left: 10px;
+  transform: translateY(-50%);
+  font-size: 0.62rem;
+  color: rgba(180, 210, 240, 0.7);
+  white-space: nowrap;
+}
+
+.cogita-graph-readonly {
+  font-size: 0.8rem;
+  color: rgba(190, 215, 240, 0.8);
+}
+
 .cogita-graph-preview {
   font-size: 0.85rem;
   color: rgba(200, 220, 245, 0.8);

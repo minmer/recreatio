@@ -17,6 +17,7 @@ import type { RouteKey } from '../../../../types/navigation';
 import type { CogitaInfoType } from '../types';
 import { getInfoTypeLabel } from '../libraryOptions';
 import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
+import { LatexBlock } from '../../../../components/LatexText';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 
@@ -491,7 +492,7 @@ export function CogitaRevisionRunPage({
                     </div>
                   ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
                     <div className="cogita-revision-body">
-                      <h2>{prompt}</h2>
+                      <LatexBlock value={prompt ?? ''} />
                       <div className="cogita-form-grid">
                         {computedExpected.length > 0 ? (
                           computedExpected.map((entry) => (

@@ -8,6 +8,7 @@ import { getCardSearchOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
+import { LatexBlock, LatexInline } from '../../../components/LatexText';
 
 export function CogitaLibraryListPage({
   copy,
@@ -367,20 +368,21 @@ export function CogitaLibraryListPage({
                           {computedSampleStatus !== 'loading' && computedSample ? (
                             <>
                               <p>
-                                <strong>{copy.cogita.library.list.computedPromptLabel}</strong> {computedSample.prompt}
+                                <strong>{copy.cogita.library.list.computedPromptLabel}</strong>
                               </p>
+                              <LatexBlock value={computedSample.prompt} />
                               {computedSample.expectedAnswers && Object.keys(computedSample.expectedAnswers).length > 0 ? (
                                 <div className="cogita-detail-sample-grid">
                                   {Object.entries(computedSample.expectedAnswers).map(([key, value]) => (
                                     <div key={key} className="cogita-detail-sample-item">
                                       <span>{key}</span>
-                                      <strong>{value}</strong>
+                                      <LatexInline value={value} />
                                     </div>
                                   ))}
                                 </div>
                               ) : (
                                 <p>
-                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong> {computedSample.expectedAnswer}
+                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong> <LatexInline value={computedSample.expectedAnswer} />
                                 </p>
                               )}
                             </>
