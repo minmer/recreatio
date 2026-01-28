@@ -216,6 +216,8 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.InfoId);
         modelBuilder.Entity<Data.Cogita.CogitaComputedInfo>()
+            .HasKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaComputedInfo>()
             .HasOne<Data.Cogita.CogitaInfo>()
             .WithMany()
             .HasForeignKey(x => x.InfoId);
