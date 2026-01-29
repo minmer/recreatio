@@ -704,6 +704,27 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameWarning(null);
   };
 
+  const selectionRef = useRef<{ nodeId: string | null; edgeIds: string[] }>({
+    nodeId: null,
+    edgeIds: []
+  });
+
+  const handleSelectionChange = (selection: { nodes: Node[]; edges: Edge[] }) => {
+    const nextNodeId = selection.nodes[0]?.id ?? null;
+    const nextEdgeIds = selection.edges.map((edge) => edge.id);
+    const prev = selectionRef.current;
+    const sameNode = prev.nodeId === nextNodeId;
+    const sameEdges =
+      prev.edgeIds.length === nextEdgeIds.length &&
+      prev.edgeIds.every((id, index) => id === nextEdgeIds[index]);
+    if (sameNode && sameEdges) {
+      return;
+    }
+    selectionRef.current = { nodeId: nextNodeId, edgeIds: nextEdgeIds };
+    setSelectedNodeId(nextNodeId);
+    setSelectedEdgeIds(nextEdgeIds);
+  };
+
   const handleNodesChange = (changes: Parameters<typeof applyNodeChanges>[0]) => {
     const filtered = changes.filter((change) => change.type !== 'select' && change.type !== 'dimensions');
     if (filtered.length === 0) return;
@@ -727,10 +748,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onSelectionChange={(selection) => {
-            setSelectedNodeId(selection.nodes[0]?.id ?? null);
-            setSelectedEdgeIds(selection.edges.map((edge) => edge.id));
-          }}
+          onSelectionChange={handleSelectionChange}
           nodesDraggable
           nodesConnectable
           elementsSelectable
