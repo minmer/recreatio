@@ -56,7 +56,8 @@ const INFO_TYPES = [
   { value: 'word', label: 'Word' },
   { value: 'sentence', label: 'Sentence' },
   { value: 'language', label: 'Language' },
-  { value: 'topic', label: 'Topic' }
+  { value: 'topic', label: 'Topic' },
+  { value: 'computed', label: 'Computed' }
 ];
 
 export function CogitaCollectionGraphPage({

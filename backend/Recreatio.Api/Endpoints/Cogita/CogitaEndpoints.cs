@@ -1241,6 +1241,78 @@ public static class CogitaEndpoints
                 });
             }
 
+            if (request.Graph is not null)
+            {
+                (Guid DataKeyId, byte[] DataKey) graphKeyResult;
+                try
+                {
+                    graphKeyResult = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        request.Graph.DataKeyId,
+                        "collection-graph",
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.BadRequest(new { error = "Graph DataKeyId is invalid." });
+                }
+
+                var graph = new CogitaCollectionGraph
+                {
+                    Id = Guid.NewGuid(),
+                    CollectionInfoId = infoResponse.InfoId,
+                    DataKeyId = graphKeyResult.DataKeyId,
+                    EncryptedBlob = Array.Empty<byte>(),
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaCollectionGraphs.Add(graph);
+                await dbContext.SaveChangesAsync(ct);
+                graph.EncryptedBlob = encryptionService.Encrypt(
+                    graphKeyResult.DataKey,
+                    JsonSerializer.SerializeToUtf8Bytes(new { version = 1 }),
+                    graph.Id.ToByteArray());
+
+                foreach (var node in request.Graph.Nodes ?? new List<CogitaCollectionGraphNodeRequest>())
+                {
+                    var nodeId = node.NodeId ?? Guid.NewGuid();
+                    var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(node.Payload);
+                    var encrypted = encryptionService.Encrypt(graphKeyResult.DataKey, payloadBytes, nodeId.ToByteArray());
+                    dbContext.CogitaCollectionGraphNodes.Add(new CogitaCollectionGraphNode
+                    {
+                        Id = nodeId,
+                        GraphId = graph.Id,
+                        NodeType = node.NodeType.Trim(),
+                        DataKeyId = graphKeyResult.DataKeyId,
+                        EncryptedBlob = encrypted,
+                        CreatedUtc = now,
+                        UpdatedUtc = now
+                    });
+                }
+
+                foreach (var edge in request.Graph.Edges ?? new List<CogitaCollectionGraphEdgeRequest>())
+                {
+                    var edgeId = edge.EdgeId ?? Guid.NewGuid();
+                    dbContext.CogitaCollectionGraphEdges.Add(new CogitaCollectionGraphEdge
+                    {
+                        Id = edgeId,
+                        GraphId = graph.Id,
+                        FromNodeId = edge.FromNodeId,
+                        FromPort = edge.FromPort,
+                        ToNodeId = edge.ToNodeId,
+                        ToPort = edge.ToPort,
+                        CreatedUtc = now
+                    });
+                }
+            }
+
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new CogitaCreateCollectionResponse(infoResponse.InfoId));

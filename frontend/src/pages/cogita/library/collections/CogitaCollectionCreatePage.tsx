@@ -60,7 +60,8 @@ const INFO_TYPES = [
   { value: 'word', label: 'Word' },
   { value: 'sentence', label: 'Sentence' },
   { value: 'language', label: 'Language' },
-  { value: 'topic', label: 'Topic' }
+  { value: 'topic', label: 'Topic' },
+  { value: 'computed', label: 'Computed' }
 ];
 
 export function CogitaCollectionCreatePage({
@@ -144,22 +145,7 @@ export function CogitaCollectionCreatePage({
     }
 
     try {
-      let activeCollectionId = collectionId;
-      let createdNow = false;
-      if (!activeCollectionId) {
-        const created = await createCogitaCollection({
-          libraryId,
-          name: name.trim(),
-          notes: notes.trim() || undefined,
-          items: []
-        });
-        activeCollectionId = created.collectionId;
-        createdNow = true;
-        setCollectionId(created.collectionId);
-      }
-      await saveCogitaCollectionGraph({
-        libraryId,
-        collectionId: activeCollectionId,
+      const graphPayload = {
         nodes: nodes.map((node) => ({
           nodeId: node.id,
           nodeType: node.data.nodeType,
@@ -175,7 +161,28 @@ export function CogitaCollectionCreatePage({
           toNodeId: edge.target,
           toPort: edge.targetHandle ?? null
         }))
-      });
+      };
+      let activeCollectionId = collectionId;
+      let createdNow = false;
+      if (!activeCollectionId) {
+        const created = await createCogitaCollection({
+          libraryId,
+          name: name.trim(),
+          notes: notes.trim() || undefined,
+          items: [],
+          graph: graphPayload
+        });
+        activeCollectionId = created.collectionId;
+        createdNow = true;
+        setCollectionId(created.collectionId);
+      } else {
+        await saveCogitaCollectionGraph({
+          libraryId,
+          collectionId: activeCollectionId,
+          nodes: graphPayload.nodes,
+          edges: graphPayload.edges
+        });
+      }
       setStatusMessage(createdNow ? copy.cogita.library.collections.saveSuccess : copy.cogita.library.graph.saveSuccess);
       onCreated(activeCollectionId);
     } catch {

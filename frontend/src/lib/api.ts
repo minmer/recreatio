@@ -1061,6 +1061,12 @@ export function createCogitaCollection(payload: {
   name: string;
   notes?: string | null;
   items: CogitaCollectionItemRequest[];
+  graph?: {
+    nodes: Array<{ nodeId?: string | null; nodeType: string; payload: unknown }>;
+    edges: Array<{ edgeId?: string | null; fromNodeId: string; fromPort?: string | null; toNodeId: string; toPort?: string | null }>;
+    dataKeyId?: string | null;
+    signatureBase64?: string | null;
+  } | null;
   dataKeyId?: string | null;
   signatureBase64?: string | null;
 }) {
@@ -1070,6 +1076,14 @@ export function createCogitaCollection(payload: {
       name: payload.name,
       notes: payload.notes ?? null,
       items: payload.items,
+      graph: payload.graph
+        ? {
+            nodes: payload.graph.nodes,
+            edges: payload.graph.edges,
+            dataKeyId: payload.graph.dataKeyId ?? null,
+            signatureBase64: payload.graph.signatureBase64 ?? null
+          }
+        : null,
       dataKeyId: payload.dataKeyId ?? null,
       signatureBase64: payload.signatureBase64 ?? null
     })

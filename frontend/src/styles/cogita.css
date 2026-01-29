@@ -1675,6 +1675,16 @@
   border-top: 1px solid rgba(120, 170, 220, 0.18);
   display: grid;
   gap: 0.6rem;
+  color: rgba(225, 238, 255, 0.9);
+}
+
+.cogita-detail-sample p,
+.cogita-detail-sample strong {
+  color: rgba(215, 230, 250, 0.92);
+}
+
+.cogita-detail-sample .katex {
+  color: #f3f7ff;
 }
 
 .cogita-detail-sample-grid {
@@ -1690,6 +1700,7 @@
   border-radius: 12px;
   border: 1px solid rgba(120, 170, 220, 0.2);
   background: rgba(9, 22, 38, 0.55);
+  color: rgba(230, 242, 255, 0.92);
 }
 
 .cogita-share-list {

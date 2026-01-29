@@ -108,7 +108,8 @@ public sealed record CogitaCreateCollectionRequest(
     string? Notes,
     List<CogitaCollectionItemRequest> Items,
     Guid? DataKeyId,
-    string? SignatureBase64
+    string? SignatureBase64,
+    CogitaCollectionGraphRequest? Graph = null
 );
 
 public sealed record CogitaCreateCollectionResponse(
