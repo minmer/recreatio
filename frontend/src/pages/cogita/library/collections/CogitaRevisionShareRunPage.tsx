@@ -276,7 +276,7 @@ export function CogitaRevisionShareRunPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard" data-mode="detail">
+      <section className="cogita-library-dashboard cogita-revision-run" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
             <p className="cogita-user-kicker">{copy.cogita.library.revision.shareRunKicker}</p>

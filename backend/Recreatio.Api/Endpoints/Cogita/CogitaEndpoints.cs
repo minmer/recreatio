@@ -6338,12 +6338,24 @@ public static class CogitaEndpoints
             prompt = outputIds.Count == 0 ? "Compute" : $"Compute {string.Join(", ", outputIds)}";
         }
 
+        var outputSet = new HashSet<string>(
+            outputIds.Where(id => !string.IsNullOrWhiteSpace(id))!,
+            StringComparer.OrdinalIgnoreCase);
+
         foreach (var pair in valuesRaw)
         {
-            prompt = prompt.Replace($"{{{pair.Key}}}", FormatAny(pair.Value), StringComparison.OrdinalIgnoreCase);
+            var isOutput = outputSet.Contains(pair.Key);
+            var replacement = isOutput
+                ? (nodeNames.TryGetValue(pair.Key, out var outputName) && !string.IsNullOrWhiteSpace(outputName)
+                    ? outputName
+                    : pair.Key)
+                : FormatAny(pair.Value);
+
+            prompt = prompt.Replace($"{{{pair.Key}}}", replacement, StringComparison.OrdinalIgnoreCase);
             if (nodeNames.TryGetValue(pair.Key, out var name))
             {
-                prompt = prompt.Replace($"{{{name}}}", FormatAny(pair.Value), StringComparison.OrdinalIgnoreCase);
+                var nameReplacement = isOutput ? name : FormatAny(pair.Value);
+                prompt = prompt.Replace($"{{{name}}}", nameReplacement, StringComparison.OrdinalIgnoreCase);
             }
         }
 
