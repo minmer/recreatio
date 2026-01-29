@@ -89,7 +89,7 @@ export function LatexBlock({
   const segments = splitLatex(value);
   const hasMath = segments.some((segment) => segment.type !== 'text');
   if (!hasMath) {
-    return <div className={className}>{value}</div>;
+    return <div className={className}>{renderText(value, 'latex-text')}</div>;
   }
   return (
     <div className={className}>

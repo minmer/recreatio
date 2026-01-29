@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts.Cogita;
@@ -6698,6 +6699,20 @@ public static class CogitaEndpoints
             outputIds.Where(id => !string.IsNullOrWhiteSpace(id))!,
             StringComparer.OrdinalIgnoreCase);
 
+        static string ReplacePlaceholder(string input, string key, string replacement)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return input;
+            }
+            var escaped = Regex.Escape(key);
+            return Regex.Replace(
+                input,
+                $"\\{{\\s*{escaped}\\s*\\}}",
+                replacement ?? string.Empty,
+                RegexOptions.IgnoreCase);
+        }
+
         foreach (var pair in valuesRaw)
         {
             var isOutput = outputSet.Contains(pair.Key);
@@ -6708,15 +6723,15 @@ public static class CogitaEndpoints
                     : pair.Key;
             var replacement = isOutput ? outputLabel : FormatAny(pair.Value);
 
-            prompt = prompt.Replace($"{{{pair.Key}}}", replacement, StringComparison.OrdinalIgnoreCase);
+            prompt = ReplacePlaceholder(prompt, pair.Key, replacement);
             if (nodeNames.TryGetValue(pair.Key, out var name))
             {
                 var nameReplacement = isOutput ? outputLabel : FormatAny(pair.Value);
-                prompt = prompt.Replace($"{{{name}}}", nameReplacement, StringComparison.OrdinalIgnoreCase);
+                prompt = ReplacePlaceholder(prompt, name, nameReplacement);
             }
             if (outputLabels.TryGetValue(pair.Key, out var label))
             {
-                prompt = prompt.Replace($"{{{label}}}", outputLabel, StringComparison.OrdinalIgnoreCase);
+                prompt = ReplacePlaceholder(prompt, label, outputLabel);
             }
         }
 
