@@ -6658,7 +6658,7 @@ public static class CogitaEndpoints
             string? infoType = null;
             if (parameters.Value.TryGetProperty("infoType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
             {
-                infoType = typeProp.GetString();
+                infoType = typeProp.GetString()?.Trim().ToLowerInvariant();
             }
 
             if (infoId.HasValue)
@@ -6722,7 +6722,7 @@ public static class CogitaEndpoints
             string? connectionType = null;
             if (parameters.Value.TryGetProperty("connectionType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
             {
-                connectionType = typeProp.GetString();
+                connectionType = typeProp.GetString()?.Trim().ToLowerInvariant();
             }
 
             if (connectionId.HasValue)
