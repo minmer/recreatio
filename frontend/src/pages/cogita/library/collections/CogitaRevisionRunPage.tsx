@@ -492,7 +492,7 @@ export function CogitaRevisionRunPage({
                     </div>
                   ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
                     <div className="cogita-revision-body">
-                      <LatexBlock value={prompt ?? ''} />
+                      <LatexBlock value={prompt ?? ''} mode="auto" />
                       <div className="cogita-form-grid">
                         {computedExpected.length > 0 ? (
                           computedExpected.map((entry) => (

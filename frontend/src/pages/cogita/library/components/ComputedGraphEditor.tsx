@@ -69,9 +69,9 @@ function ComputedGraphNode({
     data.subtitle &&
     (!data.title || data.subtitle.trim().toLowerCase() !== data.title.trim().toLowerCase());
   const handleCount = data.handles.length;
-  const extraHeight = handleCount > 1 ? (handleCount - 1) * 14 : 0;
+  const extraHeight = handleCount > 1 ? (handleCount - 1) * 18 : 0;
   return (
-    <div className="cogita-graph-node" style={{ minHeight: 90 + extraHeight, paddingBottom: 12 + extraHeight * 0.4 }}>
+    <div className="cogita-graph-node" style={{ minHeight: 96 + extraHeight, paddingBottom: 12 + extraHeight * 0.4 }}>
       <div className="cogita-graph-node-labels">
         <strong>{data.title}</strong>
         {showSubtitle ? <span>{data.subtitle}</span> : null}
@@ -84,7 +84,7 @@ function ComputedGraphNode({
           type="target"
           id={handle.id}
           position={Position.Left}
-          style={{ top: 42 + index * 22 }}
+          style={{ top: 46 + index * 28 }}
         >
           {handle.id !== 'in' ? <span className="cogita-graph-handle-label">{handle.label}</span> : null}
         </Handle>
@@ -589,6 +589,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
           onSelectionChange={(selection) => setSelectedNodeId(selection.nodes[0]?.id ?? null)}
+          nodesDraggable
+          nodesConnectable
+          elementsSelectable
           fitView
         >
           <Background gap={18} size={1} />

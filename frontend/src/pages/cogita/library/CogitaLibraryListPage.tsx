@@ -370,19 +370,20 @@ export function CogitaLibraryListPage({
                               <p>
                                 <strong>{copy.cogita.library.list.computedPromptLabel}</strong>
                               </p>
-                              <LatexBlock value={computedSample.prompt} />
+                              <LatexBlock value={computedSample.prompt} mode="auto" />
                               {computedSample.expectedAnswers && Object.keys(computedSample.expectedAnswers).length > 0 ? (
                                 <div className="cogita-detail-sample-grid">
                                   {Object.entries(computedSample.expectedAnswers).map(([key, value]) => (
                                     <div key={key} className="cogita-detail-sample-item">
                                       <span>{key}</span>
-                                      <LatexInline value={value} />
+                                      <LatexInline value={value} mode="auto" />
                                     </div>
                                   ))}
                                 </div>
                               ) : (
                                 <p>
-                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong> <LatexInline value={computedSample.expectedAnswer} />
+                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong>{' '}
+                                  <LatexInline value={computedSample.expectedAnswer} mode="auto" />
                                 </p>
                               )}
                             </>

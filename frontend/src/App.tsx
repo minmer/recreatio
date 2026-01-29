@@ -426,7 +426,7 @@ export default function App() {
                   language={language}
                   onLanguageChange={setLanguage}
                   libraryId={cogitaLibraryId}
-                  onCreated={(newCollectionId) => navigate(`/cogita/library/${cogitaLibraryId}/collections/${newCollectionId}`)}
+                  onCreated={(newCollectionId) => navigate(`/cogita/library/${cogitaLibraryId}/collections/${newCollectionId}/graph`)}
                 />
               ) : collectionView === 'detail' && collectionId ? (
                 <CogitaCollectionDetailPage

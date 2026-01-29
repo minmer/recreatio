@@ -650,12 +650,12 @@ export function CogitaLibraryAddPage({
                       {computedPreview && computedPreviewStatus === 'ready' ? (
                         <div className="cogita-detail-sample">
                           <p className="cogita-user-kicker">{copy.cogita.library.add.info.computedPreviewTitle}</p>
-                          <LatexBlock value={computedPreview.prompt} />
+                          <LatexBlock value={computedPreview.prompt} mode="auto" />
                           <div className="cogita-detail-sample-grid">
                             {Object.entries(computedPreview.answers).map(([key, value]) => (
                               <div key={key} className="cogita-detail-sample-item">
                                 <span>{key}</span>
-                                <LatexInline value={value} />
+                                <LatexInline value={value} mode="auto" />
                               </div>
                             ))}
                           </div>
