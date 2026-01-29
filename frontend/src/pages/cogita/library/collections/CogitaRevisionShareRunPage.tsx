@@ -72,7 +72,6 @@ export function CogitaRevisionShareRunPage({
   const answerInputRef = useRef<HTMLInputElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
-  const computedSampleCache = useRef<Record<string, CogitaComputedSample>>({});
 
   const mode = shareInfo?.mode ?? 'random';
   const check = shareInfo?.check ?? 'exact';
@@ -219,16 +218,10 @@ export function CogitaRevisionShareRunPage({
       setComputedValues(null);
       setComputedExpected([]);
       setComputedAnswers({});
-      const cached = computedSampleCache.current[currentCard.cardId];
-      if (cached) {
-        applySample(cached);
-        return;
-      }
       let mounted = true;
       getCogitaPublicComputedSample({ shareId, infoId: currentCard.cardId })
         .then((sample) => {
           if (!mounted) return;
-          computedSampleCache.current[currentCard.cardId] = sample;
           applySample(sample);
         })
         .catch(() => {
@@ -246,21 +239,6 @@ export function CogitaRevisionShareRunPage({
     }
   }, [currentCard, shareId, copy]);
 
-  useEffect(() => {
-    const nextCard = queue[currentIndex + 1];
-    if (!nextCard || nextCard.cardType !== 'info' || nextCard.infoType !== 'computed') return;
-    if (computedSampleCache.current[nextCard.cardId]) return;
-    let mounted = true;
-    getCogitaPublicComputedSample({ shareId, infoId: nextCard.cardId })
-      .then((sample) => {
-        if (!mounted) return;
-        computedSampleCache.current[nextCard.cardId] = sample;
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, [currentIndex, queue, shareId]);
 
   useEffect(() => {
     if (!currentCard) return;
