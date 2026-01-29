@@ -235,13 +235,15 @@ export function CogitaRevisionRunPage({
   }, [currentCard]);
 
 
+  const lastFocusCardRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentCard) return;
+    if (lastFocusCardRef.current === currentCard.cardId) return;
+    lastFocusCardRef.current = currentCard.cardId;
     const focusInput = () => {
       if (currentCard.cardType === 'info' && currentCard.infoType === 'computed') {
         if (computedExpected.length > 0) {
-          const firstEmpty = computedExpected.find((entry) => !(computedAnswers[entry.key] ?? '').trim());
-          const key = firstEmpty?.key ?? computedExpected[0]?.key;
+          const key = computedExpected[0]?.key;
           if (key && computedInputRefs.current[key]) {
             computedInputRefs.current[key]?.focus();
             return;
@@ -256,7 +258,7 @@ export function CogitaRevisionRunPage({
     };
     const handle = window.setTimeout(focusInput, 40);
     return () => window.clearTimeout(handle);
-  }, [currentCard, computedExpected, computedAnswers]);
+  }, [currentCard, computedExpected]);
 
   useEffect(() => {
     if (!canAdvance) return;
