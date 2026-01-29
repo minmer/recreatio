@@ -579,23 +579,17 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     return values;
   }, [nodeSignature, edgeSignature, randomValues]);
 
-  useEffect(() => {
-    setNodes((prev) =>
-      prev.map((node) => {
-        const nextValue = computedValues.get(node.id);
-        if (nextValue === node.data?.value) {
-          return node;
+  const renderedNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          value: computedValues.get(node.id)
         }
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            value: nextValue
-          }
-        };
-      })
-    );
-  }, [computedValues, setNodes]);
+      })),
+    [nodes, computedValues]
+  );
 
   const onConnect = (connection: Connection) => {
     if (!connection.target || !connection.targetHandle) {
@@ -689,37 +683,17 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameWarning(null);
   };
 
-  const handleNodeDragStop = (_: unknown, draggedNode: Node) => {
-    if (!draggedNode?.id) return;
-    setNodes((prev) => {
-      let changed = false;
-      const next = prev.map((node) => {
-        if (node.id !== draggedNode.id) return node;
-        if (node.position.x === draggedNode.position.x && node.position.y === draggedNode.position.y) {
-          return node;
-        }
-        changed = true;
-        return {
-          ...node,
-          position: { ...draggedNode.position }
-        };
-      });
-      return changed ? next : prev;
-    });
-  };
-
   return (
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
           nodeTypes={{ computed: ComputedGraphNode }}
-          nodes={nodes}
+          nodes={renderedNodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onNodeDragStop={handleNodeDragStop}
           onSelectionChange={(selection) => {
             setSelectedNodeId(selection.nodes[0]?.id ?? null);
             setSelectedEdgeIds(selection.edges.map((edge) => edge.id));
