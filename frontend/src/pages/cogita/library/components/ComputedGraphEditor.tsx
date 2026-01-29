@@ -213,7 +213,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         name: node.name,
         min: node.min,
         max: node.max,
-        value: node.value,
+        value: node.type === 'input.const' ? node.value : undefined,
         list: node.list,
         handles: nodeMeta[node.type]?.handles ?? [],
         output: nodeMeta[node.type]?.output ?? true
@@ -263,7 +263,6 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           node.name ?? '',
           node.min ?? '',
           node.max ?? '',
-          node.value ?? '',
           listValue,
           inputs,
           handles
@@ -335,7 +334,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         name: node.data?.name,
         min: node.data?.min,
         max: node.data?.max,
-        value: node.data?.value,
+        value: node.data?.type === 'input.const' ? node.data?.value : undefined,
         list: node.data?.list,
         inputs: inputsByHandle.get(node.id)?.in,
         inputsByHandle: inputsByHandle.get(node.id)
