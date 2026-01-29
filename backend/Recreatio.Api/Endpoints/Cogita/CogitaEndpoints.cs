@@ -6688,6 +6688,13 @@ public static class CogitaEndpoints
                 EvaluateNode(outputId);
             }
         }
+        foreach (var nodeId in nodes.Keys)
+        {
+            if (!string.IsNullOrWhiteSpace(nodeId))
+            {
+                EvaluateNode(nodeId);
+            }
+        }
 
         var prompt = promptTemplate;
         if (string.IsNullOrWhiteSpace(prompt))
@@ -6698,6 +6705,23 @@ public static class CogitaEndpoints
         var outputSet = new HashSet<string>(
             outputIds.Where(id => !string.IsNullOrWhiteSpace(id))!,
             StringComparer.OrdinalIgnoreCase);
+        var outputLabelMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var outputId in outputSet)
+        {
+            if (!nodes.TryGetValue(outputId, out var outputNode))
+            {
+                continue;
+            }
+            var inputsByHandle = GetNodeInputsByHandle(outputNode);
+            var nameInputId = inputsByHandle.TryGetValue("name", out var nameList) ? nameList.FirstOrDefault() : null;
+            var nameValue = !string.IsNullOrWhiteSpace(nameInputId) ? FormatAny(EvaluateNode(nameInputId)) : string.Empty;
+            var fallback = outputLabels.TryGetValue(outputId, out var label) && !string.IsNullOrWhiteSpace(label)
+                ? label
+                : nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
+                    ? name
+                    : outputId;
+            outputLabelMap[outputId] = !string.IsNullOrWhiteSpace(nameValue) ? nameValue : fallback;
+        }
 
         static string ReplacePlaceholder(string input, string key, string replacement)
         {
@@ -6716,11 +6740,13 @@ public static class CogitaEndpoints
         foreach (var pair in valuesRaw)
         {
             var isOutput = outputSet.Contains(pair.Key);
-            var outputLabel = outputLabels.TryGetValue(pair.Key, out var outputLabelValue) && !string.IsNullOrWhiteSpace(outputLabelValue)
+            var outputLabel = outputLabelMap.TryGetValue(pair.Key, out var outputLabelValue)
                 ? outputLabelValue
-                : nodeNames.TryGetValue(pair.Key, out var outputName) && !string.IsNullOrWhiteSpace(outputName)
-                    ? outputName
-                    : pair.Key;
+                : outputLabels.TryGetValue(pair.Key, out var staticLabel) && !string.IsNullOrWhiteSpace(staticLabel)
+                    ? staticLabel
+                    : nodeNames.TryGetValue(pair.Key, out var outputName) && !string.IsNullOrWhiteSpace(outputName)
+                        ? outputName
+                        : pair.Key;
             var replacement = isOutput ? outputLabel : FormatAny(pair.Value);
 
             prompt = ReplacePlaceholder(prompt, pair.Key, replacement);
@@ -6740,11 +6766,13 @@ public static class CogitaEndpoints
         {
             if (string.IsNullOrWhiteSpace(outputId)) continue;
             if (!valuesRaw.TryGetValue(outputId, out var outputValue)) continue;
-            var key = outputLabels.TryGetValue(outputId, out var label) && !string.IsNullOrWhiteSpace(label)
+            var key = outputLabelMap.TryGetValue(outputId, out var label)
                 ? label
-                : nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
-                    ? name
-                    : outputId;
+                : outputLabels.TryGetValue(outputId, out var staticLabel) && !string.IsNullOrWhiteSpace(staticLabel)
+                    ? staticLabel
+                    : nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
+                        ? name
+                        : outputId;
             expectedAnswers[key] = FormatAny(outputValue);
         }
 

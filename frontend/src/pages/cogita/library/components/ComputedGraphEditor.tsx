@@ -198,7 +198,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       },
       output: {
         label: copy.cogita.library.graph.nodeTypes.output,
-        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true }],
+        handles: [
+          { id: 'in', label: copy.cogita.library.graph.handleLabels.input, limitOne: true },
+          { id: 'name', label: copy.cogita.library.graph.handleLabels.name, limitOne: true }
+        ],
         output: false
       }
     }),
@@ -288,6 +291,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [randomValues, setRandomValues] = useState<Record<string, number>>({});
@@ -305,6 +309,22 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameWarning(null);
     setNameError(null);
   }, [selectedNodeId]);
+
+  useEffect(() => {
+    if (selectedEdgeIds.length === 0) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+      event.preventDefault();
+      setEdges((prev) => prev.filter((edge) => !selectedEdgeIds.includes(edge.id)));
+      setSelectedEdgeIds([]);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedEdgeIds, setEdges]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -680,7 +700,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onSelectionChange={(selection) => setSelectedNodeId(selection.nodes[0]?.id ?? null)}
+          onSelectionChange={(selection) => {
+            setSelectedNodeId(selection.nodes[0]?.id ?? null);
+            setSelectedEdgeIds(selection.edges.map((edge) => edge.id));
+          }}
           nodesDraggable
           nodesConnectable
           elementsSelectable

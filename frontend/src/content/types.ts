@@ -588,6 +588,7 @@ export type Copy = {
           exponent: string;
           value: string;
           index: string;
+          name: string;
         };
         listLabel: string;
         listPlaceholder: string;

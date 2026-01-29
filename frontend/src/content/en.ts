@@ -889,7 +889,8 @@ export const en: Copy = {
           base: 'Base',
           exponent: 'Exponent',
           value: 'Value',
-          index: 'Index'
+          index: 'Index',
+          name: 'Name'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Search tag',

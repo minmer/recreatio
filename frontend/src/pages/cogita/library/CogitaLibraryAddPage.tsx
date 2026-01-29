@@ -252,25 +252,28 @@ export function CogitaLibraryAddPage({
           break;
         }
         case 'compute.add': {
-          result = resolveInputs('in').reduce((sum, value) => sum + toNumber(value), 0);
+          const list = resolveInputs('in').map((value) => toNumber(value));
+          result = list.reduce((sum, value) => sum + value, 0);
           break;
         }
         case 'compute.sub': {
-          const addValues = resolveInputs('add');
-          const subValues = resolveInputs('sub');
+          const addValues = resolveInputs('add').map((value) => toNumber(value));
+          const subValues = resolveInputs('sub').map((value) => toNumber(value));
           result =
-            addValues.reduce((sum, value) => sum + toNumber(value), 0) -
-            subValues.reduce((sum, value) => sum + toNumber(value), 0);
+            addValues.reduce((sum, value) => sum + value, 0) -
+            subValues.reduce((sum, value) => sum + value, 0);
           break;
         }
         case 'compute.mul': {
-          const list = resolveInputs('in');
-          result = list.length ? list.reduce((prod, value) => prod * toNumber(value), 1) : 0;
+          const list = resolveInputs('in').map((value) => toNumber(value));
+          result = list.length ? list.reduce((prod, value) => prod * value, 1) : 0;
           break;
         }
         case 'compute.div': {
           const numerator = toNumber(resolveInputs('num')[0]);
-          const denominator = resolveInputs('den').reduce((sum, value) => sum + toNumber(value), 0);
+          const denominator = resolveInputs('den')
+            .map((value) => toNumber(value))
+            .reduce((sum, value) => sum + value, 0);
           result = Math.abs(denominator) < Number.EPSILON ? 0 : numerator / denominator;
           break;
         }
@@ -344,6 +347,7 @@ export function CogitaLibraryAddPage({
         ? [computedGraph.output]
         : computedGraph.nodes.filter((node) => node.type === 'output').map((node) => node.id);
 
+    computedGraph.nodes.forEach((node) => evaluateNode(node.id));
     outputs.forEach((id) => evaluateNode(id));
 
     const formatNumber = (value: number) => {
@@ -353,11 +357,25 @@ export function CogitaLibraryAddPage({
     const formatValue = (value: number | string | undefined) =>
       typeof value === 'number' ? formatNumber(value) : value ?? '';
 
+    const outputLabels = new Map<string, string>();
+    outputs.forEach((id) => {
+      const node = nodeMap.get(id);
+      if (!node) return;
+      const nameInputId = node.inputsByHandle?.name?.[0];
+      const nameValue = nameInputId ? formatValue(values.get(nameInputId)) : '';
+      const displayName =
+        nameValue?.toString().trim() ||
+        node.outputLabel?.trim() ||
+        node.name?.trim() ||
+        id;
+      outputLabels.set(id, displayName);
+    });
+
     const answers: Record<string, string> = {};
     outputs.forEach((id) => {
       const node = nodeMap.get(id);
       if (!node) return;
-      const displayName = (node.outputLabel?.trim() || node.name?.trim() || id) as string;
+      const displayName = outputLabels.get(id) ?? (node.outputLabel?.trim() || node.name?.trim() || id);
       answers[displayName] = formatValue(values.get(id));
     });
 
@@ -368,10 +386,14 @@ export function CogitaLibraryAddPage({
     }
     const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     computedGraph.nodes.forEach((node) => {
-      if (!values.has(node.id)) return;
       const value = formatValue(values.get(node.id));
       const isOutput = outputs.includes(node.id);
-      const outputLabel = isOutput ? (node.outputLabel?.trim() || node.name?.trim() || node.id) : '';
+      const outputLabel = isOutput
+        ? (outputLabels.get(node.id) ??
+            node.outputLabel?.trim() ??
+            node.name?.trim() ??
+            node.id)
+        : '';
       const replacement = isOutput ? outputLabel : value;
       prompt = prompt.replace(new RegExp(`\\{\\s*${escapeRegExp(node.id)}\\s*\\}`, 'gi'), replacement);
       if (node.name) {
