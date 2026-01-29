@@ -5,6 +5,7 @@ import {
   getCogitaCollection,
   getCogitaCollectionCards,
   getCogitaComputedSample,
+  getCogitaInfoDetail,
   getCogitaReviewSummary,
   searchCogitaInfos,
   type CogitaCardSearchResult,
@@ -18,6 +19,8 @@ import type { RouteKey } from '../../../../types/navigation';
 import type { CogitaInfoType } from '../types';
 import { getInfoTypeLabel } from '../libraryOptions';
 import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
+import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
+import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { LatexBlock } from '../../../../components/LatexText';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
@@ -214,15 +217,36 @@ export function CogitaRevisionRunPage({
       setComputedExpected([]);
       setComputedAnswers({});
       let mounted = true;
-      getCogitaComputedSample({ libraryId, infoId: currentCard.cardId })
-        .then((sample) => {
+      getCogitaInfoDetail({ libraryId, infoId: currentCard.cardId })
+        .then((detail) => {
           if (!mounted) return;
-          applySample(sample);
+          const payload = detail.payload as {
+            definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+          };
+          const graph = payload.definition?.graph ?? null;
+          const promptTemplate = payload.definition?.promptTemplate ?? '';
+          const computed = buildComputedSampleFromGraph(graph, promptTemplate);
+          if (computed) {
+            applySample(toComputedSample(computed));
+            return;
+          }
+          return getCogitaComputedSample({ libraryId, infoId: currentCard.cardId }).then((sample) => {
+            if (!mounted) return;
+            applySample(sample);
+          });
         })
         .catch(() => {
           if (!mounted) return;
-          setPrompt(currentCard.label);
-          setExpectedAnswer(null);
+          getCogitaComputedSample({ libraryId, infoId: currentCard.cardId })
+            .then((sample) => {
+              if (!mounted) return;
+              applySample(sample);
+            })
+            .catch(() => {
+              if (!mounted) return;
+              setPrompt(currentCard.label);
+              setExpectedAnswer(null);
+            });
         });
       return () => {
         mounted = false;
