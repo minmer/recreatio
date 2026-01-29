@@ -812,7 +812,11 @@ export const en: Copy = {
         knownessEmpty: 'No data yet',
         knownessStats: '{correct} / {total} correct',
         knownessLast: 'Last reviewed: {date}',
-        knownessHint: 'Start a revision to see your knowness stats.'
+        knownessHint: 'Start a revision to see your knowness stats.',
+        revealModeLabel: 'Answer reveal:',
+        revealModeAfterIncorrect: 'after incorrect (manual)',
+        showAnswer: 'Show correct answer',
+        correctAnswerLabel: 'Correct answer'
       },
       lookup: {
         searchFailed: 'Search failed.',

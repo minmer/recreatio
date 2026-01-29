@@ -812,7 +812,11 @@ export const pl: Copy = {
         knownessEmpty: 'Brak danych',
         knownessStats: '{correct} / {total} poprawnych',
         knownessLast: 'Ostatnio sprawdzane: {date}',
-        knownessHint: 'Rozpocznij powtórkę, aby zobaczyć statystyki znajomości.'
+        knownessHint: 'Rozpocznij powtórkę, aby zobaczyć statystyki znajomości.',
+        revealModeLabel: 'Pokaż odpowiedź:',
+        revealModeAfterIncorrect: 'po błędnej odpowiedzi (ręcznie)',
+        showAnswer: 'Pokaż poprawną odpowiedź',
+        correctAnswerLabel: 'Poprawna odpowiedź'
       },
       lookup: {
         searchFailed: 'Wyszukiwanie nieudane.',

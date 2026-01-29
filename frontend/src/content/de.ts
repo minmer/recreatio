@@ -812,7 +812,11 @@ export const de: Copy = {
         knownessEmpty: 'Noch keine Daten',
         knownessStats: '{correct} / {total} richtig',
         knownessLast: 'Zuletzt überprüft: {date}',
-        knownessHint: 'Starte eine Wiederholung, um die Bekanntheitswerte zu sehen.'
+        knownessHint: 'Starte eine Wiederholung, um die Bekanntheitswerte zu sehen.',
+        revealModeLabel: 'Antwort anzeigen:',
+        revealModeAfterIncorrect: 'nach falscher Antwort (manuell)',
+        showAnswer: 'Richtige Antwort zeigen',
+        correctAnswerLabel: 'Richtige Antwort'
       },
       lookup: {
         searchFailed: 'Suche fehlgeschlagen.',

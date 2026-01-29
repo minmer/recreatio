@@ -513,6 +513,10 @@ export type Copy = {
         knownessStats: string;
         knownessLast: string;
         knownessHint: string;
+        revealModeLabel: string;
+        revealModeAfterIncorrect: string;
+        showAnswer: string;
+        correctAnswerLabel: string;
       };
       lookup: {
         searchFailed: string;

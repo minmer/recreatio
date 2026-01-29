@@ -2404,11 +2404,13 @@
 .cogita-revision-card[data-feedback='correct'] {
   border-color: rgba(100, 210, 150, 0.7);
   box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
+  animation: revisionFlashGreen 0.7s ease;
 }
 
 .cogita-revision-card[data-feedback='incorrect'] {
   border-color: rgba(230, 110, 120, 0.7);
   box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
+  animation: revisionFlashRed 0.7s ease;
 }
 
 .cogita-revision-header {
@@ -2440,6 +2442,20 @@
 
 .cogita-revision-body .katex {
   color: #f3f7ff;
+}
+
+.cogita-revision-reveal {
+  display: grid;
+  gap: 0.6rem;
+  justify-items: center;
+  margin-top: 0.6rem;
+}
+
+.cogita-revision-answer {
+  display: grid;
+  gap: 0.5rem;
+  width: min(520px, 100%);
+  text-align: center;
 }
 
 .cogita-revision-body h2 {
@@ -2489,6 +2505,16 @@
   border: 1px solid rgba(230, 120, 130, 0.7);
 }
 
+.cogita-field input[data-state='correct'] {
+  border-color: rgba(100, 210, 150, 0.8);
+  box-shadow: 0 0 0 2px rgba(100, 210, 150, 0.15);
+}
+
+.cogita-field input[data-state='incorrect'] {
+  border-color: rgba(230, 110, 120, 0.85);
+  box-shadow: 0 0 0 2px rgba(230, 110, 120, 0.18);
+}
+
 @keyframes cogita-feedback-pop {
   from {
     opacity: 0;
@@ -2497,5 +2523,35 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes revisionFlashGreen {
+  0% {
+    box-shadow: 0 0 0 rgba(60, 180, 120, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(60, 180, 120, 0.18);
+    background: rgba(10, 32, 20, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
+    background: rgba(6, 18, 32, 0.8);
+  }
+}
+
+@keyframes revisionFlashRed {
+  0% {
+    box-shadow: 0 0 0 rgba(200, 80, 90, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(200, 80, 90, 0.18);
+    background: rgba(38, 12, 18, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
+    background: rgba(6, 18, 32, 0.8);
   }
 }

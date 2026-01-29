@@ -78,7 +78,9 @@ export function CogitaRevisionRunPage({
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
   const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
+  const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
   const [computedValues, setComputedValues] = useState<Record<string, number | string> | null>(null);
+  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
 
   const currentCard = queue[currentIndex] ?? null;
@@ -151,6 +153,8 @@ export function CogitaRevisionRunPage({
     setFeedback(null);
     setComputedExpected([]);
     setComputedAnswers({});
+    setComputedFieldFeedback({});
+    setShowCorrectAnswer(false);
     if (!currentCard) {
       setPrompt(null);
       setExpectedAnswer(null);
@@ -246,6 +250,8 @@ export function CogitaRevisionRunPage({
   const advanceCard = () => {
     setFeedback(null);
     setAnswer('');
+    setShowCorrectAnswer(false);
+    setComputedFieldFeedback({});
     setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
   };
 
@@ -303,12 +309,18 @@ export function CogitaRevisionRunPage({
 
   const handleCheckAnswer = () => {
     if (computedExpected.length > 0) {
+      const fieldFeedback = computedExpected.reduce<Record<string, 'correct' | 'incorrect'>>((acc, entry) => {
+        const actual = computedAnswers[entry.key] ?? '';
+        acc[entry.key] = normalizeAnswer(actual) === normalizeAnswer(entry.expected) ? 'correct' : 'incorrect';
+        return acc;
+      }, {});
       const allCorrect = computedExpected.every(({ key, expected }) => {
         const actual = computedAnswers[key] ?? '';
         return check === 'exact' && normalizeAnswer(actual) === normalizeAnswer(expected);
       });
       if (allCorrect) {
         setFeedback('correct');
+        setComputedFieldFeedback(fieldFeedback);
         submitReview({
           correct: true,
           direction: prompt ? `${prompt} -> computed` : 'computed',
@@ -321,6 +333,7 @@ export function CogitaRevisionRunPage({
         window.setTimeout(() => advanceCard(), 650);
       } else {
         setFeedback('incorrect');
+        setComputedFieldFeedback(fieldFeedback);
         submitReview({
           correct: false,
           direction: prompt ? `${prompt} -> computed` : 'computed',
@@ -337,6 +350,7 @@ export function CogitaRevisionRunPage({
     const isCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
+      setComputedFieldFeedback({});
       submitReview({
         correct: true,
         direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
@@ -346,6 +360,7 @@ export function CogitaRevisionRunPage({
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
+      setComputedFieldFeedback({});
       submitReview({
         correct: false,
         direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
@@ -360,10 +375,12 @@ export function CogitaRevisionRunPage({
     const isCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
     if (isCorrect) {
       setFeedback('correct');
+      setComputedFieldFeedback({});
       submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label });
       window.setTimeout(() => advanceCard(), 650);
     } else {
       setFeedback('incorrect');
+      setComputedFieldFeedback({});
       submitReview({ correct: false, direction: `word->language`, expected: expectedAnswer, answer: label });
     }
   };
@@ -375,6 +392,9 @@ export function CogitaRevisionRunPage({
     }
     window.setTimeout(() => advanceCard(), 450);
   };
+
+  const revealPolicy = copy.cogita.library.revision.revealModeAfterIncorrect;
+  const hasExpectedAnswer = computedExpected.length > 0 || !!expectedAnswer;
 
   return (
     <CogitaShell
@@ -432,6 +452,9 @@ export function CogitaRevisionRunPage({
                     {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
                     {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
                     {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
+                    <p>
+                      <strong>{copy.cogita.library.revision.revealModeLabel}</strong> {revealPolicy}
+                    </p>
                   </div>
                 </section>
                 <section className="cogita-library-detail">
@@ -485,6 +508,7 @@ export function CogitaRevisionRunPage({
                           value={answer}
                           onChange={(event) => setAnswer(event.target.value)}
                           placeholder={copy.cogita.library.revision.answerPlaceholder}
+                          data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') handleCheckAnswer();
                           }}
@@ -513,6 +537,7 @@ export function CogitaRevisionRunPage({
                                   setComputedAnswers((prev) => ({ ...prev, [entry.key]: event.target.value }))
                                 }
                                 placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
+                                data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
                                 onKeyDown={(event) => {
                                   if (event.key === 'Enter') handleCheckAnswer();
                                 }}
@@ -526,6 +551,7 @@ export function CogitaRevisionRunPage({
                               value={answer}
                               onChange={(event) => setAnswer(event.target.value)}
                               placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
+                              data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter') handleCheckAnswer();
                               }}
@@ -583,6 +609,31 @@ export function CogitaRevisionRunPage({
                       {feedback === 'correct' ? copy.cogita.library.revision.correct : copy.cogita.library.revision.tryAgain}
                     </div>
                   )}
+
+                  {feedback === 'incorrect' && hasExpectedAnswer ? (
+                    <div className="cogita-revision-reveal">
+                      <button type="button" className="ghost" onClick={() => setShowCorrectAnswer((prev) => !prev)}>
+                        {copy.cogita.library.revision.showAnswer}
+                      </button>
+                      {showCorrectAnswer ? (
+                        <div className="cogita-revision-answer">
+                          <p className="cogita-user-kicker">{copy.cogita.library.revision.correctAnswerLabel}</p>
+                          {computedExpected.length > 0 ? (
+                            <div className="cogita-detail-sample-grid">
+                              {computedExpected.map((entry) => (
+                                <div key={entry.key} className="cogita-detail-sample-item">
+                                  <span>{entry.key}</span>
+                                  <span>{entry.expected}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p>{expectedAnswer}</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="cogita-card-empty">
