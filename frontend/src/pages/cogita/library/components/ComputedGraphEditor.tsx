@@ -9,7 +9,8 @@ import ReactFlow, {
   useNodesState,
   type Connection,
   type Edge,
-  type Node
+  type Node,
+  type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../../../content/types';
@@ -579,16 +580,13 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     return values;
   }, [nodeSignature, edgeSignature, randomValues]);
 
-  const renderedNodes = useMemo(
+  const ComputedGraphNodeWithValues = useMemo(
     () =>
-      nodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          value: computedValues.get(node.id)
-        }
-      })),
-    [nodes, computedValues]
+      (props: NodeProps) => {
+        const nextValue = computedValues.get(props.id);
+        return <ComputedGraphNode data={{ ...props.data, value: nextValue }} />;
+      },
+    [computedValues]
   );
 
   const onConnect = (connection: Connection) => {
@@ -687,8 +685,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
-          nodeTypes={{ computed: ComputedGraphNode }}
-          nodes={renderedNodes}
+          nodeTypes={{ computed: ComputedGraphNodeWithValues }}
+          nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
