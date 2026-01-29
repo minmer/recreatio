@@ -806,7 +806,12 @@ export const en: Copy = {
         markDone: 'Mark reviewed',
         correct: 'Correct',
         tryAgain: 'Try again',
-        noLanguages: 'No languages found.'
+        noLanguages: 'No languages found.',
+        knownessTitle: 'Knowness',
+        knownessEmpty: 'No data yet',
+        knownessStats: '{correct} / {total} correct',
+        knownessLast: 'Last reviewed: {date}',
+        knownessHint: 'Start a revision to see your knowness stats.'
       },
       lookup: {
         searchFailed: 'Search failed.',

@@ -806,7 +806,12 @@ export const de: Copy = {
         markDone: 'Als erledigt markieren',
         correct: 'Richtig',
         tryAgain: 'Nochmal',
-        noLanguages: 'Keine Sprachen gefunden.'
+        noLanguages: 'Keine Sprachen gefunden.',
+        knownessTitle: 'Bekanntheit',
+        knownessEmpty: 'Noch keine Daten',
+        knownessStats: '{correct} / {total} richtig',
+        knownessLast: 'Zuletzt überprüft: {date}',
+        knownessHint: 'Starte eine Wiederholung, um die Bekanntheitswerte zu sehen.'
       },
       lookup: {
         searchFailed: 'Suche fehlgeschlagen.',

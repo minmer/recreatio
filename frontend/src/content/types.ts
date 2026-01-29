@@ -507,6 +507,11 @@ export type Copy = {
         correct: string;
         tryAgain: string;
         noLanguages: string;
+        knownessTitle: string;
+        knownessEmpty: string;
+        knownessStats: string;
+        knownessLast: string;
+        knownessHint: string;
       };
       lookup: {
         searchFailed: string;
