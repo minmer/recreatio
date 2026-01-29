@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { checkCogitaWordLanguage, createCogitaConnection, createCogitaInfo } from '../../../lib/api';
+import { checkCogitaWordLanguage, createCogitaConnection, createCogitaInfo, getCogitaInfoDetail, updateCogitaInfo } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -22,7 +22,8 @@ export function CogitaLibraryAddPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId
+  libraryId,
+  editInfoId
 }: {
   copy: Copy;
   authLabel: string;
@@ -35,8 +36,10 @@ export function CogitaLibraryAddPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
+  editInfoId?: string;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
+  const isEditMode = Boolean(editInfoId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [activeTab, setActiveTab] = useState<'info' | 'connection' | 'group'>('info');
   const [infoForm, setInfoForm] = useState({
@@ -70,6 +73,7 @@ export function CogitaLibraryAddPage({
     translationTags: [] as CogitaInfoOption[]
   });
   const [formStatus, setFormStatus] = useState<string | null>(null);
+  const [editStatus, setEditStatus] = useState<'idle' | 'loading' | 'saving'>('idle');
   const [pairStatus, setPairStatus] = useState<string | null>(null);
   const [groupPairStatusA, setGroupPairStatusA] = useState<string | null>(null);
   const [groupPairStatusB, setGroupPairStatusB] = useState<string | null>(null);
@@ -143,7 +147,71 @@ export function CogitaLibraryAddPage({
     return () => window.clearTimeout(handle);
   }, [libraryId, groupForm.languageB, groupForm.wordB]);
 
-  const handleCreateInfo = async () => {
+  useEffect(() => {
+    if (!isEditMode || !editInfoId) return;
+    let cancelled = false;
+    setEditStatus('loading');
+    setFormStatus(null);
+    getCogitaInfoDetail({ libraryId, infoId: editInfoId })
+      .then(async (detail) => {
+        if (cancelled) return;
+        const payload = (detail.payload ?? {}) as {
+          label?: string;
+          notes?: string;
+          languageId?: string;
+          definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+        };
+        setInfoForm((prev) => ({
+          ...prev,
+          infoType: detail.infoType as CogitaInfoType,
+          label: payload.label ?? '',
+          notes: payload.notes ?? '',
+          language: payload.languageId
+            ? { id: payload.languageId, label: payload.languageId, infoType: 'language' }
+            : null
+        }));
+        if (payload.languageId) {
+          try {
+            const languageDetail = await getCogitaInfoDetail({ libraryId, infoId: payload.languageId });
+            if (cancelled) return;
+            setInfoForm((prev) => ({
+              ...prev,
+              language: {
+                id: payload.languageId!,
+                label: (languageDetail.payload as { label?: string })?.label ?? payload.languageId!,
+                infoType: 'language'
+              }
+            }));
+          } catch {
+            // Ignore language label lookup failure
+          }
+        }
+        if (detail.infoType === 'computed') {
+          setComputedPrompt(payload.definition?.promptTemplate ?? '');
+          setComputedGraph(payload.definition?.graph ?? null);
+          setComputedPreview(null);
+          setComputedPreviewStatus('idle');
+        } else {
+          setComputedPrompt('');
+          setComputedGraph(null);
+          setComputedPreview(null);
+          setComputedPreviewStatus('idle');
+        }
+        setActiveTab('info');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFormStatus(copy.cogita.library.add.info.failed);
+      })
+      .finally(() => {
+        if (!cancelled) setEditStatus('idle');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [copy, editInfoId, isEditMode, libraryId]);
+
+  const handleSaveInfo = async () => {
     setFormStatus(null);
     try {
       const payload: Record<string, unknown> = {
@@ -178,24 +246,35 @@ export function CogitaLibraryAddPage({
           graph: computedGraph
         };
       }
-      await createCogitaInfo({
-        libraryId,
-        infoType: infoForm.infoType,
-        payload
-      });
-      setFormStatus(copy.cogita.library.add.info.saved);
-      const keepLanguage = infoForm.infoType === 'word' || infoForm.infoType === 'sentence';
-      setInfoForm({
-        infoType: infoForm.infoType,
-        label: '',
-        language: keepLanguage ? infoForm.language : null,
-        notes: ''
-      });
-      if (infoForm.infoType === 'computed') {
-        setComputedPrompt('');
-        setComputedGraph(null);
-        setComputedPreview(null);
-        setComputedPreviewStatus('idle');
+      if (isEditMode && editInfoId) {
+        setEditStatus('saving');
+        await updateCogitaInfo({
+          libraryId,
+          infoId: editInfoId,
+          payload
+        });
+        setFormStatus(copy.cogita.library.add.info.updated);
+        setEditStatus('idle');
+      } else {
+        await createCogitaInfo({
+          libraryId,
+          infoType: infoForm.infoType,
+          payload
+        });
+        setFormStatus(copy.cogita.library.add.info.saved);
+        const keepLanguage = infoForm.infoType === 'word' || infoForm.infoType === 'sentence';
+        setInfoForm({
+          infoType: infoForm.infoType,
+          label: '',
+          language: keepLanguage ? infoForm.language : null,
+          notes: ''
+        });
+        if (infoForm.infoType === 'computed') {
+          setComputedPrompt('');
+          setComputedGraph(null);
+          setComputedPreview(null);
+          setComputedPreviewStatus('idle');
+        }
       }
     } catch {
       setFormStatus(copy.cogita.library.add.info.failed);
@@ -589,7 +668,17 @@ export function CogitaLibraryAddPage({
 
         <div className="cogita-add-tabs">
           {(['info', 'connection', 'group'] as const).map((tab) => (
-            <button key={tab} type="button" className="cogita-type-card" data-active={activeTab === tab} onClick={() => setActiveTab(tab)}>
+            <button
+              key={tab}
+              type="button"
+              className="cogita-type-card"
+              data-active={activeTab === tab}
+              onClick={() => {
+                if (isEditMode) return;
+                setActiveTab(tab);
+              }}
+              disabled={isEditMode && tab !== 'info'}
+            >
               <span className="cogita-type-label">{copy.cogita.library.add.tabs[tab]}</span>
               <span className="cogita-type-desc">
                 {tab === 'info' && copy.cogita.library.add.tabDesc.info}
@@ -612,7 +701,11 @@ export function CogitaLibraryAddPage({
                     <span>{copy.cogita.library.add.info.typeLabel}</span>
                     <select
                       value={infoForm.infoType}
-                      onChange={(event) => setInfoForm((prev) => ({ ...prev, infoType: event.target.value as CogitaInfoType }))}
+                      onChange={(event) => {
+                        if (isEditMode) return;
+                        setInfoForm((prev) => ({ ...prev, infoType: event.target.value as CogitaInfoType }));
+                      }}
+                      disabled={isEditMode}
                     >
                       {infoTypeOptions
                         .filter((option) => option.value !== 'any')
@@ -696,8 +789,13 @@ export function CogitaLibraryAddPage({
                     </>
                   )}
                 <div className="cogita-form-actions full">
-                  <button type="button" className="cta" onClick={handleCreateInfo}>
-                    {copy.cogita.library.add.info.save}
+                  <button
+                    type="button"
+                    className="cta"
+                    onClick={handleSaveInfo}
+                    disabled={editStatus === 'saving' || editStatus === 'loading'}
+                  >
+                    {isEditMode ? copy.cogita.library.add.info.update : copy.cogita.library.add.info.save}
                   </button>
                 </div>
               </div>

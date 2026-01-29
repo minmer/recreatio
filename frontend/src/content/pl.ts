@@ -623,15 +623,7 @@ export const pl: Copy = {
         computedAnswerLabel: 'Odpowiedź:',
         computedLoading: 'Tworzenie przykładu…',
         computedEmpty: 'Brak dostępnego przykładu.',
-        computedEditAction: 'Edytuj obliczenia',
-        computedEditTitle: 'Edycja informacji obliczeniowej',
-        computedEditLoading: 'Ładowanie informacji...',
-        computedEditSaveAction: 'Zapisz zmiany',
-        computedEditSaving: 'Zapisywanie...',
-        computedEditSaved: 'Zaktualizowano informację obliczeniową.',
-        computedEditSaveFailed: 'Nie udało się zapisać informacji obliczeniowej.',
-        computedEditLoadFailed: 'Nie udało się wczytać informacji obliczeniowej.',
-        computedEditCancel: 'Anuluj'
+        editInfo: 'Edytuj informację'
       },
       filters: {
         title: 'Filtry',
@@ -672,13 +664,15 @@ export const pl: Copy = {
           computedInvalid: 'Definicja obliczeń musi być poprawnym JSON.',
           computedInvalidName: 'Nieprawidłowe nazwy zmiennych w grafie.',
           computedDuplicateName: 'Powtórzone nazwy zmiennych w grafie.',
-          computedPreview: 'Pokaż przykład',
-          computedPreviewTitle: 'Przykład obliczeniowy',
-          computedPreviewFail: 'Nie udało się wygenerować przykładu.',
-          save: 'Zapisz informację',
-          saved: 'Informacja zapisana.',
-          failed: 'Nie udało się zapisać informacji.'
-        },
+        computedPreview: 'Pokaż przykład',
+        computedPreviewTitle: 'Przykład obliczeniowy',
+        computedPreviewFail: 'Nie udało się wygenerować przykładu.',
+        save: 'Zapisz informację',
+        update: 'Zapisz zmiany',
+        saved: 'Informacja zapisana.',
+        updated: 'Informacja zaktualizowana.',
+        failed: 'Nie udało się zapisać informacji.'
+      },
         connection: {
           typeLabel: 'Typ połączenia',
           languageLabel: 'Język',

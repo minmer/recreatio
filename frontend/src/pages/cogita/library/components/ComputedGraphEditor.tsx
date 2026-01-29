@@ -383,8 +383,16 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       output: outputs[0] ?? null,
       outputs
     };
-    lastEmittedSignatureRef.current = buildDefinitionSignature(definition, true);
-    lastEmittedSignatureNoPosRef.current = buildDefinitionSignature(definition, false);
+    const signature = buildDefinitionSignature(definition, true);
+    const signatureNoPos = buildDefinitionSignature(definition, false);
+    if (
+      signature === lastEmittedSignatureRef.current ||
+      signatureNoPos === lastEmittedSignatureNoPosRef.current
+    ) {
+      return;
+    }
+    lastEmittedSignatureRef.current = signature;
+    lastEmittedSignatureNoPosRef.current = signatureNoPos;
     onChangeRef.current(definition);
   }, [nodes, edges]);
 

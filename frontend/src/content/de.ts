@@ -623,15 +623,7 @@ export const de: Copy = {
         computedAnswerLabel: 'Antwort:',
         computedLoading: 'Beispiel wird erzeugt…',
         computedEmpty: 'Kein Beispiel verfügbar.',
-        computedEditAction: 'Berechnung bearbeiten',
-        computedEditTitle: 'Berechnete Info bearbeiten',
-        computedEditLoading: 'Berechnete Info wird geladen...',
-        computedEditSaveAction: 'Änderungen speichern',
-        computedEditSaving: 'Speichern...',
-        computedEditSaved: 'Berechnete Info aktualisiert.',
-        computedEditSaveFailed: 'Berechnete Info konnte nicht gespeichert werden.',
-        computedEditLoadFailed: 'Berechnete Info konnte nicht geladen werden.',
-        computedEditCancel: 'Abbrechen'
+        editInfo: 'Info bearbeiten'
       },
       filters: {
         title: 'Filter',
@@ -672,13 +664,15 @@ export const de: Copy = {
           computedInvalid: 'Die Berechnungsdefinition muss gültiges JSON sein.',
           computedInvalidName: 'Ungültige Variablennamen im Graph.',
           computedDuplicateName: 'Doppelte Variablennamen im Graph.',
-          computedPreview: 'Beispiel anzeigen',
-          computedPreviewTitle: 'Berechnetes Beispiel',
-          computedPreviewFail: 'Beispiel konnte nicht erstellt werden.',
-          save: 'Info speichern',
-          saved: 'Info gespeichert.',
-          failed: 'Info konnte nicht gespeichert werden.'
-        },
+        computedPreview: 'Beispiel anzeigen',
+        computedPreviewTitle: 'Berechnetes Beispiel',
+        computedPreviewFail: 'Beispiel konnte nicht erstellt werden.',
+        save: 'Info speichern',
+        update: 'Änderungen speichern',
+        saved: 'Info gespeichert.',
+        updated: 'Info aktualisiert.',
+        failed: 'Info konnte nicht gespeichert werden.'
+      },
         connection: {
           typeLabel: 'Verbindungstyp',
           languageLabel: 'Sprache',

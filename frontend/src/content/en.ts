@@ -623,15 +623,7 @@ export const en: Copy = {
         computedAnswerLabel: 'Answer:',
         computedLoading: 'Generating example…',
         computedEmpty: 'No example available.',
-        computedEditAction: 'Edit computed',
-        computedEditTitle: 'Edit computed info',
-        computedEditLoading: 'Loading computed info...',
-        computedEditSaveAction: 'Save changes',
-        computedEditSaving: 'Saving...',
-        computedEditSaved: 'Computed info updated.',
-        computedEditSaveFailed: 'Failed to save computed info.',
-        computedEditLoadFailed: 'Failed to load computed info.',
-        computedEditCancel: 'Cancel'
+        editInfo: 'Edit info'
       },
       filters: {
         title: 'Filters',
@@ -672,13 +664,15 @@ export const en: Copy = {
           computedInvalid: 'Computed definition must be valid JSON.',
           computedInvalidName: 'Invalid variable names in the graph.',
           computedDuplicateName: 'Duplicate variable names in the graph.',
-          computedPreview: 'Show example',
-          computedPreviewTitle: 'Computed example',
-          computedPreviewFail: 'Unable to generate example.',
-          save: 'Save info',
-          saved: 'Info saved.',
-          failed: 'Failed to save info.'
-        },
+        computedPreview: 'Show example',
+        computedPreviewTitle: 'Computed example',
+        computedPreviewFail: 'Unable to generate example.',
+        save: 'Save info',
+        update: 'Save changes',
+        saved: 'Info saved.',
+        updated: 'Info updated.',
+        failed: 'Failed to save info.'
+      },
         connection: {
           typeLabel: 'Connection type',
           languageLabel: 'Language',

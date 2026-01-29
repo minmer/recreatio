@@ -323,15 +323,7 @@ export type Copy = {
         computedAnswerLabel: string;
         computedLoading: string;
         computedEmpty: string;
-        computedEditAction: string;
-        computedEditTitle: string;
-        computedEditLoading: string;
-        computedEditSaveAction: string;
-        computedEditSaving: string;
-        computedEditSaved: string;
-        computedEditSaveFailed: string;
-        computedEditLoadFailed: string;
-        computedEditCancel: string;
+        editInfo: string;
       };
       filters: {
         title: string;
@@ -373,12 +365,14 @@ export type Copy = {
           computedInvalidName: string;
           computedDuplicateName: string;
           computedPreview: string;
-          computedPreviewTitle: string;
-          computedPreviewFail: string;
-          save: string;
-          saved: string;
-          failed: string;
-        };
+        computedPreviewTitle: string;
+        computedPreviewFail: string;
+        save: string;
+        update: string;
+        saved: string;
+        updated: string;
+        failed: string;
+      };
         connection: {
           typeLabel: string;
           languageLabel: string;

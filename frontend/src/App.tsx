@@ -92,7 +92,7 @@ export default function App() {
       ? libraryModeSegment
       : 'detail';
   const libraryView =
-    libraryModeSegment === 'new' || libraryModeSegment === 'add'
+    libraryModeSegment === 'new' || libraryModeSegment === 'add' || libraryModeSegment === 'edit'
       ? 'add'
       : libraryModeSegment === 'dependencies'
         ? 'dependencies'
@@ -516,6 +516,7 @@ export default function App() {
                 language={language}
                 onLanguageChange={setLanguage}
                 libraryId={cogitaLibraryId}
+                editInfoId={libraryModeSegment === 'edit' ? cogitaSegments[4] : undefined}
               />
             ) : libraryView === 'dependencies' ? (
               <CogitaDependencyGraphPage
