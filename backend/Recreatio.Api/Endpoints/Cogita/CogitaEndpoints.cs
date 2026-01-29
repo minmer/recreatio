@@ -6606,11 +6606,11 @@ public static class CogitaEndpoints
                 using var doc = JsonDocument.Parse(plain);
                 if (doc.RootElement.TryGetProperty("params", out var param))
                 {
-                    result[node.Id] = param;
+                    result[node.Id] = param.Clone();
                 }
                 else
                 {
-                    result[node.Id] = doc.RootElement;
+                    result[node.Id] = doc.RootElement.Clone();
                 }
             }
             catch (CryptographicException)
