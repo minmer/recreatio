@@ -2243,16 +2243,22 @@
 }
 
 .cogita-revision-run .cogita-library-grid {
-  grid-template-columns: 15% minmax(0, 75%) 10%;
+  grid-template-columns: minmax(0, 85%) minmax(0, 10%);
   align-items: start;
 }
 
-.cogita-revision-run .cogita-library-pane {
-  grid-column: 3;
+.cogita-revision-run .cogita-library-panel {
+  grid-column: 1;
 }
 
-.cogita-revision-run .cogita-library-panel {
+.cogita-revision-run .cogita-library-pane {
   grid-column: 2;
+  align-self: start;
+}
+
+.cogita-revision-run .cogita-revision-card {
+  width: min(85%, 980px);
+  margin: 0 auto;
 }
 
 .cogita-revision-run .cogita-revision-body {

@@ -122,8 +122,17 @@ export function CogitaRevisionRunPage({
 
         if (!mounted) return;
         const ordered = mode === 'random' ? shuffle(gathered) : gathered;
-        const trimmed = ordered.slice(0, limit);
-        setQueue(trimmed);
+        let expanded: CogitaCardSearchResult[] = [];
+        if (ordered.length > 0 && limit > ordered.length) {
+          while (expanded.length < limit) {
+            const remaining = limit - expanded.length;
+            const nextBatch = mode === 'random' ? shuffle(ordered) : ordered;
+            expanded = expanded.concat(nextBatch.slice(0, remaining));
+          }
+        } else {
+          expanded = ordered.slice(0, limit);
+        }
+        setQueue(expanded);
         setCurrentIndex(0);
         setStatus('ready');
       } catch {
