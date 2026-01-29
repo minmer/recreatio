@@ -15,6 +15,10 @@ public sealed class CogitaRevisionShare
 
     public Guid SharedViewId { get; set; }
 
+    public byte[] PublicCodeHash { get; set; } = Array.Empty<byte>();
+
+    public byte[] EncShareCode { get; set; } = Array.Empty<byte>();
+
     [MaxLength(32)]
     public string Mode { get; set; } = "random";
 

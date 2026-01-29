@@ -58,6 +58,7 @@ type CogitaLibrarySidebarProps = {
       dependencyRules: string;
       revisionQueue: string;
       revisionHistory: string;
+      sharedRevisions: string;
       collectionDetail: string;
       collectionGraph: string;
       revisionSettings: string;
@@ -173,6 +174,7 @@ const buildSections = (libraryId: string, collectionId: string | undefined, labe
           key: 'collectionsRevision',
           title: labels.groups.collectionsRevision,
           items: [
+            { label: labels.items.sharedRevisions, href: `${base}/shared-revisions` },
             { label: labels.items.revisionQueue, disabled: true, badge: labels.badges.comingSoon },
             { label: labels.items.revisionHistory, disabled: true, badge: labels.badges.comingSoon }
           ]

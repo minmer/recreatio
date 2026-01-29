@@ -17,11 +17,13 @@ import { CogitaLibraryOverviewPage } from './pages/cogita/library/CogitaLibraryO
 import { CogitaLibraryListPage } from './pages/cogita/library/CogitaLibraryListPage';
 import { CogitaLibraryAddPage } from './pages/cogita/library/CogitaLibraryAddPage';
 import { CogitaDependencyGraphPage } from './pages/cogita/library/CogitaDependencyGraphPage';
+import { CogitaLibrarySharedRevisionsPage } from './pages/cogita/library/CogitaLibrarySharedRevisionsPage';
 import { CogitaCollectionListPage } from './pages/cogita/library/collections/CogitaCollectionListPage';
 import { CogitaCollectionCreatePage } from './pages/cogita/library/collections/CogitaCollectionCreatePage';
 import { CogitaCollectionDetailPage } from './pages/cogita/library/collections/CogitaCollectionDetailPage';
 import { CogitaRevisionSettingsPage } from './pages/cogita/library/collections/CogitaRevisionSettingsPage';
 import { CogitaRevisionRunPage } from './pages/cogita/library/collections/CogitaRevisionRunPage';
+import { CogitaRevisionShareRunPage } from './pages/cogita/library/collections/CogitaRevisionShareRunPage';
 import { CogitaCollectionGraphPage } from './pages/cogita/library/collections/CogitaCollectionGraphPage';
 import type { CogitaLibraryMode } from './pages/cogita/library/types';
 import { AccountPage } from './pages/account/AccountPage';
@@ -62,6 +64,9 @@ export default function App() {
   const pathname = location.pathname;
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
   const isCogitaPath = pathname.startsWith('/cogita');
+  const isCogitaSharePath = pathname.startsWith('/cogita/public/revision');
+  const shareSegments = pathname.split('/').filter(Boolean);
+  const shareId = isCogitaSharePath ? shareSegments[3] : undefined;
   const isCogitaLibraryPath = pathname.startsWith('/cogita/library');
   const cogitaSegments = pathname.split('/').filter(Boolean);
   const cogitaLibraryId = cogitaSegments[1] === 'library' ? cogitaSegments[2] : undefined;
@@ -91,6 +96,8 @@ export default function App() {
       ? 'add'
       : libraryModeSegment === 'dependencies'
         ? 'dependencies'
+        : libraryModeSegment === 'shared-revisions'
+          ? 'shared-revisions'
         : libraryModeSegment === 'list' || libraryModeSegment === 'collection' || libraryModeSegment === 'detail'
           ? 'list'
           : 'overview';
@@ -388,8 +395,22 @@ export default function App() {
           parishSlug={pathname.startsWith('/parish/') ? pathname.split('/')[2] : undefined}
         />
       )}
-      {isCogitaPath &&
-        (isAuthenticated ? (
+      {isCogitaSharePath && shareId ? (
+        <CogitaRevisionShareRunPage
+          copy={t}
+          authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+          showProfileMenu={isAuthenticated}
+          onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
+          secureMode={secureMode}
+          onNavigate={navigateRoute}
+          language={language}
+          onLanguageChange={setLanguage}
+          shareId={shareId}
+        />
+      ) : isCogitaPath ? (
+        isAuthenticated ? (
           isCogitaLibraryPath && cogitaLibraryId ? (
             isCogitaCollectionPath ? (
               collectionView === 'create' ? (
@@ -525,6 +546,20 @@ export default function App() {
                 libraryId={cogitaLibraryId}
                 mode={libraryMode}
               />
+            ) : libraryView === 'shared-revisions' ? (
+              <CogitaLibrarySharedRevisionsPage
+                copy={t}
+                authLabel={t.nav.account}
+                showProfileMenu
+                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+                onToggleSecureMode={handleToggleMode}
+                onLogout={handleLogout}
+                secureMode={secureMode}
+                onNavigate={navigateRoute}
+                language={language}
+                onLanguageChange={setLanguage}
+                libraryId={cogitaLibraryId}
+              />
             ) : (
               <CogitaLibraryOverviewPage
                 copy={t}
@@ -574,7 +609,8 @@ export default function App() {
             language={language}
             onLanguageChange={setLanguage}
           />
-        ))}
+        )
+      ) : null}
       {pathname === '/account' && session && (
         <AccountPage
           copy={t}

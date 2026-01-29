@@ -59,7 +59,6 @@ function ComputedGraphNode({
     output?: boolean;
     name?: string;
     value?: number | string | null;
-    onSelect?: () => void;
   };
 }) {
   const showValue =
@@ -72,14 +71,7 @@ function ComputedGraphNode({
   const handleCount = data.handles.length;
   const extraHeight = handleCount > 1 ? (handleCount - 1) * 14 : 0;
   return (
-    <div
-      className="cogita-graph-node"
-      style={{ minHeight: 86 + extraHeight, paddingBottom: 12 + extraHeight * 0.4 }}
-      onClick={(event) => {
-        event.stopPropagation();
-        data.onSelect?.();
-      }}
-    >
+    <div className="cogita-graph-node" style={{ minHeight: 90 + extraHeight, paddingBottom: 12 + extraHeight * 0.4 }}>
       <div className="cogita-graph-node-labels">
         <strong>{data.title}</strong>
         {showSubtitle ? <span>{data.subtitle}</span> : null}
@@ -92,7 +84,7 @@ function ComputedGraphNode({
           type="target"
           id={handle.id}
           position={Position.Left}
-          style={{ top: 36 + index * 22 }}
+          style={{ top: 42 + index * 22 }}
         >
           {handle.id !== 'in' ? <span className="cogita-graph-handle-label">{handle.label}</span> : null}
         </Handle>
@@ -223,7 +215,6 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         max: node.max,
         value: node.value,
         list: node.list,
-        onSelect: () => setSelectedNodeId(node.id),
         handles: nodeMeta[node.type]?.handles ?? [],
         output: nodeMeta[node.type]?.output ?? true
       }
@@ -528,7 +519,6 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           subtitle: meta.label,
           type: nodeType,
           name: '',
-          onSelect: () => setSelectedNodeId(id),
           handles: meta.handles,
           list: nodeType === 'input.list' ? [] : undefined,
           output: meta.output ?? true
@@ -598,6 +588,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          onSelectionChange={(selection) => setSelectedNodeId(selection.nodes[0]?.id ?? null)}
           fitView
         >
           <Background gap={18} size={1} />

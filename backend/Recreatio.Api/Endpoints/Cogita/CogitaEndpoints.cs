@@ -1948,7 +1948,7 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            if (!keyRing.TryGetOwnerKey(library.RoleId, out _))
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -1970,11 +1970,31 @@ public static class CogitaEndpoints
             var sharedViewId = Guid.NewGuid();
             var viewRoleId = Guid.NewGuid();
             var viewRoleReadKey = RandomNumberGenerator.GetBytes(32);
-            var shareSecret = RandomNumberGenerator.GetBytes(32);
-            var shareKey = Base64UrlEncode(shareSecret);
-            var sharedViewKey = masterKeyService.DeriveSharedViewKey(shareSecret, sharedViewId);
+            string shareCode;
+            byte[] shareCodeBytes;
+            byte[] secretHash;
+            var attempts = 0;
+            while (true)
+            {
+                shareCode = GenerateNumericShareCode(18);
+                shareCodeBytes = System.Text.Encoding.UTF8.GetBytes(shareCode);
+                secretHash = hashingService.Hash(shareCodeBytes);
+                var exists = await dbContext.CogitaRevisionShares.AsNoTracking()
+                    .AnyAsync(x => x.PublicCodeHash == secretHash, ct);
+                attempts++;
+                if (!exists || attempts >= 5)
+                {
+                    break;
+                }
+            }
+
+            if (attempts >= 5)
+            {
+                return Results.Problem("Unable to generate a unique share code.");
+            }
+
+            var sharedViewKey = masterKeyService.DeriveSharedViewKey(shareCodeBytes, sharedViewId);
             var encViewRoleKey = encryptionService.Encrypt(sharedViewKey, viewRoleReadKey, sharedViewId.ToByteArray());
-            var secretHash = hashingService.Hash(shareSecret);
             var now = DateTimeOffset.UtcNow;
 
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
@@ -2020,6 +2040,8 @@ public static class CogitaEndpoints
             });
 
             var shareId = Guid.NewGuid();
+            var encShareCode = encryptionService.Encrypt(ownerKey, shareCodeBytes, shareId.ToByteArray());
+
             dbContext.CogitaRevisionShares.Add(new CogitaRevisionShare
             {
                 Id = shareId,
@@ -2027,6 +2049,8 @@ public static class CogitaEndpoints
                 CollectionId = collectionId,
                 OwnerRoleId = library.RoleId,
                 SharedViewId = sharedViewId,
+                PublicCodeHash = secretHash,
+                EncShareCode = encShareCode,
                 Mode = mode,
                 CheckMode = checkMode,
                 CardLimit = limit,
@@ -2040,7 +2064,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaRevisionShareCreateResponse(
                 shareId,
                 collectionId,
-                shareKey,
+                shareCode,
                 mode,
                 checkMode,
                 limit,
@@ -2084,7 +2108,7 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            if (!keyRing.TryGetOwnerKey(library.RoleId, out _))
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
             {
                 return Results.Forbid();
             }
@@ -2133,10 +2157,25 @@ public static class CogitaEndpoints
                     }
                 }
 
+                var shareCode = string.Empty;
+                if (share.EncShareCode.Length > 0)
+                {
+                    try
+                    {
+                        var plain = encryptionService.Decrypt(ownerKey, share.EncShareCode, share.Id.ToByteArray());
+                        shareCode = System.Text.Encoding.UTF8.GetString(plain);
+                    }
+                    catch (CryptographicException)
+                    {
+                        shareCode = string.Empty;
+                    }
+                }
+
                 response.Add(new CogitaRevisionShareResponse(
                     share.Id,
                     share.CollectionId,
                     collectionName,
+                    shareCode,
                     share.Mode,
                     share.CheckMode,
                     share.CardLimit,
@@ -2209,9 +2248,8 @@ public static class CogitaEndpoints
             return Results.Ok();
         });
 
-        group.MapGet("/public/revision-shares/{shareId:guid}", async (
-            Guid shareId,
-            string? key,
+        group.MapGet("/public/revision/{code}", async (
+            string code,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
@@ -2221,8 +2259,7 @@ public static class CogitaEndpoints
             CancellationToken ct) =>
         {
             var shareContext = await TryResolveRevisionShareAsync(
-                shareId,
-                key,
+                code,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2289,9 +2326,8 @@ public static class CogitaEndpoints
             ));
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision-shares/{shareId:guid}/infos", async (
-            Guid shareId,
-            string? key,
+        group.MapGet("/public/revision/{code}/infos", async (
+            string code,
             string? type,
             string? query,
             RecreatioDbContext dbContext,
@@ -2302,8 +2338,7 @@ public static class CogitaEndpoints
             CancellationToken ct) =>
         {
             var shareContext = await TryResolveRevisionShareAsync(
-                shareId,
-                key,
+                code,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2370,9 +2405,8 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision-shares/{shareId:guid}/cards", async (
-            Guid shareId,
-            string? key,
+        group.MapGet("/public/revision/{code}/cards", async (
+            string code,
             int? limit,
             string? cursor,
             RecreatioDbContext dbContext,
@@ -2383,8 +2417,7 @@ public static class CogitaEndpoints
             CancellationToken ct) =>
         {
             var shareContext = await TryResolveRevisionShareAsync(
-                shareId,
-                key,
+                code,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2500,6 +2533,7 @@ public static class CogitaEndpoints
 
             var itemsQuery = dbContext.CogitaCollectionItems.AsNoTracking()
                 .Where(x => x.CollectionInfoId == share.CollectionId);
+            var total = await itemsQuery.CountAsync(ct);
 
             if (!string.IsNullOrWhiteSpace(cursor))
             {
@@ -2533,16 +2567,15 @@ public static class CogitaEndpoints
                 : null;
 
             return Results.Ok(new CogitaCardSearchBundleResponse(
-                items.Count,
+                total,
                 pageSize,
                 next,
                 cardResponses));
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision-shares/{shareId:guid}/computed/{infoId:guid}/sample", async (
-            Guid shareId,
+        group.MapGet("/public/revision/{code}/computed/{infoId:guid}/sample", async (
+            string code,
             Guid infoId,
-            string? key,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
@@ -2551,8 +2584,7 @@ public static class CogitaEndpoints
             CancellationToken ct) =>
         {
             var shareContext = await TryResolveRevisionShareAsync(
-                shareId,
-                key,
+                code,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -6861,61 +6893,229 @@ public static class CogitaEndpoints
         return responses;
     }
 
-    private static string Base64UrlEncode(byte[] bytes)
+    private static async Task<List<CogitaCardSearchResponse>> BuildCollectionCardResponsesAsync(
+        List<(string ItemType, Guid ItemId)> items,
+        Guid libraryId,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
     {
-        return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        if (items.Count == 0)
+        {
+            return new List<CogitaCardSearchResponse>();
+        }
+
+        var infoItemIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
+        var connectionItemIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
+
+        var infos = await dbContext.CogitaInfos.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId && infoItemIds.Contains(x.Id))
+            .ToListAsync(ct);
+
+        var payloadLookup = new Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>();
+        foreach (var info in infos)
+        {
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                continue;
+            }
+            payloadLookup[info.Id] = (info.Id, info.InfoType, payload.Value.DataKeyId, payload.Value.EncryptedBlob);
+        }
+
+        var dataKeyIds = payloadLookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+        var keyEntryById = await dbContext.Keys.AsNoTracking()
+            .Where(x => dataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
+            .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+
+        var languageLabels = await ResolveInfoLabelsAsync(
+            libraryId,
+            "language",
+            readKey,
+            keyRingService,
+            encryptionService,
+            dbContext,
+            ct);
+
+        var infoResponses = new Dictionary<Guid, CogitaCardSearchResponse>();
+
+        foreach (var item in items)
+        {
+            if (item.ItemType != "info")
+            {
+                continue;
+            }
+
+            if (!payloadLookup.TryGetValue(item.ItemId, out var entry))
+            {
+                continue;
+            }
+
+            if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            string label;
+            string description;
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            if (entry.InfoType == "word" && wordLanguageMap.TryGetValue(entry.InfoId, out var languageInfoId))
+            {
+                if (languageLabels.TryGetValue(languageInfoId, out var langLabel) && !string.IsNullOrWhiteSpace(langLabel))
+                {
+                    description = $"Language: {langLabel}";
+                }
+            }
+
+            infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
+        }
+
+        var connectionResponses = new Dictionary<Guid, CogitaCardSearchResponse>();
+        if (connectionItemIds.Count > 0)
+        {
+            var connections = await dbContext.CogitaConnections.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && connectionItemIds.Contains(x.Id))
+                .ToListAsync(ct);
+
+            var translationIds = connections
+                .Where(x => x.ConnectionType == "translation")
+                .Select(x => x.Id)
+                .ToList();
+
+            if (translationIds.Count > 0)
+            {
+                var translationResponses = await BuildTranslationCardResponsesAsync(
+                    libraryId,
+                    translationIds,
+                    readKey,
+                    keyRingService,
+                    encryptionService,
+                    dbContext,
+                    ct);
+                foreach (var response in translationResponses)
+                {
+                    connectionResponses[response.CardId] = response;
+                }
+            }
+
+            foreach (var connection in connections)
+            {
+                if (connection.ConnectionType == "translation")
+                {
+                    continue;
+                }
+
+                connectionResponses[connection.Id] = new CogitaCardSearchResponse(
+                    connection.Id,
+                    "connection",
+                    connection.ConnectionType,
+                    "Connection",
+                    null
+                );
+            }
+        }
+
+        var orderedResponses = new List<CogitaCardSearchResponse>();
+        foreach (var item in items)
+        {
+            if (item.ItemType == "info")
+            {
+                if (infoResponses.TryGetValue(item.ItemId, out var response))
+                {
+                    orderedResponses.Add(response);
+                }
+            }
+            else if (item.ItemType == "connection")
+            {
+                if (connectionResponses.TryGetValue(item.ItemId, out var response))
+                {
+                    orderedResponses.Add(response);
+                }
+            }
+        }
+
+        return orderedResponses;
     }
 
-    private static bool TryDecodeBase64Url(string? value, out byte[] bytes)
+    private static string GenerateNumericShareCode(int length)
     {
-        bytes = Array.Empty<byte>();
-        if (string.IsNullOrWhiteSpace(value))
+        if (length <= 0)
         {
-            return false;
+            return string.Empty;
         }
 
-        var padded = value.Replace('-', '+').Replace('_', '/');
-        var mod = padded.Length % 4;
-        if (mod == 2)
+        var digits = new char[length];
+        for (var i = 0; i < length; i++)
         {
-            padded += "==";
-        }
-        else if (mod == 3)
-        {
-            padded += "=";
-        }
-        else if (mod != 0)
-        {
-            return false;
+            digits[i] = '0';
         }
 
-        try
+        var remaining = length;
+        while (remaining > 0)
         {
-            bytes = Convert.FromBase64String(padded);
-            return bytes.Length > 0;
+            var bytes = RandomNumberGenerator.GetBytes(8);
+            var value = BitConverter.ToUInt64(bytes, 0);
+            while (remaining > 0 && value > 0)
+            {
+                var digit = (int)(value % 10);
+                digits[remaining - 1] = (char)('0' + digit);
+                value /= 10;
+                remaining--;
+            }
         }
-        catch (FormatException)
-        {
-            return false;
-        }
+
+        return new string(digits);
     }
 
     private static async Task<(CogitaRevisionShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveRevisionShareAsync(
-        Guid shareId,
-        string? key,
+        string? code,
         RecreatioDbContext dbContext,
         IEncryptionService encryptionService,
         IMasterKeyService masterKeyService,
         IHashingService hashingService,
         CancellationToken ct)
     {
-        if (!TryDecodeBase64Url(key, out var shareSecret))
+        if (string.IsNullOrWhiteSpace(code))
         {
             return null;
         }
 
+        if (code.Length < 12 || code.Length > 32 || code.Any(ch => ch < '0' || ch > '9'))
+        {
+            return null;
+        }
+
+        var codeBytes = System.Text.Encoding.UTF8.GetBytes(code);
+        var codeHash = hashingService.Hash(codeBytes);
+
         var share = await dbContext.CogitaRevisionShares.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == shareId && x.RevokedUtc == null, ct);
+            .FirstOrDefaultAsync(x => x.PublicCodeHash == codeHash && x.RevokedUtc == null, ct);
         if (share is null)
         {
             return null;
@@ -6928,7 +7128,7 @@ public static class CogitaEndpoints
             return null;
         }
 
-        var secretHash = hashingService.Hash(shareSecret);
+        var secretHash = hashingService.Hash(codeBytes);
         if (sharedView.SharedViewSecretHash.Length == 0 ||
             secretHash.Length != sharedView.SharedViewSecretHash.Length ||
             !CryptographicOperations.FixedTimeEquals(secretHash, sharedView.SharedViewSecretHash))
@@ -6953,7 +7153,7 @@ public static class CogitaEndpoints
         byte[] viewRoleReadKey;
         try
         {
-            var sharedViewKey = masterKeyService.DeriveSharedViewKey(shareSecret, sharedView.Id);
+            var sharedViewKey = masterKeyService.DeriveSharedViewKey(codeBytes, sharedView.Id);
             viewRoleReadKey = encryptionService.Decrypt(sharedViewKey, sharedView.EncViewRoleKey, sharedView.Id.ToByteArray());
         }
         catch (CryptographicException)

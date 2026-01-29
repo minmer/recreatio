@@ -145,6 +145,8 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasIndex(x => new { x.LibraryId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
+            .HasIndex(x => x.PublicCodeHash);
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphNode>()
             .HasIndex(x => x.GraphId);

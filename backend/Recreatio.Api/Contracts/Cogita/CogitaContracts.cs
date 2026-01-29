@@ -191,7 +191,7 @@ public sealed record CogitaRevisionShareCreateRequest(
 public sealed record CogitaRevisionShareCreateResponse(
     Guid ShareId,
     Guid CollectionId,
-    string ShareKey,
+    string ShareCode,
     string Mode,
     string Check,
     int Limit,
@@ -202,6 +202,7 @@ public sealed record CogitaRevisionShareResponse(
     Guid ShareId,
     Guid CollectionId,
     string CollectionName,
+    string ShareCode,
     string Mode,
     string Check,
     int Limit,

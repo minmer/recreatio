@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import {
   getCogitaPublicComputedSample,
   getCogitaPublicRevisionCards,
@@ -52,10 +51,6 @@ export function CogitaRevisionShareRunPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   shareId: string;
 }) {
-  const location = useLocation();
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const shareKey = params.get('key') ?? '';
-
   const [shareInfo, setShareInfo] = useState<CogitaPublicRevisionShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
@@ -78,7 +73,8 @@ export function CogitaRevisionShareRunPage({
   const modeLabel = useMemo(() => (mode === 'random' ? copy.cogita.library.revision.modeValue : mode), [copy, mode]);
   const checkLabel = useMemo(() => (check === 'exact' ? copy.cogita.library.revision.checkValue : check), [copy, check]);
 
-  const currentCard = queue[currentIndex] ?? null;
+  const canRenderCards = shareStatus === 'ready';
+  const currentCard = canRenderCards ? queue[currentIndex] ?? null : null;
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
     if (currentCard.cardType === 'vocab') return copy.cogita.library.revision.vocabLabel;
@@ -87,12 +83,12 @@ export function CogitaRevisionShareRunPage({
   }, [copy, currentCard]);
 
   useEffect(() => {
-    if (!shareKey) {
+    if (!shareId) {
       setShareStatus('error');
       return;
     }
     setShareStatus('loading');
-    getCogitaPublicRevisionShare({ shareId, key: shareKey })
+    getCogitaPublicRevisionShare({ shareId })
       .then((info) => {
         setShareInfo(info);
         setCollectionName(info.collectionName);
@@ -102,17 +98,17 @@ export function CogitaRevisionShareRunPage({
       .catch(() => {
         setShareStatus('error');
       });
-  }, [shareId, shareKey]);
+  }, [shareId]);
 
   useEffect(() => {
-    if (!shareKey) return;
-    getCogitaPublicRevisionInfos({ shareId, key: shareKey, type: 'language' })
+    if (!shareId) return;
+    getCogitaPublicRevisionInfos({ shareId, type: 'language' })
       .then((results) => setLanguages(results))
       .catch(() => setLanguages([]));
-  }, [shareId, shareKey]);
+  }, [shareId]);
 
   useEffect(() => {
-    if (!shareKey || shareStatus !== 'ready') return;
+    if (!shareId || shareStatus !== 'ready') return;
     let mounted = true;
     const fetchCards = async () => {
       setStatus('loading');
@@ -122,7 +118,6 @@ export function CogitaRevisionShareRunPage({
         do {
           const bundle = await getCogitaPublicRevisionCards({
             shareId,
-            key: shareKey,
             limit: 100,
             cursor
           });
@@ -146,7 +141,7 @@ export function CogitaRevisionShareRunPage({
     return () => {
       mounted = false;
     };
-  }, [shareId, shareKey, limit, mode, shareStatus]);
+  }, [shareId, limit, mode, shareStatus]);
 
   useEffect(() => {
     setAnswer('');
@@ -186,7 +181,7 @@ export function CogitaRevisionShareRunPage({
       setComputedExpected([]);
       setComputedAnswers({});
       let mounted = true;
-      getCogitaPublicComputedSample({ shareId, key: shareKey, infoId: currentCard.cardId })
+      getCogitaPublicComputedSample({ shareId, infoId: currentCard.cardId })
         .then((sample) => {
           if (!mounted) return;
           setPrompt(sample.prompt);
@@ -220,7 +215,7 @@ export function CogitaRevisionShareRunPage({
       setExpectedAnswer(null);
       setComputedValues(null);
     }
-  }, [currentCard, shareId, shareKey, copy]);
+  }, [currentCard, shareId, copy]);
 
   const advanceCard = () => {
     setFeedback(null);
@@ -323,7 +318,20 @@ export function CogitaRevisionShareRunPage({
 
               <div className="cogita-library-panel">
                 <section className="cogita-revision-card" data-feedback={feedback ?? 'idle'}>
-                  {currentCard ? (
+                  {shareStatus !== 'ready' ? (
+                    <div className="cogita-card-empty">
+                      <p>
+                        {shareStatus === 'loading'
+                          ? copy.cogita.library.revision.shareLoading
+                          : copy.cogita.library.revision.shareInvalid}
+                      </p>
+                      <div className="cogita-form-actions">
+                        <a className="cta" href="/#/cogita">
+                          {copy.cogita.library.actions.backToCogita}
+                        </a>
+                      </div>
+                    </div>
+                  ) : currentCard ? (
                     <>
                       <div className="cogita-revision-header">
                         <span>{currentTypeLabel}</span>

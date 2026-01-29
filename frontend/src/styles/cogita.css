@@ -1320,11 +1320,12 @@
 
 .cogita-graph-handle-label {
   position: absolute;
-  left: 10px;
-  transform: translateY(-50%);
+  left: -8px;
+  transform: translate(-100%, -50%);
   font-size: 0.62rem;
   color: rgba(180, 210, 240, 0.7);
   white-space: nowrap;
+  pointer-events: none;
 }
 
 .cogita-graph-readonly {

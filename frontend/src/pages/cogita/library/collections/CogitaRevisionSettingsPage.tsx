@@ -55,8 +55,8 @@ export function CogitaRevisionSettingsPage({
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [shareListStatus, setShareListStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const shareBase = useMemo(() => {
-    if (typeof window === 'undefined') return '/#/cogita/shared/revision';
-    return `${window.location.origin}/#/cogita/shared/revision`;
+    if (typeof window === 'undefined') return '/#/cogita/public/revision';
+    return `${window.location.origin}/#/cogita/public/revision`;
   }, []);
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function CogitaRevisionSettingsPage({
         check,
         limit
       });
-      setShareLink(`${shareBase}/${response.shareId}?key=${response.shareKey}`);
+      setShareLink(`${shareBase}/${response.shareCode}`);
       setShareStatus('ready');
       loadShares();
     } catch {
