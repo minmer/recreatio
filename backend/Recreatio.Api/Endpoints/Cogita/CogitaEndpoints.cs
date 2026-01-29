@@ -2091,6 +2091,8 @@ public static class CogitaEndpoints
                 UpdatedUtc = now
             });
 
+            await dbContext.SaveChangesAsync(ct);
+
             var edgeId = Guid.NewGuid();
             var encryptedRelationshipType = keyRingService.EncryptRoleRelationshipType(viewRoleReadKey, RoleRelationships.Read, edgeId);
             var relationshipTypeHash = HMACSHA256.HashData(viewRoleReadKey, System.Text.Encoding.UTF8.GetBytes(RoleRelationships.Read));
@@ -2118,6 +2120,8 @@ public static class CogitaEndpoints
                 CreatedUtc = now,
                 RevokedUtc = null
             });
+
+            await dbContext.SaveChangesAsync(ct);
 
             var shareId = Guid.NewGuid();
             var encShareCode = encryptionService.Encrypt(ownerKey, shareCodeBytes, shareId.ToByteArray());

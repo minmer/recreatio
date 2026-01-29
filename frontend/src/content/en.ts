@@ -799,6 +799,7 @@ export const en: Copy = {
         infoLabel: 'Info',
         answerLabel: 'Your answer',
         answerPlaceholder: 'Type the translation',
+        answerPlaceholderComputed: 'Enter the result',
         checkAnswer: 'Check answer',
         skip: 'Skip',
         hintSelectLanguage: 'Select the language for this word.',

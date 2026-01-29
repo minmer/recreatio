@@ -503,7 +503,7 @@ export function CogitaRevisionRunPage({
                                 onChange={(event) =>
                                   setComputedAnswers((prev) => ({ ...prev, [entry.key]: event.target.value }))
                                 }
-                                placeholder={copy.cogita.library.revision.answerPlaceholder}
+                                placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
                                 onKeyDown={(event) => {
                                   if (event.key === 'Enter') handleCheckAnswer();
                                 }}
@@ -516,7 +516,7 @@ export function CogitaRevisionRunPage({
                             <input
                               value={answer}
                               onChange={(event) => setAnswer(event.target.value)}
-                              placeholder={copy.cogita.library.revision.answerPlaceholder}
+                              placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
                               onKeyDown={(event) => {
                                 if (event.key === 'Enter') handleCheckAnswer();
                               }}

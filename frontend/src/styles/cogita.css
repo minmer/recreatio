@@ -2392,6 +2392,10 @@
   gap: 1rem;
 }
 
+.cogita-revision-body .katex {
+  color: #f3f7ff;
+}
+
 .cogita-revision-body h2 {
   margin: 0;
   font-size: clamp(1.4rem, 2.6vw, 2rem);

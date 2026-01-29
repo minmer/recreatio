@@ -369,16 +369,16 @@ export function CogitaRevisionShareRunPage({
                               computedExpected.map((entry) => (
                                 <label key={entry.key} className="cogita-field">
                                   <span>{entry.key}</span>
-                                  <input
-                                    value={computedAnswers[entry.key] ?? ''}
-                                    onChange={(event) =>
-                                      setComputedAnswers((prev) => ({ ...prev, [entry.key]: event.target.value }))
-                                    }
-                                    placeholder={copy.cogita.library.revision.answerPlaceholder}
-                                    onKeyDown={(event) => {
-                                      if (event.key === 'Enter') handleCheckAnswer();
-                                    }}
-                                  />
+                                    <input
+                                      value={computedAnswers[entry.key] ?? ''}
+                                      onChange={(event) =>
+                                        setComputedAnswers((prev) => ({ ...prev, [entry.key]: event.target.value }))
+                                      }
+                                      placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter') handleCheckAnswer();
+                                      }}
+                                    />
                                 </label>
                               ))
                             ) : (
@@ -387,7 +387,7 @@ export function CogitaRevisionShareRunPage({
                                 <input
                                   value={answer}
                                   onChange={(event) => setAnswer(event.target.value)}
-                                  placeholder={copy.cogita.library.revision.answerPlaceholder}
+                                  placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
                                   onKeyDown={(event) => {
                                     if (event.key === 'Enter') handleCheckAnswer();
                                   }}

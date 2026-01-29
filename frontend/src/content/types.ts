@@ -499,6 +499,7 @@ export type Copy = {
         infoLabel: string;
         answerLabel: string;
         answerPlaceholder: string;
+        answerPlaceholderComputed: string;
         checkAnswer: string;
         skip: string;
         hintSelectLanguage: string;
