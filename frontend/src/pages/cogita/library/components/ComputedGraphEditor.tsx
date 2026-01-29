@@ -17,6 +17,7 @@ import type { Copy } from '../../../../content/types';
 export type ComputedGraphNodePayload = {
   id: string;
   type: string;
+  position?: { x: number; y: number };
   name?: string;
   min?: number;
   max?: number;
@@ -205,7 +206,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     return definition.nodes.map((node, index) => ({
       id: node.id,
       type: 'computed',
-      position: { x: 40 + index * 160, y: 60 + (index % 3) * 80 },
+      position: node.position ?? { x: 40 + index * 160, y: 60 + (index % 3) * 80 },
       data: {
         title: node.name || nodeMeta[node.type]?.label || node.type,
         subtitle: nodeMeta[node.type]?.label || node.type,
@@ -245,9 +246,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   const initialNodes = useMemo(() => buildNodesFromValue(value), [value, nodeMeta]);
   const initialEdges = useMemo(() => buildEdgesFromValue(value), [value]);
-  const valueSignature = useMemo(() => {
-    if (!value) return 'null';
-    const nodeParts = value.nodes
+  const buildDefinitionSignature = (definition: ComputedGraphDefinition | null, includePosition: boolean) => {
+    if (!definition) return 'null';
+    const nodeParts = definition.nodes
       .map((node) => {
         const listValue = (node.list ?? []).join(',');
         const inputs = node.inputs ? node.inputs.join(',') : '';
@@ -257,6 +258,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
               .sort()
               .join('|')
           : '';
+        const pos = includePosition && node.position ? `${node.position.x},${node.position.y}` : '';
         return [
           node.id,
           node.type,
@@ -265,13 +267,18 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           node.max ?? '',
           listValue,
           inputs,
-          handles
+          handles,
+          pos
         ].join(':');
       })
       .sort()
       .join('||');
-    const outputs = value.outputs ? value.outputs.join(',') : value.output ?? '';
+    const outputs = definition.outputs ? definition.outputs.join(',') : definition.output ?? '';
     return `${nodeParts}::${outputs}`;
+  };
+  const valueSignature = useMemo(() => {
+    const hasPositions = !!value?.nodes?.some((node) => !!node.position);
+    return buildDefinitionSignature(value, hasPositions);
   }, [value]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -282,6 +289,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const [refreshTick, setRefreshTick] = useState(0);
   const onChangeRef = useRef(onChange);
   const lastValueSignatureRef = useRef(valueSignature);
+  const lastEmittedSignatureRef = useRef(valueSignature);
+  const lastEmittedSignatureNoPosRef = useRef(buildDefinitionSignature(value, false));
   const selectedNode = useMemo(
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
     [nodes, selectedNodeId]
@@ -298,6 +307,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   useEffect(() => {
     if (lastValueSignatureRef.current === valueSignature) {
+      return;
+    }
+    if (lastEmittedSignatureRef.current === valueSignature || lastEmittedSignatureNoPosRef.current === valueSignature) {
+      lastValueSignatureRef.current = valueSignature;
       return;
     }
     lastValueSignatureRef.current = valueSignature;
@@ -331,6 +344,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       nodes: nodes.map((node) => ({
         id: node.id,
         type: node.data?.type ?? 'compute.add',
+        position: node.position,
         name: node.data?.name,
         min: node.data?.min,
         max: node.data?.max,
@@ -342,6 +356,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       output: outputs[0] ?? null,
       outputs
     };
+    lastEmittedSignatureRef.current = buildDefinitionSignature(definition, true);
+    lastEmittedSignatureNoPosRef.current = buildDefinitionSignature(definition, false);
     onChangeRef.current(definition);
   }, [nodes, edges]);
 
