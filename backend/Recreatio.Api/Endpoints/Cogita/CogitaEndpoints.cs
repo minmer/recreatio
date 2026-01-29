@@ -6552,7 +6552,7 @@ public static class CogitaEndpoints
                     ? handleList
                     : GetNodeInputs(node);
                 var indexValue = indexIds.Count > 0 ? ToNumber(EvaluateNode(indexIds[0])) : 0;
-                var index = (int)Math.Round(indexValue);
+                var index = (int)Math.Round(indexValue, MidpointRounding.AwayFromZero);
                 if (entries.Count == 0)
                 {
                     result = index.ToString();
