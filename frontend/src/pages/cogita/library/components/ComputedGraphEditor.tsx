@@ -19,6 +19,7 @@ export type ComputedGraphNodePayload = {
   type: string;
   position?: { x: number; y: number };
   name?: string;
+  outputLabel?: string;
   min?: number;
   max?: number;
   value?: number;
@@ -59,6 +60,7 @@ function ComputedGraphNode({
     handles: NodeInputHandle[];
     output?: boolean;
     name?: string;
+    outputLabel?: string;
     value?: number | string | null;
   };
 }) {
@@ -78,6 +80,7 @@ function ComputedGraphNode({
         {showSubtitle ? <span>{data.subtitle}</span> : null}
       </div>
       {data.name ? <div className="cogita-graph-node-meta">{data.name}</div> : null}
+      {data.outputLabel ? <div className="cogita-graph-node-meta">{data.outputLabel}</div> : null}
       {showValue ? <div className="cogita-graph-node-value">{data.value}</div> : null}
       {data.handles.map((handle, index) => (
         <Handle
@@ -212,6 +215,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         subtitle: nodeMeta[node.type]?.label || node.type,
         type: node.type,
         name: node.name,
+        outputLabel: node.outputLabel,
         min: node.min,
         max: node.max,
         value: node.type === 'input.const' ? node.value : undefined,
@@ -263,6 +267,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           node.id,
           node.type,
           node.name ?? '',
+          node.outputLabel ?? '',
           node.min ?? '',
           node.max ?? '',
           listValue,
@@ -346,6 +351,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         type: node.data?.type ?? 'compute.add',
         position: node.position,
         name: node.data?.name,
+        outputLabel: node.data?.outputLabel,
         min: node.data?.min,
         max: node.data?.max,
         value: node.data?.type === 'input.const' ? node.data?.value : undefined,
@@ -611,7 +617,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     ]);
   };
 
-  const updateSelectedNode = (updates: Partial<{ type: string; name: string; min: number; max: number; value: number; list: string[] }>) => {
+  const updateSelectedNode = (
+    updates: Partial<{ type: string; name: string; outputLabel: string; min: number; max: number; value: number; list: string[] }>
+  ) => {
     if (!selectedNodeId) return;
     if (updates.name !== undefined) {
       const trimmed = updates.name.trim();
@@ -761,6 +769,17 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
               <p className="cogita-graph-readonly">
                 {copy.cogita.library.graph.typeLabel} {nodeMeta[selectedNode.data?.type ?? '']?.label ?? selectedNode.data?.type}
               </p>
+              {selectedNode.data?.type === 'output' && (
+                <label className="cogita-field">
+                  <span>{copy.cogita.library.graph.outputLabel}</span>
+                  <input
+                    type="text"
+                    value={selectedNode.data?.outputLabel ?? ''}
+                    onChange={(event) => updateSelectedNode({ outputLabel: event.target.value })}
+                    placeholder={copy.cogita.library.graph.outputPlaceholder}
+                  />
+                </label>
+              )}
               {selectedNode.data?.type === 'input.random' && (
                 <>
                   <label className="cogita-field">

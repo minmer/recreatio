@@ -6065,6 +6065,7 @@ public static class CogitaEndpoints
     {
         var nodes = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
         var nodeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var outputLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (graphElement.TryGetProperty("nodes", out var nodesElement) && nodesElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var node in nodesElement.EnumerateArray())
@@ -6081,6 +6082,14 @@ public static class CogitaEndpoints
                             if (!string.IsNullOrWhiteSpace(name))
                             {
                                 nodeNames[nodeId] = name;
+                            }
+                        }
+                        if (node.TryGetProperty("outputLabel", out var labelEl) && labelEl.ValueKind == JsonValueKind.String)
+                        {
+                            var label = labelEl.GetString();
+                            if (!string.IsNullOrWhiteSpace(label))
+                            {
+                                outputLabels[nodeId] = label;
                             }
                         }
                     }
@@ -6345,17 +6354,22 @@ public static class CogitaEndpoints
         foreach (var pair in valuesRaw)
         {
             var isOutput = outputSet.Contains(pair.Key);
-            var replacement = isOutput
-                ? (nodeNames.TryGetValue(pair.Key, out var outputName) && !string.IsNullOrWhiteSpace(outputName)
+            var outputLabel = outputLabels.TryGetValue(pair.Key, out var outputLabelValue) && !string.IsNullOrWhiteSpace(outputLabelValue)
+                ? outputLabelValue
+                : nodeNames.TryGetValue(pair.Key, out var outputName) && !string.IsNullOrWhiteSpace(outputName)
                     ? outputName
-                    : pair.Key)
-                : FormatAny(pair.Value);
+                    : pair.Key;
+            var replacement = isOutput ? outputLabel : FormatAny(pair.Value);
 
             prompt = prompt.Replace($"{{{pair.Key}}}", replacement, StringComparison.OrdinalIgnoreCase);
             if (nodeNames.TryGetValue(pair.Key, out var name))
             {
-                var nameReplacement = isOutput ? name : FormatAny(pair.Value);
+                var nameReplacement = isOutput ? outputLabel : FormatAny(pair.Value);
                 prompt = prompt.Replace($"{{{name}}}", nameReplacement, StringComparison.OrdinalIgnoreCase);
+            }
+            if (outputLabels.TryGetValue(pair.Key, out var label))
+            {
+                prompt = prompt.Replace($"{{{label}}}", outputLabel, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -6364,9 +6378,11 @@ public static class CogitaEndpoints
         {
             if (string.IsNullOrWhiteSpace(outputId)) continue;
             if (!valuesRaw.TryGetValue(outputId, out var outputValue)) continue;
-            var key = nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
-                ? name
-                : outputId;
+            var key = outputLabels.TryGetValue(outputId, out var label) && !string.IsNullOrWhiteSpace(label)
+                ? label
+                : nodeNames.TryGetValue(outputId, out var name) && !string.IsNullOrWhiteSpace(name)
+                    ? name
+                    : outputId;
             expectedAnswers[key] = FormatAny(outputValue);
         }
 

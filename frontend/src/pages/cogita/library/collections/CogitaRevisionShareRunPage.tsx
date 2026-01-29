@@ -572,9 +572,21 @@ export function CogitaRevisionShareRunPage({
 
                       {feedback === 'incorrect' && hasExpectedAnswer ? (
                         <div className="cogita-revision-reveal">
-                          <button type="button" className="ghost" onClick={() => setShowCorrectAnswer((prev) => !prev)}>
-                            {copy.cogita.library.revision.showAnswer}
-                          </button>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() =>
+                                setShowCorrectAnswer((prev) => {
+                                  const next = !prev;
+                                  if (next) {
+                                    setCanAdvance(true);
+                                  }
+                                  return next;
+                                })
+                              }
+                            >
+                              {copy.cogita.library.revision.showAnswer}
+                            </button>
                           {showCorrectAnswer ? (
                             <div className="cogita-revision-answer">
                               <p className="cogita-user-kicker">{copy.cogita.library.revision.correctAnswerLabel}</p>
@@ -593,9 +605,17 @@ export function CogitaRevisionShareRunPage({
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
-                    </>
-                  ) : (
+                        ) : null}
+
+                        {canAdvance ? (
+                          <div className="cogita-form-actions">
+                            <button type="button" className="cta" onClick={advanceCard}>
+                              {copy.cogita.library.revision.nextQuestion}
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
                     <div className="cogita-card-empty">
                       <p>{copy.cogita.library.revision.completed}</p>
                       <div className="cogita-form-actions">

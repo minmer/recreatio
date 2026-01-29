@@ -701,7 +701,19 @@ export function CogitaRevisionRunPage({
 
                   {feedback === 'incorrect' && hasExpectedAnswer ? (
                     <div className="cogita-revision-reveal">
-                      <button type="button" className="ghost" onClick={() => setShowCorrectAnswer((prev) => !prev)}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() =>
+                          setShowCorrectAnswer((prev) => {
+                            const next = !prev;
+                            if (next) {
+                              setCanAdvance(true);
+                            }
+                            return next;
+                          })
+                        }
+                      >
                         {copy.cogita.library.revision.showAnswer}
                       </button>
                       {showCorrectAnswer ? (
@@ -721,6 +733,14 @@ export function CogitaRevisionRunPage({
                           )}
                         </div>
                       ) : null}
+                    </div>
+                  ) : null}
+
+                  {canAdvance ? (
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={advanceCard}>
+                        {copy.cogita.library.revision.nextQuestion}
+                      </button>
                     </div>
                   ) : null}
                 </>

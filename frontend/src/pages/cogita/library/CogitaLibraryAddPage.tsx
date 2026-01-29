@@ -357,20 +357,27 @@ export function CogitaLibraryAddPage({
     outputs.forEach((id) => {
       const node = nodeMap.get(id);
       if (!node) return;
-      const name = node.name?.trim() || id;
-      answers[name] = formatValue(values.get(id));
+      const displayName = (node.outputLabel?.trim() || node.name?.trim() || id) as string;
+      answers[displayName] = formatValue(values.get(id));
     });
 
-    let prompt = computedPrompt.trim();
+    const rawPrompt = computedPrompt ?? '';
+    let prompt = rawPrompt.trim().length > 0 ? rawPrompt : '';
     if (!prompt) {
       prompt = outputs.length ? `Compute ${outputs.join(', ')}` : 'Compute';
     }
     computedGraph.nodes.forEach((node) => {
       if (!values.has(node.id)) return;
       const value = formatValue(values.get(node.id));
-      prompt = prompt.replace(new RegExp(`\\{${node.id}\\}`, 'gi'), value);
+      const isOutput = outputs.includes(node.id);
+      const outputLabel = isOutput ? (node.outputLabel?.trim() || node.name?.trim() || node.id) : '';
+      const replacement = isOutput ? outputLabel : value;
+      prompt = prompt.replace(new RegExp(`\\{${node.id}\\}`, 'gi'), replacement);
       if (node.name) {
-        prompt = prompt.replace(new RegExp(`\\{${node.name}\\}`, 'gi'), value);
+        prompt = prompt.replace(new RegExp(`\\{${node.name}\\}`, 'gi'), replacement);
+      }
+      if (isOutput && node.outputLabel) {
+        prompt = prompt.replace(new RegExp(`\\{${node.outputLabel}\\}`, 'gi'), outputLabel);
       }
     });
 

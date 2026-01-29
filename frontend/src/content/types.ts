@@ -502,6 +502,7 @@ export type Copy = {
         answerPlaceholderComputed: string;
         checkAnswer: string;
         skip: string;
+        nextQuestion: string;
         hintSelectLanguage: string;
         hintReview: string;
         markDone: string;
@@ -540,6 +541,8 @@ export type Copy = {
         emptyInspector: string;
         nameLabel: string;
         namePlaceholder: string;
+        outputLabel: string;
+        outputPlaceholder: string;
         duplicateName: string;
         invalidName: string;
         nameHint: string;
