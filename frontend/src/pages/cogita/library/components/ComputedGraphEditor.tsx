@@ -689,6 +689,25 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameWarning(null);
   };
 
+  const handleNodeDragStop = (_: unknown, draggedNode: Node) => {
+    if (!draggedNode?.id) return;
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
+        if (node.id !== draggedNode.id) return node;
+        if (node.position.x === draggedNode.position.x && node.position.y === draggedNode.position.y) {
+          return node;
+        }
+        changed = true;
+        return {
+          ...node,
+          position: { ...draggedNode.position }
+        };
+      });
+      return changed ? next : prev;
+    });
+  };
+
   return (
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
@@ -700,6 +719,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+          onNodeDragStop={handleNodeDragStop}
           onSelectionChange={(selection) => {
             setSelectedNodeId(selection.nodes[0]?.id ?? null);
             setSelectedEdgeIds(selection.edges.map((edge) => edge.id));
