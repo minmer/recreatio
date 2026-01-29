@@ -245,6 +245,35 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   const initialNodes = useMemo(() => buildNodesFromValue(value), [value, nodeMeta]);
   const initialEdges = useMemo(() => buildEdgesFromValue(value), [value]);
+  const valueSignature = useMemo(() => {
+    if (!value) return 'null';
+    const nodeParts = value.nodes
+      .map((node) => {
+        const listValue = (node.list ?? []).join(',');
+        const inputs = node.inputs ? node.inputs.join(',') : '';
+        const handles = node.inputsByHandle
+          ? Object.entries(node.inputsByHandle)
+              .map(([key, ids]) => `${key}:${ids.join(',')}`)
+              .sort()
+              .join('|')
+          : '';
+        return [
+          node.id,
+          node.type,
+          node.name ?? '',
+          node.min ?? '',
+          node.max ?? '',
+          node.value ?? '',
+          listValue,
+          inputs,
+          handles
+        ].join(':');
+      })
+      .sort()
+      .join('||');
+    const outputs = value.outputs ? value.outputs.join(',') : value.output ?? '';
+    return `${nodeParts}::${outputs}`;
+  }, [value]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -253,6 +282,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const [randomValues, setRandomValues] = useState<Record<string, number>>({});
   const [refreshTick, setRefreshTick] = useState(0);
   const onChangeRef = useRef(onChange);
+  const lastValueSignatureRef = useRef(valueSignature);
   const selectedNode = useMemo(
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
     [nodes, selectedNodeId]
@@ -268,6 +298,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   }, [onChange]);
 
   useEffect(() => {
+    if (lastValueSignatureRef.current === valueSignature) {
+      return;
+    }
+    lastValueSignatureRef.current = valueSignature;
     setNodes(initialNodes);
     setEdges(initialEdges);
     setSelectedNodeId(null);
@@ -275,7 +309,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameError(null);
     setRandomValues({});
     setRefreshTick((prev) => prev + 1);
-  }, [initialNodes, initialEdges, setEdges, setNodes]);
+  }, [initialNodes, initialEdges, setEdges, setNodes, valueSignature]);
 
   useEffect(() => {
     const outputs = nodes
