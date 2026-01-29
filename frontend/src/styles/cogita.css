@@ -2245,14 +2245,17 @@
 .cogita-revision-run .cogita-library-grid {
   grid-template-columns: minmax(0, 85%) minmax(0, 10%);
   align-items: start;
+  grid-template-areas: "panel stats";
 }
 
 .cogita-revision-run .cogita-library-panel {
   grid-column: 1;
+  grid-area: panel;
 }
 
 .cogita-revision-run .cogita-library-pane {
   grid-column: 2;
+  grid-area: stats;
   align-self: start;
 }
 
@@ -2317,6 +2320,7 @@
   }
   .cogita-revision-run .cogita-library-grid {
     grid-template-columns: 1fr;
+    grid-template-areas: "stats" "panel";
   }
   .cogita-revision-run .cogita-library-pane,
   .cogita-revision-run .cogita-library-panel {

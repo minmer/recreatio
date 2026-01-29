@@ -305,7 +305,7 @@ export function CogitaRevisionShareRunPage({
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
-              <div className="cogita-library-pane">
+              <div className="cogita-library-pane cogita-revision-stats">
                 <section className="cogita-library-detail">
                   <div className="cogita-detail-header">
                     <div>

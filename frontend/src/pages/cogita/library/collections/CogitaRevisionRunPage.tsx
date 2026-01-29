@@ -418,7 +418,7 @@ export function CogitaRevisionRunPage({
           <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
-              <div className="cogita-library-pane">
+              <div className="cogita-library-pane cogita-revision-stats">
                 <section className="cogita-library-detail">
                   <div className="cogita-detail-header">
                     <div>
