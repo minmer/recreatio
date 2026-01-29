@@ -552,6 +552,203 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            JsonElement payloadJson;
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                payloadJson = doc.RootElement.Clone();
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson));
+        });
+
+        group.MapPut("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+            Guid libraryId,
+            Guid infoId,
+            CogitaUpdateInfoRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var info = await dbContext.CogitaInfos.FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetWriteKey(library.RoleId, out _) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            Guid dataKeyId;
+            byte[] dataKey;
+            if (request.DataKeyId.HasValue)
+            {
+                try
+                {
+                    var resolved = await ResolveDataKeyAsync(
+                        library.RoleId,
+                        request.DataKeyId,
+                        info.InfoType,
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct);
+                    dataKeyId = resolved.DataKeyId;
+                    dataKey = resolved.DataKey;
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.BadRequest(new { error = "DataKeyId is invalid." });
+                }
+            }
+            else
+            {
+                var payloadRow = await LoadInfoPayloadAsync(info, dbContext, ct);
+                if (payloadRow is null)
+                {
+                    return Results.NotFound();
+                }
+
+                dataKeyId = payloadRow.Value.DataKeyId;
+                var keyEntry = await dbContext.Keys.FirstOrDefaultAsync(x => x.Id == dataKeyId, ct);
+                if (keyEntry is null)
+                {
+                    return Results.NotFound();
+                }
+
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                }
+                catch (CryptographicException)
+                {
+                    return Results.Forbid();
+                }
+            }
+
+            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(request.Payload);
+            var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, info.Id.ToByteArray());
+
+            var updated = UpdateInfoPayload(info.InfoType, info.Id, dataKeyId, encrypted, now, dbContext);
+            if (!updated)
+            {
+                return Results.NotFound();
+            }
+
+            info.UpdatedUtc = now;
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/cards", async (
             Guid libraryId,
             string? type,
@@ -5598,6 +5795,156 @@ public static class CogitaEndpoints
             case "computed":
                 dbContext.CogitaComputedInfos.Add(new CogitaComputedInfo { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
+        }
+    }
+
+    private static bool UpdateInfoPayload(
+        string infoType,
+        Guid infoId,
+        Guid dataKeyId,
+        byte[] encrypted,
+        DateTimeOffset now,
+        RecreatioDbContext dbContext)
+    {
+        switch (infoType)
+        {
+            case "language":
+                {
+                    var row = dbContext.CogitaLanguages.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "word":
+                {
+                    var row = dbContext.CogitaWords.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "sentence":
+                {
+                    var row = dbContext.CogitaSentences.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "topic":
+                {
+                    var row = dbContext.CogitaTopics.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "collection":
+                {
+                    var row = dbContext.CogitaCollections.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "person":
+                {
+                    var row = dbContext.CogitaPersons.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "address":
+                {
+                    var row = dbContext.CogitaAddresses.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "email":
+                {
+                    var row = dbContext.CogitaEmails.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "phone":
+                {
+                    var row = dbContext.CogitaPhones.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "book":
+                {
+                    var row = dbContext.CogitaBooks.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "media":
+                {
+                    var row = dbContext.CogitaMedia.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "geo":
+                {
+                    var row = dbContext.CogitaGeoFeatures.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "music_piece":
+                {
+                    var row = dbContext.CogitaMusicPieces.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "music_fragment":
+                {
+                    var row = dbContext.CogitaMusicFragments.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "computed":
+                {
+                    var row = dbContext.CogitaComputedInfos.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            default:
+                return false;
         }
     }
 

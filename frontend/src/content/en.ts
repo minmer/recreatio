@@ -622,7 +622,16 @@ export const en: Copy = {
         computedPromptLabel: 'Prompt:',
         computedAnswerLabel: 'Answer:',
         computedLoading: 'Generating example…',
-        computedEmpty: 'No example available.'
+        computedEmpty: 'No example available.',
+        computedEditAction: 'Edit computed',
+        computedEditTitle: 'Edit computed info',
+        computedEditLoading: 'Loading computed info...',
+        computedEditSaveAction: 'Save changes',
+        computedEditSaving: 'Saving...',
+        computedEditSaved: 'Computed info updated.',
+        computedEditSaveFailed: 'Failed to save computed info.',
+        computedEditLoadFailed: 'Failed to load computed info.',
+        computedEditCancel: 'Cancel'
       },
       filters: {
         title: 'Filters',

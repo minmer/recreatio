@@ -622,7 +622,16 @@ export const de: Copy = {
         computedPromptLabel: 'Aufgabe:',
         computedAnswerLabel: 'Antwort:',
         computedLoading: 'Beispiel wird erzeugt…',
-        computedEmpty: 'Kein Beispiel verfügbar.'
+        computedEmpty: 'Kein Beispiel verfügbar.',
+        computedEditAction: 'Berechnung bearbeiten',
+        computedEditTitle: 'Berechnete Info bearbeiten',
+        computedEditLoading: 'Berechnete Info wird geladen...',
+        computedEditSaveAction: 'Änderungen speichern',
+        computedEditSaving: 'Speichern...',
+        computedEditSaved: 'Berechnete Info aktualisiert.',
+        computedEditSaveFailed: 'Berechnete Info konnte nicht gespeichert werden.',
+        computedEditLoadFailed: 'Berechnete Info konnte nicht geladen werden.',
+        computedEditCancel: 'Abbrechen'
       },
       filters: {
         title: 'Filter',

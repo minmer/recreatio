@@ -58,6 +58,23 @@ public sealed record CogitaCreateInfoResponse(
     string InfoType
 );
 
+public sealed record CogitaInfoDetailResponse(
+    Guid InfoId,
+    string InfoType,
+    JsonElement Payload
+);
+
+public sealed record CogitaUpdateInfoRequest(
+    JsonElement Payload,
+    Guid? DataKeyId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaUpdateInfoResponse(
+    Guid InfoId,
+    string InfoType
+);
+
 public sealed record CogitaCreateConnectionRequest(
     string ConnectionType,
     List<Guid> InfoIds,

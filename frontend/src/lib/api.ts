@@ -1016,6 +1016,33 @@ export function createCogitaInfo(payload: {
   });
 }
 
+export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string }) {
+  return request<{ infoId: string; infoType: string; payload: unknown }>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}`,
+    { method: 'GET' }
+  );
+}
+
+export function updateCogitaInfo(payload: {
+  libraryId: string;
+  infoId: string;
+  payload: unknown;
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<{ infoId: string; infoType: string }>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        payload: payload.payload,
+        dataKeyId: payload.dataKeyId ?? null,
+        signatureBase64: payload.signatureBase64 ?? null
+      })
+    }
+  );
+}
+
 export function createCogitaConnection(payload: {
   libraryId: string;
   connectionType: string;

@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getCogitaComputedSample, searchCogitaCards, type CogitaCardSearchResult, type CogitaComputedSample } from '../../../lib/api';
+import {
+  getCogitaComputedSample,
+  getCogitaInfoDetail,
+  searchCogitaCards,
+  updateCogitaInfo,
+  type CogitaCardSearchResult,
+  type CogitaComputedSample
+} from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -9,6 +16,7 @@ import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 import { LatexBlock, LatexInline } from '../../../components/LatexText';
+import { ComputedGraphEditor, type ComputedGraphDefinition } from './components/ComputedGraphEditor';
 
 export function CogitaLibraryListPage({
   copy,
@@ -46,6 +54,15 @@ export function CogitaLibraryListPage({
   const [selectedInfo, setSelectedInfo] = useState<CogitaCardSearchResult | null>(null);
   const [computedSample, setComputedSample] = useState<CogitaComputedSample | null>(null);
   const [computedSampleStatus, setComputedSampleStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
+  const [computedEditStatus, setComputedEditStatus] = useState<'idle' | 'loading' | 'ready' | 'saving' | 'error'>(
+    'idle'
+  );
+  const [isEditingComputed, setIsEditingComputed] = useState(false);
+  const [computedEditPrompt, setComputedEditPrompt] = useState('');
+  const [computedEditGraph, setComputedEditGraph] = useState<ComputedGraphDefinition | null>(null);
+  const [computedEditLabel, setComputedEditLabel] = useState('');
+  const [computedEditNotes, setComputedEditNotes] = useState('');
+  const [computedEditMessage, setComputedEditMessage] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [filterLanguageA, setFilterLanguageA] = useState<CogitaInfoOption | null>(null);
@@ -112,6 +129,106 @@ export function CogitaLibraryListPage({
         setComputedSampleStatus('ready');
       });
   }, [libraryId, selectedInfo]);
+
+  useEffect(() => {
+    setIsEditingComputed(false);
+    setComputedEditStatus('idle');
+    setComputedEditPrompt('');
+    setComputedEditGraph(null);
+    setComputedEditLabel('');
+    setComputedEditNotes('');
+    setComputedEditMessage(null);
+  }, [selectedInfo?.cardId]);
+
+  const openComputedEditor = async () => {
+    if (!selectedInfo) return;
+    setComputedEditStatus('loading');
+    setComputedEditMessage(null);
+    try {
+      const detail = await getCogitaInfoDetail({ libraryId, infoId: selectedInfo.cardId });
+      const payload = (detail.payload ?? {}) as {
+        label?: string;
+        notes?: string;
+        definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+      };
+      setComputedEditLabel(payload.label ?? selectedInfo.label ?? '');
+      setComputedEditNotes(payload.notes ?? '');
+      setComputedEditPrompt(payload.definition?.promptTemplate ?? '');
+      setComputedEditGraph(payload.definition?.graph ?? null);
+      setIsEditingComputed(true);
+      setComputedEditStatus('ready');
+    } catch {
+      setComputedEditStatus('error');
+      setComputedEditMessage(copy.cogita.library.list.computedEditLoadFailed);
+    }
+  };
+
+  const handleSaveComputedEdit = async () => {
+    if (!selectedInfo || !computedEditGraph) {
+      setComputedEditMessage(copy.cogita.library.list.computedEditSaveFailed);
+      return;
+    }
+    const invalidName = computedEditGraph.nodes.find((node) => node.name && !/^[A-Za-z][A-Za-z0-9_]*$/.test(node.name));
+    if (invalidName) {
+      setComputedEditMessage(copy.cogita.library.add.info.computedInvalidName);
+      return;
+    }
+    const names = computedEditGraph.nodes.map((node) => node.name?.trim()).filter(Boolean) as string[];
+    const nameSet = new Set<string>();
+    for (const name of names) {
+      const key = name.toLowerCase();
+      if (nameSet.has(key)) {
+        setComputedEditMessage(copy.cogita.library.add.info.computedDuplicateName);
+        return;
+      }
+      nameSet.add(key);
+    }
+    setComputedEditStatus('saving');
+    setComputedEditMessage(null);
+    try {
+      await updateCogitaInfo({
+        libraryId,
+        infoId: selectedInfo.cardId,
+        payload: {
+          label: computedEditLabel,
+          notes: computedEditNotes,
+          definition: {
+            promptTemplate: computedEditPrompt,
+            graph: computedEditGraph
+          }
+        }
+      });
+      setComputedEditStatus('ready');
+      setComputedEditMessage(copy.cogita.library.list.computedEditSaved);
+      setSelectedInfo((prev) => (prev ? { ...prev, label: computedEditLabel || prev.label } : prev));
+      setSearchResults((prev) =>
+        prev.map((item) =>
+          item.cardId === selectedInfo.cardId
+            ? { ...item, label: computedEditLabel || item.label }
+            : item
+        )
+      );
+      if (selectedInfo.infoType === 'computed') {
+        getCogitaComputedSample({ libraryId, infoId: selectedInfo.cardId })
+          .then((sample) => {
+            setComputedSample(sample);
+            setComputedSampleStatus('ready');
+          })
+          .catch(() => {
+            setComputedSample(null);
+            setComputedSampleStatus('ready');
+          });
+      }
+    } catch {
+      setComputedEditStatus('error');
+      setComputedEditMessage(copy.cogita.library.list.computedEditSaveFailed);
+    }
+  };
+
+  const handleCancelComputedEdit = () => {
+    setIsEditingComputed(false);
+    setComputedEditMessage(null);
+  };
 
   const handleLoadMore = async () => {
     if (!nextCursor) return;
@@ -346,6 +463,17 @@ export function CogitaLibraryListPage({
                       <h3 className="cogita-detail-title">{selectedInfo?.label ?? copy.cogita.library.list.selectedEmpty}</h3>
                     </div>
                     <div className="cogita-detail-actions">
+                      {selectedInfo?.cardType === 'info' && selectedInfo.infoType === 'computed' ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={isEditingComputed ? handleCancelComputedEdit : openComputedEditor}
+                        >
+                          {isEditingComputed
+                            ? copy.cogita.library.list.computedEditCancel
+                            : copy.cogita.library.list.computedEditAction}
+                        </button>
+                      ) : null}
                       <a className="ghost" href={`${baseHref}/new`}>
                         {copy.cogita.library.actions.addInfo}
                       </a>
@@ -363,33 +491,98 @@ export function CogitaLibraryListPage({
                       <p>{copy.cogita.library.list.selectedHint}</p>
                       {selectedInfo.cardType === 'info' && selectedInfo.infoType === 'computed' && (
                         <div className="cogita-detail-sample">
-                          <p className="cogita-user-kicker">{copy.cogita.library.list.computedSampleTitle}</p>
-                          {computedSampleStatus === 'loading' && <p>{copy.cogita.library.list.computedLoading}</p>}
-                          {computedSampleStatus !== 'loading' && computedSample ? (
+                          <p className="cogita-user-kicker">
+                            {isEditingComputed
+                              ? copy.cogita.library.list.computedEditTitle
+                              : copy.cogita.library.list.computedSampleTitle}
+                          </p>
+                          {isEditingComputed ? (
                             <>
-                              <p>
-                                <strong>{copy.cogita.library.list.computedPromptLabel}</strong>
-                              </p>
-                              <LatexBlock value={computedSample.prompt} mode="auto" />
-                              {computedSample.expectedAnswers && Object.keys(computedSample.expectedAnswers).length > 0 ? (
-                                <div className="cogita-detail-sample-grid">
-                                  {Object.entries(computedSample.expectedAnswers).map(([key, value]) => (
-                                    <div key={key} className="cogita-detail-sample-item">
-                                      <span>{key}</span>
-                                      <LatexInline value={value} mode="auto" />
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p>
-                                  <strong>{copy.cogita.library.list.computedAnswerLabel}</strong>{' '}
-                                  <LatexInline value={computedSample.expectedAnswer} mode="auto" />
-                                </p>
-                              )}
+                              {computedEditStatus === 'loading' && <p>{copy.cogita.library.list.computedEditLoading}</p>}
+                              {computedEditStatus === 'error' && computedEditMessage ? <p>{computedEditMessage}</p> : null}
+                              {computedEditStatus !== 'loading' ? (
+                                <>
+                                  <label className="cogita-field full">
+                                    <span>{copy.cogita.library.add.info.labelLabel}</span>
+                                    <input
+                                      type="text"
+                                      value={computedEditLabel}
+                                      onChange={(event) => setComputedEditLabel(event.target.value)}
+                                      placeholder={copy.cogita.library.add.info.labelPlaceholder}
+                                    />
+                                  </label>
+                                  <label className="cogita-field full">
+                                    <span>{copy.cogita.library.add.info.notesLabel}</span>
+                                    <textarea
+                                      value={computedEditNotes}
+                                      onChange={(event) => setComputedEditNotes(event.target.value)}
+                                      placeholder={copy.cogita.library.add.info.notesPlaceholder}
+                                    />
+                                  </label>
+                                  <label className="cogita-field full">
+                                    <span>{copy.cogita.library.add.info.computedLabel}</span>
+                                    <textarea
+                                      value={computedEditPrompt}
+                                      onChange={(event) => setComputedEditPrompt(event.target.value)}
+                                      placeholder={copy.cogita.library.add.info.computedPlaceholder}
+                                    />
+                                  </label>
+                                  <div className="cogita-field full">
+                                    <ComputedGraphEditor
+                                      copy={copy}
+                                      value={computedEditGraph}
+                                      onChange={(definition) => setComputedEditGraph(definition)}
+                                    />
+                                  </div>
+                                  {computedEditMessage ? <p className="cogita-help">{computedEditMessage}</p> : null}
+                                  <div className="cogita-form-actions">
+                                    <button
+                                      type="button"
+                                      className="cta"
+                                      onClick={handleSaveComputedEdit}
+                                      disabled={computedEditStatus === 'saving'}
+                                    >
+                                      {computedEditStatus === 'saving'
+                                        ? copy.cogita.library.list.computedEditSaving
+                                        : copy.cogita.library.list.computedEditSaveAction}
+                                    </button>
+                                    <button type="button" className="ghost" onClick={handleCancelComputedEdit}>
+                                      {copy.cogita.library.list.computedEditCancel}
+                                    </button>
+                                  </div>
+                                </>
+                              ) : null}
                             </>
-                          ) : computedSampleStatus !== 'loading' ? (
-                            <p>{copy.cogita.library.list.computedEmpty}</p>
-                          ) : null}
+                          ) : (
+                            <>
+                              {computedSampleStatus === 'loading' && <p>{copy.cogita.library.list.computedLoading}</p>}
+                              {computedSampleStatus !== 'loading' && computedSample ? (
+                                <>
+                                  <p>
+                                    <strong>{copy.cogita.library.list.computedPromptLabel}</strong>
+                                  </p>
+                                  <LatexBlock value={computedSample.prompt} mode="auto" />
+                                  {computedSample.expectedAnswers && Object.keys(computedSample.expectedAnswers).length > 0 ? (
+                                    <div className="cogita-detail-sample-grid">
+                                      {Object.entries(computedSample.expectedAnswers).map(([key, value]) => (
+                                        <div key={key} className="cogita-detail-sample-item">
+                                          <span>{key}</span>
+                                          <LatexInline value={value} mode="auto" />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p>
+                                      <strong>{copy.cogita.library.list.computedAnswerLabel}</strong>{' '}
+                                      <LatexInline value={computedSample.expectedAnswer} mode="auto" />
+                                    </p>
+                                  )}
+                                </>
+                              ) : computedSampleStatus !== 'loading' ? (
+                                <p>{copy.cogita.library.list.computedEmpty}</p>
+                              ) : null}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

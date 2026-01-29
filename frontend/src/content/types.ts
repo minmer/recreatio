@@ -323,6 +323,15 @@ export type Copy = {
         computedAnswerLabel: string;
         computedLoading: string;
         computedEmpty: string;
+        computedEditAction: string;
+        computedEditTitle: string;
+        computedEditLoading: string;
+        computedEditSaveAction: string;
+        computedEditSaving: string;
+        computedEditSaved: string;
+        computedEditSaveFailed: string;
+        computedEditLoadFailed: string;
+        computedEditCancel: string;
       };
       filters: {
         title: string;
