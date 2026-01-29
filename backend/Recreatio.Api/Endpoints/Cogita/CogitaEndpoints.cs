@@ -2687,6 +2687,74 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         }).AllowAnonymous();
 
+        group.MapGet("/public/revision/{code}/infos/{infoId:guid}", async (
+            string code,
+            Guid infoId,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveRevisionShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, readKey) = shareContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == share.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            JsonElement payloadJson;
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, infoId.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                payloadJson = doc.RootElement.Clone();
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson));
+        }).AllowAnonymous();
+
         group.MapGet("/public/revision/{code}/cards", async (
             string code,
             int? limit,

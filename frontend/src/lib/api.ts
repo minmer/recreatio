@@ -1023,6 +1023,13 @@ export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string
   );
 }
 
+export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: string }) {
+  return request<{ infoId: string; infoType: string; payload: unknown }>(
+    `/cogita/public/revision/${payload.shareCode}/infos/${payload.infoId}`,
+    { method: 'GET' }
+  );
+}
+
 export function updateCogitaInfo(payload: {
   libraryId: string;
   infoId: string;

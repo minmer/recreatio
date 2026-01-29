@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   getCogitaPublicComputedSample,
+  getCogitaPublicInfoDetail,
   getCogitaPublicRevisionCards,
   getCogitaPublicRevisionInfos,
   getCogitaPublicRevisionShare,
@@ -15,6 +16,8 @@ import type { RouteKey } from '../../../../types/navigation';
 import type { CogitaInfoType } from '../types';
 import { getInfoTypeLabel } from '../libraryOptions';
 import { LatexBlock } from '../../../../components/LatexText';
+import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
+import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 
@@ -219,15 +222,36 @@ export function CogitaRevisionShareRunPage({
       setComputedExpected([]);
       setComputedAnswers({});
       let mounted = true;
-      getCogitaPublicComputedSample({ shareId, infoId: currentCard.cardId })
-        .then((sample) => {
+      getCogitaPublicInfoDetail({ shareCode: shareId, infoId: currentCard.cardId })
+        .then((detail) => {
           if (!mounted) return;
-          applySample(sample);
+          const payload = detail.payload as {
+            definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+          };
+          const graph = payload.definition?.graph ?? null;
+          const promptTemplate = payload.definition?.promptTemplate ?? '';
+          const computed = buildComputedSampleFromGraph(graph, promptTemplate);
+          if (computed) {
+            applySample(toComputedSample(computed));
+            return;
+          }
+          return getCogitaPublicComputedSample({ shareId, infoId: currentCard.cardId }).then((sample) => {
+            if (!mounted) return;
+            applySample(sample);
+          });
         })
         .catch(() => {
           if (!mounted) return;
-          setPrompt(currentCard.label);
-          setExpectedAnswer(null);
+          getCogitaPublicComputedSample({ shareId, infoId: currentCard.cardId })
+            .then((sample) => {
+              if (!mounted) return;
+              applySample(sample);
+            })
+            .catch(() => {
+              if (!mounted) return;
+              setPrompt(currentCard.label);
+              setExpectedAnswer(null);
+            });
         });
       return () => {
         mounted = false;
