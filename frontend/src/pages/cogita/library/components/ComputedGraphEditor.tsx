@@ -5,8 +5,8 @@ import ReactFlow, {
   Handle,
   Position,
   addEdge,
-  useEdgesState,
-  useNodesState,
+  applyEdgeChanges,
+  applyNodeChanges,
   type Connection,
   type Edge,
   type Node,
@@ -262,7 +262,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         const inputs = node.inputs ? node.inputs.join(',') : '';
         const handles = node.inputsByHandle
           ? Object.entries(node.inputsByHandle)
-              .map(([key, ids]) => `${key}:${ids.join(',')}`)
+              .map(([key, ids]) => `${key}:${[...ids].sort().join(',')}`)
               .sort()
               .join('|')
           : '';
@@ -282,15 +282,15 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       })
       .sort()
       .join('||');
-    const outputs = definition.outputs ? definition.outputs.join(',') : definition.output ?? '';
+    const outputs = definition.outputs ? [...definition.outputs].sort().join(',') : definition.output ?? '';
     return `${nodeParts}::${outputs}`;
   };
   const valueSignature = useMemo(() => {
     const hasPositions = !!value?.nodes?.some((node) => !!node.position);
     return buildDefinitionSignature(value, hasPositions);
   }, [value]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<string[]>([]);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
@@ -303,6 +303,14 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const lastEmittedSignatureNoPosRef = useRef(buildDefinitionSignature(value, false));
   const selectedNode = useMemo(
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
+    [nodes, selectedNodeId]
+  );
+  const displayNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        selected: node.id === selectedNodeId
+      })),
     [nodes, selectedNodeId]
   );
 
@@ -352,7 +360,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   useEffect(() => {
     const outputs = nodes
       .filter((node) => node.data?.type === 'output')
-      .map((node) => node.id);
+      .map((node) => node.id)
+      .sort();
     const inputsByHandle = new Map<string, Record<string, string[]>>();
     edges.forEach((edge) => {
       let entry: Record<string, string[]> | undefined = inputsByHandle.get(edge.target);
@@ -365,6 +374,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         entry[handleId] = [];
       }
       entry[handleId].push(edge.source);
+    });
+    inputsByHandle.forEach((handles) => {
+      Object.values(handles).forEach((list) => list.sort());
     });
     const definition: ComputedGraphDefinition = {
       nodes: nodes.map((node) => ({
@@ -689,15 +701,27 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameWarning(null);
   };
 
+  const handleNodesChange = (changes: Parameters<typeof applyNodeChanges>[0]) => {
+    const filtered = changes.filter((change) => change.type !== 'select' && change.type !== 'dimensions');
+    if (filtered.length === 0) return;
+    setNodes((prev) => applyNodeChanges(filtered, prev));
+  };
+
+  const handleEdgesChange = (changes: Parameters<typeof applyEdgeChanges>[0]) => {
+    const filtered = changes.filter((change) => change.type !== 'select');
+    if (filtered.length === 0) return;
+    setEdges((prev) => applyEdgeChanges(filtered, prev));
+  };
+
   return (
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
           nodeTypes={{ computed: ComputedGraphNodeWithValues }}
-          nodes={nodes}
+          nodes={displayNodes}
           edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onNodeClick={(_, node) => setSelectedNodeId(node.id)}
           onSelectionChange={(selection) => {
