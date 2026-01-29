@@ -200,9 +200,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     }),
     [copy]
   );
-  const initialNodes = useMemo(() => {
-    if (!value || value.nodes.length === 0) return defaultNodes;
-    return value.nodes.map((node, index) => ({
+  const buildNodesFromValue = (definition: ComputedGraphDefinition | null) => {
+    if (!definition || definition.nodes.length === 0) return defaultNodes;
+    return definition.nodes.map((node, index) => ({
       id: node.id,
       type: 'computed',
       position: { x: 40 + index * 160, y: 60 + (index % 3) * 80 },
@@ -219,9 +219,34 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         output: nodeMeta[node.type]?.output ?? true
       }
     })) as Node[];
-  }, [value, nodeMeta]);
+  };
+
+  const buildEdgesFromValue = (definition: ComputedGraphDefinition | null) => {
+    if (!definition || definition.nodes.length === 0) return defaultEdges;
+    const nodeIds = new Set(definition.nodes.map((node) => node.id));
+    const edges: Edge[] = [];
+    let counter = 0;
+    definition.nodes.forEach((node) => {
+      const inputs = node.inputsByHandle ?? (node.inputs ? { in: node.inputs } : {});
+      Object.entries(inputs).forEach(([handle, ids]) => {
+        ids.forEach((sourceId) => {
+          if (!nodeIds.has(sourceId)) return;
+          edges.push({
+            id: `${node.id}-${handle}-${sourceId}-${counter++}`,
+            source: sourceId,
+            target: node.id,
+            targetHandle: handle === 'in' ? undefined : handle
+          });
+        });
+      });
+    });
+    return edges;
+  };
+
+  const initialNodes = useMemo(() => buildNodesFromValue(value), [value, nodeMeta]);
+  const initialEdges = useMemo(() => buildEdgesFromValue(value), [value]);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nameWarning, setNameWarning] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -241,6 +266,16 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    setSelectedNodeId(null);
+    setNameWarning(null);
+    setNameError(null);
+    setRandomValues({});
+    setRefreshTick((prev) => prev + 1);
+  }, [initialNodes, initialEdges, setEdges, setNodes]);
 
   useEffect(() => {
     const outputs = nodes

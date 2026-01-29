@@ -1022,23 +1022,31 @@ public static class CogitaEndpoints
                 .ToListAsync(ct);
             foreach (var graph in collectionGraphs)
             {
-                var nodes = await dbContext.CogitaCollectionGraphNodes.AsNoTracking()
-                    .Where(x => x.GraphId == graph.Id)
-                    .ToListAsync(ct);
-                var edges = await dbContext.CogitaCollectionGraphEdges.AsNoTracking()
-                    .Where(x => x.GraphId == graph.Id)
-                    .ToListAsync(ct);
-                var graphResult = await EvaluateCollectionGraphAsync(
-                    libraryId,
-                    graph,
-                    nodes,
-                    edges,
-                    readKey,
-                    keyRingService,
-                    encryptionService,
-                    dbContext,
-                    ct);
-                itemCounts[graph.CollectionInfoId] = graphResult.Total;
+                try
+                {
+                    var nodes = await dbContext.CogitaCollectionGraphNodes.AsNoTracking()
+                        .Where(x => x.GraphId == graph.Id)
+                        .ToListAsync(ct);
+                    var edges = await dbContext.CogitaCollectionGraphEdges.AsNoTracking()
+                        .Where(x => x.GraphId == graph.Id)
+                        .ToListAsync(ct);
+                    var graphResult = await EvaluateCollectionGraphAsync(
+                        libraryId,
+                        graph,
+                        nodes,
+                        edges,
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
+                    itemCounts[graph.CollectionInfoId] = graphResult.Total;
+                }
+                catch (Exception)
+                {
+                    // Keep list rendering even if a graph evaluation fails.
+                    continue;
+                }
             }
 
             var lookup = new Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>();
@@ -6771,7 +6779,8 @@ public static class CogitaEndpoints
             .ToDictionary(g => g.Key, g => g.Select(x => x.InfoId).ToList());
 
         var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-            .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+            .GroupBy(x => x.WordInfoId)
+            .ToDictionaryAsync(x => x.Key, x => x.First().LanguageInfoId, ct);
 
         var wordTopicConnections = await dbContext.CogitaConnections.AsNoTracking()
             .Where(x => x.LibraryId == libraryId && x.ConnectionType == "word-topic")
