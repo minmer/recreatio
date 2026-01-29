@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -600,14 +600,17 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     return values;
   }, [nodeSignature, edgeSignature, randomValues]);
 
-  const ComputedGraphNodeWithValues = useMemo(
-    () =>
-      (props: NodeProps) => {
-        const nextValue = computedValues.get(props.id);
-        return <ComputedGraphNode data={{ ...props.data, value: nextValue }} />;
-      },
-    [computedValues]
-  );
+  const computedValuesRef = useRef(computedValues);
+  useEffect(() => {
+    computedValuesRef.current = computedValues;
+  }, [computedValues]);
+
+  const ComputedGraphNodeWithValues = useCallback((props: NodeProps) => {
+    const nextValue = computedValuesRef.current.get(props.id);
+    return <ComputedGraphNode data={{ ...props.data, value: nextValue }} />;
+  }, []);
+
+  const nodeTypes = useMemo(() => ({ computed: ComputedGraphNodeWithValues }), [ComputedGraphNodeWithValues]);
 
   const onConnect = (connection: Connection) => {
     if (!connection.target || !connection.targetHandle) {
@@ -717,7 +720,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     <div className="cogita-collection-graph cogita-computed-graph">
       <div className="cogita-collection-graph-canvas">
         <ReactFlow
-          nodeTypes={{ computed: ComputedGraphNodeWithValues }}
+          nodeTypes={nodeTypes}
           nodes={displayNodes}
           edges={edges}
           onNodesChange={handleNodesChange}
