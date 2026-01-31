@@ -661,7 +661,7 @@ export const de: Copy = {
           computedLabel: 'Prompt-Vorlage',
           computedPlaceholder: 'Beispiel: {a} + {b} = ?',
           computedAnswerLabel: 'Antwortsatz (optional)',
-          computedAnswerPlaceholder: 'Beispiel: Es gibt {result1} vom Typ {result2}.',
+          computedAnswerPlaceholder: 'The {entry} is of type {entry}',
           computedRequired: 'Ein Berechnungsgraph ist erforderlich.',
           computedInvalid: 'Die Berechnungsdefinition muss gültiges JSON sein.',
           computedInvalidName: 'Ungültige Variablennamen im Graph.',

@@ -661,7 +661,7 @@ export const en: Copy = {
           computedLabel: 'Prompt template',
           computedPlaceholder: 'Example: {a} + {b} = ?',
           computedAnswerLabel: 'Answer sentence (optional)',
-          computedAnswerPlaceholder: 'Example: There are {result1} of type {result2}.',
+          computedAnswerPlaceholder: 'The {entry} is of type {entry}',
           computedRequired: 'A computed graph is required.',
           computedInvalid: 'Computed definition must be valid JSON.',
           computedInvalidName: 'Invalid variable names in the graph.',

@@ -661,7 +661,7 @@ export const pl: Copy = {
           computedLabel: 'Szablon pytania',
           computedPlaceholder: 'Przykład: {a} + {b} = ?',
           computedAnswerLabel: 'Zdanie odpowiedzi (opcjonalne)',
-          computedAnswerPlaceholder: 'Przykład: Jest {result1} typu {result2}.',
+          computedAnswerPlaceholder: 'The {entry} is of type {entry}',
           computedRequired: 'Graf obliczeń jest wymagany.',
           computedInvalid: 'Definicja obliczeń musi być poprawnym JSON.',
           computedInvalidName: 'Nieprawidłowe nazwy zmiennych w grafie.',

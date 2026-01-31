@@ -138,6 +138,7 @@ export function CogitaRevisionShareRunPage({
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState<string | null>(null);
+  const [computedOutputVariables, setComputedOutputVariables] = useState<Record<string, string> | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -162,6 +163,7 @@ export function CogitaRevisionShareRunPage({
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
+    outputVariables: Record<string, string> | null;
   }>());
   const resolvedCardPromises = useRef(new Map<string, Promise<{
     prompt: string | null;
@@ -169,6 +171,7 @@ export function CogitaRevisionShareRunPage({
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
+    outputVariables: Record<string, string> | null;
   } | null>>());
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
@@ -265,6 +268,7 @@ export function CogitaRevisionShareRunPage({
     setComputedAnswers({});
     setComputedFieldFeedback({});
     setComputedAnswerTemplate(null);
+    setComputedOutputVariables(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -285,6 +289,7 @@ export function CogitaRevisionShareRunPage({
       setComputedExpected(resolved.computedExpected);
       setComputedAnswers(resolved.computedAnswers);
       setComputedAnswerTemplate(resolved.answerTemplate);
+      setComputedOutputVariables(resolved.outputVariables);
     });
     return () => {
       mounted = false;
@@ -388,6 +393,7 @@ export function CogitaRevisionShareRunPage({
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
+    outputVariables: Record<string, string> | null;
   } | null> => {
     const cacheKey = `${card.cardId}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
@@ -401,6 +407,7 @@ export function CogitaRevisionShareRunPage({
       computedExpected: Array<{ key: string; expected: string }>;
       computedAnswers: Record<string, string>;
       answerTemplate: string | null;
+      outputVariables: Record<string, string> | null;
     }) => {
       resolvedCardCache.current.set(cacheKey, resolved);
       return resolved;
@@ -412,6 +419,7 @@ export function CogitaRevisionShareRunPage({
       computedExpected: Array<{ key: string; expected: string }>;
       computedAnswers: Record<string, string>;
       answerTemplate: string | null;
+      outputVariables: Record<string, string> | null;
     } | null>;
 
     if (card.cardType === 'vocab') {
@@ -426,7 +434,8 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: expected,
             computedExpected: [],
             computedAnswers: {},
-            answerTemplate: null
+            answerTemplate: null,
+            outputVariables: null
           })
         );
       } else {
@@ -436,7 +445,8 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
-            answerTemplate: null
+            answerTemplate: null,
+            outputVariables: null
           })
         );
       }
@@ -450,7 +460,8 @@ export function CogitaRevisionShareRunPage({
           expectedAnswer: match,
           computedExpected: [],
           computedAnswers: {},
-          answerTemplate: null
+          answerTemplate: null,
+          outputVariables: null
         })
       );
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
@@ -462,7 +473,8 @@ export function CogitaRevisionShareRunPage({
               expectedAnswer: null,
               computedExpected: [],
               computedAnswers: {},
-              answerTemplate: null
+              answerTemplate: null,
+              outputVariables: null
             });
           }
           const sample = result.sample;
@@ -481,7 +493,8 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: expectedEntries.length > 0 ? sentenceExpected : sample.expectedAnswer?.trim() || null,
             computedExpected: expectedEntries,
             computedAnswers,
-            answerTemplate: result.answerTemplate
+            answerTemplate: result.answerTemplate,
+            outputVariables: sample.outputVariables ?? null
           });
         })
         .catch(() =>
@@ -490,7 +503,8 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
-            answerTemplate: null
+            answerTemplate: null,
+            outputVariables: null
           })
         )
         .finally(() => {
@@ -503,7 +517,8 @@ export function CogitaRevisionShareRunPage({
           expectedAnswer: null,
           computedExpected: [],
           computedAnswers: {},
-          answerTemplate: null
+          answerTemplate: null,
+          outputVariables: null
         })
       );
     }
@@ -695,6 +710,7 @@ export function CogitaRevisionShareRunPage({
                           }))
                         }
                         answerTemplate={computedAnswerTemplate}
+                        outputVariables={computedOutputVariables}
                         computedFieldFeedback={computedFieldFeedback}
                         feedback={feedback}
                         canAdvance={canAdvance}

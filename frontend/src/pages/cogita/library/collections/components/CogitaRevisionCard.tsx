@@ -15,6 +15,7 @@ export function CogitaRevisionCard({
   computedAnswers,
   onComputedAnswerChange,
   answerTemplate,
+  outputVariables,
   computedFieldFeedback,
   feedback,
   canAdvance,
@@ -45,6 +46,7 @@ export function CogitaRevisionCard({
   computedAnswers: Record<string, string>;
   onComputedAnswerChange: (key: string, value: string) => void;
   answerTemplate: string | null;
+  outputVariables: Record<string, string> | null;
   computedFieldFeedback: Record<string, 'correct' | 'incorrect'>;
   feedback: 'correct' | 'incorrect' | null;
   canAdvance: boolean;
@@ -65,28 +67,42 @@ export function CogitaRevisionCard({
   setScriptMode: (value: (prev: 'super' | 'sub' | null) => 'super' | 'sub' | null) => void;
 }) {
   const renderAnswerTemplate = () => {
-    if (!answerTemplate) return null;
+    const fallbackTemplate =
+      !answerTemplate && computedExpected.length === 2
+        ? `The {${computedExpected[0].key}} is of type {${computedExpected[1].key}}`
+        : null;
+    const template = answerTemplate ?? fallbackTemplate;
+    if (!template) return null;
+    const expectedByKey = new Map(computedExpected.map((entry) => [entry.key, entry.expected]));
     const tokenSet = new Set<string>();
     const parts: Array<{ type: 'text' | 'input'; value: string }> = [];
     const pattern = /\{([^}]+)\}/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = pattern.exec(answerTemplate)) !== null) {
-      const before = answerTemplate.slice(lastIndex, match.index);
+    while ((match = pattern.exec(template)) !== null) {
+      const before = template.slice(lastIndex, match.index);
       if (before) parts.push({ type: 'text', value: before });
       const token = match[1]?.trim() ?? '';
       if (token) tokenSet.add(token);
-      if (token && computedExpected.some((entry) => entry.key === token)) {
-        parts.push({ type: 'input', value: token });
+      const resolvedKey = token && expectedByKey.has(token)
+        ? token
+        : token && outputVariables && outputVariables[token]
+          ? outputVariables[token]
+          : null;
+      if (resolvedKey && expectedByKey.has(resolvedKey)) {
+        parts.push({ type: 'input', value: resolvedKey });
       } else {
         parts.push({ type: 'text', value: match[0] });
       }
       lastIndex = match.index + match[0].length;
     }
-    const rest = answerTemplate.slice(lastIndex);
+    const rest = template.slice(lastIndex);
     if (rest) parts.push({ type: 'text', value: rest });
-    const missingAny = computedExpected.some((entry) => !tokenSet.has(entry.key));
-    if (missingAny) return null;
+    const missing = computedExpected.filter((entry) => !tokenSet.has(entry.key));
+    missing.forEach((entry) => {
+      parts.push({ type: 'text', value: ` ${entry.key}: ` });
+      parts.push({ type: 'input', value: entry.key });
+    });
     return (
       <div className="cogita-revision-inline-answer">
         {parts.map((part, index) =>
@@ -104,6 +120,9 @@ export function CogitaRevisionCard({
               data-state={computedFieldFeedback[part.value] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
               onKeyDown={handleComputedKeyDown}
               className="cogita-inline-input"
+              style={{
+                minWidth: `${Math.max(4, (expectedByKey.get(part.value)?.length ?? 6))}ch`
+              }}
             />
           )
         )}
@@ -174,25 +193,7 @@ export function CogitaRevisionCard({
           <LatexBlock value={prompt ?? ''} mode="auto" />
           <div className="cogita-form-grid">
             {computedExpected.length > 0 ? (
-              (() => {
-                const inline = answerTemplate ? renderAnswerTemplate() : null;
-                if (inline) return inline;
-                return computedExpected.map((entry) => (
-                  <label key={entry.key} className="cogita-field">
-                    <span>{entry.key}</span>
-                    <textarea
-                      ref={(el) => {
-                        computedInputRefs.current[entry.key] = el;
-                      }}
-                      value={computedAnswers[entry.key] ?? ''}
-                      onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
-                      placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
-                      data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
-                      onKeyDown={handleComputedKeyDown}
-                    />
-                  </label>
-                ));
-              })()
+              renderAnswerTemplate()
             ) : (
               <label className="cogita-field">
                 <span>{copy.cogita.library.revision.answerLabel}</span>

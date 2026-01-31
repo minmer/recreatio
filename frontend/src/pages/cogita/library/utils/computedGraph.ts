@@ -6,6 +6,7 @@ type ComputedSample = {
   answers: Record<string, string>;
   values: Record<string, number | string>;
   answerText?: string;
+  outputVariables?: Record<string, string>;
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -182,11 +183,16 @@ export function buildComputedSampleFromGraph(
   });
 
   const answers: Record<string, string> = {};
+  const outputVariables: Record<string, string> = {};
   outputs.forEach((id) => {
     const node = nodeMap.get(id);
     if (!node) return;
     const displayName = outputLabels.get(id) ?? (node.outputLabel?.trim() || node.name?.trim() || id);
     answers[displayName] = formatValue(values.get(id));
+    if (node.name) {
+      outputVariables[node.name.trim()] = displayName;
+    }
+    outputVariables[id] = displayName;
   });
 
   const applyReplacements = (template: string, useOutputLabel: boolean) => {
@@ -227,7 +233,7 @@ export function buildComputedSampleFromGraph(
     valuesRecord[key] = val;
   });
 
-  return { prompt, answers, values: valuesRecord, answerText };
+  return { prompt, answers, values: valuesRecord, answerText, outputVariables };
 }
 
 export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
@@ -237,6 +243,7 @@ export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
     expectedAnswer: sample.answerText ?? entries[0]?.[1] ?? '',
     expectedAnswers: sample.answers,
     values: sample.values,
-    expectedAnswerIsSentence: !!(sample.answerText && sample.answerText.trim().length > 0)
+    expectedAnswerIsSentence: !!(sample.answerText && sample.answerText.trim().length > 0),
+    outputVariables: sample.outputVariables
   };
 }
