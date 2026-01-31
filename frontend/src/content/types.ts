@@ -477,6 +477,12 @@ export type Copy = {
         levelsCurrentLabel: string;
         levelsCountsLabel: string;
         levelsStackLabel: string;
+        triesLabel: string;
+        minCorrectnessLabel: string;
+        compareLabel: string;
+        compareBidirectional: string;
+        comparePrefix: string;
+        compareAnchors: string;
         checkLabel: string;
         checkValue: string;
         cardsPerSessionLabel: string;

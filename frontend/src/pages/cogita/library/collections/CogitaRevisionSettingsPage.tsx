@@ -210,19 +210,37 @@ export function CogitaRevisionSettingsPage({
                     {revisionType.settingsFields.map((field) => (
                       <label key={field.key} className="cogita-field">
                         <span>{copy.cogita.library.revision[field.labelKey]}</span>
-                        <input
-                          type="number"
-                          min={field.min}
-                          max={field.max}
-                          step={field.step}
-                          value={normalizedSettings[field.key] ?? 0}
-                          onChange={(event) =>
-                            setRevisionSettings((prev) => ({
-                              ...prev,
-                              [field.key]: Number(event.target.value || 0)
-                            }))
-                          }
-                        />
+                        {field.type === 'select' ? (
+                          <select
+                            value={String(normalizedSettings[field.key] ?? '')}
+                            onChange={(event) =>
+                              setRevisionSettings((prev) => ({
+                                ...prev,
+                                [field.key]: event.target.value
+                              }))
+                            }
+                          >
+                            {(field.options ?? []).map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {copy.cogita.library.revision[option.labelKey]}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="number"
+                            min={field.min}
+                            max={field.max}
+                            step={field.step}
+                            value={normalizedSettings[field.key] ?? 0}
+                            onChange={(event) =>
+                              setRevisionSettings((prev) => ({
+                                ...prev,
+                                [field.key]: Number(event.target.value || 0)
+                              }))
+                            }
+                          />
+                        )}
                       </label>
                     ))}
                     <label className="cogita-field">

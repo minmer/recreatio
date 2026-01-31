@@ -29,6 +29,7 @@ export function CogitaRevisionCard({
   showCorrectAnswer,
   setShowCorrectAnswer,
   onRevealCorrect,
+  answerMask,
   expectedAnswer,
   hasExpectedAnswer,
   handleComputedKeyDown,
@@ -61,6 +62,7 @@ export function CogitaRevisionCard({
   showCorrectAnswer: boolean;
   setShowCorrectAnswer: (value: (prev: boolean) => boolean) => void;
   onRevealCorrect: () => void;
+  answerMask?: Uint8Array | null;
   expectedAnswer: string | null;
   hasExpectedAnswer: boolean;
   handleComputedKeyDown: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
@@ -182,6 +184,33 @@ export function CogitaRevisionCard({
       return true;
     }
     return false;
+  };
+
+  const renderMaskedAnswer = () => {
+    if (!expectedAnswer || !answerMask) return expectedAnswer ?? '';
+    const chars = expectedAnswer.split('');
+    const maskValues = Array.from(answerMask);
+    const avg =
+      maskValues.length > 0
+        ? maskValues.reduce((sum, value) => sum + value, 0) / maskValues.length
+        : 127;
+    return chars.map((char, index) => {
+      const value = maskValues[index] ?? avg;
+      const normalized = Math.max(0, Math.min(255, Math.round(value)));
+      let r = 255;
+      let g = 0;
+      if (normalized <= 127) {
+        g = Math.round((normalized / 127) * 255);
+      } else {
+        g = 255;
+        r = Math.round(255 * (1 - (normalized - 127) / 128));
+      }
+      return (
+        <span key={`mask-${index}`} style={{ color: `rgb(${r}, ${g}, 0)` }}>
+          {char}
+        </span>
+      );
+    });
   };
 
   return (
@@ -406,7 +435,7 @@ export function CogitaRevisionCard({
                   ) : null}
                 </div>
               ) : (
-                <p>{expectedAnswer}</p>
+                <p>{answerMask ? renderMaskedAnswer() : expectedAnswer}</p>
               )}
             </div>
           ) : null}

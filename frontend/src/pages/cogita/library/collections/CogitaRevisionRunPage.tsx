@@ -5,6 +5,7 @@ import {
   getCogitaCollectionCards,
   getCogitaComputedSample,
   getCogitaInfoDetail,
+  getCogitaReviewSummary,
   searchCogitaInfos,
   type CogitaCardSearchResult,
   type CogitaComputedSample,
@@ -22,7 +23,13 @@ import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor'
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
 import { computeKnowness } from '../../../../cogita/revision/knowness';
 import { getOutcomesForItem, recordOutcome, syncPendingOutcomes } from '../../../../cogita/revision/outcomes';
-import { getRevisionType, normalizeRevisionSettings, parseRevisionSettingsFromParams } from '../../../../cogita/revision/registry';
+import {
+  getRevisionType,
+  normalizeRevisionSettings,
+  parseRevisionSettingsFromParams,
+  prepareLevelsState
+} from '../../../../cogita/revision/registry';
+import { compareStrings, type CompareAlgorithmId } from '../../../../cogita/revision/compare';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 const SUPERSCRIPT_MAP: Record<string, string> = {
@@ -175,6 +182,8 @@ export function CogitaRevisionRunPage({
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
+  const [answerMask, setAnswerMask] = useState<Uint8Array | null>(null);
+  const [attempts, setAttempts] = useState(0);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
@@ -209,10 +218,23 @@ export function CogitaRevisionRunPage({
     if (currentCard.infoType) return getInfoTypeLabel(copy, currentCard.infoType as CogitaInfoType);
     return copy.cogita.library.revision.infoLabel;
   }, [copy, currentCard]);
-  const progressTotal = revisionType.id === 'levels' ? limit : queue.length;
-  const progressCurrent = progressTotal
-    ? Math.min(currentIndex + 1, progressTotal)
-    : 0;
+  const poolCount = useMemo(() => {
+    if (revisionType.id !== 'levels') return queue.length;
+    const meta = revisionMeta as { pool?: CogitaCardSearchResult[] };
+    return meta.pool?.length ?? revisionType.getFetchLimit(limit, revisionSettings);
+  }, [revisionMeta, revisionSettings, revisionType, queue.length, limit]);
+  const progressTotal = revisionType.id === 'levels' ? Math.min(limit, poolCount) : queue.length;
+  const progressCurrent = progressTotal ? Math.min(currentIndex + 1, progressTotal) : 0;
+  const maxTries = Math.max(1, Number(revisionSettings.tries ?? 1));
+  const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'bidirectional';
+  const minCorrectness = Math.max(0, Math.min(100, Number(revisionSettings.minCorrectness ?? 0)));
+
+  const maskAveragePercent = (mask: Uint8Array) => {
+    if (!mask.length) return 0;
+    const sum = mask.reduce((acc, value) => acc + value, 0);
+    return (sum / mask.length / 255) * 100;
+  };
+  const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask) >= minCorrectness;
   const levelStats = useMemo(() => {
     if (revisionType.id !== 'levels') return null;
     const meta = revisionMeta as {
@@ -225,17 +247,22 @@ export function CogitaRevisionRunPage({
     const levelMap = meta.levelMap ?? {};
     const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
     const counts = Array.from({ length: levelsCount }, () => 0);
+    const buckets = Array.from({ length: levelsCount }, () => [] as CogitaCardSearchResult[]);
+    const activeSet = new Set(active.map((card) => card.cardId));
     pool.forEach((card) => {
       const level = Math.min(levelsCount, Math.max(1, levelMap[card.cardId] ?? 1));
       counts[level - 1] += 1;
+      buckets[level - 1].push(card);
     });
     const currentLevel = currentCard ? (levelMap[currentCard.cardId] ?? 1) : null;
     return {
       counts,
+      buckets,
       currentLevel,
       levelsCount,
       activeCount: active.length,
-      poolCount: pool.length
+      poolCount: pool.length,
+      activeSet
     };
   }, [revisionMeta, revisionSettings, revisionType, currentCard]);
   const applyOutcomeToSession = (correct: boolean) => {
@@ -290,7 +317,42 @@ export function CogitaRevisionRunPage({
         } while (cursor);
 
         if (!mounted) return;
-        const initial = revisionType.prepare(gathered, limit, revisionSettings);
+        let initialLevels: Record<string, number> | undefined;
+        if (revisionType.id === 'levels') {
+          const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
+          const scores = await Promise.all(
+            gathered.map(async (card) => {
+              const itemType = card.cardType === 'info' ? 'info' : 'connection';
+              try {
+                const outcomes = await getOutcomesForItem(itemType, card.cardId);
+                if (outcomes.length > 0) return computeKnowness(outcomes).score;
+              } catch {
+                // ignore local failures
+              }
+              try {
+                const summary = await getCogitaReviewSummary({
+                  libraryId,
+                  itemType,
+                  itemId: card.cardId,
+                  personRoleId: reviewer ?? null
+                });
+                return summary.score;
+              } catch {
+                return 0;
+              }
+            })
+          );
+          initialLevels = {};
+          gathered.forEach((card, index) => {
+            const score = scores[index] ?? 0;
+            const level = Math.max(1, Math.min(levelsCount, Math.ceil((score / 100) * levelsCount)));
+            initialLevels![card.cardId] = level;
+          });
+        }
+        const initial =
+          revisionType.id === 'levels'
+            ? prepareLevelsState(gathered, limit, revisionSettings, initialLevels)
+            : revisionType.prepare(gathered, limit, revisionSettings);
         setQueue(initial.queue);
         setRevisionMeta(initial.meta);
         setCurrentIndex(0);
@@ -304,11 +366,13 @@ export function CogitaRevisionRunPage({
     return () => {
       mounted = false;
     };
-  }, [libraryId, collectionId, limit, revisionSettings, revisionType]);
+  }, [libraryId, collectionId, limit, revisionSettings, revisionType, reviewer]);
 
   useEffect(() => {
     setAnswer('');
     setFeedback(null);
+    setAnswerMask(null);
+    setAttempts(0);
     setComputedExpected([]);
     setComputedAnswers({});
     setComputedFieldFeedback({});
@@ -436,18 +500,9 @@ export function CogitaRevisionRunPage({
     setShowCorrectAnswer(false);
     setComputedFieldFeedback({});
     setCanAdvance(false);
+    setAnswerMask(null);
+    setAttempts(0);
     setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
-  };
-
-  const buildMask = (expected: string, answerValue: string) => {
-    const expectedChars = expected.split('');
-    const answerChars = answerValue.split('');
-    const buffer = new Uint8Array(expectedChars.length);
-    expectedChars.forEach((char, index) => {
-      const match = answerChars[index] ?? '';
-      buffer[index] = char.toLowerCase() === match.toLowerCase() ? 1 : 0;
-    });
-    return buffer;
   };
 
   const submitReview = (options: {
@@ -469,7 +524,7 @@ export function CogitaRevisionRunPage({
       maskValue = keys.map((key) => options.expectedMap?.[key] ?? '').join('|');
       maskAnswer = keys.map((key) => options.answerMap?.[key] ?? '').join('|');
     }
-    const mask = maskValue ? buildMask(maskValue, maskAnswer) : new Uint8Array();
+    const mask = maskValue ? compareStrings(maskValue, maskAnswer, compareMode) : new Uint8Array();
     const payload = {
       revisionType: revisionType.id,
       evalType: options.evalType,
@@ -482,7 +537,9 @@ export function CogitaRevisionRunPage({
       correct: options.correct,
       maskBase64: mask.length ? toBase64(mask) : null,
       values: computedValues ?? null,
-      checkMode: check
+      checkMode: check,
+      compareMode,
+      minCorrectness
     };
     const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
@@ -728,6 +785,7 @@ export function CogitaRevisionRunPage({
         setFeedback('correct');
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(true);
+        setAttempts(0);
         applyOutcomeToSession(true);
         submitReview({
           correct: true,
@@ -743,6 +801,14 @@ export function CogitaRevisionRunPage({
         setFeedback('incorrect');
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(false);
+        setAttempts((prev) => {
+          const next = prev + 1;
+          if (next >= maxTries && hasExpectedAnswer) {
+            setShowCorrectAnswer(true);
+            setCanAdvance(true);
+          }
+          return next;
+        });
         applyOutcomeToSession(false);
         window.setTimeout(() => {
           const first = getFirstComputedInputKey(
@@ -768,11 +834,16 @@ export function CogitaRevisionRunPage({
       return;
     }
     if (!expectedAnswer) return;
-    const isCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
+    const mask = compareStrings(expectedAnswer, answer, compareMode);
+    const exactCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
+    const thresholdCorrect = isMaskCorrect(mask);
+    const isCorrect = exactCorrect || thresholdCorrect;
     if (isCorrect) {
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
+      setAnswerMask(mask);
+      setAttempts(0);
       applyOutcomeToSession(true);
       submitReview({
         correct: true,
@@ -785,6 +856,15 @@ export function CogitaRevisionRunPage({
       setFeedback('incorrect');
       setComputedFieldFeedback({});
       setCanAdvance(false);
+      setAnswerMask(mask);
+      setAttempts((prev) => {
+        const next = prev + 1;
+        if (next >= maxTries && hasExpectedAnswer) {
+          setShowCorrectAnswer(true);
+          setCanAdvance(true);
+        }
+        return next;
+      });
       applyOutcomeToSession(false);
       window.setTimeout(() => answerInputRef.current?.focus(), 40);
       submitReview({
@@ -800,17 +880,31 @@ export function CogitaRevisionRunPage({
   const handleLanguageSelect = (label: string) => {
     preloadNextCard();
     if (!expectedAnswer) return;
-    const isCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
+    const mask = compareStrings(expectedAnswer, label, compareMode);
+    const exactCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
+    const thresholdCorrect = isMaskCorrect(mask);
+    const isCorrect = exactCorrect || thresholdCorrect;
     if (isCorrect) {
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
+      setAnswerMask(mask);
+      setAttempts(0);
       applyOutcomeToSession(true);
       submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     } else {
       setFeedback('incorrect');
       setComputedFieldFeedback({});
       setCanAdvance(false);
+      setAnswerMask(mask);
+      setAttempts((prev) => {
+        const next = prev + 1;
+        if (next >= maxTries && hasExpectedAnswer) {
+          setShowCorrectAnswer(true);
+          setCanAdvance(true);
+        }
+        return next;
+      });
       applyOutcomeToSession(false);
       submitReview({ correct: false, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     }
@@ -820,6 +914,7 @@ export function CogitaRevisionRunPage({
     preloadNextCard();
     setFeedback('correct');
     setCanAdvance(true);
+    setAttempts(0);
     applyOutcomeToSession(true);
     if (expectedAnswer) {
       submitReview({ correct: true, direction: 'manual', expected: expectedAnswer, answer, evalType: 'manual' });
@@ -900,42 +995,6 @@ export function CogitaRevisionRunPage({
                 <section className="cogita-library-detail">
                   <div className="cogita-detail-header">
                     <div>
-                      <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
-                      <h3 className="cogita-detail-title">
-                        {progressTotal ? `${progressCurrent} / ${progressTotal}` : '0 / 0'}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
-                    {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
-                    {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
-                    <p>
-                      <strong>{copy.cogita.library.revision.revealModeLabel}</strong> {revealPolicy}
-                    </p>
-                    {levelStats ? (
-                      <>
-                        <p>
-                          <strong>{copy.cogita.library.revision.levelsCurrentLabel}</strong>{' '}
-                          {levelStats.currentLevel ?? '-'} / {levelStats.levelsCount}
-                        </p>
-                        <p>
-                          <strong>{copy.cogita.library.revision.levelsStackLabel}</strong>{' '}
-                          {levelStats.activeCount} / {levelStats.poolCount}
-                        </p>
-                        <p>
-                          <strong>{copy.cogita.library.revision.levelsCountsLabel}</strong>{' '}
-                          {levelStats.counts
-                            .map((count, index) => `${index + 1}: ${count}`)
-                            .join(' · ')}
-                        </p>
-                      </>
-                    ) : null}
-                  </div>
-                </section>
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
                       <p className="cogita-user-kicker">{copy.cogita.library.revision.knownessTitle}</p>
                       <h3 className="cogita-detail-title">
                         {reviewSummary ? `${reviewSummary.score.toFixed(1)} / 100` : copy.cogita.library.revision.knownessEmpty}
@@ -943,6 +1002,12 @@ export function CogitaRevisionRunPage({
                     </div>
                   </div>
                   <div className="cogita-detail-body">
+                    {levelStats ? (
+                      <p>
+                        <strong>{copy.cogita.library.revision.levelsCurrentLabel}</strong>{' '}
+                        {levelStats.currentLevel ?? '-'} / {levelStats.levelsCount}
+                      </p>
+                    ) : null}
                     {reviewSummary ? (
                       <>
                         <p>
@@ -1000,6 +1065,7 @@ export function CogitaRevisionRunPage({
                     showCorrectAnswer={showCorrectAnswer}
                     setShowCorrectAnswer={setShowCorrectAnswer}
                     onRevealCorrect={() => setCanAdvance(true)}
+                    answerMask={answerMask}
                     expectedAnswer={expectedAnswer}
                     hasExpectedAnswer={hasExpectedAnswer}
                     handleComputedKeyDown={handleComputedKeyDown}
@@ -1019,6 +1085,62 @@ export function CogitaRevisionRunPage({
                   </div>
                 </div>
               )}
+            </section>
+            <section className="cogita-revision-insights">
+              <div className="cogita-revision-insight-grid">
+                <div className="cogita-revision-insight-card">
+                  <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
+                  <h3 className="cogita-detail-title">
+                    {progressTotal ? `${progressCurrent} / ${progressTotal}` : '0 / 0'}
+                  </h3>
+                  {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
+                  {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}
+                  {status === 'ready' && queue.length === 0 && <p>{copy.cogita.library.revision.empty}</p>}
+                </div>
+                <div className="cogita-revision-insight-card">
+                  <p className="cogita-user-kicker">{copy.cogita.library.revision.revealModeLabel}</p>
+                  <h3 className="cogita-detail-title">{revealPolicy}</h3>
+                  <p>
+                    <strong>{copy.cogita.library.revision.triesLabel}</strong> {maxTries}
+                  </p>
+                </div>
+              </div>
+              {levelStats ? (
+                <div className="cogita-revision-levels">
+                  <div className="cogita-revision-levels-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.levelsCountsLabel}</p>
+                      <h3 className="cogita-detail-title">
+                        {copy.cogita.library.revision.levelsStackLabel} {levelStats.activeCount} / {levelStats.poolCount}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="cogita-revision-level-grid">
+                    {levelStats.buckets.map((cards, index) => {
+                      const levelNumber = index + 1;
+                      const isActive = levelStats.currentLevel === levelNumber;
+                      return (
+                        <div key={`level-${levelNumber}`} className="cogita-revision-level-column" data-active={isActive}>
+                          <div className="cogita-revision-level-head">
+                            <span>{levelNumber}</span>
+                            <strong>{cards.length}</strong>
+                          </div>
+                          <div className="cogita-revision-level-cards">
+                            {cards.map((card) => (
+                              <span
+                                key={card.cardId}
+                                className="cogita-revision-level-dot"
+                                data-current={card.cardId === currentCard?.cardId}
+                                data-active={levelStats.activeSet.has(card.cardId)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </section>
               </div>
             </div>
