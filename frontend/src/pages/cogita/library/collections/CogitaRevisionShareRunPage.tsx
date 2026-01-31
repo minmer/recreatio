@@ -139,10 +139,11 @@ export function CogitaRevisionShareRunPage({
   const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState<string | null>(null);
   const [computedOutputVariables, setComputedOutputVariables] = useState<Record<string, string> | null>(null);
+  const [computedVariableValues, setComputedVariableValues] = useState<Record<string, string> | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const computedInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
 
   const location = useLocation();
@@ -164,6 +165,7 @@ export function CogitaRevisionShareRunPage({
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   }>());
   const resolvedCardPromises = useRef(new Map<string, Promise<{
     prompt: string | null;
@@ -172,6 +174,7 @@ export function CogitaRevisionShareRunPage({
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   } | null>>());
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
@@ -269,6 +272,7 @@ export function CogitaRevisionShareRunPage({
     setComputedFieldFeedback({});
     setComputedAnswerTemplate(null);
     setComputedOutputVariables(null);
+    setComputedVariableValues(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -290,6 +294,7 @@ export function CogitaRevisionShareRunPage({
       setComputedAnswers(resolved.computedAnswers);
       setComputedAnswerTemplate(resolved.answerTemplate);
       setComputedOutputVariables(resolved.outputVariables);
+      setComputedVariableValues(resolved.variableValues);
     });
     return () => {
       mounted = false;
@@ -394,6 +399,7 @@ export function CogitaRevisionShareRunPage({
     computedAnswers: Record<string, string>;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   } | null> => {
     const cacheKey = `${card.cardId}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
@@ -408,6 +414,7 @@ export function CogitaRevisionShareRunPage({
       computedAnswers: Record<string, string>;
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
+      variableValues: Record<string, string> | null;
     }) => {
       resolvedCardCache.current.set(cacheKey, resolved);
       return resolved;
@@ -420,6 +427,7 @@ export function CogitaRevisionShareRunPage({
       computedAnswers: Record<string, string>;
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
+      variableValues: Record<string, string> | null;
     } | null>;
 
     if (card.cardType === 'vocab') {
@@ -435,7 +443,8 @@ export function CogitaRevisionShareRunPage({
             computedExpected: [],
             computedAnswers: {},
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         );
       } else {
@@ -446,7 +455,8 @@ export function CogitaRevisionShareRunPage({
             computedExpected: [],
             computedAnswers: {},
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         );
       }
@@ -461,7 +471,8 @@ export function CogitaRevisionShareRunPage({
           computedExpected: [],
           computedAnswers: {},
           answerTemplate: null,
-          outputVariables: null
+          outputVariables: null,
+          variableValues: null
         })
       );
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
@@ -474,7 +485,8 @@ export function CogitaRevisionShareRunPage({
               computedExpected: [],
               computedAnswers: {},
               answerTemplate: null,
-              outputVariables: null
+              outputVariables: null,
+              variableValues: null
             });
           }
           const sample = result.sample;
@@ -494,7 +506,8 @@ export function CogitaRevisionShareRunPage({
             computedExpected: expectedEntries,
             computedAnswers,
             answerTemplate: result.answerTemplate,
-            outputVariables: sample.outputVariables ?? null
+            outputVariables: sample.outputVariables ?? null,
+            variableValues: sample.variableValues ?? null
           });
         })
         .catch(() =>
@@ -504,7 +517,8 @@ export function CogitaRevisionShareRunPage({
             computedExpected: [],
             computedAnswers: {},
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         )
         .finally(() => {
@@ -518,7 +532,8 @@ export function CogitaRevisionShareRunPage({
           computedExpected: [],
           computedAnswers: {},
           answerTemplate: null,
-          outputVariables: null
+          outputVariables: null,
+          variableValues: null
         })
       );
     }
@@ -591,7 +606,7 @@ export function CogitaRevisionShareRunPage({
     }
   };
 
-  const handleComputedKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleComputedKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
     event.stopPropagation();
@@ -711,6 +726,7 @@ export function CogitaRevisionShareRunPage({
                         }
                         answerTemplate={computedAnswerTemplate}
                         outputVariables={computedOutputVariables}
+                        variableValues={computedVariableValues}
                         computedFieldFeedback={computedFieldFeedback}
                         feedback={feedback}
                         canAdvance={canAdvance}

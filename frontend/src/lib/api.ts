@@ -663,6 +663,7 @@ export type CogitaComputedSample = {
   values: Record<string, number | string>;
   expectedAnswerIsSentence?: boolean;
   outputVariables?: Record<string, string>;
+  variableValues?: Record<string, string>;
 };
 
 export type CogitaCollectionCreateResponse = {

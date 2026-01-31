@@ -152,11 +152,12 @@ export function CogitaRevisionRunPage({
   const [computedValues, setComputedValues] = useState<Record<string, number | string> | null>(null);
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState<string | null>(null);
   const [computedOutputVariables, setComputedOutputVariables] = useState<Record<string, string> | null>(null);
+  const [computedVariableValues, setComputedVariableValues] = useState<Record<string, string> | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const computedInputRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
 
   const currentCard = queue[currentIndex] ?? null;
@@ -170,6 +171,7 @@ export function CogitaRevisionRunPage({
     computedValues: Record<string, number | string> | null;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   }>());
   const resolvedCardPromises = useRef(new Map<string, Promise<{
     prompt: string | null;
@@ -179,6 +181,7 @@ export function CogitaRevisionRunPage({
     computedValues: Record<string, number | string> | null;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   } | null>>());
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
@@ -263,6 +266,7 @@ export function CogitaRevisionRunPage({
     setComputedFieldFeedback({});
     setComputedAnswerTemplate(null);
     setComputedOutputVariables(null);
+    setComputedVariableValues(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -287,6 +291,7 @@ export function CogitaRevisionRunPage({
       setComputedValues(resolved.computedValues);
       setComputedAnswerTemplate(resolved.answerTemplate);
       setComputedOutputVariables(resolved.outputVariables);
+      setComputedVariableValues(resolved.variableValues);
     });
     return () => {
       mounted = false;
@@ -466,6 +471,7 @@ export function CogitaRevisionRunPage({
     computedValues: Record<string, number | string> | null;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
+    variableValues: Record<string, string> | null;
   } | null> => {
     const cacheKey = `${card.cardId}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
@@ -481,6 +487,7 @@ export function CogitaRevisionRunPage({
       computedValues: Record<string, number | string> | null;
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
+      variableValues: Record<string, string> | null;
     }) => {
       resolvedCardCache.current.set(cacheKey, resolved);
       return resolved;
@@ -494,6 +501,7 @@ export function CogitaRevisionRunPage({
       computedValues: Record<string, number | string> | null;
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
+      variableValues: Record<string, string> | null;
     } | null>;
 
     if (card.cardType === 'vocab') {
@@ -510,7 +518,8 @@ export function CogitaRevisionRunPage({
             computedAnswers: {},
             computedValues: null,
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         );
       } else {
@@ -522,7 +531,8 @@ export function CogitaRevisionRunPage({
             computedAnswers: {},
             computedValues: null,
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         );
       }
@@ -538,7 +548,8 @@ export function CogitaRevisionRunPage({
           computedAnswers: {},
           computedValues: null,
           answerTemplate: null,
-          outputVariables: null
+          outputVariables: null,
+          variableValues: null
         })
       );
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
@@ -552,7 +563,8 @@ export function CogitaRevisionRunPage({
               computedAnswers: {},
               computedValues: null,
               answerTemplate: null,
-              outputVariables: null
+              outputVariables: null,
+              variableValues: null
             });
           }
           const sample = result.sample;
@@ -573,7 +585,8 @@ export function CogitaRevisionRunPage({
             computedAnswers,
             computedValues: sample.values ?? null,
             answerTemplate: result.answerTemplate,
-            outputVariables: sample.outputVariables ?? null
+            outputVariables: sample.outputVariables ?? null,
+            variableValues: sample.variableValues ?? null
           });
         })
         .catch(() =>
@@ -584,7 +597,8 @@ export function CogitaRevisionRunPage({
             computedAnswers: {},
             computedValues: null,
             answerTemplate: null,
-            outputVariables: null
+            outputVariables: null,
+            variableValues: null
           })
         )
         .finally(() => {
@@ -599,7 +613,8 @@ export function CogitaRevisionRunPage({
           computedAnswers: {},
           computedValues: null,
           answerTemplate: null,
-          outputVariables: null
+          outputVariables: null,
+          variableValues: null
         })
       );
     }
@@ -717,7 +732,7 @@ export function CogitaRevisionRunPage({
     preloadNextCard();
   }, [currentIndex, queue]);
 
-  const handleComputedKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleComputedKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
     event.stopPropagation();
@@ -852,6 +867,7 @@ export function CogitaRevisionRunPage({
                     }
                     answerTemplate={computedAnswerTemplate}
                     outputVariables={computedOutputVariables}
+                    variableValues={computedVariableValues}
                     computedFieldFeedback={computedFieldFeedback}
                     feedback={feedback}
                     canAdvance={canAdvance}

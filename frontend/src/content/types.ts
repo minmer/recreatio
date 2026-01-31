@@ -362,6 +362,8 @@ export type Copy = {
           computedPlaceholder: string;
           computedAnswerLabel: string;
           computedAnswerPlaceholder: string;
+          computedAnswerRequired: string;
+          computedAnswerMissingOutput: string;
           computedRequired: string;
           computedInvalid: string;
           computedInvalidName: string;

@@ -7,6 +7,7 @@ type ComputedSample = {
   values: Record<string, number | string>;
   answerText?: string;
   outputVariables?: Record<string, string>;
+  variableValues?: Record<string, string>;
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -184,6 +185,7 @@ export function buildComputedSampleFromGraph(
 
   const answers: Record<string, string> = {};
   const outputVariables: Record<string, string> = {};
+  const variableValues: Record<string, string> = {};
   outputs.forEach((id) => {
     const node = nodeMap.get(id);
     if (!node) return;
@@ -231,9 +233,14 @@ export function buildComputedSampleFromGraph(
   const valuesRecord: Record<string, number | string> = {};
   values.forEach((val, key) => {
     valuesRecord[key] = val;
+    variableValues[key] = formatValue(val);
+    const node = nodeMap.get(key);
+    if (node?.name) {
+      variableValues[node.name.trim()] = formatValue(val);
+    }
   });
 
-  return { prompt, answers, values: valuesRecord, answerText, outputVariables };
+  return { prompt, answers, values: valuesRecord, answerText, outputVariables, variableValues };
 }
 
 export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
@@ -244,6 +251,7 @@ export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
     expectedAnswers: sample.answers,
     values: sample.values,
     expectedAnswerIsSentence: !!(sample.answerText && sample.answerText.trim().length > 0),
-    outputVariables: sample.outputVariables
+    outputVariables: sample.outputVariables,
+    variableValues: sample.variableValues
   };
 }

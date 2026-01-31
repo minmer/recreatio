@@ -2427,13 +2427,16 @@
   gap: 0.4rem 0.6rem;
   color: #eaf2ff;
   line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input {
   min-width: 6.5rem;
   max-width: 14rem;
-  height: 2.6rem;
-  resize: none;
+  height: 2.4rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+  line-height: 1.4;
   display: inline-block;
 }
 

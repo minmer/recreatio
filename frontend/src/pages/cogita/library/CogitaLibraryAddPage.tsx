@@ -229,31 +229,48 @@ export function CogitaLibraryAddPage({
       if (infoForm.language) {
         payload.languageId = infoForm.language.id;
       }
-      if (infoForm.infoType === 'computed') {
-        if (!computedGraph) {
-          setFormStatus(copy.cogita.library.add.info.computedRequired);
-          return;
-        }
-        const invalidName = computedGraph.nodes.find((node) => node.name && !/^[A-Za-z][A-Za-z0-9_]*$/.test(node.name));
-        if (invalidName) {
-          setFormStatus(copy.cogita.library.add.info.computedInvalidName);
-          return;
-        }
-        const names = computedGraph.nodes.map((node) => node.name?.trim()).filter(Boolean) as string[];
-        const nameSet = new Set<string>();
-        for (const name of names) {
-          const key = name.toLowerCase();
-          if (nameSet.has(key)) {
-            setFormStatus(copy.cogita.library.add.info.computedDuplicateName);
+        if (infoForm.infoType === 'computed') {
+          if (!computedGraph) {
+            setFormStatus(copy.cogita.library.add.info.computedRequired);
             return;
           }
-          nameSet.add(key);
-        }
-        payload.definition = {
-          promptTemplate: computedPrompt,
-          answerTemplate: computedAnswerTemplate,
-          graph: computedGraph
-        };
+          if (!computedAnswerTemplate.trim()) {
+            setFormStatus(copy.cogita.library.add.info.computedAnswerRequired);
+            return;
+          }
+          const invalidName = computedGraph.nodes.find((node) => node.name && !/^[A-Za-z][A-Za-z0-9_]*$/.test(node.name));
+          if (invalidName) {
+            setFormStatus(copy.cogita.library.add.info.computedInvalidName);
+            return;
+          }
+        const names = computedGraph.nodes.map((node) => node.name?.trim()).filter(Boolean) as string[];
+        const nameSet = new Set<string>();
+          for (const name of names) {
+            const key = name.toLowerCase();
+            if (nameSet.has(key)) {
+              setFormStatus(copy.cogita.library.add.info.computedDuplicateName);
+              return;
+            }
+            nameSet.add(key);
+          }
+          const outputNodes = computedGraph.nodes.filter((node) => node.type === 'output');
+          const outputNames = outputNodes.map((node) => node.name?.trim()).filter(Boolean) as string[];
+          if (outputNames.length !== outputNodes.length) {
+            setFormStatus(copy.cogita.library.add.info.computedAnswerMissingOutput);
+            return;
+          }
+          const allOutputsPresent = outputNames.every((name) =>
+            new RegExp(`\\{\\s*${name}\\s*\\}`, 'i').test(computedAnswerTemplate)
+          );
+          if (!allOutputsPresent) {
+            setFormStatus(copy.cogita.library.add.info.computedAnswerMissingOutput);
+            return;
+          }
+          payload.definition = {
+            promptTemplate: computedPrompt,
+            answerTemplate: computedAnswerTemplate,
+            graph: computedGraph
+          };
       }
       if (isEditMode && editInfoId) {
         setEditStatus('saving');
