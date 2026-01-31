@@ -47,7 +47,11 @@ const shuffle = <T,>(items: T[]) => {
   return result;
 };
 
-const pickNextLevelCard = (stack: CogitaCardSearchResult[], levelMap: Record<string, number>, currentId?: string | null) => {
+const pickNextLevelCard = (
+  stack: CogitaCardSearchResult[],
+  levelMap: Record<string, number>,
+  currentId?: string | null
+) => {
   if (!stack.length) return null;
   let minLevel = Number.POSITIVE_INFINITY;
   for (const card of stack) {
@@ -57,6 +61,23 @@ const pickNextLevelCard = (stack: CogitaCardSearchResult[], levelMap: Record<str
   const candidates = stack.filter((card) => (levelMap[card.cardId] ?? 1) === minLevel);
   if (candidates.length === 0) return stack[0] ?? null;
   return candidates.find((card) => card.cardId !== currentId) ?? candidates[0] ?? null;
+};
+
+const pickLowestFromPool = (
+  pool: CogitaCardSearchResult[],
+  levelMap: Record<string, number>,
+  exclude: Set<string>
+) => {
+  if (!pool.length) return null;
+  let minLevel = Number.POSITIVE_INFINITY;
+  for (const card of pool) {
+    if (exclude.has(card.cardId)) continue;
+    const level = levelMap[card.cardId] ?? 1;
+    if (level < minLevel) minLevel = level;
+  }
+  if (!Number.isFinite(minLevel)) return null;
+  const candidates = pool.filter((card) => !exclude.has(card.cardId) && (levelMap[card.cardId] ?? 1) === minLevel);
+  return candidates[0] ?? null;
 };
 
 const randomType: RevisionTypeDefinition = {
@@ -104,16 +125,18 @@ const levelsType: RevisionTypeDefinition = {
   getFetchLimit: (limit, settings) => Math.max(1, settings.stackSize ?? limit),
   prepare: (cards, limit, settings) => {
     const stackSize = Math.max(1, settings.stackSize ?? limit);
-    const stack = cards.slice(0, stackSize);
+    const pool = cards.slice();
+    const stack = pool.slice(0, stackSize);
     const levelMap: Record<string, number> = {};
-    stack.forEach((card) => {
+    pool.forEach((card) => {
       levelMap[card.cardId] = 1;
     });
     const first = pickNextLevelCard(stack, levelMap, null);
     return {
       queue: first ? [first] : [],
       meta: {
-        stack,
+        pool,
+        active: stack,
         levelMap
       }
     };
@@ -121,18 +144,27 @@ const levelsType: RevisionTypeDefinition = {
   applyOutcome: (state, currentCard, limit, settings, outcome) => {
     if (!currentCard) return state;
     const levels = Math.max(1, settings.levels ?? 1);
-    const stack = (state.meta.stack as CogitaCardSearchResult[]) ?? [];
+    const pool = (state.meta.pool as CogitaCardSearchResult[]) ?? [];
+    const active = (state.meta.active as CogitaCardSearchResult[]) ?? [];
     const levelMap = { ...(state.meta.levelMap as Record<string, number> ?? {}) };
     const currentLevel = levelMap[currentCard.cardId] ?? 1;
     levelMap[currentCard.cardId] = outcome.correct ? Math.min(currentLevel + 1, levels) : 1;
+    const nextActive = active.filter((card) => card.cardId !== currentCard.cardId);
+    if (nextActive.length < Math.max(1, settings.stackSize ?? 1)) {
+      const exclude = new Set(nextActive.map((card) => card.cardId));
+      const replacement = pickLowestFromPool(pool, levelMap, exclude);
+      if (replacement) {
+        nextActive.push(replacement);
+      }
+    }
     const queue = state.queue.slice();
     if (queue.length < limit) {
-      const next = pickNextLevelCard(stack, levelMap, currentCard.cardId);
+      const next = pickNextLevelCard(nextActive, levelMap, currentCard.cardId);
       if (next) {
         queue.push(next);
       }
     }
-    return { queue, meta: { stack, levelMap } };
+    return { queue, meta: { pool, active: nextActive, levelMap } };
   }
 };
 

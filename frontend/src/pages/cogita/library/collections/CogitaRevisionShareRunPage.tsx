@@ -216,6 +216,31 @@ export function CogitaRevisionShareRunPage({
   const progressCurrent = progressTotal
     ? Math.min(currentIndex + 1, progressTotal)
     : 0;
+  const levelStats = useMemo(() => {
+    if (revisionType.id !== 'levels') return null;
+    const meta = revisionMeta as {
+      pool?: CogitaCardSearchResult[];
+      active?: CogitaCardSearchResult[];
+      levelMap?: Record<string, number>;
+    };
+    const pool = meta.pool ?? [];
+    const active = meta.active ?? [];
+    const levelMap = meta.levelMap ?? {};
+    const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
+    const counts = Array.from({ length: levelsCount }, () => 0);
+    pool.forEach((card) => {
+      const level = Math.min(levelsCount, Math.max(1, levelMap[card.cardId] ?? 1));
+      counts[level - 1] += 1;
+    });
+    const currentLevel = currentCard ? (levelMap[currentCard.cardId] ?? 1) : null;
+    return {
+      counts,
+      currentLevel,
+      levelsCount,
+      activeCount: active.length,
+      poolCount: pool.length
+    };
+  }, [revisionMeta, revisionSettings, revisionType, currentCard]);
   const applyOutcomeToSession = (correct: boolean) => {
     const nextState = revisionType.applyOutcome(
       { queue, meta: revisionMeta },
@@ -878,6 +903,24 @@ export function CogitaRevisionShareRunPage({
                     <p>
                       <strong>{copy.cogita.library.revision.revealModeLabel}</strong> {revealPolicy}
                     </p>
+                    {levelStats ? (
+                      <>
+                        <p>
+                          <strong>{copy.cogita.library.revision.levelsCurrentLabel}</strong>{' '}
+                          {levelStats.currentLevel ?? '-'} / {levelStats.levelsCount}
+                        </p>
+                        <p>
+                          <strong>{copy.cogita.library.revision.levelsStackLabel}</strong>{' '}
+                          {levelStats.activeCount} / {levelStats.poolCount}
+                        </p>
+                        <p>
+                          <strong>{copy.cogita.library.revision.levelsCountsLabel}</strong>{' '}
+                          {levelStats.counts
+                            .map((count, index) => `${index + 1}: ${count}`)
+                            .join(' · ')}
+                        </p>
+                      </>
+                    ) : null}
                   </div>
                 </section>
                 <section className="cogita-library-detail">
