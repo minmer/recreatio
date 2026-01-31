@@ -2423,29 +2423,30 @@
 .cogita-revision-inline-answer {
   display: inline;
   color: #eaf2ff;
-  line-height: 1.7;
+  line-height: 2.1;
   white-space: normal;
 }
 
 .cogita-inline-answer-wrap {
   font-size: 1rem;
-  line-height: 1.7;
+  line-height: 2.1;
 }
 
 .cogita-revision-inline-answer > span {
   display: inline;
+  white-space: pre-wrap;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input {
   display: inline-block;
   vertical-align: baseline;
   margin: 0 0.35rem;
-  min-width: 4.5rem;
+  min-width: 5rem;
   max-width: 12rem;
-  height: 1.9rem;
-  padding: 0.2rem 0.5rem;
+  height: 2.3rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 10px;
-  line-height: 1.6;
+  line-height: 2.1;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input::placeholder {

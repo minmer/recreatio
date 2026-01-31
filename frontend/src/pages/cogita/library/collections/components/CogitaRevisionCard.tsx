@@ -109,7 +109,9 @@ export function CogitaRevisionCard({
       <div className="cogita-revision-inline-answer">
         {parts.map((part, index) =>
           part.type === 'text' ? (
-            <span key={`text-${index}`}>{part.value}</span>
+            <span key={`text-${index}`} className="cogita-inline-text">
+              {part.value}
+            </span>
           ) : (
             <input
               key={`input-${part.value}-${index}`}
@@ -123,7 +125,8 @@ export function CogitaRevisionCard({
               onKeyDown={handleComputedKeyDown}
               className="cogita-inline-input"
               style={{
-                minWidth: `${Math.max(4, (expectedByKey.get(part.value)?.length ?? 6))}ch`
+                minWidth: `${Math.max(5, (expectedByKey.get(part.value)?.length ?? 6))}ch`,
+                width: `${Math.max(5, (computedAnswers[part.value]?.length ?? 0), (expectedByKey.get(part.value)?.length ?? 6))}ch`
               }}
             />
           )
