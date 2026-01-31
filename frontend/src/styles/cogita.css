@@ -2272,6 +2272,10 @@
   color: #e7f1ff;
 }
 
+.cogita-revision-run .cogita-revision-insights .cogita-user-kicker {
+  color: rgba(210, 230, 255, 0.85);
+}
+
 .cogita-revision-insight-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

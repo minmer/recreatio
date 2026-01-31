@@ -104,70 +104,83 @@ export const recordOutcome = async (payload: Omit<RevisionOutcomePayload, 'clien
 };
 
 export const getOutcomesForItem = async (itemType: string, itemId: string) => {
-  const itemKey = toItemKey(itemType, itemId);
-  return withStore('readonly', (store) => new Promise<RevisionOutcomePayload[]>((resolve, reject) => {
-    const index = store.index('byItem');
-    const request = index.getAll(itemKey);
-    request.onsuccess = () => {
-      const rows = (request.result ?? []) as Array<StoredOutcome & { itemKey: string }>;
-      const outcomes = rows
-        .map((row) => ({
-          itemType: row.itemType,
-          itemId: row.itemId,
-          revisionType: row.revisionType,
-          evalType: row.evalType,
-          correct: row.correct,
-          createdUtc: row.createdUtc,
-          maskBase64: row.maskBase64,
-          payloadBase64: row.payloadBase64,
-          payloadHashBase64: row.payloadHashBase64,
-          clientId: row.clientId,
-          clientSequence: row.clientSequence,
-          personRoleId: row.personRoleId ?? null
-        }))
-        .sort((a, b) => a.createdUtc.localeCompare(b.createdUtc));
-      resolve(outcomes);
-    };
-    request.onerror = () => reject(request.error);
-  }));
+  if (!itemId) return [];
+  try {
+    const itemKey = toItemKey(itemType, itemId);
+    return await withStore('readonly', (store) => new Promise<RevisionOutcomePayload[]>((resolve, reject) => {
+      const index = store.index('byItem');
+      const request = index.getAll(itemKey);
+      request.onsuccess = () => {
+        const rows = (request.result ?? []) as Array<StoredOutcome & { itemKey: string }>;
+        const outcomes = rows
+          .map((row) => ({
+            itemType: row.itemType,
+            itemId: row.itemId,
+            revisionType: row.revisionType,
+            evalType: row.evalType,
+            correct: row.correct,
+            createdUtc: row.createdUtc,
+            maskBase64: row.maskBase64,
+            payloadBase64: row.payloadBase64,
+            payloadHashBase64: row.payloadHashBase64,
+            clientId: row.clientId,
+            clientSequence: row.clientSequence,
+            personRoleId: row.personRoleId ?? null
+          }))
+          .sort((a, b) => a.createdUtc.localeCompare(b.createdUtc));
+        resolve(outcomes);
+      };
+      request.onerror = () => reject(request.error);
+    }));
+  } catch {
+    return [];
+  }
 };
 
 export const getPendingOutcomes = async (limit = 100) => {
-  return withStore('readonly', (store) => new Promise<StoredOutcome[]>((resolve, reject) => {
-    const index = store.index('byPending');
-    const request = index.getAll(true);
-    request.onsuccess = () => {
-      const rows = (request.result ?? []) as Array<StoredOutcome & { itemKey: string }>;
-      resolve(rows.slice(0, limit));
-    };
-    request.onerror = () => reject(request.error);
-  }));
+  try {
+    return await withStore('readonly', (store) => new Promise<StoredOutcome[]>((resolve, reject) => {
+      const index = store.index('byPending');
+      const request = index.getAll(true);
+      request.onsuccess = () => {
+        const rows = (request.result ?? []) as Array<StoredOutcome & { itemKey: string }>;
+        resolve(rows.slice(0, limit));
+      };
+      request.onerror = () => reject(request.error);
+    }));
+  } catch {
+    return [];
+  }
 };
 
 export const markOutcomesSynced = async (ids: string[]) => {
   if (ids.length === 0) return;
-  await withStore('readwrite', (store) => new Promise<void>((resolve, reject) => {
-    let remaining = ids.length;
-    ids.forEach((id) => {
-      const request = store.get(id);
-      request.onsuccess = () => {
-        const row = request.result as StoredOutcome | undefined;
-        if (row) {
-          row.pending = false;
-          const put = store.put(row);
-          put.onsuccess = () => {
+  try {
+    await withStore('readwrite', (store) => new Promise<void>((resolve, reject) => {
+      let remaining = ids.length;
+      ids.forEach((id) => {
+        const request = store.get(id);
+        request.onsuccess = () => {
+          const row = request.result as StoredOutcome | undefined;
+          if (row) {
+            row.pending = false;
+            const put = store.put(row);
+            put.onsuccess = () => {
+              remaining -= 1;
+              if (remaining === 0) resolve();
+            };
+            put.onerror = () => reject(put.error);
+          } else {
             remaining -= 1;
             if (remaining === 0) resolve();
-          };
-          put.onerror = () => reject(put.error);
-        } else {
-          remaining -= 1;
-          if (remaining === 0) resolve();
-        }
-      };
-      request.onerror = () => reject(request.error);
-    });
-  }));
+          }
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }));
+  } catch {
+    // ignore
+  }
 };
 
 export const syncPendingOutcomes = async (libraryId: string, personRoleId?: string | null) => {
