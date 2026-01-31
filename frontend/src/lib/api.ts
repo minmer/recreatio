@@ -897,14 +897,18 @@ export function revokeCogitaRevisionShare(payload: { libraryId: string; shareId:
   });
 }
 
-export function getCogitaPublicRevisionShare(payload: { shareId: string; key: string }) {
-  return request<CogitaPublicRevisionShare>(`/cogita/public/revision/${payload.shareId}`, {
-    method: 'GET'
-  });
+export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: string }) {
+  const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
+  return request<CogitaPublicRevisionShare>(
+    `/cogita/public/revision/${payload.shareId}${params.toString() ? `?${params.toString()}` : ''}`,
+    { method: 'GET' }
+  );
 }
 
-export function getCogitaPublicRevisionInfos(payload: { shareId: string; type?: string; query?: string }) {
+export function getCogitaPublicRevisionInfos(payload: { shareId: string; key?: string; type?: string; query?: string }) {
   const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
   return request<CogitaInfoSearchResult[]>(
@@ -915,10 +919,12 @@ export function getCogitaPublicRevisionInfos(payload: { shareId: string; type?: 
 
 export function getCogitaPublicRevisionCards(payload: {
   shareId: string;
+  key?: string;
   limit?: number;
   cursor?: string | null;
 }) {
   const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
   if (payload.limit) params.set('limit', String(payload.limit));
   if (payload.cursor) params.set('cursor', payload.cursor);
   return request<CogitaCardSearchBundle>(
@@ -927,9 +933,11 @@ export function getCogitaPublicRevisionCards(payload: {
   );
 }
 
-export function getCogitaPublicComputedSample(payload: { shareId: string; infoId: string }) {
+export function getCogitaPublicComputedSample(payload: { shareId: string; infoId: string; key?: string }) {
+  const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
   return request<CogitaComputedSample>(
-    `/cogita/public/revision/${payload.shareId}/computed/${payload.infoId}/sample`,
+    `/cogita/public/revision/${payload.shareId}/computed/${payload.infoId}/sample${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -1026,9 +1034,11 @@ export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string
   );
 }
 
-export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: string }) {
+export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: string; key?: string }) {
+  const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
   return request<{ infoId: string; infoType: string; payload: unknown }>(
-    `/cogita/public/revision/${payload.shareCode}/infos/${payload.infoId}`,
+    `/cogita/public/revision/${payload.shareCode}/infos/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }

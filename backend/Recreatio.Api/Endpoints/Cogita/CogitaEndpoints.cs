@@ -2532,6 +2532,7 @@ public static class CogitaEndpoints
 
         group.MapGet("/public/revision/{code}", async (
             string code,
+            string? key,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
@@ -2542,6 +2543,7 @@ public static class CogitaEndpoints
         {
             var shareContext = await TryResolveRevisionShareAsync(
                 code,
+                key,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2610,6 +2612,7 @@ public static class CogitaEndpoints
 
         group.MapGet("/public/revision/{code}/infos", async (
             string code,
+            string? key,
             string? type,
             string? query,
             RecreatioDbContext dbContext,
@@ -2621,6 +2624,7 @@ public static class CogitaEndpoints
         {
             var shareContext = await TryResolveRevisionShareAsync(
                 code,
+                key,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2689,6 +2693,7 @@ public static class CogitaEndpoints
 
         group.MapGet("/public/revision/{code}/infos/{infoId:guid}", async (
             string code,
+            string? key,
             Guid infoId,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -2699,6 +2704,7 @@ public static class CogitaEndpoints
         {
             var shareContext = await TryResolveRevisionShareAsync(
                 code,
+                key,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2757,6 +2763,7 @@ public static class CogitaEndpoints
 
         group.MapGet("/public/revision/{code}/cards", async (
             string code,
+            string? key,
             int? limit,
             string? cursor,
             RecreatioDbContext dbContext,
@@ -2768,6 +2775,7 @@ public static class CogitaEndpoints
         {
             var shareContext = await TryResolveRevisionShareAsync(
                 code,
+                key,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -2925,6 +2933,7 @@ public static class CogitaEndpoints
 
         group.MapGet("/public/revision/{code}/computed/{infoId:guid}/sample", async (
             string code,
+            string? key,
             Guid infoId,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -2935,6 +2944,7 @@ public static class CogitaEndpoints
         {
             var shareContext = await TryResolveRevisionShareAsync(
                 code,
+                key,
                 dbContext,
                 encryptionService,
                 masterKeyService,
@@ -7674,6 +7684,7 @@ public static class CogitaEndpoints
 
     private static async Task<(CogitaRevisionShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveRevisionShareAsync(
         string? code,
+        string? key,
         RecreatioDbContext dbContext,
         IEncryptionService encryptionService,
         IMasterKeyService masterKeyService,
@@ -7685,6 +7696,7 @@ public static class CogitaEndpoints
             return null;
         }
 
+        code = code.Trim();
         if (code.Length < 12 || code.Length > 32 || code.Any(ch => ch < '0' || ch > '9'))
         {
             return null;
@@ -7707,7 +7719,9 @@ public static class CogitaEndpoints
             return null;
         }
 
-        var secretHash = hashingService.Hash(codeBytes);
+        var secretSource = string.IsNullOrWhiteSpace(key) ? code : key.Trim();
+        var secretBytes = System.Text.Encoding.UTF8.GetBytes(secretSource);
+        var secretHash = hashingService.Hash(secretBytes);
         if (sharedView.SharedViewSecretHash.Length == 0 ||
             secretHash.Length != sharedView.SharedViewSecretHash.Length ||
             !CryptographicOperations.FixedTimeEquals(secretHash, sharedView.SharedViewSecretHash))
@@ -7732,7 +7746,7 @@ public static class CogitaEndpoints
         byte[] viewRoleReadKey;
         try
         {
-            var sharedViewKey = masterKeyService.DeriveSharedViewKey(codeBytes, sharedView.Id);
+            var sharedViewKey = masterKeyService.DeriveSharedViewKey(secretBytes, sharedView.Id);
             viewRoleReadKey = encryptionService.Decrypt(sharedViewKey, sharedView.EncViewRoleKey, sharedView.Id.ToByteArray());
         }
         catch (CryptographicException)

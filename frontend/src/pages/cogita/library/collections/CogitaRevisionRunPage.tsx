@@ -321,8 +321,14 @@ export function CogitaRevisionRunPage({
   const lastFocusCardRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentCard) return;
-    if (lastFocusCardRef.current === currentCard.cardId) return;
-    lastFocusCardRef.current = currentCard.cardId;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (
+      lastFocusCardRef.current === currentCard.cardId &&
+      active &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+    ) {
+      return;
+    }
     let tries = 0;
     const focusInput = () => {
       if (!currentCard) return;
@@ -336,17 +342,26 @@ export function CogitaRevisionRunPage({
           const target = firstKey ? computedInputRefs.current[firstKey] : null;
           if (target) {
             target.focus();
-            return;
+            if (document.activeElement === target) {
+              lastFocusCardRef.current = currentCard.cardId;
+              return;
+            }
           }
         }
         if (answerInputRef.current) {
           answerInputRef.current.focus();
-          return;
+          if (document.activeElement === answerInputRef.current) {
+            lastFocusCardRef.current = currentCard.cardId;
+            return;
+          }
         }
       } else if (currentCard.cardType === 'vocab') {
         if (answerInputRef.current) {
           answerInputRef.current.focus();
-          return;
+          if (document.activeElement === answerInputRef.current) {
+            lastFocusCardRef.current = currentCard.cardId;
+            return;
+          }
         }
       }
       if (tries < 6) {

@@ -222,10 +222,10 @@ export function CogitaRevisionShareRunPage({
 
   useEffect(() => {
     if (!shareId) return;
-    getCogitaPublicRevisionInfos({ shareId, type: 'language' })
+    getCogitaPublicRevisionInfos({ shareId, key: shareKey, type: 'language' })
       .then((results) => setLanguages(results))
       .catch(() => setLanguages([]));
-  }, [shareId]);
+  }, [shareId, shareKey]);
 
   useEffect(() => {
     if (!shareId || shareStatus !== 'ready') return;
@@ -238,6 +238,7 @@ export function CogitaRevisionShareRunPage({
         do {
           const bundle = await getCogitaPublicRevisionCards({
             shareId,
+            key: shareKey,
             limit: 100,
             cursor
           });
@@ -281,7 +282,7 @@ export function CogitaRevisionShareRunPage({
     return () => {
       mounted = false;
     };
-  }, [shareId, limit, mode, shareStatus]);
+  }, [shareId, shareKey, limit, mode, shareStatus]);
 
   useEffect(() => {
     setAnswer('');
@@ -324,8 +325,14 @@ export function CogitaRevisionShareRunPage({
   const lastFocusCardRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentCard) return;
-    if (lastFocusCardRef.current === currentCard.cardId) return;
-    lastFocusCardRef.current = currentCard.cardId;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (
+      lastFocusCardRef.current === currentCard.cardId &&
+      active &&
+      (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')
+    ) {
+      return;
+    }
     let tries = 0;
     const focusInput = () => {
       if (!currentCard) return;
@@ -339,17 +346,26 @@ export function CogitaRevisionShareRunPage({
           const target = firstKey ? computedInputRefs.current[firstKey] : null;
           if (target) {
             target.focus();
-            return;
+            if (document.activeElement === target) {
+              lastFocusCardRef.current = currentCard.cardId;
+              return;
+            }
           }
         }
         if (answerInputRef.current) {
           answerInputRef.current.focus();
-          return;
+          if (document.activeElement === answerInputRef.current) {
+            lastFocusCardRef.current = currentCard.cardId;
+            return;
+          }
         }
       } else if (currentCard.cardType === 'vocab') {
         if (answerInputRef.current) {
           answerInputRef.current.focus();
-          return;
+          if (document.activeElement === answerInputRef.current) {
+            lastFocusCardRef.current = currentCard.cardId;
+            return;
+          }
         }
       }
       if (tries < 6) {
@@ -389,7 +405,7 @@ export function CogitaRevisionShareRunPage({
     if (cached) return Promise.resolve(cached);
     const existing = computedSamplePromises.current.get(cacheKey);
     if (existing) return existing;
-    const promise = getCogitaPublicInfoDetail({ shareCode: shareId, infoId })
+    const promise = getCogitaPublicInfoDetail({ shareCode: shareId, infoId, key: shareKey })
       .then((detail) => {
         const payload = detail.payload as {
           definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null };
@@ -404,14 +420,14 @@ export function CogitaRevisionShareRunPage({
           computedSampleCache.current.set(cacheKey, result);
           return result;
         }
-        return getCogitaPublicComputedSample({ shareId, infoId }).then((sample) => {
+        return getCogitaPublicComputedSample({ shareId, infoId, key: shareKey }).then((sample) => {
           const result = { sample, answerTemplate: null };
           computedSampleCache.current.set(cacheKey, result);
           return result;
         });
       })
       .catch(() =>
-        getCogitaPublicComputedSample({ shareId, infoId })
+        getCogitaPublicComputedSample({ shareId, infoId, key: shareKey })
           .then((sample) => {
             const result = { sample, answerTemplate: null };
             computedSampleCache.current.set(cacheKey, result);
