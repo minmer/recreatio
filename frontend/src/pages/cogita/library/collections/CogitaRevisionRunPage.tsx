@@ -323,7 +323,9 @@ export function CogitaRevisionRunPage({
     if (!currentCard) return;
     if (lastFocusCardRef.current === currentCard.cardId) return;
     lastFocusCardRef.current = currentCard.cardId;
+    let tries = 0;
     const focusInput = () => {
+      if (!currentCard) return;
       if (currentCard.cardType === 'info' && currentCard.infoType === 'computed') {
         if (computedExpected.length > 0) {
           const firstKey = getFirstComputedInputKey(
@@ -331,21 +333,30 @@ export function CogitaRevisionRunPage({
             computedExpected,
             computedOutputVariables
           );
-          if (firstKey && computedInputRefs.current[firstKey]) {
-            computedInputRefs.current[firstKey]?.focus();
+          const target = firstKey ? computedInputRefs.current[firstKey] : null;
+          if (target) {
+            target.focus();
             return;
           }
         }
-        answerInputRef.current?.focus();
-        return;
+        if (answerInputRef.current) {
+          answerInputRef.current.focus();
+          return;
+        }
+      } else if (currentCard.cardType === 'vocab') {
+        if (answerInputRef.current) {
+          answerInputRef.current.focus();
+          return;
+        }
       }
-      if (currentCard.cardType === 'vocab') {
-        answerInputRef.current?.focus();
+      if (tries < 6) {
+        tries += 1;
+        window.setTimeout(focusInput, 40);
       }
     };
     const handle = window.setTimeout(focusInput, 40);
     return () => window.clearTimeout(handle);
-  }, [currentCard, computedExpected]);
+  }, [currentCard, computedExpected, computedAnswerTemplate, computedOutputVariables]);
 
   useEffect(() => {
     if (!canAdvance) return;

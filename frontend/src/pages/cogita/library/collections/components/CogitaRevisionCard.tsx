@@ -136,8 +136,8 @@ export function CogitaRevisionCard({
   };
 
   const showScriptToggles = (() => {
-    const text = [prompt ?? '', answerTemplate ?? '', expectedAnswer ?? ''].join('');
-    return /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ^_]/.test(text);
+    const text = [answer, ...Object.values(computedAnswers)].join('');
+    return /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ]/.test(text);
   })();
 
   const handleScriptToggleKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
