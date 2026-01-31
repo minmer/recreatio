@@ -1013,7 +1013,7 @@ public static class CogitaEndpoints
                         }
                     }
                     var translationLanguageIds = wordLanguageMap.Values.Distinct().ToList();
-                    var languageLabels = await ResolveInfoLabelsAsync(
+                    var translationLanguageLabels = await ResolveInfoLabelsAsync(
                         libraryId,
                         "language",
                         translationLanguageIds,
@@ -4558,10 +4558,10 @@ public static class CogitaEndpoints
                         var wordALabel = wordLabels.TryGetValue(wordA, out var w1) ? w1 : "Word";
                         var wordBLabel = wordLabels.TryGetValue(wordB, out var w2) ? w2 : "Word";
 
-                        var langALabel = translationWordLanguageMap.TryGetValue(wordA, out var langA) && languageLabels.TryGetValue(langA, out var l1)
+                        var langALabel = translationWordLanguageMap.TryGetValue(wordA, out var langA) && translationLanguageLabels.TryGetValue(langA, out var l1)
                             ? l1
                             : "Language";
-                        var langBLabel = translationWordLanguageMap.TryGetValue(wordB, out var langB) && languageLabels.TryGetValue(langB, out var l2)
+                        var langBLabel = translationWordLanguageMap.TryGetValue(wordB, out var langB) && translationLanguageLabels.TryGetValue(langB, out var l2)
                             ? l2
                             : "Language";
 
