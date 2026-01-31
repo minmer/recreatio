@@ -193,28 +193,34 @@ export function CogitaRevisionCard({
         <div className="cogita-revision-body">
           {currentCard.label ? <p className="cogita-revision-hint">{currentCard.label}</p> : null}
           {answerTemplate ? null : <LatexBlock value={prompt ?? ''} mode="auto" />}
-          <div className="cogita-form-grid">
-            {computedExpected.length > 0 ? (
-              (() => {
-                const inline = renderAnswerTemplate();
-                if (inline) return inline;
-                return computedExpected.map((entry) => (
-                  <label key={entry.key} className="cogita-field">
-                    <span>{entry.key}</span>
-                    <textarea
-                      ref={(el) => {
-                        computedInputRefs.current[entry.key] = el;
-                      }}
-                      value={computedAnswers[entry.key] ?? ''}
-                      onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
-                      placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
-                      data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
-                      onKeyDown={handleComputedKeyDown}
-                    />
-                  </label>
-                ));
-              })()
-            ) : (
+          {computedExpected.length > 0 ? (
+            (() => {
+              const inline = renderAnswerTemplate();
+              if (inline) {
+                return <div className="cogita-inline-answer-wrap">{inline}</div>;
+              }
+              return (
+                <div className="cogita-form-grid">
+                  {computedExpected.map((entry) => (
+                    <label key={entry.key} className="cogita-field">
+                      <span>{entry.key}</span>
+                      <textarea
+                        ref={(el) => {
+                          computedInputRefs.current[entry.key] = el;
+                        }}
+                        value={computedAnswers[entry.key] ?? ''}
+                        onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
+                        placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
+                        data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
+                        onKeyDown={handleComputedKeyDown}
+                      />
+                    </label>
+                  ))}
+                </div>
+              );
+            })()
+          ) : (
+            <div className="cogita-form-grid">
               <label className="cogita-field">
                 <span>{copy.cogita.library.revision.answerLabel}</span>
                 <textarea
@@ -235,8 +241,8 @@ export function CogitaRevisionCard({
                   }}
                 />
               </label>
-            )}
-          </div>
+            </div>
+          )}
           <div className="cogita-form-actions">
             <button
               type="button"

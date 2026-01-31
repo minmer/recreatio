@@ -2421,23 +2421,35 @@
 }
 
 .cogita-revision-inline-answer {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.4rem 0.6rem;
+  display: inline;
   color: #eaf2ff;
   line-height: 1.7;
-  white-space: pre-wrap;
+  white-space: normal;
+}
+
+.cogita-inline-answer-wrap {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.cogita-revision-inline-answer > span {
+  display: inline;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input {
-  min-width: 6.5rem;
-  max-width: 20rem;
-  height: 2.2rem;
-  padding: 0.25rem 0.55rem;
-  border-radius: 12px;
-  line-height: 1.7;
   display: inline-block;
+  vertical-align: baseline;
+  margin: 0 0.35rem;
+  min-width: 4.5rem;
+  max-width: 12rem;
+  height: 1.9rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+  line-height: 1.6;
+}
+
+.cogita-revision-inline-answer .cogita-inline-input::placeholder {
+  opacity: 0.6;
 }
 
 .cogita-revision-header {
