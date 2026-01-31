@@ -7429,8 +7429,16 @@ public static class CogitaEndpoints
             encryptionService,
             dbContext,
             ct);
-        var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-            .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+        var wordLanguageMapRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+            .ToListAsync(ct);
+        var wordLanguageMap = new Dictionary<Guid, Guid>();
+        foreach (var row in wordLanguageMapRows)
+        {
+            if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+            {
+                wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+            }
+        }
 
         var responses = new List<CogitaCardSearchResponse>();
         foreach (var pair in itemsByConnection)

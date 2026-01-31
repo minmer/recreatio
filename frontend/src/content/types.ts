@@ -360,6 +360,8 @@ export type Copy = {
           notesPlaceholder: string;
           computedLabel: string;
           computedPlaceholder: string;
+          computedAnswerLabel: string;
+          computedAnswerPlaceholder: string;
           computedRequired: string;
           computedInvalid: string;
           computedInvalidName: string;
@@ -503,6 +505,8 @@ export type Copy = {
         answerLabel: string;
         answerPlaceholder: string;
         answerPlaceholderComputed: string;
+        answerSentenceLabel: string;
+        answerSentencePlaceholder: string;
         checkAnswer: string;
         skip: string;
         nextQuestion: string;

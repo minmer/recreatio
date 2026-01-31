@@ -33,6 +33,7 @@ export type ComputedGraphDefinition = {
   nodes: ComputedGraphNodePayload[];
   output?: string | null;
   outputs?: string[];
+  answerTemplate?: string;
 };
 
 type ComputedGraphEditorProps = {

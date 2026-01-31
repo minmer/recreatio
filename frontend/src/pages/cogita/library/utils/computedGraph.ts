@@ -5,13 +5,15 @@ type ComputedSample = {
   prompt: string;
   answers: Record<string, string>;
   values: Record<string, number | string>;
+  answerText?: string;
 };
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export function buildComputedSampleFromGraph(
   computedGraph: ComputedGraphDefinition | null,
-  promptTemplate: string
+  promptTemplate: string,
+  answerTemplate?: string
 ): ComputedSample | null {
   if (!computedGraph) return null;
   const nodeMap = new Map(computedGraph.nodes.map((node) => [node.id, node]));
@@ -187,44 +189,54 @@ export function buildComputedSampleFromGraph(
     answers[displayName] = formatValue(values.get(id));
   });
 
+  const applyReplacements = (template: string, useOutputLabel: boolean) => {
+    let text = template;
+    computedGraph.nodes.forEach((node) => {
+      const value = formatValue(values.get(node.id));
+      const isOutput = outputs.includes(node.id);
+      const outputLabel = isOutput
+        ? (outputLabels.get(node.id) ??
+            node.outputLabel?.trim() ??
+            node.name?.trim() ??
+            node.id)
+        : '';
+      const replacement = isOutput ? (useOutputLabel ? outputLabel : value) : value;
+      text = text.replace(new RegExp(`\\{\\s*${escapeRegExp(node.id)}\\s*\\}`, 'gi'), replacement);
+      if (node.name) {
+        text = text.replace(new RegExp(`\\{\\s*${escapeRegExp(node.name)}\\s*\\}`, 'gi'), replacement);
+      }
+      if (isOutput && node.outputLabel) {
+        text = text.replace(new RegExp(`\\{\\s*${escapeRegExp(node.outputLabel)}\\s*\\}`, 'gi'), outputLabel);
+      }
+    });
+    return text;
+  };
+
   const rawPrompt = promptTemplate ?? '';
   let prompt = rawPrompt.trim().length > 0 ? rawPrompt : '';
   if (!prompt) {
     prompt = outputs.length ? `Compute ${outputs.join(', ')}` : 'Compute';
   }
-  computedGraph.nodes.forEach((node) => {
-    const value = formatValue(values.get(node.id));
-    const isOutput = outputs.includes(node.id);
-    const outputLabel = isOutput
-      ? (outputLabels.get(node.id) ??
-          node.outputLabel?.trim() ??
-          node.name?.trim() ??
-          node.id)
-      : '';
-    const replacement = isOutput ? outputLabel : value;
-    prompt = prompt.replace(new RegExp(`\\{\\s*${escapeRegExp(node.id)}\\s*\\}`, 'gi'), replacement);
-    if (node.name) {
-      prompt = prompt.replace(new RegExp(`\\{\\s*${escapeRegExp(node.name)}\\s*\\}`, 'gi'), replacement);
-    }
-    if (isOutput && node.outputLabel) {
-      prompt = prompt.replace(new RegExp(`\\{\\s*${escapeRegExp(node.outputLabel)}\\s*\\}`, 'gi'), outputLabel);
-    }
-  });
+  prompt = applyReplacements(prompt, true);
+
+  const rawAnswer = answerTemplate?.trim() ?? '';
+  const answerText = rawAnswer ? applyReplacements(rawAnswer, false) : '';
 
   const valuesRecord: Record<string, number | string> = {};
   values.forEach((val, key) => {
     valuesRecord[key] = val;
   });
 
-  return { prompt, answers, values: valuesRecord };
+  return { prompt, answers, values: valuesRecord, answerText };
 }
 
 export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
   const entries = Object.entries(sample.answers);
   return {
     prompt: sample.prompt,
-    expectedAnswer: entries[0]?.[1] ?? '',
+    expectedAnswer: sample.answerText ?? entries[0]?.[1] ?? '',
     expectedAnswers: sample.answers,
-    values: sample.values
+    values: sample.values,
+    expectedAnswerIsSentence: !!(sample.answerText && sample.answerText.trim().length > 0)
   };
 }

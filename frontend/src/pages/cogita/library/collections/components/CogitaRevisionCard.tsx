@@ -14,6 +14,10 @@ export function CogitaRevisionCard({
   computedExpected,
   computedAnswers,
   onComputedAnswerChange,
+  sentenceExpected,
+  sentenceAnswer,
+  onSentenceAnswerChange,
+  sentenceFeedback,
   computedFieldFeedback,
   feedback,
   canAdvance,
@@ -43,6 +47,10 @@ export function CogitaRevisionCard({
   computedExpected: Array<{ key: string; expected: string }>;
   computedAnswers: Record<string, string>;
   onComputedAnswerChange: (key: string, value: string) => void;
+  sentenceExpected: string | null;
+  sentenceAnswer: string;
+  onSentenceAnswerChange: (value: string) => void;
+  sentenceFeedback: 'correct' | 'incorrect' | null;
   computedFieldFeedback: Record<string, 'correct' | 'incorrect'>;
   feedback: 'correct' | 'incorrect' | null;
   canAdvance: boolean;
@@ -125,21 +133,45 @@ export function CogitaRevisionCard({
           <LatexBlock value={prompt ?? ''} mode="auto" />
           <div className="cogita-form-grid">
             {computedExpected.length > 0 ? (
-              computedExpected.map((entry) => (
-                <label key={entry.key} className="cogita-field">
-                  <span>{entry.key}</span>
-                  <textarea
-                    ref={(el) => {
-                      computedInputRefs.current[entry.key] = el;
-                    }}
-                    value={computedAnswers[entry.key] ?? ''}
-                    onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
-                    placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
-                    data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
-                    onKeyDown={handleComputedKeyDown}
-                  />
-                </label>
-              ))
+              <>
+                {computedExpected.map((entry) => (
+                  <label key={entry.key} className="cogita-field">
+                    <span>{entry.key}</span>
+                    <textarea
+                      ref={(el) => {
+                        computedInputRefs.current[entry.key] = el;
+                      }}
+                      value={computedAnswers[entry.key] ?? ''}
+                      onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
+                      placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
+                      data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
+                      onKeyDown={handleComputedKeyDown}
+                    />
+                  </label>
+                ))}
+                {sentenceExpected ? (
+                  <label className="cogita-field">
+                    <span>{copy.cogita.library.revision.answerSentenceLabel}</span>
+                    <textarea
+                      ref={answerInputRef as MutableRefObject<HTMLTextAreaElement | null>}
+                      value={sentenceAnswer}
+                      onChange={(event) => onSentenceAnswerChange(event.target.value)}
+                      placeholder={copy.cogita.library.revision.answerSentencePlaceholder}
+                      data-state={sentenceFeedback ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (canAdvance) {
+                          onAdvance();
+                        } else {
+                          onCheckAnswer();
+                        }
+                      }}
+                    />
+                  </label>
+                ) : null}
+              </>
             ) : (
               <label className="cogita-field">
                 <span>{copy.cogita.library.revision.answerLabel}</span>
@@ -260,6 +292,12 @@ export function CogitaRevisionCard({
                       <span>{entry.expected}</span>
                     </div>
                   ))}
+                  {expectedAnswer ? (
+                    <div className="cogita-detail-sample-item">
+                      <span>{copy.cogita.library.revision.answerSentenceLabel}</span>
+                      <span>{expectedAnswer}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p>{expectedAnswer}</p>

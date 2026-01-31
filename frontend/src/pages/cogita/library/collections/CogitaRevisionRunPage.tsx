@@ -149,6 +149,7 @@ export function CogitaRevisionRunPage({
   const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
+  const [computedSentenceFeedback, setComputedSentenceFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [computedValues, setComputedValues] = useState<Record<string, number | string> | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
@@ -255,6 +256,7 @@ export function CogitaRevisionRunPage({
     setComputedExpected([]);
     setComputedAnswers({});
     setComputedFieldFeedback({});
+    setComputedSentenceFeedback(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -411,11 +413,12 @@ export function CogitaRevisionRunPage({
     const promise = getCogitaInfoDetail({ libraryId, infoId })
       .then((detail) => {
         const payload = detail.payload as {
-          definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+          definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null };
         };
         const graph = payload.definition?.graph ?? null;
         const promptTemplate = payload.definition?.promptTemplate ?? '';
-        const computed = buildComputedSampleFromGraph(graph, promptTemplate);
+        const answerTemplate = payload.definition?.answerTemplate ?? '';
+        const computed = buildComputedSampleFromGraph(graph, promptTemplate, answerTemplate);
         if (computed) {
           const sample = toComputedSample(computed);
           computedSampleCache.current.set(cacheKey, sample);
@@ -531,9 +534,12 @@ export function CogitaRevisionRunPage({
             acc[entry.key] = '';
             return acc;
           }, {});
+          const sentenceExpected = sample.expectedAnswerIsSentence
+            ? sample.expectedAnswer?.trim() || null
+            : null;
           return finalize({
             prompt: sample.prompt,
-            expectedAnswer: expectedEntries.length > 0 ? null : sample.expectedAnswer ?? null,
+            expectedAnswer: expectedEntries.length > 0 ? sentenceExpected : sample.expectedAnswer?.trim() || null,
             computedExpected: expectedEntries,
             computedAnswers,
             computedValues: sample.values ?? null
@@ -581,10 +587,17 @@ export function CogitaRevisionRunPage({
         acc[entry.key] = normalizeAnswer(actual) === normalizeAnswer(entry.expected) ? 'correct' : 'incorrect';
         return acc;
       }, {});
+      const sentenceExpected = expectedAnswer?.trim() || null;
+      const sentenceCorrect = sentenceExpected
+        ? normalizeAnswer(answer) === normalizeAnswer(sentenceExpected)
+        : true;
       const allCorrect = computedExpected.every(({ key, expected }) => {
         const actual = computedAnswers[key] ?? '';
         return check === 'exact' && normalizeAnswer(actual) === normalizeAnswer(expected);
-      });
+      }) && sentenceCorrect;
+      setComputedSentenceFeedback(
+        sentenceExpected ? (sentenceCorrect ? 'correct' : 'incorrect') : null
+      );
       if (allCorrect) {
         setFeedback('correct');
         setComputedFieldFeedback(fieldFeedback);
@@ -603,6 +616,10 @@ export function CogitaRevisionRunPage({
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(false);
         window.setTimeout(() => {
+          if (sentenceExpected && !answer.trim()) {
+            answerInputRef.current?.focus();
+            return;
+          }
           const first = computedExpected[0]?.key;
           if (first && computedInputRefs.current[first]) {
             computedInputRefs.current[first]?.focus();
@@ -687,6 +704,10 @@ export function CogitaRevisionRunPage({
     const emptyEntry = computedExpected.find((entry) => !(computedAnswers[entry.key] ?? '').trim());
     if (emptyEntry) {
       computedInputRefs.current[emptyEntry.key]?.focus();
+      return;
+    }
+    if (expectedAnswer?.trim() && !answer.trim()) {
+      answerInputRef.current?.focus();
       return;
     }
     handleCheckAnswer();
@@ -809,6 +830,10 @@ export function CogitaRevisionRunPage({
                         [key]: applyScriptMode(prev[key] ?? '', value, scriptMode)
                       }))
                     }
+                    sentenceExpected={computedExpected.length > 0 ? expectedAnswer : null}
+                    sentenceAnswer={answer}
+                    onSentenceAnswerChange={(value) => setAnswer((prev) => applyScriptMode(prev, value, scriptMode))}
+                    sentenceFeedback={computedSentenceFeedback}
                     computedFieldFeedback={computedFieldFeedback}
                     feedback={feedback}
                     canAdvance={canAdvance}

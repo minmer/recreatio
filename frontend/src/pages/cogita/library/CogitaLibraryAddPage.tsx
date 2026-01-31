@@ -50,8 +50,13 @@ export function CogitaLibraryAddPage({
     notes: ''
   });
   const [computedPrompt, setComputedPrompt] = useState('');
+  const [computedAnswerTemplate, setComputedAnswerTemplate] = useState('');
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
-  const [computedPreview, setComputedPreview] = useState<{ prompt: string; answers: Record<string, string> } | null>(null);
+  const [computedPreview, setComputedPreview] = useState<{
+    prompt: string;
+    answers: Record<string, string>;
+    answerText?: string;
+  } | null>(null);
   const [computedPreviewStatus, setComputedPreviewStatus] = useState<'idle' | 'ready' | 'error'>('idle');
   const [connectionForm, setConnectionForm] = useState({
     connectionType: 'translation' as CogitaConnectionType,
@@ -160,7 +165,7 @@ export function CogitaLibraryAddPage({
           label?: string;
           notes?: string;
           languageId?: string;
-          definition?: { promptTemplate?: string; graph?: ComputedGraphDefinition | null };
+          definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null };
         };
         setInfoForm((prev) => ({
           ...prev,
@@ -189,11 +194,13 @@ export function CogitaLibraryAddPage({
         }
         if (detail.infoType === 'computed') {
           setComputedPrompt(payload.definition?.promptTemplate ?? '');
+          setComputedAnswerTemplate(payload.definition?.answerTemplate ?? '');
           setComputedGraph(payload.definition?.graph ?? null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
         } else {
           setComputedPrompt('');
+          setComputedAnswerTemplate('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -244,6 +251,7 @@ export function CogitaLibraryAddPage({
         }
         payload.definition = {
           promptTemplate: computedPrompt,
+          answerTemplate: computedAnswerTemplate,
           graph: computedGraph
         };
       }
@@ -272,6 +280,7 @@ export function CogitaLibraryAddPage({
         });
         if (infoForm.infoType === 'computed') {
           setComputedPrompt('');
+          setComputedAnswerTemplate('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -289,13 +298,13 @@ export function CogitaLibraryAddPage({
       setComputedPreviewStatus('error');
       return;
     }
-    const preview = buildComputedSampleFromGraph(computedGraph, computedPrompt);
+    const preview = buildComputedSampleFromGraph(computedGraph, computedPrompt, computedAnswerTemplate);
     if (!preview) {
       setComputedPreview(null);
       setComputedPreviewStatus('error');
       return;
     }
-    setComputedPreview({ prompt: preview.prompt, answers: preview.answers });
+    setComputedPreview({ prompt: preview.prompt, answers: preview.answers, answerText: preview.answerText });
     setComputedPreviewStatus('ready');
   };
 
@@ -554,6 +563,14 @@ export function CogitaLibraryAddPage({
                           placeholder={copy.cogita.library.add.info.computedPlaceholder}
                         />
                       </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.computedAnswerLabel}</span>
+                        <textarea
+                          value={computedAnswerTemplate}
+                          onChange={(event) => setComputedAnswerTemplate(event.target.value)}
+                          placeholder={copy.cogita.library.add.info.computedAnswerPlaceholder}
+                        />
+                      </label>
                       <div className="cogita-field full">
                         <ComputedGraphEditor
                           copy={copy}
@@ -578,6 +595,12 @@ export function CogitaLibraryAddPage({
                               </div>
                             ))}
                           </div>
+                          {computedPreview.answerText ? (
+                            <div className="cogita-detail-sample-item">
+                              <span>{copy.cogita.library.add.info.computedAnswerLabel}</span>
+                              <LatexBlock value={computedPreview.answerText} mode="auto" />
+                            </div>
+                          ) : null}
                         </div>
                       ) : computedPreviewStatus === 'error' ? (
                         <p className="cogita-help">{copy.cogita.library.add.info.computedPreviewFail}</p>
