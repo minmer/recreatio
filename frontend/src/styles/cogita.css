@@ -2413,6 +2413,30 @@
   animation: revisionFlashRed 0.7s ease;
 }
 
+.cogita-revision-card .ghost[data-active='true'] {
+  border-color: rgba(130, 200, 255, 0.65);
+  background: rgba(90, 150, 220, 0.18);
+  color: #e5f2ff;
+  box-shadow: inset 0 0 0 1px rgba(150, 210, 255, 0.35), 0 12px 22px rgba(40, 90, 140, 0.25);
+}
+
+.cogita-revision-inline-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  color: #eaf2ff;
+  line-height: 1.6;
+}
+
+.cogita-revision-inline-answer .cogita-inline-input {
+  min-width: 6.5rem;
+  max-width: 14rem;
+  height: 2.6rem;
+  resize: none;
+  display: inline-block;
+}
+
 .cogita-revision-header {
   display: flex;
   justify-content: space-between;

@@ -149,8 +149,8 @@ export function CogitaRevisionRunPage({
   const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
-  const [computedSentenceFeedback, setComputedSentenceFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [computedValues, setComputedValues] = useState<Record<string, number | string> | null>(null);
+  const [computedAnswerTemplate, setComputedAnswerTemplate] = useState<string | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
@@ -159,14 +159,15 @@ export function CogitaRevisionRunPage({
   const [canAdvance, setCanAdvance] = useState(false);
 
   const currentCard = queue[currentIndex] ?? null;
-  const computedSampleCache = useRef(new Map<string, CogitaComputedSample>());
-  const computedSamplePromises = useRef(new Map<string, Promise<CogitaComputedSample | null>>());
+  const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
+  const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
   const resolvedCardCache = useRef(new Map<string, {
     prompt: string | null;
     expectedAnswer: string | null;
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     computedValues: Record<string, number | string> | null;
+    answerTemplate: string | null;
   }>());
   const resolvedCardPromises = useRef(new Map<string, Promise<{
     prompt: string | null;
@@ -174,6 +175,7 @@ export function CogitaRevisionRunPage({
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     computedValues: Record<string, number | string> | null;
+    answerTemplate: string | null;
   } | null>>());
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
@@ -256,7 +258,7 @@ export function CogitaRevisionRunPage({
     setComputedExpected([]);
     setComputedAnswers({});
     setComputedFieldFeedback({});
-    setComputedSentenceFeedback(null);
+    setComputedAnswerTemplate(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -279,6 +281,7 @@ export function CogitaRevisionRunPage({
       setComputedExpected(resolved.computedExpected);
       setComputedAnswers(resolved.computedAnswers);
       setComputedValues(resolved.computedValues);
+      setComputedAnswerTemplate(resolved.answerTemplate);
     });
     return () => {
       mounted = false;
@@ -405,7 +408,10 @@ export function CogitaRevisionRunPage({
     });
   };
 
-  const fetchComputedSample = (infoId: string, cacheKey: string): Promise<CogitaComputedSample | null> => {
+  const fetchComputedSample = (
+    infoId: string,
+    cacheKey: string
+  ): Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }> => {
     const cached = computedSampleCache.current.get(cacheKey);
     if (cached) return Promise.resolve(cached);
     const existing = computedSamplePromises.current.get(cacheKey);
@@ -421,21 +427,24 @@ export function CogitaRevisionRunPage({
         const computed = buildComputedSampleFromGraph(graph, promptTemplate, answerTemplate);
         if (computed) {
           const sample = toComputedSample(computed);
-          computedSampleCache.current.set(cacheKey, sample);
-          return sample;
+          const result = { sample, answerTemplate: answerTemplate || null };
+          computedSampleCache.current.set(cacheKey, result);
+          return result;
         }
         return getCogitaComputedSample({ libraryId, infoId }).then((sample) => {
-          computedSampleCache.current.set(cacheKey, sample);
-          return sample;
+          const result = { sample, answerTemplate: null };
+          computedSampleCache.current.set(cacheKey, result);
+          return result;
         });
       })
       .catch(() =>
         getCogitaComputedSample({ libraryId, infoId })
           .then((sample) => {
-            computedSampleCache.current.set(cacheKey, sample);
-            return sample;
+            const result = { sample, answerTemplate: null };
+            computedSampleCache.current.set(cacheKey, result);
+            return result;
           })
-          .catch(() => null)
+          .catch(() => ({ sample: null, answerTemplate: null }))
       )
       .finally(() => {
         computedSamplePromises.current.delete(cacheKey);
@@ -450,6 +459,7 @@ export function CogitaRevisionRunPage({
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
     computedValues: Record<string, number | string> | null;
+    answerTemplate: string | null;
   } | null> => {
     const cacheKey = `${card.cardId}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
@@ -463,6 +473,7 @@ export function CogitaRevisionRunPage({
       computedExpected: Array<{ key: string; expected: string }>;
       computedAnswers: Record<string, string>;
       computedValues: Record<string, number | string> | null;
+      answerTemplate: string | null;
     }) => {
       resolvedCardCache.current.set(cacheKey, resolved);
       return resolved;
@@ -474,6 +485,7 @@ export function CogitaRevisionRunPage({
       computedExpected: Array<{ key: string; expected: string }>;
       computedAnswers: Record<string, string>;
       computedValues: Record<string, number | string> | null;
+      answerTemplate: string | null;
     } | null>;
 
     if (card.cardType === 'vocab') {
@@ -488,7 +500,8 @@ export function CogitaRevisionRunPage({
             expectedAnswer: expected,
             computedExpected: [],
             computedAnswers: {},
-            computedValues: null
+            computedValues: null,
+            answerTemplate: null
           })
         );
       } else {
@@ -498,7 +511,8 @@ export function CogitaRevisionRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
-            computedValues: null
+            computedValues: null,
+            answerTemplate: null
           })
         );
       }
@@ -512,21 +526,24 @@ export function CogitaRevisionRunPage({
           expectedAnswer: match,
           computedExpected: [],
           computedAnswers: {},
-          computedValues: null
+          computedValues: null,
+          answerTemplate: null
         })
       );
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
       promise = fetchComputedSample(card.cardId, cacheKey)
-        .then((sample) => {
-          if (!sample) {
+        .then((result) => {
+          if (!result.sample) {
             return finalize({
               prompt: card.label,
               expectedAnswer: null,
               computedExpected: [],
               computedAnswers: {},
-              computedValues: null
+              computedValues: null,
+              answerTemplate: null
             });
           }
+          const sample = result.sample;
           const expectedEntries = sample.expectedAnswers
             ? Object.entries(sample.expectedAnswers).map(([key, value]) => ({ key, expected: value }))
             : [];
@@ -542,7 +559,8 @@ export function CogitaRevisionRunPage({
             expectedAnswer: expectedEntries.length > 0 ? sentenceExpected : sample.expectedAnswer?.trim() || null,
             computedExpected: expectedEntries,
             computedAnswers,
-            computedValues: sample.values ?? null
+            computedValues: sample.values ?? null,
+            answerTemplate: result.answerTemplate
           });
         })
         .catch(() =>
@@ -551,7 +569,8 @@ export function CogitaRevisionRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
-            computedValues: null
+            computedValues: null,
+            answerTemplate: null
           })
         )
         .finally(() => {
@@ -564,7 +583,8 @@ export function CogitaRevisionRunPage({
           expectedAnswer: null,
           computedExpected: [],
           computedAnswers: {},
-          computedValues: null
+          computedValues: null,
+          answerTemplate: null
         })
       );
     }
@@ -587,17 +607,10 @@ export function CogitaRevisionRunPage({
         acc[entry.key] = normalizeAnswer(actual) === normalizeAnswer(entry.expected) ? 'correct' : 'incorrect';
         return acc;
       }, {});
-      const sentenceExpected = expectedAnswer?.trim() || null;
-      const sentenceCorrect = sentenceExpected
-        ? normalizeAnswer(answer) === normalizeAnswer(sentenceExpected)
-        : true;
       const allCorrect = computedExpected.every(({ key, expected }) => {
         const actual = computedAnswers[key] ?? '';
         return check === 'exact' && normalizeAnswer(actual) === normalizeAnswer(expected);
-      }) && sentenceCorrect;
-      setComputedSentenceFeedback(
-        sentenceExpected ? (sentenceCorrect ? 'correct' : 'incorrect') : null
-      );
+      });
       if (allCorrect) {
         setFeedback('correct');
         setComputedFieldFeedback(fieldFeedback);
@@ -616,10 +629,6 @@ export function CogitaRevisionRunPage({
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(false);
         window.setTimeout(() => {
-          if (sentenceExpected && !answer.trim()) {
-            answerInputRef.current?.focus();
-            return;
-          }
           const first = computedExpected[0]?.key;
           if (first && computedInputRefs.current[first]) {
             computedInputRefs.current[first]?.focus();
@@ -704,10 +713,6 @@ export function CogitaRevisionRunPage({
     const emptyEntry = computedExpected.find((entry) => !(computedAnswers[entry.key] ?? '').trim());
     if (emptyEntry) {
       computedInputRefs.current[emptyEntry.key]?.focus();
-      return;
-    }
-    if (expectedAnswer?.trim() && !answer.trim()) {
-      answerInputRef.current?.focus();
       return;
     }
     handleCheckAnswer();
@@ -830,10 +835,7 @@ export function CogitaRevisionRunPage({
                         [key]: applyScriptMode(prev[key] ?? '', value, scriptMode)
                       }))
                     }
-                    sentenceExpected={computedExpected.length > 0 ? expectedAnswer : null}
-                    sentenceAnswer={answer}
-                    onSentenceAnswerChange={(value) => setAnswer((prev) => applyScriptMode(prev, value, scriptMode))}
-                    sentenceFeedback={computedSentenceFeedback}
+                    answerTemplate={computedAnswerTemplate}
                     computedFieldFeedback={computedFieldFeedback}
                     feedback={feedback}
                     canAdvance={canAdvance}
