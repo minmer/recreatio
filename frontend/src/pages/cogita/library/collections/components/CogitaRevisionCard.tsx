@@ -122,7 +122,7 @@ export function CogitaRevisionCard({
               onChange={(event) => onComputedAnswerChange(part.value, event.target.value)}
               placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
               data-state={computedFieldFeedback[part.value] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
-              onKeyDown={handleComputedKeyDown}
+              onKeyDown={(event) => handleScriptToggleKeyDown(event) || handleComputedKeyDown(event)}
               className="cogita-inline-input"
               style={{
                 minWidth: `${Math.max(5, (expectedByKey.get(part.value)?.length ?? 6))}ch`,
@@ -133,6 +133,25 @@ export function CogitaRevisionCard({
         )}
       </div>
     );
+  };
+
+  const showScriptToggles = (() => {
+    const text = [prompt ?? '', answerTemplate ?? '', expectedAnswer ?? ''].join('');
+    return /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ^_]/.test(text);
+  })();
+
+  const handleScriptToggleKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (event.ctrlKey && (event.key === '^' || event.key === '6')) {
+      event.preventDefault();
+      setScriptMode((prev) => (prev === 'super' ? null : 'super'));
+      return true;
+    }
+    if (event.ctrlKey && (event.key === '_' || event.key === '-')) {
+      event.preventDefault();
+      setScriptMode((prev) => (prev === 'sub' ? null : 'sub'));
+      return true;
+    }
+    return false;
   };
 
   return (
@@ -165,24 +184,26 @@ export function CogitaRevisionCard({
               }}
             />
           </label>
-          <div className="cogita-form-actions">
-            <button
-              type="button"
-              className="ghost"
-              data-active={scriptMode === 'super'}
-              onClick={() => setScriptMode((prev) => (prev === 'super' ? null : 'super'))}
-            >
-              x²
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              data-active={scriptMode === 'sub'}
-              onClick={() => setScriptMode((prev) => (prev === 'sub' ? null : 'sub'))}
-            >
-              x₂
-            </button>
-          </div>
+          {showScriptToggles ? (
+            <div className="cogita-form-actions">
+              <button
+                type="button"
+                className="ghost"
+                data-active={scriptMode === 'super'}
+                onClick={() => setScriptMode((prev) => (prev === 'super' ? null : 'super'))}
+              >
+                x²
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                data-active={scriptMode === 'sub'}
+                onClick={() => setScriptMode((prev) => (prev === 'sub' ? null : 'sub'))}
+              >
+                x₂
+              </button>
+            </div>
+          ) : null}
           <div className="cogita-form-actions">
             <button type="button" className="cta" onClick={onCheckAnswer}>
               {copy.cogita.library.revision.checkAnswer}
@@ -215,7 +236,7 @@ export function CogitaRevisionCard({
                         onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
                         placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
                         data-state={computedFieldFeedback[entry.key] ?? (feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined)}
-                        onKeyDown={handleComputedKeyDown}
+                        onKeyDown={(event) => handleScriptToggleKeyDown(event) || handleComputedKeyDown(event)}
                       />
                     </label>
                   ))}
@@ -233,6 +254,7 @@ export function CogitaRevisionCard({
                   placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
                   data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
                   onKeyDown={(event) => {
+                    if (handleScriptToggleKeyDown(event)) return;
                     if (event.key !== 'Enter') return;
                     event.preventDefault();
                     event.stopPropagation();
@@ -246,24 +268,26 @@ export function CogitaRevisionCard({
               </label>
             </div>
           )}
-          <div className="cogita-form-actions">
-            <button
-              type="button"
-              className="ghost"
-              data-active={scriptMode === 'super'}
-              onClick={() => setScriptMode((prev) => (prev === 'super' ? null : 'super'))}
-            >
-              x²
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              data-active={scriptMode === 'sub'}
-              onClick={() => setScriptMode((prev) => (prev === 'sub' ? null : 'sub'))}
-            >
-              x₂
-            </button>
-          </div>
+          {showScriptToggles ? (
+            <div className="cogita-form-actions">
+              <button
+                type="button"
+                className="ghost"
+                data-active={scriptMode === 'super'}
+                onClick={() => setScriptMode((prev) => (prev === 'super' ? null : 'super'))}
+              >
+                x²
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                data-active={scriptMode === 'sub'}
+                onClick={() => setScriptMode((prev) => (prev === 'sub' ? null : 'sub'))}
+              >
+                x₂
+              </button>
+            </div>
+          ) : null}
           <div className="cogita-form-actions">
             <button type="button" className="cta" onClick={onCheckAnswer}>
               {copy.cogita.library.revision.checkAnswer}

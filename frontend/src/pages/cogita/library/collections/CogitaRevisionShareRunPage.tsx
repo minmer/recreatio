@@ -97,6 +97,25 @@ const shuffle = <T,>(items: T[]) => {
   return copy;
 };
 
+const getFirstComputedInputKey = (
+  template: string | null,
+  expected: Array<{ key: string; expected: string }>,
+  outputVariables: Record<string, string> | null
+) => {
+  if (!template) return expected[0]?.key ?? null;
+  const expectedKeys = new Set(expected.map((entry) => entry.key));
+  const pattern = /\{([^}]+)\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(template)) !== null) {
+    const token = match[1]?.trim() ?? '';
+    if (!token) continue;
+    if (expectedKeys.has(token)) return token;
+    const resolved = outputVariables?.[token];
+    if (resolved && expectedKeys.has(resolved)) return resolved;
+  }
+  return expected[0]?.key ?? null;
+};
+
 export function CogitaRevisionShareRunPage({
   copy,
   authLabel,
@@ -310,9 +329,13 @@ export function CogitaRevisionShareRunPage({
     const focusInput = () => {
       if (currentCard.cardType === 'info' && currentCard.infoType === 'computed') {
         if (computedExpected.length > 0) {
-          const key = computedExpected[0]?.key;
-          if (key && computedInputRefs.current[key]) {
-            computedInputRefs.current[key]?.focus();
+          const firstKey = getFirstComputedInputKey(
+            computedAnswerTemplate,
+            computedExpected,
+            computedOutputVariables
+          );
+          if (firstKey && computedInputRefs.current[firstKey]) {
+            computedInputRefs.current[firstKey]?.focus();
             return;
           }
         }
@@ -569,7 +592,11 @@ export function CogitaRevisionShareRunPage({
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(false);
         window.setTimeout(() => {
-          const first = computedExpected[0]?.key;
+          const first = getFirstComputedInputKey(
+            computedAnswerTemplate,
+            computedExpected,
+            computedOutputVariables
+          );
           if (first && computedInputRefs.current[first]) {
             computedInputRefs.current[first]?.focus();
           }

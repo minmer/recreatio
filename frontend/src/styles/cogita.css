@@ -2415,9 +2415,10 @@
 
 .cogita-revision-card .ghost[data-active='true'] {
   border-color: rgba(130, 200, 255, 0.65);
-  background: rgba(90, 150, 220, 0.18);
+  background: rgba(90, 150, 220, 0.32);
   color: #e5f2ff;
-  box-shadow: inset 0 0 0 1px rgba(150, 210, 255, 0.35), 0 12px 22px rgba(40, 90, 140, 0.25);
+  box-shadow: inset 0 0 0 2px rgba(170, 225, 255, 0.45), 0 14px 26px rgba(40, 90, 140, 0.3);
+  transform: translateY(-1px);
 }
 
 .cogita-revision-inline-answer {
