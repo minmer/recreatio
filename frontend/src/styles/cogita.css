@@ -2269,6 +2269,7 @@
   margin: 1.4rem auto 0;
   display: grid;
   gap: 1.2rem;
+  color: #e7f1ff;
 }
 
 .cogita-revision-insight-grid {
@@ -2285,6 +2286,7 @@
   display: grid;
   gap: 0.4rem;
   box-shadow: 0 18px 40px rgba(5, 14, 24, 0.35);
+  color: #e7f1ff;
 }
 
 .cogita-revision-levels {
@@ -2294,6 +2296,7 @@
   padding: 1.2rem;
   display: grid;
   gap: 1rem;
+  color: #e7f1ff;
 }
 
 .cogita-revision-levels-header {

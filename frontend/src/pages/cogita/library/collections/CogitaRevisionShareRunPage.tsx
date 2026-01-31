@@ -545,9 +545,13 @@ export function CogitaRevisionShareRunPage({
       correct: options.correct,
       maskBase64: mask.length ? toBase64(mask) : null,
       payloadBase64: toBase64(payloadBytes)
-    }).then(() => {
-      refreshKnowness(itemType, currentCard.cardId);
-    });
+    })
+      .then(() => {
+        refreshKnowness(itemType, currentCard.cardId);
+      })
+      .catch(() => {
+        // local store may be unavailable
+      });
   };
 
   const fetchComputedSample = (

@@ -552,10 +552,14 @@ export function CogitaRevisionRunPage({
       maskBase64: mask.length ? toBase64(mask) : null,
       payloadBase64: toBase64(payloadBytes),
       personRoleId: reviewer ?? null
-    }).then(() => {
-      refreshKnowness(itemType, currentCard.cardId);
-      void syncPendingOutcomes(libraryId, reviewer);
-    });
+    })
+      .then(() => {
+        refreshKnowness(itemType, currentCard.cardId);
+        void syncPendingOutcomes(libraryId, reviewer);
+      })
+      .catch(() => {
+        // local store may be unavailable
+      });
   };
 
   const fetchComputedSample = (

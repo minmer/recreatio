@@ -48,11 +48,26 @@ const withStore = async <T,>(mode: IDBTransactionMode, handler: (store: IDBObjec
   });
 };
 
+const createId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const buffer = new Uint8Array(16);
+    crypto.getRandomValues(buffer);
+    const hex = Array.from(buffer).map((value) => value.toString(16).padStart(2, '0'));
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex
+      .slice(8, 10)
+      .join('')}-${hex.slice(10, 16).join('')}`;
+  }
+  return `client-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+};
+
 const getClientId = () => {
   const key = 'cogita_revision_client_id';
   const existing = localStorage.getItem(key);
   if (existing) return existing;
-  const id = crypto.randomUUID();
+  const id = createId();
   localStorage.setItem(key, id);
   return id;
 };
@@ -76,7 +91,7 @@ export const recordOutcome = async (payload: Omit<RevisionOutcomePayload, 'clien
     clientId,
     clientSequence,
     createdUtc,
-    id: crypto.randomUUID(),
+    id: createId(),
     pending: true
   };
   await withStore('readwrite', (store) => new Promise<void>((resolve, reject) => {
