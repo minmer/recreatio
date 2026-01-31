@@ -135,8 +135,8 @@ export function CogitaRevisionCard({
               onKeyDown={(event) => handleScriptToggleKeyDown(event) || handleComputedKeyDown(event)}
               className="cogita-inline-input"
               style={{
-                minWidth: `${Math.max(5, (expectedByKey.get(part.value)?.length ?? 6))}ch`,
-                width: `${Math.max(5, (computedAnswers[part.value]?.length ?? 0), (expectedByKey.get(part.value)?.length ?? 6))}ch`
+                minWidth: '5rem',
+                width: `${Math.max(6, (computedAnswers[part.value]?.length ?? 0), (expectedByKey.get(part.value)?.length ?? 6))}ch`
               }}
             />
           )
@@ -161,7 +161,12 @@ export function CogitaRevisionCard({
   }, [currentCard, computedExpected, inlineTemplate]);
 
   const showScriptToggles = (() => {
-    const text = [answer, ...Object.values(computedAnswers)].join('');
+    const expectedText = [
+      expectedAnswer ?? '',
+      ...computedExpected.map((entry) => entry.expected ?? '')
+    ].join('');
+    const inputText = [answer, ...Object.values(computedAnswers)].join('');
+    const text = `${expectedText}${inputText}`;
     return /[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ]/.test(text);
   })();
 
