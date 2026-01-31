@@ -992,8 +992,16 @@ public static class CogitaEndpoints
                         encryptionService,
                         dbContext,
                         ct);
-                    var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-                        .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+                    var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                        .ToListAsync(ct);
+                    var wordLanguageMap = new Dictionary<Guid, Guid>();
+                    foreach (var row in wordLanguageRows)
+                    {
+                        if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                        {
+                            wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                        }
+                    }
                     var connectionTags = new Dictionary<Guid, HashSet<Guid>>();
                     if (topicId.HasValue || levelId.HasValue)
                     {
@@ -3936,8 +3944,16 @@ public static class CogitaEndpoints
                 .Where(x => dataKeyIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id, ct);
 
-            var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-                .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+            var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .ToListAsync(ct);
+            var wordLanguageMap = new Dictionary<Guid, Guid>();
+            foreach (var row in wordLanguageRows)
+            {
+                if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                {
+                    wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                }
+            }
 
             var languageLabels = await ResolveInfoLabelsAsync(
                 libraryId,
@@ -7519,8 +7535,16 @@ public static class CogitaEndpoints
             .Where(x => dataKeyIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
 
-        var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-            .ToDictionaryAsync(x => x.WordInfoId, x => x.LanguageInfoId, ct);
+        var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+            .ToListAsync(ct);
+        var wordLanguageMap = new Dictionary<Guid, Guid>();
+        foreach (var row in wordLanguageRows)
+        {
+            if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+            {
+                wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+            }
+        }
 
         var languageLabels = await ResolveInfoLabelsAsync(
             libraryId,
