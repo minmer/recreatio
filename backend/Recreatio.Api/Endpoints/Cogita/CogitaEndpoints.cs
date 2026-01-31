@@ -2829,22 +2829,25 @@ public static class CogitaEndpoints
                 var edges = await dbContext.CogitaCollectionGraphEdges.AsNoTracking()
                     .Where(x => x.GraphId == graph.Id)
                     .ToListAsync(ct);
+                var hasOutputNodes = nodes.Any(n => n.NodeType.Trim().Equals("output.collection", StringComparison.OrdinalIgnoreCase));
 
-                var graphResult = await EvaluateCollectionGraphAsync(
-                    share.LibraryId,
-                    graph,
-                    nodes,
-                    edges,
-                    readKey,
-                    keyRingService,
-                    encryptionService,
-                    dbContext,
-                    ct);
-
-                if (graphResult.Items.Count == 0)
+                if (nodes.Count > 0 && hasOutputNodes)
                 {
-                    return Results.Ok(new CogitaCardSearchBundleResponse(0, pageSize, null, new List<CogitaCardSearchResponse>()));
-                }
+                    var graphResult = await EvaluateCollectionGraphAsync(
+                        share.LibraryId,
+                        graph,
+                        nodes,
+                        edges,
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
+
+                    if (graphResult.Items.Count == 0)
+                    {
+                        return Results.Ok(new CogitaCardSearchBundleResponse(0, pageSize, null, new List<CogitaCardSearchResponse>()));
+                    }
 
                 var infoIds = graphResult.Items.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
                 var connectionIds = graphResult.Items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
@@ -2890,11 +2893,12 @@ public static class CogitaEndpoints
                     dbContext,
                     ct);
 
-                return Results.Ok(new CogitaCardSearchBundleResponse(
-                    graphResult.Total,
-                    pageSize,
-                    nextCursor,
-                    graphResponses));
+                    return Results.Ok(new CogitaCardSearchBundleResponse(
+                        graphResult.Total,
+                        pageSize,
+                        nextCursor,
+                        graphResponses));
+                }
             }
 
             var itemsQuery = dbContext.CogitaCollectionItems.AsNoTracking()
@@ -3708,183 +3712,187 @@ public static class CogitaEndpoints
                 var edges = await dbContext.CogitaCollectionGraphEdges.AsNoTracking()
                     .Where(x => x.GraphId == graph.Id)
                     .ToListAsync(ct);
+                var hasOutputNodes = nodes.Any(n => n.NodeType.Trim().Equals("output.collection", StringComparison.OrdinalIgnoreCase));
 
-                var graphResult = await EvaluateCollectionGraphAsync(
-                    libraryId,
-                    graph,
-                    nodes,
-                    edges,
-                    readKey,
-                    keyRingService,
-                    encryptionService,
-                    dbContext,
-                    ct);
-
-                if (graphResult.Items.Count == 0)
+                if (nodes.Count > 0 && hasOutputNodes)
                 {
-                    return Results.Ok(new CogitaCardSearchBundleResponse(0, pageSize, null, new List<CogitaCardSearchResponse>()));
-                }
+                    var graphResult = await EvaluateCollectionGraphAsync(
+                        libraryId,
+                        graph,
+                        nodes,
+                        edges,
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
 
-                var infoIds = graphResult.Items.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
-                var connectionIds = graphResult.Items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
-
-                var infoMeta = await dbContext.CogitaInfos.AsNoTracking()
-                    .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.Id))
-                    .Select(x => new { x.Id, x.CreatedUtc, x.InfoType })
-                    .ToListAsync(ct);
-                var connectionMeta = await dbContext.CogitaConnections.AsNoTracking()
-                    .Where(x => x.LibraryId == libraryId && connectionIds.Contains(x.Id))
-                    .Select(x => new { x.Id, x.CreatedUtc, x.ConnectionType })
-                    .ToListAsync(ct);
-
-                var orderedItems = infoMeta
-                    .Select(x => new { ItemType = "info", ItemId = x.Id, x.CreatedUtc })
-                    .Concat(connectionMeta.Select(x => new { ItemType = "connection", ItemId = x.Id, x.CreatedUtc }))
-                    .ToList();
-
-                if (cursorCreatedUtc.HasValue && cursorGraphId.HasValue)
-                {
-                    orderedItems = orderedItems
-                        .Where(x => x.CreatedUtc < cursorCreatedUtc.Value ||
-                                    (x.CreatedUtc == cursorCreatedUtc.Value && x.ItemId.CompareTo(cursorGraphId.Value) < 0))
-                        .ToList();
-                }
-
-                var itemsPageGraph = orderedItems
-                    .OrderByDescending(x => x.CreatedUtc)
-                    .ThenByDescending(x => x.ItemId)
-                    .Take(pageSize)
-                    .ToList();
-
-                var nextCursorGraph = itemsPageGraph.Count > 0
-                    ? $"{itemsPageGraph[^1].CreatedUtc:O}:{itemsPageGraph[^1].ItemId}"
-                    : null;
-
-                var infoItemIdsGraph = itemsPageGraph.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
-                var connectionItemIdsGraph = itemsPageGraph.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
-
-                var infosGraph = await dbContext.CogitaInfos.AsNoTracking()
-                    .Where(x => x.LibraryId == libraryId && infoItemIdsGraph.Contains(x.Id))
-                    .ToListAsync(ct);
-
-                var lookupGraph = new Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>();
-                foreach (var info in infosGraph)
-                {
-                    var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
-                    if (payload is null)
+                    if (graphResult.Items.Count == 0)
                     {
-                        continue;
-                    }
-                    lookupGraph[info.Id] = (info.Id, info.InfoType, payload.Value.DataKeyId, payload.Value.EncryptedBlob);
-                }
-
-                var dataKeyIdsGraph = lookupGraph.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
-                var keyEntryByIdGraph = await dbContext.Keys.AsNoTracking()
-                    .Where(x => dataKeyIdsGraph.Contains(x.Id))
-                    .ToDictionaryAsync(x => x.Id, ct);
-
-                var infoResponsesGraph = new Dictionary<Guid, CogitaCardSearchResponse>();
-                foreach (var entry in lookupGraph.Values)
-                {
-                    if (!keyEntryByIdGraph.TryGetValue(entry.DataKeyId, out var keyEntry))
-                    {
-                        continue;
+                        return Results.Ok(new CogitaCardSearchBundleResponse(0, pageSize, null, new List<CogitaCardSearchResponse>()));
                     }
 
-                    byte[] dataKey;
-                    try
-                    {
-                        dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
-                    }
-                    catch (CryptographicException)
-                    {
-                        continue;
-                    }
+                    var infoIds = graphResult.Items.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
+                    var connectionIds = graphResult.Items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
 
-                    string label;
-                    string description;
-                    try
-                    {
-                        var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
-                        using var doc = JsonDocument.Parse(plain);
-                        label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                        description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                    }
-                    catch (CryptographicException)
-                    {
-                        continue;
-                    }
-
-                    infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
-                }
-
-                var connectionResponsesGraph = new Dictionary<Guid, CogitaCardSearchResponse>();
-                if (connectionItemIdsGraph.Count > 0)
-                {
-                    var connections = await dbContext.CogitaConnections.AsNoTracking()
-                        .Where(x => x.LibraryId == libraryId && connectionItemIdsGraph.Contains(x.Id))
+                    var infoMeta = await dbContext.CogitaInfos.AsNoTracking()
+                        .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.Id))
+                        .Select(x => new { x.Id, x.CreatedUtc, x.InfoType })
+                        .ToListAsync(ct);
+                    var connectionMeta = await dbContext.CogitaConnections.AsNoTracking()
+                        .Where(x => x.LibraryId == libraryId && connectionIds.Contains(x.Id))
+                        .Select(x => new { x.Id, x.CreatedUtc, x.ConnectionType })
                         .ToListAsync(ct);
 
-                    var connectionLookup = connections.ToDictionary(x => x.Id, x => x);
-
-                    var translationIds = connections
-                        .Where(x => x.ConnectionType == "translation")
-                        .Select(x => x.Id)
+                    var orderedItems = infoMeta
+                        .Select(x => new { ItemType = "info", ItemId = x.Id, x.CreatedUtc })
+                        .Concat(connectionMeta.Select(x => new { ItemType = "connection", ItemId = x.Id, x.CreatedUtc }))
                         .ToList();
 
-                    if (translationIds.Count > 0)
+                    if (cursorCreatedUtc.HasValue && cursorGraphId.HasValue)
                     {
-                        var translationResponses = await BuildTranslationCardResponsesAsync(
-                            libraryId,
-                            translationIds,
-                            readKey,
-                            keyRingService,
-                            encryptionService,
-                            dbContext,
-                            ct);
-                        foreach (var response in translationResponses)
-                        {
-                            connectionResponsesGraph[response.CardId] = response;
-                        }
+                        orderedItems = orderedItems
+                            .Where(x => x.CreatedUtc < cursorCreatedUtc.Value ||
+                                        (x.CreatedUtc == cursorCreatedUtc.Value && x.ItemId.CompareTo(cursorGraphId.Value) < 0))
+                            .ToList();
                     }
 
-                    foreach (var connection in connections)
+                    var itemsPageGraph = orderedItems
+                        .OrderByDescending(x => x.CreatedUtc)
+                        .ThenByDescending(x => x.ItemId)
+                        .Take(pageSize)
+                        .ToList();
+
+                    var nextCursorGraph = itemsPageGraph.Count > 0
+                        ? $"{itemsPageGraph[^1].CreatedUtc:O}:{itemsPageGraph[^1].ItemId}"
+                        : null;
+
+                    var infoItemIdsGraph = itemsPageGraph.Where(x => x.ItemType == "info").Select(x => x.ItemId).ToList();
+                    var connectionItemIdsGraph = itemsPageGraph.Where(x => x.ItemType == "connection").Select(x => x.ItemId).ToList();
+
+                    var infosGraph = await dbContext.CogitaInfos.AsNoTracking()
+                        .Where(x => x.LibraryId == libraryId && infoItemIdsGraph.Contains(x.Id))
+                        .ToListAsync(ct);
+
+                    var lookupGraph = new Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>();
+                    foreach (var info in infosGraph)
                     {
-                        if (connection.ConnectionType == "translation")
+                        var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+                        if (payload is null)
+                        {
+                            continue;
+                        }
+                        lookupGraph[info.Id] = (info.Id, info.InfoType, payload.Value.DataKeyId, payload.Value.EncryptedBlob);
+                    }
+
+                    var dataKeyIdsGraph = lookupGraph.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+                    var keyEntryByIdGraph = await dbContext.Keys.AsNoTracking()
+                        .Where(x => dataKeyIdsGraph.Contains(x.Id))
+                        .ToDictionaryAsync(x => x.Id, ct);
+
+                    var infoResponsesGraph = new Dictionary<Guid, CogitaCardSearchResponse>();
+                    foreach (var entry in lookupGraph.Values)
+                    {
+                        if (!keyEntryByIdGraph.TryGetValue(entry.DataKeyId, out var keyEntry))
                         {
                             continue;
                         }
 
-                        connectionResponsesGraph[connection.Id] = new CogitaCardSearchResponse(
-                            connection.Id,
-                            "connection",
-                            connection.ConnectionType,
-                            "Connection",
-                            null
-                        );
-                    }
-                }
-
-                var orderedResponsesGraph = new List<CogitaCardSearchResponse>();
-                foreach (var item in itemsPageGraph)
-                {
-                    if (item.ItemType == "info")
-                    {
-                        if (infoResponsesGraph.TryGetValue(item.ItemId, out var response))
+                        byte[] dataKey;
+                        try
                         {
-                            orderedResponsesGraph.Add(response);
+                            dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                        }
+                        catch (CryptographicException)
+                        {
+                            continue;
+                        }
+
+                        string label;
+                        string description;
+                        try
+                        {
+                            var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                            using var doc = JsonDocument.Parse(plain);
+                            label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                            description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                        }
+                        catch (CryptographicException)
+                        {
+                            continue;
+                        }
+
+                        infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
+                    }
+
+                    var connectionResponsesGraph = new Dictionary<Guid, CogitaCardSearchResponse>();
+                    if (connectionItemIdsGraph.Count > 0)
+                    {
+                        var connections = await dbContext.CogitaConnections.AsNoTracking()
+                            .Where(x => x.LibraryId == libraryId && connectionItemIdsGraph.Contains(x.Id))
+                            .ToListAsync(ct);
+
+                        var connectionLookup = connections.ToDictionary(x => x.Id, x => x);
+
+                        var translationIds = connections
+                            .Where(x => x.ConnectionType == "translation")
+                            .Select(x => x.Id)
+                            .ToList();
+
+                        if (translationIds.Count > 0)
+                        {
+                            var translationResponses = await BuildTranslationCardResponsesAsync(
+                                libraryId,
+                                translationIds,
+                                readKey,
+                                keyRingService,
+                                encryptionService,
+                                dbContext,
+                                ct);
+                            foreach (var response in translationResponses)
+                            {
+                                connectionResponsesGraph[response.CardId] = response;
+                            }
+                        }
+
+                        foreach (var connection in connections)
+                        {
+                            if (connection.ConnectionType == "translation")
+                            {
+                                continue;
+                            }
+
+                            connectionResponsesGraph[connection.Id] = new CogitaCardSearchResponse(
+                                connection.Id,
+                                "connection",
+                                connection.ConnectionType,
+                                "Connection",
+                                null
+                            );
                         }
                     }
-                    else if (item.ItemType == "connection")
+
+                    var orderedResponsesGraph = new List<CogitaCardSearchResponse>();
+                    foreach (var item in itemsPageGraph)
                     {
-                        if (connectionResponsesGraph.TryGetValue(item.ItemId, out var response))
+                        if (item.ItemType == "info")
                         {
-                            orderedResponsesGraph.Add(response);
+                            if (infoResponsesGraph.TryGetValue(item.ItemId, out var response))
+                            {
+                                orderedResponsesGraph.Add(response);
+                            }
+                        }
+                        else if (item.ItemType == "connection")
+                        {
+                            if (connectionResponsesGraph.TryGetValue(item.ItemId, out var response))
+                            {
+                                orderedResponsesGraph.Add(response);
+                            }
                         }
                     }
-                }
 
-                return Results.Ok(new CogitaCardSearchBundleResponse(graphResult.Total, pageSize, nextCursorGraph, orderedResponsesGraph));
+                    return Results.Ok(new CogitaCardSearchBundleResponse(graphResult.Total, pageSize, nextCursorGraph, orderedResponsesGraph));
+                }
             }
 
             int? cursorSort = null;
