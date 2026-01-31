@@ -2371,6 +2371,26 @@
   box-shadow: 0 0 0 2px rgba(255, 215, 140, 0.3);
 }
 
+.cogita-revision-level-bar {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(120, 170, 220, 0.18);
+  overflow: hidden;
+}
+
+.cogita-revision-level-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(120, 200, 255, 0.85), rgba(140, 230, 200, 0.9));
+}
+
+.cogita-revision-level-meta {
+  font-size: 0.75rem;
+  color: rgba(200, 220, 245, 0.85);
+  text-align: right;
+}
+
 .cogita-revision-run .cogita-revision-body {
   text-align: center;
   justify-items: center;
@@ -2506,6 +2526,50 @@
   gap: 1.4rem;
   box-shadow: 0 24px 50px rgba(5, 14, 24, 0.4);
   backdrop-filter: blur(14px);
+}
+
+.cogita-revision-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 10, 18, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.cogita-revision-loading-card {
+  width: min(420px, 90vw);
+  border-radius: 20px;
+  border: 1px solid rgba(120, 170, 220, 0.35);
+  background: rgba(10, 22, 38, 0.9);
+  padding: 1.4rem 1.6rem;
+  display: grid;
+  gap: 0.8rem;
+  color: #eaf2ff;
+  box-shadow: 0 20px 50px rgba(5, 14, 24, 0.45);
+}
+
+.cogita-revision-loading-bar {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: rgba(120, 170, 220, 0.2);
+  overflow: hidden;
+}
+
+.cogita-revision-loading-bar span {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(120, 200, 255, 0.9), rgba(140, 230, 200, 0.95));
+  transition: width 0.2s ease;
+}
+
+.cogita-revision-loading-meta {
+  font-size: 0.85rem;
+  color: rgba(210, 230, 255, 0.8);
+  text-align: right;
 }
 
 .cogita-revision-card[data-feedback='correct'] {

@@ -125,7 +125,7 @@ export const prepareLevelsState = (
   initialLevels?: Record<string, number>
 ): RevisionState => {
   const stackSize = Math.max(1, settings.stackSize ?? limit);
-  const pool = cards.slice();
+  const pool = shuffle(cards);
   const stack = pool.slice(0, stackSize);
   const levelMap: Record<string, number> = {};
   const asked = new Set<string>();

@@ -137,6 +137,35 @@ export const getOutcomesForItem = async (itemType: string, itemId: string) => {
   }
 };
 
+export const getAllOutcomes = async () => {
+  try {
+    return await withStore('readonly', (store) => new Promise<RevisionOutcomePayload[]>((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const rows = (request.result ?? []) as Array<StoredOutcome & { itemKey: string }>;
+        const outcomes = rows.map((row) => ({
+          itemType: row.itemType,
+          itemId: row.itemId,
+          revisionType: row.revisionType,
+          evalType: row.evalType,
+          correct: row.correct,
+          createdUtc: row.createdUtc,
+          maskBase64: row.maskBase64,
+          payloadBase64: row.payloadBase64,
+          payloadHashBase64: row.payloadHashBase64,
+          clientId: row.clientId,
+          clientSequence: row.clientSequence,
+          personRoleId: row.personRoleId ?? null
+        }));
+        resolve(outcomes);
+      };
+      request.onerror = () => reject(request.error);
+    }));
+  } catch {
+    return [];
+  }
+};
+
 export const getPendingOutcomes = async (limit = 100) => {
   try {
     return await withStore('readonly', (store) => new Promise<StoredOutcome[]>((resolve, reject) => {

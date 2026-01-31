@@ -21,7 +21,7 @@ import { buildComputedSampleFromGraph, toComputedSample } from '../utils/compute
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { toBase64 } from '../../../../lib/crypto';
 import { computeKnowness } from '../../../../cogita/revision/knowness';
-import { getOutcomesForItem, recordOutcome } from '../../../../cogita/revision/outcomes';
+import { getAllOutcomes, getOutcomesForItem, recordOutcome } from '../../../../cogita/revision/outcomes';
 import {
   getRevisionType,
   normalizeRevisionSettings,
@@ -149,6 +149,7 @@ export function CogitaRevisionShareRunPage({
   const [queue, setQueue] = useState<CogitaCardSearchResult[]>([]);
   const [languages, setLanguages] = useState<CogitaInfoSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [loadProgress, setLoadProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answer, setAnswer] = useState('');
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
@@ -245,17 +246,17 @@ export function CogitaRevisionShareRunPage({
     const levelMap = meta.levelMap ?? {};
     const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
     const counts = Array.from({ length: levelsCount }, () => 0);
-    const buckets = Array.from({ length: levelsCount }, () => [] as CogitaCardSearchResult[]);
     const activeSet = new Set(active.map((card) => card.cardId));
     pool.forEach((card) => {
       const level = Math.min(levelsCount, Math.max(1, levelMap[card.cardId] ?? 1));
       counts[level - 1] += 1;
-      buckets[level - 1].push(card);
     });
+    const total = pool.length || 1;
+    const percentages = counts.map((count) => (count / total) * 100);
     const currentLevel = currentCard ? (levelMap[currentCard.cardId] ?? 1) : null;
     return {
       counts,
-      buckets,
+      percentages,
       currentLevel,
       levelsCount,
       activeCount: active.length,
@@ -309,6 +310,7 @@ export function CogitaRevisionShareRunPage({
     let mounted = true;
     const fetchCards = async () => {
       setStatus('loading');
+      setLoadProgress({ current: 0, total: revisionType.getFetchLimit(limit, revisionSettings) });
       try {
         const gathered: CogitaCardSearchResult[] = [];
         let cursor: string | null | undefined = null;
@@ -320,6 +322,10 @@ export function CogitaRevisionShareRunPage({
             cursor
           });
           gathered.push(...bundle.items);
+          setLoadProgress((prev) => ({
+            current: gathered.length,
+            total: prev.total || revisionType.getFetchLimit(limit, revisionSettings)
+          }));
           cursor = bundle.nextCursor ?? null;
           if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
         } while (cursor);
@@ -328,21 +334,19 @@ export function CogitaRevisionShareRunPage({
         let initialLevels: Record<string, number> | undefined;
         if (revisionType.id === 'levels') {
           const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
-          const scores = await Promise.all(
-            gathered.map(async (card) => {
-              const itemType = card.cardType === 'info' ? 'info' : 'connection';
-              try {
-                const outcomes = await getOutcomesForItem(itemType, card.cardId);
-                if (outcomes.length > 0) return computeKnowness(outcomes).score;
-              } catch {
-                return 0;
-              }
-              return 0;
-            })
-          );
+          const outcomes = await getAllOutcomes();
+          const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
+            const key = `${outcome.itemType}:${outcome.itemId}`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(outcome);
+            return acc;
+          }, {});
           initialLevels = {};
-          gathered.forEach((card, index) => {
-            const score = scores[index] ?? 0;
+          gathered.forEach((card) => {
+            const itemType = card.cardType === 'info' ? 'info' : 'connection';
+            const key = `${itemType}:${card.cardId}`;
+            const entries = grouped[key] ?? [];
+            const score = entries.length > 0 ? computeKnowness(entries).score : 0;
             const level = Math.max(1, Math.min(levelsCount, Math.ceil((score / 100) * levelsCount)));
             initialLevels![card.cardId] = level;
           });
@@ -355,6 +359,10 @@ export function CogitaRevisionShareRunPage({
         setRevisionMeta(initial.meta);
         setCurrentIndex(0);
         setStatus('ready');
+        setLoadProgress((prev) => ({
+          current: Math.min(prev.current, prev.total),
+          total: prev.total
+        }));
       } catch {
         if (mounted) setStatus('error');
       }
@@ -948,6 +956,31 @@ export function CogitaRevisionShareRunPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
+      {(shareStatus === 'loading' || status === 'loading') && (
+        <div className="cogita-revision-loading">
+          <div className="cogita-revision-loading-card">
+            <p className="cogita-user-kicker">
+              {shareStatus === 'loading' ? copy.cogita.library.revision.shareLoading : copy.cogita.library.revision.loading}
+            </p>
+            <div className="cogita-revision-loading-bar">
+              <span
+                style={{
+                  width: `${
+                    loadProgress.total
+                      ? Math.min(100, Math.max(0, (loadProgress.current / loadProgress.total) * 100))
+                      : 0
+                  }%`
+                }}
+              />
+            </div>
+            <p className="cogita-revision-loading-meta">
+              {loadProgress.total
+                ? `${Math.min(loadProgress.current, loadProgress.total)} / ${loadProgress.total}`
+                : copy.cogita.library.revision.loading}
+            </p>
+          </div>
+        </div>
+      )}
       <section className="cogita-library-dashboard cogita-revision-run" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
@@ -1108,25 +1141,20 @@ export function CogitaRevisionShareRunPage({
                         </div>
                       </div>
                       <div className="cogita-revision-level-grid">
-                        {levelStats.buckets.map((cards, index) => {
+                        {levelStats.counts.map((count, index) => {
                           const levelNumber = index + 1;
                           const isActive = levelStats.currentLevel === levelNumber;
+                          const percent = levelStats.percentages[index] ?? 0;
                           return (
                             <div key={`level-${levelNumber}`} className="cogita-revision-level-column" data-active={isActive}>
                               <div className="cogita-revision-level-head">
                                 <span>{levelNumber}</span>
-                                <strong>{cards.length}</strong>
+                                <strong>{count}</strong>
                               </div>
-                              <div className="cogita-revision-level-cards">
-                                {cards.map((card) => (
-                                  <span
-                                    key={card.cardId}
-                                    className="cogita-revision-level-dot"
-                                    data-current={card.cardId === currentCard?.cardId}
-                                    data-active={levelStats.activeSet.has(card.cardId)}
-                                  />
-                                ))}
+                              <div className="cogita-revision-level-bar">
+                                <span style={{ width: `${Math.min(100, Math.max(0, percent))}%` }} />
                               </div>
+                              <div className="cogita-revision-level-meta">{percent.toFixed(1)}%</div>
                             </div>
                           );
                         })}
