@@ -2422,12 +2422,12 @@
 
 .cogita-revision-inline-answer {
   display: inline-flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.4rem 0.6rem;
   color: #eaf2ff;
   line-height: 1.7;
-  white-space: pre;
+  white-space: pre-wrap;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input {
