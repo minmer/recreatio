@@ -309,7 +309,7 @@ export function CogitaRevisionRunPage({
           const bundle = await getCogitaCollectionCards({
             libraryId,
             collectionId,
-            limit: 100,
+            limit: 300,
             cursor
           });
           gathered.push(...bundle.items);

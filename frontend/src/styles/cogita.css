@@ -1759,6 +1759,16 @@
   color: rgba(220, 236, 255, 0.85);
 }
 
+.cogita-detail-actions .ghost.danger {
+  border-color: rgba(230, 120, 120, 0.5);
+  color: rgba(255, 190, 190, 0.95);
+}
+
+.cogita-detail-actions .ghost.danger:hover {
+  border-color: rgba(230, 120, 120, 0.8);
+  color: #ffe6e6;
+}
+
 .cogita-card-preview {
   border: 1px solid rgba(120, 170, 220, 0.28);
   background: linear-gradient(135deg, rgba(12, 32, 52, 0.9), rgba(7, 18, 34, 0.85));

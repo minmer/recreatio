@@ -623,7 +623,10 @@ export const en: Copy = {
         computedAnswerLabel: 'Answer:',
         computedLoading: 'Generating example…',
         computedEmpty: 'No example available.',
-        editInfo: 'Edit info'
+        editInfo: 'Edit info',
+        deleteConnection: 'Delete connection',
+        deleteConnectionConfirm: 'Delete this connection? This cannot be undone.',
+        deleteConnectionFailed: 'Failed to delete connection.'
       },
       filters: {
         title: 'Filters',

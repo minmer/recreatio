@@ -867,13 +867,25 @@ public static class CogitaEndpoints
                     .Where(x => dataKeyIds.Contains(x.Id))
                     .ToDictionaryAsync(x => x.Id, ct);
 
-                var wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
-                    .GroupBy(x => x.WordInfoId)
-                    .ToDictionaryAsync(group => group.Key, group => group.Select(x => x.LanguageInfoId).First(), ct);
+                var wordInfoIds = lookup.Values
+                    .Where(entry => entry.InfoType == "word")
+                    .Select(entry => entry.InfoId)
+                    .Distinct()
+                    .ToList();
+                var wordLanguageMap = new Dictionary<Guid, Guid>();
+                if (wordInfoIds.Count > 0)
+                {
+                    wordLanguageMap = await dbContext.CogitaWordLanguages.AsNoTracking()
+                        .Where(x => wordInfoIds.Contains(x.WordInfoId))
+                        .GroupBy(x => x.WordInfoId)
+                        .ToDictionaryAsync(group => group.Key, group => group.Select(x => x.LanguageInfoId).First(), ct);
+                }
 
+                var languageIds = wordLanguageMap.Values.Distinct().ToList();
                 var languageLabels = await ResolveInfoLabelsAsync(
                     libraryId,
                     "language",
+                    languageIds,
                     readKey,
                     keyRingService,
                     encryptionService,
@@ -976,32 +988,40 @@ public static class CogitaEndpoints
                     var itemsByConnection = items.GroupBy(x => x.ConnectionId)
                         .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
 
+                    var translationWordIds = itemsByConnection.Values.SelectMany(x => x).Distinct().ToList();
                     var wordLabels = await ResolveInfoLabelsAsync(
                         libraryId,
                         "word",
+                        translationWordIds,
                         readKey,
                         keyRingService,
                         encryptionService,
                         dbContext,
                         ct);
+                    var wordLanguageMap = new Dictionary<Guid, Guid>();
+                    if (translationWordIds.Count > 0)
+                    {
+                        var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                            .Where(x => translationWordIds.Contains(x.WordInfoId))
+                            .ToListAsync(ct);
+                        foreach (var row in wordLanguageRows)
+                        {
+                            if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                            {
+                                wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                            }
+                        }
+                    }
+                    var translationLanguageIds = wordLanguageMap.Values.Distinct().ToList();
                     var languageLabels = await ResolveInfoLabelsAsync(
                         libraryId,
                         "language",
+                        translationLanguageIds,
                         readKey,
                         keyRingService,
                         encryptionService,
                         dbContext,
                         ct);
-                    var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
-                        .ToListAsync(ct);
-                    var wordLanguageMap = new Dictionary<Guid, Guid>();
-                    foreach (var row in wordLanguageRows)
-                    {
-                        if (!wordLanguageMap.ContainsKey(row.WordInfoId))
-                        {
-                            wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
-                        }
-                    }
                     var connectionTags = new Dictionary<Guid, HashSet<Guid>>();
                     if (topicId.HasValue || levelId.HasValue)
                     {
@@ -3234,7 +3254,7 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            var pageSize = Math.Clamp(limit ?? 40, 1, 100);
+            var pageSize = Math.Clamp(limit ?? 40, 1, 500);
             var graph = await dbContext.CogitaCollectionGraphs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.CollectionInfoId == share.CollectionId, ct);
 
@@ -4117,7 +4137,7 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var pageSize = Math.Clamp(limit ?? 40, 1, 100);
+            var pageSize = Math.Clamp(limit ?? 40, 1, 500);
             var graph = await dbContext.CogitaCollectionGraphs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.CollectionInfoId == collectionId, ct);
 
@@ -4383,20 +4403,31 @@ public static class CogitaEndpoints
                 .Where(x => dataKeyIds.Contains(x.Id))
                 .ToDictionaryAsync(x => x.Id, ct);
 
-            var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
-                .ToListAsync(ct);
+            var wordInfoIds = payloadLookup.Values
+                .Where(entry => entry.InfoType == "word")
+                .Select(entry => entry.InfoId)
+                .Distinct()
+                .ToList();
             var wordLanguageMap = new Dictionary<Guid, Guid>();
-            foreach (var row in wordLanguageRows)
+            if (wordInfoIds.Count > 0)
             {
-                if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                    .Where(x => wordInfoIds.Contains(x.WordInfoId))
+                    .ToListAsync(ct);
+                foreach (var row in wordLanguageRows)
                 {
-                    wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                    if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                    {
+                        wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                    }
                 }
             }
 
+            var languageIds = wordLanguageMap.Values.Distinct().ToList();
             var languageLabels = await ResolveInfoLabelsAsync(
                 libraryId,
                 "language",
+                languageIds,
                 readKey,
                 keyRingService,
                 encryptionService,
@@ -4479,9 +4510,36 @@ public static class CogitaEndpoints
                     var itemsByConnection = items.GroupBy(x => x.ConnectionId)
                         .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
 
+                    var translationWordIds = itemsByConnection.Values.SelectMany(x => x).Distinct().ToList();
                     var wordLabels = await ResolveInfoLabelsAsync(
                         libraryId,
                         "word",
+                        translationWordIds,
+                        readKey,
+                        keyRingService,
+                        encryptionService,
+                        dbContext,
+                        ct);
+
+                    var translationWordLanguageMap = new Dictionary<Guid, Guid>();
+                    if (translationWordIds.Count > 0)
+                    {
+                        var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                            .Where(x => translationWordIds.Contains(x.WordInfoId))
+                            .ToListAsync(ct);
+                        foreach (var row in wordLanguageRows)
+                        {
+                            if (!translationWordLanguageMap.ContainsKey(row.WordInfoId))
+                            {
+                                translationWordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                            }
+                        }
+                    }
+                    var translationLanguageIds = translationWordLanguageMap.Values.Distinct().ToList();
+                    var languageLabels = await ResolveInfoLabelsAsync(
+                        libraryId,
+                        "language",
+                        translationLanguageIds,
                         readKey,
                         keyRingService,
                         encryptionService,
@@ -4500,10 +4558,10 @@ public static class CogitaEndpoints
                         var wordALabel = wordLabels.TryGetValue(wordA, out var w1) ? w1 : "Word";
                         var wordBLabel = wordLabels.TryGetValue(wordB, out var w2) ? w2 : "Word";
 
-                        var langALabel = wordLanguageMap.TryGetValue(wordA, out var langA) && languageLabels.TryGetValue(langA, out var l1)
+                        var langALabel = translationWordLanguageMap.TryGetValue(wordA, out var langA) && languageLabels.TryGetValue(langA, out var l1)
                             ? l1
                             : "Language";
-                        var langBLabel = wordLanguageMap.TryGetValue(wordB, out var langB) && languageLabels.TryGetValue(langB, out var l2)
+                        var langBLabel = translationWordLanguageMap.TryGetValue(wordB, out var langB) && languageLabels.TryGetValue(langB, out var l2)
                             ? l2
                             : "Language";
 
@@ -5812,6 +5870,81 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaCreateConnectionResponse(connectionId, connectionType));
         });
 
+        group.MapDelete("/libraries/{libraryId:guid}/connections/{connectionId:guid}", async (
+            Guid libraryId,
+            Guid connectionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking().FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var connection = await dbContext.CogitaConnections
+                .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == connectionId, ct);
+            if (connection is null)
+            {
+                return Results.NotFound();
+            }
+
+            var connectionItems = await dbContext.CogitaConnectionItems
+                .Where(x => x.ConnectionId == connectionId)
+                .ToListAsync(ct);
+            var infoIds = connectionItems.Select(x => x.InfoId).Distinct().ToList();
+
+
+            if (connectionItems.Count > 0)
+            {
+                dbContext.CogitaConnectionItems.RemoveRange(connectionItems);
+            }
+
+            var collectionItems = await dbContext.CogitaCollectionItems
+                .Where(x => x.ItemType == "connection" && x.ItemId == connectionId)
+                .ToListAsync(ct);
+            if (collectionItems.Count > 0)
+            {
+                dbContext.CogitaCollectionItems.RemoveRange(collectionItems);
+            }
+
+            var outcomes = await dbContext.CogitaReviewOutcomes
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "connection" && x.ItemId == connectionId)
+                .ToListAsync(ct);
+            if (outcomes.Count > 0)
+            {
+                dbContext.CogitaReviewOutcomes.RemoveRange(outcomes);
+            }
+
+            dbContext.CogitaConnections.Remove(connection);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/word-languages", async (
             Guid libraryId,
             Guid languageId,
@@ -6118,6 +6251,66 @@ public static class CogitaEndpoints
         return labels;
     }
 
+    private static async Task<Dictionary<Guid, string>> ResolveInfoLabelsAsync(
+        Guid libraryId,
+        string infoType,
+        IReadOnlyCollection<Guid> infoIds,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (infoIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var lookup = await BuildInfoLookupAsync(libraryId, infoType, infoIds, dbContext, ct);
+        if (lookup.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var dataKeyIds = lookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+        var keyEntryById = await dbContext.Keys.AsNoTracking()
+            .Where(x => dataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var labels = new Dictionary<Guid, string>();
+        foreach (var entry in lookup.Values)
+        {
+            if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                var label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                labels[entry.InfoId] = label;
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+        }
+
+        return labels;
+    }
+
     private static async Task<Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>> BuildInfoLookupAsync(
         Guid libraryId,
         string? infoType,
@@ -6126,6 +6319,38 @@ public static class CogitaEndpoints
     {
         var infos = await dbContext.CogitaInfos.AsNoTracking()
             .Where(x => x.LibraryId == libraryId && (infoType == null || x.InfoType == infoType))
+            .ToListAsync(ct);
+
+        var lookup = new Dictionary<Guid, (Guid, string, Guid, byte[])>();
+        foreach (var info in infos)
+        {
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                continue;
+            }
+            lookup[info.Id] = (info.Id, info.InfoType, payload.Value.DataKeyId, payload.Value.EncryptedBlob);
+        }
+
+        return lookup;
+    }
+
+    private static async Task<Dictionary<Guid, (Guid InfoId, string InfoType, Guid DataKeyId, byte[] EncryptedBlob)>> BuildInfoLookupAsync(
+        Guid libraryId,
+        string? infoType,
+        IReadOnlyCollection<Guid> infoIds,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (infoIds.Count == 0)
+        {
+            return new Dictionary<Guid, (Guid, string, Guid, byte[])>();
+        }
+
+        var infos = await dbContext.CogitaInfos.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId &&
+                        (infoType == null || x.InfoType == infoType) &&
+                        infoIds.Contains(x.Id))
             .ToListAsync(ct);
 
         var lookup = new Dictionary<Guid, (Guid, string, Guid, byte[])>();
@@ -7878,32 +8103,40 @@ public static class CogitaEndpoints
         var itemsByConnection = items.GroupBy(x => x.ConnectionId)
             .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
 
+        var wordIds = itemsByConnection.Values.SelectMany(x => x).Distinct().ToList();
         var wordLabels = await ResolveInfoLabelsAsync(
             libraryId,
             "word",
+            wordIds,
             readKey,
             keyRingService,
             encryptionService,
             dbContext,
             ct);
+        var wordLanguageMap = new Dictionary<Guid, Guid>();
+        if (wordIds.Count > 0)
+        {
+            var wordLanguageMapRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .Where(x => wordIds.Contains(x.WordInfoId))
+                .ToListAsync(ct);
+            foreach (var row in wordLanguageMapRows)
+            {
+                if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                {
+                    wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                }
+            }
+        }
+        var languageIds = wordLanguageMap.Values.Distinct().ToList();
         var languageLabels = await ResolveInfoLabelsAsync(
             libraryId,
             "language",
+            languageIds,
             readKey,
             keyRingService,
             encryptionService,
             dbContext,
             ct);
-        var wordLanguageMapRows = await dbContext.CogitaWordLanguages.AsNoTracking()
-            .ToListAsync(ct);
-        var wordLanguageMap = new Dictionary<Guid, Guid>();
-        foreach (var row in wordLanguageMapRows)
-        {
-            if (!wordLanguageMap.ContainsKey(row.WordInfoId))
-            {
-                wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
-            }
-        }
 
         var responses = new List<CogitaCardSearchResponse>();
         foreach (var pair in itemsByConnection)
@@ -7974,20 +8207,31 @@ public static class CogitaEndpoints
             .Where(x => dataKeyIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, ct);
 
-        var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
-            .ToListAsync(ct);
+        var wordInfoIds = payloadLookup.Values
+            .Where(entry => entry.InfoType == "word")
+            .Select(entry => entry.InfoId)
+            .Distinct()
+            .ToList();
         var wordLanguageMap = new Dictionary<Guid, Guid>();
-        foreach (var row in wordLanguageRows)
+        if (wordInfoIds.Count > 0)
         {
-            if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+            var wordLanguageRows = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .Where(x => wordInfoIds.Contains(x.WordInfoId))
+                .ToListAsync(ct);
+            foreach (var row in wordLanguageRows)
             {
-                wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                if (!wordLanguageMap.ContainsKey(row.WordInfoId))
+                {
+                    wordLanguageMap[row.WordInfoId] = row.LanguageInfoId;
+                }
             }
         }
 
+        var languageIds = wordLanguageMap.Values.Distinct().ToList();
         var languageLabels = await ResolveInfoLabelsAsync(
             libraryId,
             "language",
+            languageIds,
             readKey,
             keyRingService,
             encryptionService,

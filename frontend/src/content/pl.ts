@@ -623,7 +623,10 @@ export const pl: Copy = {
         computedAnswerLabel: 'Odpowiedź:',
         computedLoading: 'Tworzenie przykładu…',
         computedEmpty: 'Brak dostępnego przykładu.',
-        editInfo: 'Edytuj informację'
+        editInfo: 'Edytuj informację',
+        deleteConnection: 'Usuń połączenie',
+        deleteConnectionConfirm: 'Usunąć to połączenie? Tej operacji nie można cofnąć.',
+        deleteConnectionFailed: 'Nie udało się usunąć połączenia.'
       },
       filters: {
         title: 'Filtry',

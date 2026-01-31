@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getCogitaComputedSample, searchCogitaCards, type CogitaCardSearchResult, type CogitaComputedSample } from '../../../lib/api';
+import {
+  deleteCogitaConnection,
+  getCogitaComputedSample,
+  searchCogitaCards,
+  type CogitaCardSearchResult,
+  type CogitaComputedSample
+} from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -48,6 +54,7 @@ export function CogitaLibraryListPage({
   const [computedSampleStatus, setComputedSampleStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [totalCount, setTotalCount] = useState(0);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [filterLanguageA, setFilterLanguageA] = useState<CogitaInfoOption | null>(null);
   const [filterLanguageB, setFilterLanguageB] = useState<CogitaInfoOption | null>(null);
   const [filterTopic, setFilterTopic] = useState<CogitaInfoOption | null>(null);
@@ -99,6 +106,7 @@ export function CogitaLibraryListPage({
     if (!selectedInfo || selectedInfo.cardType !== 'info' || selectedInfo.infoType !== 'computed') {
       setComputedSample(null);
       setComputedSampleStatus('idle');
+      setDeleteStatus('idle');
       return;
     }
     setComputedSampleStatus('loading');
@@ -134,6 +142,27 @@ export function CogitaLibraryListPage({
       setSearchStatus('ready');
     } catch {
       setSearchStatus('ready');
+    }
+  };
+
+  const handleDeleteConnection = async () => {
+    if (!selectedInfo || (selectedInfo.cardType !== 'connection' && selectedInfo.cardType !== 'vocab')) return;
+    const confirmed = window.confirm(copy.cogita.library.list.deleteConnectionConfirm);
+    if (!confirmed) return;
+    setDeleteStatus('loading');
+    try {
+      await deleteCogitaConnection({ libraryId, connectionId: selectedInfo.cardId });
+      let nextSelected: CogitaCardSearchResult | null = null;
+      setSearchResults((prev) => {
+        const next = prev.filter((item) => item.cardId !== selectedInfo.cardId);
+        nextSelected = next[0] ?? null;
+        return next;
+      });
+      setTotalCount((prev) => Math.max(0, prev - 1));
+      setSelectedInfo((prev) => (prev && prev.cardId === selectedInfo.cardId ? nextSelected : prev));
+      setDeleteStatus('idle');
+    } catch {
+      setDeleteStatus('error');
     }
   };
 
@@ -345,17 +374,27 @@ export function CogitaLibraryListPage({
                       <p className="cogita-user-kicker">{copy.cogita.library.list.selectedTitle}</p>
                       <h3 className="cogita-detail-title">{selectedInfo?.label ?? copy.cogita.library.list.selectedEmpty}</h3>
                     </div>
-                    <div className="cogita-detail-actions">
-                      {selectedInfo?.cardType === 'info' ? (
-                        <a className="ghost" href={`${baseHref}/edit/${selectedInfo.cardId}`}>
-                          {copy.cogita.library.list.editInfo}
-                        </a>
-                      ) : null}
-                      <a className="ghost" href={`${baseHref}/new`}>
-                        {copy.cogita.library.actions.addInfo}
+                  <div className="cogita-detail-actions">
+                    {selectedInfo?.cardType === 'info' ? (
+                      <a className="ghost" href={`${baseHref}/edit/${selectedInfo.cardId}`}>
+                        {copy.cogita.library.list.editInfo}
                       </a>
-                    </div>
+                    ) : null}
+                    {selectedInfo?.cardType === 'connection' || selectedInfo?.cardType === 'vocab' ? (
+                      <button
+                        type="button"
+                        className="ghost danger"
+                        onClick={handleDeleteConnection}
+                        disabled={deleteStatus === 'loading'}
+                      >
+                        {copy.cogita.library.list.deleteConnection}
+                      </button>
+                    ) : null}
+                    <a className="ghost" href={`${baseHref}/new`}>
+                      {copy.cogita.library.actions.addInfo}
+                    </a>
                   </div>
+                </div>
                   {selectedInfo ? (
                     <div className="cogita-detail-body">
                       <p>
@@ -366,6 +405,9 @@ export function CogitaLibraryListPage({
                           : copy.cogita.library.list.cardTypeInfo}
                       </p>
                       <p>{copy.cogita.library.list.selectedHint}</p>
+                      {deleteStatus === 'error' && (selectedInfo.cardType === 'connection' || selectedInfo.cardType === 'vocab') ? (
+                        <p>{copy.cogita.library.list.deleteConnectionFailed}</p>
+                      ) : null}
                       {selectedInfo.cardType === 'info' && selectedInfo.infoType === 'computed' && (
                         <div className="cogita-detail-sample">
                           <p className="cogita-user-kicker">{copy.cogita.library.list.computedSampleTitle}</p>

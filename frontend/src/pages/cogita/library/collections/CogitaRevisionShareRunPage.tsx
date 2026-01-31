@@ -318,7 +318,7 @@ export function CogitaRevisionShareRunPage({
           const bundle = await getCogitaPublicRevisionCards({
             shareId,
             key: shareKey,
-            limit: 100,
+            limit: 300,
             cursor
           });
           gathered.push(...bundle.items);

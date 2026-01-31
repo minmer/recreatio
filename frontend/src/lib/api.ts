@@ -1134,6 +1134,12 @@ export function createCogitaConnection(payload: {
   });
 }
 
+export function deleteCogitaConnection(payload: { libraryId: string; connectionId: string }) {
+  return request<{ deleted: boolean }>(`/cogita/libraries/${payload.libraryId}/connections/${payload.connectionId}`, {
+    method: 'DELETE'
+  });
+}
+
 export function createCogitaGroup(payload: {
   libraryId: string;
   groupType: string;

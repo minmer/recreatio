@@ -324,6 +324,9 @@ export type Copy = {
         computedLoading: string;
         computedEmpty: string;
         editInfo: string;
+        deleteConnection: string;
+        deleteConnectionConfirm: string;
+        deleteConnectionFailed: string;
       };
       filters: {
         title: string;
