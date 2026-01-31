@@ -13,6 +13,7 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
+import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -45,7 +46,8 @@ export function CogitaRevisionSettingsPage({
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
   const [limit, setLimit] = useState(20);
-  const [mode] = useState('random');
+  const [mode, setMode] = useState('random');
+  const [revisionSettings, setRevisionSettings] = useState<Record<string, number>>({});
   const [check] = useState('exact');
   const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
   const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
@@ -58,6 +60,12 @@ export function CogitaRevisionSettingsPage({
     if (typeof window === 'undefined') return '/#/cogita/public/revision';
     return `${window.location.origin}/#/cogita/public/revision`;
   }, []);
+  const revisionType = useMemo(() => getRevisionType(mode), [mode]);
+  const normalizedSettings = useMemo(
+    () => normalizeRevisionSettings(revisionType, revisionSettings),
+    [revisionType, revisionSettings]
+  );
+  const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
@@ -102,11 +110,13 @@ export function CogitaRevisionSettingsPage({
       const response = await createCogitaRevisionShare({
         libraryId,
         collectionId,
+        revisionType: revisionType.id,
+        revisionSettings: normalizedSettings,
         mode,
         check,
         limit
       });
-      setShareLink(`${shareBase}/${response.shareCode}`);
+      setShareLink(`${shareBase}/${response.shareCode}${settingsQuery ? `?${settingsQuery}` : ''}`);
       setShareStatus('ready');
       loadShares();
     } catch {
@@ -169,6 +179,8 @@ export function CogitaRevisionSettingsPage({
             <a
               className="cta"
               href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+                settingsQuery ? `&${settingsQuery}` : ''
+              }${
                 reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
               }`}
             >
@@ -187,8 +199,32 @@ export function CogitaRevisionSettingsPage({
                     <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
                     <label className="cogita-field">
                       <span>{copy.cogita.library.revision.modeLabel}</span>
-                      <input value={copy.cogita.library.revision.modeValue} disabled />
+                      <select value={mode} onChange={(event) => setMode(event.target.value)}>
+                        {revisionTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {copy.cogita.library.revision[type.labelKey]}
+                          </option>
+                        ))}
+                      </select>
                     </label>
+                    {revisionType.settingsFields.map((field) => (
+                      <label key={field.key} className="cogita-field">
+                        <span>{copy.cogita.library.revision[field.labelKey]}</span>
+                        <input
+                          type="number"
+                          min={field.min}
+                          max={field.max}
+                          step={field.step}
+                          value={normalizedSettings[field.key] ?? 0}
+                          onChange={(event) =>
+                            setRevisionSettings((prev) => ({
+                              ...prev,
+                              [field.key]: Number(event.target.value || 0)
+                            }))
+                          }
+                        />
+                      </label>
+                    ))}
                     <label className="cogita-field">
                       <span>{copy.cogita.library.revision.checkLabel}</span>
                       <input value={copy.cogita.library.revision.checkValue} disabled />
@@ -236,6 +272,8 @@ export function CogitaRevisionSettingsPage({
                     <a
                       className="cta"
                       href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+                        settingsQuery ? `&${settingsQuery}` : ''
+                      }${
                         reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
                       }`}
                     >

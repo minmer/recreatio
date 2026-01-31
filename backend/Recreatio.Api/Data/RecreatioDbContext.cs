@@ -60,6 +60,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
     public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
     public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
+    public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -327,6 +328,16 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
             .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
+            .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
+            .HasIndex(x => new { x.PersonRoleId, x.ClientId, x.ClientSequence })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
         modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()

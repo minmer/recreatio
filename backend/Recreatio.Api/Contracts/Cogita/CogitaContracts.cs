@@ -184,6 +184,29 @@ public sealed record CogitaReviewEventResponse(
     DateTimeOffset CreatedUtc
 );
 
+public sealed record CogitaReviewOutcomeRequest(
+    string ItemType,
+    Guid ItemId,
+    string RevisionType,
+    string EvalType,
+    bool Correct,
+    string ClientId,
+    long ClientSequence,
+    string? MaskBase64,
+    string? PayloadHashBase64,
+    string? PayloadBase64,
+    Guid? PersonRoleId
+);
+
+public sealed record CogitaReviewOutcomeBulkRequest(
+    List<CogitaReviewOutcomeRequest> Outcomes
+);
+
+public sealed record CogitaReviewOutcomeResponse(
+    Guid OutcomeId,
+    DateTimeOffset CreatedUtc
+);
+
 public sealed record CogitaReviewSummaryResponse(
     string ItemType,
     Guid ItemId,
@@ -200,6 +223,8 @@ public sealed record CogitaReviewerResponse(
 
 public sealed record CogitaRevisionShareCreateRequest(
     Guid CollectionId,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
     string Mode,
     string Check,
     int Limit,
@@ -210,6 +235,8 @@ public sealed record CogitaRevisionShareCreateResponse(
     Guid ShareId,
     Guid CollectionId,
     string ShareCode,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
     string Mode,
     string Check,
     int Limit,
@@ -221,6 +248,8 @@ public sealed record CogitaRevisionShareResponse(
     Guid CollectionId,
     string CollectionName,
     string ShareCode,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
     string Mode,
     string Check,
     int Limit,
@@ -234,6 +263,8 @@ public sealed record CogitaPublicRevisionShareResponse(
     Guid CollectionId,
     string CollectionName,
     string LibraryName,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
     string Mode,
     string Check,
     int Limit

@@ -27,6 +27,11 @@ public sealed class CogitaRevisionShare
 
     public int CardLimit { get; set; }
 
+    [MaxLength(64)]
+    public string? RevisionType { get; set; }
+
+    public string? RevisionSettingsJson { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset? RevokedUtc { get; set; }

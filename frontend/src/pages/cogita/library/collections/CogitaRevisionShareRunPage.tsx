@@ -19,6 +19,14 @@ import { getInfoTypeLabel } from '../libraryOptions';
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
 import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
+import { toBase64 } from '../../../../lib/crypto';
+import { computeKnowness } from '../../../../cogita/revision/knowness';
+import { getOutcomesForItem, recordOutcome } from '../../../../cogita/revision/outcomes';
+import {
+  getRevisionType,
+  normalizeRevisionSettings,
+  parseRevisionSettingsFromParams
+} from '../../../../cogita/revision/registry';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 const SUPERSCRIPT_MAP: Record<string, string> = {
@@ -88,15 +96,6 @@ const applyScriptMode = (prev: string, next: string, mode: 'super' | 'sub' | nul
   return prev + transformed;
 };
 
-const shuffle = <T,>(items: T[]) => {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-};
-
 const getFirstComputedInputKey = (
   template: string | null,
   expected: Array<{ key: string; expected: string }>,
@@ -161,16 +160,28 @@ export function CogitaRevisionShareRunPage({
   const [computedVariableValues, setComputedVariableValues] = useState<Record<string, string> | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
+  const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
+  const [revisionMeta, setRevisionMeta] = useState<Record<string, unknown>>({});
 
   const location = useLocation();
-  const shareKey = useMemo(() => new URLSearchParams(location.search).get('key') ?? '', [location.search]);
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const shareKey = useMemo(() => params.get('key') ?? '', [params]);
   const mode = shareInfo?.mode ?? 'random';
   const check = shareInfo?.check ?? 'exact';
   const limit = shareInfo?.limit ?? 20;
-  const modeLabel = useMemo(() => (mode === 'random' ? copy.cogita.library.revision.modeValue : mode), [copy, mode]);
+  const revisionType = useMemo(() => getRevisionType(shareInfo?.revisionType ?? mode), [shareInfo, mode]);
+  const revisionSettings = useMemo(() => {
+    const shareSettings = shareInfo?.revisionSettings as Record<string, number> | null | undefined;
+    const paramSettings = parseRevisionSettingsFromParams(revisionType, params);
+    return normalizeRevisionSettings(revisionType, shareSettings ?? paramSettings);
+  }, [shareInfo, params, revisionType]);
+  const modeLabel = useMemo(
+    () => copy.cogita.library.revision[revisionType.labelKey] ?? mode,
+    [copy, mode, revisionType]
+  );
   const checkLabel = useMemo(() => (check === 'exact' ? copy.cogita.library.revision.checkValue : check), [copy, check]);
 
   const canRenderCards = shareStatus === 'ready';
@@ -201,6 +212,25 @@ export function CogitaRevisionShareRunPage({
     if (currentCard.infoType) return getInfoTypeLabel(copy, currentCard.infoType as CogitaInfoType);
     return copy.cogita.library.revision.infoLabel;
   }, [copy, currentCard]);
+  const progressTotal = revisionType.id === 'levels' ? limit : queue.length;
+  const progressCurrent = progressTotal
+    ? Math.min(currentIndex + 1, progressTotal)
+    : 0;
+  const applyOutcomeToSession = (correct: boolean) => {
+    const nextState = revisionType.applyOutcome(
+      { queue, meta: revisionMeta },
+      currentCard,
+      limit,
+      revisionSettings,
+      { correct }
+    );
+    setQueue(nextState.queue);
+    setRevisionMeta(nextState.meta);
+    const next = nextState.queue[currentIndex + 1];
+    if (next) {
+      void resolveCard(next, currentIndex + 1);
+    }
+  };
 
   useEffect(() => {
     if (!shareId) {
@@ -244,33 +274,13 @@ export function CogitaRevisionShareRunPage({
           });
           gathered.push(...bundle.items);
           cursor = bundle.nextCursor ?? null;
-          if (gathered.length >= limit) break;
+          if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
         } while (cursor);
 
         if (!mounted) return;
-        const ordered = mode === 'random' ? shuffle(gathered) : gathered;
-        let expanded: CogitaCardSearchResult[] = [];
-        if (ordered.length > 0) {
-          while (expanded.length < limit) {
-            const nextBatch = mode === 'random' ? shuffle(ordered) : ordered;
-            let added = false;
-            for (const candidate of nextBatch) {
-              if (expanded.length >= limit) break;
-              const last = expanded[expanded.length - 1];
-              if (last && candidate.cardId === last.cardId && ordered.length > 1) {
-                continue;
-              }
-              expanded.push(candidate);
-              added = true;
-            }
-            if (!added) {
-              const fallback = nextBatch[0];
-              if (!fallback) break;
-              expanded.push(fallback);
-            }
-          }
-        }
-        setQueue(expanded);
+        const initial = revisionType.prepare(gathered, limit, revisionSettings);
+        setQueue(initial.queue);
+        setRevisionMeta(initial.meta);
         setCurrentIndex(0);
         setStatus('ready');
       } catch {
@@ -282,7 +292,7 @@ export function CogitaRevisionShareRunPage({
     return () => {
       mounted = false;
     };
-  }, [shareId, shareKey, limit, mode, shareStatus]);
+  }, [shareId, shareKey, limit, revisionType, revisionSettings, shareStatus]);
 
   useEffect(() => {
     setAnswer('');
@@ -388,6 +398,23 @@ export function CogitaRevisionShareRunPage({
     return () => window.removeEventListener('keydown', handler);
   }, [canAdvance]);
 
+  useEffect(() => {
+    if (!currentCard) {
+      setReviewSummary(null);
+      return;
+    }
+    const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
+    getOutcomesForItem(itemType, currentCard.cardId)
+      .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
+      .catch(() => setReviewSummary(null));
+  }, [currentCard]);
+
+  const refreshKnowness = (itemType: 'info' | 'connection', itemId: string) => {
+    void getOutcomesForItem(itemType, itemId)
+      .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
+      .catch(() => setReviewSummary(null));
+  };
+
   const advanceCard = () => {
     setFeedback(null);
     setAnswer('');
@@ -395,6 +422,65 @@ export function CogitaRevisionShareRunPage({
     setComputedFieldFeedback({});
     setCanAdvance(false);
     setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+  };
+
+  const buildMask = (expected: string, answerValue: string) => {
+    const expectedChars = expected.split('');
+    const answerChars = answerValue.split('');
+    const buffer = new Uint8Array(expectedChars.length);
+    expectedChars.forEach((char, index) => {
+      const match = answerChars[index] ?? '';
+      buffer[index] = char.toLowerCase() === match.toLowerCase() ? 1 : 0;
+    });
+    return buffer;
+  };
+
+  const submitReview = (options: {
+    correct: boolean;
+    direction: string | null;
+    expected?: string | null;
+    answer?: string;
+    expectedMap?: Record<string, string>;
+    answerMap?: Record<string, string>;
+    evalType: string;
+  }) => {
+    if (!currentCard) return;
+    const expectedValue = options.expected ?? null;
+    const answerValue = options.answer ?? '';
+    let maskValue = expectedValue ?? '';
+    let maskAnswer = answerValue;
+    if (!expectedValue && options.expectedMap && options.answerMap) {
+      const keys = Object.keys(options.expectedMap).sort((a, b) => a.localeCompare(b));
+      maskValue = keys.map((key) => options.expectedMap?.[key] ?? '').join('|');
+      maskAnswer = keys.map((key) => options.answerMap?.[key] ?? '').join('|');
+    }
+    const mask = maskValue ? buildMask(maskValue, maskAnswer) : new Uint8Array();
+    const payload = {
+      revisionType: revisionType.id,
+      evalType: options.evalType,
+      direction: options.direction,
+      prompt: prompt ?? '',
+      expected: expectedValue,
+      answer: answerValue,
+      expectedAnswers: options.expectedMap ?? null,
+      answers: options.answerMap ?? null,
+      correct: options.correct,
+      maskBase64: mask.length ? toBase64(mask) : null,
+      checkMode: check
+    };
+    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+    const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
+    void recordOutcome({
+      itemType,
+      itemId: currentCard.cardId,
+      revisionType: revisionType.id,
+      evalType: options.evalType,
+      correct: options.correct,
+      maskBase64: mask.length ? toBase64(mask) : null,
+      payloadBase64: toBase64(payloadBytes)
+    }).then(() => {
+      refreshKnowness(itemType, currentCard.cardId);
+    });
   };
 
   const fetchComputedSample = (
@@ -614,10 +700,22 @@ export function CogitaRevisionShareRunPage({
         setFeedback('correct');
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(true);
+        applyOutcomeToSession(true);
+        submitReview({
+          correct: true,
+          direction: prompt ? `${prompt} -> computed` : 'computed',
+          expectedMap: computedExpected.reduce<Record<string, string>>((acc, entry) => {
+            acc[entry.key] = entry.expected;
+            return acc;
+          }, {}),
+          answerMap: computedAnswers,
+          evalType: 'computed'
+        });
       } else {
         setFeedback('incorrect');
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(false);
+        applyOutcomeToSession(false);
         window.setTimeout(() => {
           const first = getFirstComputedInputKey(
             computedAnswerTemplate,
@@ -628,6 +726,16 @@ export function CogitaRevisionShareRunPage({
             computedInputRefs.current[first]?.focus();
           }
         }, 40);
+        submitReview({
+          correct: false,
+          direction: prompt ? `${prompt} -> computed` : 'computed',
+          expectedMap: computedExpected.reduce<Record<string, string>>((acc, entry) => {
+            acc[entry.key] = entry.expected;
+            return acc;
+          }, {}),
+          answerMap: computedAnswers,
+          evalType: 'computed'
+        });
       }
       return;
     }
@@ -637,11 +745,27 @@ export function CogitaRevisionShareRunPage({
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
+      applyOutcomeToSession(true);
+      submitReview({
+        correct: true,
+        direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
+        expected: expectedAnswer,
+        answer,
+        evalType: 'text'
+      });
     } else {
       setFeedback('incorrect');
       setComputedFieldFeedback({});
       setCanAdvance(false);
+      applyOutcomeToSession(false);
       window.setTimeout(() => answerInputRef.current?.focus(), 40);
+      submitReview({
+        correct: false,
+        direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
+        expected: expectedAnswer,
+        answer,
+        evalType: 'text'
+      });
     }
   };
 
@@ -653,10 +777,14 @@ export function CogitaRevisionShareRunPage({
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
+      applyOutcomeToSession(true);
+      submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     } else {
       setFeedback('incorrect');
       setComputedFieldFeedback({});
       setCanAdvance(false);
+      applyOutcomeToSession(false);
+      submitReview({ correct: false, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     }
   };
 
@@ -680,6 +808,15 @@ export function CogitaRevisionShareRunPage({
     preloadNextCard();
     setFeedback('correct');
     setCanAdvance(true);
+    applyOutcomeToSession(true);
+    if (expectedAnswer) {
+      submitReview({ correct: true, direction: 'manual', expected: expectedAnswer, answer, evalType: 'manual' });
+    }
+  };
+
+  const handleSkip = () => {
+    applyOutcomeToSession(false);
+    advanceCard();
   };
 
   useEffect(() => {
@@ -728,7 +865,7 @@ export function CogitaRevisionShareRunPage({
                     <div>
                       <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
                       <h3 className="cogita-detail-title">
-                        {queue.length ? `${Math.min(currentIndex + 1, queue.length)} / ${queue.length}` : '0 / 0'}
+                        {progressTotal ? `${progressCurrent} / ${progressTotal}` : '0 / 0'}
                       </h3>
                     </div>
                   </div>
@@ -741,6 +878,37 @@ export function CogitaRevisionShareRunPage({
                     <p>
                       <strong>{copy.cogita.library.revision.revealModeLabel}</strong> {revealPolicy}
                     </p>
+                  </div>
+                </section>
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.knownessTitle}</p>
+                      <h3 className="cogita-detail-title">
+                        {reviewSummary ? `${reviewSummary.score.toFixed(1)} / 100` : copy.cogita.library.revision.knownessEmpty}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    {reviewSummary ? (
+                      <>
+                        <p>
+                          {copy.cogita.library.revision.knownessStats
+                            .replace('{correct}', String(reviewSummary.correct))
+                            .replace('{total}', String(reviewSummary.total))}
+                        </p>
+                        {reviewSummary.lastReviewedUtc && (
+                          <p>
+                            {copy.cogita.library.revision.knownessLast.replace(
+                              '{date}',
+                              new Date(reviewSummary.lastReviewedUtc).toLocaleString()
+                            )}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p>{copy.cogita.library.revision.knownessHint}</p>
+                    )}
                   </div>
                 </section>
               </div>
@@ -785,7 +953,7 @@ export function CogitaRevisionShareRunPage({
                         feedback={feedback}
                         canAdvance={canAdvance}
                         onCheckAnswer={handleCheckAnswer}
-                        onSkip={advanceCard}
+                        onSkip={handleSkip}
                         onLanguageSelect={handleLanguageSelect}
                         onMarkReviewed={handleMarkReviewed}
                         onAdvance={advanceCard}

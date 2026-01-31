@@ -623,11 +623,32 @@ export type CogitaReviewSummary = {
   score: number;
 };
 
+export type CogitaReviewOutcomeRequest = {
+  itemType: string;
+  itemId: string;
+  revisionType: string;
+  evalType: string;
+  correct: boolean;
+  clientId: string;
+  clientSequence: number;
+  maskBase64?: string | null;
+  payloadHashBase64?: string | null;
+  payloadBase64?: string | null;
+  personRoleId?: string | null;
+};
+
+export type CogitaReviewOutcomeResponse = {
+  outcomeId: string;
+  createdUtc: string;
+};
+
 export type CogitaRevisionShare = {
   shareId: string;
   collectionId: string;
   collectionName: string;
   shareCode: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
   mode: string;
   check: string;
   limit: number;
@@ -639,6 +660,8 @@ export type CogitaRevisionShareCreateResponse = {
   shareId: string;
   collectionId: string;
   shareCode: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
   mode: string;
   check: string;
   limit: number;
@@ -651,6 +674,8 @@ export type CogitaPublicRevisionShare = {
   collectionId: string;
   collectionName: string;
   libraryName: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
   mode: string;
   check: string;
   limit: number;
@@ -835,6 +860,28 @@ export function createCogitaReviewEvent(payload: {
   });
 }
 
+export function createCogitaReviewOutcome(payload: {
+  libraryId: string;
+  outcome: CogitaReviewOutcomeRequest;
+}) {
+  return request<CogitaReviewOutcomeResponse>(`/cogita/libraries/${payload.libraryId}/review-outcomes`, {
+    method: 'POST',
+    body: JSON.stringify(payload.outcome)
+  });
+}
+
+export function createCogitaReviewOutcomesBulk(payload: {
+  libraryId: string;
+  outcomes: CogitaReviewOutcomeRequest[];
+}) {
+  return request<{ stored: number }>(`/cogita/libraries/${payload.libraryId}/review-outcomes/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({
+      outcomes: payload.outcomes
+    })
+  });
+}
+
 export function getCogitaComputedSample(payload: { libraryId: string; infoId: string }) {
   return request<CogitaComputedSample>(`/cogita/libraries/${payload.libraryId}/computed/${payload.infoId}/sample`, {
     method: 'GET'
@@ -867,6 +914,8 @@ export function getCogitaReviewSummary(payload: {
 export function createCogitaRevisionShare(payload: {
   libraryId: string;
   collectionId: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
   mode: string;
   check: string;
   limit: number;
@@ -876,6 +925,8 @@ export function createCogitaRevisionShare(payload: {
     method: 'POST',
     body: JSON.stringify({
       collectionId: payload.collectionId,
+      revisionType: payload.revisionType ?? null,
+      revisionSettings: payload.revisionSettings ?? null,
       mode: payload.mode,
       check: payload.check,
       limit: payload.limit,

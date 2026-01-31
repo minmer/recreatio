@@ -471,6 +471,9 @@ export type Copy = {
         modeSummary: string;
         modeLabel: string;
         modeValue: string;
+        modeValueLevels: string;
+        levelsLabel: string;
+        stackLabel: string;
         checkLabel: string;
         checkValue: string;
         cardsPerSessionLabel: string;

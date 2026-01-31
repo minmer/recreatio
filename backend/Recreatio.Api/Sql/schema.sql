@@ -41,6 +41,7 @@ IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLang
 IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaComputedInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaComputedInfos;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
+IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
@@ -860,6 +861,42 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaReviewOutcomes' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaReviewOutcomes
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        PersonRoleId UNIQUEIDENTIFIER NOT NULL,
+        ItemType NVARCHAR(32) NOT NULL,
+        ItemId UNIQUEIDENTIFIER NOT NULL,
+        RevisionType NVARCHAR(64) NOT NULL,
+        EvalType NVARCHAR(64) NOT NULL,
+        Correct BIT NOT NULL,
+        ClientId NVARCHAR(64) NOT NULL,
+        ClientSequence BIGINT NOT NULL,
+        PayloadHash VARBINARY(64) NULL,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaReviewOutcomes_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaReviewOutcomes_Role FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaReviewOutcomes_Person_Item' AND object_id = OBJECT_ID('dbo.CogitaReviewOutcomes'))
+BEGIN
+    CREATE INDEX IX_CogitaReviewOutcomes_Person_Item ON dbo.CogitaReviewOutcomes(PersonRoleId, ItemType, ItemId, CreatedUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaReviewOutcomes_Client' AND object_id = OBJECT_ID('dbo.CogitaReviewOutcomes'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaReviewOutcomes_Client ON dbo.CogitaReviewOutcomes(PersonRoleId, ClientId, ClientSequence);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisionShares' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaRevisionShares
@@ -874,6 +911,8 @@ BEGIN
         Mode NVARCHAR(32) NOT NULL,
         CheckMode NVARCHAR(32) NOT NULL,
         CardLimit INT NOT NULL,
+        RevisionType NVARCHAR(64) NULL,
+        RevisionSettingsJson NVARCHAR(MAX) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         RevokedUtc DATETIMEOFFSET NULL,
         CONSTRAINT FK_CogitaRevisionShares_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
