@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react';
 import type { KeyboardEvent, MutableRefObject } from 'react';
 import type { Copy } from '../../../../../content/types';
 import type { CogitaCardSearchResult, CogitaInfoSearchResult } from '../../../../../lib/api';
@@ -68,7 +69,7 @@ export function CogitaRevisionCard({
   scriptMode: 'super' | 'sub' | null;
   setScriptMode: (value: (prev: 'super' | 'sub' | null) => 'super' | 'sub' | null) => void;
 }) {
-  const renderAnswerTemplate = () => {
+  const inlineTemplate = useMemo(() => {
     const fallbackTemplate =
       !answerTemplate && computedExpected.length === 2
         ? `The {${computedExpected[0].key}} is of type {${computedExpected[1].key}}`
@@ -81,6 +82,7 @@ export function CogitaRevisionCard({
     const pattern = /\{([^}]+)\}/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
+    let firstInputKey: string | null = null;
     while ((match = pattern.exec(template)) !== null) {
       const before = template.slice(lastIndex, match.index);
       if (before) parts.push({ type: 'text', value: before });
@@ -94,6 +96,7 @@ export function CogitaRevisionCard({
       if (resolvedKey) tokenSet.add(resolvedKey);
       if (resolvedKey && expectedByKey.has(resolvedKey)) {
         parts.push({ type: 'input', value: resolvedKey });
+        if (!firstInputKey) firstInputKey = resolvedKey;
       } else if (token && variableValues && variableValues[token] !== undefined) {
         parts.push({ type: 'text', value: variableValues[token] });
       } else {
@@ -105,6 +108,12 @@ export function CogitaRevisionCard({
     if (rest) parts.push({ type: 'text', value: rest });
     const missing = computedExpected.filter((entry) => !tokenSet.has(entry.key));
     if (missing.length > 0) return null;
+    return { parts, expectedByKey, firstInputKey };
+  }, [answerTemplate, computedExpected, outputVariables, variableValues]);
+
+  const renderAnswerTemplate = () => {
+    if (!inlineTemplate) return null;
+    const { parts, expectedByKey, firstInputKey } = inlineTemplate;
     return (
       <div className="cogita-revision-inline-answer">
         {parts.map((part, index) =>
@@ -118,6 +127,7 @@ export function CogitaRevisionCard({
               ref={(el) => {
                 computedInputRefs.current[part.value] = el;
               }}
+              autoFocus={part.value === firstInputKey}
               value={computedAnswers[part.value] ?? ''}
               onChange={(event) => onComputedAnswerChange(part.value, event.target.value)}
               placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
@@ -134,6 +144,21 @@ export function CogitaRevisionCard({
       </div>
     );
   };
+
+  useEffect(() => {
+    if (currentCard.cardType !== 'info' || currentCard.infoType !== 'computed') return;
+    if (computedExpected.length === 0) return;
+    const active = typeof document !== 'undefined' ? document.activeElement : null;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    const targetKey = inlineTemplate?.firstInputKey ?? computedExpected[0]?.key;
+    if (!targetKey) return;
+    const focusTarget = computedInputRefs.current[targetKey];
+    if (!focusTarget) return;
+    const handle = requestAnimationFrame(() => {
+      focusTarget.focus();
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [currentCard, computedExpected, inlineTemplate]);
 
   const showScriptToggles = (() => {
     const text = [answer, ...Object.values(computedAnswers)].join('');
@@ -225,13 +250,14 @@ export function CogitaRevisionCard({
               }
               return (
                 <div className="cogita-form-grid">
-                  {computedExpected.map((entry) => (
+                  {computedExpected.map((entry, index) => (
                     <label key={entry.key} className="cogita-field">
                       <span>{entry.key}</span>
                       <textarea
                         ref={(el) => {
                           computedInputRefs.current[entry.key] = el;
                         }}
+                        autoFocus={index === 0}
                         value={computedAnswers[entry.key] ?? ''}
                         onChange={(event) => onComputedAnswerChange(entry.key, event.target.value)}
                         placeholder={copy.cogita.library.revision.answerPlaceholderComputed}
