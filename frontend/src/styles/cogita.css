@@ -2421,22 +2421,22 @@
 }
 
 .cogita-revision-inline-answer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
   gap: 0.4rem 0.6rem;
   color: #eaf2ff;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  line-height: 1.7;
+  white-space: pre;
 }
 
 .cogita-revision-inline-answer .cogita-inline-input {
   min-width: 6.5rem;
-  max-width: 14rem;
-  height: 2.4rem;
-  padding: 0.35rem 0.6rem;
-  border-radius: 10px;
-  line-height: 1.4;
+  max-width: 20rem;
+  height: 2.2rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 12px;
+  line-height: 1.7;
   display: inline-block;
 }
 

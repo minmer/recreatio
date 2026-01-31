@@ -51,6 +51,7 @@ export function CogitaLibraryAddPage({
   });
   const [computedPrompt, setComputedPrompt] = useState('');
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState('');
+  const [computedNotes, setComputedNotes] = useState('');
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
   const [computedPreview, setComputedPreview] = useState<{
     prompt: string;
@@ -193,6 +194,7 @@ export function CogitaLibraryAddPage({
           }
         }
         if (detail.infoType === 'computed') {
+          setComputedNotes(payload.notes ?? '');
           setComputedPrompt(payload.definition?.promptTemplate ?? '');
           setComputedAnswerTemplate(payload.definition?.answerTemplate ?? '');
           setComputedGraph(payload.definition?.graph ?? null);
@@ -201,6 +203,7 @@ export function CogitaLibraryAddPage({
         } else {
           setComputedPrompt('');
           setComputedAnswerTemplate('');
+          setComputedNotes('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -224,7 +227,7 @@ export function CogitaLibraryAddPage({
     try {
       const payload: Record<string, unknown> = {
         label: infoForm.label,
-        notes: infoForm.notes
+        notes: infoForm.infoType === 'computed' ? computedNotes : infoForm.notes
       };
       if (infoForm.language) {
         payload.languageId = infoForm.language.id;
@@ -234,10 +237,10 @@ export function CogitaLibraryAddPage({
             setFormStatus(copy.cogita.library.add.info.computedRequired);
             return;
           }
-          if (!computedAnswerTemplate.trim()) {
-            setFormStatus(copy.cogita.library.add.info.computedAnswerRequired);
-            return;
-          }
+        if (!computedAnswerTemplate.trim()) {
+          setFormStatus(copy.cogita.library.add.info.computedAnswerRequired);
+          return;
+        }
           const invalidName = computedGraph.nodes.find((node) => node.name && !/^[A-Za-z][A-Za-z0-9_]*$/.test(node.name));
           if (invalidName) {
             setFormStatus(copy.cogita.library.add.info.computedInvalidName);
@@ -266,11 +269,11 @@ export function CogitaLibraryAddPage({
             setFormStatus(copy.cogita.library.add.info.computedAnswerMissingOutput);
             return;
           }
-          payload.definition = {
-            promptTemplate: computedPrompt,
-            answerTemplate: computedAnswerTemplate,
-            graph: computedGraph
-          };
+        payload.definition = {
+          promptTemplate: computedPrompt,
+          answerTemplate: computedAnswerTemplate,
+          graph: computedGraph
+        };
       }
       if (isEditMode && editInfoId) {
         setEditStatus('saving');
@@ -298,6 +301,7 @@ export function CogitaLibraryAddPage({
         if (infoForm.infoType === 'computed') {
           setComputedPrompt('');
           setComputedAnswerTemplate('');
+          setComputedNotes('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -562,16 +566,26 @@ export function CogitaLibraryAddPage({
                         loadMoreLabel={copy.cogita.library.lookup.loadMore}
                     />
                   )}
-                  <label className="cogita-field full">
-                    <span>{copy.cogita.library.add.info.notesLabel}</span>
-                    <textarea
-                      value={infoForm.notes}
-                      onChange={(event) => setInfoForm((prev) => ({ ...prev, notes: event.target.value }))}
-                      placeholder={copy.cogita.library.add.info.notesPlaceholder}
-                    />
-                  </label>
+                  {infoForm.infoType !== 'computed' ? (
+                    <label className="cogita-field full">
+                      <span>{copy.cogita.library.add.info.notesLabel}</span>
+                      <textarea
+                        value={infoForm.notes}
+                        onChange={(event) => setInfoForm((prev) => ({ ...prev, notes: event.target.value }))}
+                        placeholder={copy.cogita.library.add.info.notesPlaceholder}
+                      />
+                    </label>
+                  ) : null}
                   {infoForm.infoType === 'computed' && (
                     <>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.notesLabel}</span>
+                        <textarea
+                          value={computedNotes}
+                          onChange={(event) => setComputedNotes(event.target.value)}
+                          placeholder={copy.cogita.library.add.info.notesPlaceholder}
+                        />
+                      </label>
                       <label className="cogita-field full">
                         <span>{copy.cogita.library.add.info.computedLabel}</span>
                         <textarea
