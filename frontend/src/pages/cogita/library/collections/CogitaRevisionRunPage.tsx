@@ -1255,6 +1255,7 @@ export function CogitaRevisionRunPage({
                       <span
                         key={dot.id}
                         style={{
+                          left: `${Math.min(100, Math.max(0, dot.value * 100))}%`,
                           background: `rgba(${Math.round(255 * (1 - dot.value))}, ${Math.round(200 * dot.value)}, 80, 0.9)`
                         }}
                       />
