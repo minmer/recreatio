@@ -36,7 +36,9 @@ public sealed record CogitaCardSearchResponse(
     string CardType,
     string Label,
     string Description,
-    string? InfoType
+    string? InfoType,
+    string? CheckType = null,
+    string? Direction = null
 );
 
 public sealed record CogitaCardSearchBundleResponse(
@@ -187,6 +189,8 @@ public sealed record CogitaReviewEventResponse(
 public sealed record CogitaReviewOutcomeRequest(
     string ItemType,
     Guid ItemId,
+    string? CheckType,
+    string? Direction,
     string RevisionType,
     string EvalType,
     bool Correct,

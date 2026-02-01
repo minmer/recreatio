@@ -1,8 +1,11 @@
 import { createCogitaReviewOutcomesBulk } from '../../lib/api';
+import { getOutcomeKey } from './cards';
 
 export type RevisionOutcomePayload = {
   itemType: 'info' | 'connection';
   itemId: string;
+  checkType?: string | null;
+  direction?: string | null;
   revisionType: string;
   evalType: string;
   correct: boolean;
@@ -80,9 +83,12 @@ const nextSequence = () => {
   return next;
 };
 
-const toItemKey = (itemType: string, itemId: string) => `${itemType}:${itemId}`;
+const toItemKey = (itemType: string, itemId: string, checkType?: string | null, direction?: string | null) =>
+  getOutcomeKey(itemType, itemId, checkType, direction);
 
-export const recordOutcome = async (payload: Omit<RevisionOutcomePayload, 'clientId' | 'clientSequence' | 'createdUtc'>) => {
+export const recordOutcome = async (
+  payload: Omit<RevisionOutcomePayload, 'clientId' | 'clientSequence' | 'createdUtc'>
+) => {
   const clientId = getClientId();
   const clientSequence = nextSequence();
   const createdUtc = new Date().toISOString();
@@ -95,7 +101,10 @@ export const recordOutcome = async (payload: Omit<RevisionOutcomePayload, 'clien
     pending: true
   };
   await withStore('readwrite', (store) => new Promise<void>((resolve, reject) => {
-    const item = { ...outcome, itemKey: toItemKey(outcome.itemType, outcome.itemId) };
+    const item = {
+      ...outcome,
+      itemKey: toItemKey(outcome.itemType, outcome.itemId, outcome.checkType, outcome.direction)
+    };
     const request = store.add(item);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
@@ -103,10 +112,15 @@ export const recordOutcome = async (payload: Omit<RevisionOutcomePayload, 'clien
   return outcome;
 };
 
-export const getOutcomesForItem = async (itemType: string, itemId: string) => {
+export const getOutcomesForItem = async (
+  itemType: string,
+  itemId: string,
+  checkType?: string | null,
+  direction?: string | null
+) => {
   if (!itemId) return [];
   try {
-    const itemKey = toItemKey(itemType, itemId);
+    const itemKey = toItemKey(itemType, itemId, checkType, direction);
     return await withStore('readonly', (store) => new Promise<RevisionOutcomePayload[]>((resolve, reject) => {
       const index = store.index('byItem');
       const request = index.getAll(itemKey);
@@ -116,6 +130,8 @@ export const getOutcomesForItem = async (itemType: string, itemId: string) => {
           .map((row) => ({
             itemType: row.itemType,
             itemId: row.itemId,
+            checkType: row.checkType ?? null,
+            direction: row.direction ?? null,
             revisionType: row.revisionType,
             evalType: row.evalType,
             correct: row.correct,
@@ -146,6 +162,8 @@ export const getAllOutcomes = async () => {
         const outcomes = rows.map((row) => ({
           itemType: row.itemType,
           itemId: row.itemId,
+          checkType: row.checkType ?? null,
+          direction: row.direction ?? null,
           revisionType: row.revisionType,
           evalType: row.evalType,
           correct: row.correct,
@@ -225,6 +243,8 @@ export const syncPendingOutcomes = async (libraryId: string, personRoleId?: stri
     const payload = outcomes.map((outcome) => ({
       itemType: outcome.itemType,
       itemId: outcome.itemId,
+      checkType: outcome.checkType ?? null,
+      direction: outcome.direction ?? null,
       revisionType: outcome.revisionType,
       evalType: outcome.evalType,
       correct: outcome.correct,

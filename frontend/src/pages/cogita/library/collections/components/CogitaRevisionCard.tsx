@@ -36,7 +36,15 @@ export function CogitaRevisionCard({
   answerInputRef,
   computedInputRefs,
   scriptMode,
-  setScriptMode
+  setScriptMode,
+  matchPairs,
+  matchLeftOrder,
+  matchRightOrder,
+  matchSelection,
+  matchActiveLeft,
+  matchFeedback,
+  onMatchLeftSelect,
+  onMatchRightSelect
 }: {
   copy: Copy;
   currentCard: CogitaCardSearchResult;
@@ -70,6 +78,19 @@ export function CogitaRevisionCard({
   computedInputRefs: MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>;
   scriptMode: 'super' | 'sub' | null;
   setScriptMode: (value: (prev: 'super' | 'sub' | null) => 'super' | 'sub' | null) => void;
+  matchPairs?: Array<{
+    leftId: string;
+    rightId: string;
+    leftLabel: string;
+    rightLabel: string;
+  }>;
+  matchLeftOrder?: string[];
+  matchRightOrder?: string[];
+  matchSelection?: Record<string, string>;
+  matchActiveLeft?: string | null;
+  matchFeedback?: Record<string, 'correct' | 'incorrect'>;
+  onMatchLeftSelect?: (leftId: string) => void;
+  onMatchRightSelect?: (rightId: string) => void;
 }) {
   const inlineTemplate = useMemo(() => {
     const fallbackTemplate =
@@ -147,6 +168,18 @@ export function CogitaRevisionCard({
     );
   };
 
+  const matchPairsByLeft = useMemo(() => {
+    const map = new Map<string, { leftId: string; rightId: string; leftLabel: string; rightLabel: string }>();
+    (matchPairs ?? []).forEach((pair) => map.set(pair.leftId, pair));
+    return map;
+  }, [matchPairs]);
+
+  const matchPairsByRight = useMemo(() => {
+    const map = new Map<string, { leftId: string; rightId: string; leftLabel: string; rightLabel: string }>();
+    (matchPairs ?? []).forEach((pair) => map.set(pair.rightId, pair));
+    return map;
+  }, [matchPairs]);
+
   useEffect(() => {
     if (currentCard.cardType !== 'info' || currentCard.infoType !== 'computed') return;
     if (computedExpected.length === 0) return;
@@ -220,7 +253,61 @@ export function CogitaRevisionCard({
         <strong>{currentCard.description}</strong>
       </div>
 
-      {currentCard.cardType === 'vocab' ? (
+      {currentCard.cardType === 'vocab' && currentCard.checkType === 'translation-match' && matchPairs ? (
+        <div className="cogita-revision-body">
+          {prompt ? <h2>{prompt}</h2> : null}
+          <div className="cogita-revision-match">
+            <div className="cogita-revision-match-column">
+              {(matchLeftOrder ?? []).map((leftId) => {
+                const pair = matchPairsByLeft.get(leftId);
+                if (!pair) return null;
+                const selectedRight = matchSelection?.[leftId] ?? null;
+                const feedbackState = matchFeedback?.[leftId] ?? null;
+                const isActive = matchActiveLeft === leftId;
+                return (
+                  <button
+                    key={leftId}
+                    type="button"
+                    className="cogita-revision-match-item"
+                    data-active={isActive}
+                    data-state={feedbackState ?? undefined}
+                    onClick={() => onMatchLeftSelect?.(leftId)}
+                  >
+                    <span>{pair.leftLabel}</span>
+                    {selectedRight && showCorrectAnswer ? <em>✓</em> : null}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="cogita-revision-match-column">
+              {(matchRightOrder ?? []).map((rightId) => {
+                const pair = matchPairsByRight.get(rightId);
+                if (!pair) return null;
+                const isSelected = Object.values(matchSelection ?? {}).includes(rightId);
+                return (
+                  <button
+                    key={rightId}
+                    type="button"
+                    className="cogita-revision-match-item"
+                    data-active={isSelected}
+                    onClick={() => onMatchRightSelect?.(rightId)}
+                  >
+                    <span>{pair.rightLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="cogita-form-actions">
+            <button type="button" className="cta" onClick={onCheckAnswer}>
+              {copy.cogita.library.revision.checkAnswer}
+            </button>
+            <button type="button" className="ghost" onClick={onSkip}>
+              {copy.cogita.library.revision.skip}
+            </button>
+          </div>
+        </div>
+      ) : currentCard.cardType === 'vocab' ? (
         <div className="cogita-revision-body">
           <h2>{prompt}</h2>
           <label className="cogita-field">

@@ -6,6 +6,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaComputedSample
 } from '../../../lib/api';
+import { getCardKey } from '../../../cogita/revision/cards';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -158,7 +159,9 @@ export function CogitaLibraryListPage({
         nextSelected = next[0] ?? null;
         return next;
       });
-      setTotalCount((prev) => Math.max(0, prev - 1));
+      setTotalCount((prev) =>
+        Math.max(0, prev - (selectedInfo.cardType === 'vocab' ? 3 : 1))
+      );
       setSelectedInfo((prev) => (prev && prev.cardId === selectedInfo.cardId ? nextSelected : prev));
       setDeleteStatus('idle');
     } catch {
@@ -167,6 +170,7 @@ export function CogitaLibraryListPage({
   };
 
   const cardsView = useMemo(() => (mode === 'collection' ? 'grid' : mode === 'list' ? 'list' : 'detail'), [mode]);
+  const selectedCardKey = selectedInfo ? getCardKey(selectedInfo) : null;
   const cardSearchOptions = useMemo(() => getCardSearchOptions(copy), [copy]);
   const cardCountLabel = useMemo(() => {
     const total = totalCount || searchResults.length;
@@ -332,10 +336,10 @@ export function CogitaLibraryListPage({
                   {searchResults.length ? (
                     searchResults.map((result) => (
                       <button
-                        key={result.cardId}
+                        key={getCardKey(result)}
                         type="button"
                         className="cogita-card-item"
-                        data-selected={selectedInfo?.cardId === result.cardId}
+                        data-selected={selectedCardKey === getCardKey(result)}
                         onClick={() => setSelectedInfo(result)}
                       >
                         <div className="cogita-card-type">

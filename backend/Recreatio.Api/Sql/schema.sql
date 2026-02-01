@@ -437,7 +437,7 @@ CREATE TABLE dbo.CogitaInfoSearchIndexes
     InfoId UNIQUEIDENTIFIER NOT NULL,
     InfoType NVARCHAR(64) NOT NULL,
     Label NVARCHAR(512) NOT NULL,
-    LabelNormalized NVARCHAR(512) NOT NULL,
+        LabelNormalized NVARCHAR(256) NOT NULL,
     LabelHash VARBINARY(32) NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL
 );
@@ -885,6 +885,8 @@ BEGIN
         PersonRoleId UNIQUEIDENTIFIER NOT NULL,
         ItemType NVARCHAR(32) NOT NULL,
         ItemId UNIQUEIDENTIFIER NOT NULL,
+        CheckType NVARCHAR(64) NOT NULL,
+        Direction NVARCHAR(64) NULL,
         RevisionType NVARCHAR(64) NOT NULL,
         EvalType NVARCHAR(64) NOT NULL,
         Correct BIT NOT NULL,
@@ -902,7 +904,7 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaReviewOutcomes_Person_Item' AND object_id = OBJECT_ID('dbo.CogitaReviewOutcomes'))
 BEGIN
-    CREATE INDEX IX_CogitaReviewOutcomes_Person_Item ON dbo.CogitaReviewOutcomes(PersonRoleId, ItemType, ItemId, CreatedUtc DESC);
+    CREATE INDEX IX_CogitaReviewOutcomes_Person_Item ON dbo.CogitaReviewOutcomes(PersonRoleId, ItemType, ItemId, CheckType, Direction, CreatedUtc DESC);
 END
 GO
 

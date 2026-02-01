@@ -1,6 +1,7 @@
 import type { Copy } from '../../content/types';
 import type { CogitaCardSearchResult } from '../../lib/api';
 import { computeTemporalKnowness, type TemporalEntry } from './knowness';
+import { getCardKey } from './cards';
 
 export type RevisionTypeId = 'random' | 'levels' | 'temporal';
 export type RevisionSettings = Record<string, number | string>;
@@ -72,14 +73,14 @@ const randomTie = <T,>(items: T[], score: (item: T) => number) => {
 const pickNextLevelCard = (
   stack: CogitaCardSearchResult[],
   _levelMap: Record<string, number>,
-  currentId?: string | null,
+  currentKey?: string | null,
   _asked?: Set<string>,
   queued?: Set<string>
 ) => {
   if (!stack.length) return null;
-  const available = stack.filter((card) => !queued?.has(card.cardId));
+  const available = stack.filter((card) => !queued?.has(getCardKey(card)));
   if (available.length === 0) return null;
-  const filtered = available.filter((card) => card.cardId !== currentId);
+  const filtered = available.filter((card) => getCardKey(card) !== currentKey);
   return pickRandom(filtered.length ? filtered : available);
 };
 
@@ -88,23 +89,27 @@ const pickLowestFromPool = (
   levelMap: Record<string, number>,
   exclude: Set<string>,
   asked?: Set<string>,
-  currentId?: string | null
+  currentKey?: string | null
 ) => {
   if (!pool.length) return null;
   let minLevel = Number.POSITIVE_INFINITY;
   for (const card of pool) {
-    if (exclude.has(card.cardId)) continue;
-    const level = levelMap[card.cardId] ?? 1;
+    const cardKey = getCardKey(card);
+    if (exclude.has(cardKey)) continue;
+    const level = levelMap[cardKey] ?? 1;
     if (level < minLevel) minLevel = level;
   }
   if (!Number.isFinite(minLevel)) return null;
-  const candidates = pool.filter((card) => !exclude.has(card.cardId) && (levelMap[card.cardId] ?? 1) === minLevel);
-  const withoutCurrent = candidates.filter((card) => !currentId || card.cardId !== currentId);
-  const fresh = asked ? withoutCurrent.filter((card) => !asked.has(card.cardId)) : withoutCurrent;
+  const candidates = pool.filter((card) => {
+    const cardKey = getCardKey(card);
+    return !exclude.has(cardKey) && (levelMap[cardKey] ?? 1) === minLevel;
+  });
+  const withoutCurrent = candidates.filter((card) => !currentKey || getCardKey(card) !== currentKey);
+  const fresh = asked ? withoutCurrent.filter((card) => !asked.has(getCardKey(card))) : withoutCurrent;
   if (fresh.length > 0) return pickRandom(fresh);
   if (withoutCurrent.length > 0) return pickRandom(withoutCurrent);
-  if (currentId && candidates.some((card) => card.cardId === currentId)) {
-    return candidates.find((card) => card.cardId === currentId) ?? null;
+  if (currentKey && candidates.some((card) => getCardKey(card) === currentKey)) {
+    return candidates.find((card) => getCardKey(card) === currentKey) ?? null;
   }
   return candidates.length ? pickRandom(candidates) : null;
 };
@@ -119,20 +124,24 @@ const fillTemporalActiveStack = (
   const active: CogitaCardSearchResult[] = [];
   const underOne = pool.filter(
     (card) =>
-      !excludeIds.has(card.cardId) && !unknownSet.has(card.cardId) && (knownessMap[card.cardId] ?? 0) < 1
+      !excludeIds.has(getCardKey(card)) &&
+      !unknownSet.has(getCardKey(card)) &&
+      (knownessMap[getCardKey(card)] ?? 0) < 1
   );
-  const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
+  const sortedUnderOne = randomTie(underOne, (card) => knownessMap[getCardKey(card)] ?? 0);
   for (const card of sortedUnderOne) {
     if (active.length >= stackSize) break;
     active.push(card);
-    excludeIds.add(card.cardId);
+    excludeIds.add(getCardKey(card));
   }
   if (active.length < stackSize) {
-    const unknownCards = shuffle(pool.filter((card) => !excludeIds.has(card.cardId) && unknownSet.has(card.cardId)));
+    const unknownCards = shuffle(
+      pool.filter((card) => !excludeIds.has(getCardKey(card)) && unknownSet.has(getCardKey(card)))
+    );
     for (const card of unknownCards) {
       if (active.length >= stackSize) break;
       active.push(card);
-      excludeIds.add(card.cardId);
+      excludeIds.add(getCardKey(card));
     }
   }
   return active;
@@ -157,13 +166,15 @@ export const prepareTemporalState = (
 ): RevisionState => {
   const stackSize = Math.max(1, settings.stackSize ?? limit);
   const ordered = shuffle(cards);
-  const pool = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
+  const pool = ordered.filter(
+    (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+  );
   const active = buildTemporalActiveStack(pool, knownessMap, unknownSet, stackSize);
   const asked = new Set<string>();
   const queued = new Set<string>();
   const first = pickNextLevelCard(active, {}, null, asked, queued);
   const queue = first ? [first] : [];
-  if (first) queued.add(first.cardId);
+  if (first) queued.add(getCardKey(first));
   return {
     queue,
     meta: {
@@ -199,7 +210,9 @@ const randomType: RevisionTypeDefinition = {
   getFetchLimit: (limit) => limit,
   prepare: (cards, limit) => {
     const ordered = shuffle(cards);
-    const unique = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
+    const unique = ordered.filter(
+      (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+    );
     return { queue: unique.slice(0, Math.min(limit, unique.length)), meta: {} };
   },
   applyOutcome: (state) => state
@@ -213,22 +226,25 @@ export const prepareLevelsState = (
 ): RevisionState => {
   const stackSize = Math.max(1, settings.stackSize ?? limit);
   const ordered = shuffle(cards);
-  const pool = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
+  const pool = ordered.filter(
+    (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+  );
   const levelMap: Record<string, number> = {};
   const asked = new Set<string>();
   const queued = new Set<string>();
   const wrongSinceCorrect = new Set<string>();
   const maxLevel = Math.max(1, settings.levels ?? 1);
   pool.forEach((card) => {
-    const seeded = initialLevels?.[card.cardId];
+    const cardKey = getCardKey(card);
+    const seeded = initialLevels?.[cardKey];
     const level = typeof seeded === 'number' && Number.isFinite(seeded) ? seeded : 1;
-    levelMap[card.cardId] = Math.min(maxLevel, Math.max(1, Math.round(level)));
+    levelMap[cardKey] = Math.min(maxLevel, Math.max(1, Math.round(level)));
   });
   const stack: CogitaCardSearchResult[] = [];
   if (pool.length > 0) {
     const byLevel = new Map<number, CogitaCardSearchResult[]>();
     pool.forEach((card) => {
-      const level = levelMap[card.cardId] ?? 1;
+      const level = levelMap[getCardKey(card)] ?? 1;
       if (!byLevel.has(level)) byLevel.set(level, []);
       byLevel.get(level)?.push(card);
     });
@@ -244,7 +260,7 @@ export const prepareLevelsState = (
   }
   const first = pickNextLevelCard(stack, levelMap, null, asked, queued);
   const queue = first ? [first] : [];
-  if (first) queued.add(first.cardId);
+  if (first) queued.add(getCardKey(first));
   return {
     queue,
     meta: {
@@ -290,30 +306,31 @@ const levelsType: RevisionTypeDefinition = {
     const asked = new Set<string>(state.meta.asked as Set<string> ?? []);
     const queued = new Set<string>(state.meta.queued as Set<string> ?? []);
     const wrongSinceCorrect = new Set<string>(state.meta.wrongSinceCorrect as Set<string> ?? []);
-    queued.delete(currentCard.cardId);
-    asked.add(currentCard.cardId);
-    const currentLevel = levelMap[currentCard.cardId] ?? 1;
+    const currentKey = getCardKey(currentCard);
+    queued.delete(currentKey);
+    asked.add(currentKey);
+    const currentLevel = levelMap[currentKey] ?? 1;
     if (outcome.correct) {
-      levelMap[currentCard.cardId] = wrongSinceCorrect.has(currentCard.cardId) ? 1 : Math.min(currentLevel + 1, levels);
-      wrongSinceCorrect.delete(currentCard.cardId);
+      levelMap[currentKey] = wrongSinceCorrect.has(currentKey) ? 1 : Math.min(currentLevel + 1, levels);
+      wrongSinceCorrect.delete(currentKey);
     } else {
-      levelMap[currentCard.cardId] = 1;
-      wrongSinceCorrect.add(currentCard.cardId);
+      levelMap[currentKey] = 1;
+      wrongSinceCorrect.add(currentKey);
     }
-    const nextActive = outcome.correct ? active.filter((card) => card.cardId !== currentCard.cardId) : active.slice();
+    const nextActive = outcome.correct ? active.filter((card) => getCardKey(card) !== currentKey) : active.slice();
     if (outcome.correct && nextActive.length < Math.max(1, settings.stackSize ?? 1)) {
-      const exclude = new Set(nextActive.map((card) => card.cardId));
-      const replacement = pickLowestFromPool(pool, levelMap, exclude, asked, currentCard.cardId);
+      const exclude = new Set(nextActive.map((card) => getCardKey(card)));
+      const replacement = pickLowestFromPool(pool, levelMap, exclude, asked, currentKey);
       if (replacement) {
         nextActive.push(replacement);
       }
     }
     const queue = state.queue.slice();
     if (queue.length < limit) {
-      const next = pickNextLevelCard(nextActive, levelMap, currentCard.cardId, asked, queued);
+      const next = pickNextLevelCard(nextActive, levelMap, currentKey, asked, queued);
       if (next) {
         queue.push(next);
-        queued.add(next.cardId);
+        queued.add(getCardKey(next));
       }
     }
     return { queue, meta: { pool, active: nextActive, levelMap, asked, queued, wrongSinceCorrect } };
@@ -351,50 +368,52 @@ const temporalType: RevisionTypeDefinition = {
     const outcomesById = { ...(state.meta.outcomesById as Record<string, TemporalEntry[]> ?? {}) };
     const asked = new Set<string>(state.meta.asked as Set<string> ?? []);
     const queued = new Set<string>(state.meta.queued as Set<string> ?? []);
-    queued.delete(currentCard.cardId);
-    asked.add(currentCard.cardId);
+    const currentKey = getCardKey(currentCard);
+    queued.delete(currentKey);
+    asked.add(currentKey);
 
     const entry: TemporalEntry = {
       correctness: Math.max(0, Math.min(1, outcome.correctness ?? (outcome.correct ? 1 : 0))),
       createdUtc: outcome.createdUtc ?? new Date().toISOString()
     };
-    const existing = outcomesById[currentCard.cardId] ?? [];
+    const existing = outcomesById[currentKey] ?? [];
     const nextEntries = existing.concat(entry).sort((a, b) => a.createdUtc.localeCompare(b.createdUtc)).slice(-5);
-    outcomesById[currentCard.cardId] = nextEntries;
-    unknownSet.delete(currentCard.cardId);
+    outcomesById[currentKey] = nextEntries;
+    unknownSet.delete(currentKey);
 
     const nowMs = Date.now();
     pool.forEach((card) => {
-      const entries = outcomesById[card.cardId] ?? [];
+      const cardKey = getCardKey(card);
+      const entries = outcomesById[cardKey] ?? [];
       if (entries.length === 0) {
-        knownessMap[card.cardId] = 0;
-        unknownSet.add(card.cardId);
+        knownessMap[cardKey] = 0;
+        unknownSet.add(cardKey);
         return;
       }
       const summary = computeTemporalKnowness(entries, nowMs);
-      knownessMap[card.cardId] = summary.knowness;
+      knownessMap[cardKey] = summary.knowness;
     });
 
     const nextActive = active.slice();
-    const currentKnowness = knownessMap[currentCard.cardId] ?? 0;
+    const currentKnowness = knownessMap[currentKey] ?? 0;
     if (currentKnowness >= 1) {
-      const filtered = nextActive.filter((card) => card.cardId !== currentCard.cardId);
+      const filtered = nextActive.filter((card) => getCardKey(card) !== currentKey);
       nextActive.length = 0;
       nextActive.push(...filtered);
     }
     const stackSize = Math.max(1, settings.stackSize ?? limit);
     if (nextActive.length < stackSize) {
-      const activeIds = new Set(nextActive.map((card) => card.cardId));
+      const activeIds = new Set(nextActive.map((card) => getCardKey(card)));
       const fill = fillTemporalActiveStack(pool, knownessMap, unknownSet, stackSize - nextActive.length, activeIds);
       nextActive.push(...fill);
     }
 
     const queue = state.queue.slice();
-    if (queue.length === 0 || queue[queue.length - 1]?.cardId === currentCard.cardId) {
-      const next = pickNextLevelCard(nextActive, {}, currentCard.cardId, asked, queued);
+    if (queue.length === 0 || getCardKey(queue[queue.length - 1]) === currentKey) {
+      const next = pickNextLevelCard(nextActive, {}, currentKey, asked, queued);
       if (next) {
         queue.push(next);
-        queued.add(next.cardId);
+        queued.add(getCardKey(next));
       }
     }
 

@@ -537,6 +537,7 @@ export type Copy = {
         correct: string;
         tryAgain: string;
         noLanguages: string;
+        matchLabel: string;
         knownessTitle: string;
         knownessEmpty: string;
         knownessStats: string;

@@ -7,6 +7,8 @@ public sealed class CogitaReviewOutcome
     public Guid PersonRoleId { get; set; }
     public string ItemType { get; set; } = string.Empty;
     public Guid ItemId { get; set; }
+    public string CheckType { get; set; } = string.Empty;
+    public string? Direction { get; set; }
     public string RevisionType { get; set; } = string.Empty;
     public string EvalType { get; set; } = string.Empty;
     public bool Correct { get; set; }

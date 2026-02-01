@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
+import { getCardKey } from '../../../../cogita/revision/cards';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
@@ -144,7 +145,7 @@ export function CogitaCollectionDetailPage({
                 <div className="cogita-card-list" data-view="list">
                   {cards.length ? (
                     cards.map((card) => (
-                      <div key={`${card.cardType}-${card.cardId}`} className="cogita-card-item">
+                      <div key={getCardKey(card)} className="cogita-card-item">
                         <div className="cogita-card-select">
                           <div className="cogita-card-type">
                             {card.cardType === 'vocab'

@@ -837,6 +837,7 @@ export const de: Copy = {
         correct: 'Richtig',
         tryAgain: 'Nochmal',
         noLanguages: 'Keine Sprachen gefunden.',
+        matchLabel: 'Übersetzungen zuordnen',
         knownessTitle: 'Bekanntheit',
         knownessEmpty: 'Noch keine Daten',
         knownessStats: '{correct} / {total} richtig',

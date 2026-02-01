@@ -135,6 +135,9 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaConnection>()
             .HasIndex(x => new { x.LibraryId, x.ConnectionType, x.CreatedUtc, x.Id });
         modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
+            .Property(x => x.LabelNormalized)
+            .HasMaxLength(256);
+        modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
             .HasIndex(x => new { x.LibraryId, x.InfoType, x.LabelNormalized });
         modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
             .HasIndex(x => new { x.LibraryId, x.InfoId })
@@ -336,7 +339,7 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });
 
         modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
-            .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });
+            .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CheckType, x.Direction, x.CreatedUtc });
         modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
             .HasIndex(x => new { x.PersonRoleId, x.ClientId, x.ClientSequence })
             .IsUnique();

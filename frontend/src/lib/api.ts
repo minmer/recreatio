@@ -508,6 +508,8 @@ export type CogitaCardSearchResult = {
   label: string;
   description: string;
   infoType?: string | null;
+  checkType?: string | null;
+  direction?: string | null;
 };
 
 export type CogitaCardSearchBundle = {
@@ -626,6 +628,8 @@ export type CogitaReviewSummary = {
 export type CogitaReviewOutcomeRequest = {
   itemType: string;
   itemId: string;
+  checkType?: string | null;
+  direction?: string | null;
   revisionType: string;
   evalType: string;
   correct: boolean;
@@ -904,10 +908,14 @@ export function getCogitaReviewSummary(payload: {
   libraryId: string;
   itemType: 'info' | 'connection';
   itemId: string;
+  checkType?: string | null;
+  direction?: string | null;
   personRoleId?: string | null;
 }) {
   const params = new URLSearchParams();
   if (payload.personRoleId) params.set('personRoleId', payload.personRoleId);
+  if (payload.checkType) params.set('checkType', payload.checkType);
+  if (payload.direction) params.set('direction', payload.direction);
   const qs = params.toString();
   return request<CogitaReviewSummary>(
     `/cogita/libraries/${payload.libraryId}/reviews/${payload.itemType}/${payload.itemId}/summary${qs ? `?${qs}` : ''}`,

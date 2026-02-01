@@ -810,6 +810,7 @@ public static class CogitaEndpoints
             var total = 0;
             var infoTotal = 0;
             var translationTotal = 0;
+            const int translationCardMultiplier = 3;
 
             var includeInfos = cardType != "vocab";
             if (includeInfos)
@@ -926,7 +927,13 @@ public static class CogitaEndpoints
                         continue;
                     }
 
-                    responses.Add(new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType));
+                    var checkType = entry.InfoType == "word"
+                        ? "word-language"
+                        : entry.InfoType == "computed"
+                            ? "computed"
+                            : "info";
+                    var direction = entry.InfoType == "word" ? "word-to-language" : null;
+                    responses.Add(new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction));
                 }
             }
 
@@ -938,12 +945,12 @@ public static class CogitaEndpoints
                 if (cardType == "vocab")
                 {
                     translationTotal = await connectionQuery.CountAsync(ct);
-                    total = translationTotal;
+                    total = translationTotal * translationCardMultiplier;
                 }
                 else if (cardType == "any")
                 {
                     translationTotal = await connectionQuery.CountAsync(ct);
-                    total = infoTotal + translationTotal;
+                    total = infoTotal + translationTotal * translationCardMultiplier;
                 }
 
                 if (cardType == "vocab" && cursorCreatedUtc.HasValue && cursorId.HasValue)
@@ -966,7 +973,7 @@ public static class CogitaEndpoints
                     {
                         translationTotal = await dbContext.CogitaConnections.AsNoTracking()
                             .CountAsync(x => x.LibraryId == libraryId && x.ConnectionType == "translation", ct);
-                        total = translationTotal;
+                        total = translationTotal * translationCardMultiplier;
                     }
 
                     var items = await dbContext.CogitaConnectionItems.AsNoTracking()
@@ -1136,7 +1143,9 @@ public static class CogitaEndpoints
                             continue;
                         }
 
-                        responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null));
+                        responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "a-to-b"));
+                        responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "b-to-a"));
+                        responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation-match", null));
                     }
 
                     var last = translations[^1];
@@ -1978,6 +1987,8 @@ public static class CogitaEndpoints
             Guid libraryId,
             string itemType,
             Guid itemId,
+            string? checkType,
+            string? direction,
             Guid? personRoleId,
             HttpContext context,
             RecreatioDbContext dbContext,
@@ -2041,9 +2052,22 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var outcomes = await dbContext.CogitaReviewOutcomes.AsNoTracking()
+            var normalizedCheckType = string.IsNullOrWhiteSpace(checkType) ? null : checkType.Trim().ToLowerInvariant();
+            var normalizedDirection = string.IsNullOrWhiteSpace(direction) ? null : direction.Trim().ToLowerInvariant();
+
+            var outcomesQuery = dbContext.CogitaReviewOutcomes.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && x.PersonRoleId == reviewerRoleId &&
-                            x.ItemType == normalizedType && x.ItemId == itemId)
+                            x.ItemType == normalizedType && x.ItemId == itemId);
+            if (!string.IsNullOrWhiteSpace(normalizedCheckType))
+            {
+                outcomesQuery = outcomesQuery.Where(x => x.CheckType == normalizedCheckType);
+            }
+            if (!string.IsNullOrWhiteSpace(normalizedDirection))
+            {
+                outcomesQuery = outcomesQuery.Where(x => x.Direction == normalizedDirection);
+            }
+
+            var outcomes = await outcomesQuery
                 .OrderByDescending(x => x.CreatedUtc)
                 .Take(50)
                 .ToListAsync(ct);
@@ -2232,6 +2256,8 @@ public static class CogitaEndpoints
                 PersonRoleId = reviewerRoleId,
                 ItemType = itemType,
                 ItemId = request.ItemId,
+                CheckType = request.CheckType?.Trim().ToLowerInvariant() ?? string.Empty,
+                Direction = string.IsNullOrWhiteSpace(request.Direction) ? null : request.Direction.Trim().ToLowerInvariant(),
                 RevisionType = request.RevisionType?.Trim() ?? string.Empty,
                 EvalType = request.EvalType?.Trim() ?? string.Empty,
                 Correct = request.Correct,
@@ -2477,6 +2503,8 @@ public static class CogitaEndpoints
                     PersonRoleId = reviewerRoleId,
                     ItemType = normalizedType,
                     ItemId = outcome.ItemId,
+                    CheckType = outcome.CheckType?.Trim().ToLowerInvariant() ?? string.Empty,
+                    Direction = string.IsNullOrWhiteSpace(outcome.Direction) ? null : outcome.Direction.Trim().ToLowerInvariant(),
                     RevisionType = outcome.RevisionType?.Trim() ?? string.Empty,
                     EvalType = outcome.EvalType?.Trim() ?? string.Empty,
                     Correct = outcome.Correct,
@@ -3300,6 +3328,7 @@ public static class CogitaEndpoints
                     .Where(x => x.LibraryId == share.LibraryId && connectionIds.Contains(x.Id))
                     .Select(x => new { x.Id, x.CreatedUtc, x.ConnectionType })
                     .ToListAsync(ct);
+                var translationCountGraph = connectionMeta.Count(x => x.ConnectionType == "translation");
 
                 var orderedItems = infoMeta
                     .Select(x => new { ItemType = "info", ItemId = x.Id, x.CreatedUtc })
@@ -3334,7 +3363,7 @@ public static class CogitaEndpoints
                     ct);
 
                     return Results.Ok(new CogitaCardSearchBundleResponse(
-                        graphResult.Total,
+                        graphResult.Total + translationCountGraph * 2,
                         pageSize,
                         nextCursor,
                         graphResponses));
@@ -3344,6 +3373,14 @@ public static class CogitaEndpoints
             var itemsQuery = dbContext.CogitaCollectionItems.AsNoTracking()
                 .Where(x => x.CollectionInfoId == share.CollectionId);
             var total = await itemsQuery.CountAsync(ct);
+            var translationCount = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .Where(x => x.CollectionInfoId == share.CollectionId && x.ItemType == "connection")
+                .Join(dbContext.CogitaConnections.AsNoTracking(),
+                    item => item.ItemId,
+                    connection => connection.Id,
+                    (item, connection) => new { connection.ConnectionType })
+                .CountAsync(x => x.ConnectionType == "translation", ct);
+            var totalCards = total + translationCount * 2;
 
             if (!string.IsNullOrWhiteSpace(cursor))
             {
@@ -3377,7 +3414,7 @@ public static class CogitaEndpoints
                 : null;
 
             return Results.Ok(new CogitaCardSearchBundleResponse(
-                total,
+                totalCards,
                 pageSize,
                 next,
                 cardResponses));
@@ -4183,6 +4220,7 @@ public static class CogitaEndpoints
                         .Where(x => x.LibraryId == libraryId && connectionIds.Contains(x.Id))
                         .Select(x => new { x.Id, x.CreatedUtc, x.ConnectionType })
                         .ToListAsync(ct);
+                    var translationCountGraph = connectionMeta.Count(x => x.ConnectionType == "translation");
 
                     var orderedItems = infoMeta
                         .Select(x => new { ItemType = "info", ItemId = x.Id, x.CreatedUtc })
@@ -4262,10 +4300,16 @@ public static class CogitaEndpoints
                             continue;
                         }
 
-                        infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
+                        var checkType = entry.InfoType == "word"
+                            ? "word-language"
+                            : entry.InfoType == "computed"
+                                ? "computed"
+                                : "info";
+                        var direction = entry.InfoType == "word" ? "word-to-language" : null;
+                        infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
                     }
 
-                    var connectionResponsesGraph = new Dictionary<Guid, CogitaCardSearchResponse>();
+                    var connectionResponsesGraph = new Dictionary<Guid, List<CogitaCardSearchResponse>>();
                     if (connectionItemIdsGraph.Count > 0)
                     {
                         var connections = await dbContext.CogitaConnections.AsNoTracking()
@@ -4291,7 +4335,12 @@ public static class CogitaEndpoints
                                 ct);
                             foreach (var response in translationResponses)
                             {
-                                connectionResponsesGraph[response.CardId] = response;
+                                if (!connectionResponsesGraph.TryGetValue(response.CardId, out var list))
+                                {
+                                    list = new List<CogitaCardSearchResponse>();
+                                    connectionResponsesGraph[response.CardId] = list;
+                                }
+                                list.Add(response);
                             }
                         }
 
@@ -4302,13 +4351,17 @@ public static class CogitaEndpoints
                                 continue;
                             }
 
-                            connectionResponsesGraph[connection.Id] = new CogitaCardSearchResponse(
-                                connection.Id,
-                                "connection",
-                                connection.ConnectionType,
-                                "Connection",
-                                null
-                            );
+                            connectionResponsesGraph[connection.Id] = new List<CogitaCardSearchResponse>
+                            {
+                                new CogitaCardSearchResponse(
+                                    connection.Id,
+                                    "connection",
+                                    connection.ConnectionType,
+                                    "Connection",
+                                    null,
+                                    connection.ConnectionType,
+                                    null)
+                            };
                         }
                     }
 
@@ -4324,14 +4377,18 @@ public static class CogitaEndpoints
                         }
                         else if (item.ItemType == "connection")
                         {
-                            if (connectionResponsesGraph.TryGetValue(item.ItemId, out var response))
+                            if (connectionResponsesGraph.TryGetValue(item.ItemId, out var responseList))
                             {
-                                orderedResponsesGraph.Add(response);
+                                orderedResponsesGraph.AddRange(responseList);
                             }
                         }
                     }
 
-                    return Results.Ok(new CogitaCardSearchBundleResponse(graphResult.Total, pageSize, nextCursorGraph, orderedResponsesGraph));
+                    return Results.Ok(new CogitaCardSearchBundleResponse(
+                        graphResult.Total + translationCountGraph * 2,
+                        pageSize,
+                        nextCursorGraph,
+                        orderedResponsesGraph));
                 }
             }
 
@@ -4350,6 +4407,14 @@ public static class CogitaEndpoints
             var itemsQuery = dbContext.CogitaCollectionItems.AsNoTracking()
                 .Where(x => x.CollectionInfoId == collectionId);
             var total = await itemsQuery.CountAsync(ct);
+            var translationCount = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .Where(x => x.CollectionInfoId == collectionId && x.ItemType == "connection")
+                .Join(dbContext.CogitaConnections.AsNoTracking(),
+                    item => item.ItemId,
+                    connection => connection.Id,
+                    (item, connection) => new { connection.ConnectionType })
+                .CountAsync(x => x.ConnectionType == "translation", ct);
+            var totalCards = total + translationCount * 2;
 
             if (cursorSort.HasValue && cursorId.HasValue)
             {
@@ -4471,11 +4536,17 @@ public static class CogitaEndpoints
                         }
                     }
 
-                    infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
+                    var checkType = entry.InfoType == "word"
+                        ? "word-language"
+                        : entry.InfoType == "computed"
+                            ? "computed"
+                            : "info";
+                    var direction = entry.InfoType == "word" ? "word-to-language" : null;
+                    infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
                 }
             }
 
-            var connectionResponses = new Dictionary<Guid, CogitaCardSearchResponse>();
+            var connectionResponses = new Dictionary<Guid, List<CogitaCardSearchResponse>>();
             if (connectionItemIds.Count > 0)
             {
                 var connections = await dbContext.CogitaConnections.AsNoTracking()
@@ -4557,7 +4628,12 @@ public static class CogitaEndpoints
                         var label = $"{wordALabel} ↔ {wordBLabel}";
                         var description = $"{langALabel} ↔ {langBLabel}";
 
-                        connectionResponses[pair.Key] = new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null);
+                        connectionResponses[pair.Key] = new List<CogitaCardSearchResponse>
+                        {
+                            new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "a-to-b"),
+                            new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "b-to-a"),
+                            new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation-match", null)
+                        };
                     }
                 }
 
@@ -4573,13 +4649,17 @@ public static class CogitaEndpoints
                         continue;
                     }
 
-                    connectionResponses[connection.Id] = new CogitaCardSearchResponse(
-                        connection.Id,
-                        "connection",
-                        connection.ConnectionType,
-                        "Connection",
-                        null
-                    );
+                    connectionResponses[connection.Id] = new List<CogitaCardSearchResponse>
+                    {
+                        new CogitaCardSearchResponse(
+                            connection.Id,
+                            "connection",
+                            connection.ConnectionType,
+                            "Connection",
+                            null,
+                            connection.ConnectionType,
+                            null)
+                    };
                 }
             }
 
@@ -4595,14 +4675,14 @@ public static class CogitaEndpoints
                 }
                 else if (item.ItemType == "connection")
                 {
-                    if (connectionResponses.TryGetValue(item.ItemId, out var response))
+                    if (connectionResponses.TryGetValue(item.ItemId, out var responseList))
                     {
-                        orderedResponses.Add(response);
+                        orderedResponses.AddRange(responseList);
                     }
                 }
             }
 
-            return Results.Ok(new CogitaCardSearchBundleResponse(total, pageSize, nextCursor, orderedResponses));
+            return Results.Ok(new CogitaCardSearchBundleResponse(totalCards, pageSize, nextCursor, orderedResponses));
         });
 
         group.MapPost("/libraries/{libraryId:guid}/mock-data", async (
@@ -6723,7 +6803,8 @@ public static class CogitaEndpoints
             builder.Append(ch);
         }
 
-        return builder.ToString();
+        var normalized = builder.ToString();
+        return normalized.Length > 256 ? normalized[..256] : normalized;
     }
 
     private static byte[] HashLabel(string normalized)
@@ -8323,7 +8404,9 @@ public static class CogitaEndpoints
             var label = $"{wordALabel} ↔ {wordBLabel}";
             var description = $"{langALabel} ↔ {langBLabel}";
 
-            responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null));
+            responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "a-to-b"));
+            responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation", "b-to-a"));
+            responses.Add(new CogitaCardSearchResponse(pair.Key, "vocab", label, description, null, "translation-match", null));
         }
 
         return responses;
@@ -8448,10 +8531,16 @@ public static class CogitaEndpoints
                 }
             }
 
-            infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType);
+            var checkType = entry.InfoType == "word"
+                ? "word-language"
+                : entry.InfoType == "computed"
+                    ? "computed"
+                    : "info";
+            var direction = entry.InfoType == "word" ? "word-to-language" : null;
+            infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
         }
 
-        var connectionResponses = new Dictionary<Guid, CogitaCardSearchResponse>();
+        var connectionResponses = new Dictionary<Guid, List<CogitaCardSearchResponse>>();
         if (connectionItemIds.Count > 0)
         {
             var connections = await dbContext.CogitaConnections.AsNoTracking()
@@ -8475,7 +8564,12 @@ public static class CogitaEndpoints
                     ct);
                 foreach (var response in translationResponses)
                 {
-                    connectionResponses[response.CardId] = response;
+                    if (!connectionResponses.TryGetValue(response.CardId, out var list))
+                    {
+                        list = new List<CogitaCardSearchResponse>();
+                        connectionResponses[response.CardId] = list;
+                    }
+                    list.Add(response);
                 }
             }
 
@@ -8486,13 +8580,17 @@ public static class CogitaEndpoints
                     continue;
                 }
 
-                connectionResponses[connection.Id] = new CogitaCardSearchResponse(
-                    connection.Id,
-                    "connection",
-                    connection.ConnectionType,
-                    "Connection",
-                    null
-                );
+                connectionResponses[connection.Id] = new List<CogitaCardSearchResponse>
+                {
+                    new CogitaCardSearchResponse(
+                        connection.Id,
+                        "connection",
+                        connection.ConnectionType,
+                        "Connection",
+                        null,
+                        connection.ConnectionType,
+                        null)
+                };
             }
         }
 
@@ -8508,9 +8606,9 @@ public static class CogitaEndpoints
             }
             else if (item.ItemType == "connection")
             {
-                if (connectionResponses.TryGetValue(item.ItemId, out var response))
+                if (connectionResponses.TryGetValue(item.ItemId, out var responseList))
                 {
-                    orderedResponses.Add(response);
+                    orderedResponses.AddRange(responseList);
                 }
             }
         }
