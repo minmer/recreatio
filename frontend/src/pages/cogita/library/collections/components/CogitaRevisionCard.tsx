@@ -43,6 +43,7 @@ export function CogitaRevisionCard({
   matchRightOrder,
   matchSelection,
   matchActiveLeft,
+  matchActiveRight,
   matchFeedback,
   onMatchLeftSelect,
   onMatchRightSelect
