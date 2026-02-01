@@ -88,5 +88,10 @@ export const computeTemporalKnowness = (entries: TemporalEntry[], nowMs = Date.n
   const decayTauMinutes = 60;
   const decay = 1 / (1 + Math.log1p(minutesSinceLast / decayTauMinutes));
   knowness *= decay;
+  const shortBoostTauMinutes = 2;
+  const shortBoostAmount = 5.44;
+  if (recent.length === 1 && recent[0].correctness > 0.5) {
+    knowness += shortBoostAmount * Math.exp(-minutesSinceLast / shortBoostTauMinutes);
+  }
   return { knowness, avgCorrectness, lastReviewedUtc };
 };
