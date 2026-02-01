@@ -50,7 +50,6 @@ export function CogitaLibraryAddPage({
     notes: ''
   });
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState('');
-  const [computedCount, setComputedCount] = useState(1);
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
   const [computedPreview, setComputedPreview] = useState<{
     prompt: string;
@@ -194,13 +193,11 @@ export function CogitaLibraryAddPage({
         }
         if (detail.infoType === 'computed') {
           setComputedAnswerTemplate(payload.definition?.answerTemplate ?? '');
-          setComputedCount(Math.max(1, payload.definition?.count ?? 1));
           setComputedGraph(payload.definition?.graph ?? null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
         } else {
           setComputedAnswerTemplate('');
-          setComputedCount(1);
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -268,7 +265,6 @@ export function CogitaLibraryAddPage({
           }
         payload.definition = {
           answerTemplate: computedAnswerTemplate,
-          count: Math.max(1, computedCount || 1),
           graph: computedGraph
         };
       }
@@ -297,7 +293,6 @@ export function CogitaLibraryAddPage({
         });
         if (infoForm.infoType === 'computed') {
           setComputedAnswerTemplate('');
-          setComputedCount(1);
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -582,18 +577,6 @@ export function CogitaLibraryAddPage({
                           placeholder={copy.cogita.library.add.info.computedAnswerPlaceholder}
                         />
                       </label>
-                      <label className="cogita-field full">
-                        <span>{copy.cogita.library.add.info.computedCountLabel}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={computedCount}
-                          onChange={(event) =>
-                            setComputedCount(Math.max(1, Number.parseInt(event.target.value || '1', 10)))
-                          }
-                        />
-                      </label>
                       <div className="cogita-field full">
                         <ComputedGraphEditor
                           copy={copy}
@@ -609,12 +592,6 @@ export function CogitaLibraryAddPage({
                       {computedPreview && computedPreviewStatus === 'ready' ? (
                         <div className="cogita-detail-sample">
                           <p className="cogita-user-kicker">{copy.cogita.library.add.info.computedPreviewTitle}</p>
-                          <p className="cogita-revision-hint">
-                            {copy.cogita.library.add.info.computedCountLabel.replace(
-                              '{count}',
-                              String(Math.max(1, computedCount || 1))
-                            )}
-                          </p>
                           <LatexBlock value={computedPreview.prompt} mode="auto" />
                           <div className="cogita-detail-sample-grid">
                             {Object.entries(computedPreview.answers).map(([key, value]) => (

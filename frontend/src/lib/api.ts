@@ -510,7 +510,6 @@ export type CogitaCardSearchResult = {
   infoType?: string | null;
   checkType?: string | null;
   direction?: string | null;
-  count?: number | null;
 };
 
 export type CogitaCardSearchBundle = {
@@ -691,7 +690,6 @@ export type CogitaComputedSample = {
   expectedAnswer: string;
   expectedAnswers?: Record<string, string>;
   values: Record<string, number | string>;
-  count?: number;
   expectedAnswerIsSentence?: boolean;
   outputVariables?: Record<string, string>;
   variableValues?: Record<string, string>;

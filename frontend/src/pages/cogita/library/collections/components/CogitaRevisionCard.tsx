@@ -14,7 +14,6 @@ export function CogitaRevisionCard({
   onAnswerChange,
   computedExpected,
   computedAnswers,
-  computedCount,
   onComputedAnswerChange,
   answerTemplate,
   outputVariables,
@@ -57,7 +56,6 @@ export function CogitaRevisionCard({
   onAnswerChange: (value: string) => void;
   computedExpected: Array<{ key: string; expected: string }>;
   computedAnswers: Record<string, string>;
-  computedCount?: number | null;
   onComputedAnswerChange: (key: string, value: string) => void;
   answerTemplate: string | null;
   outputVariables: Record<string, string> | null;
@@ -374,12 +372,6 @@ export function CogitaRevisionCard({
       ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
         <div className="cogita-revision-body">
           {currentCard.label ? <p className="cogita-revision-hint">{currentCard.label}</p> : null}
-          <p className="cogita-revision-hint">
-            {copy.cogita.library.revision.computedCountLabel.replace(
-              '{count}',
-              String(Math.max(1, computedCount ?? (computedExpected.length || (expectedAnswer ? 1 : 0))))
-            )}
-          </p>
           {answerTemplate ? null : <LatexBlock value={prompt ?? ''} mode="auto" />}
           {computedExpected.length > 0 ? (
             (() => {

@@ -622,7 +622,6 @@ export const pl: Copy = {
         computedSampleTitle: 'Przykład obliczeniowy',
         computedPromptLabel: 'Zadanie:',
         computedAnswerLabel: 'Odpowiedź:',
-        computedCountLabel: 'Liczba informacji: {count}',
         computedLoading: 'Tworzenie przykładu…',
         computedEmpty: 'Brak dostępnego przykładu.',
         editInfo: 'Edytuj informację',
@@ -676,7 +675,6 @@ export const pl: Copy = {
           computedPreview: 'Pokaż przykład',
           computedPreviewTitle: 'Przykład obliczeniowy',
           computedPreviewFail: 'Nie udało się wygenerować przykładu.',
-          computedCountLabel: 'Liczba informacji: {count}',
           save: 'Zapisz informację',
           update: 'Zapisz zmiany',
           saved: 'Informacja zapisana.',
@@ -849,7 +847,6 @@ export const pl: Copy = {
         revealModeAfterIncorrect: 'po błędnej odpowiedzi (ręcznie)',
         showAnswer: 'Pokaż poprawną odpowiedź',
         correctAnswerLabel: 'Poprawna odpowiedź',
-        computedCountLabel: 'Liczba informacji: {count}'
       },
       lookup: {
         searchFailed: 'Wyszukiwanie nieudane.',

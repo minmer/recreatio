@@ -622,7 +622,6 @@ export const en: Copy = {
         computedSampleTitle: 'Computed example',
         computedPromptLabel: 'Prompt:',
         computedAnswerLabel: 'Answer:',
-        computedCountLabel: 'Counts as {count} infos',
         computedLoading: 'Generating example…',
         computedEmpty: 'No example available.',
         editInfo: 'Edit info',
@@ -676,7 +675,6 @@ export const en: Copy = {
           computedPreview: 'Show example',
           computedPreviewTitle: 'Computed example',
           computedPreviewFail: 'Unable to generate example.',
-          computedCountLabel: 'Counts as {count} infos',
           save: 'Save info',
           update: 'Save changes',
           saved: 'Info saved.',
@@ -849,7 +847,6 @@ export const en: Copy = {
         revealModeAfterIncorrect: 'after incorrect (manual)',
         showAnswer: 'Show correct answer',
         correctAnswerLabel: 'Correct answer',
-        computedCountLabel: 'Counts as {count} infos'
       },
       lookup: {
         searchFailed: 'Search failed.',

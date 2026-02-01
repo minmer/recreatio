@@ -58,14 +58,6 @@ const shuffle = <T,>(items: T[]) => {
   return result;
 };
 
-const expandComputedCards = (cards: CogitaCardSearchResult[]) =>
-  cards.flatMap((card) => {
-    if (card.infoType !== 'computed') return [card];
-    const count = Math.max(1, Math.round(card.count ?? 1));
-    if (count <= 1) return [card];
-    return Array.from({ length: count }, () => ({ ...card }));
-  });
-
 const pickRandom = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
 const randomTie = <T,>(items: T[], score: (item: T) => number) => {
@@ -173,8 +165,10 @@ export const prepareTemporalState = (
   outcomesById: Record<string, TemporalEntry[]>
 ): RevisionState => {
   const stackSize = Math.max(1, settings.stackSize ?? limit);
-  const ordered = shuffle(expandComputedCards(cards));
-  const pool = ordered;
+  const ordered = shuffle(cards);
+  const pool = ordered.filter(
+    (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+  );
   const active = buildTemporalActiveStack(pool, knownessMap, unknownSet, stackSize);
   const asked = new Set<string>();
   const queued = new Set<string>();
@@ -215,8 +209,11 @@ const randomType: RevisionTypeDefinition = {
   ],
   getFetchLimit: (limit) => limit,
   prepare: (cards, limit) => {
-    const expanded = shuffle(expandComputedCards(cards));
-    return { queue: expanded.slice(0, Math.min(limit, expanded.length)), meta: {} };
+    const ordered = shuffle(cards);
+    const unique = ordered.filter(
+      (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+    );
+    return { queue: unique.slice(0, Math.min(limit, unique.length)), meta: {} };
   },
   applyOutcome: (state) => state
 };
@@ -228,8 +225,10 @@ export const prepareLevelsState = (
   initialLevels?: Record<string, number>
 ): RevisionState => {
   const stackSize = Math.max(1, settings.stackSize ?? limit);
-  const ordered = shuffle(expandComputedCards(cards));
-  const pool = ordered;
+  const ordered = shuffle(cards);
+  const pool = ordered.filter(
+    (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+  );
   const levelMap: Record<string, number> = {};
   const asked = new Set<string>();
   const queued = new Set<string>();
@@ -327,12 +326,10 @@ const levelsType: RevisionTypeDefinition = {
       }
     }
     const queue = state.queue.slice();
-    if (queue.length < limit) {
-      const next = pickNextLevelCard(nextActive, levelMap, currentKey, asked, queued);
-      if (next) {
-        queue.push(next);
-        queued.add(getCardKey(next));
-      }
+    const next = pickNextLevelCard(nextActive, levelMap, currentKey, asked, queued);
+    if (next) {
+      queue.push(next);
+      queued.add(getCardKey(next));
     }
     return { queue, meta: { pool, active: nextActive, levelMap, asked, queued, wrongSinceCorrect } };
   }

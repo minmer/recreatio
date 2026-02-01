@@ -322,7 +322,6 @@ export type Copy = {
         computedSampleTitle: string;
         computedPromptLabel: string;
         computedAnswerLabel: string;
-        computedCountLabel: string;
         computedLoading: string;
         computedEmpty: string;
         editInfo: string;
@@ -376,8 +375,6 @@ export type Copy = {
           computedPreview: string;
           computedPreviewTitle: string;
           computedPreviewFail: string;
-          computedCountLabel: string;
-          computedCountLabel: string;
         save: string;
         update: string;
         saved: string;
@@ -550,7 +547,6 @@ export type Copy = {
         revealModeAfterIncorrect: string;
         showAnswer: string;
         correctAnswerLabel: string;
-        computedCountLabel: string;
       };
       lookup: {
         searchFailed: string;

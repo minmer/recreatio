@@ -181,7 +181,6 @@ export function CogitaRevisionRunPage({
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState<string | null>(null);
   const [computedOutputVariables, setComputedOutputVariables] = useState<Record<string, string> | null>(null);
   const [computedVariableValues, setComputedVariableValues] = useState<Record<string, string> | null>(null);
-  const [computedCount, setComputedCount] = useState<number | null>(null);
   const [matchState, setMatchState] = useState<{
     pairs: Array<{
       cardId: string;
@@ -198,6 +197,9 @@ export function CogitaRevisionRunPage({
     locked: Record<string, boolean>;
   } | null>(null);
   const [matchFeedback, setMatchFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
+  const [matchFlash, setMatchFlash] = useState<'correct' | 'incorrect' | null>(null);
+  const matchFlashRef = useRef<number | null>(null);
+  const matchFlashResetRef = useRef<number | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
@@ -209,12 +211,8 @@ export function CogitaRevisionRunPage({
   const [revisionMeta, setRevisionMeta] = useState<Record<string, unknown>>({});
 
   const currentCard = queue[currentIndex] ?? null;
-  const computedSampleCache = useRef(
-    new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null; computedCount: number | null }>()
-  );
-  const computedSamplePromises = useRef(
-    new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null; computedCount: number | null }>>()
-  );
+  const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
+  const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
   const resolvedCardCache = useRef(new Map<string, {
     prompt: string | null;
     expectedAnswer: string | null;
@@ -224,7 +222,6 @@ export function CogitaRevisionRunPage({
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
     variableValues: Record<string, string> | null;
-    computedCount: number | null;
   }>());
   const resolvedCardPromises = useRef(new Map<string, Promise<{
     prompt: string | null;
@@ -515,7 +512,6 @@ export function CogitaRevisionRunPage({
       setComputedAnswerTemplate(resolved.answerTemplate);
       setComputedOutputVariables(resolved.outputVariables);
       setComputedVariableValues(resolved.variableValues);
-      setComputedCount(resolved.computedCount ?? null);
     });
     return () => {
       mounted = false;
@@ -575,6 +571,13 @@ export function CogitaRevisionRunPage({
       locked: {}
     });
   }, [currentCard, queue, revisionMeta]);
+
+  useEffect(() => {
+    return () => {
+      if (matchFlashRef.current) window.clearTimeout(matchFlashRef.current);
+      if (matchFlashResetRef.current) window.clearTimeout(matchFlashResetRef.current);
+    };
+  }, []);
 
 
   const lastFocusCardRef = useRef<string | null>(null);
@@ -674,6 +677,11 @@ export function CogitaRevisionRunPage({
       ...current,
       [leftId]: isCorrect ? 'correct' : 'incorrect'
     }));
+    if (matchFlashRef.current) window.clearTimeout(matchFlashRef.current);
+    if (matchFlashResetRef.current) window.clearTimeout(matchFlashResetRef.current);
+    setMatchFlash(null);
+    matchFlashRef.current = window.setTimeout(() => setMatchFlash(isCorrect ? 'correct' : 'incorrect'), 0);
+    matchFlashResetRef.current = window.setTimeout(() => setMatchFlash(null), 420);
     if (isCorrect) {
       const nextLocked = { ...prev.locked, [leftId]: true };
       if (Object.keys(nextLocked).length >= prev.pairs.length) {
@@ -787,29 +795,28 @@ export function CogitaRevisionRunPage({
   const fetchComputedSample = (
     infoId: string,
     cacheKey: string
-  ): Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null; computedCount: number | null }> => {
+  ): Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }> => {
     const cached = computedSampleCache.current.get(cacheKey);
-    if (cached) return Promise.resolve({ ...cached, computedCount: cached.sample?.count ?? null });
+    if (cached) return Promise.resolve(cached);
     const existing = computedSamplePromises.current.get(cacheKey);
     if (existing) return existing;
     const promise = getCogitaInfoDetail({ libraryId, infoId })
       .then((detail) => {
         const payload = detail.payload as {
-          definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null; count?: number };
+          definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null };
         };
         const graph = payload.definition?.graph ?? null;
         const promptTemplate = '';
         const answerTemplate = payload.definition?.answerTemplate ?? '';
-        const count = payload.definition?.count ?? null;
         const computed = buildComputedSampleFromGraph(graph, promptTemplate, answerTemplate);
         if (computed) {
-          const sample = toComputedSample(computed, count ?? undefined);
-          const result = { sample, answerTemplate: answerTemplate || null, computedCount: count ?? sample.count ?? null };
+          const sample = toComputedSample(computed);
+          const result = { sample, answerTemplate: answerTemplate || null };
           computedSampleCache.current.set(cacheKey, result);
           return result;
         }
         return getCogitaComputedSample({ libraryId, infoId }).then((sample) => {
-          const result = { sample, answerTemplate: null, computedCount: sample.count ?? null };
+          const result = { sample, answerTemplate: null };
           computedSampleCache.current.set(cacheKey, result);
           return result;
         });
@@ -817,11 +824,11 @@ export function CogitaRevisionRunPage({
       .catch(() =>
         getCogitaComputedSample({ libraryId, infoId })
           .then((sample) => {
-            const result = { sample, answerTemplate: null, computedCount: sample.count ?? null };
+            const result = { sample, answerTemplate: null };
             computedSampleCache.current.set(cacheKey, result);
             return result;
           })
-          .catch(() => ({ sample: null, answerTemplate: null, computedCount: null }))
+          .catch(() => ({ sample: null, answerTemplate: null }))
       )
       .finally(() => {
         computedSamplePromises.current.delete(cacheKey);
@@ -839,7 +846,6 @@ export function CogitaRevisionRunPage({
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
     variableValues: Record<string, string> | null;
-    computedCount: number | null;
   } | null> => {
     const cacheKey = `${getCardKey(card)}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
@@ -856,7 +862,6 @@ export function CogitaRevisionRunPage({
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
       variableValues: Record<string, string> | null;
-      computedCount: number | null;
     }) => {
       resolvedCardCache.current.set(cacheKey, resolved);
       return resolved;
@@ -871,7 +876,6 @@ export function CogitaRevisionRunPage({
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
       variableValues: Record<string, string> | null;
-      computedCount: number | null;
     } | null>;
 
     if (card.cardType === 'vocab') {
@@ -885,8 +889,7 @@ export function CogitaRevisionRunPage({
             computedValues: null,
             answerTemplate: null,
             outputVariables: null,
-            variableValues: null,
-            computedCount: null
+            variableValues: null
           })
         );
         return promise;
@@ -906,8 +909,7 @@ export function CogitaRevisionRunPage({
             computedValues: null,
             answerTemplate: null,
             outputVariables: null,
-            variableValues: null,
-            computedCount: null
+            variableValues: null
           })
         );
       } else {
@@ -920,8 +922,7 @@ export function CogitaRevisionRunPage({
             computedValues: null,
             answerTemplate: null,
             outputVariables: null,
-            variableValues: null,
-            computedCount: null
+            variableValues: null
           })
         );
       }
@@ -938,8 +939,7 @@ export function CogitaRevisionRunPage({
           computedValues: null,
           answerTemplate: null,
           outputVariables: null,
-          variableValues: null,
-          computedCount: null
+          variableValues: null
         })
       );
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
@@ -954,8 +954,7 @@ export function CogitaRevisionRunPage({
               computedValues: null,
               answerTemplate: null,
               outputVariables: null,
-              variableValues: null,
-              computedCount: result.computedCount ?? null
+              variableValues: null
             });
           }
           const sample = result.sample;
@@ -977,8 +976,7 @@ export function CogitaRevisionRunPage({
             computedValues: sample.values ?? null,
             answerTemplate: result.answerTemplate,
             outputVariables: sample.outputVariables ?? null,
-            variableValues: sample.variableValues ?? null,
-            computedCount: result.computedCount ?? sample.count ?? null
+            variableValues: sample.variableValues ?? null
           });
         })
         .catch(() =>
@@ -990,8 +988,7 @@ export function CogitaRevisionRunPage({
             computedValues: null,
             answerTemplate: null,
             outputVariables: null,
-            variableValues: null,
-            computedCount: null
+            variableValues: null
           })
         )
         .finally(() => {
@@ -1007,8 +1004,7 @@ export function CogitaRevisionRunPage({
           computedValues: null,
           answerTemplate: null,
           outputVariables: null,
-          variableValues: null,
-          computedCount: null
+          variableValues: null
         })
       );
     }
@@ -1404,7 +1400,7 @@ export function CogitaRevisionRunPage({
               </div>
 
               <div className="cogita-library-panel">
-            <section className="cogita-revision-card" data-feedback={feedback ?? 'idle'}>
+            <section className="cogita-revision-card" data-feedback={matchFlash ?? feedback ?? 'idle'}>
               {currentCard ? (
                 <>
                   <CogitaRevisionCard
@@ -1417,7 +1413,6 @@ export function CogitaRevisionRunPage({
                     onAnswerChange={(value) => setAnswer((prev) => applyScriptMode(prev, value, scriptMode))}
                     computedExpected={computedExpected}
                     computedAnswers={computedAnswers}
-                    computedCount={computedCount}
                     onComputedAnswerChange={(key, value) =>
                       setComputedAnswers((prev) => ({
                         ...prev,

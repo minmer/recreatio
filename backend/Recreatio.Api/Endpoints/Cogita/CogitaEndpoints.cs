@@ -909,7 +909,6 @@ public static class CogitaEndpoints
                         using var doc = JsonDocument.Parse(plain);
                         label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
                         description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                        var count = entry.InfoType == "computed" ? ResolveComputedCount(doc.RootElement) : null;
                         var checkType = entry.InfoType == "word"
                             ? "word-language"
                             : entry.InfoType == "computed"
@@ -931,7 +930,7 @@ public static class CogitaEndpoints
                             continue;
                         }
 
-                        responses.Add(new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction, count));
+                        responses.Add(new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction));
                         continue;
                     }
                     catch (CryptographicException)
@@ -4298,15 +4297,13 @@ public static class CogitaEndpoints
                             using var doc = JsonDocument.Parse(plain);
                             label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
                             description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                            var count = entry.InfoType == "computed" ? ResolveComputedCount(doc.RootElement) : null;
-
                             var checkType = entry.InfoType == "word"
                                 ? "word-language"
                                 : entry.InfoType == "computed"
                                     ? "computed"
                                     : "info";
                             var direction = entry.InfoType == "word" ? "word-to-language" : null;
-                            infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction, count);
+                            infoResponsesGraph[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
                             continue;
                         }
                         catch (CryptographicException)
@@ -4528,8 +4525,6 @@ public static class CogitaEndpoints
                         using var doc = JsonDocument.Parse(plain);
                         label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
                         description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                        var count = entry.InfoType == "computed" ? ResolveComputedCount(doc.RootElement) : null;
-
                         if (entry.InfoType == "word" && wordLanguageMap.TryGetValue(entry.InfoId, out var languageInfoId))
                         {
                             if (languageLabels.TryGetValue(languageInfoId, out var langLabel) && !string.IsNullOrWhiteSpace(langLabel))
@@ -4544,7 +4539,7 @@ public static class CogitaEndpoints
                                 ? "computed"
                                 : "info";
                         var direction = entry.InfoType == "word" ? "word-to-language" : null;
-                        infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction, count);
+                        infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
                         continue;
                     }
                     catch (CryptographicException)
@@ -6276,35 +6271,6 @@ public static class CogitaEndpoints
         return infoType;
     }
 
-    private static int? ResolveComputedCount(JsonElement payload)
-    {
-        if (payload.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        var count = 1;
-        if (payload.TryGetProperty("definition", out var definition) && definition.ValueKind == JsonValueKind.Object)
-        {
-            if (definition.TryGetProperty("count", out var countEl) && countEl.ValueKind == JsonValueKind.Number)
-            {
-                if (countEl.TryGetInt32(out var countVal))
-                {
-                    count = Math.Max(1, countVal);
-                }
-            }
-        }
-        else if (payload.TryGetProperty("count", out var rootCountEl) && rootCountEl.ValueKind == JsonValueKind.Number)
-        {
-            if (rootCountEl.TryGetInt32(out var countVal))
-            {
-                count = Math.Max(1, countVal);
-            }
-        }
-
-        return count;
-    }
-
     private static JsonElement SanitizeComputedPayload(JsonElement payload)
     {
         if (payload.ValueKind != JsonValueKind.Object)
@@ -7437,21 +7403,11 @@ public static class CogitaEndpoints
     {
         var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var promptTemplate = string.Empty;
-        var count = 1;
-
         ComputedGraphResult? graphResult = null;
         JsonElement? definition = null;
         if (payload.TryGetProperty("definition", out var definitionEl) && definitionEl.ValueKind == JsonValueKind.Object)
         {
             definition = definitionEl;
-            if (definition.Value.TryGetProperty("count", out var countEl) && countEl.ValueKind == JsonValueKind.Number)
-            {
-                count = Math.Max(1, countEl.GetInt32());
-            }
-        }
-        if (count <= 1 && payload.TryGetProperty("count", out var rootCountEl) && rootCountEl.ValueKind == JsonValueKind.Number)
-        {
-            count = Math.Max(1, rootCountEl.GetInt32());
         }
 
         if (definition.HasValue)
@@ -7472,13 +7428,13 @@ public static class CogitaEndpoints
 
         if (graphResult is not null)
         {
-            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.ExpectedAnswers, graphResult.Values, count);
+            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.ExpectedAnswers, graphResult.Values);
         }
 
         var fallbackLabel = payload.TryGetProperty("label", out var labelEl) && labelEl.ValueKind == JsonValueKind.String
             ? labelEl.GetString() ?? "Computed"
             : "Computed";
-        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, new Dictionary<string, string>(), values, count);
+        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, new Dictionary<string, string>(), values);
     }
 
     private static ComputedGraphResult EvaluateComputedGraph(JsonElement graphElement, string promptTemplate)
@@ -8634,8 +8590,6 @@ public static class CogitaEndpoints
                 using var doc = JsonDocument.Parse(plain);
                 label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
                 description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                var count = entry.InfoType == "computed" ? ResolveComputedCount(doc.RootElement) : null;
-
                 if (entry.InfoType == "word" && wordLanguageMap.TryGetValue(entry.InfoId, out var languageInfoId))
                 {
                     if (languageLabels.TryGetValue(languageInfoId, out var langLabel) && !string.IsNullOrWhiteSpace(langLabel))
@@ -8648,9 +8602,9 @@ public static class CogitaEndpoints
                     ? "word-language"
                     : entry.InfoType == "computed"
                         ? "computed"
-                        : "info";
+                    : "info";
                 var direction = entry.InfoType == "word" ? "word-to-language" : null;
-                infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction, count);
+                infoResponses[entry.InfoId] = new CogitaCardSearchResponse(entry.InfoId, "info", label, description, entry.InfoType, checkType, direction);
                 continue;
             }
             catch (CryptographicException)

@@ -622,7 +622,6 @@ export const de: Copy = {
         computedSampleTitle: 'Berechnetes Beispiel',
         computedPromptLabel: 'Aufgabe:',
         computedAnswerLabel: 'Antwort:',
-        computedCountLabel: 'Anzahl Infos: {count}',
         computedLoading: 'Beispiel wird erzeugt…',
         computedEmpty: 'Kein Beispiel verfügbar.',
         editInfo: 'Info bearbeiten',
@@ -676,7 +675,6 @@ export const de: Copy = {
           computedPreview: 'Beispiel anzeigen',
           computedPreviewTitle: 'Berechnetes Beispiel',
           computedPreviewFail: 'Beispiel konnte nicht erstellt werden.',
-          computedCountLabel: 'Anzahl Infos: {count}',
           save: 'Info speichern',
           update: 'Änderungen speichern',
           saved: 'Info gespeichert.',
@@ -849,7 +847,6 @@ export const de: Copy = {
         revealModeAfterIncorrect: 'nach falscher Antwort (manuell)',
         showAnswer: 'Richtige Antwort zeigen',
         correctAnswerLabel: 'Richtige Antwort',
-        computedCountLabel: 'Anzahl Infos: {count}'
       },
       lookup: {
         searchFailed: 'Suche fehlgeschlagen.',

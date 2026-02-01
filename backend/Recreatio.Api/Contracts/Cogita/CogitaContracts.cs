@@ -38,8 +38,7 @@ public sealed record CogitaCardSearchResponse(
     string Description,
     string? InfoType,
     string? CheckType = null,
-    string? Direction = null,
-    int? Count = null
+    string? Direction = null
 );
 
 public sealed record CogitaCardSearchBundleResponse(
@@ -279,8 +278,7 @@ public sealed record CogitaComputedSampleResponse(
     string Prompt,
     string ExpectedAnswer,
     Dictionary<string, string> ExpectedAnswers,
-    Dictionary<string, double> Values,
-    int Count
+    Dictionary<string, double> Values
 );
 
 public sealed record CogitaCollectionGraphNodeRequest(
