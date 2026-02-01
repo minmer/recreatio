@@ -58,20 +58,13 @@ const pickRandom = <T,>(items: T[]) => items[Math.floor(Math.random() * items.le
 
 const pickNextLevelCard = (
   stack: CogitaCardSearchResult[],
-  levelMap: Record<string, number>,
+  _levelMap: Record<string, number>,
   currentId?: string | null,
-  asked?: Set<string>,
+  _asked?: Set<string>,
   queued?: Set<string>
 ) => {
   if (!stack.length) return null;
-  let minLevel = Number.POSITIVE_INFINITY;
-  for (const card of stack) {
-    const level = levelMap[card.cardId] ?? 1;
-    if (level < minLevel) minLevel = level;
-  }
-  const candidates = stack.filter((card) => (levelMap[card.cardId] ?? 1) === minLevel);
-  const fresh = candidates.filter((card) => !(asked?.has(card.cardId) || queued?.has(card.cardId)));
-  const available = fresh.length ? fresh : candidates.filter((card) => !queued?.has(card.cardId));
+  const available = stack.filter((card) => !queued?.has(card.cardId));
   if (available.length === 0) return null;
   const filtered = available.filter((card) => card.cardId !== currentId);
   return pickRandom(filtered.length ? filtered : available);
@@ -81,7 +74,8 @@ const pickLowestFromPool = (
   pool: CogitaCardSearchResult[],
   levelMap: Record<string, number>,
   exclude: Set<string>,
-  asked?: Set<string>
+  asked?: Set<string>,
+  currentId?: string | null
 ) => {
   if (!pool.length) return null;
   let minLevel = Number.POSITIVE_INFINITY;
@@ -92,9 +86,14 @@ const pickLowestFromPool = (
   }
   if (!Number.isFinite(minLevel)) return null;
   const candidates = pool.filter((card) => !exclude.has(card.cardId) && (levelMap[card.cardId] ?? 1) === minLevel);
-  const fresh = asked ? candidates.filter((card) => !asked.has(card.cardId)) : candidates;
-  const available = fresh.length ? fresh : candidates;
-  return available.length ? pickRandom(available) : null;
+  const withoutCurrent = candidates.filter((card) => !currentId || card.cardId !== currentId);
+  const fresh = asked ? withoutCurrent.filter((card) => !asked.has(card.cardId)) : withoutCurrent;
+  if (fresh.length > 0) return pickRandom(fresh);
+  if (withoutCurrent.length > 0) return pickRandom(withoutCurrent);
+  if (currentId && candidates.some((card) => card.cardId === currentId)) {
+    return candidates.find((card) => card.cardId === currentId) ?? null;
+  }
+  return candidates.length ? pickRandom(candidates) : null;
 };
 
 const randomType: RevisionTypeDefinition = {
@@ -133,16 +132,34 @@ export const prepareLevelsState = (
   const stackSize = Math.max(1, settings.stackSize ?? limit);
   const ordered = shuffle(cards);
   const pool = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
-  const stack = pool.slice(0, stackSize);
   const levelMap: Record<string, number> = {};
   const asked = new Set<string>();
   const queued = new Set<string>();
+  const wrongSinceCorrect = new Set<string>();
   const maxLevel = Math.max(1, settings.levels ?? 1);
   pool.forEach((card) => {
     const seeded = initialLevels?.[card.cardId];
     const level = typeof seeded === 'number' && Number.isFinite(seeded) ? seeded : 1;
     levelMap[card.cardId] = Math.min(maxLevel, Math.max(1, Math.round(level)));
   });
+  const stack: CogitaCardSearchResult[] = [];
+  if (pool.length > 0) {
+    const byLevel = new Map<number, CogitaCardSearchResult[]>();
+    pool.forEach((card) => {
+      const level = levelMap[card.cardId] ?? 1;
+      if (!byLevel.has(level)) byLevel.set(level, []);
+      byLevel.get(level)?.push(card);
+    });
+    const levels = Array.from(byLevel.keys()).sort((a, b) => a - b);
+    for (const level of levels) {
+      if (stack.length >= stackSize) break;
+      const candidates = shuffle(byLevel.get(level) ?? []);
+      for (const card of candidates) {
+        if (stack.length >= stackSize) break;
+        stack.push(card);
+      }
+    }
+  }
   const first = pickNextLevelCard(stack, levelMap, null, asked, queued);
   const queue = first ? [first] : [];
   if (first) queued.add(first.cardId);
@@ -153,7 +170,8 @@ export const prepareLevelsState = (
       active: stack,
       levelMap,
       asked,
-      queued
+      queued,
+      wrongSinceCorrect
     }
   };
 };
@@ -189,14 +207,21 @@ const levelsType: RevisionTypeDefinition = {
     const levelMap = { ...(state.meta.levelMap as Record<string, number> ?? {}) };
     const asked = new Set<string>(state.meta.asked as Set<string> ?? []);
     const queued = new Set<string>(state.meta.queued as Set<string> ?? []);
+    const wrongSinceCorrect = new Set<string>(state.meta.wrongSinceCorrect as Set<string> ?? []);
     queued.delete(currentCard.cardId);
     asked.add(currentCard.cardId);
     const currentLevel = levelMap[currentCard.cardId] ?? 1;
-    levelMap[currentCard.cardId] = outcome.correct ? Math.min(currentLevel + 1, levels) : 1;
+    if (outcome.correct) {
+      levelMap[currentCard.cardId] = wrongSinceCorrect.has(currentCard.cardId) ? 1 : Math.min(currentLevel + 1, levels);
+      wrongSinceCorrect.delete(currentCard.cardId);
+    } else {
+      levelMap[currentCard.cardId] = 1;
+      wrongSinceCorrect.add(currentCard.cardId);
+    }
     const nextActive = outcome.correct ? active.filter((card) => card.cardId !== currentCard.cardId) : active.slice();
     if (outcome.correct && nextActive.length < Math.max(1, settings.stackSize ?? 1)) {
       const exclude = new Set(nextActive.map((card) => card.cardId));
-      const replacement = pickLowestFromPool(pool, levelMap, exclude, asked);
+      const replacement = pickLowestFromPool(pool, levelMap, exclude, asked, currentCard.cardId);
       if (replacement) {
         nextActive.push(replacement);
       }
@@ -209,7 +234,7 @@ const levelsType: RevisionTypeDefinition = {
         queued.add(next.cardId);
       }
     }
-    return { queue, meta: { pool, active: nextActive, levelMap, asked, queued } };
+    return { queue, meta: { pool, active: nextActive, levelMap, asked, queued, wrongSinceCorrect } };
   }
 };
 
