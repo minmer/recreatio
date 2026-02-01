@@ -247,16 +247,18 @@ export function CogitaRevisionSettingsPage({
                       <span>{copy.cogita.library.revision.checkLabel}</span>
                       <input value={copy.cogita.library.revision.checkValue} disabled />
                     </label>
-                    <label className="cogita-field">
-                      <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={200}
-                        value={limit}
-                        onChange={(event) => setLimit(Number(event.target.value || 1))}
-                      />
-                    </label>
+                    {revisionType.id !== 'levels' ? (
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={200}
+                          value={limit}
+                          onChange={(event) => setLimit(Number(event.target.value || 1))}
+                        />
+                      </label>
+                    ) : null}
                     <label className="cogita-field">
                       <span>{copy.cogita.library.revision.reviewerLabel}</span>
                       <select
