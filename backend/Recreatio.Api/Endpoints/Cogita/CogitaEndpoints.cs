@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -464,6 +465,7 @@ public static class CogitaEndpoints
             Guid libraryId,
             string? type,
             string? query,
+            int? limit,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -504,51 +506,37 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var lookup = await BuildInfoLookupAsync(libraryId, infoType, dbContext, ct);
-            var dataKeyIds = lookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
-            var keyEntryById = await dbContext.Keys.AsNoTracking()
-                .Where(x => dataKeyIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, ct);
-
             var loweredQuery = query?.Trim().ToLowerInvariant();
-            var responses = new List<CogitaInfoSearchResponse>();
+            var pageSize = Math.Clamp(limit ?? 50, 1, 200);
+            await EnsureInfoSearchIndexAsync(
+                libraryId,
+                infoType,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
 
-            foreach (var entry in lookup.Values)
+            var indexQuery = dbContext.CogitaInfoSearchIndexes.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && (infoType == null || x.InfoType == infoType));
+
+            if (!string.IsNullOrWhiteSpace(loweredQuery))
             {
-                if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+                if (loweredQuery.Length < 3)
                 {
-                    continue;
+                    indexQuery = indexQuery.Where(x => x.LabelNormalized.StartsWith(loweredQuery));
                 }
-
-                byte[] dataKey;
-                try
+                else
                 {
-                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                    indexQuery = indexQuery.Where(x => x.LabelNormalized.Contains(loweredQuery));
                 }
-                catch (CryptographicException)
-                {
-                    continue;
-                }
-
-                string label;
-                try
-                {
-                    var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
-                    using var doc = JsonDocument.Parse(plain);
-                    label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                }
-                catch (CryptographicException)
-                {
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(loweredQuery) && !label.ToLowerInvariant().Contains(loweredQuery))
-                {
-                    continue;
-                }
-
-                responses.Add(new CogitaInfoSearchResponse(entry.InfoId, entry.InfoType, label));
             }
+
+            var responses = await indexQuery
+                .OrderBy(x => x.LabelNormalized)
+                .Take(pageSize)
+                .Select(x => new CogitaInfoSearchResponse(x.InfoId, x.InfoType, x.Label))
+                .ToListAsync(ct);
 
             return Results.Ok(responses);
         });
@@ -744,6 +732,7 @@ public static class CogitaEndpoints
             }
 
             info.UpdatedUtc = now;
+            await UpsertInfoSearchIndexAsync(libraryId, info.Id, info.InfoType, request.Payload, now, dbContext, ct);
 
             await dbContext.SaveChangesAsync(ct);
 
@@ -5695,6 +5684,7 @@ public static class CogitaEndpoints
             });
 
             AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
+            await UpsertInfoSearchIndexAsync(libraryId, infoId, infoType, request.Payload, now, dbContext, ct);
 
             await dbContext.SaveChangesAsync(ct);
 
@@ -6707,6 +6697,174 @@ public static class CogitaEndpoints
         }
     }
 
+    private static string NormalizeLabel(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return string.Empty;
+        }
+
+        var lower = label.Trim().ToLowerInvariant();
+        var builder = new StringBuilder(lower.Length);
+        var lastWasSpace = false;
+        foreach (var ch in lower)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (!lastWasSpace)
+                {
+                    builder.Append(' ');
+                    lastWasSpace = true;
+                }
+                continue;
+            }
+
+            lastWasSpace = false;
+            builder.Append(ch);
+        }
+
+        return builder.ToString();
+    }
+
+    private static byte[] HashLabel(string normalized)
+    {
+        return SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+    }
+
+    private static async Task UpsertInfoSearchIndexAsync(
+        Guid libraryId,
+        Guid infoId,
+        string infoType,
+        JsonElement payload,
+        DateTimeOffset now,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var label = ResolveLabel(payload, infoType) ?? infoType;
+        var normalized = NormalizeLabel(label);
+        var hash = HashLabel(normalized);
+
+        var existing = await dbContext.CogitaInfoSearchIndexes
+            .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.InfoId == infoId, ct);
+        if (existing is null)
+        {
+            dbContext.CogitaInfoSearchIndexes.Add(new CogitaInfoSearchIndex
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                InfoId = infoId,
+                InfoType = infoType,
+                Label = label,
+                LabelNormalized = normalized,
+                LabelHash = hash,
+                UpdatedUtc = now
+            });
+            return;
+        }
+
+        existing.InfoType = infoType;
+        existing.Label = label;
+        existing.LabelNormalized = normalized;
+        existing.LabelHash = hash;
+        existing.UpdatedUtc = now;
+    }
+
+    private static async Task EnsureInfoSearchIndexAsync(
+        Guid libraryId,
+        string? infoType,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var infoIds = await dbContext.CogitaInfos.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId && (infoType == null || x.InfoType == infoType))
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+
+        if (infoIds.Count == 0)
+        {
+            return;
+        }
+
+        var indexedInfoIds = await dbContext.CogitaInfoSearchIndexes.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId && (infoType == null || x.InfoType == infoType))
+            .Select(x => x.InfoId)
+            .ToListAsync(ct);
+
+        var missingIds = infoIds.Except(indexedInfoIds).ToList();
+        if (missingIds.Count == 0)
+        {
+            return;
+        }
+
+        var lookup = await BuildInfoLookupAsync(libraryId, infoType, missingIds, dbContext, ct);
+        if (lookup.Count == 0)
+        {
+            return;
+        }
+
+        var dataKeyIds = lookup.Values.Select(entry => entry.DataKeyId).Distinct().ToList();
+        var keyEntryById = await dbContext.Keys.AsNoTracking()
+            .Where(x => dataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var inserts = new List<CogitaInfoSearchIndex>();
+
+        foreach (var entry in lookup.Values)
+        {
+            if (!keyEntryById.TryGetValue(entry.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, entry.EncryptedBlob, entry.InfoId.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                var label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
+                var normalized = NormalizeLabel(label);
+                inserts.Add(new CogitaInfoSearchIndex
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    InfoId = entry.InfoId,
+                    InfoType = entry.InfoType,
+                    Label = label,
+                    LabelNormalized = normalized,
+                    LabelHash = HashLabel(normalized),
+                    UpdatedUtc = now
+                });
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+        }
+
+        if (inserts.Count > 0)
+        {
+            dbContext.CogitaInfoSearchIndexes.AddRange(inserts);
+            await dbContext.SaveChangesAsync(ct);
+        }
+    }
+
     private static async Task<(Guid DataKeyId, byte[] DataKey)> ResolveDataKeyAsync(
         Guid roleId,
         Guid? dataKeyId,
@@ -6815,6 +6973,7 @@ public static class CogitaEndpoints
         });
 
         AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
+        await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, request.Payload, now, dbContext, ct);
         dbContext.KeyEntryBindings.Add(new KeyEntryBinding
         {
             Id = Guid.NewGuid(),

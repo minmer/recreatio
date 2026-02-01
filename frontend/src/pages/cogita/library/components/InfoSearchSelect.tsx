@@ -38,6 +38,7 @@ type InfoSearchSelectProps = InfoSearchSelectSingleProps | InfoSearchSelectMulti
 
 const MAX_RESULTS = 5;
 const MAX_RESULTS_PER_REQUEST = 50;
+const MIN_QUERY_LENGTH = 2;
 const EMPTY_OPTIONS: CogitaInfoOption[] = [];
 
 export function InfoSearchSelect({
@@ -69,6 +70,7 @@ export function InfoSearchSelect({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lastRequest = useRef(0);
+  const cacheRef = useRef(new Map<string, CogitaInfoOption[]>());
 
   const showCreate = useMemo(() => {
     if (multiple) {
@@ -85,11 +87,31 @@ export function InfoSearchSelect({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed.length < MIN_QUERY_LENGTH) {
       setResults([]);
       setIsOpen(false);
       setVisibleCount(MAX_RESULTS);
       setHighlightedIndex(-1);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    const normalizedQuery = trimmed.toLowerCase();
+    const cacheKey = `${libraryId}:${infoType}:${normalizedQuery}`;
+    const cached = cacheRef.current.get(cacheKey);
+    if (cached) {
+      if (multiple && selectedValues.length > 0) {
+        const selectedIds = new Set(selectedValues.map((item) => item.id));
+        setResults(cached.filter((item) => !selectedIds.has(item.id)));
+      } else {
+        setResults(cached);
+      }
+      setVisibleCount(MAX_RESULTS);
+      setHighlightedIndex(-1);
+      setIsOpen(cached.length > 0);
+      setIsLoading(false);
+      setError(null);
       return;
     }
 
@@ -99,13 +121,19 @@ export function InfoSearchSelect({
       setIsLoading(true);
       setError(null);
       try {
-        const matches = await searchCogitaInfos({ libraryId, type: infoType, query: trimmed });
+        const matches = await searchCogitaInfos({
+          libraryId,
+          type: infoType,
+          query: trimmed,
+          limit: MAX_RESULTS_PER_REQUEST
+        });
         if (lastRequest.current !== currentRequest) return;
         const mapped = matches.slice(0, MAX_RESULTS_PER_REQUEST).map((match) => ({
-            id: match.infoId,
-            label: match.label,
-            infoType: match.infoType as CogitaInfoType
+          id: match.infoId,
+          label: match.label,
+          infoType: match.infoType as CogitaInfoType
         }));
+        cacheRef.current.set(cacheKey, mapped);
         if (multiple && selectedValues.length > 0) {
           const selectedIds = new Set(selectedValues.map((item) => item.id));
           setResults(mapped.filter((item) => !selectedIds.has(item.id)));
@@ -160,6 +188,11 @@ export function InfoSearchSelect({
         payload: { label: trimmed }
       });
       const createdOption = { id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType };
+      if (trimmed.length >= MIN_QUERY_LENGTH) {
+        const cacheKey = `${libraryId}:${infoType}:${trimmed.toLowerCase()}`;
+        const existing = cacheRef.current.get(cacheKey) ?? [];
+        cacheRef.current.set(cacheKey, [createdOption, ...existing]);
+      }
       if (multiple) {
         onChangeMultiple?.([...selectedValues, createdOption]);
         setQuery('');

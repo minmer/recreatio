@@ -109,29 +109,42 @@ const pickLowestFromPool = (
   return candidates.length ? pickRandom(candidates) : null;
 };
 
+const fillTemporalActiveStack = (
+  pool: CogitaCardSearchResult[],
+  knownessMap: Record<string, number>,
+  unknownSet: Set<string>,
+  stackSize: number,
+  excludeIds: Set<string>
+) => {
+  const active: CogitaCardSearchResult[] = [];
+  const underOne = pool.filter(
+    (card) =>
+      !excludeIds.has(card.cardId) && !unknownSet.has(card.cardId) && (knownessMap[card.cardId] ?? 0) < 1
+  );
+  const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
+  for (const card of sortedUnderOne) {
+    if (active.length >= stackSize) break;
+    active.push(card);
+    excludeIds.add(card.cardId);
+  }
+  if (active.length < stackSize) {
+    const unknownCards = shuffle(pool.filter((card) => !excludeIds.has(card.cardId) && unknownSet.has(card.cardId)));
+    for (const card of unknownCards) {
+      if (active.length >= stackSize) break;
+      active.push(card);
+      excludeIds.add(card.cardId);
+    }
+  }
+  return active;
+};
+
 const buildTemporalActiveStack = (
   pool: CogitaCardSearchResult[],
   knownessMap: Record<string, number>,
   unknownSet: Set<string>,
   stackSize: number
 ) => {
-  const underOne = pool.filter(
-    (card) => !unknownSet.has(card.cardId) && (knownessMap[card.cardId] ?? 0) < 1
-  );
-  const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
-  const active: CogitaCardSearchResult[] = [];
-  for (const card of sortedUnderOne) {
-    if (active.length >= stackSize) break;
-    active.push(card);
-  }
-  if (active.length < stackSize) {
-    const unknownCards = shuffle(pool.filter((card) => unknownSet.has(card.cardId)));
-    for (const card of unknownCards) {
-      if (active.length >= stackSize) break;
-      active.push(card);
-    }
-  }
-  return active;
+  return fillTemporalActiveStack(pool, knownessMap, unknownSet, stackSize, new Set<string>());
 };
 
 export const prepareTemporalState = (
@@ -265,7 +278,7 @@ const levelsType: RevisionTypeDefinition = {
       ]
     }
   ],
-  getFetchLimit: () => Number.MAX_SAFE_INTEGER,
+  getFetchLimit: (limit, settings) => Math.max(1, settings.stackSize ?? limit),
   getProgressTotal: () => null,
   prepare: (cards, limit, settings) => prepareLevelsState(cards, limit, settings),
   applyOutcome: (state, currentCard, limit, settings, outcome) => {
@@ -314,7 +327,6 @@ const temporalType: RevisionTypeDefinition = {
   settingsFields: [
     { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
-    { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
     {
       key: 'compare',
       labelKey: 'compareLabel',
@@ -326,7 +338,7 @@ const temporalType: RevisionTypeDefinition = {
       ]
     }
   ],
-  getFetchLimit: () => Number.MAX_SAFE_INTEGER,
+  getFetchLimit: (limit, settings) => Math.max(1, settings.stackSize ?? limit),
   getProgressTotal: () => null,
   prepare: (cards, limit, settings) =>
     prepareTemporalState(cards, limit, settings, {}, new Set<string>(), {}),
@@ -369,25 +381,12 @@ const temporalType: RevisionTypeDefinition = {
       const filtered = nextActive.filter((card) => card.cardId !== currentCard.cardId);
       nextActive.length = 0;
       nextActive.push(...filtered);
-      const stackSize = Math.max(1, settings.stackSize ?? limit);
-      if (nextActive.length < stackSize) {
-        const activeIds = new Set(nextActive.map((card) => card.cardId));
-        const underOne = pool.filter(
-          (card) =>
-            !activeIds.has(card.cardId) &&
-            !unknownSet.has(card.cardId) &&
-            (knownessMap[card.cardId] ?? 0) < 1
-        );
-        const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
-        let replacement = sortedUnderOne[0] ?? null;
-        if (!replacement) {
-          const unknowns = shuffle(pool.filter((card) => !activeIds.has(card.cardId) && unknownSet.has(card.cardId)));
-          replacement = unknowns[0] ?? null;
-        }
-        if (replacement) {
-          nextActive.push(replacement);
-        }
-      }
+    }
+    const stackSize = Math.max(1, settings.stackSize ?? limit);
+    if (nextActive.length < stackSize) {
+      const activeIds = new Set(nextActive.map((card) => card.cardId));
+      const fill = fillTemporalActiveStack(pool, knownessMap, unknownSet, stackSize - nextActive.length, activeIds);
+      nextActive.push(...fill);
     }
 
     const queue = state.queue.slice(0, 1);

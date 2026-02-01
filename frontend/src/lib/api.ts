@@ -744,10 +744,16 @@ export function getCogitaLibraryStats(libraryId: string) {
   });
 }
 
-export function searchCogitaInfos(payload: { libraryId: string; type?: string; query?: string }) {
+export function searchCogitaInfos(payload: {
+  libraryId: string;
+  type?: string;
+  query?: string;
+  limit?: number;
+}) {
   const params = new URLSearchParams();
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
+  if (payload.limit) params.set('limit', String(payload.limit));
   const qs = params.toString();
   return request<CogitaInfoSearchResult[]>(
     `/cogita/libraries/${payload.libraryId}/infos${qs ? `?${qs}` : ''}`,

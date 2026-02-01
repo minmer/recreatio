@@ -56,6 +56,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaWordLanguage> CogitaWordLanguages => Set<Data.Cogita.CogitaWordLanguage>();
     public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
     public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
+    public DbSet<Data.Cogita.CogitaInfoSearchIndex> CogitaInfoSearchIndexes => Set<Data.Cogita.CogitaInfoSearchIndex>();
     public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
     public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
     public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
@@ -133,6 +134,11 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaConnection>()
             .HasIndex(x => new { x.LibraryId, x.ConnectionType, x.CreatedUtc, x.Id });
+        modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
+            .HasIndex(x => new { x.LibraryId, x.InfoType, x.LabelNormalized });
+        modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
+            .HasIndex(x => new { x.LibraryId, x.InfoId })
+            .IsUnique();
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionItem>()
             .HasIndex(x => new { x.CollectionInfoId, x.ItemType, x.ItemId })

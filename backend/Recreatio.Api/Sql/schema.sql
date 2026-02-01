@@ -41,6 +41,7 @@ IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLang
 IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaComputedInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaComputedInfos;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
+IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
@@ -428,6 +429,20 @@ CREATE TABLE dbo.CogitaInfos
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaInfos_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
 );
+
+CREATE TABLE dbo.CogitaInfoSearchIndexes
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    InfoId UNIQUEIDENTIFIER NOT NULL,
+    InfoType NVARCHAR(64) NOT NULL,
+    Label NVARCHAR(512) NOT NULL,
+    LabelNormalized NVARCHAR(512) NOT NULL,
+    LabelHash VARBINARY(32) NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL
+);
+CREATE INDEX IX_CogitaInfoSearchIndexes_LibraryTypeLabel ON dbo.CogitaInfoSearchIndexes (LibraryId, InfoType, LabelNormalized);
+CREATE UNIQUE INDEX IX_CogitaInfoSearchIndexes_LibraryInfo ON dbo.CogitaInfoSearchIndexes (LibraryId, InfoId);
 GO
 
 CREATE INDEX IX_CogitaInfos_Library_Type ON dbo.CogitaInfos(LibraryId, InfoType);
