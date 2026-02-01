@@ -308,6 +308,7 @@ export function CogitaRevisionRunPage({
       try {
         const gathered: CogitaCardSearchResult[] = [];
         let cursor: string | null | undefined = null;
+        let targetTotal: number | null = null;
         do {
           const bundle = await getCogitaCollectionCards({
             libraryId,
@@ -316,11 +317,15 @@ export function CogitaRevisionRunPage({
             cursor
           });
           gathered.push(...bundle.items);
+          if (revisionType.id === 'levels' && bundle.total) {
+            targetTotal = bundle.total;
+          }
           setLoadProgress((prev) => ({
             current: gathered.length,
             total: prev.total || bundle.total || revisionType.getFetchLimit(limit, revisionSettings)
           }));
           cursor = bundle.nextCursor ?? null;
+          if (targetTotal !== null && gathered.length >= targetTotal) break;
           if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
         } while (cursor);
 
