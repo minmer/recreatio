@@ -418,6 +418,17 @@ export function CogitaLibraryListPage({
                           {computedSampleStatus === 'loading' && <p>{copy.cogita.library.list.computedLoading}</p>}
                           {computedSampleStatus !== 'loading' && computedSample ? (
                             <>
+                              <p className="cogita-revision-hint">
+                                {copy.cogita.library.list.computedCountLabel.replace(
+                                  '{count}',
+                                  String(
+                                    Math.max(
+                                      1,
+                                      computedSample.expectedAnswers ? Object.keys(computedSample.expectedAnswers).length : 0
+                                    )
+                                  )
+                                )}
+                              </p>
                               <p>
                                 <strong>{copy.cogita.library.list.computedPromptLabel}</strong>
                               </p>

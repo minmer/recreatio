@@ -622,6 +622,7 @@ export const en: Copy = {
         computedSampleTitle: 'Computed example',
         computedPromptLabel: 'Prompt:',
         computedAnswerLabel: 'Answer:',
+        computedCountLabel: 'Counts as {count} infos',
         computedLoading: 'Generating example…',
         computedEmpty: 'No example available.',
         editInfo: 'Edit info',
@@ -672,15 +673,16 @@ export const en: Copy = {
           computedInvalid: 'Computed definition must be valid JSON.',
           computedInvalidName: 'Invalid variable names in the graph.',
           computedDuplicateName: 'Duplicate variable names in the graph.',
-        computedPreview: 'Show example',
-        computedPreviewTitle: 'Computed example',
-        computedPreviewFail: 'Unable to generate example.',
-        save: 'Save info',
-        update: 'Save changes',
-        saved: 'Info saved.',
-        updated: 'Info updated.',
-        failed: 'Failed to save info.'
-      },
+          computedPreview: 'Show example',
+          computedPreviewTitle: 'Computed example',
+          computedPreviewFail: 'Unable to generate example.',
+          computedCountLabel: 'Counts as {count} infos',
+          save: 'Save info',
+          update: 'Save changes',
+          saved: 'Info saved.',
+          updated: 'Info updated.',
+          failed: 'Failed to save info.'
+        },
         connection: {
           typeLabel: 'Connection type',
           languageLabel: 'Language',
@@ -846,7 +848,8 @@ export const en: Copy = {
         revealModeLabel: 'Answer reveal:',
         revealModeAfterIncorrect: 'after incorrect (manual)',
         showAnswer: 'Show correct answer',
-        correctAnswerLabel: 'Correct answer'
+        correctAnswerLabel: 'Correct answer',
+        computedCountLabel: 'Counts as {count} infos'
       },
       lookup: {
         searchFailed: 'Search failed.',

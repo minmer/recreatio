@@ -622,6 +622,7 @@ export const de: Copy = {
         computedSampleTitle: 'Berechnetes Beispiel',
         computedPromptLabel: 'Aufgabe:',
         computedAnswerLabel: 'Antwort:',
+        computedCountLabel: 'Anzahl Infos: {count}',
         computedLoading: 'Beispiel wird erzeugt…',
         computedEmpty: 'Kein Beispiel verfügbar.',
         editInfo: 'Info bearbeiten',
@@ -672,15 +673,16 @@ export const de: Copy = {
           computedInvalid: 'Die Berechnungsdefinition muss gültiges JSON sein.',
           computedInvalidName: 'Ungültige Variablennamen im Graph.',
           computedDuplicateName: 'Doppelte Variablennamen im Graph.',
-        computedPreview: 'Beispiel anzeigen',
-        computedPreviewTitle: 'Berechnetes Beispiel',
-        computedPreviewFail: 'Beispiel konnte nicht erstellt werden.',
-        save: 'Info speichern',
-        update: 'Änderungen speichern',
-        saved: 'Info gespeichert.',
-        updated: 'Info aktualisiert.',
-        failed: 'Info konnte nicht gespeichert werden.'
-      },
+          computedPreview: 'Beispiel anzeigen',
+          computedPreviewTitle: 'Berechnetes Beispiel',
+          computedPreviewFail: 'Beispiel konnte nicht erstellt werden.',
+          computedCountLabel: 'Anzahl Infos: {count}',
+          save: 'Info speichern',
+          update: 'Änderungen speichern',
+          saved: 'Info gespeichert.',
+          updated: 'Info aktualisiert.',
+          failed: 'Info konnte nicht gespeichert werden.'
+        },
         connection: {
           typeLabel: 'Verbindungstyp',
           languageLabel: 'Sprache',
@@ -846,7 +848,8 @@ export const de: Copy = {
         revealModeLabel: 'Antwort anzeigen:',
         revealModeAfterIncorrect: 'nach falscher Antwort (manuell)',
         showAnswer: 'Richtige Antwort zeigen',
-        correctAnswerLabel: 'Richtige Antwort'
+        correctAnswerLabel: 'Richtige Antwort',
+        computedCountLabel: 'Anzahl Infos: {count}'
       },
       lookup: {
         searchFailed: 'Suche fehlgeschlagen.',

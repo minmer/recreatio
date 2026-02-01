@@ -49,9 +49,7 @@ export function CogitaLibraryAddPage({
     language: null as CogitaInfoOption | null,
     notes: ''
   });
-  const [computedPrompt, setComputedPrompt] = useState('');
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState('');
-  const [computedNotes, setComputedNotes] = useState('');
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
   const [computedPreview, setComputedPreview] = useState<{
     prompt: string;
@@ -194,16 +192,12 @@ export function CogitaLibraryAddPage({
           }
         }
         if (detail.infoType === 'computed') {
-          setComputedNotes(payload.notes ?? '');
-          setComputedPrompt(payload.definition?.promptTemplate ?? '');
           setComputedAnswerTemplate(payload.definition?.answerTemplate ?? '');
           setComputedGraph(payload.definition?.graph ?? null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
         } else {
-          setComputedPrompt('');
           setComputedAnswerTemplate('');
-          setComputedNotes('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -227,7 +221,7 @@ export function CogitaLibraryAddPage({
     try {
       const payload: Record<string, unknown> = {
         label: infoForm.label,
-        notes: infoForm.infoType === 'computed' ? computedNotes : infoForm.notes
+        notes: infoForm.infoType === 'computed' ? '' : infoForm.notes
       };
       if (infoForm.language) {
         payload.languageId = infoForm.language.id;
@@ -270,7 +264,6 @@ export function CogitaLibraryAddPage({
             return;
           }
         payload.definition = {
-          promptTemplate: computedPrompt,
           answerTemplate: computedAnswerTemplate,
           graph: computedGraph
         };
@@ -299,9 +292,7 @@ export function CogitaLibraryAddPage({
           notes: ''
         });
         if (infoForm.infoType === 'computed') {
-          setComputedPrompt('');
           setComputedAnswerTemplate('');
-          setComputedNotes('');
           setComputedGraph(null);
           setComputedPreview(null);
           setComputedPreviewStatus('idle');
@@ -319,7 +310,7 @@ export function CogitaLibraryAddPage({
       setComputedPreviewStatus('error');
       return;
     }
-    const preview = buildComputedSampleFromGraph(computedGraph, computedPrompt, computedAnswerTemplate);
+    const preview = buildComputedSampleFromGraph(computedGraph, '', computedAnswerTemplate);
     if (!preview) {
       setComputedPreview(null);
       setComputedPreviewStatus('error');
@@ -579,22 +570,6 @@ export function CogitaLibraryAddPage({
                   {infoForm.infoType === 'computed' && (
                     <>
                       <label className="cogita-field full">
-                        <span>{copy.cogita.library.add.info.notesLabel}</span>
-                        <textarea
-                          value={computedNotes}
-                          onChange={(event) => setComputedNotes(event.target.value)}
-                          placeholder={copy.cogita.library.add.info.notesPlaceholder}
-                        />
-                      </label>
-                      <label className="cogita-field full">
-                        <span>{copy.cogita.library.add.info.computedLabel}</span>
-                        <textarea
-                          value={computedPrompt}
-                          onChange={(event) => setComputedPrompt(event.target.value)}
-                          placeholder={copy.cogita.library.add.info.computedPlaceholder}
-                        />
-                      </label>
-                      <label className="cogita-field full">
                         <span>{copy.cogita.library.add.info.computedAnswerLabel}</span>
                         <textarea
                           value={computedAnswerTemplate}
@@ -617,6 +592,12 @@ export function CogitaLibraryAddPage({
                       {computedPreview && computedPreviewStatus === 'ready' ? (
                         <div className="cogita-detail-sample">
                           <p className="cogita-user-kicker">{copy.cogita.library.add.info.computedPreviewTitle}</p>
+                          <p className="cogita-revision-hint">
+                            {copy.cogita.library.add.info.computedCountLabel.replace(
+                              '{count}',
+                              String(Math.max(1, Object.keys(computedPreview.answers).length))
+                            )}
+                          </p>
                           <LatexBlock value={computedPreview.prompt} mode="auto" />
                           <div className="cogita-detail-sample-grid">
                             {Object.entries(computedPreview.answers).map(([key, value]) => (

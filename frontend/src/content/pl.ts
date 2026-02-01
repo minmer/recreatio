@@ -622,6 +622,7 @@ export const pl: Copy = {
         computedSampleTitle: 'Przykład obliczeniowy',
         computedPromptLabel: 'Zadanie:',
         computedAnswerLabel: 'Odpowiedź:',
+        computedCountLabel: 'Liczba informacji: {count}',
         computedLoading: 'Tworzenie przykładu…',
         computedEmpty: 'Brak dostępnego przykładu.',
         editInfo: 'Edytuj informację',
@@ -672,15 +673,16 @@ export const pl: Copy = {
           computedInvalid: 'Definicja obliczeń musi być poprawnym JSON.',
           computedInvalidName: 'Nieprawidłowe nazwy zmiennych w grafie.',
           computedDuplicateName: 'Powtórzone nazwy zmiennych w grafie.',
-        computedPreview: 'Pokaż przykład',
-        computedPreviewTitle: 'Przykład obliczeniowy',
-        computedPreviewFail: 'Nie udało się wygenerować przykładu.',
-        save: 'Zapisz informację',
-        update: 'Zapisz zmiany',
-        saved: 'Informacja zapisana.',
-        updated: 'Informacja zaktualizowana.',
-        failed: 'Nie udało się zapisać informacji.'
-      },
+          computedPreview: 'Pokaż przykład',
+          computedPreviewTitle: 'Przykład obliczeniowy',
+          computedPreviewFail: 'Nie udało się wygenerować przykładu.',
+          computedCountLabel: 'Liczba informacji: {count}',
+          save: 'Zapisz informację',
+          update: 'Zapisz zmiany',
+          saved: 'Informacja zapisana.',
+          updated: 'Informacja zaktualizowana.',
+          failed: 'Nie udało się zapisać informacji.'
+        },
         connection: {
           typeLabel: 'Typ połączenia',
           languageLabel: 'Język',
@@ -846,7 +848,8 @@ export const pl: Copy = {
         revealModeLabel: 'Pokaż odpowiedź:',
         revealModeAfterIncorrect: 'po błędnej odpowiedzi (ręcznie)',
         showAnswer: 'Pokaż poprawną odpowiedź',
-        correctAnswerLabel: 'Poprawna odpowiedź'
+        correctAnswerLabel: 'Poprawna odpowiedź',
+        computedCountLabel: 'Liczba informacji: {count}'
       },
       lookup: {
         searchFailed: 'Wyszukiwanie nieudane.',

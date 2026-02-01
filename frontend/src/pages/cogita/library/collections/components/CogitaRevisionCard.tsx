@@ -371,6 +371,12 @@ export function CogitaRevisionCard({
       ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
         <div className="cogita-revision-body">
           {currentCard.label ? <p className="cogita-revision-hint">{currentCard.label}</p> : null}
+          <p className="cogita-revision-hint">
+            {copy.cogita.library.revision.computedCountLabel.replace(
+              '{count}',
+              String(Math.max(1, computedExpected.length || (expectedAnswer ? 1 : 0)))
+            )}
+          </p>
           {answerTemplate ? null : <LatexBlock value={prompt ?? ''} mode="auto" />}
           {computedExpected.length > 0 ? (
             (() => {

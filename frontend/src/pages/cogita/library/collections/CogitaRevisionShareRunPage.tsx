@@ -793,7 +793,7 @@ export function CogitaRevisionShareRunPage({
           definition?: { promptTemplate?: string; answerTemplate?: string; graph?: ComputedGraphDefinition | null };
         };
         const graph = payload.definition?.graph ?? null;
-        const promptTemplate = payload.definition?.promptTemplate ?? '';
+        const promptTemplate = '';
         const answerTemplate = payload.definition?.answerTemplate ?? '';
         const computed = buildComputedSampleFromGraph(graph, promptTemplate, answerTemplate);
         if (computed) {

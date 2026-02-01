@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts.Cogita;
 using Recreatio.Api.Crypto;
@@ -722,7 +723,8 @@ public static class CogitaEndpoints
                 }
             }
 
-            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(request.Payload);
+            var sanitizedPayload = info.InfoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
             var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, info.Id.ToByteArray());
 
             var updated = UpdateInfoPayload(info.InfoType, info.Id, dataKeyId, encrypted, now, dbContext);
@@ -732,7 +734,7 @@ public static class CogitaEndpoints
             }
 
             info.UpdatedUtc = now;
-            await UpsertInfoSearchIndexAsync(libraryId, info.Id, info.InfoType, request.Payload, now, dbContext, ct);
+            await UpsertInfoSearchIndexAsync(libraryId, info.Id, info.InfoType, sanitizedPayload, now, dbContext, ct);
 
             await dbContext.SaveChangesAsync(ct);
 
@@ -5751,7 +5753,8 @@ public static class CogitaEndpoints
                 return Results.BadRequest(new { error = "DataKeyId is invalid." });
             }
 
-            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(request.Payload);
+            var sanitizedPayload = infoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+            var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
             var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
 
             dbContext.CogitaInfos.Add(new CogitaInfo
@@ -5764,7 +5767,7 @@ public static class CogitaEndpoints
             });
 
             AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
-            await UpsertInfoSearchIndexAsync(libraryId, infoId, infoType, request.Payload, now, dbContext, ct);
+            await UpsertInfoSearchIndexAsync(libraryId, infoId, infoType, sanitizedPayload, now, dbContext, ct);
 
             await dbContext.SaveChangesAsync(ct);
 
@@ -6265,6 +6268,38 @@ public static class CogitaEndpoints
         }
 
         return infoType;
+    }
+
+    private static JsonElement SanitizeComputedPayload(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return payload;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
+            if (node is null)
+            {
+                return payload;
+            }
+
+            node.Remove("notes");
+            node.Remove("promptTemplate");
+
+            if (node["definition"] is JsonObject definition)
+            {
+                definition.Remove("notes");
+                definition.Remove("promptTemplate");
+            }
+
+            return JsonSerializer.SerializeToElement(node);
+        }
+        catch
+        {
+            return payload;
+        }
     }
 
     private static async Task<Dictionary<Guid, string>> ResolveInfoLabelsAsync(
@@ -7041,7 +7076,8 @@ public static class CogitaEndpoints
             ct,
             saveChanges);
 
-        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(request.Payload);
+        var sanitizedPayload = infoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+        var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
         var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
 
         dbContext.CogitaInfos.Add(new CogitaInfo
@@ -7054,7 +7090,7 @@ public static class CogitaEndpoints
         });
 
         AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
-        await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, request.Payload, now, dbContext, ct);
+        await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, sanitizedPayload, now, dbContext, ct);
         dbContext.KeyEntryBindings.Add(new KeyEntryBinding
         {
             Id = Guid.NewGuid(),
@@ -7365,9 +7401,7 @@ public static class CogitaEndpoints
     private static CogitaComputedSampleResponse BuildComputedSample(JsonElement payload)
     {
         var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        var promptTemplate = payload.TryGetProperty("promptTemplate", out var promptElement) && promptElement.ValueKind == JsonValueKind.String
-            ? promptElement.GetString() ?? string.Empty
-            : string.Empty;
+        var promptTemplate = string.Empty;
 
         ComputedGraphResult? graphResult = null;
         JsonElement? definition = null;
@@ -7378,10 +7412,6 @@ public static class CogitaEndpoints
 
         if (definition.HasValue)
         {
-            if (definition.Value.TryGetProperty("promptTemplate", out var defPrompt) && defPrompt.ValueKind == JsonValueKind.String)
-            {
-                promptTemplate = defPrompt.GetString() ?? promptTemplate;
-            }
             if (definition.Value.TryGetProperty("graph", out var defGraph) && defGraph.ValueKind == JsonValueKind.Object)
             {
                 graphResult = EvaluateComputedGraph(defGraph, promptTemplate);
