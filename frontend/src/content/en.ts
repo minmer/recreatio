@@ -618,6 +618,7 @@ export const en: Copy = {
         loadMore: 'Load more',
         loading: 'Loading...',
         ready: 'Ready',
+        progressUnlimited: 'Unlimited',
         computedSampleTitle: 'Computed example',
         computedPromptLabel: 'Prompt:',
         computedAnswerLabel: 'Answer:',

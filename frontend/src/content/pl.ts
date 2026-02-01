@@ -618,6 +618,7 @@ export const pl: Copy = {
         loadMore: 'Załaduj więcej',
         loading: 'Ładowanie...',
         ready: 'Gotowe',
+        progressUnlimited: 'Bez limitu',
         computedSampleTitle: 'Przykład obliczeniowy',
         computedPromptLabel: 'Zadanie:',
         computedAnswerLabel: 'Odpowiedź:',

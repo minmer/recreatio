@@ -223,7 +223,11 @@ export function CogitaRevisionRunPage({
     const meta = revisionMeta as { pool?: CogitaCardSearchResult[] };
     return meta.pool?.length ?? revisionType.getFetchLimit(limit, revisionSettings);
   }, [revisionMeta, revisionSettings, revisionType, queue.length, limit]);
-  const progressTotal = revisionType.id === 'levels' ? Math.min(limit, poolCount) : queue.length;
+  const progressTotal = revisionType.getProgressTotal
+    ? revisionType.getProgressTotal(queue, revisionMeta, limit, revisionSettings)
+    : revisionType.id === 'levels'
+      ? Math.min(limit, poolCount)
+      : queue.length;
   const progressCurrent = progressTotal ? Math.min(currentIndex + 1, progressTotal) : 0;
   const maxTries = Math.max(1, Number(revisionSettings.tries ?? 1));
   const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'bidirectional';
@@ -1131,7 +1135,7 @@ export function CogitaRevisionRunPage({
                 <div className="cogita-revision-insight-card">
                   <p className="cogita-user-kicker">{copy.cogita.library.revision.progressTitle}</p>
                   <h3 className="cogita-detail-title">
-                    {progressTotal ? `${progressCurrent} / ${progressTotal}` : '0 / 0'}
+                    {progressTotal ? `${progressCurrent} / ${progressTotal}` : copy.cogita.library.revision.progressUnlimited}
                   </h3>
                   {status === 'loading' && <p>{copy.cogita.library.revision.loading}</p>}
                   {status === 'error' && <p>{copy.cogita.library.revision.error}</p>}

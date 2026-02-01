@@ -318,6 +318,7 @@ export type Copy = {
         loadMore: string;
         loading: string;
         ready: string;
+        progressUnlimited: string;
         computedSampleTitle: string;
         computedPromptLabel: string;
         computedAnswerLabel: string;
