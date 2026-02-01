@@ -510,6 +510,7 @@ export type CogitaCardSearchResult = {
   infoType?: string | null;
   checkType?: string | null;
   direction?: string | null;
+  count?: number | null;
 };
 
 export type CogitaCardSearchBundle = {

@@ -38,7 +38,8 @@ public sealed record CogitaCardSearchResponse(
     string Description,
     string? InfoType,
     string? CheckType = null,
-    string? Direction = null
+    string? Direction = null,
+    int? Count = null
 );
 
 public sealed record CogitaCardSearchBundleResponse(

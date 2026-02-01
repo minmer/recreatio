@@ -141,7 +141,9 @@ export function buildComputedSampleFromGraph(
         break;
       }
       case 'compute.concat': {
-        const inputs = resolveInputs('in');
+        const orderedIds = ['in1', 'in2', 'in3', 'in4', 'in5', 'in6'];
+        const orderedInputs = orderedIds.flatMap((handle) => resolveInputs(handle));
+        const inputs = orderedInputs.length ? orderedInputs : resolveInputs('in');
         const list = inputs.length ? inputs : resolveInputs();
         result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
         break;

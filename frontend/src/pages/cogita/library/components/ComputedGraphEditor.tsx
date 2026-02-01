@@ -200,7 +200,14 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       },
       'compute.concat': {
         label: copy.cogita.library.graph.nodeTypes.concat,
-        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        handles: [
+          { id: 'in1', label: '1', limitOne: true },
+          { id: 'in2', label: '2', limitOne: true },
+          { id: 'in3', label: '3', limitOne: true },
+          { id: 'in4', label: '4', limitOne: true },
+          { id: 'in5', label: '5', limitOne: true },
+          { id: 'in6', label: '6', limitOne: true }
+        ],
         output: true
       },
       'compute.trim': {
@@ -602,7 +609,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           break;
         }
         case 'compute.concat': {
-          const inputs = resolveInputsRaw(node, 'in');
+          const orderedIds = ['in1', 'in2', 'in3', 'in4', 'in5', 'in6'];
+          const orderedInputs = orderedIds.flatMap((handle) => resolveInputsRaw(node, handle));
+          const inputs = orderedInputs.length ? orderedInputs : resolveInputsRaw(node, 'in');
           const list = inputs.length ? inputs : resolveInputsRaw(node);
           result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
           break;
