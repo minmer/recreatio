@@ -7706,7 +7706,8 @@ public static class CogitaEndpoints
                     {
                         list = allInputs.Select(id => EvaluateNode(id)).ToList();
                     }
-                    return string.Join(".", list.Select(FormatAny));
+                    var parts = list.Select(FormatAny).ToList();
+                    return string.Concat(parts);
                 }
                 string ComputeTrim()
                 {

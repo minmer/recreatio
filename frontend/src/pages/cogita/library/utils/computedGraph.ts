@@ -145,7 +145,8 @@ export function buildComputedSampleFromGraph(
         const orderedInputs = orderedIds.flatMap((handle) => resolveInputs(handle));
         const inputs = orderedInputs.length ? orderedInputs : resolveInputs('in');
         const list = inputs.length ? inputs : resolveInputs();
-        result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
+        const parts = list.map((value) => (value === undefined || value === null ? '' : String(value)));
+        result = parts.join('');
         break;
       }
       case 'compute.trim': {

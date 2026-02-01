@@ -327,14 +327,42 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
     [nodes, selectedNodeId]
   );
-  const displayNodes = useMemo(
-    () =>
-      nodes.map((node) => ({
+  const displayNodes = useMemo(() => {
+    const concatHandleIds = ['in1', 'in2', 'in3', 'in4', 'in5', 'in6'];
+    const connectedByNode = new Map<string, Set<string>>();
+    edges.forEach((edge) => {
+      if (!edge.target) return;
+      const handle = edge.targetHandle ?? 'in1';
+      if (!connectedByNode.has(edge.target)) connectedByNode.set(edge.target, new Set());
+      connectedByNode.get(edge.target)!.add(handle);
+    });
+    return nodes.map((node) => {
+      if (node.data?.type === 'compute.concat') {
+        const connected = connectedByNode.get(node.id) ?? new Set<string>();
+        const handles: NodeInputHandle[] = [];
+        let openAdded = false;
+        concatHandleIds.forEach((handleId) => {
+          if (connected.has(handleId) || !openAdded) {
+            const metaHandle = nodeMeta['compute.concat']?.handles?.find((handle) => handle.id === handleId);
+            if (metaHandle) handles.push(metaHandle);
+            if (!connected.has(handleId)) openAdded = true;
+          }
+        });
+        return {
+          ...node,
+          selected: node.id === selectedNodeId,
+          data: {
+            ...node.data,
+            handles
+          }
+        };
+      }
+      return {
         ...node,
         selected: node.id === selectedNodeId
-      })),
-    [nodes, selectedNodeId]
-  );
+      };
+    });
+  }, [nodes, selectedNodeId, edges, nodeMeta]);
 
   useEffect(() => {
     setNameWarning(null);
@@ -613,7 +641,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           const orderedInputs = orderedIds.flatMap((handle) => resolveInputsRaw(node, handle));
           const inputs = orderedInputs.length ? orderedInputs : resolveInputsRaw(node, 'in');
           const list = inputs.length ? inputs : resolveInputsRaw(node);
-          result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
+          const parts = list.map((value) => (value === undefined || value === null ? '' : String(value)));
+          result = parts.join('');
           break;
         }
         case 'compute.trim': {
