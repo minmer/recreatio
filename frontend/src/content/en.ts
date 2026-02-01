@@ -898,6 +898,8 @@ export const en: Copy = {
           ceil: 'Ceil',
           round: 'Round',
           mod: 'Modulo',
+          concat: 'Concat',
+          trim: 'Trim',
           output: 'Output'
         },
         handleLabels: {
@@ -910,7 +912,10 @@ export const en: Copy = {
           exponent: 'Exponent',
           value: 'Value',
           index: 'Index',
-          name: 'Name'
+          name: 'Name',
+          text: 'Text',
+          start: 'Start trim',
+          end: 'End trim'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Search tag',

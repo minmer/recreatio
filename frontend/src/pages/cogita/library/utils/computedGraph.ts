@@ -140,6 +140,24 @@ export function buildComputedSampleFromGraph(
         result = Math.abs(b) < Number.EPSILON ? 0 : a % b;
         break;
       }
+      case 'compute.concat': {
+        const inputs = resolveInputs('in');
+        const list = inputs.length ? inputs : resolveInputs();
+        result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('');
+        break;
+      }
+      case 'compute.trim': {
+        const textValue = resolveInputs('text')[0] ?? resolveInputs('in')[0] ?? '';
+        const rawText = textValue === undefined || textValue === null ? '' : String(textValue);
+        const startTrim = Math.max(0, Math.round(toNumber(resolveInputs('start')[0])));
+        const endTrim = Math.max(0, Math.round(toNumber(resolveInputs('end')[0])));
+        if (startTrim + endTrim >= rawText.length) {
+          result = '';
+        } else {
+          result = rawText.substring(startTrim, rawText.length - endTrim);
+        }
+        break;
+      }
       case 'output': {
         result = resolveInputs('in')[0] ?? 0;
         break;

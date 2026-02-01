@@ -898,6 +898,8 @@ export const pl: Copy = {
           ceil: 'Zaokrąglenie w górę',
           round: 'Zaokrąglenie',
           mod: 'Modulo',
+          concat: 'Złącz',
+          trim: 'Przytnij',
           output: 'Wyjście'
         },
         handleLabels: {
@@ -910,7 +912,10 @@ export const pl: Copy = {
           exponent: 'Wykładnik',
           value: 'Wartość',
           index: 'Indeks',
-          name: 'Nazwa'
+          name: 'Nazwa',
+          text: 'Tekst',
+          start: 'Przytnij start',
+          end: 'Przytnij koniec'
         },
         tagLabel: 'Tag',
         tagPlaceholder: 'Wyszukaj tag',

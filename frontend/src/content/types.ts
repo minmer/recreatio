@@ -596,6 +596,8 @@ export type Copy = {
           ceil: string;
           round: string;
           mod: string;
+          concat: string;
+          trim: string;
           output: string;
         };
         handleLabels: {
@@ -609,6 +611,9 @@ export type Copy = {
           value: string;
           index: string;
           name: string;
+          text: string;
+          start: string;
+          end: string;
         };
         listLabel: string;
         listPlaceholder: string;

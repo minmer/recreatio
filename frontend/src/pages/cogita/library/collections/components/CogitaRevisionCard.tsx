@@ -88,6 +88,7 @@ export function CogitaRevisionCard({
   matchRightOrder?: string[];
   matchSelection?: Record<string, string>;
   matchActiveLeft?: string | null;
+  matchActiveRight?: string | null;
   matchFeedback?: Record<string, 'correct' | 'incorrect'>;
   onMatchLeftSelect?: (leftId: string) => void;
   onMatchRightSelect?: (rightId: string) => void;
@@ -285,12 +286,13 @@ export function CogitaRevisionCard({
                 const pair = matchPairsByRight.get(rightId);
                 if (!pair) return null;
                 const isSelected = Object.values(matchSelection ?? {}).includes(rightId);
+                const isActive = matchActiveRight === rightId;
                 return (
                   <button
                     key={rightId}
                     type="button"
                     className="cogita-revision-match-item"
-                    data-active={isSelected}
+                    data-active={isSelected || isActive}
                     data-locked={isSelected ? 'true' : undefined}
                     onClick={() => onMatchRightSelect?.(rightId)}
                   >
@@ -301,7 +303,12 @@ export function CogitaRevisionCard({
             </div>
           </div>
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer}>
+            <button
+              type="button"
+              className="cta"
+              onClick={onCheckAnswer}
+              disabled={currentCard.checkType === 'translation-match'}
+            >
               {copy.cogita.library.revision.checkAnswer}
             </button>
             <button type="button" className="ghost" onClick={onSkip}>

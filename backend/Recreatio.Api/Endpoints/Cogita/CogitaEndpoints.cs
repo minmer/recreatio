@@ -7568,6 +7568,14 @@ public static class CogitaEndpoints
                     ? GetNodeInputs(node)
                     : inputsByHandle.SelectMany(pair => pair.Value).ToList();
                 var inputValues = allInputs.Select(id => ToNumber(EvaluateNode(id))).ToList();
+                List<object?> handleObjects(string handle)
+                {
+                    if (!inputsByHandle.TryGetValue(handle, out var list))
+                    {
+                        return new List<object?>();
+                    }
+                    return list.Select(id => EvaluateNode(id)).ToList();
+                }
                 List<double> handleValues(string handle)
                 {
                     if (!inputsByHandle.TryGetValue(handle, out var list))
@@ -7608,6 +7616,29 @@ public static class CogitaEndpoints
                     var b = handleValues("b").FirstOrDefault();
                     return Math.Abs(b) < double.Epsilon ? 0 : a % b;
                 }
+                string ComputeConcat()
+                {
+                    var list = handleObjects("in");
+                    if (list.Count == 0)
+                    {
+                        list = allInputs.Select(id => EvaluateNode(id)).ToList();
+                    }
+                    return string.Concat(list.Select(FormatAny));
+                }
+                string ComputeTrim()
+                {
+                    var textValue = handleObjects("text").FirstOrDefault()
+                        ?? handleObjects("in").FirstOrDefault()
+                        ?? string.Empty;
+                    var rawText = FormatAny(textValue);
+                    var startTrim = (int)Math.Max(0, Math.Round(handleValues("start").FirstOrDefault()));
+                    var endTrim = (int)Math.Max(0, Math.Round(handleValues("end").FirstOrDefault()));
+                    if (startTrim + endTrim >= rawText.Length)
+                    {
+                        return string.Empty;
+                    }
+                    return rawText.Substring(startTrim, rawText.Length - endTrim);
+                }
                 var op = nodeType["compute.".Length..].ToLowerInvariant();
                 result = op switch
                 {
@@ -7637,6 +7668,8 @@ public static class CogitaEndpoints
                     "mod" => inputsByHandle.Count == 0
                         ? (inputValues.Count < 2 ? 0 : (inputValues[1] == 0 ? 0 : inputValues[0] % inputValues[1]))
                         : ComputeMod(),
+                    "concat" => ComputeConcat(),
+                    "trim" => ComputeTrim(),
                     _ => 0.0
                 };
             }

@@ -198,6 +198,20 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         ],
         output: true
       },
+      'compute.concat': {
+        label: copy.cogita.library.graph.nodeTypes.concat,
+        handles: [{ id: 'in', label: copy.cogita.library.graph.handleLabels.input }],
+        output: true
+      },
+      'compute.trim': {
+        label: copy.cogita.library.graph.nodeTypes.trim,
+        handles: [
+          { id: 'text', label: copy.cogita.library.graph.handleLabels.text, limitOne: true },
+          { id: 'start', label: copy.cogita.library.graph.handleLabels.start, limitOne: true },
+          { id: 'end', label: copy.cogita.library.graph.handleLabels.end, limitOne: true }
+        ],
+        output: true
+      },
       output: {
         label: copy.cogita.library.graph.nodeTypes.output,
         handles: [
@@ -488,6 +502,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     const resolveInputs = (node: Node, handle?: string): number[] =>
       resolveInputIds(node, handle).map((id) => asNumber(evaluateNode(id)));
 
+    const resolveInputsRaw = (node: Node, handle?: string): Array<number | string> =>
+      resolveInputIds(node, handle).map((id) => evaluateNode(id));
+
     const evaluateNode = (nodeId: string): number | string => {
       if (values.has(nodeId)) return values.get(nodeId)!;
       if (visiting.has(nodeId)) return 0;
@@ -582,6 +599,23 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           const a = resolveInputs(node, 'a')[0] ?? 0;
           const b = resolveInputs(node, 'b')[0] ?? 0;
           result = Math.abs(b) < Number.EPSILON ? 0 : a % b;
+          break;
+        }
+        case 'compute.concat': {
+          const inputs = resolveInputsRaw(node, 'in');
+          const list = inputs.length ? inputs : resolveInputsRaw(node);
+          result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('');
+          break;
+        }
+        case 'compute.trim': {
+          const textValue = resolveInputsRaw(node, 'text')[0] ?? resolveInputsRaw(node, 'in')[0] ?? '';
+          const rawText = textValue === undefined || textValue === null ? '' : String(textValue);
+          const startTrim = Math.max(0, Math.round(resolveInputs(node, 'start')[0] ?? 0));
+          const endTrim = Math.max(0, Math.round(resolveInputs(node, 'end')[0] ?? 0));
+          result =
+            startTrim + endTrim >= rawText.length
+              ? ''
+              : rawText.substring(startTrim, rawText.length - endTrim);
           break;
         }
         case 'output': {
@@ -813,6 +847,12 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
             </button>
             <button type="button" onClick={() => addNode('compute.mod')}>
               {copy.cogita.library.graph.nodeTypes.mod}
+            </button>
+            <button type="button" onClick={() => addNode('compute.concat')}>
+              {copy.cogita.library.graph.nodeTypes.concat}
+            </button>
+            <button type="button" onClick={() => addNode('compute.trim')}>
+              {copy.cogita.library.graph.nodeTypes.trim}
             </button>
             <button type="button" onClick={() => addNode('output')}>
               {copy.cogita.library.graph.nodeTypes.output}
