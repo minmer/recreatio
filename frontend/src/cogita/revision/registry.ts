@@ -389,14 +389,8 @@ const temporalType: RevisionTypeDefinition = {
       nextActive.push(...fill);
     }
 
-    const queue = state.queue.slice(0, 1);
-    if (queue.length < 1) {
-      const next = pickNextLevelCard(nextActive, {}, currentCard.cardId, asked, queued);
-      if (next) {
-        queue.push(next);
-        queued.add(next.cardId);
-      }
-    } else if (queue.length === 1 && queue[0].cardId === currentCard.cardId) {
+    const queue = state.queue.slice();
+    if (queue.length === 0 || queue[queue.length - 1]?.cardId === currentCard.cardId) {
       const next = pickNextLevelCard(nextActive, {}, currentCard.cardId, asked, queued);
       if (next) {
         queue.push(next);
