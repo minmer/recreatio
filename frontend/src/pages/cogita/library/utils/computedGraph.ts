@@ -143,7 +143,7 @@ export function buildComputedSampleFromGraph(
       case 'compute.concat': {
         const inputs = resolveInputs('in');
         const list = inputs.length ? inputs : resolveInputs();
-        result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('');
+        result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
         break;
       }
       case 'compute.trim': {

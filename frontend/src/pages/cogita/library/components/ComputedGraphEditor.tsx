@@ -604,7 +604,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
         case 'compute.concat': {
           const inputs = resolveInputsRaw(node, 'in');
           const list = inputs.length ? inputs : resolveInputsRaw(node);
-          result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('');
+          result = list.map((value) => (value === undefined || value === null ? '' : String(value))).join('.');
           break;
         }
         case 'compute.trim': {

@@ -7662,7 +7662,7 @@ public static class CogitaEndpoints
                     {
                         list = allInputs.Select(id => EvaluateNode(id)).ToList();
                     }
-                    return string.Concat(list.Select(FormatAny));
+                    return string.Join(".", list.Select(FormatAny));
                 }
                 string ComputeTrim()
                 {
