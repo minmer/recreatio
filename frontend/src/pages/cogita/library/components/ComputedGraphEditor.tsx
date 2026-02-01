@@ -928,8 +928,8 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
                       updateSelectedNode({
                         list: event.target.value
                           .split('\n')
-                          .map((line) => line.trim())
-                          .filter(Boolean)
+                          .map((line) => line.replace(/\r$/, ''))
+                          .filter((line) => line.length > 0)
                       })
                     }
                     placeholder={copy.cogita.library.graph.listPlaceholder}
