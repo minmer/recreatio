@@ -346,7 +346,7 @@ export function CogitaRevisionRunPage({
             cursor
           });
           gathered.push(...bundle.items);
-          if (revisionType.id === 'levels' && bundle.total) {
+          if ((revisionType.id === 'levels' || revisionType.id === 'temporal') && bundle.total) {
             targetTotal = bundle.total;
           }
           setLoadProgress((prev) => ({
@@ -355,7 +355,9 @@ export function CogitaRevisionRunPage({
           }));
           cursor = bundle.nextCursor ?? null;
           if (targetTotal !== null && gathered.length >= targetTotal) break;
-          if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
+          if (revisionType.id !== 'levels' && revisionType.id !== 'temporal') {
+            if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
+          }
         } while (cursor);
 
         if (!mounted) return;
