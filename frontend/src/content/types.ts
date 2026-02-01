@@ -476,6 +476,7 @@ export type Copy = {
         modeLabel: string;
         modeValue: string;
         modeValueLevels: string;
+        modeValueTemporal: string;
         levelsLabel: string;
         stackLabel: string;
         levelsCurrentLabel: string;
@@ -487,6 +488,8 @@ export type Copy = {
         compareBidirectional: string;
         comparePrefix: string;
         compareAnchors: string;
+        temporalUnknownLabel: string;
+        temporalKnownLabel: string;
         checkLabel: string;
         checkValue: string;
         cardsPerSessionLabel: string;

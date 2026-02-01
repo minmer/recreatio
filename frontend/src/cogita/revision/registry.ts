@@ -1,7 +1,8 @@
 import type { Copy } from '../../content/types';
 import type { CogitaCardSearchResult } from '../../lib/api';
+import { computeTemporalKnowness, type TemporalEntry } from './knowness';
 
-export type RevisionTypeId = 'random' | 'levels';
+export type RevisionTypeId = 'random' | 'levels' | 'temporal';
 export type RevisionSettings = Record<string, number | string>;
 
 export type RevisionSettingsField = {
@@ -21,6 +22,8 @@ export type RevisionState = {
 
 export type RevisionOutcome = {
   correct: boolean;
+  correctness?: number;
+  createdUtc?: string;
 };
 
 export type RevisionTypeDefinition = {
@@ -55,6 +58,16 @@ const shuffle = <T,>(items: T[]) => {
 };
 
 const pickRandom = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+
+const randomTie = <T,>(items: T[], score: (item: T) => number) => {
+  const weights = new Map<T, number>();
+  items.forEach((item) => weights.set(item, Math.random()));
+  return items.sort((a, b) => {
+    const diff = score(a) - score(b);
+    if (diff !== 0) return diff;
+    return (weights.get(a) ?? 0) - (weights.get(b) ?? 0);
+  });
+};
 
 const pickNextLevelCard = (
   stack: CogitaCardSearchResult[],
@@ -94,6 +107,62 @@ const pickLowestFromPool = (
     return candidates.find((card) => card.cardId === currentId) ?? null;
   }
   return candidates.length ? pickRandom(candidates) : null;
+};
+
+const buildTemporalActiveStack = (
+  pool: CogitaCardSearchResult[],
+  knownessMap: Record<string, number>,
+  unknownSet: Set<string>,
+  stackSize: number
+) => {
+  const underOne = pool.filter(
+    (card) => !unknownSet.has(card.cardId) && (knownessMap[card.cardId] ?? 0) < 1
+  );
+  const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
+  const active: CogitaCardSearchResult[] = [];
+  for (const card of sortedUnderOne) {
+    if (active.length >= stackSize) break;
+    active.push(card);
+  }
+  if (active.length < stackSize) {
+    const unknownCards = shuffle(pool.filter((card) => unknownSet.has(card.cardId)));
+    for (const card of unknownCards) {
+      if (active.length >= stackSize) break;
+      active.push(card);
+    }
+  }
+  return active;
+};
+
+export const prepareTemporalState = (
+  cards: CogitaCardSearchResult[],
+  limit: number,
+  settings: RevisionSettings,
+  knownessMap: Record<string, number>,
+  unknownSet: Set<string>,
+  outcomesById: Record<string, TemporalEntry[]>
+): RevisionState => {
+  const stackSize = Math.max(1, settings.stackSize ?? limit);
+  const ordered = shuffle(cards);
+  const pool = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
+  const active = buildTemporalActiveStack(pool, knownessMap, unknownSet, stackSize);
+  const asked = new Set<string>();
+  const queued = new Set<string>();
+  const first = pickNextLevelCard(active, {}, null, asked, queued);
+  const queue = first ? [first] : [];
+  if (first) queued.add(first.cardId);
+  return {
+    queue,
+    meta: {
+      pool,
+      active,
+      knownessMap,
+      unknownSet,
+      outcomesById,
+      asked,
+      queued
+    }
+  };
 };
 
 const randomType: RevisionTypeDefinition = {
@@ -238,9 +307,112 @@ const levelsType: RevisionTypeDefinition = {
   }
 };
 
+const temporalType: RevisionTypeDefinition = {
+  id: 'temporal',
+  labelKey: 'modeValueTemporal',
+  defaultSettings: { stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70 },
+  settingsFields: [
+    { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
+    { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
+    { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
+    {
+      key: 'compare',
+      labelKey: 'compareLabel',
+      type: 'select',
+      options: [
+        { value: 'bidirectional', labelKey: 'compareBidirectional' },
+        { value: 'prefix', labelKey: 'comparePrefix' },
+        { value: 'anchors', labelKey: 'compareAnchors' }
+      ]
+    }
+  ],
+  getFetchLimit: () => Number.MAX_SAFE_INTEGER,
+  getProgressTotal: () => null,
+  prepare: (cards, limit, settings) =>
+    prepareTemporalState(cards, limit, settings, {}, new Set<string>(), {}),
+  applyOutcome: (state, currentCard, limit, settings, outcome) => {
+    if (!currentCard) return state;
+    const pool = (state.meta.pool as CogitaCardSearchResult[]) ?? [];
+    const active = (state.meta.active as CogitaCardSearchResult[]) ?? [];
+    const knownessMap = { ...(state.meta.knownessMap as Record<string, number> ?? {}) };
+    const unknownSet = new Set<string>(state.meta.unknownSet as Set<string> ?? []);
+    const outcomesById = { ...(state.meta.outcomesById as Record<string, TemporalEntry[]> ?? {}) };
+    const asked = new Set<string>(state.meta.asked as Set<string> ?? []);
+    const queued = new Set<string>(state.meta.queued as Set<string> ?? []);
+    queued.delete(currentCard.cardId);
+    asked.add(currentCard.cardId);
+
+    const entry: TemporalEntry = {
+      correctness: Math.max(0, Math.min(1, outcome.correctness ?? (outcome.correct ? 1 : 0))),
+      createdUtc: outcome.createdUtc ?? new Date().toISOString()
+    };
+    const existing = outcomesById[currentCard.cardId] ?? [];
+    const nextEntries = existing.concat(entry).sort((a, b) => a.createdUtc.localeCompare(b.createdUtc)).slice(-5);
+    outcomesById[currentCard.cardId] = nextEntries;
+    unknownSet.delete(currentCard.cardId);
+
+    const nowMs = Date.now();
+    pool.forEach((card) => {
+      const entries = outcomesById[card.cardId] ?? [];
+      if (entries.length === 0) {
+        knownessMap[card.cardId] = 0;
+        unknownSet.add(card.cardId);
+        return;
+      }
+      const summary = computeTemporalKnowness(entries, nowMs);
+      knownessMap[card.cardId] = summary.knowness;
+    });
+
+    const nextActive = active.slice();
+    const currentKnowness = knownessMap[currentCard.cardId] ?? 0;
+    if (currentKnowness >= 1) {
+      const filtered = nextActive.filter((card) => card.cardId !== currentCard.cardId);
+      nextActive.length = 0;
+      nextActive.push(...filtered);
+      const stackSize = Math.max(1, settings.stackSize ?? limit);
+      if (nextActive.length < stackSize) {
+        const activeIds = new Set(nextActive.map((card) => card.cardId));
+        const underOne = pool.filter(
+          (card) =>
+            !activeIds.has(card.cardId) &&
+            !unknownSet.has(card.cardId) &&
+            (knownessMap[card.cardId] ?? 0) < 1
+        );
+        const sortedUnderOne = randomTie(underOne, (card) => knownessMap[card.cardId] ?? 0);
+        let replacement = sortedUnderOne[0] ?? null;
+        if (!replacement) {
+          const unknowns = shuffle(pool.filter((card) => !activeIds.has(card.cardId) && unknownSet.has(card.cardId)));
+          replacement = unknowns[0] ?? null;
+        }
+        if (replacement) {
+          nextActive.push(replacement);
+        }
+      }
+    }
+
+    const queue = state.queue.slice(0, 1);
+    if (queue.length < 1) {
+      const next = pickNextLevelCard(nextActive, {}, currentCard.cardId, asked, queued);
+      if (next) {
+        queue.push(next);
+        queued.add(next.cardId);
+      }
+    } else if (queue.length === 1 && queue[0].cardId === currentCard.cardId) {
+      const next = pickNextLevelCard(nextActive, {}, currentCard.cardId, asked, queued);
+      if (next) {
+        queue.push(next);
+        queued.add(next.cardId);
+      }
+    }
+
+    return { queue, meta: { pool, active: nextActive, knownessMap, unknownSet, outcomesById, asked, queued } };
+  }
+};
+
 const registry: Record<RevisionTypeId, RevisionTypeDefinition> = {
   random: randomType,
-  levels: levelsType
+  levels: levelsType,
+  temporal: temporalType
 };
 
 export const revisionTypes = Object.values(registry);
@@ -248,7 +420,7 @@ export const revisionTypes = Object.values(registry);
 export const getRevisionType = (id: string | null | undefined): RevisionTypeDefinition => {
   if (!id) return randomType;
   const normalized = id.trim().toLowerCase();
-  if (normalized === 'random' || normalized === 'levels') return registry[normalized];
+  if (normalized === 'random' || normalized === 'levels' || normalized === 'temporal') return registry[normalized];
   return randomType;
 };
 

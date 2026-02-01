@@ -247,7 +247,7 @@ export function CogitaRevisionSettingsPage({
                       <span>{copy.cogita.library.revision.checkLabel}</span>
                       <input value={copy.cogita.library.revision.checkValue} disabled />
                     </label>
-                    {revisionType.id !== 'levels' ? (
+                    {revisionType.id !== 'levels' && revisionType.id !== 'temporal' ? (
                       <label className="cogita-field">
                         <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
                         <input

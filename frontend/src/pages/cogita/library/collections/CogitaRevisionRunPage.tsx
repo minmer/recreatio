@@ -20,13 +20,14 @@ import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
-import { computeKnowness } from '../../../../cogita/revision/knowness';
+import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getAllOutcomes, getOutcomesForItem, recordOutcome, syncPendingOutcomes } from '../../../../cogita/revision/outcomes';
 import {
   getRevisionType,
   normalizeRevisionSettings,
   parseRevisionSettingsFromParams,
-  prepareLevelsState
+  prepareLevelsState,
+  prepareTemporalState
 } from '../../../../cogita/revision/registry';
 import { compareStrings, type CompareAlgorithmId } from '../../../../cogita/revision/compare';
 
@@ -269,13 +270,37 @@ export function CogitaRevisionRunPage({
       activeSet
     };
   }, [revisionMeta, revisionSettings, revisionType, currentCard]);
-  const applyOutcomeToSession = (correct: boolean) => {
+  const temporalStats = useMemo(() => {
+    if (revisionType.id !== 'temporal') return null;
+    const meta = revisionMeta as {
+      pool?: CogitaCardSearchResult[];
+      active?: CogitaCardSearchResult[];
+      knownessMap?: Record<string, number>;
+      unknownSet?: Set<string>;
+    };
+    const pool = meta.pool ?? [];
+    const active = meta.active ?? [];
+    const knownessMap = meta.knownessMap ?? {};
+    const unknownSet = new Set<string>(meta.unknownSet ?? []);
+    let knownCount = 0;
+    pool.forEach((card) => {
+      const value = knownessMap[card.cardId] ?? 0;
+      if (value > 1) knownCount += 1;
+    });
+    const unknownCount = unknownSet.size;
+    const dots = active.map((card) => ({
+      id: card.cardId,
+      value: unknownSet.has(card.cardId) ? 0 : Math.max(0, Math.min(1, knownessMap[card.cardId] ?? 0))
+    }));
+    return { knownCount, unknownCount, dots };
+  }, [revisionMeta, revisionType]);
+  const applyOutcomeToSession = (correct: boolean, correctness?: number) => {
     const nextState = revisionType.applyOutcome(
       { queue, meta: revisionMeta },
       currentCard,
       limit,
       revisionSettings,
-      { correct }
+      { correct, correctness, createdUtc: new Date().toISOString() }
     );
     setQueue(nextState.queue);
     setRevisionMeta(nextState.meta);
@@ -354,9 +379,48 @@ export function CogitaRevisionRunPage({
             initialLevels![card.cardId] = level;
           });
         }
+        let temporalKnowness: Record<string, number> | null = null;
+        let temporalUnknown: Set<string> | null = null;
+        let temporalOutcomes: Record<string, ReturnType<typeof buildTemporalEntries>> | null = null;
+        if (revisionType.id === 'temporal') {
+          const outcomes = await getAllOutcomes();
+          const cardIds = new Set(gathered.map((card) => card.cardId));
+          const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
+            if (!cardIds.has(outcome.itemId)) return acc;
+            if (!acc[outcome.itemId]) acc[outcome.itemId] = [];
+            acc[outcome.itemId].push(outcome);
+            return acc;
+          }, {});
+          temporalKnowness = {};
+          temporalUnknown = new Set<string>();
+          temporalOutcomes = {};
+          const nowMs = Date.now();
+          gathered.forEach((card) => {
+            const entries = grouped[card.cardId] ?? [];
+            if (entries.length === 0) {
+              temporalKnowness![card.cardId] = 0;
+              temporalUnknown!.add(card.cardId);
+              temporalOutcomes![card.cardId] = [];
+              return;
+            }
+            const temporalEntries = buildTemporalEntries(entries);
+            temporalOutcomes![card.cardId] = temporalEntries;
+            const summary = computeTemporalKnowness(temporalEntries, nowMs);
+            temporalKnowness![card.cardId] = summary.knowness;
+          });
+        }
         const initial =
           revisionType.id === 'levels'
             ? prepareLevelsState(gathered, limit, revisionSettings, initialLevels)
+            : revisionType.id === 'temporal'
+              ? prepareTemporalState(
+                  gathered,
+                  limit,
+                  revisionSettings,
+                  temporalKnowness ?? {},
+                  temporalUnknown ?? new Set<string>(),
+                  temporalOutcomes ?? {}
+                )
             : revisionType.prepare(gathered, limit, revisionSettings);
         setQueue(initial.queue);
         setRevisionMeta(initial.meta);
@@ -799,7 +863,7 @@ export function CogitaRevisionRunPage({
         setComputedFieldFeedback(fieldFeedback);
         setCanAdvance(true);
         setAttempts(0);
-        applyOutcomeToSession(true);
+        applyOutcomeToSession(true, 1);
         submitReview({
           correct: true,
           direction: prompt ? `${prompt} -> computed` : 'computed',
@@ -822,7 +886,7 @@ export function CogitaRevisionRunPage({
           }
           return next;
         });
-        applyOutcomeToSession(false);
+        applyOutcomeToSession(false, 0);
         window.setTimeout(() => {
           const first = getFirstComputedInputKey(
             computedAnswerTemplate,
@@ -861,7 +925,7 @@ export function CogitaRevisionRunPage({
       if (maskPercent < 100 && maxTries <= 1) {
         setShowCorrectAnswer(true);
       }
-      applyOutcomeToSession(true);
+      applyOutcomeToSession(true, maskPercent / 100);
       submitReview({
         correct: true,
         direction: prompt ? `${prompt} -> ${expectedAnswer}` : null,
@@ -882,7 +946,7 @@ export function CogitaRevisionRunPage({
         }
         return next;
       });
-      applyOutcomeToSession(false);
+      applyOutcomeToSession(false, maskPercent / 100);
       window.setTimeout(() => answerInputRef.current?.focus(), 40);
       submitReview({
         correct: false,
@@ -911,7 +975,7 @@ export function CogitaRevisionRunPage({
       if (maskPercent < 100 && maxTries <= 1) {
         setShowCorrectAnswer(true);
       }
-      applyOutcomeToSession(true);
+      applyOutcomeToSession(true, maskPercent / 100);
       submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     } else {
       setFeedback('incorrect');
@@ -926,7 +990,7 @@ export function CogitaRevisionRunPage({
         }
         return next;
       });
-      applyOutcomeToSession(false);
+      applyOutcomeToSession(false, maskPercent / 100);
       submitReview({ correct: false, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     }
   };
@@ -936,14 +1000,14 @@ export function CogitaRevisionRunPage({
     setFeedback('correct');
     setCanAdvance(true);
     setAttempts(0);
-    applyOutcomeToSession(true);
+    applyOutcomeToSession(true, 1);
     if (expectedAnswer) {
       submitReview({ correct: true, direction: 'manual', expected: expectedAnswer, answer, evalType: 'manual' });
     }
   };
 
   const handleSkip = () => {
-    applyOutcomeToSession(false);
+    applyOutcomeToSession(false, 0);
     advanceCard();
   };
 
@@ -1177,6 +1241,28 @@ export function CogitaRevisionRunPage({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              ) : null}
+              {temporalStats ? (
+                <div className="cogita-revision-temporal">
+                  <div className="cogita-revision-temporal-count">
+                    <span>{copy.cogita.library.revision.temporalUnknownLabel}</span>
+                    <strong>{temporalStats.unknownCount}</strong>
+                  </div>
+                  <div className="cogita-revision-temporal-dots">
+                    {temporalStats.dots.map((dot) => (
+                      <span
+                        key={dot.id}
+                        style={{
+                          background: `rgba(${Math.round(255 * (1 - dot.value))}, ${Math.round(200 * dot.value)}, 80, 0.9)`
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="cogita-revision-temporal-count">
+                    <span>{copy.cogita.library.revision.temporalKnownLabel}</span>
+                    <strong>{temporalStats.knownCount}</strong>
                   </div>
                 </div>
               ) : null}
