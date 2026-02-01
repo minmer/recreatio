@@ -301,7 +301,10 @@ export function CogitaRevisionRunPage({
     let mounted = true;
     const fetchCards = async () => {
       setStatus('loading');
-      setLoadProgress({ current: 0, total: revisionType.getFetchLimit(limit, revisionSettings) });
+      setLoadProgress({
+        current: 0,
+        total: revisionType.id === 'levels' ? 0 : revisionType.getFetchLimit(limit, revisionSettings)
+      });
       try {
         const gathered: CogitaCardSearchResult[] = [];
         let cursor: string | null | undefined = null;
@@ -315,7 +318,7 @@ export function CogitaRevisionRunPage({
           gathered.push(...bundle.items);
           setLoadProgress((prev) => ({
             current: gathered.length,
-            total: prev.total || revisionType.getFetchLimit(limit, revisionSettings)
+            total: prev.total || bundle.total || revisionType.getFetchLimit(limit, revisionSettings)
           }));
           cursor = bundle.nextCursor ?? null;
           if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
@@ -839,12 +842,16 @@ export function CogitaRevisionRunPage({
     const exactCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
     const thresholdCorrect = isMaskCorrect(mask);
     const isCorrect = exactCorrect || thresholdCorrect;
+    const maskPercent = maskAveragePercent(mask);
     if (isCorrect) {
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
       setAnswerMask(mask);
       setAttempts(0);
+      if (maskPercent < 100 && maxTries <= 1) {
+        setShowCorrectAnswer(true);
+      }
       applyOutcomeToSession(true);
       submitReview({
         correct: true,
@@ -885,12 +892,16 @@ export function CogitaRevisionRunPage({
     const exactCorrect = normalizeAnswer(label) === normalizeAnswer(expectedAnswer);
     const thresholdCorrect = isMaskCorrect(mask);
     const isCorrect = exactCorrect || thresholdCorrect;
+    const maskPercent = maskAveragePercent(mask);
     if (isCorrect) {
       setFeedback('correct');
       setComputedFieldFeedback({});
       setCanAdvance(true);
       setAnswerMask(mask);
       setAttempts(0);
+      if (maskPercent < 100 && maxTries <= 1) {
+        setShowCorrectAnswer(true);
+      }
       applyOutcomeToSession(true);
       submitReview({ correct: true, direction: `word->language`, expected: expectedAnswer, answer: label, evalType: 'language-select' });
     } else {

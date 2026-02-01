@@ -124,8 +124,9 @@ export const prepareLevelsState = (
   settings: RevisionSettings,
   initialLevels?: Record<string, number>
 ): RevisionState => {
-  const stackSize = Math.max(1, settings.stackSize ?? limit);
-  const pool = shuffle(cards);
+  const stackSize = Math.max(1, limit);
+  const ordered = shuffle(cards);
+  const pool = ordered.filter((card, index, list) => list.findIndex((c) => c.cardId === card.cardId) === index);
   const stack = pool.slice(0, stackSize);
   const levelMap: Record<string, number> = {};
   const asked = new Set<string>();
@@ -154,10 +155,9 @@ export const prepareLevelsState = (
 const levelsType: RevisionTypeDefinition = {
   id: 'levels',
   labelKey: 'modeValueLevels',
-  defaultSettings: { levels: 5, stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70 },
+  defaultSettings: { levels: 5, tries: 2, compare: 'bidirectional', minCorrectness: 70 },
   settingsFields: [
     { key: 'levels', labelKey: 'levelsLabel', type: 'number', min: 1, max: 20, step: 1 },
-    { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
     { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
     {
@@ -171,7 +171,7 @@ const levelsType: RevisionTypeDefinition = {
       ]
     }
   ],
-  getFetchLimit: (limit, settings) => Math.max(1, Math.max(limit, settings.stackSize ?? limit)),
+  getFetchLimit: () => Number.MAX_SAFE_INTEGER,
   prepare: (cards, limit, settings) => prepareLevelsState(cards, limit, settings),
   applyOutcome: (state, currentCard, limit, settings, outcome) => {
     if (!currentCard) return state;
@@ -185,8 +185,8 @@ const levelsType: RevisionTypeDefinition = {
     asked.add(currentCard.cardId);
     const currentLevel = levelMap[currentCard.cardId] ?? 1;
     levelMap[currentCard.cardId] = outcome.correct ? Math.min(currentLevel + 1, levels) : 1;
-    const nextActive = active.filter((card) => card.cardId !== currentCard.cardId);
-    if (nextActive.length < Math.max(1, settings.stackSize ?? 1)) {
+    const nextActive = outcome.correct ? active.filter((card) => card.cardId !== currentCard.cardId) : active.slice();
+    if (outcome.correct && nextActive.length < Math.max(1, limit)) {
       const exclude = new Set(nextActive.map((card) => card.cardId));
       const replacement = pickLowestFromPool(pool, levelMap, exclude, asked);
       if (replacement) {
