@@ -690,6 +690,7 @@ export type CogitaComputedSample = {
   expectedAnswer: string;
   expectedAnswers?: Record<string, string>;
   values: Record<string, number | string>;
+  count?: number;
   expectedAnswerIsSentence?: boolean;
   outputVariables?: Record<string, string>;
   variableValues?: Record<string, string>;

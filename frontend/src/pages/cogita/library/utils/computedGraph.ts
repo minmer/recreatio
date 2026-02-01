@@ -261,13 +261,14 @@ export function buildComputedSampleFromGraph(
   return { prompt, answers, values: valuesRecord, answerText, outputVariables, variableValues };
 }
 
-export function toComputedSample(sample: ComputedSample): CogitaComputedSample {
+export function toComputedSample(sample: ComputedSample, count?: number): CogitaComputedSample {
   const entries = Object.entries(sample.answers);
   return {
     prompt: sample.prompt,
     expectedAnswer: sample.answerText ?? entries[0]?.[1] ?? '',
     expectedAnswers: sample.answers,
     values: sample.values,
+    count,
     expectedAnswerIsSentence: !!(sample.answerText && sample.answerText.trim().length > 0),
     outputVariables: sample.outputVariables,
     variableValues: sample.variableValues

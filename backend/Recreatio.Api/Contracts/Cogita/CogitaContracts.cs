@@ -278,7 +278,8 @@ public sealed record CogitaComputedSampleResponse(
     string Prompt,
     string ExpectedAnswer,
     Dictionary<string, string> ExpectedAnswers,
-    Dictionary<string, double> Values
+    Dictionary<string, double> Values,
+    int Count
 );
 
 public sealed record CogitaCollectionGraphNodeRequest(

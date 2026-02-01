@@ -7402,12 +7402,21 @@ public static class CogitaEndpoints
     {
         var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var promptTemplate = string.Empty;
+        var count = 1;
 
         ComputedGraphResult? graphResult = null;
         JsonElement? definition = null;
         if (payload.TryGetProperty("definition", out var definitionEl) && definitionEl.ValueKind == JsonValueKind.Object)
         {
             definition = definitionEl;
+            if (definition.Value.TryGetProperty("count", out var countEl) && countEl.ValueKind == JsonValueKind.Number)
+            {
+                count = Math.Max(1, countEl.GetInt32());
+            }
+        }
+        if (count <= 1 && payload.TryGetProperty("count", out var rootCountEl) && rootCountEl.ValueKind == JsonValueKind.Number)
+        {
+            count = Math.Max(1, rootCountEl.GetInt32());
         }
 
         if (definition.HasValue)
@@ -7428,13 +7437,13 @@ public static class CogitaEndpoints
 
         if (graphResult is not null)
         {
-            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.ExpectedAnswers, graphResult.Values);
+            return new CogitaComputedSampleResponse(graphResult.Prompt, graphResult.ExpectedAnswer, graphResult.ExpectedAnswers, graphResult.Values, count);
         }
 
         var fallbackLabel = payload.TryGetProperty("label", out var labelEl) && labelEl.ValueKind == JsonValueKind.String
             ? labelEl.GetString() ?? "Computed"
             : "Computed";
-        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, new Dictionary<string, string>(), values);
+        return new CogitaComputedSampleResponse(fallbackLabel, string.Empty, new Dictionary<string, string>(), values, count);
     }
 
     private static ComputedGraphResult EvaluateComputedGraph(JsonElement graphElement, string promptTemplate)

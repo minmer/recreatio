@@ -421,12 +421,7 @@ export function CogitaLibraryListPage({
                               <p className="cogita-revision-hint">
                                 {copy.cogita.library.list.computedCountLabel.replace(
                                   '{count}',
-                                  String(
-                                    Math.max(
-                                      1,
-                                      computedSample.expectedAnswers ? Object.keys(computedSample.expectedAnswers).length : 0
-                                    )
-                                  )
+                                  String(Math.max(1, computedSample.count ?? 1))
                                 )}
                               </p>
                               <p>
