@@ -271,6 +271,7 @@ export function CogitaRevisionCard({
                     className="cogita-revision-match-item"
                     data-active={isActive}
                     data-state={feedbackState ?? undefined}
+                    data-locked={selectedRight ? 'true' : undefined}
                     onClick={() => onMatchLeftSelect?.(leftId)}
                   >
                     <span>{pair.leftLabel}</span>
@@ -290,6 +291,7 @@ export function CogitaRevisionCard({
                     type="button"
                     className="cogita-revision-match-item"
                     data-active={isSelected}
+                    data-locked={isSelected ? 'true' : undefined}
                     onClick={() => onMatchRightSelect?.(rightId)}
                   >
                     <span>{pair.rightLabel}</span>

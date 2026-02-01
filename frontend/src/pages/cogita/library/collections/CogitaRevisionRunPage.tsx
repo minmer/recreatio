@@ -193,6 +193,7 @@ export function CogitaRevisionRunPage({
     rightOrder: string[];
     selection: Record<string, string>;
     activeLeft: string | null;
+    locked: Record<string, boolean>;
   } | null>(null);
   const [matchFeedback, setMatchFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
@@ -531,7 +532,7 @@ export function CogitaRevisionRunPage({
     if (!unique.some((card) => card.cardId === currentCard.cardId)) {
       unique.unshift(currentCard);
     }
-    const picked = unique.slice(0, 3);
+    const picked = shuffleList(unique).slice(0, 6);
     const pairs = picked
       .map((card) => {
         const parts = card.label.split('↔').map((part) => part.trim()).filter(Boolean);
@@ -560,7 +561,8 @@ export function CogitaRevisionRunPage({
       leftOrder,
       rightOrder,
       selection: {},
-      activeLeft: leftOrder[0] ?? null
+      activeLeft: null,
+      locked: {}
     });
   }, [currentCard, queue, revisionMeta]);
 
@@ -655,15 +657,38 @@ export function CogitaRevisionRunPage({
   };
 
   const handleMatchLeftSelect = (leftId: string) => {
-    setMatchState((prev) => (prev ? { ...prev, activeLeft: leftId } : prev));
+    setMatchState((prev) => {
+      if (!prev || prev.locked[leftId]) return prev;
+      return { ...prev, activeLeft: prev.activeLeft === leftId ? null : leftId };
+    });
   };
 
   const handleMatchRightSelect = (rightId: string) => {
     setMatchState((prev) => {
       if (!prev || !prev.activeLeft) return prev;
-      const nextSelection = { ...prev.selection, [prev.activeLeft]: rightId };
-      const nextActive = prev.leftOrder.find((leftId) => !nextSelection[leftId]) ?? null;
-      return { ...prev, selection: nextSelection, activeLeft: nextActive };
+      const leftId = prev.activeLeft;
+      if (prev.locked[leftId]) return prev;
+      const expected = prev.pairs.find((pair) => pair.leftId === leftId)?.rightId ?? null;
+      if (!expected) return prev;
+      const isCorrect = expected === rightId;
+      setMatchFeedback((current) => ({
+        ...current,
+        [leftId]: isCorrect ? 'correct' : 'incorrect'
+      }));
+      if (isCorrect) {
+        const nextLocked = { ...prev.locked, [leftId]: true };
+        if (Object.keys(nextLocked).length >= prev.pairs.length) {
+          setFeedback('correct');
+          setCanAdvance(true);
+        }
+        return {
+          ...prev,
+          selection: { ...prev.selection, [leftId]: rightId },
+          activeLeft: null,
+          locked: nextLocked
+        };
+      }
+      return { ...prev, activeLeft: null };
     });
   };
 
@@ -992,7 +1017,7 @@ export function CogitaRevisionRunPage({
       const totalPairs = matchState.pairs.length || 1;
       const correctness = correctCount / totalPairs;
       const allCorrect = correctCount === matchState.pairs.length;
-      setMatchFeedback(feedbackMap);
+      setMatchFeedback((prev) => ({ ...prev, ...feedbackMap }));
       if (allCorrect) {
         setFeedback('correct');
         setCanAdvance(true);

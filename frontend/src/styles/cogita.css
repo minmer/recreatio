@@ -2465,11 +2465,13 @@
   border: 1px solid rgba(120, 170, 220, 0.25);
   background: rgba(10, 20, 34, 0.7);
   color: #eaf2ff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .cogita-revision-match-item[data-active='true'] {
-  border-color: rgba(120, 210, 200, 0.7);
-  box-shadow: 0 0 0 1px rgba(120, 210, 200, 0.2);
+  border-color: rgba(120, 210, 200, 0.95);
+  box-shadow: 0 0 0 2px rgba(120, 210, 200, 0.35);
+  transform: translateY(-1px);
 }
 
 .cogita-revision-match-item[data-state='correct'] {
@@ -2478,6 +2480,11 @@
 
 .cogita-revision-match-item[data-state='incorrect'] {
   border-color: rgba(220, 110, 110, 0.75);
+}
+
+.cogita-revision-match-item[data-locked='true'] {
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .cogita-revision-run .cogita-revision-body {
