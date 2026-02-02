@@ -18,9 +18,15 @@ export type CogitaInfoType =
   | 'quote'
   | 'computed';
 
-export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation' | 'word-topic';
+export type CogitaConnectionType =
+  | 'word-language'
+  | 'quote-language'
+  | 'language-sentence'
+  | 'translation'
+  | 'word-topic'
+  | 'reference';
 
-export type CogitaGroupType = 'vocab';
+export type CogitaGroupType = 'vocab' | 'citation';
 
 export type CogitaLibraryMode = 'detail' | 'collection' | 'list';
 

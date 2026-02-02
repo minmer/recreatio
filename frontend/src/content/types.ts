@@ -251,12 +251,15 @@ export type Copy = {
       };
       connectionTypes: {
         wordLanguage: string;
+        quoteLanguage: string;
         wordTopic: string;
         languageSentence: string;
         translation: string;
+        reference: string;
       };
       groupTypes: {
         vocab: string;
+        citation: string;
       };
       overview: {
         kicker: string;
@@ -413,6 +416,16 @@ export type Copy = {
           sentencePlaceholder: string;
           topicLabel: string;
           topicPlaceholder: string;
+          quoteLabel: string;
+          quotePlaceholder: string;
+          sourceLabel: string;
+          sourcePlaceholder: string;
+          referencedInfoTypeLabel: string;
+          referencedInfoLabel: string;
+          referencedInfoPlaceholder: string;
+          locatorTypeLabel: string;
+          locatorValueLabel: string;
+          locatorValuePlaceholder: string;
           noteLabel: string;
           notePlaceholder: string;
           save: string;
@@ -423,6 +436,8 @@ export type Copy = {
           selectWordTopic: string;
           selectTwoWords: string;
           selectLanguageSentence: string;
+          selectReference: string;
+          selectQuoteLanguage: string;
         };
         group: {
           typeLabel: string;
@@ -440,6 +455,26 @@ export type Copy = {
           languageBPlaceholder: string;
           wordBLabel: string;
           wordBPlaceholder: string;
+          citationQuoteLabelLabel: string;
+          citationQuoteLabelPlaceholder: string;
+          citationQuoteTextLabel: string;
+          citationQuoteTextPlaceholder: string;
+          citationLanguageLabel: string;
+          citationLanguagePlaceholder: string;
+          citationSourceModeLabel: string;
+          citationSourceExistingLabel: string;
+          citationSourceExistingPlaceholder: string;
+          citationSourceLabelLabel: string;
+          citationSourceLabelPlaceholder: string;
+          citationSourceKindLabel: string;
+          citationSourceResourceTypeLabel: string;
+          citationSourceResourceLabel: string;
+          citationSourceResourcePlaceholder: string;
+          citationLocatorTypeLabel: string;
+          citationLocatorValueLabel: string;
+          citationLocatorValuePlaceholder: string;
+          citationMissingQuote: string;
+          citationMissingSource: string;
           save: string;
           saved: string;
           failed: string;

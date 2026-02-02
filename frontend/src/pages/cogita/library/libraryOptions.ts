@@ -52,13 +52,16 @@ export const getInfoTypeOptions = (copy: Copy): Array<{ value: CogitaInfoType | 
 
 export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConnectionType; label: string }> => [
   { value: 'word-language', label: copy.cogita.library.connectionTypes.wordLanguage },
+  { value: 'quote-language', label: copy.cogita.library.connectionTypes.quoteLanguage },
   { value: 'word-topic', label: copy.cogita.library.connectionTypes.wordTopic },
   { value: 'language-sentence', label: copy.cogita.library.connectionTypes.languageSentence },
-  { value: 'translation', label: copy.cogita.library.connectionTypes.translation }
+  { value: 'translation', label: copy.cogita.library.connectionTypes.translation },
+  { value: 'reference', label: copy.cogita.library.connectionTypes.reference }
 ];
 
 export const getGroupTypeOptions = (copy: Copy): Array<{ value: CogitaGroupType; label: string }> => [
-  { value: 'vocab', label: copy.cogita.library.groupTypes.vocab }
+  { value: 'vocab', label: copy.cogita.library.groupTypes.vocab },
+  { value: 'citation', label: copy.cogita.library.groupTypes.citation }
 ];
 
 export const getCardSearchOptions = (copy: Copy): Array<{ value: CogitaInfoType | 'any' | 'vocab'; label: string }> => [

@@ -551,12 +551,15 @@ export const en: Copy = {
       },
       connectionTypes: {
         wordLanguage: 'Word - language',
+        quoteLanguage: 'Quote - language',
         wordTopic: 'Word - topic',
         languageSentence: 'Language - sentence',
-        translation: 'Translation link'
+        translation: 'Translation link',
+        reference: 'Quote - source'
       },
       groupTypes: {
-        vocab: 'Vocabulary card'
+        vocab: 'Vocabulary card',
+        citation: 'Citation'
       },
       overview: {
         kicker: 'Library',
@@ -713,6 +716,16 @@ export const en: Copy = {
           sentencePlaceholder: 'Search or create a sentence',
           topicLabel: 'Topic',
           topicPlaceholder: 'Search or create a topic',
+          quoteLabel: 'Quote',
+          quotePlaceholder: 'Search or create a quote',
+          sourceLabel: 'Source',
+          sourcePlaceholder: 'Search or create a source',
+          referencedInfoTypeLabel: 'Referenced info type',
+          referencedInfoLabel: 'Referenced info',
+          referencedInfoPlaceholder: 'Search or create info',
+          locatorTypeLabel: 'Locator type',
+          locatorValueLabel: 'Locator',
+          locatorValuePlaceholder: 'Page, timecode, section, verse, or URL fragment',
           noteLabel: 'Note',
           notePlaceholder: 'Optional context for the connection',
           save: 'Save connection',
@@ -722,7 +735,9 @@ export const en: Copy = {
           selectWordLanguage: 'Select a language and a word.',
           selectWordTopic: 'Select a word and a topic.',
           selectTwoWords: 'Select two words to link.',
-          selectLanguageSentence: 'Select a language and a sentence.'
+          selectLanguageSentence: 'Select a language and a sentence.',
+          selectReference: 'Select an info and a source.',
+          selectQuoteLanguage: 'Select a quote and a language.'
         },
         group: {
           typeLabel: 'Group type',
@@ -740,6 +755,26 @@ export const en: Copy = {
           languageBPlaceholder: 'Search or create Language B',
           wordBLabel: 'Word B',
           wordBPlaceholder: 'Search or create Word B',
+          citationQuoteLabelLabel: 'Quote label',
+          citationQuoteLabelPlaceholder: 'Short label for the quote',
+          citationQuoteTextLabel: 'Quote text',
+          citationQuoteTextPlaceholder: 'Paste the quoted text',
+          citationLanguageLabel: 'Quote language',
+          citationLanguagePlaceholder: 'Search or create a language',
+          citationSourceModeLabel: 'Source',
+          citationSourceExistingLabel: 'Use existing source',
+          citationSourceExistingPlaceholder: 'Search or create a source',
+          citationSourceLabelLabel: 'New source label',
+          citationSourceLabelPlaceholder: 'Title or identifier of the source',
+          citationSourceKindLabel: 'Source kind',
+          citationSourceResourceTypeLabel: 'Resource type',
+          citationSourceResourceLabel: 'Resource',
+          citationSourceResourcePlaceholder: 'Search or create a resource',
+          citationLocatorTypeLabel: 'Locator type',
+          citationLocatorValueLabel: 'Locator',
+          citationLocatorValuePlaceholder: 'Page, timecode, section, verse, or URL fragment',
+          citationMissingQuote: 'Quote label and text are required.',
+          citationMissingSource: 'Pick or create a source.',
           save: 'Save vocabulary links',
           saved: 'Vocabulary connections saved.',
           failed: 'Failed to save vocabulary connections.',

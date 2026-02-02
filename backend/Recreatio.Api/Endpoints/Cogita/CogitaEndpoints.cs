@@ -41,9 +41,11 @@ public static class CogitaEndpoints
     private static readonly string[] SupportedConnectionTypes =
     {
         "word-language",
+        "quote-language",
         "language-sentence",
         "translation",
-        "word-topic"
+        "word-topic",
+        "reference"
     };
 
     private static readonly string[] SupportedGroupTypes = { "vocab" };

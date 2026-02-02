@@ -551,12 +551,15 @@ export const de: Copy = {
       },
       connectionTypes: {
         wordLanguage: 'Wort - Sprache',
+        quoteLanguage: 'Zitat - Sprache',
         wordTopic: 'Wort - Thema',
         languageSentence: 'Sprache - Satz',
-        translation: 'Übersetzungsverknüpfung'
+        translation: 'Übersetzungsverknüpfung',
+        reference: 'Zitat - Quelle'
       },
       groupTypes: {
-        vocab: 'Vokabelkarte'
+        vocab: 'Vokabelkarte',
+        citation: 'Zitat'
       },
       overview: {
         kicker: 'Bibliothek',
@@ -713,6 +716,16 @@ export const de: Copy = {
           sentencePlaceholder: 'Satz suchen oder erstellen',
           topicLabel: 'Thema',
           topicPlaceholder: 'Thema suchen oder erstellen',
+          quoteLabel: 'Zitat',
+          quotePlaceholder: 'Zitat suchen oder erstellen',
+          sourceLabel: 'Quelle',
+          sourcePlaceholder: 'Quelle suchen oder erstellen',
+          referencedInfoTypeLabel: 'Info-Typ',
+          referencedInfoLabel: 'Info',
+          referencedInfoPlaceholder: 'Info suchen oder erstellen',
+          locatorTypeLabel: 'Locator-Typ',
+          locatorValueLabel: 'Locator',
+          locatorValuePlaceholder: 'Seite, Zeitcode, Abschnitt, Vers oder URL-Fragment',
           noteLabel: 'Notiz',
           notePlaceholder: 'Optionaler Kontext für die Verbindung',
           save: 'Verbindung speichern',
@@ -722,7 +735,9 @@ export const de: Copy = {
           selectWordLanguage: 'Wähle eine Sprache und ein Wort.',
           selectWordTopic: 'Wähle ein Wort und ein Thema.',
           selectTwoWords: 'Wähle zwei Wörter zum Verknüpfen.',
-          selectLanguageSentence: 'Wähle eine Sprache und einen Satz.'
+          selectLanguageSentence: 'Wähle eine Sprache und einen Satz.',
+          selectReference: 'Wähle eine Info und eine Quelle.',
+          selectQuoteLanguage: 'Wähle ein Zitat und eine Sprache.'
         },
         group: {
           typeLabel: 'Gruppentyp',
@@ -740,6 +755,26 @@ export const de: Copy = {
           languageBPlaceholder: 'Sprache B suchen oder erstellen',
           wordBLabel: 'Wort B',
           wordBPlaceholder: 'Wort B suchen oder erstellen',
+          citationQuoteLabelLabel: 'Zitat-Label',
+          citationQuoteLabelPlaceholder: 'Kurzes Label für das Zitat',
+          citationQuoteTextLabel: 'Zitattext',
+          citationQuoteTextPlaceholder: 'Zitattext einfügen',
+          citationLanguageLabel: 'Zitatsprache',
+          citationLanguagePlaceholder: 'Sprache suchen oder erstellen',
+          citationSourceModeLabel: 'Quelle',
+          citationSourceExistingLabel: 'Vorhandene Quelle verwenden',
+          citationSourceExistingPlaceholder: 'Quelle suchen oder erstellen',
+          citationSourceLabelLabel: 'Neues Quellenlabel',
+          citationSourceLabelPlaceholder: 'Titel oder Kennung der Quelle',
+          citationSourceKindLabel: 'Quellentyp',
+          citationSourceResourceTypeLabel: 'Ressourcentyp',
+          citationSourceResourceLabel: 'Ressource',
+          citationSourceResourcePlaceholder: 'Ressource suchen oder erstellen',
+          citationLocatorTypeLabel: 'Locator-Typ',
+          citationLocatorValueLabel: 'Locator',
+          citationLocatorValuePlaceholder: 'Seite, Zeitcode, Abschnitt, Vers oder URL-Fragment',
+          citationMissingQuote: 'Zitat-Label und Text sind erforderlich.',
+          citationMissingSource: 'Quelle auswählen oder erstellen.',
           save: 'Vokabel-Links speichern',
           saved: 'Vokabelverknüpfungen gespeichert.',
           failed: 'Vokabelverknüpfungen konnten nicht gespeichert werden.',

@@ -38,7 +38,9 @@ const infoTypeOptions: Array<{ value: CogitaInfoType | 'any'; label: string }> =
 const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string }> = [
   { value: 'word-language', label: 'Word - language' },
   { value: 'language-sentence', label: 'Language - sentence' },
-  { value: 'translation', label: 'Translation link' }
+  { value: 'translation', label: 'Translation link' },
+  { value: 'reference', label: 'Quote - source' },
+  { value: 'quote-language', label: 'Quote - language' }
 ];
 
 const groupTypeOptions: Array<{ value: CogitaGroupType; label: string }> = [{ value: 'vocab', label: 'Vocabulary card' }];

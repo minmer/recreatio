@@ -551,12 +551,15 @@ export const pl: Copy = {
       },
       connectionTypes: {
         wordLanguage: 'Słowo - język',
+        quoteLanguage: 'Cytat - język',
         wordTopic: 'Słowo - temat',
         languageSentence: 'Język - zdanie',
-        translation: 'Połączenie tłumaczenia'
+        translation: 'Połączenie tłumaczenia',
+        reference: 'Cytat - źródło'
       },
       groupTypes: {
-        vocab: 'Karta słownictwa'
+        vocab: 'Karta słownictwa',
+        citation: 'Cytat'
       },
       overview: {
         kicker: 'Biblioteka',
@@ -713,6 +716,16 @@ export const pl: Copy = {
           sentencePlaceholder: 'Wyszukaj lub utwórz zdanie',
           topicLabel: 'Temat',
           topicPlaceholder: 'Wyszukaj lub utwórz temat',
+          quoteLabel: 'Cytat',
+          quotePlaceholder: 'Wyszukaj lub utwórz cytat',
+          sourceLabel: 'Źródło',
+          sourcePlaceholder: 'Wyszukaj lub utwórz źródło',
+          referencedInfoTypeLabel: 'Typ informacji',
+          referencedInfoLabel: 'Informacja',
+          referencedInfoPlaceholder: 'Wyszukaj lub utwórz informację',
+          locatorTypeLabel: 'Typ lokatora',
+          locatorValueLabel: 'Lokalizator',
+          locatorValuePlaceholder: 'Strona, znacznik czasu, sekcja, werset lub fragment URL',
           noteLabel: 'Notatka',
           notePlaceholder: 'Opcjonalny kontekst połączenia',
           save: 'Zapisz połączenie',
@@ -722,7 +735,9 @@ export const pl: Copy = {
           selectWordLanguage: 'Wybierz język i słowo.',
           selectWordTopic: 'Wybierz słowo i temat.',
           selectTwoWords: 'Wybierz dwa słowa do połączenia.',
-          selectLanguageSentence: 'Wybierz język i zdanie.'
+          selectLanguageSentence: 'Wybierz język i zdanie.',
+          selectReference: 'Wybierz informację i źródło.',
+          selectQuoteLanguage: 'Wybierz cytat i język.'
         },
         group: {
           typeLabel: 'Typ grupy',
@@ -740,6 +755,26 @@ export const pl: Copy = {
           languageBPlaceholder: 'Wyszukaj lub utwórz język B',
           wordBLabel: 'Słowo B',
           wordBPlaceholder: 'Wyszukaj lub utwórz słowo B',
+          citationQuoteLabelLabel: 'Etykieta cytatu',
+          citationQuoteLabelPlaceholder: 'Krótka etykieta cytatu',
+          citationQuoteTextLabel: 'Treść cytatu',
+          citationQuoteTextPlaceholder: 'Wklej tekst cytatu',
+          citationLanguageLabel: 'Język cytatu',
+          citationLanguagePlaceholder: 'Wyszukaj lub utwórz język',
+          citationSourceModeLabel: 'Źródło',
+          citationSourceExistingLabel: 'Użyj istniejącego źródła',
+          citationSourceExistingPlaceholder: 'Wyszukaj lub utwórz źródło',
+          citationSourceLabelLabel: 'Nowa etykieta źródła',
+          citationSourceLabelPlaceholder: 'Tytuł lub identyfikator źródła',
+          citationSourceKindLabel: 'Rodzaj źródła',
+          citationSourceResourceTypeLabel: 'Typ zasobu',
+          citationSourceResourceLabel: 'Zasób',
+          citationSourceResourcePlaceholder: 'Wyszukaj lub utwórz zasób',
+          citationLocatorTypeLabel: 'Typ lokatora',
+          citationLocatorValueLabel: 'Lokalizator',
+          citationLocatorValuePlaceholder: 'Strona, znacznik czasu, sekcja, werset lub fragment URL',
+          citationMissingQuote: 'Etykieta i treść cytatu są wymagane.',
+          citationMissingSource: 'Wybierz lub utwórz źródło.',
           save: 'Zapisz połączenia słownictwa',
           saved: 'Połączenia słownictwa zapisane.',
           failed: 'Nie udało się zapisać połączeń słownictwa.',
