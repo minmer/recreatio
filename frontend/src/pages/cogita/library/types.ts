@@ -15,7 +15,7 @@ export type CogitaInfoType =
   | 'music_fragment'
   | 'source'
   | 'reference'
-  | 'quote'
+  | 'quote' 
   | 'computed';
 
 export type CogitaConnectionType =
