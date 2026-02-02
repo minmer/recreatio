@@ -483,7 +483,6 @@ export function CogitaRevisionShareRunPage({
     setComputedAnswerTemplate(null);
     setComputedOutputVariables(null);
     setComputedVariableValues(null);
-    setComputedCount(null);
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
