@@ -32,6 +32,9 @@ public static class CogitaEndpoints
         "geo",
         "music_piece",
         "music_fragment",
+        "source",
+        "reference",
+        "quote",
         "computed"
     };
 
@@ -6592,6 +6595,30 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
+            case "source":
+                {
+                    var row = await dbContext.CogitaSources.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
+            case "reference":
+                {
+                    var row = await dbContext.CogitaReferences.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
+            case "quote":
+                {
+                    var row = await dbContext.CogitaQuotes.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
             case "computed":
                 {
                     var row = await dbContext.CogitaComputedInfos.AsNoTracking()
@@ -6656,6 +6683,15 @@ public static class CogitaEndpoints
                 break;
             case "music_fragment":
                 dbContext.CogitaMusicFragments.Add(new CogitaMusicFragment { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "source":
+                dbContext.CogitaSources.Add(new CogitaSource { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "reference":
+                dbContext.CogitaReferences.Add(new CogitaReference { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "quote":
+                dbContext.CogitaQuotes.Add(new CogitaQuote { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
             case "computed":
                 dbContext.CogitaComputedInfos.Add(new CogitaComputedInfo { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
@@ -6793,6 +6829,33 @@ public static class CogitaEndpoints
             case "music_fragment":
                 {
                     var row = dbContext.CogitaMusicFragments.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "source":
+                {
+                    var row = dbContext.CogitaSources.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "reference":
+                {
+                    var row = dbContext.CogitaReferences.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "quote":
+                {
+                    var row = dbContext.CogitaQuotes.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;

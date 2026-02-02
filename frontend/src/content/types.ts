@@ -244,6 +244,9 @@ export type Copy = {
         geo: string;
         musicPiece: string;
         musicFragment: string;
+        source: string;
+        reference: string;
+        quote: string;
         computed: string;
       };
       connectionTypes: {
@@ -362,6 +365,21 @@ export type Copy = {
           languagePlaceholder: string;
           notesLabel: string;
           notesPlaceholder: string;
+          referencesLabel: string;
+          referencesPlaceholder: string;
+          sourceKindLabel: string;
+          sourceKindPlaceholder: string;
+          sourceResourceTypeLabel: string;
+          sourceResourceLabel: string;
+          sourceResourcePlaceholder: string;
+          referenceSourceLabel: string;
+          referenceSourcePlaceholder: string;
+          referenceLocatorTypeLabel: string;
+          referenceLocatorTypePlaceholder: string;
+          referenceLocatorValueLabel: string;
+          referenceLocatorValuePlaceholder: string;
+          quoteTextLabel: string;
+          quoteTextPlaceholder: string;
           computedLabel: string;
           computedPlaceholder: string;
           computedAnswerLabel: string;

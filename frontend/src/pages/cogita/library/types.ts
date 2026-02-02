@@ -13,6 +13,9 @@ export type CogitaInfoType =
   | 'geo'
   | 'music_piece'
   | 'music_fragment'
+  | 'source'
+  | 'reference'
+  | 'quote'
   | 'computed';
 
 export type CogitaConnectionType = 'word-language' | 'language-sentence' | 'translation' | 'word-topic';

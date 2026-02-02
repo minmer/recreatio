@@ -26,6 +26,9 @@ IF OBJECT_ID(N'dbo.CogitaConnectionItems', N'U') IS NOT NULL DROP TABLE dbo.Cogi
 IF OBJECT_ID(N'dbo.CogitaConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaConnections;
 IF OBJECT_ID(N'dbo.CogitaMusicFragments', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicFragments;
 IF OBJECT_ID(N'dbo.CogitaMusicPieces', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicPieces;
+IF OBJECT_ID(N'dbo.CogitaQuotes', N'U') IS NOT NULL DROP TABLE dbo.CogitaQuotes;
+IF OBJECT_ID(N'dbo.CogitaReferences', N'U') IS NOT NULL DROP TABLE dbo.CogitaReferences;
+IF OBJECT_ID(N'dbo.CogitaSources', N'U') IS NOT NULL DROP TABLE dbo.CogitaSources;
 IF OBJECT_ID(N'dbo.CogitaGeoFeatures', N'U') IS NOT NULL DROP TABLE dbo.CogitaGeoFeatures;
 IF OBJECT_ID(N'dbo.CogitaMedia', N'U') IS NOT NULL DROP TABLE dbo.CogitaMedia;
 IF OBJECT_ID(N'dbo.CogitaBooks', N'U') IS NOT NULL DROP TABLE dbo.CogitaBooks;
@@ -619,6 +622,39 @@ CREATE TABLE dbo.CogitaMusicFragments
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaMusicFragments_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaSources
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaSources_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaReferences
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaReferences_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaQuotes
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaQuotes_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
 );
 GO
 

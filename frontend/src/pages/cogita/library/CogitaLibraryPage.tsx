@@ -29,7 +29,10 @@ const infoTypeOptions: Array<{ value: CogitaInfoType | 'any'; label: string }> =
   { value: 'media', label: 'Media' },
   { value: 'geo', label: 'Geo' },
   { value: 'music_piece', label: 'Music piece' },
-  { value: 'music_fragment', label: 'Music fragment' }
+  { value: 'music_fragment', label: 'Music fragment' },
+  { value: 'source', label: 'Source' },
+  { value: 'reference', label: 'Reference' },
+  { value: 'quote', label: 'Quote' }
 ];
 
 const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string }> = [
