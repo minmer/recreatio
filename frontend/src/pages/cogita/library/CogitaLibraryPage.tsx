@@ -22,16 +22,18 @@ const infoTypeOptions: Array<{ value: CogitaInfoType | 'any'; label: string }> =
   { value: 'sentence', label: 'Sentence / citation' },
   { value: 'topic', label: 'Topic' },
   { value: 'person', label: 'Person' },
+  { value: 'institution', label: 'Institution' },
+  { value: 'collective', label: 'Collective' },
+  { value: 'orcid', label: 'ORCID' },
   { value: 'address', label: 'Address' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
-  { value: 'book', label: 'Book' },
   { value: 'media', label: 'Media' },
+  { value: 'work', label: 'Work' },
   { value: 'geo', label: 'Geo' },
   { value: 'music_piece', label: 'Music piece' },
   { value: 'music_fragment', label: 'Music fragment' },
   { value: 'source', label: 'Source' },
-  { value: 'reference', label: 'Reference' },
   { value: 'quote', label: 'Quote' }
 ];
 
@@ -39,8 +41,11 @@ const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string 
   { value: 'word-language', label: 'Word - language' },
   { value: 'language-sentence', label: 'Language - sentence' },
   { value: 'translation', label: 'Translation link' },
-  { value: 'reference', label: 'Quote - source' },
-  { value: 'quote-language', label: 'Quote - language' }
+  { value: 'reference', label: 'Info - source' },
+  { value: 'quote-language', label: 'Quote - language' },
+  { value: 'work-contributor', label: 'Work - contributor' },
+  { value: 'work-medium', label: 'Work - medium' },
+  { value: 'orcid-link', label: 'ORCID link' }
 ];
 
 const groupTypeOptions: Array<{ value: CogitaGroupType; label: string }> = [{ value: 'vocab', label: 'Vocabulary card' }];

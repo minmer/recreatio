@@ -27,15 +27,17 @@ IF OBJECT_ID(N'dbo.CogitaConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaCo
 IF OBJECT_ID(N'dbo.CogitaMusicFragments', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicFragments;
 IF OBJECT_ID(N'dbo.CogitaMusicPieces', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicPieces;
 IF OBJECT_ID(N'dbo.CogitaQuotes', N'U') IS NOT NULL DROP TABLE dbo.CogitaQuotes;
-IF OBJECT_ID(N'dbo.CogitaReferences', N'U') IS NOT NULL DROP TABLE dbo.CogitaReferences;
 IF OBJECT_ID(N'dbo.CogitaSources', N'U') IS NOT NULL DROP TABLE dbo.CogitaSources;
 IF OBJECT_ID(N'dbo.CogitaGeoFeatures', N'U') IS NOT NULL DROP TABLE dbo.CogitaGeoFeatures;
 IF OBJECT_ID(N'dbo.CogitaMedia', N'U') IS NOT NULL DROP TABLE dbo.CogitaMedia;
-IF OBJECT_ID(N'dbo.CogitaBooks', N'U') IS NOT NULL DROP TABLE dbo.CogitaBooks;
+IF OBJECT_ID(N'dbo.CogitaWorks', N'U') IS NOT NULL DROP TABLE dbo.CogitaWorks;
 IF OBJECT_ID(N'dbo.CogitaPhones', N'U') IS NOT NULL DROP TABLE dbo.CogitaPhones;
 IF OBJECT_ID(N'dbo.CogitaEmails', N'U') IS NOT NULL DROP TABLE dbo.CogitaEmails;
 IF OBJECT_ID(N'dbo.CogitaAddresses', N'U') IS NOT NULL DROP TABLE dbo.CogitaAddresses;
 IF OBJECT_ID(N'dbo.CogitaPersons', N'U') IS NOT NULL DROP TABLE dbo.CogitaPersons;
+IF OBJECT_ID(N'dbo.CogitaCollectives', N'U') IS NOT NULL DROP TABLE dbo.CogitaCollectives;
+IF OBJECT_ID(N'dbo.CogitaInstitutions', N'U') IS NOT NULL DROP TABLE dbo.CogitaInstitutions;
+IF OBJECT_ID(N'dbo.CogitaOrcids', N'U') IS NOT NULL DROP TABLE dbo.CogitaOrcids;
 IF OBJECT_ID(N'dbo.CogitaTopics', N'U') IS NOT NULL DROP TABLE dbo.CogitaTopics;
 IF OBJECT_ID(N'dbo.CogitaSentences', N'U') IS NOT NULL DROP TABLE dbo.CogitaSentences;
 IF OBJECT_ID(N'dbo.CogitaWords', N'U') IS NOT NULL DROP TABLE dbo.CogitaWords;
@@ -537,6 +539,39 @@ CREATE TABLE dbo.CogitaPersons
 );
 GO
 
+CREATE TABLE dbo.CogitaInstitutions
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaInstitutions_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaCollectives
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaCollectives_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE TABLE dbo.CogitaOrcids
+(
+    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    EncryptedBlob VARBINARY(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaOrcids_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
 CREATE TABLE dbo.CogitaAddresses
 (
     InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
@@ -570,14 +605,15 @@ CREATE TABLE dbo.CogitaPhones
 );
 GO
 
-CREATE TABLE dbo.CogitaBooks
+
+CREATE TABLE dbo.CogitaWorks
 (
     InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
     DataKeyId UNIQUEIDENTIFIER NOT NULL,
     EncryptedBlob VARBINARY(MAX) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaBooks_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+    CONSTRAINT FK_CogitaWorks_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
 );
 GO
 
@@ -636,16 +672,6 @@ CREATE TABLE dbo.CogitaSources
 );
 GO
 
-CREATE TABLE dbo.CogitaReferences
-(
-    InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    DataKeyId UNIQUEIDENTIFIER NOT NULL,
-    EncryptedBlob VARBINARY(MAX) NOT NULL,
-    CreatedUtc DATETIMEOFFSET NOT NULL,
-    UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaReferences_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
-);
-GO
 
 CREATE TABLE dbo.CogitaQuotes
 (

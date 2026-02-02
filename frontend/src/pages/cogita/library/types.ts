@@ -5,17 +5,19 @@ export type CogitaInfoType =
   | 'topic'
   | 'collection'
   | 'person'
+  | 'institution'
+  | 'collective'
+  | 'orcid'
   | 'address'
   | 'email'
   | 'phone'
-  | 'book'
   | 'media'
+  | 'work'
   | 'geo'
   | 'music_piece'
   | 'music_fragment'
   | 'source'
-  | 'reference'
-  | 'quote' 
+  | 'quote'
   | 'computed';
 
 export type CogitaConnectionType =
@@ -24,7 +26,10 @@ export type CogitaConnectionType =
   | 'language-sentence'
   | 'translation'
   | 'word-topic'
-  | 'reference';
+  | 'reference'
+  | 'work-contributor'
+  | 'work-medium'
+  | 'orcid-link';
 
 export type CogitaGroupType = 'vocab' | 'citation';
 

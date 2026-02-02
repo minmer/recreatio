@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Recreatio.Api.Data.Cogita;
 
-public sealed class CogitaReference
+public sealed class CogitaWork
 {
     [Key]
     public Guid InfoId { get; set; }

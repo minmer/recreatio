@@ -12,16 +12,18 @@ export const getInfoTypeLabel = (copy: Copy, type: CogitaInfoType | 'any' | 'voc
     topic: labels.topic,
     collection: labels.collection,
     person: labels.person,
+    institution: labels.institution,
+    collective: labels.collective,
+    orcid: labels.orcid,
     address: labels.address,
     email: labels.email,
     phone: labels.phone,
-    book: labels.book,
     media: labels.media,
+    work: labels.work,
     geo: labels.geo,
     music_piece: labels.musicPiece,
     music_fragment: labels.musicFragment,
     source: labels.source,
-    reference: labels.reference,
     quote: labels.quote,
     computed: labels.computed
   };
@@ -36,16 +38,18 @@ export const getInfoTypeOptions = (copy: Copy): Array<{ value: CogitaInfoType | 
   { value: 'topic', label: getInfoTypeLabel(copy, 'topic') },
   { value: 'collection', label: getInfoTypeLabel(copy, 'collection') },
   { value: 'person', label: getInfoTypeLabel(copy, 'person') },
+  { value: 'institution', label: getInfoTypeLabel(copy, 'institution') },
+  { value: 'collective', label: getInfoTypeLabel(copy, 'collective') },
+  { value: 'orcid', label: getInfoTypeLabel(copy, 'orcid') },
   { value: 'address', label: getInfoTypeLabel(copy, 'address') },
   { value: 'email', label: getInfoTypeLabel(copy, 'email') },
   { value: 'phone', label: getInfoTypeLabel(copy, 'phone') },
-  { value: 'book', label: getInfoTypeLabel(copy, 'book') },
   { value: 'media', label: getInfoTypeLabel(copy, 'media') },
+  { value: 'work', label: getInfoTypeLabel(copy, 'work') },
   { value: 'geo', label: getInfoTypeLabel(copy, 'geo') },
   { value: 'music_piece', label: getInfoTypeLabel(copy, 'music_piece') },
   { value: 'music_fragment', label: getInfoTypeLabel(copy, 'music_fragment') },
   { value: 'source', label: getInfoTypeLabel(copy, 'source') },
-  { value: 'reference', label: getInfoTypeLabel(copy, 'reference') },
   { value: 'quote', label: getInfoTypeLabel(copy, 'quote') },
   { value: 'computed', label: getInfoTypeLabel(copy, 'computed') }
 ];
@@ -56,7 +60,10 @@ export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConne
   { value: 'word-topic', label: copy.cogita.library.connectionTypes.wordTopic },
   { value: 'language-sentence', label: copy.cogita.library.connectionTypes.languageSentence },
   { value: 'translation', label: copy.cogita.library.connectionTypes.translation },
-  { value: 'reference', label: copy.cogita.library.connectionTypes.reference }
+  { value: 'reference', label: copy.cogita.library.connectionTypes.reference },
+  { value: 'work-contributor', label: copy.cogita.library.connectionTypes.workContributor },
+  { value: 'work-medium', label: copy.cogita.library.connectionTypes.workMedium },
+  { value: 'orcid-link', label: copy.cogita.library.connectionTypes.orcidLink }
 ];
 
 export const getGroupTypeOptions = (copy: Copy): Array<{ value: CogitaGroupType; label: string }> => [

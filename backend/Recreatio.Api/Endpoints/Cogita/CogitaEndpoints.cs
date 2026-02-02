@@ -24,16 +24,18 @@ public static class CogitaEndpoints
         "topic",
         "collection",
         "person",
+        "institution",
+        "collective",
+        "orcid",
         "address",
         "email",
         "phone",
-        "book",
         "media",
+        "work",
         "geo",
         "music_piece",
         "music_fragment",
         "source",
-        "reference",
         "quote",
         "computed"
     };
@@ -45,6 +47,9 @@ public static class CogitaEndpoints
         "language-sentence",
         "translation",
         "word-topic",
+        "work-contributor",
+        "work-medium",
+        "orcid-link",
         "reference"
     };
 
@@ -728,7 +733,7 @@ public static class CogitaEndpoints
                 }
             }
 
-            var sanitizedPayload = info.InfoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+            var sanitizedPayload = SanitizePayloadForInfoType(info.InfoType, request.Payload);
             var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
             var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, info.Id.ToByteArray());
 
@@ -5759,7 +5764,7 @@ public static class CogitaEndpoints
                 return Results.BadRequest(new { error = "DataKeyId is invalid." });
             }
 
-            var sanitizedPayload = infoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+            var sanitizedPayload = SanitizePayloadForInfoType(infoType, request.Payload);
             var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
             var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
 
@@ -6308,6 +6313,108 @@ public static class CogitaEndpoints
         }
     }
 
+    private static JsonElement SanitizePayloadForInfoType(string infoType, JsonElement payload)
+    {
+        if (infoType == "computed")
+        {
+            return SanitizeComputedPayload(payload);
+        }
+
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return payload;
+        }
+
+        if (infoType == "work" || infoType == "orcid")
+        {
+            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
+            if (node is null)
+            {
+                return payload;
+            }
+
+            if (infoType == "work")
+            {
+                var doiValue = node["doi"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(doiValue))
+                {
+                    node["doi"] = NormalizeDoi(doiValue);
+                }
+            }
+
+            if (infoType == "orcid")
+            {
+                var orcidValue = node["orcid"]?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(orcidValue))
+                {
+                    orcidValue = node["label"]?.GetValue<string>();
+                }
+
+                if (!string.IsNullOrWhiteSpace(orcidValue))
+                {
+                    var normalized = NormalizeOrcid(orcidValue);
+                    if (node.ContainsKey("orcid"))
+                    {
+                        node["orcid"] = normalized;
+                    }
+                    if (node.ContainsKey("label"))
+                    {
+                        node["label"] = normalized;
+                    }
+                }
+            }
+
+            return JsonSerializer.Deserialize<JsonElement>(node.ToJsonString());
+        }
+
+        return payload;
+    }
+
+    private static string NormalizeDoi(string doi)
+    {
+        var trimmed = doi.Trim();
+        if (trimmed.StartsWith("https://doi.org/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["https://doi.org/".Length..];
+        }
+        else if (trimmed.StartsWith("http://doi.org/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["http://doi.org/".Length..];
+        }
+        else if (trimmed.StartsWith("doi:", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["doi:".Length..];
+        }
+
+        trimmed = trimmed.Trim();
+        return trimmed.ToLowerInvariant();
+    }
+
+    private static string NormalizeOrcid(string orcid)
+    {
+        var trimmed = orcid.Trim();
+        if (trimmed.StartsWith("https://orcid.org/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["https://orcid.org/".Length..];
+        }
+        else if (trimmed.StartsWith("http://orcid.org/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["http://orcid.org/".Length..];
+        }
+        else if (trimmed.StartsWith("orcid:", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["orcid:".Length..];
+        }
+
+        trimmed = trimmed.Replace(" ", string.Empty).Replace("-", string.Empty).ToUpperInvariant();
+        if (trimmed.Length == 16)
+        {
+            return $"{trimmed[..4]}-{trimmed.Substring(4, 4)}-{trimmed.Substring(8, 4)}-{trimmed.Substring(12, 4)}";
+        }
+
+        return trimmed;
+    }
+
     private static async Task<Dictionary<Guid, string>> ResolveInfoLabelsAsync(
         Guid libraryId,
         string infoType,
@@ -6533,6 +6640,30 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
+            case "institution":
+                {
+                    var row = await dbContext.CogitaInstitutions.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
+            case "collective":
+                {
+                    var row = await dbContext.CogitaCollectives.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
+            case "orcid":
+                {
+                    var row = await dbContext.CogitaOrcids.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
             case "address":
                 {
                     var row = await dbContext.CogitaAddresses.AsNoTracking()
@@ -6557,17 +6688,17 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
-            case "book":
+            case "media":
                 {
-                    var row = await dbContext.CogitaBooks.AsNoTracking()
+                    var row = await dbContext.CogitaMedia.AsNoTracking()
                         .Where(x => x.InfoId == info.Id)
                         .Select(x => new { x.DataKeyId, x.EncryptedBlob })
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
-            case "media":
+            case "work":
                 {
-                    var row = await dbContext.CogitaMedia.AsNoTracking()
+                    var row = await dbContext.CogitaWorks.AsNoTracking()
                         .Where(x => x.InfoId == info.Id)
                         .Select(x => new { x.DataKeyId, x.EncryptedBlob })
                         .FirstOrDefaultAsync(ct);
@@ -6600,14 +6731,6 @@ public static class CogitaEndpoints
             case "source":
                 {
                     var row = await dbContext.CogitaSources.AsNoTracking()
-                        .Where(x => x.InfoId == info.Id)
-                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
-                        .FirstOrDefaultAsync(ct);
-                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
-                }
-            case "reference":
-                {
-                    var row = await dbContext.CogitaReferences.AsNoTracking()
                         .Where(x => x.InfoId == info.Id)
                         .Select(x => new { x.DataKeyId, x.EncryptedBlob })
                         .FirstOrDefaultAsync(ct);
@@ -6662,6 +6785,15 @@ public static class CogitaEndpoints
             case "person":
                 dbContext.CogitaPersons.Add(new CogitaPerson { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
+            case "institution":
+                dbContext.CogitaInstitutions.Add(new CogitaInstitution { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "collective":
+                dbContext.CogitaCollectives.Add(new CogitaCollective { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "orcid":
+                dbContext.CogitaOrcids.Add(new CogitaOrcid { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
             case "address":
                 dbContext.CogitaAddresses.Add(new CogitaAddress { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
@@ -6671,11 +6803,11 @@ public static class CogitaEndpoints
             case "phone":
                 dbContext.CogitaPhones.Add(new CogitaPhone { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
-            case "book":
-                dbContext.CogitaBooks.Add(new CogitaBook { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
-                break;
             case "media":
                 dbContext.CogitaMedia.Add(new CogitaMedia { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
+            case "work":
+                dbContext.CogitaWorks.Add(new CogitaWork { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
             case "geo":
                 dbContext.CogitaGeoFeatures.Add(new CogitaGeoFeature { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
@@ -6688,9 +6820,6 @@ public static class CogitaEndpoints
                 break;
             case "source":
                 dbContext.CogitaSources.Add(new CogitaSource { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
-                break;
-            case "reference":
-                dbContext.CogitaReferences.Add(new CogitaReference { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
             case "quote":
                 dbContext.CogitaQuotes.Add(new CogitaQuote { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
@@ -6765,6 +6894,33 @@ public static class CogitaEndpoints
                     row.UpdatedUtc = now;
                     return true;
                 }
+            case "institution":
+                {
+                    var row = dbContext.CogitaInstitutions.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "collective":
+                {
+                    var row = dbContext.CogitaCollectives.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "orcid":
+                {
+                    var row = dbContext.CogitaOrcids.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
             case "address":
                 {
                     var row = dbContext.CogitaAddresses.FirstOrDefault(x => x.InfoId == infoId);
@@ -6792,18 +6948,18 @@ public static class CogitaEndpoints
                     row.UpdatedUtc = now;
                     return true;
                 }
-            case "book":
+            case "media":
                 {
-                    var row = dbContext.CogitaBooks.FirstOrDefault(x => x.InfoId == infoId);
+                    var row = dbContext.CogitaMedia.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;
                     row.UpdatedUtc = now;
                     return true;
                 }
-            case "media":
+            case "work":
                 {
-                    var row = dbContext.CogitaMedia.FirstOrDefault(x => x.InfoId == infoId);
+                    var row = dbContext.CogitaWorks.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;
@@ -6840,15 +6996,6 @@ public static class CogitaEndpoints
             case "source":
                 {
                     var row = dbContext.CogitaSources.FirstOrDefault(x => x.InfoId == infoId);
-                    if (row is null) return false;
-                    row.DataKeyId = dataKeyId;
-                    row.EncryptedBlob = encrypted;
-                    row.UpdatedUtc = now;
-                    return true;
-                }
-            case "reference":
-                {
-                    var row = dbContext.CogitaReferences.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;
@@ -7142,7 +7289,7 @@ public static class CogitaEndpoints
             ct,
             saveChanges);
 
-        var sanitizedPayload = infoType == "computed" ? SanitizeComputedPayload(request.Payload) : request.Payload;
+        var sanitizedPayload = SanitizePayloadForInfoType(infoType, request.Payload);
         var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
         var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
 
