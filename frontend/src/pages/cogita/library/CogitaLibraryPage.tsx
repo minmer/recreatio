@@ -49,8 +49,6 @@ const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string 
   { value: 'orcid-link', label: 'ORCID link' }
 ];
 
-const groupTypeOptions: Array<{ value: CogitaGroupType; label: string }> = [{ value: 'vocab', label: 'Vocabulary card' }];
-
 export function CogitaLibraryPage({
   copy,
   authLabel,
@@ -82,6 +80,14 @@ export function CogitaLibraryPage({
   onModeChange: (mode: CogitaLibraryMode) => void;
   onBackToOverview: () => void;
 }) {
+  const groupTypeOptions = useMemo<Array<{ value: CogitaGroupType; label: string }>>(
+    () => [
+      { value: 'vocab', label: 'Vocabulary card' },
+      { value: 'citation', label: 'Citation' },
+      { value: 'book', label: 'Book' }
+    ],
+    []
+  );
   const [libraryName, setLibraryName] = useState('Cogita library');
   const [stats, setStats] = useState<CogitaLibraryStats | null>(null);
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any'>('any');
@@ -704,53 +710,66 @@ export function CogitaLibraryPage({
                         ))}
                       </select>
                     </label>
-                    <InfoSearchSelect
-                      libraryId={libraryId}
-                      infoType="language"
-                      label="Language A"
-                      placeholder="Search or create Language A"
-                      value={groupForm.languageA}
-                      onChange={(value) => setGroupForm((prev) => ({ ...prev, languageA: value }))}
-                    />
-                    <InfoSearchSelect
-                      libraryId={libraryId}
-                      infoType="word"
-                      label="Word A"
-                      placeholder="Search or create Word A"
-                      value={groupForm.wordA}
-                      onChange={(value) => setGroupForm((prev) => ({ ...prev, wordA: value }))}
-                    />
-                    {groupPairStatusA && <p className="cogita-help">{groupPairStatusA}</p>}
-                    <InfoSearchSelect
-                      libraryId={libraryId}
-                      infoType="language"
-                      label="Language B"
-                      placeholder="Search or create Language B"
-                      value={groupForm.languageB}
-                      onChange={(value) => setGroupForm((prev) => ({ ...prev, languageB: value }))}
-                    />
-                    <InfoSearchSelect
-                      libraryId={libraryId}
-                      infoType="word"
-                      label="Word B"
-                      placeholder="Search or create Word B"
-                      value={groupForm.wordB}
-                      onChange={(value) => setGroupForm((prev) => ({ ...prev, wordB: value }))}
-                    />
-                    {groupPairStatusB && <p className="cogita-help">{groupPairStatusB}</p>}
-                    <label className="cogita-field full">
-                      <span>Notes</span>
-                      <textarea
-                        value={groupForm.note}
-                        onChange={(event) => setGroupForm((prev) => ({ ...prev, note: event.target.value }))}
-                        placeholder="Optional context for the vocabulary card"
-                      />
-                    </label>
-                    <div className="cogita-form-actions full">
-                      <button type="button" className="cta" onClick={handleCreateGroup}>
-                        Save vocabulary links
-                      </button>
-                    </div>
+                    {groupForm.groupType === 'vocab' ? (
+                      <>
+                        <InfoSearchSelect
+                          libraryId={libraryId}
+                          infoType="language"
+                          label="Language A"
+                          placeholder="Search or create Language A"
+                          value={groupForm.languageA}
+                          onChange={(value) => setGroupForm((prev) => ({ ...prev, languageA: value }))}
+                        />
+                        <InfoSearchSelect
+                          libraryId={libraryId}
+                          infoType="word"
+                          label="Word A"
+                          placeholder="Search or create Word A"
+                          value={groupForm.wordA}
+                          onChange={(value) => setGroupForm((prev) => ({ ...prev, wordA: value }))}
+                        />
+                        {groupPairStatusA && <p className="cogita-help">{groupPairStatusA}</p>}
+                        <InfoSearchSelect
+                          libraryId={libraryId}
+                          infoType="language"
+                          label="Language B"
+                          placeholder="Search or create Language B"
+                          value={groupForm.languageB}
+                          onChange={(value) => setGroupForm((prev) => ({ ...prev, languageB: value }))}
+                        />
+                        <InfoSearchSelect
+                          libraryId={libraryId}
+                          infoType="word"
+                          label="Word B"
+                          placeholder="Search or create Word B"
+                          value={groupForm.wordB}
+                          onChange={(value) => setGroupForm((prev) => ({ ...prev, wordB: value }))}
+                        />
+                        {groupPairStatusB && <p className="cogita-help">{groupPairStatusB}</p>}
+                        <label className="cogita-field full">
+                          <span>Notes</span>
+                          <textarea
+                            value={groupForm.note}
+                            onChange={(event) => setGroupForm((prev) => ({ ...prev, note: event.target.value }))}
+                            placeholder="Optional context for the vocabulary card"
+                          />
+                        </label>
+                        <div className="cogita-form-actions full">
+                          <button type="button" className="cta" onClick={handleCreateGroup}>
+                            Save vocabulary links
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="cogita-help">
+                        Citation and book groups are created on the Add page.
+                        <div className="cogita-form-actions">
+                          <a className="cta ghost" href={`/cogita/library/${libraryId}/add`}>
+                            Open Add
+                          </a>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : null}
 

@@ -5,6 +5,7 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import type { CogitaConnectionType, CogitaGroupType, CogitaInfoOption, CogitaInfoType } from './types';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
+import { ReferencePanel, type ReferenceSourceForm } from './components/ReferencePanel';
 import { ComputedGraphEditor, type ComputedGraphDefinition } from './components/ComputedGraphEditor';
 import { buildComputedSampleFromGraph } from './utils/computedGraph';
 import { LatexBlock, LatexInline } from '../../../components/LatexText';
@@ -73,7 +74,17 @@ export function CogitaLibraryAddPage({
     mediaCollection: '',
     mediaLocation: '',
     sourceUrl: '',
-    sourceAccessedDate: ''
+    sourceAccessedDate: '',
+    referenceEnabled: false,
+    referenceSourceKind: 'string' as string,
+    referenceLocatorValue: '',
+    referenceLocatorAux: '',
+    referenceBibleBookDisplay: '',
+    referenceSourceUrl: '',
+    referenceSourceAccessedDate: '',
+    referenceChurchDocument: null as CogitaInfoOption | null,
+    referenceBookMedia: null as CogitaInfoOption | null,
+    referenceWork: null as CogitaInfoOption | null
   });
   const [computedAnswerTemplate, setComputedAnswerTemplate] = useState('');
   const [computedGraph, setComputedGraph] = useState<ComputedGraphDefinition | null>(null);
@@ -83,8 +94,8 @@ export function CogitaLibraryAddPage({
     answerText?: string;
   } | null>(null);
   const [computedPreviewStatus, setComputedPreviewStatus] = useState<'idle' | 'ready' | 'error'>('idle');
-  const [bibleBookFocus, setBibleBookFocus] = useState<'source' | 'citation' | null>(null);
-  const [bibleBookIndex, setBibleBookIndex] = useState({ source: -1, citation: -1 });
+  const [bibleBookFocus, setBibleBookFocus] = useState<'source' | null>(null);
+  const [bibleBookIndex, setBibleBookIndex] = useState(-1);
   const [connectionForm, setConnectionForm] = useState({
     connectionType: 'translation' as CogitaConnectionType,
     language: null as CogitaInfoOption | null,
@@ -128,7 +139,31 @@ export function CogitaLibraryAddPage({
     citationSourceAccessedDate: '',
     citationChurchDocument: null as CogitaInfoOption | null,
     citationBookMedia: null as CogitaInfoOption | null,
-    citationWork: null as CogitaInfoOption | null
+    citationWork: null as CogitaInfoOption | null,
+    bookTitle: '',
+    bookPublisher: '',
+    bookPublicationPlace: '',
+    bookPublicationYear: '',
+    bookPages: '',
+    bookIsbn: '',
+    bookCover: '',
+    bookHeight: '',
+    bookLength: '',
+    bookWidth: '',
+    bookWeight: '',
+    bookCollection: '',
+    bookLocation: '',
+    bookWorkTitle: '',
+    bookWorkLanguage: null as CogitaInfoOption | null,
+    bookWorkOriginalLanguage: null as CogitaInfoOption | null,
+    bookWorkDoi: '',
+    bookContributors: [
+      {
+        contributorType: 'person' as CogitaInfoType,
+        contributor: null as CogitaInfoOption | null,
+        role: ''
+      }
+    ]
   });
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<'idle' | 'loading' | 'saving'>('idle');
@@ -151,6 +186,24 @@ export function CogitaLibraryAddPage({
       { value: 'work', label: copy.cogita.library.infoTypes.work },
       { value: 'other', label: 'Other' }
     ],
+    [copy]
+  );
+  const referenceLabels = useMemo(
+    () => ({
+      sourceKindLabel: copy.cogita.library.add.group.citationSourceKindLabel,
+      bibleBookLabel: copy.cogita.library.add.group.citationBibleBookLabel,
+      bibleBookPlaceholder: copy.cogita.library.add.group.citationBibleBookPlaceholder,
+      bibleRestLabel: copy.cogita.library.add.group.citationBibleRestLabel,
+      bibleRestPlaceholder: copy.cogita.library.add.group.citationBibleRestPlaceholder,
+      churchDocumentLabel: copy.cogita.library.add.group.citationChurchDocumentLabel,
+      churchDocumentPlaceholder: copy.cogita.library.add.group.citationChurchDocumentPlaceholder,
+      workLabel: copy.cogita.library.add.group.citationWorkLabel,
+      workPlaceholder: copy.cogita.library.add.group.citationWorkPlaceholder,
+      bookLabel: copy.cogita.library.add.group.citationBookLabel,
+      bookPlaceholder: copy.cogita.library.add.group.citationBookPlaceholder,
+      locatorLabel: copy.cogita.library.add.group.citationLocatorValueLabel,
+      locatorPlaceholder: copy.cogita.library.add.group.citationLocatorValuePlaceholder
+    }),
     [copy]
   );
   const sourceResourceTypeOptions = useMemo(
@@ -453,23 +506,11 @@ export function CogitaLibraryAddPage({
         }
       }
     }
-    if (groupForm.citationSourceKind === 'bible' && groupForm.citationLocatorValue && bibleBookFocus !== 'citation') {
-      const match = resolveBibleBook(groupForm.citationLocatorValue, language);
-      if (match) {
-        const display = `${match.entry.abbr} — ${match.entry.name}`;
-        if (display !== groupForm.citationBibleBookDisplay) {
-          setGroupForm((prev) => ({ ...prev, citationBibleBookDisplay: display }));
-        }
-      }
-    }
   }, [
     language,
     infoForm.sourceKind,
     infoForm.sourceLocatorValue,
-    infoForm.sourceBibleBookDisplay,
-    groupForm.citationSourceKind,
-    groupForm.citationLocatorValue,
-    groupForm.citationBibleBookDisplay
+    infoForm.sourceBibleBookDisplay
   ]);
 
   const handleSaveInfo = async () => {
@@ -577,6 +618,26 @@ export function CogitaLibraryAddPage({
         setFormStatus(copy.cogita.library.add.info.updated);
         setEditStatus('idle');
       } else {
+        let pendingReference: { payload: Record<string, unknown>; resourceInfoId: string | null } | null = null;
+        if (infoForm.referenceEnabled) {
+          const referenceForm: ReferenceSourceForm = {
+            sourceKind: infoForm.referenceSourceKind,
+            locatorValue: infoForm.referenceLocatorValue,
+            locatorAux: infoForm.referenceLocatorAux,
+            bibleBookDisplay: infoForm.referenceBibleBookDisplay,
+            sourceUrl: infoForm.referenceSourceUrl,
+            sourceAccessedDate: infoForm.referenceSourceAccessedDate,
+            churchDocument: infoForm.referenceChurchDocument,
+            bookMedia: infoForm.referenceBookMedia,
+            work: infoForm.referenceWork
+          };
+          const { payload: sourcePayload, resourceInfoId, error } = buildSourcePayload(referenceForm);
+          if (error) {
+            setFormStatus(copy.cogita.library.add.info.referenceMissingSource);
+            return;
+          }
+          pendingReference = { payload: sourcePayload, resourceInfoId };
+        }
         const created = await createCogitaInfo({
           libraryId,
           infoType: infoForm.infoType,
@@ -596,8 +657,45 @@ export function CogitaLibraryAddPage({
             infoIds: [created.infoId, infoForm.language.id]
           });
         }
+        if (pendingReference) {
+          const createdSource = await createCogitaInfo({
+            libraryId,
+            infoType: 'source',
+            payload: pendingReference.payload
+          });
+          if (pendingReference.resourceInfoId) {
+            await createCogitaConnection({
+              libraryId,
+              connectionType: 'source-resource',
+              infoIds: [createdSource.infoId, pendingReference.resourceInfoId]
+            });
+          }
+          await createCogitaConnection({
+            libraryId,
+            connectionType: 'reference',
+            infoIds: [created.infoId, createdSource.infoId]
+          });
+        }
         setFormStatus(copy.cogita.library.add.info.saved);
         const keepLanguage = infoForm.infoType === 'word' || infoForm.infoType === 'sentence';
+        const keepReference = infoForm.referenceEnabled;
+        const keepReferenceKind = infoForm.referenceSourceKind;
+        const keepReferenceCommon = {
+          referenceEnabled: keepReference,
+          referenceSourceKind: keepReference ? keepReferenceKind : 'string',
+          referenceSourceUrl: keepReference && keepReferenceKind === 'website' ? infoForm.referenceSourceUrl : '',
+          referenceSourceAccessedDate:
+            keepReference && keepReferenceKind === 'website' ? infoForm.referenceSourceAccessedDate : '',
+          referenceChurchDocument:
+            keepReference && keepReferenceKind === 'number_document' ? infoForm.referenceChurchDocument : null,
+          referenceBookMedia: keepReference && keepReferenceKind === 'book' ? infoForm.referenceBookMedia : null,
+          referenceWork: keepReference && keepReferenceKind === 'work' ? infoForm.referenceWork : null,
+          referenceLocatorValue:
+            keepReference && keepReferenceKind === 'bible' ? infoForm.referenceLocatorValue : '',
+          referenceLocatorAux: '',
+          referenceBibleBookDisplay:
+            keepReference && keepReferenceKind === 'bible' ? infoForm.referenceBibleBookDisplay : ''
+        };
         setInfoForm({
           infoType: infoForm.infoType,
           label: '',
@@ -627,7 +725,8 @@ export function CogitaLibraryAddPage({
           mediaCollection: '',
           mediaLocation: '',
           sourceUrl: '',
-          sourceAccessedDate: ''
+          sourceAccessedDate: '',
+          ...keepReferenceCommon
         });
         if (infoForm.infoType === 'computed') {
           setComputedAnswerTemplate('');
@@ -639,6 +738,64 @@ export function CogitaLibraryAddPage({
     } catch {
       setFormStatus(copy.cogita.library.add.info.failed);
     }
+  };
+
+  const buildSourcePayload = (form: ReferenceSourceForm) => {
+    let resourceInfoId: string | null = null;
+    if (form.sourceKind === 'number_document') {
+      if (!form.churchDocument) {
+        return { payload: {}, resourceInfoId, error: true };
+      }
+      resourceInfoId = form.churchDocument.id;
+    }
+    if (form.sourceKind === 'book') {
+      if (!form.bookMedia) {
+        return { payload: {}, resourceInfoId, error: true };
+      }
+      resourceInfoId = form.bookMedia.id;
+    }
+    if (form.sourceKind === 'work') {
+      if (!form.work) {
+        return { payload: {}, resourceInfoId, error: true };
+      }
+      resourceInfoId = form.work.id;
+    }
+
+    const sourcePayload: Record<string, unknown> = {
+      sourceKind: form.sourceKind
+    };
+    if (form.sourceKind === 'website') {
+      const url = form.sourceUrl.trim();
+      if (!url) {
+        return { payload: {}, resourceInfoId, error: true };
+      }
+      sourcePayload.locator = {
+        url,
+        date: form.sourceAccessedDate.trim()
+      };
+      return { payload: sourcePayload, resourceInfoId };
+    }
+    if (form.sourceKind === 'bible') {
+      if (!form.locatorValue.trim() || !form.locatorAux.trim()) {
+        return { payload: {}, resourceInfoId, error: true };
+      }
+      sourcePayload.locator = {
+        book: form.locatorValue.trim(),
+        rest: form.locatorAux.trim()
+      };
+      return { payload: sourcePayload, resourceInfoId };
+    }
+    if (form.sourceKind === 'book') {
+      sourcePayload.locator = { page: form.locatorValue.trim() };
+    } else if (form.sourceKind === 'number_document') {
+      sourcePayload.locator = { number: form.locatorValue.trim() };
+    } else if (form.sourceKind !== 'website') {
+      sourcePayload.locator = { text: form.locatorValue.trim() };
+    }
+    if (form.sourceKind !== 'website' && form.sourceKind !== 'bible' && !form.locatorValue.trim()) {
+      return { payload: {}, resourceInfoId, error: true };
+    }
+    return { payload: sourcePayload, resourceInfoId };
   };
 
   const handleComputedPreview = () => {
@@ -806,66 +963,19 @@ export function CogitaLibraryAddPage({
           return;
         }
 
-        let resourceInfoId: string | null = null;
-        if (groupForm.citationSourceKind === 'number_document') {
-          if (!groupForm.citationChurchDocument) {
-            setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-            return;
-          }
-          resourceInfoId = groupForm.citationChurchDocument.id;
-        }
-
-        if (groupForm.citationSourceKind === 'book') {
-          if (!groupForm.citationBookMedia) {
-            setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-            return;
-          }
-          resourceInfoId = groupForm.citationBookMedia.id;
-        }
-
-        if (groupForm.citationSourceKind === 'work') {
-          if (!groupForm.citationWork) {
-            setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-            return;
-          }
-          resourceInfoId = groupForm.citationWork.id;
-        }
-
-        const sourcePayload: Record<string, unknown> = {
-          sourceKind: groupForm.citationSourceKind
+        const citationForm: ReferenceSourceForm = {
+          sourceKind: groupForm.citationSourceKind,
+          locatorValue: groupForm.citationLocatorValue,
+          locatorAux: groupForm.citationLocatorAux,
+          bibleBookDisplay: groupForm.citationBibleBookDisplay,
+          sourceUrl: groupForm.citationSourceUrl,
+          sourceAccessedDate: groupForm.citationSourceAccessedDate,
+          churchDocument: groupForm.citationChurchDocument,
+          bookMedia: groupForm.citationBookMedia,
+          work: groupForm.citationWork
         };
-        if (groupForm.citationSourceKind === 'website') {
-          const url = groupForm.citationSourceUrl.trim();
-          if (!url) {
-            setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-            return;
-          }
-          sourcePayload.locator = {
-            url,
-            date: groupForm.citationSourceAccessedDate.trim()
-          };
-        }
-        if (groupForm.citationSourceKind === 'bible') {
-          if (!groupForm.citationLocatorValue.trim() || !groupForm.citationLocatorAux.trim()) {
-            setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-            return;
-          }
-          sourcePayload.locator = {
-            book: groupForm.citationLocatorValue.trim(),
-            rest: groupForm.citationLocatorAux.trim()
-          };
-        } else if (groupForm.citationSourceKind === 'book') {
-          sourcePayload.locator = { page: groupForm.citationLocatorValue.trim() };
-        } else if (groupForm.citationSourceKind === 'number_document') {
-          sourcePayload.locator = { number: groupForm.citationLocatorValue.trim() };
-        } else if (groupForm.citationSourceKind !== 'website') {
-          sourcePayload.locator = { text: groupForm.citationLocatorValue.trim() };
-        }
-        if (
-          groupForm.citationSourceKind !== 'website' &&
-          groupForm.citationSourceKind !== 'bible' &&
-          !groupForm.citationLocatorValue.trim()
-        ) {
+        const { payload: sourcePayload, resourceInfoId, error } = buildSourcePayload(citationForm);
+        if (error) {
           setFormStatus(copy.cogita.library.add.group.citationMissingSource);
           return;
         }
@@ -904,7 +1014,7 @@ export function CogitaLibraryAddPage({
           infoIds: [createdQuote.infoId, createdSource.infoId]
         });
 
-        setFormStatus(copy.cogita.library.add.group.saved);
+        setFormStatus(copy.cogita.library.add.group.savedCitation);
         setGroupForm((prev) => ({
           ...prev,
           citationQuoteText: '',
@@ -918,6 +1028,105 @@ export function CogitaLibraryAddPage({
           citationChurchDocument: null,
           citationBookMedia: null,
           citationWork: null
+        }));
+        return;
+      }
+
+      if (groupForm.groupType === 'book') {
+        const bookTitle = groupForm.bookTitle.trim();
+        if (!bookTitle) {
+          setFormStatus(copy.cogita.library.add.group.bookMissingTitle);
+          return;
+        }
+        const workTitle = groupForm.bookWorkTitle.trim();
+        if (!workTitle) {
+          setFormStatus(copy.cogita.library.add.group.bookMissingWork);
+          return;
+        }
+
+        const invalidContributor = groupForm.bookContributors.find(
+          (row) => (row.contributor && !row.role.trim()) || (!row.contributor && row.role.trim())
+        );
+        if (invalidContributor) {
+          setFormStatus(copy.cogita.library.add.group.bookMissingContributor);
+          return;
+        }
+
+        const createdBook = await createCogitaInfo({
+          libraryId,
+          infoType: 'media',
+          payload: {
+            label: bookTitle,
+            mediaType: 'book',
+            publisher: groupForm.bookPublisher.trim(),
+            publicationPlace: groupForm.bookPublicationPlace.trim(),
+            publicationYear: groupForm.bookPublicationYear.trim(),
+            pages: groupForm.bookPages.trim(),
+            isbn: groupForm.bookIsbn.trim(),
+            cover: groupForm.bookCover.trim(),
+            height: groupForm.bookHeight.trim(),
+            length: groupForm.bookLength.trim(),
+            width: groupForm.bookWidth.trim(),
+            weight: groupForm.bookWeight.trim(),
+            collection: groupForm.bookCollection.trim(),
+            location: groupForm.bookLocation.trim()
+          }
+        });
+
+        const createdWork = await createCogitaInfo({
+          libraryId,
+          infoType: 'work',
+          payload: {
+            label: workTitle,
+            languageId: groupForm.bookWorkLanguage?.id ?? null,
+            originalLanguageId: groupForm.bookWorkOriginalLanguage?.id ?? null,
+            doi: groupForm.bookWorkDoi.trim()
+          }
+        });
+
+        await createCogitaConnection({
+          libraryId,
+          connectionType: 'work-medium',
+          infoIds: [createdWork.infoId, createdBook.infoId]
+        });
+
+        const contributorRows = groupForm.bookContributors.filter((row) => row.contributor && row.role.trim());
+        for (const row of contributorRows) {
+          await createCogitaConnection({
+            libraryId,
+            connectionType: 'work-contributor',
+            infoIds: [createdWork.infoId, row.contributor!.id],
+            payload: { role: row.role.trim() }
+          });
+        }
+
+        setFormStatus(copy.cogita.library.add.group.savedBook);
+        setGroupForm((prev) => ({
+          ...prev,
+          bookTitle: '',
+          bookPublisher: '',
+          bookPublicationPlace: '',
+          bookPublicationYear: '',
+          bookPages: '',
+          bookIsbn: '',
+          bookCover: '',
+          bookHeight: '',
+          bookLength: '',
+          bookWidth: '',
+          bookWeight: '',
+          bookCollection: '',
+          bookLocation: '',
+          bookWorkTitle: '',
+          bookWorkLanguage: null,
+          bookWorkOriginalLanguage: null,
+          bookWorkDoi: '',
+          bookContributors: [
+            {
+              contributorType: 'person' as CogitaInfoType,
+              contributor: null as CogitaInfoOption | null,
+              role: ''
+            }
+          ]
         }));
         return;
       }
@@ -968,7 +1177,7 @@ export function CogitaLibraryAddPage({
         payload: { tagIds: uniqueTagIds(groupForm.translationTags).map((tag) => tag.id) }
       });
 
-      setFormStatus(copy.cogita.library.add.group.saved);
+      setFormStatus(copy.cogita.library.add.group.savedVocab);
       setGroupForm((prev) => ({
         ...prev,
         groupType: groupForm.groupType,
@@ -985,6 +1194,13 @@ export function CogitaLibraryAddPage({
       setFormStatus(copy.cogita.library.add.group.failed);
     }
   };
+
+  const groupSaveLabel =
+    groupForm.groupType === 'citation'
+      ? copy.cogita.library.add.group.saveCitation
+      : groupForm.groupType === 'book'
+        ? copy.cogita.library.add.group.saveBook
+        : copy.cogita.library.add.group.saveVocab;
 
   return (
     <CogitaShell
@@ -1313,26 +1529,20 @@ export function CogitaLibraryAddPage({
                                     sourceLocatorValue: ''
                                   }));
                                   setBibleBookFocus('source');
-                                  setBibleBookIndex((prev) => ({ ...prev, source: -1 }));
+                                  setBibleBookIndex(-1);
                                 }}
                                 onKeyDown={(event) => {
                                   const options = filterBibleBooks(infoForm.sourceBibleBookDisplay);
                                   if (!options.length) return;
                                   if (event.key === 'ArrowDown') {
                                     event.preventDefault();
-                                    setBibleBookIndex((prev) => ({
-                                      ...prev,
-                                      source: Math.min(prev.source + 1, options.length - 1)
-                                    }));
+                                    setBibleBookIndex((prev) => Math.min(prev + 1, options.length - 1));
                                   } else if (event.key === 'ArrowUp') {
                                     event.preventDefault();
-                                    setBibleBookIndex((prev) => ({
-                                      ...prev,
-                                      source: Math.max(prev.source - 1, 0)
-                                    }));
+                                    setBibleBookIndex((prev) => Math.max(prev - 1, 0));
                                   } else if (event.key === 'Enter' || event.key === 'Tab') {
-                                    if (bibleBookIndex.source >= 0 && options[bibleBookIndex.source]) {
-                                      const option = options[bibleBookIndex.source];
+                                    if (bibleBookIndex >= 0 && options[bibleBookIndex]) {
+                                      const option = options[bibleBookIndex];
                                       const match = resolveBibleBook(option.label, language);
                                       if (!match) return;
                                       setInfoForm((prev) => ({
@@ -1357,7 +1567,7 @@ export function CogitaLibraryAddPage({
                                       key={option.latin}
                                       type="button"
                                       className="cogita-lookup-option"
-                                      data-active={index === bibleBookIndex.source}
+                                    data-active={index === bibleBookIndex}
                                       tabIndex={-1}
                                       onMouseDown={() => {
                                         const match = resolveBibleBook(option.label, language);
@@ -1516,6 +1726,56 @@ export function CogitaLibraryAddPage({
                         <p className="cogita-help">{copy.cogita.library.add.info.computedPreviewFail}</p>
                       ) : null}
                     </>
+                  )}
+                  <label className="cogita-field full">
+                    <span>{copy.cogita.library.add.info.referenceTitle}</span>
+                    <div className="cogita-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={infoForm.referenceEnabled}
+                        onChange={(event) =>
+                          setInfoForm((prev) => ({
+                            ...prev,
+                            referenceEnabled: event.target.checked
+                          }))
+                        }
+                      />
+                      <span>{copy.cogita.library.add.info.referenceToggle}</span>
+                    </div>
+                  </label>
+                  {infoForm.referenceEnabled && (
+                    <ReferencePanel
+                      libraryId={libraryId}
+                      copy={copy}
+                      language={language}
+                      sourceKindOptions={sourceKindOptions}
+                      labels={referenceLabels}
+                      value={{
+                        sourceKind: infoForm.referenceSourceKind,
+                        locatorValue: infoForm.referenceLocatorValue,
+                        locatorAux: infoForm.referenceLocatorAux,
+                        bibleBookDisplay: infoForm.referenceBibleBookDisplay,
+                        sourceUrl: infoForm.referenceSourceUrl,
+                        sourceAccessedDate: infoForm.referenceSourceAccessedDate,
+                        churchDocument: infoForm.referenceChurchDocument,
+                        bookMedia: infoForm.referenceBookMedia,
+                        work: infoForm.referenceWork
+                      }}
+                      onChange={(next) =>
+                        setInfoForm((prev) => ({
+                          ...prev,
+                          referenceSourceKind: next.sourceKind,
+                          referenceLocatorValue: next.locatorValue,
+                          referenceLocatorAux: next.locatorAux,
+                          referenceBibleBookDisplay: next.bibleBookDisplay,
+                          referenceSourceUrl: next.sourceUrl,
+                          referenceSourceAccessedDate: next.sourceAccessedDate,
+                          referenceChurchDocument: next.churchDocument,
+                          referenceBookMedia: next.bookMedia,
+                          referenceWork: next.work
+                        }))
+                      }
+                    />
                   )}
                 <div className="cogita-form-actions full">
                   <button
@@ -2001,7 +2261,7 @@ export function CogitaLibraryAddPage({
                       ))}
                     </select>
                   </label>
-                  {groupForm.groupType === 'citation' ? (
+                  {groupForm.groupType === 'citation' && (
                     <>
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -2024,210 +2284,309 @@ export function CogitaLibraryAddPage({
                           placeholder={copy.cogita.library.add.group.citationQuoteTextPlaceholder}
                         />
                       </label>
+                      <ReferencePanel
+                        libraryId={libraryId}
+                        copy={copy}
+                        language={language}
+                        sourceKindOptions={sourceKindOptions}
+                        labels={referenceLabels}
+                        value={{
+                          sourceKind: groupForm.citationSourceKind,
+                          locatorValue: groupForm.citationLocatorValue,
+                          locatorAux: groupForm.citationLocatorAux,
+                          bibleBookDisplay: groupForm.citationBibleBookDisplay,
+                          sourceUrl: groupForm.citationSourceUrl,
+                          sourceAccessedDate: groupForm.citationSourceAccessedDate,
+                          churchDocument: groupForm.citationChurchDocument,
+                          bookMedia: groupForm.citationBookMedia,
+                          work: groupForm.citationWork
+                        }}
+                        onChange={(next) =>
+                          setGroupForm((prev) => ({
+                            ...prev,
+                            citationSourceKind: next.sourceKind,
+                            citationLocatorValue: next.locatorValue,
+                            citationLocatorAux: next.locatorAux,
+                            citationBibleBookDisplay: next.bibleBookDisplay,
+                            citationSourceUrl: next.sourceUrl,
+                            citationSourceAccessedDate: next.sourceAccessedDate,
+                            citationChurchDocument: next.churchDocument,
+                            citationBookMedia: next.bookMedia,
+                            citationWork: next.work
+                          }))
+                        }
+                      />
+                    </>
+                  )}
+                  {groupForm.groupType === 'book' && (
+                    <>
                       <label className="cogita-field full">
-                        <span>{copy.cogita.library.add.group.citationSourceKindLabel}</span>
-                        <select
-                          value={groupForm.citationSourceKind}
-                          onChange={(event) =>
+                        <span>{copy.cogita.library.add.group.bookTitleLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookTitle}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookTitle: event.target.value }))}
+                          placeholder={copy.cogita.library.add.group.bookTitlePlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaPublisherLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookPublisher}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookPublisher: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaPublisherPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaPublicationPlaceLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookPublicationPlace}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookPublicationPlace: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaPublicationPlacePlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaPublicationYearLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookPublicationYear}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookPublicationYear: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaPublicationYearPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaPagesLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookPages}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookPages: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaPagesPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaIsbnLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookIsbn}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookIsbn: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaIsbnPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaCoverLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookCover}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookCover: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaCoverPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaHeightLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookHeight}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookHeight: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaHeightPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaLengthLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookLength}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookLength: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaLengthPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaWidthLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookWidth}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookWidth: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaWidthPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaWeightLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookWeight}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookWeight: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaWeightPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaCollectionLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookCollection}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookCollection: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaCollectionPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.mediaLocationLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookLocation}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookLocation: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.mediaLocationPlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.group.workTitleLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookWorkTitle}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookWorkTitle: event.target.value }))}
+                          placeholder={copy.cogita.library.add.group.workTitlePlaceholder}
+                        />
+                      </label>
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label={copy.cogita.library.add.info.workLanguageLabel}
+                        placeholder={copy.cogita.library.add.info.workLanguagePlaceholder}
+                        value={groupForm.bookWorkLanguage}
+                        onChange={(value) => setGroupForm((prev) => ({ ...prev, bookWorkLanguage: value }))}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                      />
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="language"
+                        label={copy.cogita.library.add.info.workOriginalLanguageLabel}
+                        placeholder={copy.cogita.library.add.info.workOriginalLanguagePlaceholder}
+                        value={groupForm.bookWorkOriginalLanguage}
+                        onChange={(value) => setGroupForm((prev) => ({ ...prev, bookWorkOriginalLanguage: value }))}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.language)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                      />
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.workDoiLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.bookWorkDoi}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, bookWorkDoi: event.target.value }))}
+                          placeholder={copy.cogita.library.add.info.workDoiPlaceholder}
+                        />
+                      </label>
+                      <div className="cogita-contributor-header">
+                        <span>{copy.cogita.library.add.group.contributorsLabel}</span>
+                        <button
+                          type="button"
+                          className="cogita-contributor-add"
+                          onClick={() =>
                             setGroupForm((prev) => ({
                               ...prev,
-                              citationSourceKind: event.target.value,
-                              citationChurchDocument: null,
-                              citationBookMedia: null,
-                              citationWork: null,
-                              citationLocatorValue: '',
-                              citationLocatorAux: '',
-                              citationBibleBookDisplay: ''
+                              bookContributors: [
+                                ...prev.bookContributors,
+                                { contributorType: 'person' as CogitaInfoType, contributor: null, role: '' }
+                              ]
                             }))
                           }
                         >
-                          {sourceKindOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {groupForm.citationSourceKind === 'bible' && (
-                        <>
-                          <div className="cogita-lookup full">
-                            <label className="cogita-field full">
-                              <span>{copy.cogita.library.add.group.citationBibleBookLabel}</span>
-                              <input
-                                type="text"
-                                value={groupForm.citationBibleBookDisplay}
-                                onChange={(event) => {
-                                  const value = event.target.value;
-                                  setGroupForm((prev) => ({
+                          {copy.cogita.library.add.group.addContributor}
+                        </button>
+                      </div>
+                      {groupForm.bookContributors.map((row, index) => (
+                        <div key={`book-contributor-${index}`} className="cogita-contributor-row">
+                          <label className="cogita-field">
+                            <span>{copy.cogita.library.add.connection.contributorTypeLabel}</span>
+                            <select
+                              value={row.contributorType}
+                              onChange={(event) =>
+                                setGroupForm((prev) => ({
+                                  ...prev,
+                                  bookContributors: prev.bookContributors.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? { ...item, contributorType: event.target.value as CogitaInfoType, contributor: null }
+                                      : item
+                                  )
+                                }))
+                              }
+                            >
+                              {(['person', 'institution', 'collective'] as const).map((option) => (
+                                <option key={option} value={option}>
+                                  {getInfoTypeLabel(copy, option)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <InfoSearchSelect
+                            libraryId={libraryId}
+                            infoType={row.contributorType}
+                            label={copy.cogita.library.add.connection.contributorLabel}
+                            placeholder={copy.cogita.library.add.connection.contributorPlaceholder}
+                            value={row.contributor}
+                            onChange={(value) =>
+                              setGroupForm((prev) => ({
+                                ...prev,
+                                bookContributors: prev.bookContributors.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, contributor: value } : item
+                                )
+                              }))
+                            }
+                            searchFailedText={copy.cogita.library.lookup.searchFailed}
+                            createFailedText={copy.cogita.library.lookup.createFailed}
+                            createLabel={copy.cogita.library.lookup.createNew.replace(
+                              '{type}',
+                              getInfoTypeLabel(copy, row.contributorType)
+                            )}
+                            savingLabel={copy.cogita.library.lookup.saving}
+                            loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                          />
+                          <label className="cogita-field">
+                            <span>{copy.cogita.library.add.connection.contributorRoleLabel}</span>
+                            <input
+                              type="text"
+                              value={row.role}
+                              onChange={(event) =>
+                                setGroupForm((prev) => ({
+                                  ...prev,
+                                  bookContributors: prev.bookContributors.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, role: event.target.value } : item
+                                  )
+                                }))
+                              }
+                              placeholder={copy.cogita.library.add.connection.contributorRolePlaceholder}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="cogita-contributor-remove"
+                            onClick={() =>
+                              setGroupForm((prev) => {
+                                const next = prev.bookContributors.filter((_, itemIndex) => itemIndex !== index);
+                                if (next.length === 0) {
+                                  return {
                                     ...prev,
-                                    citationBibleBookDisplay: value,
-                                    citationLocatorValue: ''
-                                  }));
-                                  setBibleBookFocus('citation');
-                                  setBibleBookIndex((prev) => ({ ...prev, citation: -1 }));
-                                }}
-                                onKeyDown={(event) => {
-                                  const options = filterBibleBooks(groupForm.citationBibleBookDisplay);
-                                  if (!options.length) return;
-                                  if (event.key === 'ArrowDown') {
-                                    event.preventDefault();
-                                    setBibleBookIndex((prev) => ({
-                                      ...prev,
-                                      citation: Math.min(prev.citation + 1, options.length - 1)
-                                    }));
-                                  } else if (event.key === 'ArrowUp') {
-                                    event.preventDefault();
-                                    setBibleBookIndex((prev) => ({
-                                      ...prev,
-                                      citation: Math.max(prev.citation - 1, 0)
-                                    }));
-                                  } else if (event.key === 'Enter' || event.key === 'Tab') {
-                                    if (bibleBookIndex.citation >= 0 && options[bibleBookIndex.citation]) {
-                                      const option = options[bibleBookIndex.citation];
-                                      const match = resolveBibleBook(option.label, language);
-                                      if (!match) return;
-                                      setGroupForm((prev) => ({
-                                        ...prev,
-                                        citationBibleBookDisplay: option.label,
-                                        citationLocatorValue: match.la?.abbr ?? prev.citationLocatorValue
-                                      }));
-                                      setBibleBookFocus(null);
-                                    }
-                                  }
-                                }}
-                                onFocus={() => setBibleBookFocus('citation')}
-                                onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'citation' ? null : prev)), 100)}
-                                placeholder={copy.cogita.library.add.group.citationBibleBookPlaceholder}
-                              />
-                            </label>
-                            {bibleBookFocus === 'citation' &&
-                              filterBibleBooks(groupForm.citationBibleBookDisplay, true).length > 0 && (
-                                <div className="cogita-lookup-results">
-                                  {filterBibleBooks(groupForm.citationBibleBookDisplay, true).map((option, index) => (
-                                    <button
-                                      key={option.latin}
-                                      type="button"
-                                      className="cogita-lookup-option"
-                                      data-active={index === bibleBookIndex.citation}
-                                      tabIndex={-1}
-                                      onMouseDown={() => {
-                                        const match = resolveBibleBook(option.label, language);
-                                        if (!match) return;
-                                        setGroupForm((prev) => ({
-                                          ...prev,
-                                          citationBibleBookDisplay: option.label,
-                                          citationLocatorValue: match.la?.abbr ?? prev.citationLocatorValue
-                                        }));
-                                      }}
-                                    >
-                                      <strong>{option.label}</strong>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                          </div>
-                          <label className="cogita-field full">
-                            <span>{copy.cogita.library.add.group.citationBibleRestLabel}</span>
-                            <input
-                              type="text"
-                              value={groupForm.citationLocatorAux}
-                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorAux: event.target.value }))}
-                              placeholder={copy.cogita.library.add.group.citationBibleRestPlaceholder}
-                            />
-                          </label>
-                        </>
-                      )}
-                      {groupForm.citationSourceKind === 'website' && (
-                        <>
-                          <label className="cogita-field full">
-                            <span>{copy.cogita.library.add.info.sourceUrlLabel}</span>
-                            <input
-                              type="text"
-                              value={groupForm.citationSourceUrl}
-                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationSourceUrl: event.target.value }))}
-                              placeholder={copy.cogita.library.add.info.sourceUrlPlaceholder}
-                            />
-                          </label>
-                          <label className="cogita-field full">
-                            <span>{copy.cogita.library.add.info.sourceAccessedDateLabel}</span>
-                            <input
-                              type="text"
-                              value={groupForm.citationSourceAccessedDate}
-                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationSourceAccessedDate: event.target.value }))}
-                              placeholder={copy.cogita.library.add.info.sourceAccessedDatePlaceholder}
-                            />
-                          </label>
-                        </>
-                      )}
-                      {groupForm.citationSourceKind === 'number_document' && (
-                        <>
-                          <InfoSearchSelect
-                            libraryId={libraryId}
-                            infoType="work"
-                            label={copy.cogita.library.add.group.citationChurchDocumentLabel}
-                            placeholder={copy.cogita.library.add.group.citationChurchDocumentPlaceholder}
-                            value={groupForm.citationChurchDocument}
-                            onChange={(value) => setGroupForm((prev) => ({ ...prev, citationChurchDocument: value }))}
-                            searchFailedText={copy.cogita.library.lookup.searchFailed}
-                            createFailedText={copy.cogita.library.lookup.createFailed}
-                            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
-                            savingLabel={copy.cogita.library.lookup.saving}
-                            loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                          />
-                          <label className="cogita-field full">
-                            <span>{copy.cogita.library.add.group.citationLocatorValueLabel}</span>
-                            <input
-                              type="text"
-                              value={groupForm.citationLocatorValue}
-                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorValue: event.target.value }))}
-                              placeholder={copy.cogita.library.add.group.citationLocatorValuePlaceholder}
-                            />
-                          </label>
-                        </>
-                      )}
-                      {groupForm.citationSourceKind === 'work' && (
-                        <InfoSearchSelect
-                          libraryId={libraryId}
-                          infoType="work"
-                          label={copy.cogita.library.add.group.citationWorkLabel}
-                          placeholder={copy.cogita.library.add.group.citationWorkPlaceholder}
-                          value={groupForm.citationWork}
-                          onChange={(value) => setGroupForm((prev) => ({ ...prev, citationWork: value }))}
-                          searchFailedText={copy.cogita.library.lookup.searchFailed}
-                          createFailedText={copy.cogita.library.lookup.createFailed}
-                          createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
-                          savingLabel={copy.cogita.library.lookup.saving}
-                          loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                        />
-                      )}
-                      {groupForm.citationSourceKind === 'book' && (
-                        <>
-                          <InfoSearchSelect
-                            libraryId={libraryId}
-                            infoType="media"
-                            label={copy.cogita.library.add.group.citationBookLabel}
-                            placeholder={copy.cogita.library.add.group.citationBookPlaceholder}
-                            value={groupForm.citationBookMedia}
-                            onChange={(value) => setGroupForm((prev) => ({ ...prev, citationBookMedia: value }))}
-                            searchFailedText={copy.cogita.library.lookup.searchFailed}
-                            createFailedText={copy.cogita.library.lookup.createFailed}
-                            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.media)}
-                            savingLabel={copy.cogita.library.lookup.saving}
-                            loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                          />
-                          <label className="cogita-field full">
-                            <span>{copy.cogita.library.add.group.citationLocatorValueLabel}</span>
-                            <input
-                              type="text"
-                              value={groupForm.citationLocatorValue}
-                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorValue: event.target.value }))}
-                              placeholder={copy.cogita.library.add.group.citationLocatorValuePlaceholder}
-                            />
-                          </label>
-                        </>
-                      )}
+                                    bookContributors: [
+                                      { contributorType: 'person' as CogitaInfoType, contributor: null, role: '' }
+                                    ]
+                                  };
+                                }
+                                return { ...prev, bookContributors: next };
+                              })
+                            }
+                          >
+                            {copy.cogita.library.add.group.removeContributor}
+                          </button>
+                        </div>
+                      ))}
                     </>
-                  ) : (
+                  )}
+                  {groupForm.groupType === 'vocab' && (
                     <>
                       <InfoSearchSelect
                         libraryId={libraryId}
@@ -2337,7 +2696,7 @@ export function CogitaLibraryAddPage({
                   {groupForm.groupType === 'vocab' && groupPairStatusB && <p className="cogita-help">{groupPairStatusB}</p>}
                 <div className="cogita-form-actions full">
                   <button type="button" className="cta" onClick={handleCreateGroup} ref={groupConfirmRef}>
-                    {copy.cogita.library.add.group.save}
+                    {groupSaveLabel}
                   </button>
                 </div>
               </div>

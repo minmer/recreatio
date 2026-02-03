@@ -69,7 +69,8 @@ export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConne
 
 export const getGroupTypeOptions = (copy: Copy): Array<{ value: CogitaGroupType; label: string }> => [
   { value: 'vocab', label: copy.cogita.library.groupTypes.vocab },
-  { value: 'citation', label: copy.cogita.library.groupTypes.citation }
+  { value: 'citation', label: copy.cogita.library.groupTypes.citation },
+  { value: 'book', label: copy.cogita.library.groupTypes.book }
 ];
 
 export const getCardSearchOptions = (copy: Copy): Array<{ value: CogitaInfoType | 'any' | 'vocab'; label: string }> => [

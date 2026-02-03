@@ -54,7 +54,7 @@ public static class CogitaEndpoints
         "source-resource"
     };
 
-    private static readonly string[] SupportedGroupTypes = { "vocab" };
+    private static readonly string[] SupportedGroupTypes = { "vocab", "book" };
 
     private static readonly string[] SupportedCollectionGraphNodeTypes =
     {

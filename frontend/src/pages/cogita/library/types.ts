@@ -32,7 +32,7 @@ export type CogitaConnectionType =
   | 'work-medium'
   | 'orcid-link';
 
-export type CogitaGroupType = 'vocab' | 'citation';
+export type CogitaGroupType = 'vocab' | 'citation' | 'book';
 
 export type CogitaLibraryMode = 'detail' | 'collection' | 'list';
 

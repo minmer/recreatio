@@ -266,6 +266,7 @@ export type Copy = {
       groupTypes: {
         vocab: string;
         citation: string;
+        book: string;
       };
       overview: {
         kicker: string;
@@ -421,6 +422,9 @@ export type Copy = {
           sourceUrlPlaceholder: string;
           sourceAccessedDateLabel: string;
           sourceAccessedDatePlaceholder: string;
+          referenceTitle: string;
+          referenceToggle: string;
+          referenceMissingSource: string;
           computedLabel: string;
           computedPlaceholder: string;
           computedAnswerLabel: string;
@@ -525,10 +529,24 @@ export type Copy = {
           citationBookPlaceholder: string;
           citationLocatorValueLabel: string;
           citationLocatorValuePlaceholder: string;
+          bookTitleLabel: string;
+          bookTitlePlaceholder: string;
+          workTitleLabel: string;
+          workTitlePlaceholder: string;
+          contributorsLabel: string;
+          addContributor: string;
+          removeContributor: string;
+          bookMissingTitle: string;
+          bookMissingWork: string;
+          bookMissingContributor: string;
           citationMissingQuote: string;
           citationMissingSource: string;
-          save: string;
-          saved: string;
+          saveVocab: string;
+          saveCitation: string;
+          saveBook: string;
+          savedVocab: string;
+          savedCitation: string;
+          savedBook: string;
           failed: string;
           pairExistsA: string;
           pairExistsB: string;
