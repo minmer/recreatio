@@ -2237,14 +2237,3 @@ export function CogitaLibraryAddPage({
     </CogitaShell>
   );
 }
-                      {groupForm.citationSourceKind !== 'website' && groupForm.citationSourceKind !== 'bible' && (
-                        <label className="cogita-field full">
-                          <span>{copy.cogita.library.add.group.citationLocatorValueLabel}</span>
-                          <input
-                            type="text"
-                            value={groupForm.citationLocatorValue}
-                            onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorValue: event.target.value }))}
-                            placeholder={copy.cogita.library.add.group.citationLocatorValuePlaceholder}
-                          />
-                        </label>
-                      )}
