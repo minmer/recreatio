@@ -1328,7 +1328,9 @@ export function CogitaLibraryAddPage({
                                   }));
                                 } else if (event.key === 'Enter' || event.key === 'Tab') {
                                   if (bibleBookIndex.source >= 0 && options[bibleBookIndex.source]) {
-                                    event.preventDefault();
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                    }
                                     const option = options[bibleBookIndex.source];
                                     const match = resolveBibleBook(option.label, language);
                                     if (!match) return;
@@ -2075,7 +2077,9 @@ export function CogitaLibraryAddPage({
                                   }));
                                 } else if (event.key === 'Enter' || event.key === 'Tab') {
                                   if (bibleBookIndex.citation >= 0 && options[bibleBookIndex.citation]) {
-                                    event.preventDefault();
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                    }
                                     const option = options[bibleBookIndex.citation];
                                     const match = resolveBibleBook(option.label, language);
                                     if (!match) return;
