@@ -197,7 +197,8 @@ export function CogitaRevisionRunPage({
     locked: Record<string, boolean>;
   } | null>(null);
   const [matchFeedback, setMatchFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
-  const [matchFlash, setMatchFlash] = useState<'correct' | 'incorrect' | null>(null);
+  const matchFlashTickRef = useRef(0);
+  const [matchFlash, setMatchFlash] = useState<{ kind: 'correct' | 'incorrect'; tick: number } | null>(null);
   const matchFlashRef = useRef<number | null>(null);
   const matchFlashResetRef = useRef<number | null>(null);
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
@@ -678,8 +679,9 @@ export function CogitaRevisionRunPage({
     }));
     if (matchFlashRef.current) window.clearTimeout(matchFlashRef.current);
     if (matchFlashResetRef.current) window.clearTimeout(matchFlashResetRef.current);
-    setMatchFlash(null);
-    matchFlashRef.current = window.setTimeout(() => setMatchFlash(isCorrect ? 'correct' : 'incorrect'), 0);
+    matchFlashTickRef.current += 1;
+    const nextFlash = { kind: isCorrect ? 'correct' : 'incorrect', tick: matchFlashTickRef.current };
+    matchFlashRef.current = window.setTimeout(() => setMatchFlash(nextFlash), 0);
     matchFlashResetRef.current = window.setTimeout(() => setMatchFlash(null), 420);
     if (isCorrect) {
       const nextLocked = { ...prev.locked, [leftId]: true };
@@ -1399,7 +1401,10 @@ export function CogitaRevisionRunPage({
               </div>
 
               <div className="cogita-library-panel">
-            <section className="cogita-revision-card" data-feedback={matchFlash ?? feedback ?? 'idle'}>
+            <section
+              className="cogita-revision-card"
+              data-feedback={matchFlash ? `${matchFlash.kind}-${matchFlash.tick}` : feedback ?? 'idle'}
+            >
               {currentCard ? (
                 <>
                   <CogitaRevisionCard

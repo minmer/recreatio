@@ -2668,13 +2668,13 @@
   text-align: right;
 }
 
-.cogita-revision-card[data-feedback='correct'] {
+.cogita-revision-card[data-feedback^='correct'] {
   border-color: rgba(100, 210, 150, 0.7);
   box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
   animation: revisionFlashGreen 0.7s ease;
 }
 
-.cogita-revision-card[data-feedback='incorrect'] {
+.cogita-revision-card[data-feedback^='incorrect'] {
   border-color: rgba(230, 110, 120, 0.7);
   box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
   animation: revisionFlashRed 0.7s ease;
@@ -2699,12 +2699,12 @@
   z-index: 1;
 }
 
-.cogita-revision-card[data-feedback='correct']::after {
+.cogita-revision-card[data-feedback^='correct']::after {
   background: rgba(80, 200, 140, 0.25);
   animation: revisionFlashFillGreen 0.6s ease;
 }
 
-.cogita-revision-card[data-feedback='incorrect']::after {
+.cogita-revision-card[data-feedback^='incorrect']::after {
   background: rgba(220, 90, 110, 0.28);
   animation: revisionFlashFillRed 0.6s ease;
 }
