@@ -213,6 +213,7 @@ export function CogitaRevisionShareRunPage({
 
   const canRenderCards = shareStatus === 'ready';
   const currentCard = canRenderCards ? queue[currentIndex] ?? null : null;
+  const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
   const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
   const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
   const resolvedCardCache = useRef(new Map<string, {
@@ -677,6 +678,7 @@ export function CogitaRevisionShareRunPage({
     if (matchFlashResetRef.current) window.clearTimeout(matchFlashResetRef.current);
     matchFlashTickRef.current += 1;
     const nextFlash = { kind: isCorrect ? 'correct' : 'incorrect', tick: matchFlashTickRef.current };
+    setMatchFlash(null);
     matchFlashRef.current = window.setTimeout(() => setMatchFlash(nextFlash), 0);
     matchFlashResetRef.current = window.setTimeout(() => setMatchFlash(null), 420);
     if (isCorrect) {
@@ -1377,7 +1379,13 @@ export function CogitaRevisionShareRunPage({
               <div className="cogita-library-panel">
                   <section
                     className="cogita-revision-card"
-                    data-feedback={matchFlash ? `${matchFlash.kind}-${matchFlash.tick}` : feedback ?? 'idle'}
+                    data-feedback={
+                      matchFlash
+                        ? `${matchFlash.kind}-${matchFlash.tick}`
+                        : isMatchMode
+                          ? 'idle'
+                          : feedback ?? 'idle'
+                    }
                   >
                 {shareStatus !== 'ready' ? (
                     <div className="cogita-card-empty">
