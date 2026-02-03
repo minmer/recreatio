@@ -83,6 +83,7 @@ export function CogitaLibraryAddPage({
     answerText?: string;
   } | null>(null);
   const [computedPreviewStatus, setComputedPreviewStatus] = useState<'idle' | 'ready' | 'error'>('idle');
+  const [bibleBookFocus, setBibleBookFocus] = useState<'source' | 'citation' | null>(null);
   const [connectionForm, setConnectionForm] = useState({
     connectionType: 'translation' as CogitaConnectionType,
     language: null as CogitaInfoOption | null,
@@ -170,6 +171,11 @@ export function CogitaLibraryAddPage({
       return { label, latin: book?.la?.abbr ?? entry.abbr };
     });
   }, [language]);
+  const filterBibleBooks = (query: string) => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return [];
+    return bibleBookOptions.filter((option) => option.label.toLowerCase().includes(trimmed)).slice(0, 8);
+  };
   const resolveBibleBook = (input: string, lang: 'pl' | 'en' | 'de') => {
     const normalized = input.trim().toLowerCase();
     if (!normalized) return null;
@@ -1294,19 +1300,41 @@ export function CogitaLibraryAddPage({
                             <span>{copy.cogita.library.add.info.sourceBibleBookLabel}</span>
                             <input
                               type="text"
-                              list="bible-book-options"
                               value={infoForm.sourceBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
                                 setInfoForm((prev) => ({
                                   ...prev,
                                   sourceBibleBookDisplay: value,
-                                  sourceLocatorValue: match?.la?.abbr ?? prev.sourceLocatorValue
+                                  sourceLocatorValue: prev.sourceLocatorValue
                                 }));
                               }}
+                              onFocus={() => setBibleBookFocus('source')}
+                              onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'source' ? null : prev)), 100)}
                               placeholder={copy.cogita.library.add.info.sourceBibleBookPlaceholder}
                             />
+                            {bibleBookFocus === 'source' && filterBibleBooks(infoForm.sourceBibleBookDisplay).length > 0 && (
+                              <div className="cogita-lookup-results">
+                                {filterBibleBooks(infoForm.sourceBibleBookDisplay).map((option) => (
+                                  <button
+                                    key={option.latin}
+                                    type="button"
+                                    className="cogita-lookup-option"
+                                    onMouseDown={() => {
+                                      const match = resolveBibleBook(option.label, language);
+                                      if (!match) return;
+                                      setInfoForm((prev) => ({
+                                        ...prev,
+                                        sourceBibleBookDisplay: option.label,
+                                        sourceLocatorValue: match.la?.abbr ?? prev.sourceLocatorValue
+                                      }));
+                                    }}
+                                  >
+                                    <strong>{option.label}</strong>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </label>
                           <label className="cogita-field full">
                             <span>{copy.cogita.library.add.info.sourceBibleRestLabel}</span>
@@ -1394,11 +1422,6 @@ export function CogitaLibraryAddPage({
                       )}
                     </>
                   )}
-                  <datalist id="bible-book-options">
-                    {bibleBookOptions.map((option) => (
-                      <option key={option.latin} value={option.label} />
-                    ))}
-                  </datalist>
                   {infoForm.infoType !== 'computed' ? (
                     <label className="cogita-field full">
                       <span>{copy.cogita.library.add.info.notesLabel}</span>
@@ -1992,19 +2015,42 @@ export function CogitaLibraryAddPage({
                             <span>{copy.cogita.library.add.group.citationBibleBookLabel}</span>
                             <input
                               type="text"
-                              list="bible-book-options"
                               value={groupForm.citationBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
                                 setGroupForm((prev) => ({
                                   ...prev,
                                   citationBibleBookDisplay: value,
-                                  citationLocatorValue: match?.la?.abbr ?? prev.citationLocatorValue
+                                  citationLocatorValue: prev.citationLocatorValue
                                 }));
                               }}
+                              onFocus={() => setBibleBookFocus('citation')}
+                              onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'citation' ? null : prev)), 100)}
                               placeholder={copy.cogita.library.add.group.citationBibleBookPlaceholder}
                             />
+                            {bibleBookFocus === 'citation' &&
+                              filterBibleBooks(groupForm.citationBibleBookDisplay).length > 0 && (
+                                <div className="cogita-lookup-results">
+                                  {filterBibleBooks(groupForm.citationBibleBookDisplay).map((option) => (
+                                    <button
+                                      key={option.latin}
+                                      type="button"
+                                      className="cogita-lookup-option"
+                                      onMouseDown={() => {
+                                        const match = resolveBibleBook(option.label, language);
+                                        if (!match) return;
+                                        setGroupForm((prev) => ({
+                                          ...prev,
+                                          citationBibleBookDisplay: option.label,
+                                          citationLocatorValue: match.la?.abbr ?? prev.citationLocatorValue
+                                        }));
+                                      }}
+                                    >
+                                      <strong>{option.label}</strong>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                           </label>
                           <label className="cogita-field full">
                             <span>{copy.cogita.library.add.group.citationBibleRestLabel}</span>
