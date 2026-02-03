@@ -5241,21 +5241,28 @@ public static class CogitaEndpoints
                     }
 
                     infoKeyMap.TryGetValue(infoType, out var infoKeyId);
-                    var created = await CreateInfoInternalAsync(
-                        library,
-                        new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct,
-                        saveChanges: false);
-                    infoMap[info.InfoId] = created.InfoId;
-                    pendingInfos++;
+                    try
+                    {
+                        var created = await CreateInfoInternalAsync(
+                            library,
+                            new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                            readKey,
+                            ownerKey,
+                            userId,
+                            keyRingService,
+                            encryptionService,
+                            roleCryptoService,
+                            ledgerService,
+                            dbContext,
+                            ct,
+                            saveChanges: false);
+                        infoMap[info.InfoId] = created.InfoId;
+                        pendingInfos++;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        continue;
+                    }
                     if (pendingInfos >= importBatchSize)
                     {
                         await dbContext.SaveChangesAsync(ct);
@@ -5286,23 +5293,34 @@ public static class CogitaEndpoints
                     {
                         continue;
                     }
+                    if (connectionType == "word-language" && mappedIds.Distinct().Count() != 2)
+                    {
+                        continue;
+                    }
 
                     connectionKeyMap.TryGetValue(connectionType, out var connectionKeyId);
-                    var created = await CreateConnectionInternalAsync(
-                        library,
-                        new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct,
-                        saveChanges: false);
-                    connectionMap[connection.ConnectionId] = created.ConnectionId;
-                    pendingConnections++;
+                    try
+                    {
+                        var created = await CreateConnectionInternalAsync(
+                            library,
+                            new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
+                            readKey,
+                            ownerKey,
+                            userId,
+                            keyRingService,
+                            encryptionService,
+                            roleCryptoService,
+                            ledgerService,
+                            dbContext,
+                            ct,
+                            saveChanges: false);
+                        connectionMap[connection.ConnectionId] = created.ConnectionId;
+                        pendingConnections++;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        continue;
+                    }
                     if (pendingConnections >= importBatchSize)
                     {
                         await dbContext.SaveChangesAsync(ct);
@@ -5535,22 +5553,29 @@ public static class CogitaEndpoints
                     }
 
                     infoKeyMap.TryGetValue(infoType, out var infoKeyId);
-                    var created = await CreateInfoInternalAsync(
-                        library,
-                        new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct,
-                        saveChanges: false);
-                    infoMap[info.InfoId] = created.InfoId;
-                    pendingInfos++;
                     processedInfos++;
+                    try
+                    {
+                        var created = await CreateInfoInternalAsync(
+                            library,
+                            new CogitaCreateInfoRequest(infoType, info.Payload, infoKeyId == Guid.Empty ? null : infoKeyId, null),
+                            readKey,
+                            ownerKey,
+                            userId,
+                            keyRingService,
+                            encryptionService,
+                            roleCryptoService,
+                            ledgerService,
+                            dbContext,
+                            ct,
+                            saveChanges: false);
+                        infoMap[info.InfoId] = created.InfoId;
+                        pendingInfos++;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        continue;
+                    }
                     if (pendingInfos >= importBatchSize)
                     {
                         await dbContext.SaveChangesAsync(ct);
@@ -5586,24 +5611,36 @@ public static class CogitaEndpoints
                         processedConnections++;
                         continue;
                     }
+                    if (connectionType == "word-language" && mappedIds.Distinct().Count() != 2)
+                    {
+                        processedConnections++;
+                        continue;
+                    }
 
                     connectionKeyMap.TryGetValue(connectionType, out var connectionKeyId);
-                    var created = await CreateConnectionInternalAsync(
-                        library,
-                        new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct,
-                        saveChanges: false);
-                    connectionMap[connection.ConnectionId] = created.ConnectionId;
-                    pendingConnections++;
                     processedConnections++;
+                    try
+                    {
+                        var created = await CreateConnectionInternalAsync(
+                            library,
+                            new CogitaCreateConnectionRequest(connectionType, mappedIds, connection.Payload, connectionKeyId == Guid.Empty ? null : connectionKeyId, null),
+                            readKey,
+                            ownerKey,
+                            userId,
+                            keyRingService,
+                            encryptionService,
+                            roleCryptoService,
+                            ledgerService,
+                            dbContext,
+                            ct,
+                            saveChanges: false);
+                        connectionMap[connection.ConnectionId] = created.ConnectionId;
+                        pendingConnections++;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        continue;
+                    }
                     if (pendingConnections >= importBatchSize)
                     {
                         await dbContext.SaveChangesAsync(ct);

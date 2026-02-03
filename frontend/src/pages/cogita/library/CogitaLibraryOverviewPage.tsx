@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import {
+  ApiError,
   createCogitaMockData,
   exportCogitaLibraryStream,
   importCogitaLibraryStream,
@@ -123,8 +124,9 @@ export function CogitaLibraryOverviewPage({
         collections: result.collectionsImported
       });
       setImportStatus(copy.cogita.library.overview.importDone);
-    } catch {
-      setImportStatus(copy.cogita.library.overview.importFail);
+    } catch (error) {
+      const detail = error instanceof ApiError && error.message ? ` ${error.message}` : '';
+      setImportStatus(`${copy.cogita.library.overview.importFail}${detail}`);
     } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
