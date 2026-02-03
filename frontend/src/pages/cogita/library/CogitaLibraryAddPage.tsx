@@ -1304,11 +1304,10 @@ export function CogitaLibraryAddPage({
                               value={infoForm.sourceBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
                                 setInfoForm((prev) => ({
                                   ...prev,
                                   sourceBibleBookDisplay: value,
-                                  sourceLocatorValue: match?.la?.abbr ?? ''
+                                  sourceLocatorValue: ''
                                 }));
                                 setBibleBookIndex((prev) => ({ ...prev, source: -1 }));
                               }}
@@ -2052,11 +2051,10 @@ export function CogitaLibraryAddPage({
                               value={groupForm.citationBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
                                 setGroupForm((prev) => ({
                                   ...prev,
                                   citationBibleBookDisplay: value,
-                                  citationLocatorValue: match?.la?.abbr ?? ''
+                                  citationLocatorValue: ''
                                 }));
                                 setBibleBookIndex((prev) => ({ ...prev, citation: -1 }));
                               }}
