@@ -442,7 +442,7 @@ export function CogitaLibraryAddPage({
   }, [copy, editInfoId, isEditMode, libraryId]);
 
   useEffect(() => {
-    if (infoForm.sourceKind === 'bible' && infoForm.sourceLocatorValue) {
+    if (infoForm.sourceKind === 'bible' && infoForm.sourceLocatorValue && bibleBookFocus !== 'source') {
       const match = resolveBibleBook(infoForm.sourceLocatorValue, language);
       if (match) {
         const display = `${match.entry.abbr} — ${match.entry.name}`;
@@ -451,7 +451,7 @@ export function CogitaLibraryAddPage({
         }
       }
     }
-    if (groupForm.citationSourceKind === 'bible' && groupForm.citationLocatorValue) {
+    if (groupForm.citationSourceKind === 'bible' && groupForm.citationLocatorValue && bibleBookFocus !== 'citation') {
       const match = resolveBibleBook(groupForm.citationLocatorValue, language);
       if (match) {
         const display = `${match.entry.abbr} — ${match.entry.name}`;
@@ -1304,10 +1304,11 @@ export function CogitaLibraryAddPage({
                               value={infoForm.sourceBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
+                                const match = resolveBibleBook(value, language);
                                 setInfoForm((prev) => ({
                                   ...prev,
                                   sourceBibleBookDisplay: value,
-                                  sourceLocatorValue: prev.sourceLocatorValue
+                                  sourceLocatorValue: match?.la?.abbr ?? ''
                                 }));
                                 setBibleBookIndex((prev) => ({ ...prev, source: -1 }));
                               }}
@@ -1328,9 +1329,6 @@ export function CogitaLibraryAddPage({
                                   }));
                                 } else if (event.key === 'Enter' || event.key === 'Tab') {
                                   if (bibleBookIndex.source >= 0 && options[bibleBookIndex.source]) {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                    }
                                     const option = options[bibleBookIndex.source];
                                     const match = resolveBibleBook(option.label, language);
                                     if (!match) return;
@@ -1355,6 +1353,7 @@ export function CogitaLibraryAddPage({
                                     type="button"
                                     className="cogita-lookup-option"
                                     data-active={index === bibleBookIndex.source}
+                                    tabIndex={-1}
                                     onMouseDown={() => {
                                       const match = resolveBibleBook(option.label, language);
                                       if (!match) return;
@@ -2053,10 +2052,11 @@ export function CogitaLibraryAddPage({
                               value={groupForm.citationBibleBookDisplay}
                               onChange={(event) => {
                                 const value = event.target.value;
+                                const match = resolveBibleBook(value, language);
                                 setGroupForm((prev) => ({
                                   ...prev,
                                   citationBibleBookDisplay: value,
-                                  citationLocatorValue: prev.citationLocatorValue
+                                  citationLocatorValue: match?.la?.abbr ?? ''
                                 }));
                                 setBibleBookIndex((prev) => ({ ...prev, citation: -1 }));
                               }}
@@ -2077,9 +2077,6 @@ export function CogitaLibraryAddPage({
                                   }));
                                 } else if (event.key === 'Enter' || event.key === 'Tab') {
                                   if (bibleBookIndex.citation >= 0 && options[bibleBookIndex.citation]) {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                    }
                                     const option = options[bibleBookIndex.citation];
                                     const match = resolveBibleBook(option.label, language);
                                     if (!match) return;
@@ -2105,6 +2102,7 @@ export function CogitaLibraryAddPage({
                                       type="button"
                                       className="cogita-lookup-option"
                                       data-active={index === bibleBookIndex.citation}
+                                      tabIndex={-1}
                                       onMouseDown={() => {
                                         const match = resolveBibleBook(option.label, language);
                                         if (!match) return;
