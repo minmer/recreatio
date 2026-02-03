@@ -84,6 +84,7 @@ export function CogitaLibraryAddPage({
   } | null>(null);
   const [computedPreviewStatus, setComputedPreviewStatus] = useState<'idle' | 'ready' | 'error'>('idle');
   const [bibleBookFocus, setBibleBookFocus] = useState<'source' | 'citation' | null>(null);
+  const [bibleBookIndex, setBibleBookIndex] = useState({ source: -1, citation: -1 });
   const [connectionForm, setConnectionForm] = useState({
     connectionType: 'translation' as CogitaConnectionType,
     language: null as CogitaInfoOption | null,
@@ -1308,6 +1309,37 @@ export function CogitaLibraryAddPage({
                                   sourceBibleBookDisplay: value,
                                   sourceLocatorValue: prev.sourceLocatorValue
                                 }));
+                                setBibleBookIndex((prev) => ({ ...prev, source: -1 }));
+                              }}
+                              onKeyDown={(event) => {
+                                const options = filterBibleBooks(infoForm.sourceBibleBookDisplay);
+                                if (!options.length) return;
+                                if (event.key === 'ArrowDown') {
+                                  event.preventDefault();
+                                  setBibleBookIndex((prev) => ({
+                                    ...prev,
+                                    source: Math.min(prev.source + 1, options.length - 1)
+                                  }));
+                                } else if (event.key === 'ArrowUp') {
+                                  event.preventDefault();
+                                  setBibleBookIndex((prev) => ({
+                                    ...prev,
+                                    source: Math.max(prev.source - 1, 0)
+                                  }));
+                                } else if (event.key === 'Enter' || event.key === 'Tab') {
+                                  if (bibleBookIndex.source >= 0 && options[bibleBookIndex.source]) {
+                                    event.preventDefault();
+                                    const option = options[bibleBookIndex.source];
+                                    const match = resolveBibleBook(option.label, language);
+                                    if (!match) return;
+                                    setInfoForm((prev) => ({
+                                      ...prev,
+                                      sourceBibleBookDisplay: option.label,
+                                      sourceLocatorValue: match.la?.abbr ?? prev.sourceLocatorValue
+                                    }));
+                                    setBibleBookFocus(null);
+                                  }
+                                }
                               }}
                               onFocus={() => setBibleBookFocus('source')}
                               onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'source' ? null : prev)), 100)}
@@ -1315,11 +1347,12 @@ export function CogitaLibraryAddPage({
                             />
                             {bibleBookFocus === 'source' && filterBibleBooks(infoForm.sourceBibleBookDisplay).length > 0 && (
                               <div className="cogita-lookup-results">
-                                {filterBibleBooks(infoForm.sourceBibleBookDisplay).map((option) => (
+                                {filterBibleBooks(infoForm.sourceBibleBookDisplay).map((option, index) => (
                                   <button
                                     key={option.latin}
                                     type="button"
                                     className="cogita-lookup-option"
+                                    data-active={index === bibleBookIndex.source}
                                     onMouseDown={() => {
                                       const match = resolveBibleBook(option.label, language);
                                       if (!match) return;
@@ -2023,6 +2056,37 @@ export function CogitaLibraryAddPage({
                                   citationBibleBookDisplay: value,
                                   citationLocatorValue: prev.citationLocatorValue
                                 }));
+                                setBibleBookIndex((prev) => ({ ...prev, citation: -1 }));
+                              }}
+                              onKeyDown={(event) => {
+                                const options = filterBibleBooks(groupForm.citationBibleBookDisplay);
+                                if (!options.length) return;
+                                if (event.key === 'ArrowDown') {
+                                  event.preventDefault();
+                                  setBibleBookIndex((prev) => ({
+                                    ...prev,
+                                    citation: Math.min(prev.citation + 1, options.length - 1)
+                                  }));
+                                } else if (event.key === 'ArrowUp') {
+                                  event.preventDefault();
+                                  setBibleBookIndex((prev) => ({
+                                    ...prev,
+                                    citation: Math.max(prev.citation - 1, 0)
+                                  }));
+                                } else if (event.key === 'Enter' || event.key === 'Tab') {
+                                  if (bibleBookIndex.citation >= 0 && options[bibleBookIndex.citation]) {
+                                    event.preventDefault();
+                                    const option = options[bibleBookIndex.citation];
+                                    const match = resolveBibleBook(option.label, language);
+                                    if (!match) return;
+                                    setGroupForm((prev) => ({
+                                      ...prev,
+                                      citationBibleBookDisplay: option.label,
+                                      citationLocatorValue: match.la?.abbr ?? prev.citationLocatorValue
+                                    }));
+                                    setBibleBookFocus(null);
+                                  }
+                                }
                               }}
                               onFocus={() => setBibleBookFocus('citation')}
                               onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'citation' ? null : prev)), 100)}
@@ -2031,11 +2095,12 @@ export function CogitaLibraryAddPage({
                             {bibleBookFocus === 'citation' &&
                               filterBibleBooks(groupForm.citationBibleBookDisplay).length > 0 && (
                                 <div className="cogita-lookup-results">
-                                  {filterBibleBooks(groupForm.citationBibleBookDisplay).map((option) => (
+                                  {filterBibleBooks(groupForm.citationBibleBookDisplay).map((option, index) => (
                                     <button
                                       key={option.latin}
                                       type="button"
                                       className="cogita-lookup-option"
+                                      data-active={index === bibleBookIndex.citation}
                                       onMouseDown={() => {
                                         const match = resolveBibleBook(option.label, language);
                                         if (!match) return;
