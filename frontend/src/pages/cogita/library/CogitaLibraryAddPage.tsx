@@ -1407,13 +1407,11 @@ export function CogitaLibraryAddPage({
                       )}
                     </>
                   )}
-                  {(infoForm.sourceKind === 'bible' || groupForm.citationSourceKind === 'bible') && (
-                    <datalist id="bible-book-options">
-                      {bibleBookOptions.map((option) => (
-                        <option key={option.latin} value={option.label} />
-                      ))}
-                    </datalist>
-                  )}
+                  <datalist id="bible-book-options">
+                    {bibleBookOptions.map((option) => (
+                      <option key={option.latin} value={option.label} />
+                    ))}
+                  </datalist>
                   {infoForm.infoType !== 'computed' ? (
                     <label className="cogita-field full">
                       <span>{copy.cogita.library.add.info.notesLabel}</span>
