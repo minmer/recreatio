@@ -172,9 +172,11 @@ export function CogitaLibraryAddPage({
       return { label, latin: book?.la?.abbr ?? entry.abbr };
     });
   }, [language]);
-  const filterBibleBooks = (query: string) => {
+  const filterBibleBooks = (query: string, includeAllIfEmpty = false) => {
     const trimmed = query.trim().toLowerCase();
-    if (!trimmed) return [];
+    if (!trimmed) {
+      return includeAllIfEmpty ? bibleBookOptions.slice(0, 8) : [];
+    }
     return bibleBookOptions.filter((option) => option.label.toLowerCase().includes(trimmed)).slice(0, 8);
   };
   const resolveBibleBook = (input: string, lang: 'pl' | 'en' | 'de') => {
@@ -1344,9 +1346,10 @@ export function CogitaLibraryAddPage({
                               onBlur={() => window.setTimeout(() => setBibleBookFocus((prev) => (prev === 'source' ? null : prev)), 100)}
                               placeholder={copy.cogita.library.add.info.sourceBibleBookPlaceholder}
                             />
-                            {bibleBookFocus === 'source' && filterBibleBooks(infoForm.sourceBibleBookDisplay).length > 0 && (
+                            {bibleBookFocus === 'source' &&
+                              filterBibleBooks(infoForm.sourceBibleBookDisplay, true).length > 0 && (
                               <div className="cogita-lookup-results">
-                                {filterBibleBooks(infoForm.sourceBibleBookDisplay).map((option, index) => (
+                                {filterBibleBooks(infoForm.sourceBibleBookDisplay, true).map((option, index) => (
                                   <button
                                     key={option.latin}
                                     type="button"
@@ -2092,9 +2095,9 @@ export function CogitaLibraryAddPage({
                               placeholder={copy.cogita.library.add.group.citationBibleBookPlaceholder}
                             />
                             {bibleBookFocus === 'citation' &&
-                              filterBibleBooks(groupForm.citationBibleBookDisplay).length > 0 && (
+                              filterBibleBooks(groupForm.citationBibleBookDisplay, true).length > 0 && (
                                 <div className="cogita-lookup-results">
-                                  {filterBibleBooks(groupForm.citationBibleBookDisplay).map((option, index) => (
+                                  {filterBibleBooks(groupForm.citationBibleBookDisplay, true).map((option, index) => (
                                     <button
                                       key={option.latin}
                                       type="button"
