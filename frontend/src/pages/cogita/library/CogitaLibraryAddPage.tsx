@@ -1311,6 +1311,7 @@ export function CogitaLibraryAddPage({
                                   sourceBibleBookDisplay: value,
                                   sourceLocatorValue: ''
                                 }));
+                                setBibleBookFocus('source');
                                 setBibleBookIndex((prev) => ({ ...prev, source: -1 }));
                               }}
                               onKeyDown={(event) => {
@@ -2059,6 +2060,7 @@ export function CogitaLibraryAddPage({
                                   citationBibleBookDisplay: value,
                                   citationLocatorValue: ''
                                 }));
+                                setBibleBookFocus('citation');
                                 setBibleBookIndex((prev) => ({ ...prev, citation: -1 }));
                               }}
                               onKeyDown={(event) => {
