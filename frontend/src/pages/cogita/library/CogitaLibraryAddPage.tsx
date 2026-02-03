@@ -1305,19 +1305,6 @@ export function CogitaLibraryAddPage({
                                   sourceLocatorValue: match?.la?.abbr ?? prev.sourceLocatorValue
                                 }));
                               }}
-                              onBlur={(event) => {
-                                const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
-                                if (match) {
-                                  setInfoForm((prev) => ({
-                                    ...prev,
-                                    sourceBibleBookDisplay: `${match.entry.abbr} — ${match.entry.name}`,
-                                    sourceLocatorValue: match.la?.abbr ?? prev.sourceLocatorValue
-                                  }));
-                                } else {
-                                  setInfoForm((prev) => ({ ...prev, sourceLocatorValue: value }));
-                                }
-                              }}
                               placeholder={copy.cogita.library.add.info.sourceBibleBookPlaceholder}
                             />
                           </label>
@@ -2015,19 +2002,6 @@ export function CogitaLibraryAddPage({
                                   citationBibleBookDisplay: value,
                                   citationLocatorValue: match?.la?.abbr ?? prev.citationLocatorValue
                                 }));
-                              }}
-                              onBlur={(event) => {
-                                const value = event.target.value;
-                                const match = resolveBibleBook(value, language);
-                                if (match) {
-                                  setGroupForm((prev) => ({
-                                    ...prev,
-                                    citationBibleBookDisplay: `${match.entry.abbr} — ${match.entry.name}`,
-                                    citationLocatorValue: match.la?.abbr ?? prev.citationLocatorValue
-                                  }));
-                                } else {
-                                  setGroupForm((prev) => ({ ...prev, citationLocatorValue: value }));
-                                }
                               }}
                               placeholder={copy.cogita.library.add.group.citationBibleBookPlaceholder}
                             />
