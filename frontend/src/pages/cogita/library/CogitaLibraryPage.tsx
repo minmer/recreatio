@@ -42,6 +42,7 @@ const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string 
   { value: 'language-sentence', label: 'Language - sentence' },
   { value: 'translation', label: 'Translation link' },
   { value: 'reference', label: 'Info - source' },
+  { value: 'source-resource', label: 'Source - resource' },
   { value: 'quote-language', label: 'Quote - language' },
   { value: 'work-contributor', label: 'Work - contributor' },
   { value: 'work-medium', label: 'Work - medium' },

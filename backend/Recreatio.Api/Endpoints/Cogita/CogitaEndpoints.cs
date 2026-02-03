@@ -50,7 +50,8 @@ public static class CogitaEndpoints
         "work-contributor",
         "work-medium",
         "orcid-link",
-        "reference"
+        "reference",
+        "source-resource"
     };
 
     private static readonly string[] SupportedGroupTypes = { "vocab" };

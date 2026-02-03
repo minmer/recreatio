@@ -27,6 +27,7 @@ export type CogitaConnectionType =
   | 'translation'
   | 'word-topic'
   | 'reference'
+  | 'source-resource'
   | 'work-contributor'
   | 'work-medium'
   | 'orcid-link';

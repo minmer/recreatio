@@ -61,6 +61,7 @@ export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConne
   { value: 'language-sentence', label: copy.cogita.library.connectionTypes.languageSentence },
   { value: 'translation', label: copy.cogita.library.connectionTypes.translation },
   { value: 'reference', label: copy.cogita.library.connectionTypes.reference },
+  { value: 'source-resource', label: copy.cogita.library.connectionTypes.sourceResource },
   { value: 'work-contributor', label: copy.cogita.library.connectionTypes.workContributor },
   { value: 'work-medium', label: copy.cogita.library.connectionTypes.workMedium },
   { value: 'orcid-link', label: copy.cogita.library.connectionTypes.orcidLink }
