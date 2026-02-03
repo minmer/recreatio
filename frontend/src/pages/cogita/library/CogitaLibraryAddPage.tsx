@@ -2040,19 +2040,30 @@ export function CogitaLibraryAddPage({
                         </>
                       )}
                       {groupForm.citationSourceKind === 'number_document' && (
-                        <InfoSearchSelect
-                          libraryId={libraryId}
-                          infoType="work"
-                          label={copy.cogita.library.add.group.citationChurchDocumentLabel}
-                          placeholder={copy.cogita.library.add.group.citationChurchDocumentPlaceholder}
-                          value={groupForm.citationChurchDocument}
-                          onChange={(value) => setGroupForm((prev) => ({ ...prev, citationChurchDocument: value }))}
-                          searchFailedText={copy.cogita.library.lookup.searchFailed}
-                          createFailedText={copy.cogita.library.lookup.createFailed}
-                          createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
-                          savingLabel={copy.cogita.library.lookup.saving}
-                          loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                        />
+                        <>
+                          <InfoSearchSelect
+                            libraryId={libraryId}
+                            infoType="work"
+                            label={copy.cogita.library.add.group.citationChurchDocumentLabel}
+                            placeholder={copy.cogita.library.add.group.citationChurchDocumentPlaceholder}
+                            value={groupForm.citationChurchDocument}
+                            onChange={(value) => setGroupForm((prev) => ({ ...prev, citationChurchDocument: value }))}
+                            searchFailedText={copy.cogita.library.lookup.searchFailed}
+                            createFailedText={copy.cogita.library.lookup.createFailed}
+                            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
+                            savingLabel={copy.cogita.library.lookup.saving}
+                            loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                          />
+                          <label className="cogita-field full">
+                            <span>{copy.cogita.library.add.group.citationLocatorValueLabel}</span>
+                            <input
+                              type="text"
+                              value={groupForm.citationLocatorValue}
+                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorValue: event.target.value }))}
+                              placeholder={copy.cogita.library.add.group.citationLocatorValuePlaceholder}
+                            />
+                          </label>
+                        </>
                       )}
                       {groupForm.citationSourceKind === 'work' && (
                         <InfoSearchSelect
@@ -2070,19 +2081,30 @@ export function CogitaLibraryAddPage({
                         />
                       )}
                       {groupForm.citationSourceKind === 'book' && (
-                        <InfoSearchSelect
-                          libraryId={libraryId}
-                          infoType="media"
-                          label={copy.cogita.library.add.group.citationBookLabel}
-                          placeholder={copy.cogita.library.add.group.citationBookPlaceholder}
-                          value={groupForm.citationBookMedia}
-                          onChange={(value) => setGroupForm((prev) => ({ ...prev, citationBookMedia: value }))}
-                          searchFailedText={copy.cogita.library.lookup.searchFailed}
-                          createFailedText={copy.cogita.library.lookup.createFailed}
-                          createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.media)}
-                          savingLabel={copy.cogita.library.lookup.saving}
-                          loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                        />
+                        <>
+                          <InfoSearchSelect
+                            libraryId={libraryId}
+                            infoType="media"
+                            label={copy.cogita.library.add.group.citationBookLabel}
+                            placeholder={copy.cogita.library.add.group.citationBookPlaceholder}
+                            value={groupForm.citationBookMedia}
+                            onChange={(value) => setGroupForm((prev) => ({ ...prev, citationBookMedia: value }))}
+                            searchFailedText={copy.cogita.library.lookup.searchFailed}
+                            createFailedText={copy.cogita.library.lookup.createFailed}
+                            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.media)}
+                            savingLabel={copy.cogita.library.lookup.saving}
+                            loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                          />
+                          <label className="cogita-field full">
+                            <span>{copy.cogita.library.add.group.citationLocatorValueLabel}</span>
+                            <input
+                              type="text"
+                              value={groupForm.citationLocatorValue}
+                              onChange={(event) => setGroupForm((prev) => ({ ...prev, citationLocatorValue: event.target.value }))}
+                              placeholder={copy.cogita.library.add.group.citationLocatorValuePlaceholder}
+                            />
+                          </label>
+                        </>
                       )}
                     </>
                   ) : (
