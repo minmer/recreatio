@@ -2,7 +2,7 @@ import type { Copy } from './types';
 
 export const en: Copy = {
   nav: {
-    home: 'Home',
+    home: 'Home ',
     parish: 'Parish',
     cogita: 'Cogita',
     faq: 'FAQ',
