@@ -1030,14 +1030,6 @@ export function ParishPage({
     }
   }, [parishSlug, parishOptions, view]);
 
-  const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
-  const selectedModuleLabels = builderModulesConfig.map((module) => module.title);
-  const homepageModules = normalizeModulePlacement(
-    (siteConfig ?? defaultHomepageConfig).modules,
-    gridColumns
-  );
-  const normalizedBuilderModules = normalizeModulePlacement(builderModulesConfig, gridColumns);
-
   const widthLabel: Record<ModuleWidth, string> = {
     'one-third': '1/3',
     'one-half': '1/2',
@@ -1146,6 +1138,14 @@ export function ParishPage({
     });
     return occupied;
   };
+
+  const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
+  const selectedModuleLabels = builderModulesConfig.map((module) => module.title);
+  const homepageModules = normalizeModulePlacement(
+    (siteConfig ?? defaultHomepageConfig).modules,
+    gridColumns
+  );
+  const normalizedBuilderModules = normalizeModulePlacement(builderModulesConfig, gridColumns);
 
   const availableEditModules = builderModules.filter(
     (module) => !editModulesConfig.some((item) => item.moduleId === module.id)
