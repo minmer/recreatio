@@ -7854,7 +7854,7 @@ public static class CogitaEndpoints
                     {
                         return new List<object?>();
                     }
-                    return list.Select(id => EvaluateNode(id)).ToList();
+                    return list.Select(id => (object?)EvaluateNode(id)).ToList();
                 }
                 List<double> handleValues(string handle)
                 {
@@ -7910,7 +7910,7 @@ public static class CogitaEndpoints
                     var list = ordered.Count > 0 ? ordered : handleObjects("in");
                     if (list.Count == 0)
                     {
-                        list = allInputs.Select(id => EvaluateNode(id)).ToList();
+                        list = allInputs.Select(id => (object?)EvaluateNode(id)).ToList();
                     }
                     var parts = list.Select(FormatAny).ToList();
                     return string.Concat(parts);

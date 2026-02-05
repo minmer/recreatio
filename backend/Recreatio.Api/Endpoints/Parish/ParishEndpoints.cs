@@ -409,7 +409,7 @@ public static class ParishEndpoints
                 parish.Id,
                 "ParishSitePublished",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { parish.Id, config.Id }),
+                JsonSerializer.Serialize(new { ParishId = parish.Id, ConfigId = config.Id }),
                 ct,
                 parishSigningContext);
 
