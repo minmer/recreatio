@@ -4,6 +4,15 @@ import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
   createParishSite,
   createParishIntention,
   createParishMass,
@@ -13,15 +22,15 @@ import {
   listParishes,
   updateParishSite,
   type ParishHomepageConfig,
-  type ParishModuleConfig,
+  type ParishLayoutItem,
   type ParishPublicIntention,
   type ParishPublicMass,
   type ParishSummary
 } from '../../lib/api';
 
 type ThemePreset = 'classic' | 'minimal' | 'warm';
-type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds';
-type ModuleHeight = 'slim' | 'normal' | 'heavy';
+type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
+type ModuleHeight = 'quarter' | 'half' | 'three-quarters';
 type PageId =
   | 'start'
   | 'about'
@@ -88,26 +97,28 @@ const parishSeed: ParishOption[] = [
   }
 ];
 
-const builderModules = [
-  { id: 'intentions', label: 'Intencje', width: 'one-half', height: 'normal' },
-  { id: 'sticky-news', label: 'Sticky news', width: 'one-third', height: 'slim' },
-  { id: 'next-hours', label: 'Kalendarz najbliższych godzin', width: 'one-third', height: 'slim' },
-  { id: 'news', label: 'Aktualności', width: 'one-half', height: 'normal' },
-  { id: 'announcements', label: 'Ogłoszenia', width: 'one-third', height: 'normal' },
-  { id: 'calendar', label: 'Kalendarz', width: 'one-third', height: 'heavy' },
-  { id: 'masses', label: 'Msze i nabożeństwa', width: 'two-thirds', height: 'slim' },
-  { id: 'community', label: 'Wspólnoty', width: 'one-half', height: 'normal' },
-  { id: 'sacraments', label: 'Sakramenty', width: 'one-half', height: 'normal' },
-  { id: 'contact', label: 'Kontakt', width: 'one-third', height: 'slim' }
+const parishModuleCatalog = [
+  { type: 'intentions', label: 'Intencje', width: 'one-half', height: 'half' },
+  { type: 'sticky', label: 'Sticky', width: 'one-third', height: 'quarter' },
+  { type: 'hours', label: 'Godziny', width: 'one-third', height: 'quarter' },
+  { type: 'news', label: 'News', width: 'one-half', height: 'half' },
+  { type: 'announcements', label: 'Ogłoszenia', width: 'one-third', height: 'half' },
+  { type: 'calendar', label: 'Kalendarz', width: 'two-thirds', height: 'three-quarters' },
+  { type: 'masses', label: 'Msze', width: 'two-thirds', height: 'quarter' },
+  { type: 'groups', label: 'Grupy', width: 'one-half', height: 'half' },
+  { type: 'events', label: 'Wydarzenia', width: 'one-half', height: 'half' },
+  { type: 'sacraments', label: 'Sakramenty', width: 'one-half', height: 'half' },
+  { type: 'contact', label: 'Kontakt', width: 'one-third', height: 'quarter' },
+  { type: 'gallery', label: 'Galeria', width: 'two-thirds', height: 'half' }
 ];
 
 const defaultHomepageConfig: ParishHomepageConfig = {
-  modules: builderModules.slice(0, 4).map((module, index) => ({
-    moduleId: module.id,
-    title: module.label,
-    width: module.width as ModuleWidth,
-    height: module.height as ModuleHeight,
-    order: index
+  modules: parishModuleCatalog.slice(0, 4).map((module, index) => ({
+    id: `seed-${module.type}`,
+    type: module.type,
+    position: { row: 1 + index, col: 1 },
+    size: { colSpan: 3, rowSpan: 2 },
+    props: { title: module.label }
   }))
 };
 
@@ -692,42 +703,13 @@ export function ParishPage({
   const [builderSlug, setBuilderSlug] = useState('');
   const [builderSlugTouched, setBuilderSlugTouched] = useState(false);
   const [builderTheme, setBuilderTheme] = useState<ThemePreset>('classic');
-  const [builderModulesConfig, setBuilderModulesConfig] = useState<ParishModuleConfig[]>([
-    {
-      moduleId: 'intentions',
-      title: 'Intencje',
-      width: 'one-half',
-      height: 'normal',
-      order: 0
-    },
-    {
-      moduleId: 'announcements',
-      title: 'Ogłoszenia',
-      width: 'one-third',
-      height: 'normal',
-      order: 1
-    },
-    {
-      moduleId: 'calendar',
-      title: 'Kalendarz',
-      width: 'one-third',
-      height: 'heavy',
-      order: 2
-    },
-    {
-      moduleId: 'contact',
-      title: 'Kontakt',
-      width: 'one-third',
-      height: 'slim',
-      order: 3
-    }
-  ]);
+  const [builderLayoutItems, setBuilderLayoutItems] = useState<ParishLayoutItem[]>(defaultHomepageConfig.modules);
   const [builderError, setBuilderError] = useState<string | null>(null);
   const [siteConfig, setSiteConfig] = useState<ParishHomepageConfig | null>(null);
   const [publicIntentions, setPublicIntentions] = useState<ParishPublicIntention[]>([]);
   const [publicMasses, setPublicMasses] = useState<ParishPublicMass[]>([]);
   const [editMode, setEditMode] = useState(false);
-  const [editModulesConfig, setEditModulesConfig] = useState<ParishModuleConfig[]>([]);
+  const [editLayoutItems, setEditLayoutItems] = useState<ParishLayoutItem[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
   const [newIntentionDate, setNewIntentionDate] = useState('');
   const [newIntentionChurch, setNewIntentionChurch] = useState('');
@@ -738,10 +720,13 @@ export function ParishPage({
   const [newMassTitle, setNewMassTitle] = useState('');
   const [newMassNote, setNewMassNote] = useState('');
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
-  const [gridColumns, setGridColumns] = useState(12);
+  const baseColumns = 6;
+  const [gridColumns, setGridColumns] = useState(baseColumns);
   const [gridRowHeight, setGridRowHeight] = useState(90);
   const homeGridRef = useRef<HTMLDivElement | null>(null);
   const editorGridRef = useRef<HTMLDivElement | null>(null);
+  const [selectedBuilderId, setSelectedBuilderId] = useState<string | null>(null);
+  const [selectedEditId, setSelectedEditId] = useState<string | null>(null);
   const normalizeSlug = (value: string) =>
     value
       .toLowerCase()
@@ -750,18 +735,7 @@ export function ParishPage({
   const canCreateParish =
     builderName.trim().length > 0 &&
     builderSlug.trim().length > 0 &&
-    builderModulesConfig.length > 0;
-
-  const defaultModuleConfig = (id: string, order: number): ParishModuleConfig => {
-    const base = builderModules.find((item) => item.id === id);
-    return {
-      moduleId: id,
-      title: base?.label ?? id,
-      width: (base?.width as ModuleWidth) ?? 'one-half',
-      height: (base?.height as ModuleHeight) ?? 'normal',
-      order
-    };
-  };
+    builderLayoutItems.length > 0;
 
   const handleStartBuilder = () => {
     setBuilderStep(0);
@@ -770,12 +744,7 @@ export function ParishPage({
     setBuilderSlug('');
     setBuilderSlugTouched(false);
     setBuilderTheme('classic');
-    setBuilderModulesConfig([
-      defaultModuleConfig('intentions', 0),
-      defaultModuleConfig('announcements', 1),
-      defaultModuleConfig('calendar', 2),
-      defaultModuleConfig('contact', 3)
-    ]);
+    setBuilderLayoutItems(defaultHomepageConfig.modules);
     setBuilderError(null);
     setView('builder');
   };
@@ -792,34 +761,13 @@ export function ParishPage({
     setBuilderSlug(normalizeSlug(value));
   };
 
-  const handleModuleToggle = (id: string) => {
-    setBuilderModulesConfig((current) => {
-      if (current.some((item) => item.moduleId === id)) {
-        return current.filter((item) => item.moduleId !== id);
-      }
-      return [...current, defaultModuleConfig(id, current.length)];
-    });
-  };
-
-  const handleModuleConfigChange = (
-    id: string,
-    field: 'width' | 'height',
-    value: ModuleWidth | ModuleHeight
-  ) => {
-    setBuilderModulesConfig((current) =>
-      current.map((item) =>
-        item.moduleId === id ? { ...item, [field]: value } : item
-      )
-    );
-  };
 
   const handleCreateParishSite = async () => {
     if (!canCreateParish) return;
     setBuilderError(null);
     try {
       const homepage = {
-        modules: normalizeModulePlacement(builderModulesConfig, gridColumns)
-          .map((item, index) => ({ ...item, order: index }))
+        modules: placeItems(builderLayoutItems, baseColumns)
       };
       const created = await createParishSite({
         name: builderName.trim(),
@@ -883,11 +831,11 @@ export function ParishPage({
       if (typeof window === 'undefined') return;
       const width = window.innerWidth;
       if (width < 720) {
-        setGridColumns(1);
-      } else if (width < 980) {
         setGridColumns(2);
+      } else if (width < 980) {
+        setGridColumns(4);
       } else {
-        setGridColumns(3);
+        setGridColumns(6);
       }
     };
     resolveColumns();
@@ -921,7 +869,7 @@ export function ParishPage({
       .then((data) => {
         setSiteConfig(data.homepage);
         setTheme((data.theme as ThemePreset) ?? 'classic');
-        setEditModulesConfig(data.homepage.modules.slice().sort((a, b) => a.order - b.order));
+        setEditLayoutItems(data.homepage.modules);
       })
       .catch(() => {
         setSiteConfig(null);
@@ -1030,63 +978,48 @@ export function ParishPage({
     }
   }, [parishSlug, parishOptions, view]);
 
-  const widthLabel: Record<ModuleWidth, string> = {
-    'one-third': '1/3',
-    'one-half': '1/2',
-    'two-thirds': '2/3'
+  const colSpanByWidth = (width: ModuleWidth, columns: number) => {
+    const base =
+      width === 'one-third'
+        ? 2
+        : width === 'one-half'
+          ? 3
+          : width === 'two-thirds'
+            ? 4
+            : 6;
+    return Math.min(base, columns);
   };
 
-  const renderModuleContent = (module: ParishModuleConfig) => (
+  const rowSpanByHeight = (height: ModuleHeight) => {
+    if (height === 'quarter') return 1;
+    if (height === 'half') return 2;
+    return 3;
+  };
+
+  const renderModuleContent = (module: ParishLayoutItem) => (
     <div className="module-placeholder">
-      <p>Moduł: {module.title}</p>
+      <p>Moduł: {module.type}</p>
       <span className="muted">
-        Rozmiar: {widthLabel[module.width as ModuleWidth]} • {module.height}
+        Rozmiar: {module.size.colSpan}x{module.size.rowSpan}
       </span>
     </div>
   );
 
-  const colSpanByWidth = (width: ModuleWidth, columns: number) => {
-    if (columns <= 1) return 1;
-    if (columns === 2) {
-      if (width === 'two-thirds') return 2;
-      return 1;
-    }
-    if (width === 'one-third') return 1;
-    if (width === 'one-half') return 2;
-    return 3;
-  };
-
-  const rowSpanByHeight = (height: ModuleHeight) => {
-    if (height === 'slim') return 1;
-    if (height === 'normal') return 2;
-    return 3;
-  };
-
-  const normalizeModulePlacement = (modules: ParishModuleConfig[], columns: number) => {
+  const placeItems = (items: ParishLayoutItem[], columns: number) => {
     const occupied = new Map<string, boolean>();
-    const nextModules: ParishModuleConfig[] = [];
-    let cursorRow = 1;
-    let cursorCol = 1;
-    const placeAt = (module: ParishModuleConfig, row: number, col: number) => {
-      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
-      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
-      for (let r = row; r < row + rowSpan; r += 1) {
-        for (let c = col; c < col + colSpan; c += 1) {
-          occupied.set(`${r}:${c}`, true);
-        }
-      }
-      nextModules.push({ ...module, row, col });
-    };
-    const sorted = modules.slice().sort((a, b) => a.order - b.order);
-    sorted.forEach((module) => {
-      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
-      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+    const next: ParishLayoutItem[] = [];
+    items.forEach((item) => {
+      let startRow = Math.max(1, item.position.row);
+      let startCol = Math.max(1, Math.min(item.position.col, columns));
+      const colSpan = Math.min(item.size.colSpan, columns);
+      const rowSpan = item.size.rowSpan;
       let placed = false;
-      let row = module.row ?? 0;
-      let col = module.col ?? 0;
-      if (row > 0 && col > 0) {
+      let row = startRow;
+      let col = startCol;
+      while (!placed) {
         if (col + colSpan - 1 > columns) {
-          col = Math.max(1, columns - colSpan + 1);
+          col = 1;
+          row += 1;
         }
         let overlap = false;
         for (let r = row; r < row + rowSpan; r += 1) {
@@ -1095,208 +1028,155 @@ export function ParishPage({
           }
         }
         if (!overlap) {
-          placeAt(module, row, col);
-          placed = true;
-        }
-      }
-      if (!placed) {
-        while (true) {
-          if (cursorCol + colSpan - 1 > columns) {
-            cursorCol = 1;
-            cursorRow += 1;
-          }
-          let overlap = false;
-          for (let r = cursorRow; r < cursorRow + rowSpan; r += 1) {
-            for (let c = cursorCol; c < cursorCol + colSpan; c += 1) {
-              if (occupied.get(`${r}:${c}`)) overlap = true;
+          for (let r = row; r < row + rowSpan; r += 1) {
+            for (let c = col; c < col + colSpan; c += 1) {
+              occupied.set(`${r}:${c}`, true);
             }
           }
-          if (!overlap) {
-            placeAt(module, cursorRow, cursorCol);
-            cursorCol += colSpan;
-            break;
-          }
-          cursorCol += 1;
+          next.push({
+            ...item,
+            position: { row, col },
+            size: { colSpan, rowSpan }
+          });
+          placed = true;
+        } else {
+          col += 1;
         }
       }
     });
-    return nextModules.map((item, index) => ({ ...item, order: index }));
+    return next;
   };
 
-  const buildOccupiedMap = (modules: ParishModuleConfig[], columns: number) => {
-    const occupied = new Map<string, string>();
-    modules.forEach((module) => {
-      const row = module.row ?? 1;
-      const col = module.col ?? 1;
-      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
-      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
-      for (let r = row; r < row + rowSpan; r += 1) {
-        for (let c = col; c < col + colSpan; c += 1) {
-          occupied.set(`${r}:${c}`, module.moduleId);
-        }
-      }
-    });
-    return occupied;
+  const createLayoutItem = (type: string, row = 1, col = 1): ParishLayoutItem => {
+    const moduleDef = parishModuleCatalog.find((module) => module.type === type);
+    const width = (moduleDef?.width as ModuleWidth) ?? 'one-half';
+    const height = (moduleDef?.height as ModuleHeight) ?? 'half';
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${type}-${Date.now()}`;
+    return {
+      id,
+      type,
+      position: { row, col },
+      size: {
+        colSpan: colSpanByWidth(width, baseColumns),
+        rowSpan: rowSpanByHeight(height)
+      },
+      props: { title: moduleDef?.label ?? type }
+    };
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const parseCellId = (id: string) => {
+    if (!id.startsWith('cell:')) return null;
+    const [, rowStr, colStr] = id.split(':');
+    const row = Number(rowStr);
+    const col = Number(colStr);
+    if (!Number.isFinite(row) || !Number.isFinite(col)) return null;
+    return { row, col };
+  };
+
+  const handleLayoutDragEnd = (
+    event: DragEndEvent,
+    items: ParishLayoutItem[],
+    setItems: React.Dispatch<React.SetStateAction<ParishLayoutItem[]>>
+  ) => {
+    const { active, over } = event;
+    if (!over) return;
+    const target = parseCellId(String(over.id));
+    if (!target) return;
+    const activeId = String(active.id);
+    if (activeId.startsWith('palette:')) {
+      const type = activeId.replace('palette:', '');
+      const newItem = createLayoutItem(type, target.row, target.col);
+      const next = placeItems([newItem, ...items], gridColumns);
+      setItems(next);
+      return;
+    }
+    if (activeId.startsWith('item:')) {
+      const itemId = activeId.replace('item:', '');
+      const existing = items.find((item) => item.id === itemId);
+      if (!existing) return;
+      const updated = items.map((item) =>
+        item.id === itemId ? { ...item, position: { row: target.row, col: target.col } } : item
+      );
+      const reordered = [
+        updated.find((item) => item.id === itemId)!,
+        ...updated.filter((item) => item.id !== itemId)
+      ];
+      const next = placeItems(reordered, gridColumns);
+      setItems(next);
+    }
+  };
+
+  const compactLayout = (items: ParishLayoutItem[], setItems: React.Dispatch<React.SetStateAction<ParishLayoutItem[]>>) => {
+    setItems(placeItems(items, gridColumns));
+  };
+
+  const PaletteButton = ({ type, label }: { type: string; label: string }) => {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `palette:${type}` });
+    return (
+      <button
+        ref={setNodeRef}
+        type="button"
+        className={`module-pill ${isDragging ? 'is-dragging' : ''}`}
+        {...listeners}
+        {...attributes}
+      >
+        {label}
+      </button>
+    );
+  };
+
+  const GridCell = ({ row, col }: { row: number; col: number }) => {
+    const { setNodeRef, isOver } = useDroppable({ id: `cell:${row}:${col}` });
+    return <div ref={setNodeRef} className={`editor-cell ${isOver ? 'is-over' : ''}`} />;
+  };
+
+  const GridItem = ({
+    item,
+    isActive,
+    onSelect
+  }: {
+    item: ParishLayoutItem;
+    isActive?: boolean;
+    onSelect?: () => void;
+  }) => {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `item:${item.id}` });
+    return (
+      <div
+        ref={setNodeRef}
+        className={`editor-module ${isActive ? 'is-active' : ''} ${isDragging ? 'is-dragging' : ''}`}
+        style={{
+          gridColumn: `${item.position.col} / span ${item.size.colSpan}`,
+          gridRow: `${item.position.row} / span ${item.size.rowSpan}`
+        }}
+        onClick={onSelect}
+        {...listeners}
+        {...attributes}
+      >
+        <strong>{item.type}</strong>
+        <span className="muted">
+          {item.size.colSpan}x{item.size.rowSpan}
+        </span>
+      </div>
+    );
   };
 
   const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
-  const selectedModuleLabels = builderModulesConfig.map((module) => module.title);
-  const homepageModules = normalizeModulePlacement(
-    (siteConfig ?? defaultHomepageConfig).modules,
-    gridColumns
-  );
-  const normalizedBuilderModules = normalizeModulePlacement(builderModulesConfig, gridColumns);
+  const selectedModuleLabels = builderLayoutItems.map((module) => module.type);
+  const homepageModules = placeItems((siteConfig ?? defaultHomepageConfig).modules, gridColumns);
+  const normalizedBuilderModules = placeItems(builderLayoutItems, gridColumns);
 
-  const availableEditModules = builderModules.filter(
-    (module) => !editModulesConfig.some((item) => item.moduleId === module.id)
-  );
-  const normalizedEditModules = normalizeModulePlacement(editModulesConfig, gridColumns);
-
-  const handleEditDrop = (event: React.DragEvent<HTMLDivElement>, targetRow?: number, targetCol?: number) => {
-    event.preventDefault();
-    const payload = event.dataTransfer.getData('text/plain');
-    if (!payload) return;
-    const [source, moduleId] = payload.split(':');
-    if (!moduleId) return;
-    setEditModulesConfig((current) => {
-      const existing = current.find((item) => item.moduleId === moduleId);
-      const without = normalizeModulePlacement(
-        current.filter((item) => item.moduleId !== moduleId),
-        gridColumns
-      );
-      const base = builderModules.find((item) => item.id === moduleId);
-      const nextModule: ParishModuleConfig = {
-        moduleId,
-        title: existing?.title ?? base?.label ?? moduleId,
-        width: (existing?.width as ModuleWidth) ?? (base?.width as ModuleWidth) ?? 'one-half',
-        height: (existing?.height as ModuleHeight) ?? (base?.height as ModuleHeight) ?? 'normal',
-        order: 0
-      };
-      const updated = [...without, nextModule];
-      if (typeof targetRow === 'number' && typeof targetCol === 'number') {
-        const colSpan = colSpanByWidth(nextModule.width as ModuleWidth, gridColumns);
-        const rowSpan = rowSpanByHeight(nextModule.height as ModuleHeight);
-        let col = targetCol;
-        if (col + colSpan - 1 > gridColumns) {
-          col = Math.max(1, gridColumns - colSpan + 1);
-        }
-        const occupied = buildOccupiedMap(
-          updated.filter((item) => item.moduleId !== moduleId),
-          gridColumns
-        );
-        let overlap = false;
-        for (let r = targetRow; r < targetRow + rowSpan; r += 1) {
-          for (let c = col; c < col + colSpan; c += 1) {
-            if (occupied.get(`${r}:${c}`)) overlap = true;
-          }
-        }
-        if (!overlap) {
-          const placed = updated.map((item) =>
-            item.moduleId === moduleId ? { ...item, row: targetRow, col } : item
-          );
-          return normalizeModulePlacement(placed, gridColumns);
-        }
-      }
-      return normalizeModulePlacement(updated, gridColumns);
-    });
-  };
-
-  const handleEditDragStart = (event: React.DragEvent<HTMLDivElement>, moduleId: string, source: string) => {
-    event.dataTransfer.setData('text/plain', `${source}:${moduleId}`);
-    event.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleEditModuleToggle = (id: string) => {
-    setEditModulesConfig((current) => {
-      if (current.some((item) => item.moduleId === id)) {
-        return current.filter((item) => item.moduleId !== id);
-      }
-      const base = builderModules.find((item) => item.id === id);
-      return [
-        ...current,
-        {
-          moduleId: id,
-          title: base?.label ?? id,
-          width: (base?.width as ModuleWidth) ?? 'one-half',
-          height: (base?.height as ModuleHeight) ?? 'normal',
-          order: current.length
-        }
-      ];
-    });
-  };
-
-  const availableBuilderModules = builderModules.filter(
-    (module) => !builderModulesConfig.some((item) => item.moduleId === module.id)
-  );
-
-  const handleBuilderDrop = (event: React.DragEvent<HTMLDivElement>, targetRow?: number, targetCol?: number) => {
-    event.preventDefault();
-    const payload = event.dataTransfer.getData('text/plain');
-    if (!payload) return;
-    const [source, moduleId] = payload.split(':');
-    if (!moduleId) return;
-    setBuilderModulesConfig((current) => {
-      const existing = current.find((item) => item.moduleId === moduleId);
-      const without = normalizeModulePlacement(
-        current.filter((item) => item.moduleId !== moduleId),
-        gridColumns
-      );
-      const base = builderModules.find((item) => item.id === moduleId);
-      const nextModule: ParishModuleConfig = {
-        moduleId,
-        title: existing?.title ?? base?.label ?? moduleId,
-        width: (existing?.width as ModuleWidth) ?? (base?.width as ModuleWidth) ?? 'one-half',
-        height: (existing?.height as ModuleHeight) ?? (base?.height as ModuleHeight) ?? 'normal',
-        order: 0
-      };
-      const updated = [...without, nextModule];
-      if (typeof targetRow === 'number' && typeof targetCol === 'number') {
-        const colSpan = colSpanByWidth(nextModule.width as ModuleWidth, gridColumns);
-        const rowSpan = rowSpanByHeight(nextModule.height as ModuleHeight);
-        let col = targetCol;
-        if (col + colSpan - 1 > gridColumns) {
-          col = Math.max(1, gridColumns - colSpan + 1);
-        }
-        const occupied = buildOccupiedMap(
-          updated.filter((item) => item.moduleId !== moduleId),
-          gridColumns
-        );
-        let overlap = false;
-        for (let r = targetRow; r < targetRow + rowSpan; r += 1) {
-          for (let c = col; c < col + colSpan; c += 1) {
-            if (occupied.get(`${r}:${c}`)) overlap = true;
-          }
-        }
-        if (!overlap) {
-          const placed = updated.map((item) =>
-            item.moduleId === moduleId ? { ...item, row: targetRow, col } : item
-          );
-          return normalizeModulePlacement(placed, gridColumns);
-        }
-      }
-      return normalizeModulePlacement(updated, gridColumns);
-    });
-  };
-
-  const handleEditModuleChange = (
-    id: string,
-    field: 'width' | 'height',
-    value: ModuleWidth | ModuleHeight
-  ) => {
-    setEditModulesConfig((current) =>
-      current.map((item) => (item.moduleId === id ? { ...item, [field]: value } : item))
-    );
-  };
 
   const handleSaveLayout = async () => {
     if (!parish) return;
     try {
       setEditError(null);
       const homepage: ParishHomepageConfig = {
-        modules: normalizeModulePlacement(editModulesConfig, gridColumns).map((item, index) => ({
-          ...item,
-          order: index
-        }))
+        modules: placeItems(editLayoutItems, baseColumns)
       };
       await updateParishSite(parish.id, { homepage, isPublished: true });
       setSiteConfig(homepage);
@@ -1516,140 +1396,118 @@ export function ParishPage({
                 )}
                 {builderStep === 1 && (
                   <div className="builder-panel">
-                    <h2>Zakres strony</h2>
-                    <p className="muted">
-                      Moduły budują całą stronę główną. Przeciągnij je do siatki i ustaw rozmiar.
-                    </p>
-                    <div className="editor-panel">
-                      <div className="editor-panel-list">
-                        <h4>Moduły do dodania</h4>
-                        <div className="builder-options">
-                          {availableBuilderModules.map((module) => (
-                            <div
-                              key={module.id}
-                              className="builder-option draggable"
-                              draggable
-                              onDragStart={(event) => handleEditDragStart(event, module.id, 'panel')}
-                            >
-                              <span>{module.label}</span>
-                              <button type="button" onClick={() => handleModuleToggle(module.id)}>
-                                Dodaj
-                              </button>
-                            </div>
-                          ))}
-                          {availableBuilderModules.length === 0 && (
-                            <span className="muted">Wszystkie moduły są już na stronie.</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="editor-panel-list">
-                        <h4>Siatka strony</h4>
-                        <div
-                          className="editor-grid"
-                          ref={editorGridRef}
-                          style={{ ['--grid-row-height' as const]: `${gridRowHeight}px` }}
-                        >
-                          {(() => {
-                            const rows = Math.max(
-                              4,
-                              Math.max(
-                                1,
-                                ...normalizedBuilderModules.map(
-                                  (module) =>
-                                    (module.row ?? 1) +
-                                    rowSpanByHeight(module.height as ModuleHeight) -
-                                    1
-                                )
-                              ) + 2
-                            );
-                            const occupied = buildOccupiedMap(normalizedBuilderModules, gridColumns);
-                            const cells = [];
-                            for (let r = 1; r <= rows; r += 1) {
-                              for (let c = 1; c <= gridColumns; c += 1) {
-                                const occupiedBy = occupied.get(`${r}:${c}`);
-                                cells.push(
-                                  <div
-                                    key={`builder-cell-${r}-${c}`}
-                                    className={`editor-cell ${occupiedBy ? 'is-occupied' : ''}`}
-                                    onDragOver={(event) => event.preventDefault()}
-                                    onDrop={(event) => handleBuilderDrop(event, r, c)}
-                                  />
-                                );
-                              }
-                            }
-                            return cells;
-                          })()}
-                          {normalizedBuilderModules.map((module) => {
-                            const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
-                            const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
-                            return (
-                              <div
-                                key={`builder-module-${module.moduleId}`}
-                                className="editor-module"
-                                style={{
-                                  gridColumn: `${module.col ?? 1} / span ${colSpan}`,
-                                  gridRow: `${module.row ?? 1} / span ${rowSpan}`
-                                }}
-                                draggable
-                                onDragStart={(event) => handleEditDragStart(event, module.moduleId, 'grid')}
-                              >
-                                <strong>{module.title}</strong>
-                                <span className="muted">
-                                  {widthLabel[module.width as ModuleWidth]} • {module.height}
-                                </span>
-                                <button type="button" onClick={() => handleModuleToggle(module.moduleId)}>
-                                  Usuń
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    <div className="layout-header">
+                      <h2>Układ strony</h2>
+                      <div className="layout-subheader">Moduły</div>
+                      <div className="layout-palette">
+                        {parishModuleCatalog.map((module) => (
+                          <PaletteButton key={module.type} type={module.type} label={module.label} />
+                        ))}
                       </div>
                     </div>
-                    {builderModulesConfig.length > 0 && (
+                    <DndContext
+                      sensors={sensors}
+                      onDragEnd={(event) => handleLayoutDragEnd(event, builderLayoutItems, setBuilderLayoutItems)}
+                    >
+                      <div
+                        className="editor-grid"
+                        ref={editorGridRef}
+                        style={{ ['--grid-row-height' as const]: `${gridRowHeight}px` }}
+                      >
+                        {(() => {
+                          const rows = Math.max(
+                            4,
+                            Math.max(
+                              1,
+                              ...normalizedBuilderModules.map(
+                                (module) => module.position.row + module.size.rowSpan - 1
+                              )
+                            ) + 2
+                          );
+                          const cells = [];
+                          for (let r = 1; r <= rows; r += 1) {
+                            for (let c = 1; c <= gridColumns; c += 1) {
+                              cells.push(<GridCell key={`builder-cell-${r}-${c}`} row={r} col={c} />);
+                            }
+                          }
+                          return cells;
+                        })()}
+                        {normalizedBuilderModules.map((module) => (
+                          <GridItem
+                            key={`builder-item-${module.id}`}
+                            item={module}
+                            isActive={selectedBuilderId === module.id}
+                            onSelect={() => setSelectedBuilderId(module.id)}
+                          />
+                        ))}
+                      </div>
+                    </DndContext>
+                    <div className="builder-actions">
+                      <button
+                        type="button"
+                        className="parish-back"
+                        onClick={() => compactLayout(builderLayoutItems, setBuilderLayoutItems)}
+                      >
+                        Compact layout
+                      </button>
+                    </div>
+                    {selectedBuilderId && (
                       <div className="builder-layout">
-                        <h3>Układ modułów</h3>
-                        <div className="builder-layout-grid">
-                          {builderModulesConfig.map((module) => (
-                            <div key={module.moduleId} className="builder-layout-row">
-                              <strong>{module.title}</strong>
+                        <h3>Ustawienia modułu</h3>
+                        {builderLayoutItems
+                          .filter((module) => module.id === selectedBuilderId)
+                          .map((module) => (
+                            <div key={module.id} className="builder-layout-row">
+                              <strong>{module.type}</strong>
                               <label>
                                 <span>Szerokość</span>
                                 <select
-                                  value={module.width}
-                                  onChange={(event) =>
-                                    handleModuleConfigChange(
-                                      module.moduleId,
-                                      'width',
-                                      event.target.value as ModuleWidth
-                                    )
-                                  }
+                                  value={module.size.colSpan}
+                                  onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    setBuilderLayoutItems((current) =>
+                                      placeItems(
+                                        current.map((item) =>
+                                          item.id === module.id
+                                            ? { ...item, size: { ...item.size, colSpan: next } }
+                                            : item
+                                        ),
+                                        gridColumns
+                                      )
+                                    );
+                                  }}
                                 >
-                                  <option value="one-third">1/3</option>
-                                  <option value="one-half">1/2</option>
-                                  <option value="two-thirds">2/3</option>
+                                  <option value={2}>1/3</option>
+                                  <option value={3}>1/2</option>
+                                  <option value={4}>2/3</option>
+                                  <option value={baseColumns}>Full</option>
                                 </select>
                               </label>
                               <label>
                                 <span>Wysokość</span>
                                 <select
-                                  value={module.height}
-                                  onChange={(event) =>
-                                    handleModuleConfigChange(
-                                      module.moduleId,
-                                      'height',
-                                      event.target.value as ModuleHeight
-                                    )
-                                  }
+                                  value={module.size.rowSpan}
+                                  onChange={(event) => {
+                                    const next = Number(event.target.value);
+                                    setBuilderLayoutItems((current) =>
+                                      placeItems(
+                                        current.map((item) =>
+                                          item.id === module.id
+                                            ? { ...item, size: { ...item.size, rowSpan: next } }
+                                            : item
+                                        ),
+                                        gridColumns
+                                      )
+                                    );
+                                  }}
                                 >
-                                  <option value="slim">Slim</option>
-                                  <option value="normal">Normal</option>
-                                  <option value="heavy">Heavy</option>
+                                  <option value={1}>25%</option>
+                                  <option value={2}>50%</option>
+                                  <option value={3}>75%</option>
                                 </select>
                               </label>
                             </div>
                           ))}
-                        </div>
                       </div>
                     )}
                     {builderError && <p className="builder-error">{builderError}</p>}
@@ -1969,130 +1827,56 @@ export function ParishPage({
                   </div>
                   {editMode && (
                     <div className="home-grid-editor">
-                      <h3>Edytuj układ modułów</h3>
-                      <div className="editor-panel">
-                        <div className="editor-panel-list">
-                          <h4>Moduły do dodania</h4>
-                          <div className="builder-options">
-                            {availableEditModules.map((module) => (
-                              <div
-                                key={module.id}
-                                className="builder-option draggable"
-                                draggable
-                                onDragStart={(event) => handleEditDragStart(event, module.id, 'panel')}
-                              >
-                                <span>{module.label}</span>
-                                <button type="button" onClick={() => handleEditModuleToggle(module.id)}>
-                                  Dodaj
-                                </button>
-                              </div>
-                            ))}
-                            {availableEditModules.length === 0 && (
-                              <span className="muted">Wszystkie moduły są już na stronie.</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="editor-panel-list">
-                          <h4>Siatka strony</h4>
-                          <div className="editor-grid">
-                            {(() => {
-                              const rows = Math.max(
-                                4,
-                                Math.max(
-                                  1,
-                                  ...normalizedEditModules.map((module) => (module.row ?? 1) + rowSpanByHeight(module.height as ModuleHeight) - 1)
-                                ) + 2
-                              );
-                              const occupied = buildOccupiedMap(normalizedEditModules, gridColumns);
-                              const cells = [];
-                              for (let r = 1; r <= rows; r += 1) {
-                                for (let c = 1; c <= gridColumns; c += 1) {
-                                  const occupiedBy = occupied.get(`${r}:${c}`);
-                                  cells.push(
-                                    <div
-                                      key={`cell-${r}-${c}`}
-                                      className={`editor-cell ${occupiedBy ? 'is-occupied' : ''}`}
-                                      onDragOver={(event) => event.preventDefault()}
-                                      onDrop={(event) => handleEditDrop(event, r, c)}
-                                    />
-                                  );
-                                }
-                              }
-                              return cells;
-                            })()}
-                            {normalizedEditModules.map((module) => {
-                              const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
-                              const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
-                              return (
-                                <div
-                                  key={module.moduleId}
-                                  className="editor-module"
-                                  style={{
-                                    gridColumn: `${module.col ?? 1} / span ${colSpan}`,
-                                    gridRow: `${module.row ?? 1} / span ${rowSpan}`
-                                  }}
-                                  draggable
-                                  onDragStart={(event) => handleEditDragStart(event, module.moduleId, 'grid')}
-                                >
-                                  <strong>{module.title}</strong>
-                                  <span className="muted">
-                                    {widthLabel[module.width as ModuleWidth]} • {module.height}
-                                  </span>
-                                  <button type="button" onClick={() => handleEditModuleToggle(module.moduleId)}>
-                                    Usuń
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
+                      <div className="layout-header">
+                        <h3>Edycja układu</h3>
+                        <div className="layout-subheader">Moduły</div>
+                        <div className="layout-palette">
+                          {parishModuleCatalog.map((module) => (
+                            <PaletteButton key={`edit-${module.type}`} type={module.type} label={module.label} />
+                          ))}
                         </div>
                       </div>
-                      {editModulesConfig.length > 0 && (
-                        <div className="builder-layout">
-                          <div className="builder-layout-grid">
-                            {editModulesConfig.map((module) => (
-                              <div key={module.moduleId} className="builder-layout-row">
-                                <strong>{module.title}</strong>
-                                <label>
-                                  <span>Szerokość</span>
-                                  <select
-                                    value={module.width}
-                                    onChange={(event) =>
-                                      handleEditModuleChange(
-                                        module.moduleId,
-                                        'width',
-                                        event.target.value as ModuleWidth
-                                      )
-                                    }
-                                  >
-                                    <option value="one-third">1/3</option>
-                                    <option value="one-half">1/2</option>
-                                    <option value="two-thirds">2/3</option>
-                                  </select>
-                                </label>
-                                <label>
-                                  <span>Wysokość</span>
-                                  <select
-                                    value={module.height}
-                                    onChange={(event) =>
-                                      handleEditModuleChange(
-                                        module.moduleId,
-                                        'height',
-                                        event.target.value as ModuleHeight
-                                      )
-                                    }
-                                  >
-                                    <option value="slim">Slim</option>
-                                    <option value="normal">Normal</option>
-                                    <option value="heavy">Heavy</option>
-                                  </select>
-                                </label>
-                              </div>
-                            ))}
-                          </div>
+                      <DndContext
+                        sensors={sensors}
+                        onDragEnd={(event) => handleLayoutDragEnd(event, editLayoutItems, setEditLayoutItems)}
+                      >
+                        <div className="editor-grid">
+                          {(() => {
+                            const rows = Math.max(
+                              4,
+                              Math.max(
+                                1,
+                                ...editLayoutItems.map(
+                                  (module) => module.position.row + module.size.rowSpan - 1
+                                )
+                              ) + 2
+                            );
+                            const cells = [];
+                            for (let r = 1; r <= rows; r += 1) {
+                              for (let c = 1; c <= gridColumns; c += 1) {
+                                cells.push(<GridCell key={`edit-cell-${r}-${c}`} row={r} col={c} />);
+                              }
+                            }
+                            return cells;
+                          })()}
+                          {placeItems(editLayoutItems, gridColumns).map((module) => (
+                            <GridItem
+                              key={`edit-item-${module.id}`}
+                              item={module}
+                              isActive={selectedEditId === module.id}
+                              onSelect={() => setSelectedEditId(module.id)}
+                            />
+                          ))}
                         </div>
-                      )}
+                      </DndContext>
                       <div className="builder-actions">
+                        <button
+                          type="button"
+                          className="parish-back"
+                          onClick={() => compactLayout(editLayoutItems, setEditLayoutItems)}
+                        >
+                          Compact layout
+                        </button>
                         <button type="button" className="parish-back" onClick={() => setEditMode(false)}>
                           Anuluj
                         </button>
@@ -2100,6 +1884,65 @@ export function ParishPage({
                           Zapisz układ
                         </button>
                       </div>
+                      {selectedEditId && (
+                        <div className="builder-layout">
+                          <h3>Ustawienia modułu</h3>
+                          {editLayoutItems
+                            .filter((module) => module.id === selectedEditId)
+                            .map((module) => (
+                              <div key={module.id} className="builder-layout-row">
+                                <strong>{module.type}</strong>
+                                <label>
+                                  <span>Szerokość</span>
+                                  <select
+                                    value={module.size.colSpan}
+                                    onChange={(event) => {
+                                      const next = Number(event.target.value);
+                                      setEditLayoutItems((current) =>
+                                        placeItems(
+                                          current.map((item) =>
+                                            item.id === module.id
+                                              ? { ...item, size: { ...item.size, colSpan: next } }
+                                              : item
+                                          ),
+                                          gridColumns
+                                        )
+                                      );
+                                    }}
+                                  >
+                                    <option value={2}>1/3</option>
+                                    <option value={3}>1/2</option>
+                                    <option value={4}>2/3</option>
+                                  <option value={baseColumns}>Full</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>Wysokość</span>
+                                  <select
+                                    value={module.size.rowSpan}
+                                    onChange={(event) => {
+                                      const next = Number(event.target.value);
+                                      setEditLayoutItems((current) =>
+                                        placeItems(
+                                          current.map((item) =>
+                                            item.id === module.id
+                                              ? { ...item, size: { ...item.size, rowSpan: next } }
+                                              : item
+                                          ),
+                                          gridColumns
+                                        )
+                                      );
+                                    }}
+                                  >
+                                    <option value={1}>25%</option>
+                                    <option value={2}>50%</option>
+                                    <option value={3}>75%</option>
+                                  </select>
+                                </label>
+                              </div>
+                            ))}
+                        </div>
+                      )}
                       {editError && <p className="builder-error">{editError}</p>}
                     </div>
                   )}
@@ -2109,20 +1952,18 @@ export function ParishPage({
                     style={{ ['--grid-row-height' as const]: `${gridRowHeight}px` }}
                   >
                     {homepageModules.map((module) => {
-                      const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
-                      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
                       return (
                         <article
-                          key={`${module.moduleId}-${module.order}`}
+                          key={module.id}
                           className="home-module"
                           style={{
-                            gridColumn: `${module.col ?? 1} / span ${colSpan}`,
-                            gridRow: `${module.row ?? 1} / span ${rowSpan}`
+                            gridColumn: `${module.position.col} / span ${module.size.colSpan}`,
+                            gridRow: `${module.position.row} / span ${module.size.rowSpan}`
                           }}
                         >
                         <header>
-                          <h3>{module.title}</h3>
-                          <span className="pill">{widthLabel[module.width as ModuleWidth]}</span>
+                          <h3>{module.type}</h3>
+                          <span className="pill">{module.size.colSpan}x{module.size.rowSpan}</span>
                         </header>
                         <div className="module-body">{renderModuleContent(module)}</div>
                       </article>

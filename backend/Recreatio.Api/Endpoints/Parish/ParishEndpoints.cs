@@ -55,8 +55,16 @@ public static class ParishEndpoints
                 return Results.NotFound();
             }
 
-            var homepage = JsonSerializer.Deserialize<ParishHomepageConfig>(config.HomepageConfigJson)
-                ?? new ParishHomepageConfig(Array.Empty<ParishModuleConfig>());
+            ParishHomepageConfig homepage;
+            try
+            {
+                homepage = JsonSerializer.Deserialize<ParishHomepageConfig>(config.HomepageConfigJson)
+                    ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>());
+            }
+            catch (JsonException)
+            {
+                homepage = new ParishHomepageConfig(Array.Empty<ParishLayoutItem>());
+            }
             return Results.Ok(new ParishSiteResponse(
                 parish.Id,
                 parish.Slug,
@@ -382,7 +390,7 @@ public static class ParishEndpoints
                 UpdatedUtc = now
             };
 
-            var homepageConfig = request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishModuleConfig>());
+            var homepageConfig = request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>());
             var config = new ParishSiteConfig
             {
                 Id = Guid.NewGuid(),
@@ -473,7 +481,7 @@ public static class ParishEndpoints
                 dbContext.ParishSiteConfigs.Add(config);
             }
 
-            config.HomepageConfigJson = JsonSerializer.Serialize(request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishModuleConfig>()));
+            config.HomepageConfigJson = JsonSerializer.Serialize(request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>()));
             config.IsPublished = request.IsPublished;
             config.UpdatedUtc = DateTimeOffset.UtcNow;
 

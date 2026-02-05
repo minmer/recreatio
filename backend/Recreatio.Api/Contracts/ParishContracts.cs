@@ -1,16 +1,22 @@
 namespace Recreatio.Api.Contracts;
 
-public sealed record ParishModuleConfig(
-    string ModuleId,
-    string Title,
-    string Width,
-    string Height,
-    int Order,
-    int? Row = null,
-    int? Col = null);
+public sealed record ParishLayoutPosition(
+    int Row,
+    int Col);
+
+public sealed record ParishLayoutSize(
+    int ColSpan,
+    int RowSpan);
+
+public sealed record ParishLayoutItem(
+    string Id,
+    string Type,
+    ParishLayoutPosition Position,
+    ParishLayoutSize Size,
+    Dictionary<string, string>? Props = null);
 
 public sealed record ParishHomepageConfig(
-    IReadOnlyList<ParishModuleConfig> Modules);
+    IReadOnlyList<ParishLayoutItem> Modules);
 
 public sealed record ParishCreateRequest(
     string Name,

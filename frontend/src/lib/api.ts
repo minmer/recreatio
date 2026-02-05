@@ -1427,18 +1427,16 @@ export function checkCogitaWordLanguage(payload: { libraryId: string; languageId
   );
 }
 
-export type ParishModuleConfig = {
-  moduleId: string;
-  title: string;
-  width: 'one-third' | 'one-half' | 'two-thirds';
-  height: 'slim' | 'normal' | 'heavy';
-  order: number;
-  row?: number;
-  col?: number;
+export type ParishLayoutItem = {
+  id: string;
+  type: string;
+  position: { row: number; col: number };
+  size: { colSpan: number; rowSpan: number };
+  props?: Record<string, string>;
 };
 
 export type ParishHomepageConfig = {
-  modules: ParishModuleConfig[];
+  modules: ParishLayoutItem[];
 };
 
 export type ParishSummary = {

@@ -1778,6 +1778,39 @@
   box-shadow: 0 20px 45px -35px var(--parish-shadow);
 }
 
+.layout-header {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.layout-subheader {
+  font-weight: 600;
+  color: var(--parish-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.layout-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.module-pill {
+  border-radius: 999px;
+  border: 1px solid var(--parish-line);
+  background: white;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  cursor: grab;
+}
+
+.module-pill.is-dragging {
+  opacity: 0.6;
+}
+
 .editor-panel {
   display: grid;
   gap: 1rem;
@@ -1803,7 +1836,7 @@
   border: 1px dashed var(--parish-line);
   background: #fffdf8;
   min-height: 220px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-auto-rows: var(--grid-row-height, 90px);
 }
 
@@ -1831,6 +1864,11 @@
   opacity: 0.35;
 }
 
+.editor-cell.is-over {
+  border-color: var(--parish-accent);
+  background: rgba(165, 107, 47, 0.12);
+}
+
 .editor-module {
   position: relative;
   z-index: 2;
@@ -1841,6 +1879,15 @@
   display: grid;
   gap: 0.35rem;
   box-shadow: 0 12px 25px -20px var(--parish-shadow);
+}
+
+.editor-module.is-active {
+  border-color: var(--parish-accent);
+  box-shadow: 0 18px 35px -25px var(--parish-shadow);
+}
+
+.editor-module.is-dragging {
+  opacity: 0.7;
 }
 
 .editor-module button {
@@ -1856,19 +1903,19 @@
 
 @media (max-width: 980px) {
   .editor-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
   .editor-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1rem;
   grid-auto-rows: var(--grid-row-height, 90px);
 }
@@ -1962,7 +2009,7 @@
 
 @media (max-width: 980px) {
   .home-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .span-one-third {
@@ -1980,7 +2027,7 @@
 
 @media (max-width: 720px) {
   .home-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .span-one-third,
