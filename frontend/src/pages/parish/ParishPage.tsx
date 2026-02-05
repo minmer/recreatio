@@ -1377,10 +1377,7 @@ export function ParishPage({
               <a className="parish-up" href="/#/">
                 Up
               </a>
-              {isAuthenticated &&
-                (import.meta.env.DEV ||
-                  (typeof window !== 'undefined' &&
-                    new URLSearchParams(window.location.search).has('createParish'))) && (
+              {isAuthenticated && (
                 <button type="button" className="parish-create" onClick={handleStartBuilder}>
                   Utwórz stronę parafii
                 </button>
@@ -1413,16 +1410,13 @@ export function ParishPage({
                     </a>
                   ))}
                 </div>
-                {isAuthenticated &&
-                  (import.meta.env.DEV ||
-                    (typeof window !== 'undefined' &&
-                      new URLSearchParams(window.location.search).has('createParish'))) && (
-                    <div className="chooser-action">
-                      <button type="button" className="parish-create" onClick={handleStartBuilder}>
-                        Utwórz nową parafię
-                      </button>
-                    </div>
-                  )}
+                {isAuthenticated && (
+                  <div className="chooser-action">
+                    <button type="button" className="parish-create" onClick={handleStartBuilder}>
+                      Utwórz nową parafię
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           </main>
