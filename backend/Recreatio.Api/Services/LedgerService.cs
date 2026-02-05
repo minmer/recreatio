@@ -14,6 +14,7 @@ public interface ILedgerService
     Task<AuthLedgerEntry> AppendAuthAsync(string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null);
     Task<KeyLedgerEntry> AppendKeyAsync(string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null);
     Task<BusinessLedgerEntry> AppendBusinessAsync(string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null);
+    Task<Data.Parish.ParishLedgerEntry> AppendParishAsync(Guid parishId, string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null);
 }
 
 public sealed class LedgerService : ILedgerService
@@ -40,6 +41,49 @@ public sealed class LedgerService : ILedgerService
     public Task<BusinessLedgerEntry> AppendBusinessAsync(string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null)
     {
         return AppendAsync<BusinessLedgerEntry>(_dbContext.BusinessLedger, eventType, actor, payloadJson, ct, signingContext);
+    }
+
+    public Task<Data.Parish.ParishLedgerEntry> AppendParishAsync(Guid parishId, string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext = null)
+    {
+        return AppendParishAsyncInternal(parishId, eventType, actor, payloadJson, ct, signingContext);
+    }
+
+    private async Task<Data.Parish.ParishLedgerEntry> AppendParishAsyncInternal(Guid parishId, string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext)
+    {
+        var previous = await _dbContext.ParishLedger.AsNoTracking()
+            .Where(x => x.ParishId == parishId)
+            .OrderByDescending(x => x.TimestampUtc)
+            .FirstOrDefaultAsync(ct);
+
+        var previousHash = previous?.Hash ?? Array.Empty<byte>();
+        var timestamp = DateTimeOffset.UtcNow;
+        var signerRoleId = signingContext?.SignerRoleId;
+        var signatureAlg = signingContext?.SignatureAlg;
+        var hash = LedgerHashing.ComputeHash(previousHash, timestamp, eventType, actor, payloadJson, signerRoleId, signatureAlg);
+        byte[]? signature = null;
+        if (signingContext is not null)
+        {
+            signature = _signingService.Sign(signingContext.PrivateSigningKey, signingContext.SignatureAlg, hash);
+        }
+
+        var entry = new Data.Parish.ParishLedgerEntry
+        {
+            Id = Guid.NewGuid(),
+            ParishId = parishId,
+            TimestampUtc = timestamp,
+            EventType = eventType,
+            Actor = actor,
+            PayloadJson = payloadJson,
+            PreviousHash = previousHash,
+            Hash = hash,
+            SignerRoleId = signerRoleId,
+            Signature = signature,
+            SignatureAlg = signatureAlg
+        };
+
+        _dbContext.ParishLedger.Add(entry);
+        await _dbContext.SaveChangesAsync(ct);
+        return entry;
     }
 
     private async Task<TLedger> AppendAsync<TLedger>(DbSet<TLedger> ledger, string eventType, string actor, string payloadJson, CancellationToken ct, LedgerSigningContext? signingContext)

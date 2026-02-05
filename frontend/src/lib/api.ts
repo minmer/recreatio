@@ -1426,3 +1426,136 @@ export function checkCogitaWordLanguage(payload: { libraryId: string; languageId
     }
   );
 }
+
+export type ParishModuleConfig = {
+  moduleId: string;
+  title: string;
+  width: 'one-third' | 'one-half' | 'two-thirds';
+  height: 'slim' | 'normal' | 'heavy';
+  order: number;
+};
+
+export type ParishHomepageConfig = {
+  modules: ParishModuleConfig[];
+};
+
+export type ParishSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  location: string;
+  theme: string;
+  heroImageUrl?: string | null;
+};
+
+export type ParishSite = ParishSummary & {
+  homepage: ParishHomepageConfig;
+};
+
+export type ParishPublicIntention = {
+  id: string;
+  massDateTime: string;
+  churchName: string;
+  publicText: string;
+  status: string;
+};
+
+export type ParishPublicMass = {
+  id: string;
+  massDateTime: string;
+  churchName: string;
+  title: string;
+  note?: string | null;
+};
+
+export function listParishes() {
+  return request<ParishSummary[]>('/parish', {
+    method: 'GET'
+  });
+}
+
+export function getParishSite(slug: string) {
+  return request<ParishSite>(`/parish/${slug}`, {
+    method: 'GET'
+  });
+}
+
+export function createParishSite(payload: {
+  name: string;
+  location: string;
+  slug: string;
+  theme: string;
+  heroImageUrl?: string | null;
+  homepage: ParishHomepageConfig;
+}) {
+  return request<ParishSite>('/parish', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateParishSite(parishId: string, payload: { homepage: ParishHomepageConfig; isPublished: boolean }) {
+  return request<void>(`/parish/${parishId}/site`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getParishPublicIntentions(slug: string, params?: { from?: string; to?: string }) {
+  const query = new URLSearchParams();
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return request<ParishPublicIntention[]>(`/parish/${slug}/public/intentions${suffix}`, {
+    method: 'GET'
+  });
+}
+
+export function getParishPublicMasses(slug: string, params?: { from?: string; to?: string }) {
+  const query = new URLSearchParams();
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return request<ParishPublicMass[]>(`/parish/${slug}/public/masses${suffix}`, {
+    method: 'GET'
+  });
+}
+
+export function createParishIntention(
+  parishId: string,
+  payload: {
+    massDateTime: string;
+    churchName: string;
+    publicText: string;
+    internalText?: string | null;
+    donorReference?: string | null;
+    status?: string | null;
+  }
+) {
+  return request<void>(`/parish/${parishId}/intentions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      massDateTime: payload.massDateTime,
+      churchName: payload.churchName,
+      publicText: payload.publicText,
+      internalText: payload.internalText ?? null,
+      donorReference: payload.donorReference ?? null,
+      status: payload.status ?? 'Active'
+    })
+  });
+}
+
+export function createParishMass(
+  parishId: string,
+  payload: { massDateTime: string; churchName: string; title: string; note?: string | null }
+) {
+  return request<void>(`/parish/${parishId}/masses`, {
+    method: 'POST',
+    body: JSON.stringify({
+      massDateTime: payload.massDateTime,
+      churchName: payload.churchName,
+      title: payload.title,
+      note: payload.note ?? null
+    })
+  });
+}

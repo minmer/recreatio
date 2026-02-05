@@ -22,6 +22,7 @@ public static class ApplicationBuilderExtensions
         app.MapAccountEndpoints();
         app.MapRoleEndpoints();
         app.MapCogitaEndpoints();
+        app.MapParishEndpoints();
 
         return app;
     }

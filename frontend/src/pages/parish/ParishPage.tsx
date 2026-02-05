@@ -3,8 +3,25 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
+import {
+  createParishSite,
+  createParishIntention,
+  createParishMass,
+  getParishPublicIntentions,
+  getParishPublicMasses,
+  getParishSite,
+  listParishes,
+  updateParishSite,
+  type ParishHomepageConfig,
+  type ParishModuleConfig,
+  type ParishPublicIntention,
+  type ParishPublicMass,
+  type ParishSummary
+} from '../../lib/api';
 
 type ThemePreset = 'classic' | 'minimal' | 'warm';
+type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds';
+type ModuleHeight = 'slim' | 'normal' | 'heavy';
 type PageId =
   | 'start'
   | 'about'
@@ -41,7 +58,7 @@ type MenuItem = {
   children?: { id: PageId; label: string }[];
 };
 
-const parishes: ParishOption[] = [
+const parishSeed: ParishOption[] = [
   {
     id: 'st-john',
     slug: 'jan-pradnik',
@@ -70,6 +87,26 @@ const parishes: ParishOption[] = [
     theme: 'minimal'
   }
 ];
+
+const builderModules = [
+  { id: 'intentions', label: 'Intencje', width: 'one-half', height: 'normal' },
+  { id: 'announcements', label: 'Ogłoszenia', width: 'one-third', height: 'normal' },
+  { id: 'calendar', label: 'Kalendarz', width: 'one-third', height: 'heavy' },
+  { id: 'masses', label: 'Msze i nabożeństwa', width: 'two-thirds', height: 'slim' },
+  { id: 'community', label: 'Wspólnoty', width: 'one-half', height: 'normal' },
+  { id: 'sacraments', label: 'Sakramenty', width: 'one-half', height: 'normal' },
+  { id: 'contact', label: 'Kontakt', width: 'one-third', height: 'slim' }
+];
+
+const defaultHomepageConfig: ParishHomepageConfig = {
+  modules: builderModules.slice(0, 4).map((module, index) => ({
+    moduleId: module.id,
+    title: module.label,
+    width: module.width as ModuleWidth,
+    height: module.height as ModuleHeight,
+    order: index
+  }))
+};
 
 const menu: MenuItem[] = [
   { label: 'Start', id: 'start' },
@@ -595,6 +632,7 @@ export function ParishPage({
   copy,
   onAuthAction,
   authLabel,
+  isAuthenticated,
   onNavigate,
   language,
   onLanguageChange,
@@ -603,6 +641,7 @@ export function ParishPage({
   copy: Copy;
   onAuthAction: () => void;
   authLabel: string;
+  isAuthenticated: boolean;
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
@@ -619,15 +658,18 @@ export function ParishPage({
   const [activePage, setActivePage] = useState<PageId>('start');
   const [menuOpen, setMenuOpen] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const [parishId, setParishId] = useState(parishes[0].id);
-  const [theme, setTheme] = useState<ThemePreset>(parishes[0].theme);
+  const [parishOptions, setParishOptions] = useState<ParishOption[]>(parishSeed);
+  const [parishId, setParishId] = useState(parishSeed[0].id);
+  const [theme, setTheme] = useState<ThemePreset>(parishSeed[0].theme);
   const [massTab, setMassTab] = useState<keyof typeof massesTables>('Sunday');
   const [announcementId, setAnnouncementId] = useState(announcements[0].id);
   const [calendarView, setCalendarView] = useState<'month' | 'agenda'>('month');
   const [selectedEventId, setSelectedEventId] = useState(calendarEvents[0].id);
   const [selectedPriestId, setSelectedPriestId] = useState(priests[0].id);
   const [selectedSacramentId, setSelectedSacramentId] = useState(sacraments[0].id);
-  const [view, setView] = useState<'chooser' | 'parish'>(parishSlug ? 'parish' : 'chooser');
+  const [view, setView] = useState<'chooser' | 'parish' | 'builder'>(
+    parishSlug ? 'parish' : 'chooser'
+  );
   const [activeSlide, setActiveSlide] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -637,7 +679,220 @@ export function ParishPage({
   const [aktualnosciPrevIndex, setAktualnosciPrevIndex] = useState(0);
   const [wspolnotyPrevIndex, setWspolnotyPrevIndex] = useState(0);
 
-  const parish = useMemo(() => parishes.find((item) => item.id === parishId) ?? parishes[0], [parishId]);
+  const parish = useMemo(
+    () => parishOptions.find((item) => item.id === parishId) ?? parishOptions[0],
+    [parishId, parishOptions]
+  );
+  const [builderStep, setBuilderStep] = useState(0);
+  const [builderName, setBuilderName] = useState('');
+  const [builderLocation, setBuilderLocation] = useState('');
+  const [builderSlug, setBuilderSlug] = useState('');
+  const [builderSlugTouched, setBuilderSlugTouched] = useState(false);
+  const [builderTheme, setBuilderTheme] = useState<ThemePreset>('classic');
+  const [builderModulesConfig, setBuilderModulesConfig] = useState<ParishModuleConfig[]>([
+    {
+      moduleId: 'intentions',
+      title: 'Intencje',
+      width: 'one-half',
+      height: 'normal',
+      order: 0
+    },
+    {
+      moduleId: 'announcements',
+      title: 'Ogłoszenia',
+      width: 'one-third',
+      height: 'normal',
+      order: 1
+    },
+    {
+      moduleId: 'calendar',
+      title: 'Kalendarz',
+      width: 'one-third',
+      height: 'heavy',
+      order: 2
+    },
+    {
+      moduleId: 'contact',
+      title: 'Kontakt',
+      width: 'one-third',
+      height: 'slim',
+      order: 3
+    }
+  ]);
+  const [builderError, setBuilderError] = useState<string | null>(null);
+  const [siteConfig, setSiteConfig] = useState<ParishHomepageConfig | null>(null);
+  const [publicIntentions, setPublicIntentions] = useState<ParishPublicIntention[]>([]);
+  const [publicMasses, setPublicMasses] = useState<ParishPublicMass[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [editModulesConfig, setEditModulesConfig] = useState<ParishModuleConfig[]>([]);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [newIntentionDate, setNewIntentionDate] = useState('');
+  const [newIntentionChurch, setNewIntentionChurch] = useState('');
+  const [newIntentionText, setNewIntentionText] = useState('');
+  const [newIntentionInternal, setNewIntentionInternal] = useState('');
+  const [newMassDate, setNewMassDate] = useState('');
+  const [newMassChurch, setNewMassChurch] = useState('');
+  const [newMassTitle, setNewMassTitle] = useState('');
+  const [newMassNote, setNewMassNote] = useState('');
+  const [adminFormError, setAdminFormError] = useState<string | null>(null);
+  const normalizeSlug = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+  const canCreateParish =
+    builderName.trim().length > 0 &&
+    builderSlug.trim().length > 0 &&
+    builderModulesConfig.length > 0;
+
+  const defaultModuleConfig = (id: string, order: number): ParishModuleConfig => {
+    const base = builderModules.find((item) => item.id === id);
+    return {
+      moduleId: id,
+      title: base?.label ?? id,
+      width: (base?.width as ModuleWidth) ?? 'one-half',
+      height: (base?.height as ModuleHeight) ?? 'normal',
+      order
+    };
+  };
+
+  const handleStartBuilder = () => {
+    setBuilderStep(0);
+    setBuilderName('');
+    setBuilderLocation('');
+    setBuilderSlug('');
+    setBuilderSlugTouched(false);
+    setBuilderTheme('classic');
+    setBuilderModulesConfig([
+      defaultModuleConfig('intentions', 0),
+      defaultModuleConfig('announcements', 1),
+      defaultModuleConfig('calendar', 2),
+      defaultModuleConfig('contact', 3)
+    ]);
+    setBuilderError(null);
+    setView('builder');
+  };
+
+  const handleBuilderNameChange = (value: string) => {
+    setBuilderName(value);
+    if (!builderSlugTouched) {
+      setBuilderSlug(normalizeSlug(value));
+    }
+  };
+
+  const handleBuilderSlugChange = (value: string) => {
+    setBuilderSlugTouched(true);
+    setBuilderSlug(normalizeSlug(value));
+  };
+
+  const handleModuleToggle = (id: string) => {
+    setBuilderModulesConfig((current) => {
+      if (current.some((item) => item.moduleId === id)) {
+        return current.filter((item) => item.moduleId !== id);
+      }
+      return [...current, defaultModuleConfig(id, current.length)];
+    });
+  };
+
+  const handleModuleConfigChange = (
+    id: string,
+    field: 'width' | 'height',
+    value: ModuleWidth | ModuleHeight
+  ) => {
+    setBuilderModulesConfig((current) =>
+      current.map((item) =>
+        item.moduleId === id ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const handleCreateParishSite = async () => {
+    if (!canCreateParish) return;
+    setBuilderError(null);
+    try {
+      const homepage = {
+        modules: builderModulesConfig
+          .map((item, index) => ({ ...item, order: index }))
+      };
+      const created = await createParishSite({
+        name: builderName.trim(),
+        location: builderLocation.trim(),
+        slug: builderSlug.trim(),
+        theme: builderTheme,
+        heroImageUrl: null,
+        homepage
+      });
+      const newParish: ParishOption = {
+        id: created.id,
+        slug: created.slug,
+        name: created.name,
+        location: created.location,
+        logo: '/parish/logo.svg',
+        heroImage: created.heroImageUrl ?? '/parish/visit.jpg',
+        theme: (created.theme as ThemePreset) ?? 'classic'
+      };
+      setParishOptions((current) => [...current, newParish]);
+      setParishId(created.id);
+      setTheme((created.theme as ThemePreset) ?? builderTheme);
+      setSiteConfig(created.homepage);
+      setActivePage('start');
+      setView('parish');
+      navigate(`/parish/${created.slug}`);
+    } catch (error) {
+      setBuilderError('Nie udało się utworzyć strony. Spróbuj ponownie.');
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    listParishes()
+      .then((items: ParishSummary[]) => {
+        if (!mounted || items.length === 0) return;
+        const mapped = items.map((item) => ({
+          id: item.id,
+          slug: item.slug,
+          name: item.name,
+          location: item.location,
+          logo: '/parish/logo.svg',
+          heroImage: item.heroImageUrl ?? '/parish/visit.jpg',
+          theme: (item.theme as ThemePreset) ?? 'classic'
+        }));
+        setParishOptions(mapped);
+        if (!parishSlug && mapped[0]) {
+          setParishId(mapped[0].id);
+          setTheme(mapped[0].theme);
+        }
+      })
+      .catch(() => {
+        setParishOptions(parishSeed);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [parishSlug]);
+
+  useEffect(() => {
+    if (!parishSlug) return;
+    getParishSite(parishSlug)
+      .then((data) => {
+        setSiteConfig(data.homepage);
+        setTheme((data.theme as ThemePreset) ?? 'classic');
+        setEditModulesConfig(data.homepage.modules.slice().sort((a, b) => a.order - b.order));
+      })
+      .catch(() => {
+        setSiteConfig(null);
+      });
+  }, [parishSlug]);
+
+  useEffect(() => {
+    if (!parishSlug) return;
+    getParishPublicIntentions(parishSlug)
+      .then((items) => setPublicIntentions(items))
+      .catch(() => setPublicIntentions([]));
+    getParishPublicMasses(parishSlug)
+      .then((items) => setPublicMasses(items))
+      .catch(() => setPublicMasses([]));
+  }, [parishSlug]);
   const announcement = useMemo(
     () => announcements.find((item) => item.id === announcementId) ?? announcements[0],
     [announcementId]
@@ -664,7 +919,7 @@ export function ParishPage({
   }, [activePage]);
 
   const handleParishChange = (nextId: string) => {
-    const nextParish = parishes.find((item) => item.id === nextId) ?? parishes[0];
+    const nextParish = parishOptions.find((item) => item.id === nextId) ?? parishOptions[0];
     setParishId(nextParish.id);
     setTheme(nextParish.theme);
   };
@@ -717,17 +972,225 @@ export function ParishPage({
 
   useEffect(() => {
     if (!parishSlug) {
-      setView('chooser');
+      if (view !== 'builder') {
+        setView('chooser');
+      }
       return;
     }
-    const nextParish = parishes.find((item) => item.slug === parishSlug);
+    const nextParish = parishOptions.find((item) => item.slug === parishSlug);
     if (nextParish) {
       setParishId(nextParish.id);
       setTheme(nextParish.theme);
       setView('parish');
       setActivePage('start');
     }
-  }, [parishSlug]);
+  }, [parishSlug, parishOptions, view]);
+
+  const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
+  const selectedModuleLabels = builderModulesConfig.map((module) => module.title);
+  const homepageModules = (siteConfig ?? defaultHomepageConfig).modules
+    .slice()
+    .sort((a, b) => a.order - b.order);
+
+  const renderModuleContent = (module: ParishModuleConfig) => {
+    switch (module.moduleId) {
+      case 'intentions':
+        return (
+          <ul>
+            {(publicIntentions.length ? publicIntentions : []).slice(0, 3).map((item) => (
+              <li key={item.id}>
+                <strong>{new Date(item.massDateTime).toLocaleDateString()}</strong>
+                <span className="muted">{item.publicText}</span>
+              </li>
+            ))}
+            {publicIntentions.length === 0 &&
+              intentionShortcuts.slice(0, 2).map((item) => (
+                <li key={item.label}>
+                  <strong>{item.label}</strong>
+                  <span className="muted">{item.desc}</span>
+                </li>
+              ))}
+          </ul>
+        );
+      case 'announcements':
+        return (
+          <ul>
+            {announcements.slice(0, 3).map((item) => (
+              <li key={item.id}>
+                <strong>{item.title}</strong>
+                <span className="muted">{item.date}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      case 'calendar':
+        return (
+          <ul>
+            {calendarEvents.slice(0, 3).map((item) => (
+              <li key={item.id}>
+                <strong>{item.title}</strong>
+                <span className="muted">{item.date}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      case 'masses':
+        return (
+          <ul>
+            {(publicMasses.length ? publicMasses : []).slice(0, 3).map((mass) => (
+              <li key={mass.id}>
+                <strong>{new Date(mass.massDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                <span className="muted">{mass.title}</span>
+              </li>
+            ))}
+            {publicMasses.length === 0 &&
+              massesTables.Sunday.slice(0, 3).map((mass) => (
+                <li key={mass.time}>
+                  <strong>{mass.time}</strong>
+                  <span className="muted">{mass.name}</span>
+                </li>
+              ))}
+          </ul>
+        );
+      case 'community':
+        return (
+          <div className="module-media-row">
+            {wspolnotyImages.slice(0, 3).map((item, index) => (
+              <img key={`${item.img}-${index}`} src={item.img} alt="Wspólnota" />
+            ))}
+          </div>
+        );
+      case 'sacraments':
+        return (
+          <ul>
+            {sacraments.slice(0, 3).map((item) => (
+              <li key={item.id}>
+                <strong>{item.title}</strong>
+                <span className="muted">{item.subtitle}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      case 'contact':
+        return (
+          <ul>
+            {parishLocations.slice(0, 2).map((item) => (
+              <li key={item.title}>
+                <strong>{item.title}</strong>
+                <span className="muted">{item.address}</span>
+              </li>
+            ))}
+          </ul>
+        );
+      default:
+        return <p className="muted">Moduł do konfiguracji.</p>;
+    }
+  };
+
+  const widthLabel: Record<ModuleWidth, string> = {
+    'one-third': '1/3',
+    'one-half': '1/2',
+    'two-thirds': '2/3'
+  };
+
+  const handleEditModuleToggle = (id: string) => {
+    setEditModulesConfig((current) => {
+      if (current.some((item) => item.moduleId === id)) {
+        return current.filter((item) => item.moduleId !== id);
+      }
+      const base = builderModules.find((item) => item.id === id);
+      return [
+        ...current,
+        {
+          moduleId: id,
+          title: base?.label ?? id,
+          width: (base?.width as ModuleWidth) ?? 'one-half',
+          height: (base?.height as ModuleHeight) ?? 'normal',
+          order: current.length
+        }
+      ];
+    });
+  };
+
+  const handleEditModuleChange = (
+    id: string,
+    field: 'width' | 'height',
+    value: ModuleWidth | ModuleHeight
+  ) => {
+    setEditModulesConfig((current) =>
+      current.map((item) => (item.moduleId === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleSaveLayout = async () => {
+    if (!parish) return;
+    try {
+      setEditError(null);
+      const homepage: ParishHomepageConfig = {
+        modules: editModulesConfig.map((item, index) => ({ ...item, order: index }))
+      };
+      await updateParishSite(parish.id, { homepage, isPublished: true });
+      setSiteConfig(homepage);
+      setEditMode(false);
+    } catch {
+      setEditError('Nie udało się zapisać układu strony.');
+    }
+  };
+
+  const handleAddIntention = async () => {
+    if (!parish) return;
+    if (!newIntentionDate || !newIntentionChurch || !newIntentionText) {
+      setAdminFormError('Uzupełnij datę, kościół i treść intencji.');
+      return;
+    }
+    setAdminFormError(null);
+    try {
+      await createParishIntention(parish.id, {
+        massDateTime: new Date(newIntentionDate).toISOString(),
+        churchName: newIntentionChurch,
+        publicText: newIntentionText,
+        internalText: newIntentionInternal || null,
+        status: 'Active'
+      });
+      setNewIntentionDate('');
+      setNewIntentionChurch('');
+      setNewIntentionText('');
+      setNewIntentionInternal('');
+      if (parishSlug) {
+        const items = await getParishPublicIntentions(parishSlug);
+        setPublicIntentions(items);
+      }
+    } catch {
+      setAdminFormError('Nie udało się zapisać intencji.');
+    }
+  };
+
+  const handleAddMass = async () => {
+    if (!parish) return;
+    if (!newMassDate || !newMassChurch || !newMassTitle) {
+      setAdminFormError('Uzupełnij datę, kościół i nazwę mszy.');
+      return;
+    }
+    setAdminFormError(null);
+    try {
+      await createParishMass(parish.id, {
+        massDateTime: new Date(newMassDate).toISOString(),
+        churchName: newMassChurch,
+        title: newMassTitle,
+        note: newMassNote || null
+      });
+      setNewMassDate('');
+      setNewMassChurch('');
+      setNewMassTitle('');
+      setNewMassNote('');
+      if (parishSlug) {
+        const items = await getParishPublicMasses(parishSlug);
+        setPublicMasses(items);
+      }
+    } catch {
+      setAdminFormError('Nie udało się zapisać mszy.');
+    }
+  };
 
   return (
     <div className={`parish-portal theme-${theme}`} lang={language}>
@@ -745,6 +1208,11 @@ export function ParishPage({
               <a className="parish-up" href="/#/">
                 Up
               </a>
+              {isAuthenticated && import.meta.env.DEV && (
+                <button type="button" className="parish-create" onClick={handleStartBuilder}>
+                  Utwórz stronę parafii
+                </button>
+              )}
               <button type="button" className="parish-login" onClick={onAuthAction}>
                 {authLabel}
               </button>
@@ -759,7 +1227,7 @@ export function ParishPage({
                   <p className="lead">Na start udostępniamy jedną parafię testową.</p>
                 </div>
                 <div className="chooser-list">
-                  {parishes.slice(0, 1).map((item) => (
+                  {parishOptions.map((item) => (
                     <a
                       key={item.id}
                       className="chooser-item"
@@ -772,6 +1240,243 @@ export function ParishPage({
                       <span className="pill">Wejdź</span>
                     </a>
                   ))}
+                </div>
+              </div>
+            </section>
+          </main>
+        </>
+      ) : view === 'builder' ? (
+        <>
+          <header className="parish-header parish-header--chooser">
+            <button
+              type="button"
+              className="parish-brand"
+              onClick={() => {
+                setView('chooser');
+                setBuilderStep(0);
+              }}
+            >
+              <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
+              <span className="parish-name">Nowa strona parafii</span>
+            </button>
+            <div className="parish-controls">
+              <button
+                type="button"
+                className="parish-back"
+                onClick={() => {
+                  if (builderStep === 0) {
+                    setView('chooser');
+                    return;
+                  }
+                  setBuilderStep((current) => Math.max(0, current - 1));
+                }}
+              >
+                Wróć
+              </button>
+              <button type="button" className="parish-login" onClick={onAuthAction}>
+                {authLabel}
+              </button>
+            </div>
+          </header>
+          <main className="parish-main">
+            <section className="parish-builder">
+              <div className="builder-card">
+                <div className="builder-intro">
+                  <p className="tag">Panel tworzenia</p>
+                  <h1>Stwórz witrynę parafii</h1>
+                  <p className="lead">
+                    Wybierz zakres informacji, które mają być widoczne publicznie. Po utworzeniu
+                    zostaniesz głównym administratorem i możesz przydzielać role.
+                  </p>
+                </div>
+                <div className="builder-steps">
+                  {builderSteps.map((label, index) => (
+                    <div
+                      key={label}
+                      className={`builder-step ${builderStep === index ? 'is-active' : ''} ${
+                        builderStep > index ? 'is-done' : ''
+                      }`}
+                    >
+                      <span>{index + 1}</span>
+                      <strong>{label}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="builder-card">
+                {builderStep === 0 && (
+                  <div className="builder-panel">
+                    <h2>Dane parafii</h2>
+                    <div className="builder-grid">
+                      <label className="builder-field">
+                        <span>Nazwa parafii</span>
+                        <input
+                          type="text"
+                          value={builderName}
+                          onChange={(event) => handleBuilderNameChange(event.target.value)}
+                          placeholder="np. Parafia św. Jana"
+                        />
+                      </label>
+                      <label className="builder-field">
+                        <span>Lokalizacja</span>
+                        <input
+                          type="text"
+                          value={builderLocation}
+                          onChange={(event) => setBuilderLocation(event.target.value)}
+                          placeholder="np. Kraków • Prądnik"
+                        />
+                      </label>
+                      <label className="builder-field">
+                        <span>Adres w URL (slug)</span>
+                        <input
+                          type="text"
+                          value={builderSlug}
+                          onChange={(event) => handleBuilderSlugChange(event.target.value)}
+                          placeholder="np. sw-jan"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+                {builderStep === 1 && (
+                  <div className="builder-panel">
+                    <h2>Zakres strony</h2>
+                    <p className="muted">
+                      Wybierz moduły, które chcesz opublikować na stronie parafii.
+                    </p>
+                    <div className="builder-options">
+                      {builderModules.map((module) => (
+                        <label key={module.id} className="builder-option">
+                          <input
+                            type="checkbox"
+                            checked={builderModulesConfig.some((item) => item.moduleId === module.id)}
+                            onChange={() => handleModuleToggle(module.id)}
+                          />
+                          <span>{module.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {builderModulesConfig.length > 0 && (
+                      <div className="builder-layout">
+                        <h3>Układ modułów</h3>
+                        <div className="builder-layout-grid">
+                          {builderModulesConfig.map((module) => (
+                            <div key={module.moduleId} className="builder-layout-row">
+                              <strong>{module.title}</strong>
+                              <label>
+                                <span>Szerokość</span>
+                                <select
+                                  value={module.width}
+                                  onChange={(event) =>
+                                    handleModuleConfigChange(
+                                      module.moduleId,
+                                      'width',
+                                      event.target.value as ModuleWidth
+                                    )
+                                  }
+                                >
+                                  <option value="one-third">1/3</option>
+                                  <option value="one-half">1/2</option>
+                                  <option value="two-thirds">2/3</option>
+                                </select>
+                              </label>
+                              <label>
+                                <span>Wysokość</span>
+                                <select
+                                  value={module.height}
+                                  onChange={(event) =>
+                                    handleModuleConfigChange(
+                                      module.moduleId,
+                                      'height',
+                                      event.target.value as ModuleHeight
+                                    )
+                                  }
+                                >
+                                  <option value="slim">Slim</option>
+                                  <option value="normal">Normal</option>
+                                  <option value="heavy">Heavy</option>
+                                </select>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {builderError && <p className="builder-error">{builderError}</p>}
+                  </div>
+                )}
+                {builderStep === 2 && (
+                  <div className="builder-panel">
+                    <h2>Styl i motyw</h2>
+                    <div className="builder-options builder-themes">
+                      {(['classic', 'warm', 'minimal'] as ThemePreset[]).map((preset) => (
+                        <label key={preset} className="builder-theme">
+                          <input
+                            type="radio"
+                            name="theme"
+                            checked={builderTheme === preset}
+                            onChange={() => setBuilderTheme(preset)}
+                          />
+                          <span>{preset === 'classic' ? 'Klasyczny' : preset === 'warm' ? 'Ciepły' : 'Minimal'}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {builderStep === 3 && (
+                  <div className="builder-panel">
+                    <h2>Podsumowanie</h2>
+                    <div className="builder-summary">
+                      <div>
+                        <strong>{builderName || 'Nowa parafia'}</strong>
+                        <span className="muted">{builderLocation || 'Lokalizacja do uzupełnienia'}</span>
+                        <span className="muted">Adres: /parish/{builderSlug || 'slug'}</span>
+                      </div>
+                      <div>
+                        <strong>Moduły</strong>
+                        <span className="muted">
+                          {selectedModuleLabels.length ? selectedModuleLabels.join(', ') : 'Brak wybranych modułów'}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Rola główna</strong>
+                        <span className="muted">Po utworzeniu zostaniesz głównym administratorem.</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="builder-actions">
+                  <button
+                    type="button"
+                    className="parish-back"
+                    onClick={() => {
+                      if (builderStep === 0) {
+                        setView('chooser');
+                        return;
+                      }
+                      setBuilderStep((current) => Math.max(0, current - 1));
+                    }}
+                  >
+                    Wróć
+                  </button>
+                  {builderStep < 3 ? (
+                    <button
+                      type="button"
+                      className="parish-login"
+                      onClick={() => setBuilderStep((current) => Math.min(3, current + 1))}
+                    >
+                      Dalej
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="parish-login"
+                      disabled={!canCreateParish}
+                      onClick={handleCreateParishSite}
+                    >
+                      Utwórz stronę
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -865,6 +1570,17 @@ export function ParishPage({
                 Menu
               </button>
             </div>
+            {isAuthenticated && (
+              <div className="parish-edit-control">
+                <button
+                  type="button"
+                  className={`parish-back ${editMode ? 'is-active' : ''}`}
+                  onClick={() => setEditMode((current) => !current)}
+                >
+                  {editMode ? 'Zakończ edycję' : 'Tryb edycji'}
+                </button>
+              </div>
+            )}
             <div className="parish-login-control">
               <button type="button" className="parish-login" onClick={onAuthAction}>
                 {authLabel}
@@ -988,6 +1704,103 @@ export function ParishPage({
                         ))}
                       </div>
                     </aside>
+                  </div>
+                </section>
+                <section className="parish-section home-grid">
+                  <div className="home-grid-header">
+                    <div>
+                      <p className="tag">Strona główna</p>
+                      <h2>Najważniejsze moduły parafii</h2>
+                      <p className="muted">
+                        Układ jest tworzony podczas konfiguracji strony. Każdy moduł ma kontrolowaną
+                        szerokość i wysokość, aby zachować rytm siatki.
+                      </p>
+                    </div>
+                  </div>
+                  {editMode && (
+                    <div className="home-grid-editor">
+                      <h3>Edytuj układ modułów</h3>
+                      <div className="builder-options">
+                        {builderModules.map((module) => (
+                          <label key={module.id} className="builder-option">
+                            <input
+                              type="checkbox"
+                              checked={editModulesConfig.some((item) => item.moduleId === module.id)}
+                              onChange={() => handleEditModuleToggle(module.id)}
+                            />
+                            <span>{module.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {editModulesConfig.length > 0 && (
+                        <div className="builder-layout">
+                          <div className="builder-layout-grid">
+                            {editModulesConfig.map((module) => (
+                              <div key={module.moduleId} className="builder-layout-row">
+                                <strong>{module.title}</strong>
+                                <label>
+                                  <span>Szerokość</span>
+                                  <select
+                                    value={module.width}
+                                    onChange={(event) =>
+                                      handleEditModuleChange(
+                                        module.moduleId,
+                                        'width',
+                                        event.target.value as ModuleWidth
+                                      )
+                                    }
+                                  >
+                                    <option value="one-third">1/3</option>
+                                    <option value="one-half">1/2</option>
+                                    <option value="two-thirds">2/3</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  <span>Wysokość</span>
+                                  <select
+                                    value={module.height}
+                                    onChange={(event) =>
+                                      handleEditModuleChange(
+                                        module.moduleId,
+                                        'height',
+                                        event.target.value as ModuleHeight
+                                      )
+                                    }
+                                  >
+                                    <option value="slim">Slim</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="heavy">Heavy</option>
+                                  </select>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="builder-actions">
+                        <button type="button" className="parish-back" onClick={() => setEditMode(false)}>
+                          Anuluj
+                        </button>
+                        <button type="button" className="parish-login" onClick={handleSaveLayout}>
+                          Zapisz układ
+                        </button>
+                      </div>
+                      {editError && <p className="builder-error">{editError}</p>}
+                    </div>
+                  )}
+                  <div className="home-grid">
+                    {homepageModules.map((module) => (
+                      <article
+                        key={`${module.moduleId}-${module.order}`}
+                        className={`home-module span-${module.width} height-${module.height}`}
+                      >
+                        <header>
+                          <h3>{module.title}</h3>
+                          <span className="pill">{widthLabel[module.width as ModuleWidth]}</span>
+                        </header>
+                        <div className="module-body">{renderModuleContent(module)}</div>
+                      </article>
+                    ))}
                   </div>
                 </section>
                 <section className="parish-section home-split">
@@ -1214,6 +2027,56 @@ export function ParishPage({
             )}
             {activePage === 'masses' && (
               <section className="parish-section">
+                {isAuthenticated && (
+                  <div className="parish-card admin-form">
+                    <div className="section-header">
+                      <div>
+                        <p className="tag">Panel admina</p>
+                        <h3>Dodaj Mszę</h3>
+                      </div>
+                    </div>
+                    <div className="admin-form-grid">
+                      <label>
+                        <span>Data i godzina</span>
+                        <input
+                          type="datetime-local"
+                          value={newMassDate}
+                          onChange={(event) => setNewMassDate(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Kościół</span>
+                        <input
+                          type="text"
+                          value={newMassChurch}
+                          onChange={(event) => setNewMassChurch(event.target.value)}
+                        />
+                      </label>
+                      <label className="admin-form-full">
+                        <span>Nazwa</span>
+                        <input
+                          type="text"
+                          value={newMassTitle}
+                          onChange={(event) => setNewMassTitle(event.target.value)}
+                        />
+                      </label>
+                      <label className="admin-form-full">
+                        <span>Uwagi</span>
+                        <input
+                          type="text"
+                          value={newMassNote}
+                          onChange={(event) => setNewMassNote(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="builder-actions">
+                      <button type="button" className="parish-login" onClick={handleAddMass}>
+                        Zapisz mszę
+                      </button>
+                    </div>
+                    {adminFormError && <p className="builder-error">{adminFormError}</p>}
+                  </div>
+                )}
                 <div className="section-header">
                   <div>
                     <p className="tag">Msze i nabożeństwa</p>
@@ -1236,6 +2099,27 @@ export function ParishPage({
                     </button>
                   ))}
                 </div>
+                {publicMasses.length > 0 && (
+                  <div className="parish-card">
+                    <div className="section-header">
+                      <h3>Najbliższe Msze</h3>
+                      <span className="muted">Publiczne ogłoszenia</span>
+                    </div>
+                    <ul className="status-list">
+                      {publicMasses.slice(0, 6).map((mass) => (
+                        <li key={mass.id}>
+                          <strong>
+                            {new Date(mass.massDateTime).toLocaleString([], {
+                              dateStyle: 'short',
+                              timeStyle: 'short'
+                            })}
+                          </strong>
+                          <span>{mass.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="parish-card">
                   <table className="schedule-table">
                     <thead>
@@ -1274,6 +2158,56 @@ export function ParishPage({
             )}
             {activePage === 'intentions' && (
               <section className="parish-section intentions-page">
+                {isAuthenticated && (
+                  <div className="parish-card admin-form">
+                    <div className="section-header">
+                      <div>
+                        <p className="tag">Panel admina</p>
+                        <h3>Dodaj intencję</h3>
+                      </div>
+                    </div>
+                    <div className="admin-form-grid">
+                      <label>
+                        <span>Data i godzina</span>
+                        <input
+                          type="datetime-local"
+                          value={newIntentionDate}
+                          onChange={(event) => setNewIntentionDate(event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Kościół</span>
+                        <input
+                          type="text"
+                          value={newIntentionChurch}
+                          onChange={(event) => setNewIntentionChurch(event.target.value)}
+                        />
+                      </label>
+                      <label className="admin-form-full">
+                        <span>Treść publiczna</span>
+                        <input
+                          type="text"
+                          value={newIntentionText}
+                          onChange={(event) => setNewIntentionText(event.target.value)}
+                        />
+                      </label>
+                      <label className="admin-form-full">
+                        <span>Treść wewnętrzna (opcjonalnie)</span>
+                        <input
+                          type="text"
+                          value={newIntentionInternal}
+                          onChange={(event) => setNewIntentionInternal(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="builder-actions">
+                      <button type="button" className="parish-login" onClick={handleAddIntention}>
+                        Zapisz intencję
+                      </button>
+                    </div>
+                    {adminFormError && <p className="builder-error">{adminFormError}</p>}
+                  </div>
+                )}
                 <div className="section-header">
                   <div>
                     <p className="tag">Intencje</p>
@@ -1297,6 +2231,19 @@ export function ParishPage({
                       <input type="text" placeholder="Szukaj intencji (mock)" />
                       <span>Tydzień 11–17 marca 2025</span>
                     </div>
+                    {publicIntentions.length > 0 && (
+                      <div className="intentions-public">
+                        {publicIntentions.slice(0, 8).map((item) => (
+                          <div key={item.id} className="intent-row">
+                            <span>{new Date(item.massDateTime).toLocaleString()}</span>
+                            <div>
+                              <p>{item.publicText}</p>
+                              <span className="muted">{item.churchName}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="accordion">
                       {intentionsWeek.map((day) => (
                         <details key={day.day} open>

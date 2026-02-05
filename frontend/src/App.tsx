@@ -389,6 +389,7 @@ export default function App() {
             }
           }}
           authLabel={isAuthenticated ? t.nav.account : t.parish.loginCta}
+          isAuthenticated={isAuthenticated}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}

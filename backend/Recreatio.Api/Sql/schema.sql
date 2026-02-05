@@ -53,6 +53,12 @@ IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingD
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
 IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
+IF OBJECT_ID(N'dbo.ParishOfferings', N'U') IS NOT NULL DROP TABLE dbo.ParishOfferings;
+IF OBJECT_ID(N'dbo.ParishIntentions', N'U') IS NOT NULL DROP TABLE dbo.ParishIntentions;
+IF OBJECT_ID(N'dbo.ParishMasses', N'U') IS NOT NULL DROP TABLE dbo.ParishMasses;
+IF OBJECT_ID(N'dbo.ParishSiteConfigs', N'U') IS NOT NULL DROP TABLE dbo.ParishSiteConfigs;
+IF OBJECT_ID(N'dbo.ParishLedger', N'U') IS NOT NULL DROP TABLE dbo.ParishLedger;
+IF OBJECT_ID(N'dbo.Parishes', N'U') IS NOT NULL DROP TABLE dbo.Parishes;
 IF OBJECT_ID(N'dbo.Memberships', N'U') IS NOT NULL DROP TABLE dbo.Memberships;
 IF OBJECT_ID(N'dbo.PendingRoleShares', N'U') IS NOT NULL DROP TABLE dbo.PendingRoleShares;
 IF OBJECT_ID(N'dbo.RoleEdges', N'U') IS NOT NULL DROP TABLE dbo.RoleEdges;
@@ -121,6 +127,116 @@ CREATE TABLE dbo.BusinessLedger
     SignerRoleId UNIQUEIDENTIFIER NULL,
     Signature VARBINARY(MAX) NULL,
     SignatureAlg NVARCHAR(64) NULL
+);
+GO
+
+CREATE TABLE dbo.Parishes
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    Slug NVARCHAR(80) NOT NULL,
+    Name NVARCHAR(200) NOT NULL,
+    Location NVARCHAR(200) NOT NULL,
+    Theme NVARCHAR(32) NOT NULL,
+    HeroImageUrl NVARCHAR(256) NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    AdminRoleId UNIQUEIDENTIFIER NOT NULL,
+    PriestRoleId UNIQUEIDENTIFIER NOT NULL,
+    OfficeRoleId UNIQUEIDENTIFIER NOT NULL,
+    FinanceRoleId UNIQUEIDENTIFIER NOT NULL,
+    PublicRoleId UNIQUEIDENTIFIER NOT NULL,
+    IntentionInternalDataItemId UNIQUEIDENTIFIER NOT NULL,
+    IntentionPublicDataItemId UNIQUEIDENTIFIER NOT NULL,
+    OfferingDataItemId UNIQUEIDENTIFIER NOT NULL,
+    IntentionInternalKeyId UNIQUEIDENTIFIER NOT NULL,
+    IntentionPublicKeyId UNIQUEIDENTIFIER NOT NULL,
+    OfferingKeyId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT UX_Parishes_Slug UNIQUE (Slug),
+    CONSTRAINT FK_Parishes_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Parishes_AdminRole FOREIGN KEY (AdminRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Parishes_PriestRole FOREIGN KEY (PriestRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Parishes_OfficeRole FOREIGN KEY (OfficeRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Parishes_FinanceRole FOREIGN KEY (FinanceRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_Parishes_PublicRole FOREIGN KEY (PublicRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishSiteConfigs
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    HomepageConfigJson NVARCHAR(MAX) NOT NULL,
+    IsPublished BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT UX_ParishSiteConfigs_Parish UNIQUE (ParishId),
+    CONSTRAINT FK_ParishSiteConfigs_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishLedger
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    TimestampUtc DATETIMEOFFSET NOT NULL,
+    EventType NVARCHAR(64) NOT NULL,
+    Actor NVARCHAR(128) NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    PreviousHash VARBINARY(64) NOT NULL,
+    Hash VARBINARY(64) NOT NULL,
+    SignerRoleId UNIQUEIDENTIFIER NULL,
+    Signature VARBINARY(MAX) NULL,
+    SignatureAlg NVARCHAR(64) NULL,
+    CONSTRAINT FK_ParishLedger_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishIntentions
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    MassDateTime DATETIMEOFFSET NOT NULL,
+    ChurchName NVARCHAR(128) NOT NULL,
+    PublicText NVARCHAR(512) NOT NULL,
+    InternalTextEnc VARBINARY(MAX) NOT NULL,
+    DonorRefEnc VARBINARY(MAX) NOT NULL,
+    InternalDataKeyId UNIQUEIDENTIFIER NOT NULL,
+    Status NVARCHAR(32) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishIntentions_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishOfferings
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    IntentionId UNIQUEIDENTIFIER NOT NULL,
+    AmountEnc VARBINARY(MAX) NOT NULL,
+    Currency NVARCHAR(16) NOT NULL,
+    Date DATETIMEOFFSET NOT NULL,
+    DonorRefEnc VARBINARY(MAX) NOT NULL,
+    DataKeyId UNIQUEIDENTIFIER NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishOfferings_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT FK_ParishOfferings_Intention FOREIGN KEY (IntentionId) REFERENCES dbo.ParishIntentions(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishMasses
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    MassDateTime DATETIMEOFFSET NOT NULL,
+    ChurchName NVARCHAR(128) NOT NULL,
+    Title NVARCHAR(256) NOT NULL,
+    Note NVARCHAR(512) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishMasses_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
 );
 GO
 

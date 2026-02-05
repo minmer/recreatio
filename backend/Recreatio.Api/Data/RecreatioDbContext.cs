@@ -28,6 +28,12 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<AuthLedgerEntry> AuthLedger => Set<AuthLedgerEntry>();
     public DbSet<KeyLedgerEntry> KeyLedger => Set<KeyLedgerEntry>();
     public DbSet<BusinessLedgerEntry> BusinessLedger => Set<BusinessLedgerEntry>();
+    public DbSet<Data.Parish.Parish> Parishes => Set<Data.Parish.Parish>();
+    public DbSet<Data.Parish.ParishSiteConfig> ParishSiteConfigs => Set<Data.Parish.ParishSiteConfig>();
+    public DbSet<Data.Parish.ParishLedgerEntry> ParishLedger => Set<Data.Parish.ParishLedgerEntry>();
+    public DbSet<Data.Parish.ParishIntention> ParishIntentions => Set<Data.Parish.ParishIntention>();
+    public DbSet<Data.Parish.ParishOffering> ParishOfferings => Set<Data.Parish.ParishOffering>();
+    public DbSet<Data.Parish.ParishMass> ParishMasses => Set<Data.Parish.ParishMass>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -88,6 +94,26 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<KeyEntry>()
             .HasIndex(x => x.OwnerRoleId);
+
+        modelBuilder.Entity<Data.Parish.Parish>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishSiteConfig>()
+            .HasIndex(x => x.ParishId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishLedgerEntry>()
+            .HasIndex(x => x.ParishId);
+
+        modelBuilder.Entity<Data.Parish.ParishIntention>()
+            .HasIndex(x => new { x.ParishId, x.MassDateTime });
+
+        modelBuilder.Entity<Data.Parish.ParishOffering>()
+            .HasIndex(x => x.ParishId);
+
+        modelBuilder.Entity<Data.Parish.ParishMass>()
+            .HasIndex(x => new { x.ParishId, x.MassDateTime });
 
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.KeyEntryId);
