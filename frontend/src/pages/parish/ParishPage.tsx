@@ -1413,6 +1413,16 @@ export function ParishPage({
                     </a>
                   ))}
                 </div>
+                {isAuthenticated &&
+                  (import.meta.env.DEV ||
+                    (typeof window !== 'undefined' &&
+                      new URLSearchParams(window.location.search).has('createParish'))) && (
+                    <div className="chooser-action">
+                      <button type="button" className="parish-create" onClick={handleStartBuilder}>
+                        Utwórz nową parafię
+                      </button>
+                    </div>
+                  )}
               </div>
             </section>
           </main>
