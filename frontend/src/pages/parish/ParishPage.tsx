@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
@@ -90,6 +90,9 @@ const parishSeed: ParishOption[] = [
 
 const builderModules = [
   { id: 'intentions', label: 'Intencje', width: 'one-half', height: 'normal' },
+  { id: 'sticky-news', label: 'Sticky news', width: 'one-third', height: 'slim' },
+  { id: 'next-hours', label: 'Kalendarz najbliższych godzin', width: 'one-third', height: 'slim' },
+  { id: 'news', label: 'Aktualności', width: 'one-half', height: 'normal' },
   { id: 'announcements', label: 'Ogłoszenia', width: 'one-third', height: 'normal' },
   { id: 'calendar', label: 'Kalendarz', width: 'one-third', height: 'heavy' },
   { id: 'masses', label: 'Msze i nabożeństwa', width: 'two-thirds', height: 'slim' },
@@ -735,6 +738,10 @@ export function ParishPage({
   const [newMassTitle, setNewMassTitle] = useState('');
   const [newMassNote, setNewMassNote] = useState('');
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
+  const [gridColumns, setGridColumns] = useState(12);
+  const [gridRowHeight, setGridRowHeight] = useState(90);
+  const homeGridRef = useRef<HTMLDivElement | null>(null);
+  const editorGridRef = useRef<HTMLDivElement | null>(null);
   const normalizeSlug = (value: string) =>
     value
       .toLowerCase()
@@ -811,7 +818,7 @@ export function ParishPage({
     setBuilderError(null);
     try {
       const homepage = {
-        modules: builderModulesConfig
+        modules: normalizeModulePlacement(builderModulesConfig, gridColumns)
           .map((item, index) => ({ ...item, order: index }))
       };
       const created = await createParishSite({
@@ -870,6 +877,43 @@ export function ParishPage({
       mounted = false;
     };
   }, [parishSlug]);
+
+  useEffect(() => {
+    const resolveColumns = () => {
+      if (typeof window === 'undefined') return;
+      const width = window.innerWidth;
+      if (width < 720) {
+        setGridColumns(1);
+      } else if (width < 980) {
+        setGridColumns(2);
+      } else {
+        setGridColumns(3);
+      }
+    };
+    resolveColumns();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', resolveColumns);
+      return () => window.removeEventListener('resize', resolveColumns);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const target = homeGridRef.current ?? editorGridRef.current;
+    if (!target) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const width = entry.contentRect.width;
+      const gap = 16;
+      const columns = gridColumns;
+      const cell = columns > 0 ? (width - gap * (columns - 1)) / columns : width;
+      const rowHeight = Math.max(80, Math.round(cell * 0.4));
+      setGridRowHeight(rowHeight);
+    });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [gridColumns]);
 
   useEffect(() => {
     if (!parishSlug) return;
@@ -988,109 +1032,178 @@ export function ParishPage({
 
   const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
   const selectedModuleLabels = builderModulesConfig.map((module) => module.title);
-  const homepageModules = (siteConfig ?? defaultHomepageConfig).modules
-    .slice()
-    .sort((a, b) => a.order - b.order);
+  const homepageModules = normalizeModulePlacement(
+    (siteConfig ?? defaultHomepageConfig).modules,
+    gridColumns
+  );
+  const normalizedBuilderModules = normalizeModulePlacement(builderModulesConfig, gridColumns);
 
-  const renderModuleContent = (module: ParishModuleConfig) => {
-    switch (module.moduleId) {
-      case 'intentions':
-        return (
-          <ul>
-            {(publicIntentions.length ? publicIntentions : []).slice(0, 3).map((item) => (
-              <li key={item.id}>
-                <strong>{new Date(item.massDateTime).toLocaleDateString()}</strong>
-                <span className="muted">{item.publicText}</span>
-              </li>
-            ))}
-            {publicIntentions.length === 0 &&
-              intentionShortcuts.slice(0, 2).map((item) => (
-                <li key={item.label}>
-                  <strong>{item.label}</strong>
-                  <span className="muted">{item.desc}</span>
-                </li>
-              ))}
-          </ul>
-        );
-      case 'announcements':
-        return (
-          <ul>
-            {announcements.slice(0, 3).map((item) => (
-              <li key={item.id}>
-                <strong>{item.title}</strong>
-                <span className="muted">{item.date}</span>
-              </li>
-            ))}
-          </ul>
-        );
-      case 'calendar':
-        return (
-          <ul>
-            {calendarEvents.slice(0, 3).map((item) => (
-              <li key={item.id}>
-                <strong>{item.title}</strong>
-                <span className="muted">{item.date}</span>
-              </li>
-            ))}
-          </ul>
-        );
-      case 'masses':
-        return (
-          <ul>
-            {(publicMasses.length ? publicMasses : []).slice(0, 3).map((mass) => (
-              <li key={mass.id}>
-                <strong>{new Date(mass.massDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
-                <span className="muted">{mass.title}</span>
-              </li>
-            ))}
-            {publicMasses.length === 0 &&
-              massesTables.Sunday.slice(0, 3).map((mass) => (
-                <li key={mass.time}>
-                  <strong>{mass.time}</strong>
-                  <span className="muted">{mass.name}</span>
-                </li>
-              ))}
-          </ul>
-        );
-      case 'community':
-        return (
-          <div className="module-media-row">
-            {wspolnotyImages.slice(0, 3).map((item, index) => (
-              <img key={`${item.img}-${index}`} src={item.img} alt="Wspólnota" />
-            ))}
-          </div>
-        );
-      case 'sacraments':
-        return (
-          <ul>
-            {sacraments.slice(0, 3).map((item) => (
-              <li key={item.id}>
-                <strong>{item.title}</strong>
-                <span className="muted">{item.subtitle}</span>
-              </li>
-            ))}
-          </ul>
-        );
-      case 'contact':
-        return (
-          <ul>
-            {parishLocations.slice(0, 2).map((item) => (
-              <li key={item.title}>
-                <strong>{item.title}</strong>
-                <span className="muted">{item.address}</span>
-              </li>
-            ))}
-          </ul>
-        );
-      default:
-        return <p className="muted">Moduł do konfiguracji.</p>;
-    }
-  };
+  const renderModuleContent = (module: ParishModuleConfig) => (
+    <div className="module-placeholder">
+      <p>Moduł: {module.title}</p>
+      <span className="muted">
+        Rozmiar: {widthLabel[module.width as ModuleWidth]} • {module.height}
+      </span>
+    </div>
+  );
 
   const widthLabel: Record<ModuleWidth, string> = {
     'one-third': '1/3',
     'one-half': '1/2',
     'two-thirds': '2/3'
+  };
+
+  const colSpanByWidth = (width: ModuleWidth, columns: number) => {
+    if (columns <= 1) return 1;
+    if (columns === 2) {
+      if (width === 'two-thirds') return 2;
+      return 1;
+    }
+    if (width === 'one-third') return 1;
+    if (width === 'one-half') return 2;
+    return 3;
+  };
+
+  const rowSpanByHeight = (height: ModuleHeight) => {
+    if (height === 'slim') return 1;
+    if (height === 'normal') return 2;
+    return 3;
+  };
+
+  const normalizeModulePlacement = (modules: ParishModuleConfig[], columns: number) => {
+    const occupied = new Map<string, boolean>();
+    const nextModules: ParishModuleConfig[] = [];
+    let cursorRow = 1;
+    let cursorCol = 1;
+    const placeAt = (module: ParishModuleConfig, row: number, col: number) => {
+      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
+      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+      for (let r = row; r < row + rowSpan; r += 1) {
+        for (let c = col; c < col + colSpan; c += 1) {
+          occupied.set(`${r}:${c}`, true);
+        }
+      }
+      nextModules.push({ ...module, row, col });
+    };
+    const sorted = modules.slice().sort((a, b) => a.order - b.order);
+    sorted.forEach((module) => {
+      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
+      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+      let placed = false;
+      let row = module.row ?? 0;
+      let col = module.col ?? 0;
+      if (row > 0 && col > 0) {
+        if (col + colSpan - 1 > columns) {
+          col = Math.max(1, columns - colSpan + 1);
+        }
+        let overlap = false;
+        for (let r = row; r < row + rowSpan; r += 1) {
+          for (let c = col; c < col + colSpan; c += 1) {
+            if (occupied.get(`${r}:${c}`)) overlap = true;
+          }
+        }
+        if (!overlap) {
+          placeAt(module, row, col);
+          placed = true;
+        }
+      }
+      if (!placed) {
+        while (true) {
+          if (cursorCol + colSpan - 1 > columns) {
+            cursorCol = 1;
+            cursorRow += 1;
+          }
+          let overlap = false;
+          for (let r = cursorRow; r < cursorRow + rowSpan; r += 1) {
+            for (let c = cursorCol; c < cursorCol + colSpan; c += 1) {
+              if (occupied.get(`${r}:${c}`)) overlap = true;
+            }
+          }
+          if (!overlap) {
+            placeAt(module, cursorRow, cursorCol);
+            cursorCol += colSpan;
+            break;
+          }
+          cursorCol += 1;
+        }
+      }
+    });
+    return nextModules.map((item, index) => ({ ...item, order: index }));
+  };
+
+  const buildOccupiedMap = (modules: ParishModuleConfig[], columns: number) => {
+    const occupied = new Map<string, string>();
+    modules.forEach((module) => {
+      const row = module.row ?? 1;
+      const col = module.col ?? 1;
+      const colSpan = colSpanByWidth(module.width as ModuleWidth, columns);
+      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+      for (let r = row; r < row + rowSpan; r += 1) {
+        for (let c = col; c < col + colSpan; c += 1) {
+          occupied.set(`${r}:${c}`, module.moduleId);
+        }
+      }
+    });
+    return occupied;
+  };
+
+  const availableEditModules = builderModules.filter(
+    (module) => !editModulesConfig.some((item) => item.moduleId === module.id)
+  );
+  const normalizedEditModules = normalizeModulePlacement(editModulesConfig, gridColumns);
+
+  const handleEditDrop = (event: React.DragEvent<HTMLDivElement>, targetRow?: number, targetCol?: number) => {
+    event.preventDefault();
+    const payload = event.dataTransfer.getData('text/plain');
+    if (!payload) return;
+    const [source, moduleId] = payload.split(':');
+    if (!moduleId) return;
+    setEditModulesConfig((current) => {
+      const existing = current.find((item) => item.moduleId === moduleId);
+      const without = normalizeModulePlacement(
+        current.filter((item) => item.moduleId !== moduleId),
+        gridColumns
+      );
+      const base = builderModules.find((item) => item.id === moduleId);
+      const nextModule: ParishModuleConfig = {
+        moduleId,
+        title: existing?.title ?? base?.label ?? moduleId,
+        width: (existing?.width as ModuleWidth) ?? (base?.width as ModuleWidth) ?? 'one-half',
+        height: (existing?.height as ModuleHeight) ?? (base?.height as ModuleHeight) ?? 'normal',
+        order: 0
+      };
+      const updated = [...without, nextModule];
+      if (typeof targetRow === 'number' && typeof targetCol === 'number') {
+        const colSpan = colSpanByWidth(nextModule.width as ModuleWidth, gridColumns);
+        const rowSpan = rowSpanByHeight(nextModule.height as ModuleHeight);
+        let col = targetCol;
+        if (col + colSpan - 1 > gridColumns) {
+          col = Math.max(1, gridColumns - colSpan + 1);
+        }
+        const occupied = buildOccupiedMap(
+          updated.filter((item) => item.moduleId !== moduleId),
+          gridColumns
+        );
+        let overlap = false;
+        for (let r = targetRow; r < targetRow + rowSpan; r += 1) {
+          for (let c = col; c < col + colSpan; c += 1) {
+            if (occupied.get(`${r}:${c}`)) overlap = true;
+          }
+        }
+        if (!overlap) {
+          const placed = updated.map((item) =>
+            item.moduleId === moduleId ? { ...item, row: targetRow, col } : item
+          );
+          return normalizeModulePlacement(placed, gridColumns);
+        }
+      }
+      return normalizeModulePlacement(updated, gridColumns);
+    });
+  };
+
+  const handleEditDragStart = (event: React.DragEvent<HTMLDivElement>, moduleId: string, source: string) => {
+    event.dataTransfer.setData('text/plain', `${source}:${moduleId}`);
+    event.dataTransfer.effectAllowed = 'move';
   };
 
   const handleEditModuleToggle = (id: string) => {
@@ -1112,6 +1225,59 @@ export function ParishPage({
     });
   };
 
+  const availableBuilderModules = builderModules.filter(
+    (module) => !builderModulesConfig.some((item) => item.moduleId === module.id)
+  );
+
+  const handleBuilderDrop = (event: React.DragEvent<HTMLDivElement>, targetRow?: number, targetCol?: number) => {
+    event.preventDefault();
+    const payload = event.dataTransfer.getData('text/plain');
+    if (!payload) return;
+    const [source, moduleId] = payload.split(':');
+    if (!moduleId) return;
+    setBuilderModulesConfig((current) => {
+      const existing = current.find((item) => item.moduleId === moduleId);
+      const without = normalizeModulePlacement(
+        current.filter((item) => item.moduleId !== moduleId),
+        gridColumns
+      );
+      const base = builderModules.find((item) => item.id === moduleId);
+      const nextModule: ParishModuleConfig = {
+        moduleId,
+        title: existing?.title ?? base?.label ?? moduleId,
+        width: (existing?.width as ModuleWidth) ?? (base?.width as ModuleWidth) ?? 'one-half',
+        height: (existing?.height as ModuleHeight) ?? (base?.height as ModuleHeight) ?? 'normal',
+        order: 0
+      };
+      const updated = [...without, nextModule];
+      if (typeof targetRow === 'number' && typeof targetCol === 'number') {
+        const colSpan = colSpanByWidth(nextModule.width as ModuleWidth, gridColumns);
+        const rowSpan = rowSpanByHeight(nextModule.height as ModuleHeight);
+        let col = targetCol;
+        if (col + colSpan - 1 > gridColumns) {
+          col = Math.max(1, gridColumns - colSpan + 1);
+        }
+        const occupied = buildOccupiedMap(
+          updated.filter((item) => item.moduleId !== moduleId),
+          gridColumns
+        );
+        let overlap = false;
+        for (let r = targetRow; r < targetRow + rowSpan; r += 1) {
+          for (let c = col; c < col + colSpan; c += 1) {
+            if (occupied.get(`${r}:${c}`)) overlap = true;
+          }
+        }
+        if (!overlap) {
+          const placed = updated.map((item) =>
+            item.moduleId === moduleId ? { ...item, row: targetRow, col } : item
+          );
+          return normalizeModulePlacement(placed, gridColumns);
+        }
+      }
+      return normalizeModulePlacement(updated, gridColumns);
+    });
+  };
+
   const handleEditModuleChange = (
     id: string,
     field: 'width' | 'height',
@@ -1127,7 +1293,10 @@ export function ParishPage({
     try {
       setEditError(null);
       const homepage: ParishHomepageConfig = {
-        modules: editModulesConfig.map((item, index) => ({ ...item, order: index }))
+        modules: normalizeModulePlacement(editModulesConfig, gridColumns).map((item, index) => ({
+          ...item,
+          order: index
+        }))
       };
       await updateParishSite(parish.id, { homepage, isPublished: true });
       setSiteConfig(homepage);
@@ -1208,7 +1377,10 @@ export function ParishPage({
               <a className="parish-up" href="/#/">
                 Up
               </a>
-              {isAuthenticated && import.meta.env.DEV && (
+              {isAuthenticated &&
+                (import.meta.env.DEV ||
+                  (typeof window !== 'undefined' &&
+                    new URLSearchParams(window.location.search).has('createParish'))) && (
                 <button type="button" className="parish-create" onClick={handleStartBuilder}>
                   Utwórz stronę parafii
                 </button>
@@ -1342,19 +1514,93 @@ export function ParishPage({
                   <div className="builder-panel">
                     <h2>Zakres strony</h2>
                     <p className="muted">
-                      Wybierz moduły, które chcesz opublikować na stronie parafii.
+                      Moduły budują całą stronę główną. Przeciągnij je do siatki i ustaw rozmiar.
                     </p>
-                    <div className="builder-options">
-                      {builderModules.map((module) => (
-                        <label key={module.id} className="builder-option">
-                          <input
-                            type="checkbox"
-                            checked={builderModulesConfig.some((item) => item.moduleId === module.id)}
-                            onChange={() => handleModuleToggle(module.id)}
-                          />
-                          <span>{module.label}</span>
-                        </label>
-                      ))}
+                    <div className="editor-panel">
+                      <div className="editor-panel-list">
+                        <h4>Moduły do dodania</h4>
+                        <div className="builder-options">
+                          {availableBuilderModules.map((module) => (
+                            <div
+                              key={module.id}
+                              className="builder-option draggable"
+                              draggable
+                              onDragStart={(event) => handleEditDragStart(event, module.id, 'panel')}
+                            >
+                              <span>{module.label}</span>
+                              <button type="button" onClick={() => handleModuleToggle(module.id)}>
+                                Dodaj
+                              </button>
+                            </div>
+                          ))}
+                          {availableBuilderModules.length === 0 && (
+                            <span className="muted">Wszystkie moduły są już na stronie.</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="editor-panel-list">
+                        <h4>Siatka strony</h4>
+                        <div
+                          className="editor-grid"
+                          ref={editorGridRef}
+                          style={{ ['--grid-row-height' as const]: `${gridRowHeight}px` }}
+                        >
+                          {(() => {
+                            const rows = Math.max(
+                              4,
+                              Math.max(
+                                1,
+                                ...normalizedBuilderModules.map(
+                                  (module) =>
+                                    (module.row ?? 1) +
+                                    rowSpanByHeight(module.height as ModuleHeight) -
+                                    1
+                                )
+                              ) + 2
+                            );
+                            const occupied = buildOccupiedMap(normalizedBuilderModules, gridColumns);
+                            const cells = [];
+                            for (let r = 1; r <= rows; r += 1) {
+                              for (let c = 1; c <= gridColumns; c += 1) {
+                                const occupiedBy = occupied.get(`${r}:${c}`);
+                                cells.push(
+                                  <div
+                                    key={`builder-cell-${r}-${c}`}
+                                    className={`editor-cell ${occupiedBy ? 'is-occupied' : ''}`}
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={(event) => handleBuilderDrop(event, r, c)}
+                                  />
+                                );
+                              }
+                            }
+                            return cells;
+                          })()}
+                          {normalizedBuilderModules.map((module) => {
+                            const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
+                            const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+                            return (
+                              <div
+                                key={`builder-module-${module.moduleId}`}
+                                className="editor-module"
+                                style={{
+                                  gridColumn: `${module.col ?? 1} / span ${colSpan}`,
+                                  gridRow: `${module.row ?? 1} / span ${rowSpan}`
+                                }}
+                                draggable
+                                onDragStart={(event) => handleEditDragStart(event, module.moduleId, 'grid')}
+                              >
+                                <strong>{module.title}</strong>
+                                <span className="muted">
+                                  {widthLabel[module.width as ModuleWidth]} • {module.height}
+                                </span>
+                                <button type="button" onClick={() => handleModuleToggle(module.moduleId)}>
+                                  Usuń
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                     {builderModulesConfig.length > 0 && (
                       <div className="builder-layout">
@@ -1720,17 +1966,82 @@ export function ParishPage({
                   {editMode && (
                     <div className="home-grid-editor">
                       <h3>Edytuj układ modułów</h3>
-                      <div className="builder-options">
-                        {builderModules.map((module) => (
-                          <label key={module.id} className="builder-option">
-                            <input
-                              type="checkbox"
-                              checked={editModulesConfig.some((item) => item.moduleId === module.id)}
-                              onChange={() => handleEditModuleToggle(module.id)}
-                            />
-                            <span>{module.label}</span>
-                          </label>
-                        ))}
+                      <div className="editor-panel">
+                        <div className="editor-panel-list">
+                          <h4>Moduły do dodania</h4>
+                          <div className="builder-options">
+                            {availableEditModules.map((module) => (
+                              <div
+                                key={module.id}
+                                className="builder-option draggable"
+                                draggable
+                                onDragStart={(event) => handleEditDragStart(event, module.id, 'panel')}
+                              >
+                                <span>{module.label}</span>
+                                <button type="button" onClick={() => handleEditModuleToggle(module.id)}>
+                                  Dodaj
+                                </button>
+                              </div>
+                            ))}
+                            {availableEditModules.length === 0 && (
+                              <span className="muted">Wszystkie moduły są już na stronie.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="editor-panel-list">
+                          <h4>Siatka strony</h4>
+                          <div className="editor-grid">
+                            {(() => {
+                              const rows = Math.max(
+                                4,
+                                Math.max(
+                                  1,
+                                  ...normalizedEditModules.map((module) => (module.row ?? 1) + rowSpanByHeight(module.height as ModuleHeight) - 1)
+                                ) + 2
+                              );
+                              const occupied = buildOccupiedMap(normalizedEditModules, gridColumns);
+                              const cells = [];
+                              for (let r = 1; r <= rows; r += 1) {
+                                for (let c = 1; c <= gridColumns; c += 1) {
+                                  const occupiedBy = occupied.get(`${r}:${c}`);
+                                  cells.push(
+                                    <div
+                                      key={`cell-${r}-${c}`}
+                                      className={`editor-cell ${occupiedBy ? 'is-occupied' : ''}`}
+                                      onDragOver={(event) => event.preventDefault()}
+                                      onDrop={(event) => handleEditDrop(event, r, c)}
+                                    />
+                                  );
+                                }
+                              }
+                              return cells;
+                            })()}
+                            {normalizedEditModules.map((module) => {
+                              const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
+                              const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+                              return (
+                                <div
+                                  key={module.moduleId}
+                                  className="editor-module"
+                                  style={{
+                                    gridColumn: `${module.col ?? 1} / span ${colSpan}`,
+                                    gridRow: `${module.row ?? 1} / span ${rowSpan}`
+                                  }}
+                                  draggable
+                                  onDragStart={(event) => handleEditDragStart(event, module.moduleId, 'grid')}
+                                >
+                                  <strong>{module.title}</strong>
+                                  <span className="muted">
+                                    {widthLabel[module.width as ModuleWidth]} • {module.height}
+                                  </span>
+                                  <button type="button" onClick={() => handleEditModuleToggle(module.moduleId)}>
+                                    Usuń
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                       {editModulesConfig.length > 0 && (
                         <div className="builder-layout">
@@ -1788,19 +2099,31 @@ export function ParishPage({
                       {editError && <p className="builder-error">{editError}</p>}
                     </div>
                   )}
-                  <div className="home-grid">
-                    {homepageModules.map((module) => (
-                      <article
-                        key={`${module.moduleId}-${module.order}`}
-                        className={`home-module span-${module.width} height-${module.height}`}
-                      >
+                  <div
+                    className="home-grid"
+                    ref={homeGridRef}
+                    style={{ ['--grid-row-height' as const]: `${gridRowHeight}px` }}
+                  >
+                    {homepageModules.map((module) => {
+                      const colSpan = colSpanByWidth(module.width as ModuleWidth, gridColumns);
+                      const rowSpan = rowSpanByHeight(module.height as ModuleHeight);
+                      return (
+                        <article
+                          key={`${module.moduleId}-${module.order}`}
+                          className="home-module"
+                          style={{
+                            gridColumn: `${module.col ?? 1} / span ${colSpan}`,
+                            gridRow: `${module.row ?? 1} / span ${rowSpan}`
+                          }}
+                        >
                         <header>
                           <h3>{module.title}</h3>
                           <span className="pill">{widthLabel[module.width as ModuleWidth]}</span>
                         </header>
                         <div className="module-body">{renderModuleContent(module)}</div>
                       </article>
-                    ))}
+                      );
+                    })}
                   </div>
                 </section>
                 <section className="parish-section home-split">

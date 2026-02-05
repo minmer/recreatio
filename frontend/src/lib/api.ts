@@ -1433,6 +1433,8 @@ export type ParishModuleConfig = {
   width: 'one-third' | 'one-half' | 'two-thirds';
   height: 'slim' | 'normal' | 'heavy';
   order: number;
+  row?: number;
+  col?: number;
 };
 
 export type ParishHomepageConfig = {

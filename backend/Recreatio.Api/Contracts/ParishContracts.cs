@@ -5,7 +5,9 @@ public sealed record ParishModuleConfig(
     string Title,
     string Width,
     string Height,
-    int Order);
+    int Order,
+    int? Row = null,
+    int? Col = null);
 
 public sealed record ParishHomepageConfig(
     IReadOnlyList<ParishModuleConfig> Modules);
