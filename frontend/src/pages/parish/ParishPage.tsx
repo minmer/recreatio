@@ -1038,6 +1038,12 @@ export function ParishPage({
   );
   const normalizedBuilderModules = normalizeModulePlacement(builderModulesConfig, gridColumns);
 
+  const widthLabel: Record<ModuleWidth, string> = {
+    'one-third': '1/3',
+    'one-half': '1/2',
+    'two-thirds': '2/3'
+  };
+
   const renderModuleContent = (module: ParishModuleConfig) => (
     <div className="module-placeholder">
       <p>Moduł: {module.title}</p>
@@ -1046,12 +1052,6 @@ export function ParishPage({
       </span>
     </div>
   );
-
-  const widthLabel: Record<ModuleWidth, string> = {
-    'one-third': '1/3',
-    'one-half': '1/2',
-    'two-thirds': '2/3'
-  };
 
   const colSpanByWidth = (width: ModuleWidth, columns: number) => {
     if (columns <= 1) return 1;
