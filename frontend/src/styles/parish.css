@@ -1830,7 +1830,7 @@
 .editor-grid {
   position: relative;
   display: grid;
-  gap: 0.6rem;
+  gap: var(--grid-gap, 16px);
   padding: 0.75rem;
   border-radius: 16px;
   border: 1px dashed var(--parish-line);
@@ -1858,15 +1858,32 @@
   border-radius: 12px;
   border: 1px dashed rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.35);
+  opacity: 0;
+  pointer-events: none;
 }
 
-.editor-cell.is-occupied {
-  opacity: 0.35;
+.editor-cell.is-dropzone {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.editor-cell.is-visible {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.editor-cell.is-valid {
+  border-color: rgba(165, 107, 47, 0.35);
+  background: rgba(165, 107, 47, 0.08);
 }
 
 .editor-cell.is-over {
   border-color: var(--parish-accent);
   background: rgba(165, 107, 47, 0.12);
+}
+
+.editor-cell.is-hidden {
+  opacity: 0;
 }
 
 .editor-module {
@@ -1890,6 +1907,84 @@
   opacity: 0.7;
 }
 
+.editor-module.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-module.is-ghost {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--parish-muted);
+  box-shadow: none;
+}
+
+.editor-module.drag-overlay {
+  opacity: 0.6;
+  width: 220px;
+}
+
+.editor-module .resize-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: se-resize;
+}
+
+.editor-module .resize-handle::after {
+  content: '';
+  position: absolute;
+  opacity: 0.6;
+}
+
+.editor-module .resize-handle.resize-handle-x {
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+.editor-module .resize-handle.resize-handle-x::after {
+  right: 3px;
+  top: 3px;
+  width: 12px;
+  height: 2px;
+  background: var(--parish-accent);
+}
+
+.editor-module .resize-handle.resize-handle-y {
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  cursor: ns-resize;
+}
+
+.editor-module .resize-handle.resize-handle-y::after {
+  left: 3px;
+  bottom: 3px;
+  width: 2px;
+  height: 12px;
+  background: var(--parish-accent);
+}
+
+.editor-module .resize-handle.resize-handle-both {
+  right: 4px;
+  bottom: 4px;
+  cursor: se-resize;
+}
+
+.editor-module .resize-handle.resize-handle-both::after {
+  right: 2px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--parish-accent);
+  border-bottom: 2px solid var(--parish-accent);
+}
 .editor-module button {
   justify-self: start;
   border: none;
