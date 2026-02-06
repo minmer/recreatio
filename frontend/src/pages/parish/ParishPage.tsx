@@ -36,7 +36,8 @@ type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
 
-const GRID_GAP = 16;
+const HOME_GAP = 16;
+const EDITOR_GAP = 0;
 const MIN_COL_SPAN = 2;
 const MIN_ROW_SPAN = 1;
 const MAX_ROW_SPAN = 5;
@@ -707,7 +708,7 @@ export function ParishPage({
       const entry = entries[0];
       if (!entry) return;
       const width = entry.contentRect.width;
-      const gap = GRID_GAP;
+      const gap = target === homeGridRef.current ? HOME_GAP : EDITOR_GAP;
       const columns = gridColumns;
       const cell = columns > 0 ? (width - gap * (columns - 1)) / columns : width;
       const rowHeight = Math.max(80, Math.round(cell * 0.23));
@@ -1391,7 +1392,7 @@ export function ParishPage({
     const rect = grid.getBoundingClientRect();
     const totalWidth = rect.width;
     const cellWidth =
-      gridColumns > 0 ? (totalWidth - GRID_GAP * (gridColumns - 1)) / gridColumns : totalWidth;
+      gridColumns > 0 ? (totalWidth - EDITOR_GAP * (gridColumns - 1)) / gridColumns : totalWidth;
     const colSpan = Math.min(item.size.colSpan, gridColumns);
     const rowSpan = snapRowSpan(item.size.rowSpan);
     setResizeState({
@@ -1429,8 +1430,8 @@ export function ParishPage({
         rowHeight,
         handle
       } = resizeState;
-      const pointerCol = Math.floor((event.clientX - gridLeft) / (cellWidth + GRID_GAP)) + 1;
-      const pointerRow = Math.floor((event.clientY - gridTop) / (rowHeight + GRID_GAP)) + 1;
+      const pointerCol = Math.floor((event.clientX - gridLeft) / (cellWidth + EDITOR_GAP)) + 1;
+      const pointerRow = Math.floor((event.clientY - gridTop) / (rowHeight + EDITOR_GAP)) + 1;
       const maxColSpan = Math.min(baseColumns, gridColumns);
       const updateItems = (current: ParishLayoutItem[]) => {
         let nextColStart = originColStart;
@@ -1696,12 +1697,12 @@ export function ParishPage({
                         </div>
                       </div>
                       <div
-                        className="editor-grid"
+                        className={`editor-grid ${builderDragActive ? 'is-dragging' : ''}`}
                         ref={editorGridRef}
                         style={
                           {
                             '--grid-row-height': `${gridRowHeight}px`,
-                            '--grid-gap': `${GRID_GAP}px`
+                            '--grid-gap': `${EDITOR_GAP}px`
                           } as CSSProperties
                         }
                       >
@@ -2027,12 +2028,12 @@ export function ParishPage({
                         </div>
                       </div>
                       <div
-                        className="editor-grid"
+                        className={`editor-grid ${editDragActive ? 'is-dragging' : ''}`}
                         ref={editorGridRef}
                         style={
                           {
                             '--grid-row-height': `${gridRowHeight}px`,
-                            '--grid-gap': `${GRID_GAP}px`
+                            '--grid-gap': `${EDITOR_GAP}px`
                           } as CSSProperties
                         }
                       >
