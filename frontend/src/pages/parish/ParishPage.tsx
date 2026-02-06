@@ -38,6 +38,19 @@ type ModuleHeight = 'one' | 'three' | 'five';
 
 const HOME_GAP = 16;
 const EDITOR_GAP = 0;
+const allowedColSpans = [2, 3, 4, 6];
+const snapColSpan = (value: number, columns: number) => {
+  const candidates = allowedColSpans.filter((span) => span <= columns);
+  if (candidates.length === 0) return columns;
+  return candidates.reduce((closest, current) =>
+    Math.abs(current - value) < Math.abs(closest - value) ? current : closest
+  );
+};
+const snapRowSpan = (value: number) => {
+  if (value <= 2) return 1;
+  if (value <= 4) return 3;
+  return 5;
+};
 const MIN_COL_SPAN = 2;
 const MIN_ROW_SPAN = 1;
 const MAX_ROW_SPAN = 5;
@@ -126,10 +139,67 @@ const defaultHomepageConfig: ParishHomepageConfig = {
   modules: parishModuleCatalog.slice(0, 4).map((module, index) => ({
     id: `seed-${module.type}`,
     type: module.type,
-    position: { row: 1 + index, col: 1 },
+    position: { row: 1 + index * 3, col: 1 },
     size: { colSpan: 3, rowSpan: 3 },
     props: { title: module.label }
   }))
+};
+
+const placeItems = (items: ParishLayoutItem[], columns: number) => {
+  const occupied = new Map<string, boolean>();
+  const next: ParishLayoutItem[] = [];
+  items.forEach((item) => {
+    let startRow = Math.max(1, item.position.row);
+    let startCol = Math.max(1, Math.min(item.position.col, columns));
+    const colSpan = snapColSpan(item.size.colSpan, columns);
+    const rowSpan = snapRowSpan(item.size.rowSpan);
+    let placed = false;
+    let row = startRow;
+    let col = startCol;
+    while (!placed) {
+      if (col + colSpan - 1 > columns) {
+        col = 1;
+        row += 1;
+      }
+      let overlap = false;
+      for (let r = row; r < row + rowSpan; r += 1) {
+        for (let c = col; c < col + colSpan; c += 1) {
+          if (occupied.get(`${r}:${c}`)) overlap = true;
+        }
+      }
+      if (!overlap) {
+        for (let r = row; r < row + rowSpan; r += 1) {
+          for (let c = col; c < col + colSpan; c += 1) {
+            occupied.set(`${r}:${c}`, true);
+          }
+        }
+        next.push({
+          ...item,
+          position: { row, col },
+          size: { colSpan, rowSpan }
+        });
+        placed = true;
+      } else {
+        col += 1;
+      }
+    }
+  });
+  return next;
+};
+
+const normalizeLayoutItems = (items: ParishLayoutItem[], columns: number) => {
+  const normalized = items.map((item) => ({
+    ...item,
+    position: {
+      row: Math.max(1, item.position.row),
+      col: Math.max(1, Math.min(item.position.col, columns))
+    },
+    size: {
+      colSpan: snapColSpan(item.size.colSpan, columns),
+      rowSpan: snapRowSpan(item.size.rowSpan)
+    }
+  }));
+  return placeItems(normalized, columns);
 };
 
 const menu: MenuItem[] = [
@@ -520,7 +590,7 @@ export function ParishPage({
   const [builderSlug, setBuilderSlug] = useState('');
   const [builderSlugTouched, setBuilderSlugTouched] = useState(false);
   const [builderTheme, setBuilderTheme] = useState<ThemePreset>('classic');
-  const [builderLayoutItems, setBuilderLayoutItems] = useState<ParishLayoutItem[]>(defaultHomepageConfig.modules);
+  const [builderLayoutItems, setBuilderLayoutItems] = useState<ParishLayoutItem[]>([]);
   const [builderError, setBuilderError] = useState<string | null>(null);
   const [siteConfig, setSiteConfig] = useState<ParishHomepageConfig | null>(null);
   const [publicIntentions, setPublicIntentions] = useState<ParishPublicIntention[]>([]);
@@ -561,6 +631,9 @@ export function ParishPage({
     overCell: null,
     overValid: false
   });
+  useEffect(() => {
+    setBuilderLayoutItems(normalizeLayoutItems(defaultHomepageConfig.modules, baseColumns));
+  }, [baseColumns]);
   const [resizeState, setResizeState] = useState<{
     layout: 'builder' | 'edit';
     itemId: string;
@@ -599,7 +672,7 @@ export function ParishPage({
     setBuilderSlug('');
     setBuilderSlugTouched(false);
     setBuilderTheme('classic');
-    setBuilderLayoutItems(defaultHomepageConfig.modules);
+    setBuilderLayoutItems(normalizeLayoutItems(defaultHomepageConfig.modules, baseColumns));
     setBuilderError(null);
     setView('builder');
   };
@@ -702,12 +775,15 @@ export function ParishPage({
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
-    const target = homeGridRef.current ?? editorGridRef.current;
+    const target = view === 'builder' || editMode ? editorGridRef.current : homeGridRef.current;
     if (!target) return;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      const width = entry.contentRect.width;
+      const styles = window.getComputedStyle(target);
+      const paddingLeft = Number.parseFloat(styles.paddingLeft || '0');
+      const paddingRight = Number.parseFloat(styles.paddingRight || '0');
+      const width = entry.contentRect.width - paddingLeft - paddingRight;
       const gap = target === homeGridRef.current ? HOME_GAP : EDITOR_GAP;
       const columns = gridColumns;
       const cell = columns > 0 ? (width - gap * (columns - 1)) / columns : width;
@@ -716,15 +792,18 @@ export function ParishPage({
     });
     observer.observe(target);
     return () => observer.disconnect();
-  }, [gridColumns]);
+  }, [gridColumns, view, editMode]);
 
   useEffect(() => {
     if (!parishSlug) return;
     getParishSite(parishSlug)
       .then((data) => {
-        setSiteConfig(data.homepage);
+        setSiteConfig({
+          ...data.homepage,
+          modules: normalizeLayoutItems(data.homepage.modules, baseColumns)
+        });
         setTheme((data.theme as ThemePreset) ?? 'classic');
-        setEditLayoutItems(data.homepage.modules);
+        setEditLayoutItems(normalizeLayoutItems(data.homepage.modules, baseColumns));
       })
       .catch(() => {
         setSiteConfig(null);
@@ -798,48 +877,6 @@ export function ParishPage({
     </div>
   );
 
-  const placeItems = (items: ParishLayoutItem[], columns: number) => {
-    const occupied = new Map<string, boolean>();
-    const next: ParishLayoutItem[] = [];
-    items.forEach((item) => {
-      let startRow = Math.max(1, item.position.row);
-      let startCol = Math.max(1, Math.min(item.position.col, columns));
-      const colSpan = snapColSpan(item.size.colSpan, columns);
-      const rowSpan = snapRowSpan(item.size.rowSpan);
-      let placed = false;
-      let row = startRow;
-      let col = startCol;
-      while (!placed) {
-        if (col + colSpan - 1 > columns) {
-          col = 1;
-          row += 1;
-        }
-        let overlap = false;
-        for (let r = row; r < row + rowSpan; r += 1) {
-          for (let c = col; c < col + colSpan; c += 1) {
-            if (occupied.get(`${r}:${c}`)) overlap = true;
-          }
-        }
-        if (!overlap) {
-          for (let r = row; r < row + rowSpan; r += 1) {
-            for (let c = col; c < col + colSpan; c += 1) {
-              occupied.set(`${r}:${c}`, true);
-            }
-          }
-          next.push({
-            ...item,
-            position: { row, col },
-            size: { colSpan, rowSpan }
-          });
-          placed = true;
-        } else {
-          col += 1;
-        }
-      }
-    });
-    return next;
-  };
-
   const createLayoutItem = (type: string, row = 1, col = 1): ParishLayoutItem => {
     const moduleDef = parishModuleCatalog.find((module) => module.type === type);
     const id =
@@ -861,19 +898,6 @@ export function ParishPage({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-  const allowedColSpans = [2, 3, 4, 6];
-  const snapColSpan = (value: number, columns: number) => {
-    const candidates = allowedColSpans.filter((span) => span <= columns);
-    if (candidates.length === 0) return columns;
-    return candidates.reduce((closest, current) =>
-      Math.abs(current - value) < Math.abs(closest - value) ? current : closest
-    );
-  };
-  const snapRowSpan = (value: number) => {
-    if (value <= 2) return 1;
-    if (value <= 4) return 3;
-    return 5;
-  };
 
   const parseCellId = (id: string) => {
     if (!id.startsWith('cell:')) return null;
