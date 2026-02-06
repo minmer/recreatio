@@ -2027,7 +2027,7 @@ export function ParishPage({
           </header>
           <main className="parish-main">
             {activePage === 'start' && (
-              <section className="parish-section home-grid">
+              <section className="parish-section home-grid-section">
                 <div className="home-grid-header">
                   <div>
                     <p className="tag">Strona główna</p>

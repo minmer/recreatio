@@ -1913,6 +1913,8 @@
   display: grid;
   gap: 0.35rem;
   box-shadow: 0 12px 25px -20px var(--parish-shadow);
+  height: 100%;
+  overflow: hidden;
 }
 
 .editor-grid-shell.is-dragging .editor-module {
@@ -2113,6 +2115,10 @@
   grid-auto-rows: var(--grid-row-height, 90px);
 }
 
+.home-grid-section {
+  display: block;
+}
+
 .home-module {
   background: var(--parish-surface);
   border: 1px solid var(--parish-line);
@@ -2121,6 +2127,8 @@
   display: grid;
   gap: 1rem;
   box-shadow: 0 24px 50px -40px var(--parish-shadow);
+  height: 100%;
+  overflow: hidden;
 }
 
 .home-module header {
