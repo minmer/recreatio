@@ -1697,7 +1697,7 @@ export function ParishPage({
                         </div>
                       </div>
                       <div
-                        className={`editor-grid ${builderDragActive ? 'is-dragging' : ''}`}
+                        className={`editor-grid-shell ${builderDragActive ? 'is-dragging' : ''}`}
                         ref={editorGridRef}
                         style={
                           {
@@ -1718,51 +1718,63 @@ export function ParishPage({
                                   )
                                 ) + 2
                               );
-                          const cells = [];
-                          for (let r = 1; r <= rows; r += 1) {
-                            for (let c = 1; c <= gridColumns; c += 1) {
-                              const key = `${r}:${c}`;
-                              const isValid = builderDragActive && (builderDropInfo?.valid?.has(key) ?? false);
-                              cells.push(
-                                <DroppableCell
-                                  key={`builder-cell-${r}-${c}`}
-                                  row={r}
-                                  col={c}
-                                  isValid={isValid}
-                                  isActive={builderDragActive}
-                                />
-                              );
-                            }
-                          }
-                          return cells;
+                          return (
+                            <>
+                              <div className="editor-grid-layer editor-grid-cells">
+                                {Array.from({ length: rows }).flatMap((_, rowIndex) => {
+                                  const r = rowIndex + 1;
+                                  return Array.from({ length: gridColumns }).map((__, colIndex) => {
+                                    const c = colIndex + 1;
+                                    const key = `${r}:${c}`;
+                                    const isValid =
+                                      builderDragActive && (builderDropInfo?.valid?.has(key) ?? false);
+                                    return (
+                                      <DroppableCell
+                                        key={`builder-cell-${r}-${c}`}
+                                        row={r}
+                                        col={c}
+                                        isValid={isValid}
+                                        isActive={builderDragActive}
+                                      />
+                                    );
+                                  });
+                                })}
+                              </div>
+                              <div className="editor-grid-layer editor-grid-modules">
+                                {builderLayoutItems.map((module) => (
+                                  <GridItem
+                                    key={`builder-item-${module.id}`}
+                                    item={module}
+                                    isActive={selectedBuilderId === module.id}
+                                    onSelect={() => setSelectedBuilderId(module.id)}
+                                    isHidden={builderDragActive && dragState.activeItemId === module.id}
+                                    onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
+                                  />
+                                ))}
+                                {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
+                                  <div
+                                    className="editor-module is-ghost"
+                                    style={{
+                                      gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                        dragState.size.colSpan,
+                                        gridColumns
+                                      )}`,
+                                      gridRow: `${dragState.overCell.row} / span ${snapRowSpan(
+                                        dragState.size.rowSpan
+                                      )}`
+                                    }}
+                                  >
+                                    <strong>Podgląd</strong>
+                                    <span className="muted">
+                                      {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                      {snapRowSpan(dragState.size.rowSpan)}
+                                    </span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </>
+                          );
                         })()}
-                        {builderLayoutItems.map((module) => (
-                          <GridItem
-                            key={`builder-item-${module.id}`}
-                            item={module}
-                            isActive={selectedBuilderId === module.id}
-                            onSelect={() => setSelectedBuilderId(module.id)}
-                            isHidden={builderDragActive && dragState.activeItemId === module.id}
-                            onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
-                          />
-                        ))}
-                        {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
-                          <div
-                            className="editor-module is-ghost"
-                            style={{
-                              gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                dragState.size.colSpan,
-                                gridColumns
-                              )}`,
-                              gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
-                            }}
-                          >
-                            <strong>Podgląd</strong>
-                            <span className="muted">
-                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
                       <DragOverlay>
                         {builderDragActive && !dragState.overValid && dragState.size ? (
@@ -2028,7 +2040,7 @@ export function ParishPage({
                         </div>
                       </div>
                       <div
-                        className={`editor-grid ${editDragActive ? 'is-dragging' : ''}`}
+                        className={`editor-grid-shell ${editDragActive ? 'is-dragging' : ''}`}
                         ref={editorGridRef}
                         style={
                           {
@@ -2038,62 +2050,74 @@ export function ParishPage({
                         }
                       >
                         {(() => {
-                            const rows = editDropInfo?.rows
-                              ? editDropInfo.rows
-                              : Math.max(
-                                  4,
-                                  Math.max(
-                                    1,
-                                    ...editLayoutItems.map(
-                                      (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
-                                    )
-                                  ) + 2
-                                );
-                          const cells = [];
-                          for (let r = 1; r <= rows; r += 1) {
-                            for (let c = 1; c <= gridColumns; c += 1) {
-                              const key = `${r}:${c}`;
-                              const isValid = editDragActive && (editDropInfo?.valid?.has(key) ?? false);
-                              cells.push(
-                                <DroppableCell
-                                  key={`edit-cell-${r}-${c}`}
-                                  row={r}
-                                  col={c}
-                                  isValid={isValid}
-                                  isActive={editDragActive}
-                                />
+                          const rows = editDropInfo?.rows
+                            ? editDropInfo.rows
+                            : Math.max(
+                                4,
+                                Math.max(
+                                  1,
+                                  ...editLayoutItems.map(
+                                    (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
+                                  )
+                                ) + 2
                               );
-                            }
-                          }
-                          return cells;
+                          return (
+                            <>
+                              <div className="editor-grid-layer editor-grid-cells">
+                                {Array.from({ length: rows }).flatMap((_, rowIndex) => {
+                                  const r = rowIndex + 1;
+                                  return Array.from({ length: gridColumns }).map((__, colIndex) => {
+                                    const c = colIndex + 1;
+                                    const key = `${r}:${c}`;
+                                    const isValid =
+                                      editDragActive && (editDropInfo?.valid?.has(key) ?? false);
+                                    return (
+                                      <DroppableCell
+                                        key={`edit-cell-${r}-${c}`}
+                                        row={r}
+                                        col={c}
+                                        isValid={isValid}
+                                        isActive={editDragActive}
+                                      />
+                                    );
+                                  });
+                                })}
+                              </div>
+                              <div className="editor-grid-layer editor-grid-modules">
+                                {editLayoutItems.map((module) => (
+                                  <GridItem
+                                    key={`edit-item-${module.id}`}
+                                    item={module}
+                                    isActive={selectedEditId === module.id}
+                                    onSelect={() => setSelectedEditId(module.id)}
+                                    isHidden={editDragActive && dragState.activeItemId === module.id}
+                                    onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
+                                  />
+                                ))}
+                                {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
+                                  <div
+                                    className="editor-module is-ghost"
+                                    style={{
+                                      gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                        dragState.size.colSpan,
+                                        gridColumns
+                                      )}`,
+                                      gridRow: `${dragState.overCell.row} / span ${snapRowSpan(
+                                        dragState.size.rowSpan
+                                      )}`
+                                    }}
+                                  >
+                                    <strong>Podgląd</strong>
+                                    <span className="muted">
+                                      {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                      {snapRowSpan(dragState.size.rowSpan)}
+                                    </span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </>
+                          );
                         })()}
-                        {editLayoutItems.map((module) => (
-                          <GridItem
-                            key={`edit-item-${module.id}`}
-                            item={module}
-                            isActive={selectedEditId === module.id}
-                            onSelect={() => setSelectedEditId(module.id)}
-                            isHidden={editDragActive && dragState.activeItemId === module.id}
-                            onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
-                          />
-                        ))}
-                        {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
-                          <div
-                            className="editor-module is-ghost"
-                            style={{
-                              gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                dragState.size.colSpan,
-                                gridColumns
-                              )}`,
-                              gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
-                            }}
-                          >
-                            <strong>Podgląd</strong>
-                            <span className="muted">
-                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
-                            </span>
-                          </div>
-                        ) : null}
                       </div>
                       <DragOverlay>
                         {editDragActive && !dragState.overValid && dragState.size ? (
