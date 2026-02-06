@@ -402,6 +402,8 @@ public static class ParishEndpoints
             };
 
             dbContext.Parishes.Add(parish);
+            await dbContext.SaveChangesAsync(ct);
+
             dbContext.ParishSiteConfigs.Add(config);
             await dbContext.SaveChangesAsync(ct);
 
