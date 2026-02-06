@@ -20,6 +20,65 @@ public static class ParishEndpoints
     private const string RoleKindParishOffice = "parish-office";
     private const string RoleKindParishFinance = "parish-finance";
     private const string RoleKindParishPublic = "parish-public";
+    private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
+
+    private static ParishHomepageConfig NormalizeHomepage(ParishHomepageConfig homepage)
+    {
+        if (homepage.Modules.Count == 0)
+        {
+            return homepage;
+        }
+
+        var modules = homepage.Modules.Select(module =>
+        {
+            var layouts = module.Layouts ?? new Dictionary<string, ParishLayoutFrame>(StringComparer.OrdinalIgnoreCase);
+
+            if (layouts.Count == 0 && module.Position is not null && module.Size is not null)
+            {
+                var frame = new ParishLayoutFrame(module.Position, module.Size);
+                foreach (var breakpoint in Breakpoints)
+                {
+                    layouts[breakpoint] = frame;
+                }
+            }
+
+            if (layouts.Count == 0)
+            {
+                var fallbackFrame = new ParishLayoutFrame(
+                    new ParishLayoutPosition(1, 1),
+                    new ParishLayoutSize(2, 1));
+                foreach (var breakpoint in Breakpoints)
+                {
+                    layouts[breakpoint] = fallbackFrame;
+                }
+            }
+            else
+            {
+                var fallback = layouts.Values.First();
+                foreach (var breakpoint in Breakpoints)
+                {
+                    if (!layouts.ContainsKey(breakpoint))
+                    {
+                        layouts[breakpoint] = fallback;
+                    }
+                }
+            }
+
+            layouts = new Dictionary<string, ParishLayoutFrame>(layouts, StringComparer.OrdinalIgnoreCase);
+
+            return new ParishLayoutItem
+            {
+                Id = module.Id,
+                Type = module.Type,
+                Layouts = layouts,
+                Position = layouts["desktop"].Position,
+                Size = layouts["desktop"].Size,
+                Props = module.Props
+            };
+        }).ToList();
+
+        return new ParishHomepageConfig(modules);
+    }
 
     public static void MapParishEndpoints(this WebApplication app)
     {
@@ -58,8 +117,8 @@ public static class ParishEndpoints
             ParishHomepageConfig homepage;
             try
             {
-                homepage = JsonSerializer.Deserialize<ParishHomepageConfig>(config.HomepageConfigJson)
-                    ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>());
+                homepage = NormalizeHomepage(JsonSerializer.Deserialize<ParishHomepageConfig>(config.HomepageConfigJson)
+                    ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>()));
             }
             catch (JsonException)
             {
@@ -390,7 +449,7 @@ public static class ParishEndpoints
                 UpdatedUtc = now
             };
 
-            var homepageConfig = request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>());
+            var homepageConfig = NormalizeHomepage(request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>()));
             var config = new ParishSiteConfig
             {
                 Id = Guid.NewGuid(),
@@ -483,7 +542,8 @@ public static class ParishEndpoints
                 dbContext.ParishSiteConfigs.Add(config);
             }
 
-            config.HomepageConfigJson = JsonSerializer.Serialize(request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>()));
+            var normalizedHomepage = NormalizeHomepage(request.Homepage ?? new ParishHomepageConfig(Array.Empty<ParishLayoutItem>()));
+            config.HomepageConfigJson = JsonSerializer.Serialize(normalizedHomepage);
             config.IsPublished = request.IsPublished;
             config.UpdatedUtc = DateTimeOffset.UtcNow;
 

@@ -39,6 +39,13 @@ type ModuleHeight = 'one' | 'three' | 'five';
 const HOME_GAP = 16;
 const EDITOR_GAP = 0;
 const EDITOR_PADDING = 12;
+const BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
+type LayoutBreakpoint = (typeof BREAKPOINTS)[number];
+const breakpointColumns: Record<LayoutBreakpoint, number> = {
+  desktop: 6,
+  tablet: 4,
+  mobile: 2
+};
 const allowedColSpans = [2, 3, 4, 6];
 const snapColSpan = (value: number, columns: number) => {
   const candidates = allowedColSpans.filter((span) => span <= columns);
@@ -52,6 +59,12 @@ const snapRowSpan = (value: number) => {
   if (value <= 4) return 3;
   return 5;
 };
+const widthToColSpan = (width: ModuleWidth, columns: number) => {
+  const base =
+    width === 'one-third' ? 2 : width === 'one-half' ? 3 : width === 'two-thirds' ? 4 : 6;
+  return snapColSpan(base, columns);
+};
+const heightToRowSpan = (height: ModuleHeight) => (height === 'one' ? 1 : height === 'three' ? 3 : 5);
 const MIN_COL_SPAN = 2;
 const MIN_ROW_SPAN = 1;
 const MAX_ROW_SPAN = 5;
@@ -136,24 +149,56 @@ const parishModuleCatalog: { type: string; label: string; width: ModuleWidth; he
   { type: 'gallery', label: 'Galeria', width: 'two-thirds', height: 'three' }
 ];
 
-const defaultHomepageConfig: ParishHomepageConfig = {
-  modules: parishModuleCatalog.slice(0, 4).map((module, index) => ({
-    id: `seed-${module.type}`,
-    type: module.type,
-    position: { row: 1 + index * 3, col: 1 },
-    size: { colSpan: 3, rowSpan: 3 },
-    props: { title: module.label }
-  }))
+const getBreakpointKey = (columns: number): LayoutBreakpoint => {
+  if (columns >= 6) return 'desktop';
+  if (columns >= 4) return 'tablet';
+  return 'mobile';
 };
 
-const placeItems = (items: ParishLayoutItem[], columns: number) => {
+const getLayoutForBreakpoint = (item: ParishLayoutItem, breakpoint: LayoutBreakpoint) => {
+  if (item.layouts && item.layouts[breakpoint]) {
+    return item.layouts[breakpoint]!;
+  }
+  if (item.position && item.size) {
+    return { position: item.position, size: item.size };
+  }
+  const fallback = item.layouts ? Object.values(item.layouts)[0] : undefined;
+  return (
+    fallback ?? {
+      position: { row: 1, col: 1 },
+      size: { colSpan: 2, rowSpan: 1 }
+    }
+  );
+};
+
+const ensureLayouts = (item: ParishLayoutItem): ParishLayoutItem => {
+  const layouts: Partial<Record<LayoutBreakpoint, { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }>> =
+    item.layouts ? { ...item.layouts } : {};
+  const fallback = getLayoutForBreakpoint(item, 'desktop');
+  BREAKPOINTS.forEach((breakpoint) => {
+    if (!layouts[breakpoint]) {
+      layouts[breakpoint] = fallback;
+    }
+  });
+  return {
+    ...item,
+    layouts,
+    position: fallback.position,
+    size: fallback.size
+  };
+};
+
+const placeFrames = (
+  frames: { id: string; position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }[],
+  columns: number
+) => {
   const occupied = new Map<string, boolean>();
-  const next: ParishLayoutItem[] = [];
-  items.forEach((item) => {
-    let startRow = Math.max(1, item.position.row);
-    let startCol = Math.max(1, Math.min(item.position.col, columns));
-    const colSpan = snapColSpan(item.size.colSpan, columns);
-    const rowSpan = snapRowSpan(item.size.rowSpan);
+  const next: typeof frames = [];
+  frames.forEach((frame) => {
+    let startRow = Math.max(1, frame.position.row);
+    let startCol = Math.max(1, Math.min(frame.position.col, columns));
+    const colSpan = snapColSpan(frame.size.colSpan, columns);
+    const rowSpan = snapRowSpan(frame.size.rowSpan);
     let placed = false;
     let row = startRow;
     let col = startCol;
@@ -175,7 +220,7 @@ const placeItems = (items: ParishLayoutItem[], columns: number) => {
           }
         }
         next.push({
-          ...item,
+          ...frame,
           position: { row, col },
           size: { colSpan, rowSpan }
         });
@@ -188,19 +233,73 @@ const placeItems = (items: ParishLayoutItem[], columns: number) => {
   return next;
 };
 
-const normalizeLayoutItems = (items: ParishLayoutItem[], columns: number) => {
-  const normalized = items.map((item) => ({
-    ...item,
-    position: {
-      row: Math.max(1, item.position.row),
-      col: Math.max(1, Math.min(item.position.col, columns))
-    },
-    size: {
-      colSpan: snapColSpan(item.size.colSpan, columns),
-      rowSpan: snapRowSpan(item.size.rowSpan)
-    }
-  }));
-  return placeItems(normalized, columns);
+const normalizeLayoutsForBreakpoint = (
+  items: ParishLayoutItem[],
+  breakpoint: LayoutBreakpoint,
+  columns: number
+) => {
+  const frames = items.map((item) => {
+    const layout = getLayoutForBreakpoint(item, breakpoint);
+    return {
+      id: item.id,
+      position: {
+        row: Math.max(1, layout.position.row),
+        col: Math.max(1, Math.min(layout.position.col, columns))
+      },
+      size: {
+        colSpan: snapColSpan(layout.size.colSpan, columns),
+        rowSpan: snapRowSpan(layout.size.rowSpan)
+      }
+    };
+  });
+  const placed = placeFrames(frames, columns);
+  const placedMap = new Map(placed.map((frame) => [frame.id, frame]));
+  return items.map((item) => {
+    const nextFrame = placedMap.get(item.id)!;
+    const layouts = { ...ensureLayouts(item).layouts } as Record<LayoutBreakpoint, typeof nextFrame>;
+    layouts[breakpoint] = { position: nextFrame.position, size: nextFrame.size };
+    return {
+      ...item,
+      layouts,
+      position: layouts.desktop.position,
+      size: layouts.desktop.size
+    };
+  });
+};
+
+const normalizeLayoutsAll = (items: ParishLayoutItem[]) => {
+  let next = items.map(ensureLayouts);
+  BREAKPOINTS.forEach((breakpoint) => {
+    const columns = breakpointColumns[breakpoint];
+    next = normalizeLayoutsForBreakpoint(next, breakpoint, columns);
+  });
+  return next;
+};
+
+const defaultHomepageConfig: ParishHomepageConfig = {
+  modules: normalizeLayoutsAll(
+    parishModuleCatalog.slice(0, 4).map((module) => {
+      const layouts = BREAKPOINTS.reduce((acc, breakpoint) => {
+        const columns = breakpointColumns[breakpoint];
+        acc[breakpoint] = {
+          position: { row: 1, col: 1 },
+          size: {
+            colSpan: widthToColSpan(module.width, columns),
+            rowSpan: snapRowSpan(heightToRowSpan(module.height))
+          }
+        };
+        return acc;
+      }, {} as Record<LayoutBreakpoint, { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }>);
+      return {
+        id: `seed-${module.type}`,
+        type: module.type,
+        layouts,
+        position: layouts.desktop.position,
+        size: layouts.desktop.size,
+        props: { title: module.label }
+      };
+    })
+  )
 };
 
 const menu: MenuItem[] = [
@@ -522,6 +621,32 @@ const koledaByArea = [
   { area: 'Os. Cegielniana', streets: '1–22', date: '9–11 stycznia', priest: 'ks. Paweł' }
 ];
 
+const stickyItems = [
+  {
+    id: 'sticky-1',
+    title: 'Misje parafialne',
+    summary: 'Spotkania z rekolekcjonistami od poniedziałku do soboty.',
+    image: '/parish/minister.jpg',
+    date: '4–10 marca',
+    category: 'Aktualne'
+  },
+  {
+    id: 'sticky-2',
+    title: 'Wieczór uwielbienia',
+    summary: 'Wspólna modlitwa i muzyka w kościele dolnym.',
+    image: '/parish/visit.jpg',
+    date: '14 marca, 19:00',
+    category: 'Wydarzenia'
+  },
+  {
+    id: 'sticky-3',
+    title: 'Spotkanie młodych',
+    summary: 'Zapisy na wyjazd do Lednicy oraz dyżury w marcu.',
+    image: '/parish/pursuit_saint.jpg',
+    date: 'Sobota, 17:30',
+    category: 'Wspólnoty'
+  }
+];
 
 const officeHours = [
   { day: 'Poniedziałek', hours: '9:00–11:00, 16:00–18:00' },
@@ -531,12 +656,291 @@ const officeHours = [
   { day: 'Piątek', hours: '9:00–11:00, 16:00–18:00' }
 ];
 
-const aboutHighlights = [
-  { label: 'Rok założenia', value: '1984' },
-  { label: 'Wspólnoty', value: '12' },
-  { label: 'Msze tygodniowo', value: '18' },
-  { label: 'Wolontariusze', value: '45' }
-];
+  const aboutHighlights = [
+    { label: 'Rok założenia', value: '1984' },
+    { label: 'Wspólnoty', value: '12' },
+    { label: 'Msze tygodniowo', value: '18' },
+    { label: 'Wolontariusze', value: '45' }
+  ];
+
+const StickyModule = ({
+  layout,
+  columns
+}: {
+  layout: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
+  columns: number;
+}) => {
+  const colSpan = snapColSpan(layout.size.colSpan, columns);
+  const rowSpan = snapRowSpan(layout.size.rowSpan);
+  const showImages = rowSpan > 1;
+  const showSideList = showImages && colSpan >= 6 && rowSpan >= 5;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const maxIndex = stickyItems.length - 1;
+  const headlineItems = stickyItems.slice(0, 3);
+
+  useEffect(() => {
+    if (!showImages || stickyItems.length <= 1) return;
+    if (typeof window === 'undefined') return;
+    const timer = window.setInterval(() => {
+      setActiveIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1));
+    }, 6500);
+    return () => window.clearInterval(timer);
+  }, [showImages, maxIndex]);
+
+  if (!showImages) {
+    return (
+      <div className="sticky-headlines">
+        <strong>Najważniejsze</strong>
+        <ul>
+          {headlineItems.map((item) => (
+            <li key={item.id}>
+              <span>{item.title}</span>
+              <span className="muted">{item.date}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`sticky-module ${showSideList ? 'has-side' : 'solo'}`}>
+      <div className="sticky-carousel">
+        <div className="carousel sticky-carousel-inner">
+          {stickyItems.map((item, index) => (
+            <div
+              key={item.id}
+              className={`carousel-slide ${index === activeIndex ? 'is-active' : ''}`}
+            >
+              <img src={item.image} alt={item.title} />
+              <div className="carousel-caption">
+                <span className="tag">{item.category}</span>
+                <h4>{item.title}</h4>
+                <p className="muted">{item.summary}</p>
+                <span className="muted">{item.date}</span>
+              </div>
+            </div>
+          ))}
+          {stickyItems.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="carousel-arrow left"
+                aria-label="Poprzedni slajd"
+                onClick={() => setActiveIndex((prev) => (prev - 1 < 0 ? maxIndex : prev - 1))}
+              >
+                <span />
+              </button>
+              <button
+                type="button"
+                className="carousel-arrow right"
+                aria-label="Następny slajd"
+                onClick={() => setActiveIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1))}
+              >
+                <span />
+              </button>
+              <div className="carousel-dots">
+                {stickyItems.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={index === activeIndex ? 'is-active' : ''}
+                    aria-label={`Przejdź do slajdu ${index + 1}`}
+                    onClick={() => setActiveIndex(index)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      {showSideList && (
+        <aside className="sticky-side">
+          <strong>Lista informacji</strong>
+          <ul>
+            {stickyItems.map((item, index) => (
+              <li key={item.id} className={index === activeIndex ? 'is-active' : ''}>
+                <span>{item.title}</span>
+                <span className="muted">{item.date}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
+    </div>
+  );
+};
+
+const formatIntentions = (items: ParishPublicIntention[]) => {
+  const byDay = new Map<string, { label: string; items: { time: string; text: string; location: string }[] }>();
+  items.forEach((item) => {
+    const date = new Date(item.massDateTime);
+    if (Number.isNaN(date.getTime())) return;
+    const dayKey = date.toISOString().slice(0, 10);
+    const label = date.toLocaleDateString('pl-PL', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
+    const time = date.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    const entry = byDay.get(dayKey) ?? { label, items: [] };
+    entry.items.push({ time, text: item.publicText, location: item.churchName });
+    byDay.set(dayKey, entry);
+  });
+  return Array.from(byDay.values());
+};
+
+const IntentionsModule = ({
+  layout,
+  columns,
+  items
+}: {
+  layout: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
+  columns: number;
+  items: ParishPublicIntention[];
+}) => {
+  const colSpan = snapColSpan(layout.size.colSpan, columns);
+  const rowSpan = snapRowSpan(layout.size.rowSpan);
+  const grouped = useMemo(
+    () =>
+      items.length
+        ? formatIntentions(items)
+        : intentionsWeek.map((day) => ({
+            label: day.day,
+            items: day.items.map((item) => ({
+              time: item.time,
+              text: item.text,
+              location: item.location
+            }))
+          })),
+    [items]
+  );
+  const isCompact = rowSpan === 1;
+  const isExpanded = rowSpan >= 5;
+  const isWide = colSpan >= 4;
+  const showSideList = isExpanded && colSpan >= 6;
+  const limitedDays = grouped.slice(0, isExpanded ? 4 : 3);
+  const compactItems = limitedDays.flatMap((day) =>
+    day.items.map((item) => ({
+      day: day.label,
+      time: item.time,
+      text: item.text,
+      location: item.location
+    }))
+  );
+
+  if (isCompact) {
+    return (
+      <div className="intentions-module intentions-compact">
+        <strong>Intencje</strong>
+        <ul>
+          {compactItems.slice(0, 3).map((item, index) => (
+            <li key={`${item.time}-${index}`}>
+              <span>{item.time}</span>
+              <span className="ellipsis">{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`intentions-module ${showSideList ? 'has-side' : ''}`}>
+      <div className={`intentions-board ${isWide ? 'is-wide' : ''}`}>
+        {limitedDays.map((day) => (
+          <div key={day.label} className="intentions-day">
+            <strong>{day.label}</strong>
+            <ul>
+              {day.items.slice(0, isExpanded ? 3 : 2).map((item, index) => (
+                <li key={`${item.time}-${index}`}>
+                  <span>{item.time}</span>
+                  <span>{item.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {showSideList && (
+        <aside className="intentions-side">
+          <strong>Pełna lista</strong>
+          <ul>
+            {compactItems.slice(0, 6).map((item, index) => (
+              <li key={`${item.time}-${index}`}>
+                <span>{item.time}</span>
+                <span className="ellipsis">{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
+    </div>
+  );
+};
+
+const CalendarModule = ({
+  layout,
+  columns
+}: {
+  layout: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
+  columns: number;
+}) => {
+  const colSpan = snapColSpan(layout.size.colSpan, columns);
+  const rowSpan = snapRowSpan(layout.size.rowSpan);
+  const isCompact = rowSpan === 1;
+  const isExpanded = rowSpan >= 5;
+  const isWide = colSpan >= 4;
+  const showSideList = isExpanded && colSpan >= 6;
+  const featured = calendarEvents.slice(0, isExpanded ? 4 : 3);
+  const sideItems = calendarEvents.slice(0, 6);
+
+  if (isCompact) {
+    return (
+      <div className="calendar-module calendar-compact">
+        <strong>Kalendarz</strong>
+        <ul>
+          {calendarEvents.slice(0, 2).map((event) => (
+            <li key={event.id}>
+              <span>{event.time}</span>
+              <span className="ellipsis">{event.title}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`calendar-module ${showSideList ? 'has-side' : ''}`}>
+      <div className={`calendar-board ${isWide ? 'is-wide' : ''}`}>
+        {featured.map((event) => (
+          <article key={event.id} className="calendar-card">
+            <span className="calendar-date">{event.date}</span>
+            <h4>{event.title}</h4>
+            <p className="muted">
+              {event.time} • {event.place}
+            </p>
+            {isExpanded && <span className="pill">{event.category}</span>}
+          </article>
+        ))}
+      </div>
+      {showSideList && (
+        <aside className="calendar-side">
+          <strong>Nadchodzące</strong>
+          <ul>
+            {sideItems.map((event) => (
+              <li key={event.id}>
+                <span>{event.time}</span>
+                <span className="ellipsis">{event.title}</span>
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
+    </div>
+  );
+};
 
 export function ParishPage({
   copy,
@@ -633,13 +1037,8 @@ export function ParishPage({
     overValid: false
   });
   useEffect(() => {
-    setBuilderLayoutItems(normalizeLayoutItems(defaultHomepageConfig.modules, baseColumns));
-  }, [baseColumns]);
-
-  useEffect(() => {
-    setBuilderLayoutItems((current) => normalizeLayoutItems(current, gridColumns));
-    setEditLayoutItems((current) => normalizeLayoutItems(current, gridColumns));
-  }, [gridColumns]);
+    setBuilderLayoutItems(normalizeLayoutsAll(defaultHomepageConfig.modules));
+  }, []);
   const [resizeState, setResizeState] = useState<{
     layout: 'builder' | 'edit';
     itemId: string;
@@ -678,7 +1077,7 @@ export function ParishPage({
     setBuilderSlug('');
     setBuilderSlugTouched(false);
     setBuilderTheme('classic');
-    setBuilderLayoutItems(normalizeLayoutItems(defaultHomepageConfig.modules, baseColumns));
+    setBuilderLayoutItems(normalizeLayoutsAll(defaultHomepageConfig.modules));
     setBuilderError(null);
     setView('builder');
   };
@@ -806,10 +1205,10 @@ export function ParishPage({
       .then((data) => {
         setSiteConfig({
           ...data.homepage,
-          modules: normalizeLayoutItems(data.homepage.modules, baseColumns)
+          modules: normalizeLayoutsAll(data.homepage.modules)
         });
         setTheme((data.theme as ThemePreset) ?? 'classic');
-        setEditLayoutItems(normalizeLayoutItems(data.homepage.modules, baseColumns));
+        setEditLayoutItems(normalizeLayoutsAll(data.homepage.modules));
       })
       .catch(() => {
         setSiteConfig(null);
@@ -874,29 +1273,58 @@ export function ParishPage({
     }
   }, [parishSlug, parishOptions, view]);
 
-  const renderModuleContent = (module: ParishLayoutItem) => (
-    <div className="module-placeholder">
-      <p>Moduł: {module.type}</p>
-      <span className="muted">
-        Rozmiar: {module.size.colSpan}x{module.size.rowSpan}
-      </span>
-    </div>
-  );
+  const renderModuleContent = (module: ParishLayoutItem, breakpoint: LayoutBreakpoint) => {
+    const layout = getLayoutForBreakpoint(module, breakpoint);
+    if (module.type === 'sticky') {
+      return <StickyModule layout={layout} columns={breakpointColumns[breakpoint]} />;
+    }
+    if (module.type === 'intentions') {
+      return (
+        <IntentionsModule
+          layout={layout}
+          columns={breakpointColumns[breakpoint]}
+          items={publicIntentions}
+        />
+      );
+    }
+    if (module.type === 'calendar') {
+      return <CalendarModule layout={layout} columns={breakpointColumns[breakpoint]} />;
+    }
+    return (
+      <div className="module-placeholder">
+        <p>Moduł: {module.type}</p>
+        <span className="muted">
+          Rozmiar: {snapColSpan(layout.size.colSpan, breakpointColumns[breakpoint])}x
+          {snapRowSpan(layout.size.rowSpan)}
+        </span>
+      </div>
+    );
+  };
 
-  const createLayoutItem = (type: string, row = 1, col = 1): ParishLayoutItem => {
+  const createLayoutItem = (type: string, row = 1, col = 1, breakpoint: LayoutBreakpoint): ParishLayoutItem => {
     const moduleDef = parishModuleCatalog.find((module) => module.type === type);
     const id =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `${type}-${Date.now()}`;
+    const layouts: Partial<Record<LayoutBreakpoint, { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }>> =
+      {};
+    BREAKPOINTS.forEach((bp) => {
+      layouts[bp] = {
+        position: { row: 1, col: 1 },
+        size: { colSpan: MIN_COL_SPAN, rowSpan: MIN_ROW_SPAN }
+      };
+    });
+    layouts[breakpoint] = {
+      position: { row, col },
+      size: { colSpan: MIN_COL_SPAN, rowSpan: MIN_ROW_SPAN }
+    };
     return {
       id,
       type,
-      position: { row, col },
-      size: {
-        colSpan: MIN_COL_SPAN,
-        rowSpan: MIN_ROW_SPAN
-      },
+      layouts,
+      position: layouts.desktop?.position,
+      size: layouts.desktop?.size,
       props: { title: moduleDef?.label ?? type }
     };
   };
@@ -914,22 +1342,27 @@ export function ParishPage({
     return { row, col };
   };
 
+  const activeBreakpoint = getBreakpointKey(gridColumns);
+  const activeColumns = breakpointColumns[activeBreakpoint];
+
   const getValidDropCells = (
     items: ParishLayoutItem[],
     size: { colSpan: number; rowSpan: number },
     columns: number,
+    breakpoint: LayoutBreakpoint,
     excludeId?: string | null
   ) => {
     const occupied = new Set<string>();
     let maxRow = 4;
     items.forEach((item) => {
       if (excludeId && item.id === excludeId) return;
-      const colSpan = Math.min(item.size.colSpan, columns);
-      const rowSpan = snapRowSpan(item.size.rowSpan);
-      const endRow = item.position.row + rowSpan - 1;
+      const layout = getLayoutForBreakpoint(item, breakpoint);
+      const colSpan = snapColSpan(layout.size.colSpan, columns);
+      const rowSpan = snapRowSpan(layout.size.rowSpan);
+      const endRow = layout.position.row + rowSpan - 1;
       maxRow = Math.max(maxRow, endRow);
-      for (let r = item.position.row; r < item.position.row + rowSpan; r += 1) {
-        for (let c = item.position.col; c < item.position.col + colSpan; c += 1) {
+      for (let r = layout.position.row; r < layout.position.row + rowSpan; r += 1) {
+        for (let c = layout.position.col; c < layout.position.col + colSpan; c += 1) {
           occupied.add(`${r}:${c}`);
         }
       }
@@ -959,10 +1392,27 @@ export function ParishPage({
     return { valid, rows: targetRows, size: clampedSize };
   };
 
+  const findFirstValidCell = (
+    items: ParishLayoutItem[],
+    size: { colSpan: number; rowSpan: number },
+    columns: number,
+    breakpoint: LayoutBreakpoint
+  ) => {
+    const { valid } = getValidDropCells(items, size, columns, breakpoint);
+    const sorted = Array.from(valid)
+      .map((key) => {
+        const [rowStr, colStr] = key.split(':');
+        return { row: Number(rowStr), col: Number(colStr) };
+      })
+      .sort((a, b) => (a.row === b.row ? a.col - b.col : a.row - b.row));
+    return sorted[0] ?? { row: 1, col: 1 };
+  };
+
   const canPlaceItem = (
     items: ParishLayoutItem[],
-    candidate: ParishLayoutItem,
+    candidate: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } },
     columns: number,
+    breakpoint: LayoutBreakpoint,
     excludeId?: string | null
   ) => {
     const colSpan = snapColSpan(candidate.size.colSpan, columns);
@@ -974,10 +1424,11 @@ export function ParishPage({
     const occupied = new Set<string>();
     items.forEach((item) => {
       if (excludeId && item.id === excludeId) return;
-      const itemColSpan = snapColSpan(item.size.colSpan, columns);
-      const itemRowSpan = snapRowSpan(item.size.rowSpan);
-      for (let r = item.position.row; r < item.position.row + itemRowSpan; r += 1) {
-        for (let c = item.position.col; c < item.position.col + itemColSpan; c += 1) {
+      const layout = getLayoutForBreakpoint(item, breakpoint);
+      const itemColSpan = snapColSpan(layout.size.colSpan, columns);
+      const itemRowSpan = snapRowSpan(layout.size.rowSpan);
+      for (let r = layout.position.row; r < layout.position.row + itemRowSpan; r += 1) {
+        for (let c = layout.position.col; c < layout.position.col + itemColSpan; c += 1) {
           occupied.add(`${r}:${c}`);
         }
       }
@@ -1018,12 +1469,13 @@ export function ParishPage({
       const existing = items.find((item) => item.id === itemId);
       if (!existing) return;
       onSelect(itemId);
+      const layoutFrame = getLayoutForBreakpoint(existing, activeBreakpoint);
       setDragState({
         layout,
         activeId,
         activeType: 'item',
         activeItemId: itemId,
-        size: { ...existing.size },
+        size: { ...layoutFrame.size },
         overCell: null,
         overValid: false
       });
@@ -1049,7 +1501,8 @@ export function ParishPage({
     const { valid } = getValidDropCells(
       items,
       dragState.size,
-      gridColumns,
+      activeColumns,
+      activeBreakpoint,
       dragState.activeItemId ?? undefined
     );
     const key = `${target.row}:${target.col}`;
@@ -1097,7 +1550,8 @@ export function ParishPage({
     const { valid } = getValidDropCells(
       items,
       dragState.size,
-      gridColumns,
+      activeColumns,
+      activeBreakpoint,
       dragState.activeItemId ?? undefined
     );
     const key = `${target.row}:${target.col}`;
@@ -1107,8 +1561,40 @@ export function ParishPage({
     }
     if (activeId.startsWith('palette:')) {
       const type = activeId.replace('palette:', '');
-      const newItem = createLayoutItem(type, target.row, target.col);
-      const next = [...items, newItem];
+      const newItem = ensureLayouts(createLayoutItem(type, target.row, target.col, activeBreakpoint));
+      const sizedLayout = getLayoutForBreakpoint(newItem, activeBreakpoint);
+      const layouts = { ...(newItem.layouts ?? {}) } as Record<
+        LayoutBreakpoint,
+        { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }
+      >;
+      BREAKPOINTS.forEach((bp) => {
+        const columns = breakpointColumns[bp];
+        const snappedSize = {
+          colSpan: snapColSpan(sizedLayout.size.colSpan, columns),
+          rowSpan: snapRowSpan(sizedLayout.size.rowSpan)
+        };
+        if (bp === activeBreakpoint) {
+          layouts[bp] = {
+            position: { row: target.row, col: target.col },
+            size: snappedSize
+          };
+          return;
+        }
+        const first = findFirstValidCell(items, snappedSize, columns, bp);
+        layouts[bp] = {
+          position: first,
+          size: snappedSize
+        };
+      });
+      const next = [
+        ...items,
+        {
+          ...newItem,
+          layouts,
+          position: layouts.desktop?.position ?? newItem.position,
+          size: layouts.desktop?.size ?? newItem.size
+        }
+      ];
       setItems(next);
       onSelect(newItem.id);
       handleLayoutDragCancel();
@@ -1121,9 +1607,21 @@ export function ParishPage({
         handleLayoutDragCancel();
         return;
       }
-      const updated = items.map((item) =>
-        item.id === itemId ? { ...item, position: { row: target.row, col: target.col } } : item
-      );
+      const updated = items.map((item) => {
+        if (item.id !== itemId) return item;
+        const layouts = { ...(item.layouts ?? {}) } as Record<LayoutBreakpoint, { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }>;
+        const existingLayout = getLayoutForBreakpoint(item, activeBreakpoint);
+        layouts[activeBreakpoint] = {
+          position: { row: target.row, col: target.col },
+          size: { ...existingLayout.size }
+        };
+        return {
+          ...item,
+          layouts,
+          position: layouts.desktop?.position ?? item.position,
+          size: layouts.desktop?.size ?? item.size
+        };
+      });
       setItems(updated);
       onSelect(itemId);
     }
@@ -1131,7 +1629,7 @@ export function ParishPage({
   };
 
   const compactLayout = (items: ParishLayoutItem[], setItems: Dispatch<SetStateAction<ParishLayoutItem[]>>) => {
-    setItems(placeItems(items, gridColumns));
+    setItems(normalizeLayoutsForBreakpoint(items, activeBreakpoint, activeColumns));
   };
 
   const PaletteButton = ({ type, label }: { type: string; label: string }) => {
@@ -1173,12 +1671,14 @@ export function ParishPage({
 
   const GridItem = ({
     item,
+    frame,
     isActive,
     onSelect,
     isHidden,
     onResizeStart
   }: {
     item: ParishLayoutItem;
+    frame: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
     isActive?: boolean;
     onSelect?: () => void;
     isHidden?: boolean;
@@ -1203,8 +1703,8 @@ export function ParishPage({
           isHidden ? 'is-hidden' : ''
         }`}
         style={{
-          gridColumn: `${item.position.col} / span ${snapColSpan(item.size.colSpan, gridColumns)}`,
-          gridRow: `${item.position.row} / span ${snapRowSpan(item.size.rowSpan)}`
+          gridColumn: `${frame.position.col} / span ${snapColSpan(frame.size.colSpan, activeColumns)}`,
+          gridRow: `${frame.position.row} / span ${snapRowSpan(frame.size.rowSpan)}`
         }}
         onClick={onSelect}
         {...listeners}
@@ -1212,7 +1712,7 @@ export function ParishPage({
       >
         <strong>{item.type}</strong>
         <span className="muted">
-          {item.size.colSpan}x{item.size.rowSpan}
+          {snapColSpan(frame.size.colSpan, activeColumns)}x{snapRowSpan(frame.size.rowSpan)}
         </span>
         {onResizeStart ? (
           <>
@@ -1324,12 +1824,18 @@ export function ParishPage({
   const builderDragActive = dragState.layout === 'builder' && !!dragState.activeId;
   const builderDropInfo =
     builderDragActive && dragState.size
-      ? getValidDropCells(builderLayoutItems, dragState.size, gridColumns, dragState.activeItemId)
+      ? getValidDropCells(
+          builderLayoutItems,
+          dragState.size,
+          activeColumns,
+          activeBreakpoint,
+          dragState.activeItemId
+        )
       : null;
   const editDragActive = dragState.layout === 'edit' && !!dragState.activeId;
   const editDropInfo =
     editDragActive && dragState.size
-      ? getValidDropCells(editLayoutItems, dragState.size, gridColumns, dragState.activeItemId)
+      ? getValidDropCells(editLayoutItems, dragState.size, activeColumns, activeBreakpoint, dragState.activeItemId)
       : null;
 
 
@@ -1423,15 +1929,16 @@ export function ParishPage({
     const totalWidth = rect.width;
     const cellWidth =
       gridColumns > 0 ? (totalWidth - EDITOR_GAP * (gridColumns - 1)) / gridColumns : totalWidth;
-    const colSpan = Math.min(item.size.colSpan, gridColumns);
-    const rowSpan = snapRowSpan(item.size.rowSpan);
+    const layoutFrame = getLayoutForBreakpoint(item, activeBreakpoint);
+    const colSpan = snapColSpan(layoutFrame.size.colSpan, activeColumns);
+    const rowSpan = snapRowSpan(layoutFrame.size.rowSpan);
     setResizeState({
       layout,
       itemId: item.id,
-      originColStart: item.position.col,
-      originColEnd: item.position.col + colSpan - 1,
-      originRowStart: item.position.row,
-      originRowEnd: item.position.row + rowSpan - 1,
+      originColStart: layoutFrame.position.col,
+      originColEnd: layoutFrame.position.col + colSpan - 1,
+      originRowStart: layoutFrame.position.row,
+      originRowEnd: layoutFrame.position.row + rowSpan - 1,
       gridLeft: rect.left,
       gridTop: rect.top,
       cellWidth,
@@ -1462,7 +1969,7 @@ export function ParishPage({
       } = resizeState;
       const pointerCol = Math.floor((event.clientX - gridLeft) / (cellWidth + EDITOR_GAP)) + 1;
       const pointerRow = Math.floor((event.clientY - gridTop) / (rowHeight + EDITOR_GAP)) + 1;
-      const maxColSpan = Math.min(baseColumns, gridColumns);
+      const maxColSpan = Math.min(baseColumns, activeColumns);
       const updateItems = (current: ParishLayoutItem[]) => {
         let nextColStart = originColStart;
         let nextColEnd = originColEnd;
@@ -1502,27 +2009,32 @@ export function ParishPage({
           nextColStart = gridColumns - resolvedColSpan + 1;
         }
 
-        const candidate: ParishLayoutItem = {
-          id: itemId,
-          type: 'resized',
+        const candidate = {
           position: { row: nextRowStart, col: nextColStart },
-          size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan },
-          props: {}
+          size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan }
         };
 
-        if (!canPlaceItem(current, candidate, gridColumns, itemId)) {
+        if (!canPlaceItem(current, candidate, activeColumns, activeBreakpoint, itemId)) {
           return current;
         }
 
-        return current.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                position: { row: nextRowStart, col: nextColStart },
-                size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan }
-              }
-            : item
-        );
+        return current.map((item) => {
+          if (item.id !== itemId) return item;
+          const layouts = { ...(item.layouts ?? {}) } as Record<
+            LayoutBreakpoint,
+            { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }
+          >;
+          layouts[activeBreakpoint] = {
+            position: { row: nextRowStart, col: nextColStart },
+            size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan }
+          };
+          return {
+            ...item,
+            layouts,
+            position: layouts.desktop?.position ?? item.position,
+            size: layouts.desktop?.size ?? item.size
+          };
+        });
       };
       if (layout === 'builder') {
         setBuilderLayoutItems(updateItems);
@@ -1733,9 +2245,10 @@ export function ParishPage({
                               4,
                               Math.max(
                                 1,
-                                ...builderLayoutItems.map(
-                                  (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
-                                )
+                                ...builderLayoutItems.map((module) => {
+                                  const layout = getLayoutForBreakpoint(module, activeBreakpoint);
+                                  return layout.position.row + snapRowSpan(layout.size.rowSpan) - 1;
+                                })
                               ) + 2
                             );
                         const shellHeight =
@@ -1748,6 +2261,7 @@ export function ParishPage({
                               {
                                 '--grid-row-height': `${gridRowHeight}px`,
                                 '--grid-gap': `${EDITOR_GAP}px`,
+                                '--grid-columns': gridColumns,
                                 height: `${shellHeight}px`
                               } as CSSProperties
                             }
@@ -1772,30 +2286,31 @@ export function ParishPage({
                               })}
                             </div>
                             <div className="editor-grid-layer editor-grid-modules">
-                              {builderLayoutItems.map((module) => (
-                                <GridItem
-                                  key={`builder-item-${module.id}`}
-                                  item={module}
-                                  isActive={selectedBuilderId === module.id}
-                                  onSelect={() => setSelectedBuilderId(module.id)}
-                                  isHidden={builderDragActive && dragState.activeItemId === module.id}
-                                  onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
-                                />
-                              ))}
+                                {builderLayoutItems.map((module) => (
+                                  <GridItem
+                                    key={`builder-item-${module.id}`}
+                                    item={module}
+                                    frame={getLayoutForBreakpoint(module, activeBreakpoint)}
+                                    isActive={selectedBuilderId === module.id}
+                                    onSelect={() => setSelectedBuilderId(module.id)}
+                                    isHidden={builderDragActive && dragState.activeItemId === module.id}
+                                    onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
+                                  />
+                                ))}
                               {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
                                 <div
                                   className="editor-module is-ghost"
                                   style={{
-                                    gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                      dragState.size.colSpan,
-                                      gridColumns
-                                    )}`,
+                              gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                dragState.size.colSpan,
+                                activeColumns
+                              )}`,
                                     gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
                                   }}
                                 >
                                   <strong>Podgląd</strong>
                                   <span className="muted">
-                                    {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                      {snapColSpan(dragState.size.colSpan, activeColumns)}x
                                     {snapRowSpan(dragState.size.rowSpan)}
                                   </span>
                                 </div>
@@ -1809,7 +2324,7 @@ export function ParishPage({
                           <div className="editor-module drag-overlay">
                             <strong>{dragLabel}</strong>
                             <span className="muted">
-                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, activeColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -1832,10 +2347,15 @@ export function ParishPage({
                           .map((module) => (
                             <div key={module.id} className="builder-layout-row">
                               <strong>{module.type}</strong>
-                              <span className="muted">
-                                Rozmiar: {module.size.colSpan}x{module.size.rowSpan} (zmień przez przeciągnięcie
-                                narożnika)
-                              </span>
+                                <span className="muted">
+                                  Rozmiar: {snapColSpan(
+                                    getLayoutForBreakpoint(module, activeBreakpoint).size.colSpan,
+                                    activeColumns
+                                  )}
+                                  x
+                                  {snapRowSpan(getLayoutForBreakpoint(module, activeBreakpoint).size.rowSpan)} (zmień
+                                  przez przeciągnięcie narożnika)
+                                </span>
                             </div>
                           ))}
                       </div>
@@ -2028,16 +2548,6 @@ export function ParishPage({
           <main className="parish-main">
             {activePage === 'start' && (
               <section className="parish-section home-grid-section">
-                <div className="home-grid-header">
-                  <div>
-                    <p className="tag">Strona główna</p>
-                    <h2>Moduły parafii</h2>
-                    <p className="muted">
-                      Cała strona główna składa się z modułów. Układ jest tworzony podczas konfiguracji
-                      i edycji.
-                    </p>
-                  </div>
-                </div>
                 {editMode && (
                   <div className="home-grid-editor">
                     <DndContext
@@ -2074,9 +2584,10 @@ export function ParishPage({
                               4,
                               Math.max(
                                 1,
-                                ...editLayoutItems.map(
-                                  (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
-                                )
+                                ...editLayoutItems.map((module) => {
+                                  const layout = getLayoutForBreakpoint(module, activeBreakpoint);
+                                  return layout.position.row + snapRowSpan(layout.size.rowSpan) - 1;
+                                })
                               ) + 2
                             );
                         const shellHeight =
@@ -2089,6 +2600,7 @@ export function ParishPage({
                               {
                                 '--grid-row-height': `${gridRowHeight}px`,
                                 '--grid-gap': `${EDITOR_GAP}px`,
+                                '--grid-columns': gridColumns,
                                 height: `${shellHeight}px`
                               } as CSSProperties
                             }
@@ -2113,30 +2625,31 @@ export function ParishPage({
                               })}
                             </div>
                             <div className="editor-grid-layer editor-grid-modules">
-                              {editLayoutItems.map((module) => (
-                                <GridItem
-                                  key={`edit-item-${module.id}`}
-                                  item={module}
-                                  isActive={selectedEditId === module.id}
-                                  onSelect={() => setSelectedEditId(module.id)}
-                                  isHidden={editDragActive && dragState.activeItemId === module.id}
-                                  onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
-                                />
-                              ))}
+                                {editLayoutItems.map((module) => (
+                                  <GridItem
+                                    key={`edit-item-${module.id}`}
+                                    item={module}
+                                    frame={getLayoutForBreakpoint(module, activeBreakpoint)}
+                                    isActive={selectedEditId === module.id}
+                                    onSelect={() => setSelectedEditId(module.id)}
+                                    isHidden={editDragActive && dragState.activeItemId === module.id}
+                                    onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
+                                  />
+                                ))}
                               {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
                                 <div
                                   className="editor-module is-ghost"
                                   style={{
-                                    gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                      dragState.size.colSpan,
-                                      gridColumns
-                                    )}`,
+                                      gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                        dragState.size.colSpan,
+                                        activeColumns
+                                      )}`,
                                     gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
                                   }}
                                 >
                                   <strong>Podgląd</strong>
                                   <span className="muted">
-                                    {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                      {snapColSpan(dragState.size.colSpan, activeColumns)}x
                                     {snapRowSpan(dragState.size.rowSpan)}
                                   </span>
                                 </div>
@@ -2150,7 +2663,7 @@ export function ParishPage({
                           <div className="editor-module drag-overlay">
                             <strong>{dragLabel}</strong>
                             <span className="muted">
-                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, activeColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -2179,10 +2692,15 @@ export function ParishPage({
                           .map((module) => (
                             <div key={module.id} className="builder-layout-row">
                               <strong>{module.type}</strong>
-                              <span className="muted">
-                                Rozmiar: {module.size.colSpan}x{module.size.rowSpan} (zmień przez przeciągnięcie
-                                narożnika)
-                              </span>
+                                <span className="muted">
+                                  Rozmiar: {snapColSpan(
+                                    getLayoutForBreakpoint(module, activeBreakpoint).size.colSpan,
+                                    activeColumns
+                                  )}
+                                  x
+                                  {snapRowSpan(getLayoutForBreakpoint(module, activeBreakpoint).size.rowSpan)} (zmień
+                                  przez przeciągnięcie narożnika)
+                                </span>
                             </div>
                           ))}
                       </div>
@@ -2200,22 +2718,26 @@ export function ParishPage({
                   }
                 >
                   {homepageModules.map((module) => {
+                    const layout = getLayoutForBreakpoint(module, activeBreakpoint);
                     return (
                       <article
                         key={module.id}
                         className="home-module"
                         style={{
-                          gridColumn: `${module.position.col} / span ${snapColSpan(module.size.colSpan, gridColumns)}`,
-                          gridRow: `${module.position.row} / span ${snapRowSpan(module.size.rowSpan)}`
+                          gridColumn: `${layout.position.col} / span ${snapColSpan(
+                            layout.size.colSpan,
+                            activeColumns
+                          )}`,
+                          gridRow: `${layout.position.row} / span ${snapRowSpan(layout.size.rowSpan)}`
                         }}
                       >
                         <header>
                           <h3>{module.type}</h3>
                           <span className="pill">
-                            {module.size.colSpan}x{module.size.rowSpan}
+                            {snapColSpan(layout.size.colSpan, activeColumns)}x{snapRowSpan(layout.size.rowSpan)}
                           </span>
                         </header>
-                        <div className="module-body">{renderModuleContent(module)}</div>
+                        <div className="module-body">{renderModuleContent(module, activeBreakpoint)}</div>
                       </article>
                     );
                   })}

@@ -1427,11 +1427,19 @@ export function checkCogitaWordLanguage(payload: { libraryId: string; languageId
   );
 }
 
+export type ParishLayoutFrame = {
+  position: { row: number; col: number };
+  size: { colSpan: number; rowSpan: number };
+};
+
+export type ParishLayoutBreakpoint = 'desktop' | 'tablet' | 'mobile';
+
 export type ParishLayoutItem = {
   id: string;
   type: string;
-  position: { row: number; col: number };
-  size: { colSpan: number; rowSpan: number };
+  layouts?: Partial<Record<ParishLayoutBreakpoint, ParishLayoutFrame>>;
+  position?: { row: number; col: number };
+  size?: { colSpan: number; rowSpan: number };
   props?: Record<string, string>;
 };
 

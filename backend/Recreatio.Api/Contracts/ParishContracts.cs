@@ -8,12 +8,19 @@ public sealed record ParishLayoutSize(
     int ColSpan,
     int RowSpan);
 
-public sealed record ParishLayoutItem(
-    string Id,
-    string Type,
+public sealed record ParishLayoutFrame(
     ParishLayoutPosition Position,
-    ParishLayoutSize Size,
-    Dictionary<string, string>? Props = null);
+    ParishLayoutSize Size);
+
+public sealed class ParishLayoutItem
+{
+    public string Id { get; init; } = string.Empty;
+    public string Type { get; init; } = string.Empty;
+    public Dictionary<string, ParishLayoutFrame>? Layouts { get; init; }
+    public ParishLayoutPosition? Position { get; init; }
+    public ParishLayoutSize? Size { get; init; }
+    public Dictionary<string, string>? Props { get; init; }
+}
 
 public sealed record ParishHomepageConfig(
     IReadOnlyList<ParishLayoutItem> Modules);
