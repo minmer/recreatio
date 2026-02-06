@@ -1917,11 +1917,13 @@
   background: rgba(255, 255, 255, 0.8);
   color: var(--parish-muted);
   box-shadow: none;
+  pointer-events: none;
 }
 
 .editor-module.drag-overlay {
   opacity: 0.6;
   width: 220px;
+  pointer-events: none;
 }
 
 .editor-module .resize-handle {
