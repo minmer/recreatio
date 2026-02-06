@@ -7,6 +7,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
@@ -562,13 +563,23 @@ export function ParishPage({
   const [resizeState, setResizeState] = useState<{
     layout: 'builder' | 'edit';
     itemId: string;
-    originCol: number;
-    originRow: number;
+    originColStart: number;
+    originColEnd: number;
+    originRowStart: number;
+    originRowEnd: number;
     gridLeft: number;
     gridTop: number;
     cellWidth: number;
     rowHeight: number;
-    mode: 'both' | 'x' | 'y';
+    handle:
+      | 'left'
+      | 'right'
+      | 'top'
+      | 'bottom'
+      | 'top-left'
+      | 'top-right'
+      | 'bottom-left'
+      | 'bottom-right';
   } | null>(null);
   const normalizeSlug = (value: string) =>
     value
@@ -1098,7 +1109,18 @@ export function ParishPage({
     isActive?: boolean;
     onSelect?: () => void;
     isHidden?: boolean;
-    onResizeStart?: (mode: 'both' | 'x' | 'y', event: ReactPointerEvent<HTMLButtonElement>) => void;
+    onResizeStart?: (
+      handle:
+        | 'left'
+        | 'right'
+        | 'top'
+        | 'bottom'
+        | 'top-left'
+        | 'top-right'
+        | 'bottom-left'
+        | 'bottom-right',
+      event: ReactPointerEvent<HTMLButtonElement>
+    ) => void;
   }) => {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `item:${item.id}` });
     return (
@@ -1123,29 +1145,82 @@ export function ParishPage({
           <>
             <button
               type="button"
-              className="resize-handle resize-handle-x"
+              className="resize-handle resize-handle-left"
               aria-label="Zmień szerokość modułu"
               onPointerDown={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
-                onResizeStart('x', event);
+                onResizeStart('left', event);
               }}
             />
             <button
               type="button"
-              className="resize-handle resize-handle-y"
+              className="resize-handle resize-handle-right"
+              aria-label="Zmień szerokość modułu"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onResizeStart('right', event);
+              }}
+            />
+            <button
+              type="button"
+              className="resize-handle resize-handle-top"
               aria-label="Zmień wysokość modułu"
               onPointerDown={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
-                onResizeStart('y', event);
+                onResizeStart('top', event);
               }}
             />
             <button
               type="button"
-              className="resize-handle resize-handle-both"
+              className="resize-handle resize-handle-bottom"
+              aria-label="Zmień wysokość modułu"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onResizeStart('bottom', event);
+              }}
+            />
+            <button
+              type="button"
+              className="resize-handle resize-handle-top-left"
               aria-label="Zmień rozmiar modułu"
               onPointerDown={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
-                onResizeStart('both', event);
+                onResizeStart('top-left', event);
+              }}
+            />
+            <button
+              type="button"
+              className="resize-handle resize-handle-top-right"
+              aria-label="Zmień rozmiar modułu"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onResizeStart('top-right', event);
+              }}
+            />
+            <button
+              type="button"
+              className="resize-handle resize-handle-bottom-left"
+              aria-label="Zmień rozmiar modułu"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onResizeStart('bottom-left', event);
+              }}
+            />
+            <button
+              type="button"
+              className="resize-handle resize-handle-bottom-right"
+              aria-label="Zmień rozmiar modułu"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onResizeStart('bottom-right', event);
               }}
             />
           </>
@@ -1259,7 +1334,15 @@ export function ParishPage({
   const startResize = (
     layout: 'builder' | 'edit',
     item: ParishLayoutItem,
-    mode: 'both' | 'x' | 'y',
+    handle:
+      | 'left'
+      | 'right'
+      | 'top'
+      | 'bottom'
+      | 'top-left'
+      | 'top-right'
+      | 'bottom-left'
+      | 'bottom-right',
     event: ReactPointerEvent<HTMLButtonElement>
   ) => {
     const grid = editorGridRef.current;
@@ -1268,38 +1351,90 @@ export function ParishPage({
     const totalWidth = rect.width;
     const cellWidth =
       gridColumns > 0 ? (totalWidth - GRID_GAP * (gridColumns - 1)) / gridColumns : totalWidth;
+    const colSpan = Math.min(item.size.colSpan, gridColumns);
+    const rowSpan = snapRowSpan(item.size.rowSpan);
     setResizeState({
       layout,
       itemId: item.id,
-      originCol: item.position.col,
-      originRow: item.position.row,
+      originColStart: item.position.col,
+      originColEnd: item.position.col + colSpan - 1,
+      originRowStart: item.position.row,
+      originRowEnd: item.position.row + rowSpan - 1,
       gridLeft: rect.left,
       gridTop: rect.top,
       cellWidth,
       rowHeight: gridRowHeight,
-      mode
+      handle
     });
+    if (typeof document !== 'undefined') {
+      document.body.style.userSelect = 'none';
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   useEffect(() => {
     if (!resizeState) return;
     const handlePointerMove = (event: PointerEvent) => {
-      const { layout, itemId, originCol, originRow, gridLeft, gridTop, cellWidth, rowHeight, mode } = resizeState;
+      const {
+        layout,
+        itemId,
+        originColStart,
+        originColEnd,
+        originRowStart,
+        originRowEnd,
+        gridLeft,
+        gridTop,
+        cellWidth,
+        rowHeight,
+        handle
+      } = resizeState;
       const pointerCol = Math.floor((event.clientX - gridLeft) / (cellWidth + GRID_GAP)) + 1;
       const pointerRow = Math.floor((event.clientY - gridTop) / (rowHeight + GRID_GAP)) + 1;
       const maxColSpan = Math.min(baseColumns, gridColumns);
-      const nextColSpan = clamp(pointerCol - originCol + 1, MIN_COL_SPAN, maxColSpan);
-      const nextRowSpan = snapRowSpan(clamp(pointerRow - originRow + 1, MIN_ROW_SPAN, MAX_ROW_SPAN));
       const updateItems = (current: ParishLayoutItem[]) => {
-        const currentItem = current.find((item) => item.id === itemId);
-        const currentColSpan = currentItem?.size.colSpan ?? MIN_COL_SPAN;
-        const currentRowSpan = snapRowSpan(currentItem?.size.rowSpan ?? MIN_ROW_SPAN);
-        const resolvedColSpan = mode === 'y' ? currentColSpan : nextColSpan;
-        const resolvedRowSpan = mode === 'x' ? currentRowSpan : nextRowSpan;
+        let nextColStart = originColStart;
+        let nextColEnd = originColEnd;
+        let nextRowStart = originRowStart;
+        let nextRowEnd = originRowEnd;
+
+        if (handle === 'left' || handle === 'top-left' || handle === 'bottom-left') {
+          nextColStart = clamp(pointerCol, 1, originColEnd);
+        }
+        if (handle === 'right' || handle === 'top-right' || handle === 'bottom-right') {
+          nextColEnd = clamp(pointerCol, originColStart, gridColumns);
+        }
+        if (handle === 'top' || handle === 'top-left' || handle === 'top-right') {
+          nextRowStart = clamp(pointerRow, 1, originRowEnd);
+        }
+        if (handle === 'bottom' || handle === 'bottom-left' || handle === 'bottom-right') {
+          nextRowEnd = clamp(pointerRow, originRowStart, originRowStart + MAX_ROW_SPAN + 6);
+        }
+
+        let resolvedColSpan = clamp(nextColEnd - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
+        let resolvedRowSpan = snapRowSpan(clamp(nextRowEnd - nextRowStart + 1, MIN_ROW_SPAN, MAX_ROW_SPAN));
+
+        if (handle === 'left' || handle === 'top-left' || handle === 'bottom-left') {
+          nextColStart = nextColEnd - resolvedColSpan + 1;
+        }
+        if (handle === 'top' || handle === 'top-left' || handle === 'top-right') {
+          nextRowStart = nextRowEnd - resolvedRowSpan + 1;
+        }
+
+        if (nextColStart < 1) {
+          nextColStart = 1;
+          resolvedColSpan = clamp(originColEnd - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
+        }
+        if (nextColStart + resolvedColSpan - 1 > gridColumns) {
+          resolvedColSpan = clamp(gridColumns - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
+        }
+
         const updated = current.map((item) =>
           item.id === itemId
-            ? { ...item, size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan } }
+            ? {
+                ...item,
+                position: { row: nextRowStart, col: nextColStart },
+                size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan }
+              }
             : item
         );
         const reordered = [
@@ -1316,6 +1451,9 @@ export function ParishPage({
     };
     const handlePointerUp = () => {
       setResizeState(null);
+      if (typeof document !== 'undefined') {
+        document.body.style.userSelect = '';
+      }
     };
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -1482,6 +1620,7 @@ export function ParishPage({
                   <div className="builder-panel">
                     <DndContext
                       sensors={sensors}
+                      collisionDetection={pointerWithin}
                       onDragStart={(event) =>
                         handleLayoutDragStart(event, 'builder', builderLayoutItems, setSelectedBuilderId)
                       }
@@ -1814,6 +1953,7 @@ export function ParishPage({
                   <div className="home-grid-editor">
                     <DndContext
                       sensors={sensors}
+                      collisionDetection={pointerWithin}
                       onDragStart={(event) =>
                         handleLayoutDragStart(event, 'edit', editLayoutItems, setSelectedEditId)
                       }
