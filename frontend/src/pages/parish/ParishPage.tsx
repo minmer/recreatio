@@ -621,7 +621,7 @@ export function ParishPage({
     setBuilderError(null);
     try {
       const homepage = {
-        modules: placeItems(builderLayoutItems, baseColumns)
+        modules: builderLayoutItems
       };
       const created = await createParishSite({
         name: builderName.trim(),
@@ -803,7 +803,7 @@ export function ParishPage({
     items.forEach((item) => {
       let startRow = Math.max(1, item.position.row);
       let startCol = Math.max(1, Math.min(item.position.col, columns));
-      const colSpan = Math.min(item.size.colSpan, columns);
+      const colSpan = snapColSpan(item.size.colSpan, columns);
       const rowSpan = snapRowSpan(item.size.rowSpan);
       let placed = false;
       let row = startRow;
@@ -860,6 +860,14 @@ export function ParishPage({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const allowedColSpans = [2, 3, 4, 6];
+  const snapColSpan = (value: number, columns: number) => {
+    const candidates = allowedColSpans.filter((span) => span <= columns);
+    if (candidates.length === 0) return columns;
+    return candidates.reduce((closest, current) =>
+      Math.abs(current - value) < Math.abs(closest - value) ? current : closest
+    );
+  };
   const snapRowSpan = (value: number) => {
     if (value <= 2) return 1;
     if (value <= 4) return 3;
@@ -896,7 +904,7 @@ export function ParishPage({
       }
     });
     const clampedSize = {
-      colSpan: Math.min(size.colSpan, columns),
+      colSpan: snapColSpan(size.colSpan, columns),
       rowSpan: snapRowSpan(size.rowSpan)
     };
     const targetRows = Math.max(4, maxRow + 4);
@@ -918,6 +926,37 @@ export function ParishPage({
       }
     }
     return { valid, rows: targetRows, size: clampedSize };
+  };
+
+  const canPlaceItem = (
+    items: ParishLayoutItem[],
+    candidate: ParishLayoutItem,
+    columns: number,
+    excludeId?: string | null
+  ) => {
+    const colSpan = snapColSpan(candidate.size.colSpan, columns);
+    const rowSpan = snapRowSpan(candidate.size.rowSpan);
+    const startRow = candidate.position.row;
+    const startCol = candidate.position.col;
+    if (startRow < 1 || startCol < 1) return false;
+    if (startCol + colSpan - 1 > columns) return false;
+    const occupied = new Set<string>();
+    items.forEach((item) => {
+      if (excludeId && item.id === excludeId) return;
+      const itemColSpan = snapColSpan(item.size.colSpan, columns);
+      const itemRowSpan = snapRowSpan(item.size.rowSpan);
+      for (let r = item.position.row; r < item.position.row + itemRowSpan; r += 1) {
+        for (let c = item.position.col; c < item.position.col + itemColSpan; c += 1) {
+          occupied.add(`${r}:${c}`);
+        }
+      }
+    });
+    for (let r = startRow; r < startRow + rowSpan; r += 1) {
+      for (let c = startCol; c < startCol + colSpan; c += 1) {
+        if (occupied.has(`${r}:${c}`)) return false;
+      }
+    }
+    return true;
   };
 
   const handleLayoutDragStart = (
@@ -1038,7 +1077,7 @@ export function ParishPage({
     if (activeId.startsWith('palette:')) {
       const type = activeId.replace('palette:', '');
       const newItem = createLayoutItem(type, target.row, target.col);
-      const next = placeItems([newItem, ...items], gridColumns);
+      const next = [...items, newItem];
       setItems(next);
       onSelect(newItem.id);
       handleLayoutDragCancel();
@@ -1054,12 +1093,7 @@ export function ParishPage({
       const updated = items.map((item) =>
         item.id === itemId ? { ...item, position: { row: target.row, col: target.col } } : item
       );
-      const reordered = [
-        updated.find((item) => item.id === itemId)!,
-        ...updated.filter((item) => item.id !== itemId)
-      ];
-      const next = placeItems(reordered, gridColumns);
-      setItems(next);
+      setItems(updated);
       onSelect(itemId);
     }
     handleLayoutDragCancel();
@@ -1084,18 +1118,26 @@ export function ParishPage({
     );
   };
 
-  const DroppableCell = ({ row, col, isValid }: { row: number; col: number; isValid: boolean }) => {
+  const DroppableCell = ({
+    row,
+    col,
+    isValid,
+    isActive
+  }: {
+    row: number;
+    col: number;
+    isValid: boolean;
+    isActive: boolean;
+  }) => {
     const { setNodeRef, isOver } = useDroppable({ id: `cell:${row}:${col}` });
     return (
       <div
         ref={setNodeRef}
-        className={`editor-cell ${isValid ? 'is-valid' : ''} ${isOver ? 'is-over' : ''} is-dropzone`}
+        className={`editor-cell is-dropzone ${isActive ? 'is-active' : ''} ${isValid ? 'is-valid' : ''} ${
+          isOver ? 'is-over' : ''
+        }`}
       />
     );
-  };
-
-  const StaticCell = ({ isVisible }: { isVisible: boolean }) => {
-    return <div className={`editor-cell ${isVisible ? "is-visible" : "is-hidden"}`} />;
   };
 
   const GridItem = ({
@@ -1130,8 +1172,8 @@ export function ParishPage({
           isHidden ? 'is-hidden' : ''
         }`}
         style={{
-          gridColumn: `${item.position.col} / span ${Math.min(item.size.colSpan, gridColumns)}`,
-          gridRow: `${item.position.row} / span ${item.size.rowSpan}`
+          gridColumn: `${item.position.col} / span ${snapColSpan(item.size.colSpan, gridColumns)}`,
+          gridRow: `${item.position.row} / span ${snapRowSpan(item.size.rowSpan)}`
         }}
         onClick={onSelect}
         {...listeners}
@@ -1231,8 +1273,7 @@ export function ParishPage({
 
   const builderSteps = ['Dane podstawowe', 'Zawartość', 'Wygląd', 'Podsumowanie'];
   const selectedModuleLabels = builderLayoutItems.map((module) => module.type);
-  const homepageModules = placeItems((siteConfig ?? defaultHomepageConfig).modules, gridColumns);
-  const normalizedBuilderModules = placeItems(builderLayoutItems, gridColumns);
+  const homepageModules = (siteConfig ?? defaultHomepageConfig).modules;
   const dragLabel = useMemo(() => {
     if (!dragState.activeId) return 'Moduł';
     if (dragState.activeType === 'palette') {
@@ -1266,7 +1307,7 @@ export function ParishPage({
     try {
       setEditError(null);
       const homepage: ParishHomepageConfig = {
-        modules: placeItems(editLayoutItems, baseColumns)
+        modules: editLayoutItems
       };
       await updateParishSite(parish.id, { homepage, isPublished: true });
       setSiteConfig(homepage);
@@ -1410,7 +1451,10 @@ export function ParishPage({
           nextRowEnd = clamp(pointerRow, originRowStart, originRowStart + MAX_ROW_SPAN + 6);
         }
 
-        let resolvedColSpan = clamp(nextColEnd - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
+        let resolvedColSpan = snapColSpan(
+          clamp(nextColEnd - nextColStart + 1, MIN_COL_SPAN, maxColSpan),
+          gridColumns
+        );
         let resolvedRowSpan = snapRowSpan(clamp(nextRowEnd - nextRowStart + 1, MIN_ROW_SPAN, MAX_ROW_SPAN));
 
         if (handle === 'left' || handle === 'top-left' || handle === 'bottom-left') {
@@ -1422,13 +1466,24 @@ export function ParishPage({
 
         if (nextColStart < 1) {
           nextColStart = 1;
-          resolvedColSpan = clamp(originColEnd - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
         }
         if (nextColStart + resolvedColSpan - 1 > gridColumns) {
-          resolvedColSpan = clamp(gridColumns - nextColStart + 1, MIN_COL_SPAN, maxColSpan);
+          nextColStart = gridColumns - resolvedColSpan + 1;
         }
 
-        const updated = current.map((item) =>
+        const candidate: ParishLayoutItem = {
+          id: itemId,
+          type: 'resized',
+          position: { row: nextRowStart, col: nextColStart },
+          size: { colSpan: resolvedColSpan, rowSpan: resolvedRowSpan },
+          props: {}
+        };
+
+        if (!canPlaceItem(current, candidate, gridColumns, itemId)) {
+          return current;
+        }
+
+        return current.map((item) =>
           item.id === itemId
             ? {
                 ...item,
@@ -1437,11 +1492,6 @@ export function ParishPage({
               }
             : item
         );
-        const reordered = [
-          updated.find((item) => item.id === itemId)!,
-          ...updated.filter((item) => item.id !== itemId)
-        ];
-        return placeItems(reordered, gridColumns);
       };
       if (layout === 'builder') {
         setBuilderLayoutItems(updateItems);
@@ -1662,8 +1712,8 @@ export function ParishPage({
                                 4,
                                 Math.max(
                                   1,
-                                  ...normalizedBuilderModules.map(
-                                    (module) => module.position.row + module.size.rowSpan - 1
+                                  ...builderLayoutItems.map(
+                                    (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
                                   )
                                 ) + 2
                               );
@@ -1671,23 +1721,21 @@ export function ParishPage({
                           for (let r = 1; r <= rows; r += 1) {
                             for (let c = 1; c <= gridColumns; c += 1) {
                               const key = `${r}:${c}`;
-                              const isValid = builderDropInfo?.valid?.has(key) ?? false;
-                              if (builderDragActive) {
-                                cells.push(
-                                  isValid ? (
-                                    <DroppableCell key={`builder-cell-${r}-${c}`} row={r} col={c} isValid />
-                                  ) : (
-                                    <StaticCell key={`builder-cell-${r}-${c}`} isVisible={false} />
-                                  )
-                                );
-                              } else {
-                                cells.push(<StaticCell key={`builder-cell-${r}-${c}`} isVisible />);
-                              }
+                              const isValid = builderDragActive && (builderDropInfo?.valid?.has(key) ?? false);
+                              cells.push(
+                                <DroppableCell
+                                  key={`builder-cell-${r}-${c}`}
+                                  row={r}
+                                  col={c}
+                                  isValid={isValid}
+                                  isActive={builderDragActive}
+                                />
+                              );
                             }
                           }
                           return cells;
                         })()}
-                        {normalizedBuilderModules.map((module) => (
+                        {builderLayoutItems.map((module) => (
                           <GridItem
                             key={`builder-item-${module.id}`}
                             item={module}
@@ -1701,7 +1749,7 @@ export function ParishPage({
                           <div
                             className="editor-module is-ghost"
                             style={{
-                              gridColumn: `${dragState.overCell.col} / span ${Math.min(
+                              gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
                                 dragState.size.colSpan,
                                 gridColumns
                               )}`,
@@ -1710,7 +1758,7 @@ export function ParishPage({
                           >
                             <strong>Podgląd</strong>
                             <span className="muted">
-                              {Math.min(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -1720,7 +1768,7 @@ export function ParishPage({
                           <div className="editor-module drag-overlay">
                             <strong>{dragLabel}</strong>
                             <span className="muted">
-                              {Math.min(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -1989,38 +2037,36 @@ export function ParishPage({
                         }
                       >
                         {(() => {
-                          const rows = editDropInfo?.rows
-                            ? editDropInfo.rows
-                            : Math.max(
-                                4,
-                                Math.max(
-                                  1,
-                                  ...editLayoutItems.map(
-                                    (module) => module.position.row + module.size.rowSpan - 1
-                                  )
-                                ) + 2
-                              );
+                            const rows = editDropInfo?.rows
+                              ? editDropInfo.rows
+                              : Math.max(
+                                  4,
+                                  Math.max(
+                                    1,
+                                    ...editLayoutItems.map(
+                                      (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
+                                    )
+                                  ) + 2
+                                );
                           const cells = [];
                           for (let r = 1; r <= rows; r += 1) {
                             for (let c = 1; c <= gridColumns; c += 1) {
                               const key = `${r}:${c}`;
-                              const isValid = editDropInfo?.valid?.has(key) ?? false;
-                              if (editDragActive) {
-                                cells.push(
-                                  isValid ? (
-                                    <DroppableCell key={`edit-cell-${r}-${c}`} row={r} col={c} isValid />
-                                  ) : (
-                                    <StaticCell key={`edit-cell-${r}-${c}`} isVisible={false} />
-                                  )
-                                );
-                              } else {
-                                cells.push(<StaticCell key={`edit-cell-${r}-${c}`} isVisible />);
-                              }
+                              const isValid = editDragActive && (editDropInfo?.valid?.has(key) ?? false);
+                              cells.push(
+                                <DroppableCell
+                                  key={`edit-cell-${r}-${c}`}
+                                  row={r}
+                                  col={c}
+                                  isValid={isValid}
+                                  isActive={editDragActive}
+                                />
+                              );
                             }
                           }
                           return cells;
                         })()}
-                        {placeItems(editLayoutItems, gridColumns).map((module) => (
+                        {editLayoutItems.map((module) => (
                           <GridItem
                             key={`edit-item-${module.id}`}
                             item={module}
@@ -2034,7 +2080,7 @@ export function ParishPage({
                           <div
                             className="editor-module is-ghost"
                             style={{
-                              gridColumn: `${dragState.overCell.col} / span ${Math.min(
+                              gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
                                 dragState.size.colSpan,
                                 gridColumns
                               )}`,
@@ -2043,7 +2089,7 @@ export function ParishPage({
                           >
                             <strong>Podgląd</strong>
                             <span className="muted">
-                              {Math.min(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -2053,7 +2099,7 @@ export function ParishPage({
                           <div className="editor-module drag-overlay">
                             <strong>{dragLabel}</strong>
                             <span className="muted">
-                              {Math.min(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
+                                {snapColSpan(dragState.size.colSpan, gridColumns)}x{snapRowSpan(dragState.size.rowSpan)}
                             </span>
                           </div>
                         ) : null}
@@ -2108,8 +2154,8 @@ export function ParishPage({
                         key={module.id}
                         className="home-module"
                         style={{
-                          gridColumn: `${module.position.col} / span ${module.size.colSpan}`,
-                          gridRow: `${module.position.row} / span ${module.size.rowSpan}`
+                          gridColumn: `${module.position.col} / span ${snapColSpan(module.size.colSpan, gridColumns)}`,
+                          gridRow: `${module.position.row} / span ${snapRowSpan(module.size.rowSpan)}`
                         }}
                       >
                         <header>
