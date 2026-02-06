@@ -38,6 +38,7 @@ type ModuleHeight = 'one' | 'three' | 'five';
 
 const HOME_GAP = 16;
 const EDITOR_GAP = 0;
+const EDITOR_PADDING = 12;
 const allowedColSpans = [2, 3, 4, 6];
 const snapColSpan = (value: number, columns: number) => {
   const candidates = allowedColSpans.filter((span) => span <= columns);
@@ -634,6 +635,11 @@ export function ParishPage({
   useEffect(() => {
     setBuilderLayoutItems(normalizeLayoutItems(defaultHomepageConfig.modules, baseColumns));
   }, [baseColumns]);
+
+  useEffect(() => {
+    setBuilderLayoutItems((current) => normalizeLayoutItems(current, gridColumns));
+    setEditLayoutItems((current) => normalizeLayoutItems(current, gridColumns));
+  }, [gridColumns]);
   const [resizeState, setResizeState] = useState<{
     layout: 'builder' | 'edit';
     itemId: string;
@@ -1720,86 +1726,84 @@ export function ParishPage({
                           ))}
                         </div>
                       </div>
-                      <div
-                        className={`editor-grid-shell ${builderDragActive ? 'is-dragging' : ''}`}
-                        ref={editorGridRef}
-                        style={
-                          {
-                            '--grid-row-height': `${gridRowHeight}px`,
-                            '--grid-gap': `${EDITOR_GAP}px`
-                          } as CSSProperties
-                        }
-                      >
-                        {(() => {
-                          const rows = builderDropInfo?.rows
-                            ? builderDropInfo.rows
-                            : Math.max(
-                                4,
-                                Math.max(
-                                  1,
-                                  ...builderLayoutItems.map(
-                                    (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
-                                  )
-                                ) + 2
-                              );
-                          return (
-                            <>
-                              <div className="editor-grid-layer editor-grid-cells">
-                                {Array.from({ length: rows }).flatMap((_, rowIndex) => {
-                                  const r = rowIndex + 1;
-                                  return Array.from({ length: gridColumns }).map((__, colIndex) => {
-                                    const c = colIndex + 1;
-                                    const key = `${r}:${c}`;
-                                    const isValid =
-                                      builderDragActive && (builderDropInfo?.valid?.has(key) ?? false);
-                                    return (
-                                      <DroppableCell
-                                        key={`builder-cell-${r}-${c}`}
-                                        row={r}
-                                        col={c}
-                                        isValid={isValid}
-                                        isActive={builderDragActive}
-                                      />
-                                    );
-                                  });
-                                })}
-                              </div>
-                              <div className="editor-grid-layer editor-grid-modules">
-                                {builderLayoutItems.map((module) => (
-                                  <GridItem
-                                    key={`builder-item-${module.id}`}
-                                    item={module}
-                                    isActive={selectedBuilderId === module.id}
-                                    onSelect={() => setSelectedBuilderId(module.id)}
-                                    isHidden={builderDragActive && dragState.activeItemId === module.id}
-                                    onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
-                                  />
-                                ))}
-                                {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
-                                  <div
-                                    className="editor-module is-ghost"
-                                    style={{
-                                      gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                        dragState.size.colSpan,
-                                        gridColumns
-                                      )}`,
-                                      gridRow: `${dragState.overCell.row} / span ${snapRowSpan(
-                                        dragState.size.rowSpan
-                                      )}`
-                                    }}
-                                  >
-                                    <strong>Podgląd</strong>
-                                    <span className="muted">
-                                      {snapColSpan(dragState.size.colSpan, gridColumns)}x
-                                      {snapRowSpan(dragState.size.rowSpan)}
-                                    </span>
-                                  </div>
-                                ) : null}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
+                      {(() => {
+                        const rows = builderDropInfo?.rows
+                          ? builderDropInfo.rows
+                          : Math.max(
+                              4,
+                              Math.max(
+                                1,
+                                ...builderLayoutItems.map(
+                                  (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
+                                )
+                              ) + 2
+                            );
+                        const shellHeight =
+                          rows * gridRowHeight + (rows - 1) * EDITOR_GAP + EDITOR_PADDING * 2;
+                        return (
+                          <div
+                            className={`editor-grid-shell ${builderDragActive ? 'is-dragging' : ''}`}
+                            ref={editorGridRef}
+                            style={
+                              {
+                                '--grid-row-height': `${gridRowHeight}px`,
+                                '--grid-gap': `${EDITOR_GAP}px`,
+                                height: `${shellHeight}px`
+                              } as CSSProperties
+                            }
+                          >
+                            <div className="editor-grid-layer editor-grid-cells">
+                              {Array.from({ length: rows }).flatMap((_, rowIndex) => {
+                                const r = rowIndex + 1;
+                                return Array.from({ length: gridColumns }).map((__, colIndex) => {
+                                  const c = colIndex + 1;
+                                  const key = `${r}:${c}`;
+                                  const isValid = builderDragActive && (builderDropInfo?.valid?.has(key) ?? false);
+                                  return (
+                                    <DroppableCell
+                                      key={`builder-cell-${r}-${c}`}
+                                      row={r}
+                                      col={c}
+                                      isValid={isValid}
+                                      isActive={builderDragActive}
+                                    />
+                                  );
+                                });
+                              })}
+                            </div>
+                            <div className="editor-grid-layer editor-grid-modules">
+                              {builderLayoutItems.map((module) => (
+                                <GridItem
+                                  key={`builder-item-${module.id}`}
+                                  item={module}
+                                  isActive={selectedBuilderId === module.id}
+                                  onSelect={() => setSelectedBuilderId(module.id)}
+                                  isHidden={builderDragActive && dragState.activeItemId === module.id}
+                                  onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
+                                />
+                              ))}
+                              {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
+                                <div
+                                  className="editor-module is-ghost"
+                                  style={{
+                                    gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                      dragState.size.colSpan,
+                                      gridColumns
+                                    )}`,
+                                    gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
+                                  }}
+                                >
+                                  <strong>Podgląd</strong>
+                                  <span className="muted">
+                                    {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                    {snapRowSpan(dragState.size.rowSpan)}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <DragOverlay>
                         {builderDragActive && !dragState.overValid && dragState.size ? (
                           <div className="editor-module drag-overlay">
@@ -2063,86 +2067,84 @@ export function ParishPage({
                           ))}
                         </div>
                       </div>
-                      <div
-                        className={`editor-grid-shell ${editDragActive ? 'is-dragging' : ''}`}
-                        ref={editorGridRef}
-                        style={
-                          {
-                            '--grid-row-height': `${gridRowHeight}px`,
-                            '--grid-gap': `${EDITOR_GAP}px`
-                          } as CSSProperties
-                        }
-                      >
-                        {(() => {
-                          const rows = editDropInfo?.rows
-                            ? editDropInfo.rows
-                            : Math.max(
-                                4,
-                                Math.max(
-                                  1,
-                                  ...editLayoutItems.map(
-                                    (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
-                                  )
-                                ) + 2
-                              );
-                          return (
-                            <>
-                              <div className="editor-grid-layer editor-grid-cells">
-                                {Array.from({ length: rows }).flatMap((_, rowIndex) => {
-                                  const r = rowIndex + 1;
-                                  return Array.from({ length: gridColumns }).map((__, colIndex) => {
-                                    const c = colIndex + 1;
-                                    const key = `${r}:${c}`;
-                                    const isValid =
-                                      editDragActive && (editDropInfo?.valid?.has(key) ?? false);
-                                    return (
-                                      <DroppableCell
-                                        key={`edit-cell-${r}-${c}`}
-                                        row={r}
-                                        col={c}
-                                        isValid={isValid}
-                                        isActive={editDragActive}
-                                      />
-                                    );
-                                  });
-                                })}
-                              </div>
-                              <div className="editor-grid-layer editor-grid-modules">
-                                {editLayoutItems.map((module) => (
-                                  <GridItem
-                                    key={`edit-item-${module.id}`}
-                                    item={module}
-                                    isActive={selectedEditId === module.id}
-                                    onSelect={() => setSelectedEditId(module.id)}
-                                    isHidden={editDragActive && dragState.activeItemId === module.id}
-                                    onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
-                                  />
-                                ))}
-                                {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
-                                  <div
-                                    className="editor-module is-ghost"
-                                    style={{
-                                      gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
-                                        dragState.size.colSpan,
-                                        gridColumns
-                                      )}`,
-                                      gridRow: `${dragState.overCell.row} / span ${snapRowSpan(
-                                        dragState.size.rowSpan
-                                      )}`
-                                    }}
-                                  >
-                                    <strong>Podgląd</strong>
-                                    <span className="muted">
-                                      {snapColSpan(dragState.size.colSpan, gridColumns)}x
-                                      {snapRowSpan(dragState.size.rowSpan)}
-                                    </span>
-                                  </div>
-                                ) : null}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
+                      {(() => {
+                        const rows = editDropInfo?.rows
+                          ? editDropInfo.rows
+                          : Math.max(
+                              4,
+                              Math.max(
+                                1,
+                                ...editLayoutItems.map(
+                                  (module) => module.position.row + snapRowSpan(module.size.rowSpan) - 1
+                                )
+                              ) + 2
+                            );
+                        const shellHeight =
+                          rows * gridRowHeight + (rows - 1) * EDITOR_GAP + EDITOR_PADDING * 2;
+                        return (
+                          <div
+                            className={`editor-grid-shell ${editDragActive ? 'is-dragging' : ''}`}
+                            ref={editorGridRef}
+                            style={
+                              {
+                                '--grid-row-height': `${gridRowHeight}px`,
+                                '--grid-gap': `${EDITOR_GAP}px`,
+                                height: `${shellHeight}px`
+                              } as CSSProperties
+                            }
+                          >
+                            <div className="editor-grid-layer editor-grid-cells">
+                              {Array.from({ length: rows }).flatMap((_, rowIndex) => {
+                                const r = rowIndex + 1;
+                                return Array.from({ length: gridColumns }).map((__, colIndex) => {
+                                  const c = colIndex + 1;
+                                  const key = `${r}:${c}`;
+                                  const isValid = editDragActive && (editDropInfo?.valid?.has(key) ?? false);
+                                  return (
+                                    <DroppableCell
+                                      key={`edit-cell-${r}-${c}`}
+                                      row={r}
+                                      col={c}
+                                      isValid={isValid}
+                                      isActive={editDragActive}
+                                    />
+                                  );
+                                });
+                              })}
+                            </div>
+                            <div className="editor-grid-layer editor-grid-modules">
+                              {editLayoutItems.map((module) => (
+                                <GridItem
+                                  key={`edit-item-${module.id}`}
+                                  item={module}
+                                  isActive={selectedEditId === module.id}
+                                  onSelect={() => setSelectedEditId(module.id)}
+                                  isHidden={editDragActive && dragState.activeItemId === module.id}
+                                  onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
+                                />
+                              ))}
+                              {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
+                                <div
+                                  className="editor-module is-ghost"
+                                  style={{
+                                    gridColumn: `${dragState.overCell.col} / span ${snapColSpan(
+                                      dragState.size.colSpan,
+                                      gridColumns
+                                    )}`,
+                                    gridRow: `${dragState.overCell.row} / span ${snapRowSpan(dragState.size.rowSpan)}`
+                                  }}
+                                >
+                                  <strong>Podgląd</strong>
+                                  <span className="muted">
+                                    {snapColSpan(dragState.size.colSpan, gridColumns)}x
+                                    {snapRowSpan(dragState.size.rowSpan)}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <DragOverlay>
                         {editDragActive && !dragState.overValid && dragState.size ? (
                           <div className="editor-module drag-overlay">
