@@ -690,7 +690,6 @@ const StickyModule = ({
   if (!showImages) {
     return (
       <div className="sticky-headlines">
-        <strong>Najważniejsze</strong>
         <ul>
           {headlineItems.map((item) => (
             <li key={item.id}>
@@ -714,7 +713,6 @@ const StickyModule = ({
             >
               <img src={item.image} alt={item.title} />
               <div className="carousel-caption">
-                <span className="tag">{item.category}</span>
                 <h4>{item.title}</h4>
                 <p className="muted">{item.summary}</p>
                 <span className="muted">{item.date}</span>
@@ -756,7 +754,6 @@ const StickyModule = ({
       </div>
       {showSideList && (
         <aside className="sticky-side">
-          <strong>Lista informacji</strong>
           <ul>
             {stickyItems.map((item, index) => (
               <li key={item.id} className={index === activeIndex ? 'is-active' : ''}>
@@ -832,7 +829,6 @@ const IntentionsModule = ({
   if (isCompact) {
     return (
       <div className="intentions-module intentions-compact">
-        <strong>Intencje</strong>
         <ul>
           {compactItems.slice(0, 3).map((item, index) => (
             <li key={`${item.time}-${index}`}>
@@ -864,7 +860,6 @@ const IntentionsModule = ({
       </div>
       {showSideList && (
         <aside className="intentions-side">
-          <strong>Pełna lista</strong>
           <ul>
             {compactItems.slice(0, 6).map((item, index) => (
               <li key={`${item.time}-${index}`}>
@@ -898,7 +893,6 @@ const CalendarModule = ({
   if (isCompact) {
     return (
       <div className="calendar-module calendar-compact">
-        <strong>Kalendarz</strong>
         <ul>
           {calendarEvents.slice(0, 2).map((event) => (
             <li key={event.id}>
@@ -927,7 +921,6 @@ const CalendarModule = ({
       </div>
       {showSideList && (
         <aside className="calendar-side">
-          <strong>Nadchodzące</strong>
           <ul>
             {sideItems.map((event) => (
               <li key={event.id}>
@@ -1675,7 +1668,8 @@ export function ParishPage({
     isActive,
     onSelect,
     isHidden,
-    onResizeStart
+    onResizeStart,
+    children
   }: {
     item: ParishLayoutItem;
     frame: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
@@ -1689,11 +1683,12 @@ export function ParishPage({
         | 'top'
         | 'bottom'
         | 'top-left'
-        | 'top-right'
-        | 'bottom-left'
-        | 'bottom-right',
+      | 'top-right'
+      | 'bottom-left'
+      | 'bottom-right',
       event: ReactPointerEvent<HTMLButtonElement>
     ) => void;
+    children?: React.ReactNode;
   }) => {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `item:${item.id}` });
     return (
@@ -1710,10 +1705,7 @@ export function ParishPage({
         {...listeners}
         {...attributes}
       >
-        <strong>{item.type}</strong>
-        <span className="muted">
-          {snapColSpan(frame.size.colSpan, activeColumns)}x{snapRowSpan(frame.size.rowSpan)}
-        </span>
+        <div className="editor-module-content">{children}</div>
         {onResizeStart ? (
           <>
             <button
@@ -2295,7 +2287,9 @@ export function ParishPage({
                                     onSelect={() => setSelectedBuilderId(module.id)}
                                     isHidden={builderDragActive && dragState.activeItemId === module.id}
                                     onResizeStart={(mode, event) => startResize('builder', module, mode, event)}
-                                  />
+                                  >
+                                    {renderModuleContent(module, activeBreakpoint)}
+                                  </GridItem>
                                 ))}
                               {builderDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
                                 <div
@@ -2634,7 +2628,9 @@ export function ParishPage({
                                     onSelect={() => setSelectedEditId(module.id)}
                                     isHidden={editDragActive && dragState.activeItemId === module.id}
                                     onResizeStart={(mode, event) => startResize('edit', module, mode, event)}
-                                  />
+                                  >
+                                    {renderModuleContent(module, activeBreakpoint)}
+                                  </GridItem>
                                 ))}
                               {editDragActive && dragState.overValid && dragState.overCell && dragState.size ? (
                                 <div
@@ -2731,12 +2727,6 @@ export function ParishPage({
                           gridRow: `${layout.position.row} / span ${snapRowSpan(layout.size.rowSpan)}`
                         }}
                       >
-                        <header>
-                          <h3>{module.type}</h3>
-                          <span className="pill">
-                            {snapColSpan(layout.size.colSpan, activeColumns)}x{snapRowSpan(layout.size.rowSpan)}
-                          </span>
-                        </header>
                         <div className={`module-body module-body-${module.type}`}>
                           {renderModuleContent(module, activeBreakpoint)}
                         </div>

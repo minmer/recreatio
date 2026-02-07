@@ -2150,6 +2150,14 @@
   overflow: hidden;
 }
 
+.editor-module-content {
+  pointer-events: none;
+}
+
+.editor-module .resize-handle {
+  pointer-events: auto;
+}
+
 .editor-grid-shell.is-dragging .editor-module {
   pointer-events: none;
 }
@@ -2356,27 +2364,12 @@
   padding: 0;
 }
 
-.home-module--sticky > header {
-  padding: 1.1rem 1.4rem 0.2rem;
-}
-
 .home-module--sticky .module-body {
-  padding: 0 0 1.2rem;
+  padding: 0;
 }
 
 .home-module--sticky .sticky-carousel .carousel {
   border-radius: 22px;
-}
-
-.home-module header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.home-module h3 {
-  margin: 0;
 }
 
 .home-module ul {
