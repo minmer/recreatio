@@ -2352,6 +2352,22 @@
   overflow: hidden;
 }
 
+.home-module--sticky {
+  padding: 0;
+}
+
+.home-module--sticky > header {
+  padding: 1.1rem 1.4rem 0.2rem;
+}
+
+.home-module--sticky .module-body {
+  padding: 0 0 1.2rem;
+}
+
+.home-module--sticky .sticky-carousel .carousel {
+  border-radius: 22px;
+}
+
 .home-module header {
   display: flex;
   justify-content: space-between;

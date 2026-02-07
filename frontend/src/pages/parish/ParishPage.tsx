@@ -2722,7 +2722,7 @@ export function ParishPage({
                     return (
                       <article
                         key={module.id}
-                        className="home-module"
+                        className={`home-module ${module.type === 'sticky' ? 'home-module--sticky' : ''}`}
                         style={{
                           gridColumn: `${layout.position.col} / span ${snapColSpan(
                             layout.size.colSpan,
@@ -2737,7 +2737,9 @@ export function ParishPage({
                             {snapColSpan(layout.size.colSpan, activeColumns)}x{snapRowSpan(layout.size.rowSpan)}
                           </span>
                         </header>
-                        <div className="module-body">{renderModuleContent(module, activeBreakpoint)}</div>
+                        <div className={`module-body module-body-${module.type}`}>
+                          {renderModuleContent(module, activeBreakpoint)}
+                        </div>
                       </article>
                     );
                   })}
