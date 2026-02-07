@@ -7,6 +7,11 @@
   --parish-accent-deep: #22344c;
   --parish-line: rgba(30, 27, 22, 0.12);
   --parish-shadow: rgba(20, 16, 12, 0.18);
+  --line: var(--parish-line);
+  --accent: var(--parish-accent);
+  --accent-deep: var(--parish-accent-deep);
+  --ink: var(--parish-ink);
+  --muted: var(--parish-muted);
   background: radial-gradient(circle at top, #ffffff 0%, var(--parish-bg) 55%, #e8ded2 100%);
   color: var(--parish-ink);
   min-height: 100vh;
@@ -41,7 +46,24 @@
 }
 
 .parish-header--chooser {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.parish-header-left,
+.parish-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.parish-header-left {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.parish-header-right {
+  justify-self: end;
 }
 
 .parish-brand {
@@ -54,6 +76,7 @@
   text-align: left;
   text-decoration: none;
   color: inherit;
+  white-space: nowrap;
 }
 
 .parish-logo {
@@ -72,7 +95,7 @@
   justify-content: flex-end;
   align-items: center;
   gap: 0.75rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .parish-back-control {
@@ -152,11 +175,13 @@
 .parish-menu {
   display: flex;
   justify-content: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 1rem;
   align-items: center;
   position: relative;
   justify-self: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .parish-menu-control,
@@ -575,6 +600,10 @@
   min-height: 0;
 }
 
+.sticky-carousel {
+  touch-action: pan-y;
+}
+
 .sticky-carousel .carousel {
   min-height: 0;
   height: 100%;
@@ -626,6 +655,20 @@
   font-size: 0.9rem;
 }
 
+.sticky-headlines li a,
+.sticky-side li a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sticky-headlines li a:hover,
+.sticky-side li a:hover {
+  color: var(--parish-accent-deep);
+}
+
 .sticky-headlines li span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -664,6 +707,19 @@
   margin: 0;
   display: grid;
   gap: 0.5rem;
+}
+
+.intentions-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.intentions-links a:hover {
+  color: var(--parish-accent-deep);
 }
 
 .intentions-compact li {
@@ -765,6 +821,26 @@
 .calendar-card h4 {
   margin: 0;
   font-size: 0.95rem;
+}
+
+.calendar-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.calendar-item {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.calendar-item .muted {
+  grid-column: 2;
+  font-size: 0.75rem;
 }
 
 .calendar-date {

@@ -390,6 +390,10 @@ export default function App() {
           }}
           authLabel={isAuthenticated ? t.nav.account : t.parish.loginCta}
           isAuthenticated={isAuthenticated}
+          secureMode={secureMode}
+          onProfileNavigate={() => handleProtectedNavigation('account', 'parish')}
+          onToggleSecureMode={handleToggleMode}
+          onLogout={handleLogout}
           onNavigate={navigateRoute}
           language={language}
           onLanguageChange={setLanguage}

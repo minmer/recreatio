@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction, PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AuthAction } from '../../components/AuthAction';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import {
@@ -457,6 +458,43 @@ const calendarEvents = [
   }
 ];
 
+const buildCalendarMock = () => {
+  const now = new Date();
+  const base = new Date(now);
+  base.setMinutes(0, 0, 0);
+  const make = (
+    offsetHours: number,
+    title: string,
+    kind: 'mass' | 'celebration' | 'group',
+    place: string,
+    group?: string
+  ) => {
+    const start = new Date(base);
+    start.setHours(base.getHours() + offsetHours);
+    return {
+      id: `${kind}-${offsetHours}-${title}`,
+      start,
+      title,
+      kind,
+      place,
+      group
+    };
+  };
+  return [
+    make(1, 'Msza poranna', 'mass', 'Kościół główny'),
+    make(2, 'Różaniec', 'celebration', 'Kaplica'),
+    make(4, 'Spotkanie ministrantów', 'group', 'Sala św. Józefa', 'Ministranci'),
+    make(6, 'Msza wieczorna', 'mass', 'Kościół główny'),
+    make(10, 'Schola dziecięca', 'group', 'Sala muzyczna', 'Schola'),
+    make(14, 'Nowenna', 'celebration', 'Kościół główny'),
+    make(18, 'Msza wspólnotowa', 'mass', 'Kościół dolny'),
+    make(24, 'Spotkanie seniorów', 'group', 'Sala Jana Pawła II', 'Seniorzy'),
+    make(26, 'Nabożeństwo', 'celebration', 'Kaplica'),
+    make(30, 'Msza poranna', 'mass', 'Kościół główny'),
+    make(34, 'Spotkanie młodych', 'group', 'Kawiarenka', 'Młodzi')
+  ];
+};
+
 const priests = [
   {
     id: 'pr-1',
@@ -628,7 +666,8 @@ const stickyItems = [
     summary: 'Spotkania z rekolekcjonistami od poniedziałku do soboty.',
     image: '/parish/minister.jpg',
     date: '4–10 marca',
-    category: 'Aktualne'
+    category: 'Aktualne',
+    href: '/#/parish/aktualnosci/misje'
   },
   {
     id: 'sticky-2',
@@ -636,7 +675,8 @@ const stickyItems = [
     summary: 'Wspólna modlitwa i muzyka w kościele dolnym.',
     image: '/parish/visit.jpg',
     date: '14 marca, 19:00',
-    category: 'Wydarzenia'
+    category: 'Wydarzenia',
+    href: '/#/parish/wydarzenia/uwielbienie'
   },
   {
     id: 'sticky-3',
@@ -644,8 +684,45 @@ const stickyItems = [
     summary: 'Zapisy na wyjazd do Lednicy oraz dyżury w marcu.',
     image: '/parish/pursuit_saint.jpg',
     date: 'Sobota, 17:30',
-    category: 'Wspólnoty'
+    category: 'Wspólnoty',
+    href: '/#/parish/wspolnoty/mlodzi'
   }
+];
+
+const intentionsDayMock = [
+  { time: '7:00', text: 'Za + Janinę i Stanisława Nowak', location: 'Kościół główny' },
+  { time: '12:00', text: 'Dziękczynna za rodzinę Malinowskich', location: 'Kaplica' },
+  { time: '18:00', text: 'O zdrowie dla Katarzyny i Łukasza', location: 'Kościół główny' }
+];
+
+const intentionsWeekMock = [
+  {
+    label: 'Poniedziałek',
+    items: [
+      { time: '7:00', text: 'Za + Annę i Tadeusza', location: 'Kościół' },
+      { time: '18:00', text: 'O pokój w rodzinie', location: 'Kościół' }
+    ]
+  },
+  {
+    label: 'Środa',
+    items: [
+      { time: '7:00', text: 'Za + Helenę i Józefa', location: 'Kaplica' },
+      { time: '18:00', text: 'W intencji młodzieży', location: 'Kościół' }
+    ]
+  },
+  {
+    label: 'Piątek',
+    items: [
+      { time: '7:00', text: 'Za + Alicję i Piotra', location: 'Kościół' },
+      { time: '18:00', text: 'O zdrowie dla chorych', location: 'Kościół' }
+    ]
+  }
+];
+
+const intentionsObitsMock = [
+  { name: 'Jan Kowalski', date: '10 marca', note: 'Wypominki roczne' },
+  { name: 'Maria Nowak', date: '12 marca', note: 'Miesiąc po pogrzebie' },
+  { name: 'Stanisław Zieliński', date: '14 marca', note: 'Rocznica' }
 ];
 
 const officeHours = [
@@ -675,17 +752,39 @@ const StickyModule = ({
   const showImages = rowSpan > 1;
   const showSideList = showImages && colSpan >= 6 && rowSpan >= 5;
   const [activeIndex, setActiveIndex] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [isHoveringList, setIsHoveringList] = useState(false);
+  const swipeStartX = useRef<number | null>(null);
   const maxIndex = stickyItems.length - 1;
   const headlineItems = stickyItems.slice(0, 3);
 
   useEffect(() => {
     if (!showImages || stickyItems.length <= 1) return;
+    if (!autoPlay || isHoveringList) return;
     if (typeof window === 'undefined') return;
     const timer = window.setInterval(() => {
       setActiveIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1));
     }, 6500);
     return () => window.clearInterval(timer);
-  }, [showImages, maxIndex]);
+  }, [showImages, maxIndex, autoPlay, isHoveringList]);
+
+  const goNext = () => setActiveIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1));
+  const goPrev = () => setActiveIndex((prev) => (prev - 1 < 0 ? maxIndex : prev - 1));
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    swipeStartX.current = event.clientX;
+  };
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (swipeStartX.current === null) return;
+    const delta = event.clientX - swipeStartX.current;
+    swipeStartX.current = null;
+    if (Math.abs(delta) < 40) return;
+    setAutoPlay(false);
+    if (delta > 0) {
+      goPrev();
+    } else {
+      goNext();
+    }
+  };
 
   if (!showImages) {
     return (
@@ -693,8 +792,10 @@ const StickyModule = ({
         <ul>
           {headlineItems.map((item) => (
             <li key={item.id}>
-              <span>{item.title}</span>
-              <span className="muted">{item.date}</span>
+              <a href={item.href}>
+                <span>{item.title}</span>
+                <span className="muted">{item.date}</span>
+              </a>
             </li>
           ))}
         </ul>
@@ -704,12 +805,13 @@ const StickyModule = ({
 
   return (
     <div className={`sticky-module ${showSideList ? 'has-side' : 'solo'}`}>
-      <div className="sticky-carousel">
+      <div className="sticky-carousel" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
         <div className="carousel sticky-carousel-inner">
           {stickyItems.map((item, index) => (
-            <div
+            <a
               key={item.id}
               className={`carousel-slide ${index === activeIndex ? 'is-active' : ''}`}
+              href={item.href}
             >
               <img src={item.image} alt={item.title} />
               <div className="carousel-caption">
@@ -717,7 +819,7 @@ const StickyModule = ({
                 <p className="muted">{item.summary}</p>
                 <span className="muted">{item.date}</span>
               </div>
-            </div>
+            </a>
           ))}
           {stickyItems.length > 1 && (
             <>
@@ -725,7 +827,10 @@ const StickyModule = ({
                 type="button"
                 className="carousel-arrow left"
                 aria-label="Poprzedni slajd"
-                onClick={() => setActiveIndex((prev) => (prev - 1 < 0 ? maxIndex : prev - 1))}
+                onClick={() => {
+                  setAutoPlay(false);
+                  goPrev();
+                }}
               >
                 <span />
               </button>
@@ -733,7 +838,10 @@ const StickyModule = ({
                 type="button"
                 className="carousel-arrow right"
                 aria-label="Następny slajd"
-                onClick={() => setActiveIndex((prev) => (prev + 1 > maxIndex ? 0 : prev + 1))}
+                onClick={() => {
+                  setAutoPlay(false);
+                  goNext();
+                }}
               >
                 <span />
               </button>
@@ -744,7 +852,10 @@ const StickyModule = ({
                     type="button"
                     className={index === activeIndex ? 'is-active' : ''}
                     aria-label={`Przejdź do slajdu ${index + 1}`}
-                    onClick={() => setActiveIndex(index)}
+                    onClick={() => {
+                      setAutoPlay(false);
+                      setActiveIndex(index);
+                    }}
                   />
                 ))}
               </div>
@@ -753,12 +864,22 @@ const StickyModule = ({
         </div>
       </div>
       {showSideList && (
-        <aside className="sticky-side">
+        <aside
+          className="sticky-side"
+          onMouseEnter={() => setIsHoveringList(true)}
+          onMouseLeave={() => setIsHoveringList(false)}
+        >
           <ul>
             {stickyItems.map((item, index) => (
-              <li key={item.id} className={index === activeIndex ? 'is-active' : ''}>
-                <span>{item.title}</span>
-                <span className="muted">{item.date}</span>
+              <li
+                key={item.id}
+                className={index === activeIndex ? 'is-active' : ''}
+                onMouseEnter={() => setActiveIndex(index)}
+              >
+                <a href={item.href}>
+                  <span>{item.title}</span>
+                  <span className="muted">{item.date}</span>
+                </a>
               </li>
             ))}
           </ul>
@@ -787,53 +908,65 @@ const formatIntentions = (items: ParishPublicIntention[]) => {
   return Array.from(byDay.values());
 };
 
+const buildIntentionsData = (items: ParishPublicIntention[]) => {
+  if (!items.length) {
+    return {
+      day: { label: 'Dziś', items: intentionsDayMock },
+      week: intentionsWeekMock,
+      obits: intentionsObitsMock
+    };
+  }
+  const grouped = formatIntentions(items);
+  const day = grouped[0] ?? { label: 'Dziś', items: [] };
+  return {
+    day,
+    week: grouped.slice(0, 3),
+    obits: intentionsObitsMock
+  };
+};
+
 const IntentionsModule = ({
   layout,
   columns,
-  items
+  items,
+  parishSlug,
+  onOpenIntentions
 }: {
   layout: { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } };
   columns: number;
   items: ParishPublicIntention[];
+  parishSlug?: string;
+  onOpenIntentions: () => void;
 }) => {
   const colSpan = snapColSpan(layout.size.colSpan, columns);
   const rowSpan = snapRowSpan(layout.size.rowSpan);
-  const grouped = useMemo(
-    () =>
-      items.length
-        ? formatIntentions(items)
-        : intentionsWeek.map((day) => ({
-            label: day.day,
-            items: day.items.map((item) => ({
-              time: item.time,
-              text: item.text,
-              location: item.location
-            }))
-          })),
-    [items]
-  );
+  const data = useMemo(() => buildIntentionsData(items), [items]);
   const isCompact = rowSpan === 1;
   const isExpanded = rowSpan >= 5;
   const isWide = colSpan >= 4;
   const showSideList = isExpanded && colSpan >= 6;
-  const limitedDays = grouped.slice(0, isExpanded ? 4 : 3);
-  const compactItems = limitedDays.flatMap((day) =>
-    day.items.map((item) => ({
-      day: day.label,
-      time: item.time,
-      text: item.text,
-      location: item.location
-    }))
-  );
+  const baseLink = parishSlug ? `/#/parish/${parishSlug}/intentions` : '/#/parish';
+  const linkItems = [
+    { label: 'Intencje dnia', href: `${baseLink}` },
+    { label: 'Intencje tygodnia', href: `${baseLink}` },
+    { label: 'Wypominki', href: `${baseLink}` }
+  ];
 
   if (isCompact) {
     return (
       <div className="intentions-module intentions-compact">
-        <ul>
-          {compactItems.slice(0, 3).map((item, index) => (
-            <li key={`${item.time}-${index}`}>
-              <span>{item.time}</span>
-              <span className="ellipsis">{item.text}</span>
+        <ul className="intentions-links">
+          {linkItems.map((item) => (
+            <li key={item.label}>
+              <a
+                href={item.href}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onOpenIntentions();
+                }}
+              >
+                {item.label}
+              </a>
             </li>
           ))}
         </ul>
@@ -844,29 +977,53 @@ const IntentionsModule = ({
   return (
     <div className={`intentions-module ${showSideList ? 'has-side' : ''}`}>
       <div className={`intentions-board ${isWide ? 'is-wide' : ''}`}>
-        {limitedDays.map((day) => (
-          <div key={day.label} className="intentions-day">
-            <strong>{day.label}</strong>
-            <ul>
-              {day.items.slice(0, isExpanded ? 3 : 2).map((item, index) => (
-                <li key={`${item.time}-${index}`}>
-                  <span>{item.time}</span>
+        <div className="intentions-day">
+          <strong>{data.day.label}</strong>
+          <ul>
+            {data.day.items.slice(0, isExpanded ? 4 : 2).map((item, index) => (
+              <li key={`${item.time}-${index}`}>
+                <span>{item.time}</span>
+                <span>{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="intentions-day">
+          <strong>Intencje tygodnia</strong>
+          <ul>
+            {data.week.slice(0, isExpanded ? 3 : 2).flatMap((day) =>
+              day.items.slice(0, 1).map((item, index) => (
+                <li key={`${day.label}-${index}`}>
+                  <span>{day.label}</span>
                   <span>{item.text}</span>
                 </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+              ))
+            )}
+          </ul>
+        </div>
+        <div className="intentions-day">
+          <strong>Wypominki</strong>
+          <ul>
+            {data.obits.slice(0, isExpanded ? 3 : 2).map((item) => (
+              <li key={item.name}>
+                <span>{item.date}</span>
+                <span>{item.name}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
       {showSideList && (
         <aside className="intentions-side">
           <ul>
-            {compactItems.slice(0, 6).map((item, index) => (
-              <li key={`${item.time}-${index}`}>
-                <span>{item.time}</span>
-                <span className="ellipsis">{item.text}</span>
-              </li>
-            ))}
+            {data.week.slice(0, 3).flatMap((day) =>
+              day.items.slice(0, 2).map((item, index) => (
+                <li key={`${day.label}-${index}`}>
+                  <span>{item.time}</span>
+                  <span className="ellipsis">{item.text}</span>
+                </li>
+              ))
+            )}
           </ul>
         </aside>
       )}
@@ -887,16 +1044,32 @@ const CalendarModule = ({
   const isExpanded = rowSpan >= 5;
   const isWide = colSpan >= 4;
   const showSideList = isExpanded && colSpan >= 6;
-  const featured = calendarEvents.slice(0, isExpanded ? 4 : 3);
-  const sideItems = calendarEvents.slice(0, 6);
+  const events = useMemo(() => buildCalendarMock(), []);
+  const now = new Date();
+  const nextHours = events.filter((event) => event.start >= now && event.start <= new Date(now.getTime() + 6 * 60 * 60 * 1000));
+  const upcoming = nextHours.length ? nextHours : events.slice(0, 4);
+  const grouped = events.reduce<Record<string, typeof events>>((acc, event) => {
+    const key = event.start.toDateString();
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(event);
+    return acc;
+  }, {});
+  const groupedDays = Object.entries(grouped)
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .map(([key, items]) => ({
+      label: new Date(key).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }),
+      items: items.sort((a, b) => a.start.getTime() - b.start.getTime())
+    }));
 
   if (isCompact) {
     return (
       <div className="calendar-module calendar-compact">
         <ul>
-          {calendarEvents.slice(0, 2).map((event) => (
+          {upcoming.slice(0, 3).map((event) => (
             <li key={event.id}>
-              <span>{event.time}</span>
+              <span>
+                {event.start.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+              </span>
               <span className="ellipsis">{event.title}</span>
             </li>
           ))}
@@ -908,23 +1081,31 @@ const CalendarModule = ({
   return (
     <div className={`calendar-module ${showSideList ? 'has-side' : ''}`}>
       <div className={`calendar-board ${isWide ? 'is-wide' : ''}`}>
-        {featured.map((event) => (
-          <article key={event.id} className="calendar-card">
-            <span className="calendar-date">{event.date}</span>
-            <h4>{event.title}</h4>
-            <p className="muted">
-              {event.time} • {event.place}
-            </p>
-            {isExpanded && <span className="pill">{event.category}</span>}
+        {groupedDays.slice(0, isExpanded ? 3 : 2).map((day) => (
+          <article key={day.label} className="calendar-card">
+            <span className="calendar-date">{day.label}</span>
+            <ul>
+              {day.items.slice(0, isExpanded ? 4 : 3).map((event) => (
+                <li key={event.id} className={`calendar-item calendar-item-${event.kind}`}>
+                  <span>
+                    {event.start.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span>{event.title}</span>
+                  {isExpanded && <span className="muted">{event.place}</span>}
+                </li>
+              ))}
+            </ul>
           </article>
         ))}
       </div>
       {showSideList && (
         <aside className="calendar-side">
           <ul>
-            {sideItems.map((event) => (
+            {upcoming.slice(0, 6).map((event) => (
               <li key={event.id}>
-                <span>{event.time}</span>
+                <span>
+                  {event.start.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                </span>
                 <span className="ellipsis">{event.title}</span>
               </li>
             ))}
@@ -940,6 +1121,10 @@ export function ParishPage({
   onAuthAction,
   authLabel,
   isAuthenticated,
+  secureMode,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
   onNavigate,
   language,
   onLanguageChange,
@@ -949,6 +1134,10 @@ export function ParishPage({
   onAuthAction: () => void;
   authLabel: string;
   isAuthenticated: boolean;
+  secureMode: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
@@ -1249,6 +1438,7 @@ export function ParishPage({
       setSelectedSacramentId(sacramentPageMap[next]);
     }
   };
+  const openIntentionsPage = () => selectPage('intentions');
 
   useEffect(() => {
     if (!parishSlug) {
@@ -1277,6 +1467,8 @@ export function ParishPage({
           layout={layout}
           columns={breakpointColumns[breakpoint]}
           items={publicIntentions}
+          parishSlug={parishSlug}
+          onOpenIntentions={openIntentionsPage}
         />
       );
     }
@@ -2053,25 +2245,35 @@ export function ParishPage({
       {view === 'chooser' ? (
         <>
           <header className="parish-header parish-header--chooser">
-            <a className="parish-brand" href="/#/">
-              <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
-              <span className="parish-name">Parafie</span>
-            </a>
-            <div className="parish-controls">
+            <div className="parish-header-left">
               <button type="button" className="parish-back" onClick={handleBack}>
                 Back
               </button>
               <a className="parish-up" href="/#/">
                 Up
               </a>
+              <a className="parish-brand" href="/#/">
+                <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
+                <span className="parish-name">Parafie</span>
+              </a>
+            </div>
+            <div className="parish-controls">
               {isAuthenticated && (
                 <button type="button" className="parish-create" onClick={handleStartBuilder}>
                   Utwórz stronę parafii
                 </button>
               )}
-              <button type="button" className="parish-login" onClick={onAuthAction}>
-                {authLabel}
-              </button>
+              <AuthAction
+                copy={copy}
+                label={authLabel}
+                isAuthenticated={isAuthenticated}
+                secureMode={secureMode}
+                onLogin={onAuthAction}
+                onProfileNavigate={onProfileNavigate}
+                onToggleSecureMode={onToggleSecureMode}
+                onLogout={onLogout}
+                variant="ghost"
+              />
             </div>
           </header>
           <main className="parish-main">
@@ -2111,18 +2313,7 @@ export function ParishPage({
       ) : view === 'builder' ? (
         <>
           <header className="parish-header parish-header--chooser">
-            <button
-              type="button"
-              className="parish-brand"
-              onClick={() => {
-                setView('chooser');
-                setBuilderStep(0);
-              }}
-            >
-              <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
-              <span className="parish-name">Nowa strona parafii</span>
-            </button>
-            <div className="parish-controls">
+            <div className="parish-header-left">
               <button
                 type="button"
                 className="parish-back"
@@ -2136,9 +2327,30 @@ export function ParishPage({
               >
                 Wróć
               </button>
-              <button type="button" className="parish-login" onClick={onAuthAction}>
-                {authLabel}
+              <button
+                type="button"
+                className="parish-brand"
+                onClick={() => {
+                  setView('chooser');
+                  setBuilderStep(0);
+                }}
+              >
+                <img src="/parish/logo.svg" alt="Logo parafii" className="parish-logo" />
+                <span className="parish-name">Nowa strona parafii</span>
               </button>
+            </div>
+            <div className="parish-controls">
+              <AuthAction
+                copy={copy}
+                label={authLabel}
+                isAuthenticated={isAuthenticated}
+                secureMode={secureMode}
+                onLogin={onAuthAction}
+                onProfileNavigate={onProfileNavigate}
+                onToggleSecureMode={onToggleSecureMode}
+                onLogout={onLogout}
+                variant="ghost"
+              />
             </div>
           </header>
           <main className="parish-main">
@@ -2437,19 +2649,27 @@ export function ParishPage({
       ) : (
         <>
           <header className="parish-header">
-            <button
-              type="button"
-              className="parish-brand"
-              onClick={() => {
-                setActivePage('start');
-                setMenuOpen(false);
-                setOpenSection(null);
-                navigate(`/parish/${parish.slug}`);
-              }}
-            >
-              <img src={parish.logo} alt={`Logo ${parish.name}`} className="parish-logo" />
-              <span className="parish-name">{parish.name}</span>
-            </button>
+            <div className="parish-header-left">
+              <button type="button" className="parish-back" onClick={handleBack}>
+                Back
+              </button>
+              <a className="parish-up" href="/#/parish">
+                Up
+              </a>
+              <button
+                type="button"
+                className="parish-brand"
+                onClick={() => {
+                  setActivePage('start');
+                  setMenuOpen(false);
+                  setOpenSection(null);
+                  navigate(`/parish/${parish.slug}`);
+                }}
+              >
+                <img src={parish.logo} alt={`Logo ${parish.name}`} className="parish-logo" />
+                <span className="parish-name">{parish.name}</span>
+              </button>
+            </div>
             <nav className={`parish-menu ${menuOpen ? 'open' : ''}`} aria-label="Menu parafialne">
               {menu.map((item) => {
                 if (item.children) {
@@ -2500,43 +2720,43 @@ export function ParishPage({
                 );
               })}
             </nav>
-            <div className="parish-back-control">
-              <button type="button" className="parish-back" onClick={handleBack}>
-                Back
-              </button>
-              <a className="parish-up" href="/#/parish">
-                Up
-              </a>
-            </div>
-            <div className="parish-menu-control">
-              <button
-                type="button"
-                className="menu-toggle"
-                onClick={() => {
-                  setMenuOpen((open) => {
-                    if (open) setOpenSection(null);
-                    return !open;
-                  });
-                }}
-              >
-                Menu
-              </button>
-            </div>
-            {isAuthenticated && (
-              <div className="parish-edit-control">
+            <div className="parish-header-right">
+              <div className="parish-menu-control">
                 <button
                   type="button"
-                  className={`parish-back ${editMode ? 'is-active' : ''}`}
-                  onClick={() => setEditMode((current) => !current)}
+                  className="menu-toggle"
+                  onClick={() => {
+                    setMenuOpen((open) => {
+                      if (open) setOpenSection(null);
+                      return !open;
+                    });
+                  }}
                 >
-                  {editMode ? 'Zakończ edycję' : 'Tryb edycji'}
+                  Menu
                 </button>
               </div>
-            )}
-            <div className="parish-login-control">
-              <button type="button" className="parish-login" onClick={onAuthAction}>
-                {authLabel}
-              </button>
+              {isAuthenticated && (
+                <div className="parish-edit-control">
+                  <button
+                    type="button"
+                    className={`parish-back ${editMode ? 'is-active' : ''}`}
+                    onClick={() => setEditMode((current) => !current)}
+                  >
+                    {editMode ? 'Zakończ edycję' : 'Tryb edycji'}
+                  </button>
+                </div>
+              )}
+              <AuthAction
+                copy={copy}
+                label={authLabel}
+                isAuthenticated={isAuthenticated}
+                secureMode={secureMode}
+                onLogin={onAuthAction}
+                onProfileNavigate={onProfileNavigate}
+                onToggleSecureMode={onToggleSecureMode}
+                onLogout={onLogout}
+                variant="ghost"
+              />
             </div>
           </header>
           <main className="parish-main">
