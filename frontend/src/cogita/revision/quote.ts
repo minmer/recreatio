@@ -18,6 +18,38 @@ export type QuoteFragmentTree = {
 };
 
 const isWhitespace = (char: string) => /\s/.test(char);
+const isWordChar = (char: string) => /[\p{L}\p{N}]/u.test(char);
+
+const boundaryScore = (text: string, splitIndex: number) => {
+  const left = splitIndex > 0 ? text[splitIndex - 1] : '';
+  const right = splitIndex < text.length ? text[splitIndex] : '';
+  if (!left || !right) return 0;
+
+  const leftWhitespace = isWhitespace(left);
+  const rightWhitespace = isWhitespace(right);
+  if (leftWhitespace || rightWhitespace) return 3;
+
+  const leftWord = isWordChar(left);
+  const rightWord = isWordChar(right);
+  if (leftWord !== rightWord) return 2;
+  if (!leftWord && !rightWord) return 1;
+  return 0;
+};
+
+const findBestBoundary = (text: string, minIndex: number, maxIndex: number, target: number, minScore: number) => {
+  const maxOffset = Math.max(target - minIndex, maxIndex - target);
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    const left = target - offset;
+    if (left >= minIndex && left <= maxIndex && boundaryScore(text, left) >= minScore) {
+      return left;
+    }
+    const right = target + offset;
+    if (right >= minIndex && right <= maxIndex && boundaryScore(text, right) >= minScore) {
+      return right;
+    }
+  }
+  return null;
+};
 
 const findSplitIndex = (text: string, start: number, end: number, minLen: number) => {
   const length = end - start;
@@ -27,17 +59,13 @@ const findSplitIndex = (text: string, start: number, end: number, minLen: number
     return Math.floor((start + end) / 2);
   }
   const target = Math.floor((start + end) / 2);
-  const maxOffset = Math.max(target - minIndex, maxIndex - target);
-  for (let offset = 0; offset <= maxOffset; offset += 1) {
-    const left = target - offset;
-    if (left >= minIndex && left <= maxIndex && isWhitespace(text[left])) {
-      return left + 1;
-    }
-    const right = target + offset;
-    if (right >= minIndex && right <= maxIndex && isWhitespace(text[right])) {
-      return right + 1;
-    }
-  }
+  // Prefer boundaries around spaces, then around punctuation/word edges, then punctuation groups.
+  const whitespaceBoundary = findBestBoundary(text, minIndex, maxIndex, target, 3);
+  if (whitespaceBoundary !== null) return whitespaceBoundary;
+  const wordBoundary = findBestBoundary(text, minIndex, maxIndex, target, 2);
+  if (wordBoundary !== null) return wordBoundary;
+  const punctuationBoundary = findBestBoundary(text, minIndex, maxIndex, target, 1);
+  if (punctuationBoundary !== null) return punctuationBoundary;
   return Math.max(minIndex, Math.min(maxIndex, target));
 };
 

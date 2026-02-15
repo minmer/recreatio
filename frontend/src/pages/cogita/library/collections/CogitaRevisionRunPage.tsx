@@ -41,6 +41,24 @@ import {
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
+const getQuoteMode = (direction?: string | null) => (direction === 'reverse' ? 'reverse' : 'forward');
+const buildQuoteFragmentDirection = (mode: 'forward' | 'reverse', fragmentId: string) => `${mode}|${fragmentId}`;
+const parseQuoteFragmentDirection = (direction?: string | null) => {
+  if (!direction) return null;
+  const [mode, fragmentId] = direction.split('|', 2);
+  if ((mode === 'forward' || mode === 'reverse') && fragmentId) {
+    return { mode, fragmentId };
+  }
+  return { mode: 'forward' as const, fragmentId: direction };
+};
+const matchesQuoteDirection = (entryDirection: string | null | undefined, currentDirection?: string | null) => {
+  const current = parseQuoteFragmentDirection(currentDirection);
+  if (!current) return true;
+  if (current.fragmentId && currentDirection) {
+    return (entryDirection ?? null) === currentDirection;
+  }
+  return (parseQuoteFragmentDirection(entryDirection)?.mode ?? 'forward') === current.mode;
+};
 const SUPERSCRIPT_MAP: Record<string, string> = {
   '0': '⁰',
   '1': '¹',
@@ -126,6 +144,23 @@ const getFirstComputedInputKey = (
   }
   return expected[0]?.key ?? null;
 };
+
+const expandQuoteDirectionCards = (cards: CogitaCardSearchResult[]) =>
+  cards.flatMap((card) => {
+    if (card.cardType !== 'info' || card.infoType !== 'quote') return [card];
+    const text = card.description ?? '';
+    if (!text.trim()) return [card];
+    const parsed = parseQuoteFragmentDirection(card.direction);
+    const mode = parsed?.mode ?? getQuoteMode(card.direction);
+    const tree = buildQuoteFragmentTree(text);
+    const nodeIds = Object.keys(tree.nodes);
+    if (nodeIds.length === 0) return [card];
+    return nodeIds.map((nodeId) => ({
+      ...card,
+      checkType: 'quote-fragment',
+      direction: buildQuoteFragmentDirection(mode, nodeId)
+    }));
+  });
 
 export function CogitaRevisionRunPage({
   copy,
@@ -556,6 +591,7 @@ export function CogitaRevisionRunPage({
         } while (cursor);
 
         if (!mounted) return;
+        const preparedCards = expandQuoteDirectionCards(gathered);
         let initialLevels: Record<string, number> | undefined;
         if (revisionType.id === 'levels') {
           const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
@@ -567,7 +603,7 @@ export function CogitaRevisionRunPage({
             return acc;
           }, {});
           initialLevels = {};
-          gathered.forEach((card) => {
+          preparedCards.forEach((card) => {
             const key = getCardKey(card);
             const entries = grouped[key] ?? [];
             const score = entries.length > 0 ? computeKnowness(entries).score : 0;
@@ -580,7 +616,7 @@ export function CogitaRevisionRunPage({
         let temporalOutcomes: Record<string, ReturnType<typeof buildTemporalEntries>> | null = null;
         if (revisionType.id === 'temporal') {
           const outcomes = await getAllOutcomes();
-          const cardIds = new Set(gathered.map((card) => getCardKey(card)));
+          const cardIds = new Set(preparedCards.map((card) => getCardKey(card)));
           const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
             const key = getOutcomeKey(outcome.itemType, outcome.itemId, outcome.checkType, outcome.direction);
             if (!cardIds.has(key)) return acc;
@@ -592,7 +628,7 @@ export function CogitaRevisionRunPage({
           temporalUnknown = new Set<string>();
           temporalOutcomes = {};
           const nowMs = Date.now();
-          gathered.forEach((card) => {
+          preparedCards.forEach((card) => {
             const cardKey = getCardKey(card);
             const entries = grouped[cardKey] ?? [];
             if (entries.length === 0) {
@@ -609,17 +645,17 @@ export function CogitaRevisionRunPage({
         }
         const initial =
           revisionType.id === 'levels'
-            ? prepareLevelsState(gathered, limit, revisionSettings, initialLevels)
+            ? prepareLevelsState(preparedCards, limit, revisionSettings, initialLevels)
             : revisionType.id === 'temporal'
               ? prepareTemporalState(
-                  gathered,
+                  preparedCards,
                   limit,
                   revisionSettings,
                   temporalKnowness ?? {},
                   temporalUnknown ?? new Set<string>(),
                   temporalOutcomes ?? {}
                 )
-            : revisionType.prepare(gathered, limit, revisionSettings);
+            : revisionType.prepare(preparedCards, limit, revisionSettings);
         setQueue(initial.queue);
         setRevisionMeta(initial.meta);
         setCurrentIndex(0);
@@ -704,11 +740,15 @@ export function CogitaRevisionRunPage({
     buildKnownessMaps()
       .then(({ fragmentKnowness }) => {
         if (!mounted) return;
+        const quoteMode = getQuoteMode(currentCard.direction);
         const known = new Set<string>();
         const fragmentScores: Record<string, number> = {};
         fragmentKnowness.forEach((score, key) => {
-          const [itemId, fragmentId] = key.split(':', 2);
+          const [itemId, rawDirection] = key.split(':', 2);
           if (itemId !== currentCard.cardId) return;
+          const parsed = parseQuoteFragmentDirection(rawDirection);
+          if (!parsed || parsed.mode !== quoteMode) return;
+          const fragmentId = parsed.fragmentId;
           fragmentScores[fragmentId] = score;
           if (score >= dependencyThreshold) {
             known.add(fragmentId);
@@ -716,12 +756,22 @@ export function CogitaRevisionRunPage({
         });
         quoteKnownRef.current = known;
         quoteKnownessRef.current = fragmentScores;
+        const parsedDirection = parseQuoteFragmentDirection(currentCard.direction);
+        if (parsedDirection?.fragmentId && tree.nodes[parsedDirection.fragmentId]) {
+          applyQuoteFragment(tree, parsedDirection.fragmentId, title);
+          return;
+        }
         const next = pickQuoteFragment(tree, known, fragmentScores, dependencyThreshold, considerDependencies, currentCard.direction);
         applyQuoteFragment(tree, next?.id ?? null, title);
       })
       .catch(() => {
         quoteKnownRef.current = new Set();
         quoteKnownessRef.current = {};
+        const parsedDirection = parseQuoteFragmentDirection(currentCard.direction);
+        if (parsedDirection?.fragmentId && tree.nodes[parsedDirection.fragmentId]) {
+          applyQuoteFragment(tree, parsedDirection.fragmentId, title);
+          return;
+        }
         const next = pickQuoteFragment(tree, quoteKnownRef.current, {}, dependencyThreshold, considerDependencies, currentCard.direction);
         applyQuoteFragment(tree, next?.id ?? null, title);
       });
@@ -872,7 +922,8 @@ export function CogitaRevisionRunPage({
             (entry) =>
               entry.itemType === 'info' &&
               entry.itemId === currentCard.cardId &&
-              entry.checkType === 'quote-fragment'
+              entry.checkType === 'quote-fragment' &&
+              matchesQuoteDirection(entry.direction, currentCard.direction)
           );
           setReviewSummary(computeKnowness(filtered));
         })
@@ -897,7 +948,8 @@ export function CogitaRevisionRunPage({
             (entry) =>
               entry.itemType === 'info' &&
               entry.itemId === itemId &&
-              entry.checkType === 'quote-fragment'
+              entry.checkType === 'quote-fragment' &&
+              matchesQuoteDirection(entry.direction, direction)
           );
           setReviewSummary(computeKnowness(filtered));
         })
@@ -965,7 +1017,14 @@ export function CogitaRevisionRunPage({
   };
 
   const advanceCard = () => {
-    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteTreeRef.current && quoteContext) {
+    if (
+      currentCard &&
+      currentCard.cardType === 'info' &&
+      currentCard.infoType === 'quote' &&
+      quoteTreeRef.current &&
+      quoteContext &&
+      !parseQuoteFragmentDirection(currentCard.direction)?.fragmentId
+    ) {
       const next = pickQuoteFragment(
         quoteTreeRef.current,
         quoteKnownRef.current,
@@ -1485,6 +1544,12 @@ export function CogitaRevisionRunPage({
     }
     if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext?.fragmentId) {
       if (!expectedAnswer) return;
+      const parsedDirection = parseQuoteFragmentDirection(currentCard.direction);
+      const quoteMode = parsedDirection?.mode ?? getQuoteMode(currentCard.direction);
+      const outcomeDirection =
+        parsedDirection?.fragmentId && currentCard.direction
+          ? currentCard.direction
+          : buildQuoteFragmentDirection(quoteMode, quoteContext.fragmentId);
       const mask = compareStringsIgnoringSpacingAndPunctuation(expectedAnswer, answer, compareMode);
       const exactCorrect =
         check === 'exact' &&
@@ -1517,7 +1582,7 @@ export function CogitaRevisionRunPage({
           answer,
           evalType: 'quote-fragment',
           overrideCheckType: 'quote-fragment',
-          overrideDirection: quoteContext.fragmentId
+          overrideDirection: outcomeDirection
         });
       } else {
         setFeedback('incorrect');
@@ -1541,7 +1606,7 @@ export function CogitaRevisionRunPage({
           answer,
           evalType: 'quote-fragment',
           overrideCheckType: 'quote-fragment',
-          overrideDirection: quoteContext.fragmentId
+          overrideDirection: outcomeDirection
         });
       }
       return;
