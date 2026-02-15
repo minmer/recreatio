@@ -6413,6 +6413,13 @@ public static class CogitaEndpoints
     {
         if (payload.ValueKind == JsonValueKind.Object)
         {
+            if (infoType == "quote" &&
+                payload.TryGetProperty("title", out var quoteTitle) &&
+                quoteTitle.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(quoteTitle.GetString()))
+            {
+                return quoteTitle.GetString();
+            }
             if (payload.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String)
             {
                 return label.GetString();
