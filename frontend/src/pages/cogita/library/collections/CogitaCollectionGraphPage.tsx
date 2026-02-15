@@ -29,6 +29,7 @@ type GraphNodeData = {
 
 const NODE_CATALOG = [
   { type: 'source.translation', label: 'Translation source' },
+  { type: 'source.info.all', label: 'All infos' },
   { type: 'source.info', label: 'Info source' },
   { type: 'source.connection', label: 'Connection source' },
   { type: 'filter.tag', label: 'Tag filter' },
@@ -448,7 +449,7 @@ export function CogitaCollectionGraphPage({
                         </label>
                       </>
                     )}
-                    {['logic.and', 'logic.or', 'output.collection', 'source.translation'].includes(selectedNode.data.nodeType) && (
+                    {['logic.and', 'logic.or', 'output.collection', 'source.translation', 'source.info.all'].includes(selectedNode.data.nodeType) && (
                       <p className="cogita-help">{copy.cogita.library.graph.noParams}</p>
                     )}
                   </div>

@@ -132,6 +132,7 @@ export function CogitaLibraryAddPage({
     citationTitle: '',
     citationQuoteText: '',
     citationLanguage: null as CogitaInfoOption | null,
+    citationReferenceEnabled: false,
     citationSourceKind: 'string' as string,
     citationLocatorValue: '',
     citationLocatorAux: '',
@@ -965,33 +966,25 @@ export function CogitaLibraryAddPage({
           return;
         }
 
-        const citationForm: ReferenceSourceForm = {
-          sourceKind: groupForm.citationSourceKind,
-          locatorValue: groupForm.citationLocatorValue,
-          locatorAux: groupForm.citationLocatorAux,
-          bibleBookDisplay: groupForm.citationBibleBookDisplay,
-          sourceUrl: groupForm.citationSourceUrl,
-          sourceAccessedDate: groupForm.citationSourceAccessedDate,
-          churchDocument: groupForm.citationChurchDocument,
-          bookMedia: groupForm.citationBookMedia,
-          work: groupForm.citationWork
-        };
-        const { payload: sourcePayload, resourceInfoId, error } = buildSourcePayload(citationForm);
-        if (error) {
-          setFormStatus(copy.cogita.library.add.group.citationMissingSource);
-          return;
-        }
-        const createdSource = await createCogitaInfo({
-          libraryId,
-          infoType: 'source',
-          payload: sourcePayload
-        });
-        if (resourceInfoId) {
-          await createCogitaConnection({
-            libraryId,
-            connectionType: 'source-resource',
-            infoIds: [createdSource.infoId, resourceInfoId]
-          });
+        let pendingReference: { payload: Record<string, unknown>; resourceInfoId: string | null } | null = null;
+        if (groupForm.citationReferenceEnabled) {
+          const citationForm: ReferenceSourceForm = {
+            sourceKind: groupForm.citationSourceKind,
+            locatorValue: groupForm.citationLocatorValue,
+            locatorAux: groupForm.citationLocatorAux,
+            bibleBookDisplay: groupForm.citationBibleBookDisplay,
+            sourceUrl: groupForm.citationSourceUrl,
+            sourceAccessedDate: groupForm.citationSourceAccessedDate,
+            churchDocument: groupForm.citationChurchDocument,
+            bookMedia: groupForm.citationBookMedia,
+            work: groupForm.citationWork
+          };
+          const { payload: sourcePayload, resourceInfoId, error } = buildSourcePayload(citationForm);
+          if (error) {
+            setFormStatus(copy.cogita.library.add.info.referenceMissingSource);
+            return;
+          }
+          pendingReference = { payload: sourcePayload, resourceInfoId };
         }
 
         const quotePayload: Record<string, unknown> = {
@@ -1013,11 +1006,25 @@ export function CogitaLibraryAddPage({
           });
         }
 
-        await createCogitaConnection({
-          libraryId,
-          connectionType: 'reference',
-          infoIds: [createdQuote.infoId, createdSource.infoId]
-        });
+        if (pendingReference) {
+          const createdSource = await createCogitaInfo({
+            libraryId,
+            infoType: 'source',
+            payload: pendingReference.payload
+          });
+          if (pendingReference.resourceInfoId) {
+            await createCogitaConnection({
+              libraryId,
+              connectionType: 'source-resource',
+              infoIds: [createdSource.infoId, pendingReference.resourceInfoId]
+            });
+          }
+          await createCogitaConnection({
+            libraryId,
+            connectionType: 'reference',
+            infoIds: [createdQuote.infoId, createdSource.infoId]
+          });
+        }
 
         setFormStatus(copy.cogita.library.add.group.savedCitation);
         setGroupForm((prev) => ({
@@ -1025,15 +1032,16 @@ export function CogitaLibraryAddPage({
           citationTitle: '',
           citationQuoteText: '',
           citationLanguage: null,
-          citationSourceKind: 'string',
+          citationReferenceEnabled: prev.citationReferenceEnabled,
+          citationSourceKind: prev.citationReferenceEnabled ? prev.citationSourceKind : 'string',
           citationLocatorValue: '',
           citationLocatorAux: '',
           citationBibleBookDisplay: '',
           citationSourceUrl: '',
           citationSourceAccessedDate: '',
-          citationChurchDocument: null,
-          citationBookMedia: null,
-          citationWork: null
+          citationChurchDocument: prev.citationReferenceEnabled ? prev.citationChurchDocument : null,
+          citationBookMedia: prev.citationReferenceEnabled ? prev.citationBookMedia : null,
+          citationWork: prev.citationReferenceEnabled ? prev.citationWork : null
         }));
         return;
       }
@@ -2299,38 +2307,56 @@ export function CogitaLibraryAddPage({
                           placeholder={copy.cogita.library.add.group.citationQuoteTextPlaceholder}
                         />
                       </label>
-                      <ReferencePanel
-                        libraryId={libraryId}
-                        copy={copy}
-                        language={language}
-                        sourceKindOptions={sourceKindOptions}
-                        labels={referenceLabels}
-                        value={{
-                          sourceKind: groupForm.citationSourceKind,
-                          locatorValue: groupForm.citationLocatorValue,
-                          locatorAux: groupForm.citationLocatorAux,
-                          bibleBookDisplay: groupForm.citationBibleBookDisplay,
-                          sourceUrl: groupForm.citationSourceUrl,
-                          sourceAccessedDate: groupForm.citationSourceAccessedDate,
-                          churchDocument: groupForm.citationChurchDocument,
-                          bookMedia: groupForm.citationBookMedia,
-                          work: groupForm.citationWork
-                        }}
-                        onChange={(next) =>
-                          setGroupForm((prev) => ({
-                            ...prev,
-                            citationSourceKind: next.sourceKind,
-                            citationLocatorValue: next.locatorValue,
-                            citationLocatorAux: next.locatorAux,
-                            citationBibleBookDisplay: next.bibleBookDisplay,
-                            citationSourceUrl: next.sourceUrl,
-                            citationSourceAccessedDate: next.sourceAccessedDate,
-                            citationChurchDocument: next.churchDocument,
-                            citationBookMedia: next.bookMedia,
-                            citationWork: next.work
-                          }))
-                        }
-                      />
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.info.referenceTitle}</span>
+                        <div className="cogita-checkbox">
+                          <input
+                            type="checkbox"
+                            checked={groupForm.citationReferenceEnabled}
+                            onChange={(event) =>
+                              setGroupForm((prev) => ({
+                                ...prev,
+                                citationReferenceEnabled: event.target.checked
+                              }))
+                            }
+                          />
+                          <span>{copy.cogita.library.add.info.referenceToggle}</span>
+                        </div>
+                      </label>
+                      {groupForm.citationReferenceEnabled && (
+                        <ReferencePanel
+                          libraryId={libraryId}
+                          copy={copy}
+                          language={language}
+                          sourceKindOptions={sourceKindOptions}
+                          labels={referenceLabels}
+                          value={{
+                            sourceKind: groupForm.citationSourceKind,
+                            locatorValue: groupForm.citationLocatorValue,
+                            locatorAux: groupForm.citationLocatorAux,
+                            bibleBookDisplay: groupForm.citationBibleBookDisplay,
+                            sourceUrl: groupForm.citationSourceUrl,
+                            sourceAccessedDate: groupForm.citationSourceAccessedDate,
+                            churchDocument: groupForm.citationChurchDocument,
+                            bookMedia: groupForm.citationBookMedia,
+                            work: groupForm.citationWork
+                          }}
+                          onChange={(next) =>
+                            setGroupForm((prev) => ({
+                              ...prev,
+                              citationSourceKind: next.sourceKind,
+                              citationLocatorValue: next.locatorValue,
+                              citationLocatorAux: next.locatorAux,
+                              citationBibleBookDisplay: next.bibleBookDisplay,
+                              citationSourceUrl: next.sourceUrl,
+                              citationSourceAccessedDate: next.sourceAccessedDate,
+                              citationChurchDocument: next.churchDocument,
+                              citationBookMedia: next.bookMedia,
+                              citationWork: next.work
+                            }))
+                          }
+                        />
+                      )}
                     </>
                   )}
                   {groupForm.groupType === 'book' && (

@@ -59,6 +59,7 @@ public static class CogitaEndpoints
     private static readonly string[] SupportedCollectionGraphNodeTypes =
     {
         "source.translation",
+        "source.info.all",
         "filter.tag",
         "filter.language",
         "logic.and",
@@ -7733,6 +7734,7 @@ public static class CogitaEndpoints
                     result = new GraphDataset(translationLookup.Keys.ToHashSet(), new HashSet<Guid>());
                     break;
                 case "source.info":
+                case "source.info.all":
                     result = infoSources.TryGetValue(nodeId, out var infoSet)
                         ? new GraphDataset(new HashSet<Guid>(), infoSet)
                         : GraphDataset.Empty;
@@ -8506,7 +8508,9 @@ public static class CogitaEndpoints
     {
         var result = new Dictionary<Guid, HashSet<Guid>>();
         var infoNodeIds = nodes
-            .Where(n => n.NodeType.Trim().Equals("source.info", StringComparison.OrdinalIgnoreCase))
+            .Where(n =>
+                n.NodeType.Trim().Equals("source.info", StringComparison.OrdinalIgnoreCase) ||
+                n.NodeType.Trim().Equals("source.info.all", StringComparison.OrdinalIgnoreCase))
             .Select(n => n.Id)
             .ToList();
         if (infoNodeIds.Count == 0)
@@ -8516,6 +8520,18 @@ public static class CogitaEndpoints
 
         foreach (var nodeId in infoNodeIds)
         {
+            var node = nodes.FirstOrDefault(n => n.Id == nodeId);
+            var nodeType = node?.NodeType.Trim().ToLowerInvariant();
+            if (nodeType == "source.info.all")
+            {
+                var allInfoIds = await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId)
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+                result[nodeId] = allInfoIds.ToHashSet();
+                continue;
+            }
+
             if (!nodeParams.TryGetValue(nodeId, out var parameters) || parameters is null)
             {
                 result[nodeId] = new HashSet<Guid>();
@@ -8546,15 +8562,24 @@ public static class CogitaEndpoints
 
             if (!string.IsNullOrWhiteSpace(infoType))
             {
-                var ids = await dbContext.CogitaInfos.AsNoTracking()
-                    .Where(x => x.LibraryId == libraryId && x.InfoType == infoType)
+                var query = dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId);
+                if (!infoType.Equals("all", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(x => x.InfoType == infoType);
+                }
+                var ids = await query
                     .Select(x => x.Id)
                     .ToListAsync(ct);
                 result[nodeId] = ids.ToHashSet();
             }
             else
             {
-                result[nodeId] = new HashSet<Guid>();
+                var ids = await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId)
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+                result[nodeId] = ids.ToHashSet();
             }
         }
 
