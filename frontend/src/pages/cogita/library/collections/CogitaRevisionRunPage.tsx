@@ -754,7 +754,13 @@ export function CogitaRevisionRunPage({
       return;
     }
     const quoteText = currentCard.description ?? '';
-    const title = currentCard.label || copy.cogita.library.infoTypes.quote;
+    const cardLabel = (currentCard.label ?? '').trim();
+    const normalizedLabel = cardLabel.replace(/\s+/g, ' ').trim();
+    const normalizedQuote = quoteText.replace(/\s+/g, ' ').trim();
+    const title =
+      normalizedLabel && normalizedLabel !== normalizedQuote
+        ? cardLabel
+        : copy.cogita.library.infoTypes.quote;
     if (!quoteText) {
       setQuoteContext(null);
       setExpectedAnswer(null);
