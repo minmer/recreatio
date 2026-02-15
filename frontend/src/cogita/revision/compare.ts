@@ -161,3 +161,21 @@ export const compareStrings = (expected: string, answer: string, algorithmId: Co
   if (algorithmId === 'anchors') return anchorCompare(normalizedExpected, normalizedAnswer);
   return compareBidirectional(normalizedExpected, normalizedAnswer);
 };
+
+export const normalizeIgnoringSpacingAndPunctuation = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '');
+
+export const compareStringsIgnoringSpacingAndPunctuation = (
+  expected: string,
+  answer: string,
+  algorithmId: CompareAlgorithmId
+) => {
+  const normalizedExpected = normalizeIgnoringSpacingAndPunctuation(expected);
+  const normalizedAnswer = normalizeIgnoringSpacingAndPunctuation(answer);
+  if (algorithmId === 'prefix') return comparePrefix(normalizedExpected, normalizedAnswer);
+  if (algorithmId === 'anchors') return anchorCompare(normalizedExpected, normalizedAnswer);
+  return compareBidirectional(normalizedExpected, normalizedAnswer);
+};

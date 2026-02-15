@@ -32,7 +32,12 @@ import {
   prepareLevelsState,
   prepareTemporalState
 } from '../../../../cogita/revision/registry';
-import { compareStrings, type CompareAlgorithmId } from '../../../../cogita/revision/compare';
+import {
+  compareStrings,
+  compareStringsIgnoringSpacingAndPunctuation,
+  normalizeIgnoringSpacingAndPunctuation,
+  type CompareAlgorithmId
+} from '../../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
@@ -1480,8 +1485,10 @@ export function CogitaRevisionRunPage({
     }
     if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext?.fragmentId) {
       if (!expectedAnswer) return;
-      const mask = compareStrings(expectedAnswer, answer, compareMode);
-      const exactCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
+      const mask = compareStringsIgnoringSpacingAndPunctuation(expectedAnswer, answer, compareMode);
+      const exactCorrect =
+        check === 'exact' &&
+        normalizeIgnoringSpacingAndPunctuation(answer) === normalizeIgnoringSpacingAndPunctuation(expectedAnswer);
       const thresholdCorrect = isMaskCorrect(mask);
       const isCorrect = exactCorrect || thresholdCorrect;
       const maskPercent = maskAveragePercent(mask);
