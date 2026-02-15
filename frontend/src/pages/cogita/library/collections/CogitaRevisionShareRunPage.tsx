@@ -355,6 +355,25 @@ export function CogitaRevisionShareRunPage({
       return;
     }
     const { itemKnowness, cardKnowness } = await buildKnownessMaps();
+    const isInternalCardDependencySatisfied = (card: CogitaCardSearchResult) => {
+      if (card.cardType !== 'info' || card.infoType !== 'quote' || card.checkType !== 'quote-fragment') return true;
+      const parsed = parseQuoteFragmentDirection(card.direction);
+      if (!parsed?.fragmentId) return true;
+      const quoteText = card.description ?? '';
+      if (!quoteText.trim()) return true;
+      const tree = buildQuoteFragmentTree(quoteText);
+      const node = tree.nodes[parsed.fragmentId];
+      if (!node) return true;
+      if (!node.leftId && !node.rightId) return true;
+      const childIds = [node.leftId, node.rightId].filter((id): id is string => Boolean(id));
+      if (childIds.length === 0) return true;
+      const scores = childIds.map((childId) => {
+        const key = getOutcomeKey('info', card.cardId, 'quote-fragment', buildQuoteFragmentDirection(parsed.mode, childId));
+        return cardKnowness.get(key) ?? 0;
+      });
+      const mean = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+      return mean >= dependencyThreshold;
+    };
     const depByChild = new Map<string, CogitaItemDependency[]>();
     itemDependencies.forEach((dep) => {
       const key = `${dep.childItemType}:${dep.childItemId}`;
@@ -371,6 +390,9 @@ export function CogitaRevisionShareRunPage({
     for (const card of cards) {
       if (card.cardType !== 'info') {
         eligible.add(getCardKey(card));
+        continue;
+      }
+      if (!isInternalCardDependencySatisfied(card)) {
         continue;
       }
       const deps = (depByChild.get(`info:${card.cardId}`) ?? []).concat(collectionDeps);
