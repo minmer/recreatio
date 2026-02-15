@@ -606,6 +606,17 @@ export type CogitaDependencyGraphPreview = {
   collectionIds: string[];
 };
 
+export type CogitaItemDependency = {
+  parentItemType: string;
+  parentItemId: string;
+  childItemType: string;
+  childItemId: string;
+};
+
+export type CogitaItemDependencyBundle = {
+  items: CogitaItemDependency[];
+};
+
 export type CogitaReviewEventResponse = {
   reviewId: string;
   createdUtc: string;
@@ -1035,6 +1046,21 @@ export function previewCogitaDependencyGraph(payload: { libraryId: string }) {
   return request<CogitaDependencyGraphPreview>(`/cogita/libraries/${payload.libraryId}/dependency-graph/preview`, {
     method: 'POST',
     body: JSON.stringify({})
+  });
+}
+
+export function getCogitaItemDependencies(payload: { libraryId: string }) {
+  return request<CogitaItemDependencyBundle>(`/cogita/libraries/${payload.libraryId}/dependencies/items`, {
+    method: 'GET'
+  });
+}
+
+export function getCogitaPublicRevisionDependencies(payload: { shareId: string; key?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.key) params.set('key', payload.key);
+  const qs = params.toString();
+  return request<CogitaItemDependencyBundle>(`/cogita/public/revision/${payload.shareId}/dependencies${qs ? `?${qs}` : ''}`, {
+    method: 'GET'
   });
 }
 

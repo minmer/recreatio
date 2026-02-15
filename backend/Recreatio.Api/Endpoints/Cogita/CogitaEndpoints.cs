@@ -1780,9 +1780,48 @@ public static class CogitaEndpoints
                 ChildCollectionInfoId = request.ChildCollectionId,
                 CreatedUtc = DateTimeOffset.UtcNow
             });
+            dbContext.CogitaItemDependencies.Add(new CogitaItemDependency
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                ParentItemType = "collection",
+                ParentItemId = request.ParentCollectionId,
+                ChildItemType = "collection",
+                ChildItemId = request.ChildCollectionId,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new CogitaCollectionDependencyResponse(request.ParentCollectionId, request.ChildCollectionId));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/dependencies/items", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out _) ||
+                !EndpointHelpers.TryGetSessionId(context, out _))
+            {
+                return Results.Unauthorized();
+            }
+
+            var exists = await dbContext.CogitaLibraries.AsNoTracking()
+                .AnyAsync(x => x.Id == libraryId, ct);
+            if (!exists)
+            {
+                return Results.NotFound();
+            }
+
+            var deps = await dbContext.CogitaItemDependencies.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId)
+                .ToListAsync(ct);
+            var response = deps
+                .Select(x => new CogitaItemDependencyResponse(x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId))
+                .ToList();
+
+            return Results.Ok(new CogitaItemDependencyBundleResponse(response));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/reviewers", async (
@@ -3251,6 +3290,39 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson));
         }).AllowAnonymous();
 
+        group.MapGet("/public/revision/{code}/dependencies", async (
+            string code,
+            string? key,
+            RecreatioDbContext dbContext,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveRevisionShareAsync(
+                code,
+                key,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, _) = shareContext.Value;
+            var deps = await dbContext.CogitaItemDependencies.AsNoTracking()
+                .Where(x => x.LibraryId == share.LibraryId)
+                .ToListAsync(ct);
+            var response = deps
+                .Select(x => new CogitaItemDependencyResponse(x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId))
+                .ToList();
+
+            return Results.Ok(new CogitaItemDependencyBundleResponse(response));
+        }).AllowAnonymous();
+
         group.MapGet("/public/revision/{code}/cards", async (
             string code,
             string? key,
@@ -4040,6 +4112,56 @@ public static class CogitaEndpoints
                 responseEdges.Add(new CogitaDependencyGraphEdgeResponse(edgeId, edge.FromNodeId, edge.ToNodeId));
             }
 
+            var nodePayloadById = request.Nodes
+                .Where(node => node.NodeId.HasValue)
+                .ToDictionary(node => node.NodeId!.Value, node => node.Payload);
+            var dependencies = new List<CogitaItemDependency>();
+            foreach (var edge in request.Edges)
+            {
+                if (!nodePayloadById.TryGetValue(edge.FromNodeId, out var fromPayload) ||
+                    !nodePayloadById.TryGetValue(edge.ToNodeId, out var toPayload))
+                {
+                    continue;
+                }
+                if (!fromPayload.TryGetProperty("itemType", out var fromTypeEl) ||
+                    !toPayload.TryGetProperty("itemType", out var toTypeEl) ||
+                    fromTypeEl.ValueKind != JsonValueKind.String ||
+                    toTypeEl.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+                if (!fromPayload.TryGetProperty("itemId", out var fromIdEl) ||
+                    !toPayload.TryGetProperty("itemId", out var toIdEl) ||
+                    fromIdEl.ValueKind != JsonValueKind.String ||
+                    toIdEl.ValueKind != JsonValueKind.String ||
+                    !Guid.TryParse(fromIdEl.GetString(), out var fromId) ||
+                    !Guid.TryParse(toIdEl.GetString(), out var toId))
+                {
+                    continue;
+                }
+                var parentType = fromTypeEl.GetString() ?? "info";
+                var childType = toTypeEl.GetString() ?? "info";
+                dependencies.Add(new CogitaItemDependency
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ParentItemType = parentType,
+                    ParentItemId = fromId,
+                    ChildItemType = childType,
+                    ChildItemId = toId,
+                    CreatedUtc = now
+                });
+            }
+
+            var existingDeps = await dbContext.CogitaItemDependencies
+                .Where(x => x.LibraryId == libraryId)
+                .ToListAsync(ct);
+            dbContext.CogitaItemDependencies.RemoveRange(existingDeps);
+            if (dependencies.Count > 0)
+            {
+                dbContext.CogitaItemDependencies.AddRange(dependencies);
+            }
+
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new CogitaDependencyGraphResponse(graph.Id, responseNodes, responseEdges));
@@ -4110,16 +4232,26 @@ public static class CogitaEndpoints
                 .ToListAsync(ct);
 
             var collectionIds = new HashSet<Guid>();
+            var infoIds = new HashSet<Guid>();
             foreach (var node in nodes)
             {
                 try
                 {
                     var plain = encryptionService.Decrypt(dataKey, node.EncryptedBlob, node.Id.ToByteArray());
                     using var doc = JsonDocument.Parse(plain);
-                    if (doc.RootElement.TryGetProperty("collectionId", out var idEl) && idEl.ValueKind == JsonValueKind.String &&
-                        Guid.TryParse(idEl.GetString(), out var collectionId))
+                    if (doc.RootElement.TryGetProperty("itemType", out var typeEl) && typeEl.ValueKind == JsonValueKind.String &&
+                        doc.RootElement.TryGetProperty("itemId", out var idEl) && idEl.ValueKind == JsonValueKind.String &&
+                        Guid.TryParse(idEl.GetString(), out var itemId))
                     {
-                        collectionIds.Add(collectionId);
+                        var itemType = typeEl.GetString() ?? "info";
+                        if (itemType == "collection")
+                        {
+                            collectionIds.Add(itemId);
+                        }
+                        else
+                        {
+                            infoIds.Add(itemId);
+                        }
                     }
                 }
                 catch (CryptographicException)
@@ -4128,7 +4260,7 @@ public static class CogitaEndpoints
                 }
             }
 
-            return Results.Ok(new CogitaDependencyGraphPreviewResponse(collectionIds.Count, collectionIds.ToList()));
+            return Results.Ok(new CogitaDependencyGraphPreviewResponse(collectionIds.Count + infoIds.Count, collectionIds.Concat(infoIds).ToList()));
         });
 
         group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}/cards", async (

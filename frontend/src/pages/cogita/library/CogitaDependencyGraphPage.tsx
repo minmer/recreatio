@@ -12,14 +12,16 @@ import {
   saveCogitaDependencyGraph,
   type CogitaDependencyGraphEdge,
   type CogitaDependencyGraphPreview,
+  getCogitaInfoDetail,
   type CogitaInfoSearchResult
 } from '../../../lib/api';
+import { buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 
 type GraphNode = {
   id: string;
   type: string;
   position: { x: number; y: number };
-  data: { label: string; nodeType: string; collectionId?: string | null };
+  data: { label: string; nodeType: string; itemType: string; itemId?: string | null; infoType?: string | null };
 };
 
 export function CogitaDependencyGraphPage({
@@ -53,6 +55,7 @@ export function CogitaDependencyGraphPage({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [preview, setPreview] = useState<CogitaDependencyGraphPreview | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [quotePreview, setQuotePreview] = useState<{ title: string; fragments: Array<{ id: string; text: string; depth: number }> } | null>(null);
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
 
@@ -66,9 +69,11 @@ export function CogitaDependencyGraphPage({
           type: 'default',
           position: { x: 80 + Math.random() * 300, y: 60 + Math.random() * 260 },
           data: {
-            label: node.payload && typeof node.payload === 'object' && 'label' in node.payload ? String((node.payload as any).label) : 'Collection',
+            label: node.payload && typeof node.payload === 'object' && 'label' in node.payload ? String((node.payload as any).label) : 'Item',
             nodeType: node.nodeType,
-            collectionId: (node.payload as any)?.collectionId ?? null
+            itemType: (node.payload as any)?.itemType ?? 'info',
+            itemId: (node.payload as any)?.itemId ?? null,
+            infoType: (node.payload as any)?.infoType ?? null
           }
         }));
         setNodes(mappedNodes);
@@ -103,7 +108,32 @@ export function CogitaDependencyGraphPage({
         id,
         type: 'default',
         position: { x: 140 + prev.length * 40, y: 120 + prev.length * 30 },
-        data: { label: copy.cogita.library.infoTypes.collection, nodeType: 'collection', collectionId: null }
+        data: {
+          label: copy.cogita.library.infoTypes.collection,
+          nodeType: 'collection',
+          itemType: 'collection',
+          itemId: null,
+          infoType: 'collection'
+        }
+      }
+    ]);
+  };
+
+  const addInfoNode = () => {
+    const id = crypto.randomUUID();
+    setNodes((prev) => [
+      ...prev,
+      {
+        id,
+        type: 'default',
+        position: { x: 180 + prev.length * 40, y: 160 + prev.length * 30 },
+        data: {
+          label: copy.cogita.library.infoTypes.any,
+          nodeType: 'info',
+          itemType: 'info',
+          itemId: null,
+          infoType: null
+        }
       }
     ]);
   };
@@ -115,8 +145,10 @@ export function CogitaDependencyGraphPage({
         nodeId: node.id,
         nodeType: node.data.nodeType,
         payload: {
-          collectionId: node.data.collectionId ?? null,
-          label: node.data.label
+          itemType: node.data.itemType,
+          itemId: node.data.itemId ?? null,
+          label: node.data.label,
+          infoType: node.data.infoType ?? null
         }
       }));
       const payloadEdges = edges.map((edge) => ({
@@ -140,7 +172,9 @@ export function CogitaDependencyGraphPage({
               ...node,
               data: {
                 ...node.data,
-                collectionId: value?.infoId ?? null,
+                itemId: value?.infoId ?? null,
+                itemType: 'collection',
+                infoType: 'collection',
                 label: value?.label ?? copy.cogita.library.infoTypes.collection
               }
             }
@@ -148,6 +182,53 @@ export function CogitaDependencyGraphPage({
       )
     );
   };
+
+  const updateSelectedInfo = (value: CogitaInfoSearchResult | null) => {
+    if (!selectedNode) return;
+    setNodes((prev) =>
+      prev.map((node) =>
+        node.id === selectedNode.id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                itemId: value?.infoId ?? null,
+                itemType: 'info',
+                infoType: value?.infoType ?? null,
+                label: value?.label ?? copy.cogita.library.infoTypes.any
+              }
+            }
+          : node
+      )
+    );
+  };
+
+  useEffect(() => {
+    if (!selectedNode || selectedNode.data.nodeType !== 'info' || selectedNode.data.infoType !== 'quote' || !selectedNode.data.itemId) {
+      setQuotePreview(null);
+      return;
+    }
+    let mounted = true;
+    getCogitaInfoDetail({ libraryId, infoId: selectedNode.data.itemId })
+      .then((detail) => {
+        if (!mounted) return;
+        const payload = detail.payload as { text?: string; title?: string };
+        const text = payload?.text ?? '';
+        if (!text) {
+          setQuotePreview(null);
+          return;
+        }
+        const tree = buildQuoteFragmentTree(text);
+        const fragments = Object.values(tree.nodes)
+          .sort((a, b) => a.depth - b.depth || a.start - b.start)
+          .map((node) => ({ id: node.id, text: node.text, depth: node.depth }));
+        setQuotePreview({ title: payload?.title ?? selectedNode.data.label, fragments });
+      })
+      .catch(() => setQuotePreview(null));
+    return () => {
+      mounted = false;
+    };
+  }, [libraryId, selectedNode]);
 
   return (
     <CogitaShell
@@ -188,6 +269,9 @@ export function CogitaDependencyGraphPage({
                 <button type="button" className="cta ghost" onClick={addCollectionNode}>
                   {copy.cogita.library.collections.create}
                 </button>
+                <button type="button" className="cta ghost" onClick={addInfoNode}>
+                  {copy.cogita.library.actions.addInfo}
+                </button>
                 {preview ? (
                   <div className="cogita-graph-summary">
                     <p>{copy.cogita.library.graph.previewLabel.replace('{total}', String(preview.totalCollections))}</p>
@@ -213,27 +297,64 @@ export function CogitaDependencyGraphPage({
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.inspector}</p>
                 {selectedNode ? (
                   <div className="cogita-graph-inspector">
-                    <InfoSearchSelect
-                      libraryId={libraryId}
-                      infoType="collection"
-                      label={copy.cogita.library.graph.specificInfoLabel}
-                      placeholder={copy.cogita.library.graph.specificInfoPlaceholder}
-                      value={
-                        selectedNode.data.collectionId
-                          ? ({
-                              id: selectedNode.data.collectionId,
-                              label: selectedNode.data.label,
-                              infoType: 'collection'
-                            } as any)
-                          : null
-                      }
-                      onChange={updateSelectedCollection}
-                      searchFailedText={copy.cogita.library.lookup.searchFailed}
-                      createFailedText={copy.cogita.library.lookup.createFailed}
-                      createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.collection)}
-                      savingLabel={copy.cogita.library.lookup.saving}
-                      loadMoreLabel={copy.cogita.library.lookup.loadMore}
-                    />
+                    {selectedNode.data.nodeType === 'collection' ? (
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="collection"
+                        label={copy.cogita.library.graph.specificInfoLabel}
+                        placeholder={copy.cogita.library.graph.specificInfoPlaceholder}
+                        value={
+                          selectedNode.data.itemId
+                            ? ({
+                                id: selectedNode.data.itemId,
+                                label: selectedNode.data.label,
+                                infoType: 'collection'
+                              } as any)
+                            : null
+                        }
+                        onChange={updateSelectedCollection}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.collection)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                      />
+                    ) : (
+                      <InfoSearchSelect
+                        libraryId={libraryId}
+                        infoType="any"
+                        label={copy.cogita.library.graph.specificInfoLabel}
+                        placeholder={copy.cogita.library.graph.specificInfoPlaceholder}
+                        value={
+                          selectedNode.data.itemId
+                            ? ({
+                                id: selectedNode.data.itemId,
+                                label: selectedNode.data.label,
+                                infoType: selectedNode.data.infoType ?? undefined
+                              } as any)
+                            : null
+                        }
+                        onChange={updateSelectedInfo}
+                        searchFailedText={copy.cogita.library.lookup.searchFailed}
+                        createFailedText={copy.cogita.library.lookup.createFailed}
+                        createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.any)}
+                        savingLabel={copy.cogita.library.lookup.saving}
+                        loadMoreLabel={copy.cogita.library.lookup.loadMore}
+                      />
+                    )}
+                    {quotePreview ? (
+                      <div className="cogita-quote-preview">
+                        <p className="cogita-user-kicker">{quotePreview.title}</p>
+                        <div className="cogita-detail-sample-grid">
+                          {quotePreview.fragments.map((fragment) => (
+                            <div key={fragment.id} className="cogita-detail-sample-item">
+                              <span>{fragment.id}</span>
+                              <span>{fragment.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   <p className="cogita-help">{copy.cogita.library.graph.emptyInspector}</p>

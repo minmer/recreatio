@@ -192,9 +192,10 @@ export const prepareTemporalState = (
 const randomType: RevisionTypeDefinition = {
   id: 'random',
   labelKey: 'modeValue',
-  defaultSettings: { tries: 2, compare: 'bidirectional', minCorrectness: 70 },
+  defaultSettings: { tries: 2, compare: 'bidirectional', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
   settingsFields: [
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
+    { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
     { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
     {
       key: 'compare',
@@ -204,6 +205,15 @@ const randomType: RevisionTypeDefinition = {
         { value: 'bidirectional', labelKey: 'compareBidirectional' },
         { value: 'prefix', labelKey: 'comparePrefix' },
         { value: 'anchors', labelKey: 'compareAnchors' }
+      ]
+    },
+    {
+      key: 'considerDependencies',
+      labelKey: 'considerDependenciesLabel',
+      type: 'select',
+      options: [
+        { value: 'on', labelKey: 'considerDependenciesOn' },
+        { value: 'off', labelKey: 'considerDependenciesOff' }
       ]
     }
   ],
@@ -277,11 +287,12 @@ export const prepareLevelsState = (
 const levelsType: RevisionTypeDefinition = {
   id: 'levels',
   labelKey: 'modeValueLevels',
-  defaultSettings: { levels: 5, stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70 },
+  defaultSettings: { levels: 5, stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
   settingsFields: [
     { key: 'levels', labelKey: 'levelsLabel', type: 'number', min: 1, max: 20, step: 1 },
     { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
+    { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
     { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
     {
       key: 'compare',
@@ -291,6 +302,15 @@ const levelsType: RevisionTypeDefinition = {
         { value: 'bidirectional', labelKey: 'compareBidirectional' },
         { value: 'prefix', labelKey: 'comparePrefix' },
         { value: 'anchors', labelKey: 'compareAnchors' }
+      ]
+    },
+    {
+      key: 'considerDependencies',
+      labelKey: 'considerDependenciesLabel',
+      type: 'select',
+      options: [
+        { value: 'on', labelKey: 'considerDependenciesOn' },
+        { value: 'off', labelKey: 'considerDependenciesOff' }
       ]
     }
   ],
@@ -338,10 +358,11 @@ const levelsType: RevisionTypeDefinition = {
 const temporalType: RevisionTypeDefinition = {
   id: 'temporal',
   labelKey: 'modeValueTemporal',
-  defaultSettings: { stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70 },
+  defaultSettings: { stackSize: 20, tries: 2, compare: 'bidirectional', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
   settingsFields: [
     { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
+    { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
     {
       key: 'compare',
       labelKey: 'compareLabel',
@@ -350,6 +371,15 @@ const temporalType: RevisionTypeDefinition = {
         { value: 'bidirectional', labelKey: 'compareBidirectional' },
         { value: 'prefix', labelKey: 'comparePrefix' },
         { value: 'anchors', labelKey: 'compareAnchors' }
+      ]
+    },
+    {
+      key: 'considerDependencies',
+      labelKey: 'considerDependenciesLabel',
+      type: 'select',
+      options: [
+        { value: 'on', labelKey: 'considerDependenciesOn' },
+        { value: 'off', labelKey: 'considerDependenciesOff' }
       ]
     }
   ],

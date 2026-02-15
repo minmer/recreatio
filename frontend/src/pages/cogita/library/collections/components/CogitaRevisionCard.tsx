@@ -21,6 +21,8 @@ export function CogitaRevisionCard({
   computedFieldFeedback,
   feedback,
   canAdvance,
+  quoteContext,
+  quotePlaceholder,
   onCheckAnswer,
   onSkip,
   onLanguageSelect,
@@ -63,6 +65,14 @@ export function CogitaRevisionCard({
   computedFieldFeedback: Record<string, 'correct' | 'incorrect'>;
   feedback: 'correct' | 'incorrect' | null;
   canAdvance: boolean;
+  quoteContext?: {
+    title: string;
+    before: string;
+    after: string;
+    total: number;
+    completed: number;
+  } | null;
+  quotePlaceholder?: string | null;
   onCheckAnswer: () => void;
   onSkip: () => void;
   onLanguageSelect: (label: string) => void;
@@ -248,11 +258,16 @@ export function CogitaRevisionCard({
     });
   };
 
+  const headerDetail =
+    currentCard.cardType === 'info' && currentCard.infoType === 'quote'
+      ? quoteContext?.title || currentCard.label
+      : currentCard.description;
+
   return (
     <>
       <div className="cogita-revision-header">
         <span>{currentTypeLabel}</span>
-        <strong>{currentCard.description}</strong>
+        <strong>{headerDetail}</strong>
       </div>
 
       {currentCard.cardType === 'vocab' && currentCard.checkType === 'translation-match' && matchPairs ? (
@@ -445,6 +460,46 @@ export function CogitaRevisionCard({
               </button>
             </div>
           ) : null}
+          <div className="cogita-form-actions">
+            <button type="button" className="cta" onClick={onCheckAnswer}>
+              {copy.cogita.library.revision.checkAnswer}
+            </button>
+            <button type="button" className="ghost" onClick={onSkip}>
+              {copy.cogita.library.revision.skip}
+            </button>
+          </div>
+        </div>
+      ) : currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext ? (
+        <div className="cogita-revision-body">
+          <div className="cogita-quote-block">
+            <p className="cogita-revision-hint">
+              {copy.cogita.library.revision.quoteProgress
+                .replace('{done}', String(quoteContext.completed))
+                .replace('{total}', String(quoteContext.total))}
+            </p>
+            <p className="cogita-quote-text">{quoteContext.before}</p>
+            <label className="cogita-field">
+              <span>{copy.cogita.library.revision.answerLabel}</span>
+              <input
+                ref={answerInputRef as MutableRefObject<HTMLInputElement | null>}
+                value={answer}
+                onChange={(event) => onAnswerChange(event.target.value)}
+                placeholder={quotePlaceholder ?? copy.cogita.library.revision.quoteMissingPlaceholder}
+                data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter') return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (canAdvance) {
+                    onAdvance();
+                  } else {
+                    onCheckAnswer();
+                  }
+                }}
+              />
+            </label>
+            <p className="cogita-quote-text">{quoteContext.after}</p>
+          </div>
           <div className="cogita-form-actions">
             <button type="button" className="cta" onClick={onCheckAnswer}>
               {copy.cogita.library.revision.checkAnswer}

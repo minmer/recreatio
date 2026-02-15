@@ -2839,6 +2839,18 @@
   color: #f3f7ff;
 }
 
+.cogita-quote-block {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cogita-quote-text {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  color: rgba(233, 242, 255, 0.92);
+}
+
 .cogita-revision-reveal {
   display: grid;
   gap: 0.6rem;

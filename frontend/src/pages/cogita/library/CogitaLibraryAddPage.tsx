@@ -129,6 +129,7 @@ export function CogitaLibraryAddPage({
     wordATags: [] as CogitaInfoOption[],
     wordBTags: [] as CogitaInfoOption[],
     translationTags: [] as CogitaInfoOption[],
+    citationTitle: '',
     citationQuoteText: '',
     citationLanguage: null as CogitaInfoOption | null,
     citationSourceKind: 'string' as string,
@@ -957,6 +958,7 @@ export function CogitaLibraryAddPage({
     setFormStatus(null);
     try {
       if (groupForm.groupType === 'citation') {
+        const citationTitle = groupForm.citationTitle.trim();
         const quoteText = groupForm.citationQuoteText.trim();
         if (!quoteText) {
           setFormStatus(copy.cogita.library.add.group.citationMissingQuote);
@@ -995,6 +997,9 @@ export function CogitaLibraryAddPage({
         const quotePayload: Record<string, unknown> = {
           text: quoteText
         };
+        if (citationTitle) {
+          quotePayload.title = citationTitle;
+        }
         const createdQuote = await createCogitaInfo({
           libraryId,
           infoType: 'quote',
@@ -1017,6 +1022,7 @@ export function CogitaLibraryAddPage({
         setFormStatus(copy.cogita.library.add.group.savedCitation);
         setGroupForm((prev) => ({
           ...prev,
+          citationTitle: '',
           citationQuoteText: '',
           citationLanguage: null,
           citationSourceKind: 'string',
@@ -2276,6 +2282,15 @@ export function CogitaLibraryAddPage({
                         savingLabel={copy.cogita.library.lookup.saving}
                         loadMoreLabel={copy.cogita.library.lookup.loadMore}
                       />
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.library.add.group.citationTitleLabel}</span>
+                        <input
+                          type="text"
+                          value={groupForm.citationTitle}
+                          onChange={(event) => setGroupForm((prev) => ({ ...prev, citationTitle: event.target.value }))}
+                          placeholder={copy.cogita.library.add.group.citationTitlePlaceholder}
+                        />
+                      </label>
                       <label className="cogita-field full">
                         <span>{copy.cogita.library.add.group.citationQuoteTextLabel}</span>
                         <textarea

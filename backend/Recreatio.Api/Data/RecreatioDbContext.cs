@@ -74,6 +74,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
     public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
+    public DbSet<Data.Cogita.CogitaItemDependency> CogitaItemDependencies => Set<Data.Cogita.CogitaItemDependency>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -402,5 +403,11 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()
             .HasForeignKey(x => x.LibraryId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .HasIndex(x => new { x.LibraryId, x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .HasIndex(x => new { x.LibraryId, x.ChildItemType, x.ChildItemId });
     }
 }

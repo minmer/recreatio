@@ -173,6 +173,24 @@ public sealed record CogitaCollectionDependencyBundleResponse(
     List<CogitaCollectionDependencyResponse> Children
 );
 
+public sealed record CogitaItemDependencyRequest(
+    string ParentItemType,
+    Guid ParentItemId,
+    string ChildItemType,
+    Guid ChildItemId
+);
+
+public sealed record CogitaItemDependencyResponse(
+    string ParentItemType,
+    Guid ParentItemId,
+    string ChildItemType,
+    Guid ChildItemId
+);
+
+public sealed record CogitaItemDependencyBundleResponse(
+    List<CogitaItemDependencyResponse> Items
+);
+
 public sealed record CogitaReviewEventRequest(
     string ItemType,
     Guid ItemId,

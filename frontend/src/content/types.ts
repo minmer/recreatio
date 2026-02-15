@@ -512,6 +512,8 @@ export type Copy = {
           languageBPlaceholder: string;
           wordBLabel: string;
           wordBPlaceholder: string;
+          citationTitleLabel: string;
+          citationTitlePlaceholder: string;
           citationQuoteTextLabel: string;
           citationQuoteTextPlaceholder: string;
           citationLanguageLabel: string;
@@ -606,11 +608,15 @@ export type Copy = {
         levelsCountsLabel: string;
         levelsStackLabel: string;
         triesLabel: string;
+        dependencyThresholdLabel: string;
         minCorrectnessLabel: string;
         compareLabel: string;
         compareBidirectional: string;
         comparePrefix: string;
         compareAnchors: string;
+        considerDependenciesLabel: string;
+        considerDependenciesOn: string;
+        considerDependenciesOff: string;
         temporalUnknownLabel: string;
         temporalKnownLabel: string;
         checkLabel: string;
@@ -649,6 +655,8 @@ export type Copy = {
         answerLabel: string;
         answerPlaceholder: string;
         answerPlaceholderComputed: string;
+        quoteMissingPlaceholder: string;
+        quoteProgress: string;
         answerSentenceLabel: string;
         answerSentencePlaceholder: string;
         checkAnswer: string;
@@ -666,6 +674,7 @@ export type Copy = {
         knownessStats: string;
         knownessLast: string;
         knownessHint: string;
+        dependenciesBlocked: string;
         revealModeLabel: string;
         revealModeAfterIncorrect: string;
         showAnswer: string;

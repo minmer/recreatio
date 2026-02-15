@@ -5,10 +5,12 @@ import {
   getCogitaCollectionCards,
   getCogitaComputedSample,
   getCogitaInfoDetail,
+  getCogitaItemDependencies,
   searchCogitaInfos,
   type CogitaCardSearchResult,
   type CogitaComputedSample,
-  type CogitaInfoSearchResult
+  type CogitaInfoSearchResult,
+  type CogitaItemDependency
 } from '../../../../lib/api';
 import { toBase64 } from '../../../../lib/crypto';
 import { CogitaShell } from '../../CogitaShell';
@@ -31,6 +33,7 @@ import {
   prepareTemporalState
 } from '../../../../cogita/revision/registry';
 import { compareStrings, type CompareAlgorithmId } from '../../../../cogita/revision/compare';
+import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 
 const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 const SUPERSCRIPT_MAP: Record<string, string> = {
@@ -174,6 +177,14 @@ export function CogitaRevisionRunPage({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
+  const [quoteContext, setQuoteContext] = useState<{
+    title: string;
+    before: string;
+    after: string;
+    fragmentId: string | null;
+    total: number;
+    completed: number;
+  } | null>(null);
   const [computedExpected, setComputedExpected] = useState<Array<{ key: string; expected: string }>>([]);
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback, setComputedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
@@ -210,6 +221,13 @@ export function CogitaRevisionRunPage({
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const [canAdvance, setCanAdvance] = useState(false);
   const [revisionMeta, setRevisionMeta] = useState<Record<string, unknown>>({});
+  const [itemDependencies, setItemDependencies] = useState<CogitaItemDependency[]>([]);
+  const collectionKnownessCache = useRef(new Map<string, number>());
+  const [eligibleKeys, setEligibleKeys] = useState<Set<string>>(new Set());
+  const [dependencyBlocked, setDependencyBlocked] = useState(false);
+  const quoteTreeRef = useRef<QuoteFragmentTree | null>(null);
+  const quoteKnownRef = useRef<Set<string>>(new Set());
+  const quoteKnownessRef = useRef<Record<string, number>>({});
 
   const currentCard = queue[currentIndex] ?? null;
   const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
@@ -255,6 +273,8 @@ export function CogitaRevisionRunPage({
   const maxTries = Math.max(1, Number(revisionSettings.tries ?? 1));
   const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'bidirectional';
   const minCorrectness = Math.max(0, Math.min(100, Number(revisionSettings.minCorrectness ?? 0)));
+  const considerDependencies = (revisionSettings.considerDependencies ?? 'on') === 'on';
+  const dependencyThreshold = Math.max(0, Math.min(100, Number(revisionSettings.dependencyThreshold ?? 85)));
 
   const shuffleList = <T,>(items: T[]) => {
     const copy = items.slice();
@@ -271,6 +291,117 @@ export function CogitaRevisionRunPage({
     return (sum / mask.length / 255) * 100;
   };
   const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask) >= minCorrectness;
+  const buildKnownessMaps = async () => {
+    const outcomes = await getAllOutcomes();
+    const itemGroups = new Map<string, typeof outcomes>();
+    const cardGroups = new Map<string, typeof outcomes>();
+    const fragmentGroups = new Map<string, typeof outcomes>();
+    outcomes.forEach((entry) => {
+      const itemKey = `${entry.itemType}:${entry.itemId}`;
+      const cardKey = getOutcomeKey(entry.itemType, entry.itemId, entry.checkType, entry.direction);
+      if (!itemGroups.has(itemKey)) itemGroups.set(itemKey, []);
+      itemGroups.get(itemKey)!.push(entry);
+      if (!cardGroups.has(cardKey)) cardGroups.set(cardKey, []);
+      cardGroups.get(cardKey)!.push(entry);
+      if (entry.itemType === 'info' && entry.checkType === 'quote-fragment' && entry.direction) {
+        const fragKey = `${entry.itemId}:${entry.direction}`;
+        if (!fragmentGroups.has(fragKey)) fragmentGroups.set(fragKey, []);
+        fragmentGroups.get(fragKey)!.push(entry);
+      }
+    });
+    const itemKnowness = new Map<string, number>();
+    const cardKnowness = new Map<string, number>();
+    const fragmentKnowness = new Map<string, number>();
+    itemGroups.forEach((group, key) => itemKnowness.set(key, computeKnowness(group).score));
+    cardGroups.forEach((group, key) => cardKnowness.set(key, computeKnowness(group).score));
+    fragmentGroups.forEach((group, key) => fragmentKnowness.set(key, computeKnowness(group).score));
+    return { itemKnowness, cardKnowness, fragmentKnowness };
+  };
+
+  const fetchAllCollectionCards = async (collectionId: string) => {
+    const items: CogitaCardSearchResult[] = [];
+    let cursor: string | null = null;
+    while (true) {
+      const bundle = await getCogitaCollectionCards({ libraryId, collectionId, limit: 200, cursor });
+      items.push(...bundle.items);
+      if (!bundle.nextCursor) break;
+      cursor = bundle.nextCursor;
+    }
+    return items;
+  };
+
+  const getCollectionKnowness = async (collectionId: string, cardKnowness: Map<string, number>) => {
+    if (collectionKnownessCache.current.has(collectionId)) {
+      return collectionKnownessCache.current.get(collectionId) ?? 0;
+    }
+    const cards = await fetchAllCollectionCards(collectionId);
+    if (cards.length === 0) {
+      collectionKnownessCache.current.set(collectionId, 0);
+      return 0;
+    }
+    const total = cards.reduce((sum, card) => {
+      const key = getCardKey(card);
+      return sum + (cardKnowness.get(key) ?? 0);
+    }, 0);
+    const mean = total / cards.length;
+    collectionKnownessCache.current.set(collectionId, mean);
+    return mean;
+  };
+
+  const recomputeEligibility = async (cards: CogitaCardSearchResult[]) => {
+    if (!considerDependencies) {
+      setEligibleKeys(new Set(cards.map(getCardKey)));
+      return;
+    }
+    const { itemKnowness, cardKnowness } = await buildKnownessMaps();
+    const depByChild = new Map<string, CogitaItemDependency[]>();
+    itemDependencies.forEach((dep) => {
+      const key = `${dep.childItemType}:${dep.childItemId}`;
+      if (!depByChild.has(key)) depByChild.set(key, []);
+      depByChild.get(key)!.push(dep);
+    });
+    const collectionDeps = depByChild.get(`collection:${collectionId}`) ?? [];
+    const eligible = new Set<string>();
+    for (const card of cards) {
+      if (card.cardType !== 'info') {
+        eligible.add(getCardKey(card));
+        continue;
+      }
+      const deps = (depByChild.get(`info:${card.cardId}`) ?? []).concat(collectionDeps);
+      if (deps.length === 0) {
+        eligible.add(getCardKey(card));
+        continue;
+      }
+      let total = 0;
+      for (const dep of deps) {
+        if (dep.parentItemType === 'collection') {
+          total += await getCollectionKnowness(dep.parentItemId, cardKnowness);
+        } else {
+          const key = `${dep.parentItemType}:${dep.parentItemId}`;
+          total += itemKnowness.get(key) ?? 0;
+        }
+      }
+      const mean = total / deps.length;
+      if (mean >= dependencyThreshold) {
+        eligible.add(getCardKey(card));
+      }
+    }
+    setEligibleKeys(eligible);
+  };
+
+  const getNextEligibleIndex = (startIndex: number) => {
+    for (let i = startIndex; i < queue.length; i += 1) {
+      const card = queue[i];
+      if (!card) continue;
+      if (!considerDependencies || card.cardType !== 'info') {
+        return i;
+      }
+      if (eligibleKeys.has(getCardKey(card))) {
+        return i;
+      }
+    }
+    return -1;
+  };
   const levelStats = useMemo(() => {
     if (revisionType.id !== 'levels') return null;
     const meta = revisionMeta as {
@@ -354,8 +485,36 @@ export function CogitaRevisionRunPage({
   }, [libraryId]);
 
   useEffect(() => {
+    getCogitaItemDependencies({ libraryId })
+      .then((bundle) => setItemDependencies(bundle.items ?? []))
+      .catch(() => setItemDependencies([]));
+  }, [libraryId]);
+
+  useEffect(() => {
     void syncPendingOutcomes(libraryId, reviewer);
   }, [libraryId, reviewer]);
+
+  useEffect(() => {
+    void recomputeEligibility(queue);
+  }, [queue, itemDependencies, considerDependencies, dependencyThreshold, collectionId]);
+
+  useEffect(() => {
+    if (!currentCard || !considerDependencies) {
+      setDependencyBlocked(false);
+      return;
+    }
+    if (currentCard.cardType !== 'info' || eligibleKeys.has(getCardKey(currentCard))) {
+      setDependencyBlocked(false);
+      return;
+    }
+    const nextIndex = getNextEligibleIndex(currentIndex + 1);
+    if (nextIndex >= 0) {
+      setDependencyBlocked(false);
+      setCurrentIndex(nextIndex);
+      return;
+    }
+    setDependencyBlocked(true);
+  }, [currentCard, eligibleKeys, considerDependencies, currentIndex]);
 
   useEffect(() => {
     let mounted = true;
@@ -520,6 +679,53 @@ export function CogitaRevisionRunPage({
   }, [currentCard, copy]);
 
   useEffect(() => {
+    if (!currentCard || currentCard.cardType !== 'info' || currentCard.infoType !== 'quote') {
+      quoteTreeRef.current = null;
+      quoteKnownRef.current = new Set();
+      setQuoteContext(null);
+      return;
+    }
+    const quoteText = currentCard.description ?? '';
+    const title = currentCard.label || copy.cogita.library.infoTypes.quote;
+    if (!quoteText) {
+      setQuoteContext(null);
+      setExpectedAnswer(null);
+      return;
+    }
+    const tree = buildQuoteFragmentTree(quoteText);
+    quoteTreeRef.current = tree;
+    setPrompt(title);
+    let mounted = true;
+    buildKnownessMaps()
+      .then(({ fragmentKnowness }) => {
+        if (!mounted) return;
+        const known = new Set<string>();
+        const fragmentScores: Record<string, number> = {};
+        fragmentKnowness.forEach((score, key) => {
+          const [itemId, fragmentId] = key.split(':', 2);
+          if (itemId !== currentCard.cardId) return;
+          fragmentScores[fragmentId] = score;
+          if (score >= dependencyThreshold) {
+            known.add(fragmentId);
+          }
+        });
+        quoteKnownRef.current = known;
+        quoteKnownessRef.current = fragmentScores;
+        const next = pickQuoteFragment(tree, known, fragmentScores, dependencyThreshold, considerDependencies, currentCard.direction);
+        applyQuoteFragment(tree, next?.id ?? null, title);
+      })
+      .catch(() => {
+        quoteKnownRef.current = new Set();
+        quoteKnownessRef.current = {};
+        const next = pickQuoteFragment(tree, quoteKnownRef.current, {}, dependencyThreshold, considerDependencies, currentCard.direction);
+        applyQuoteFragment(tree, next?.id ?? null, title);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [currentCard, copy, considerDependencies, dependencyThreshold]);
+
+  useEffect(() => {
     if (!currentCard || currentCard.cardType !== 'vocab' || currentCard.checkType !== 'translation-match') {
       setMatchState(null);
       setMatchFeedback({});
@@ -654,6 +860,20 @@ export function CogitaRevisionRunPage({
       return;
     }
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
+    if (currentCard.cardType === 'info' && currentCard.infoType === 'quote') {
+      getAllOutcomes()
+        .then((outcomes) => {
+          const filtered = outcomes.filter(
+            (entry) =>
+              entry.itemType === 'info' &&
+              entry.itemId === currentCard.cardId &&
+              entry.checkType === 'quote-fragment'
+          );
+          setReviewSummary(computeKnowness(filtered));
+        })
+        .catch(() => setReviewSummary(null));
+      return;
+    }
     getOutcomesForItem(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction)
       .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
       .catch(() => setReviewSummary(null));
@@ -665,6 +885,20 @@ export function CogitaRevisionRunPage({
     checkType?: string | null,
     direction?: string | null
   ) => {
+    if (itemType === 'info' && checkType === 'quote-fragment') {
+      void getAllOutcomes()
+        .then((outcomes) => {
+          const filtered = outcomes.filter(
+            (entry) =>
+              entry.itemType === 'info' &&
+              entry.itemId === itemId &&
+              entry.checkType === 'quote-fragment'
+          );
+          setReviewSummary(computeKnowness(filtered));
+        })
+        .catch(() => setReviewSummary(null));
+      return;
+    }
     void getOutcomesForItem(itemType, itemId, checkType, direction)
       .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
       .catch(() => setReviewSummary(null));
@@ -726,6 +960,28 @@ export function CogitaRevisionRunPage({
   };
 
   const advanceCard = () => {
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteTreeRef.current && quoteContext) {
+      const next = pickQuoteFragment(
+        quoteTreeRef.current,
+        quoteKnownRef.current,
+        quoteKnownessRef.current,
+        dependencyThreshold,
+        considerDependencies,
+        currentCard.direction,
+        quoteContext.fragmentId
+      );
+      if (next) {
+        setFeedback(null);
+        setAnswer('');
+        setShowCorrectAnswer(false);
+        setComputedFieldFeedback({});
+        setCanAdvance(false);
+        setAnswerMask(null);
+        setAttempts(0);
+        applyQuoteFragment(quoteTreeRef.current, next.id, quoteContext.title);
+        return;
+      }
+    }
     setFeedback(null);
     setAnswer('');
     setShowCorrectAnswer(false);
@@ -744,6 +1000,8 @@ export function CogitaRevisionRunPage({
     expectedMap?: Record<string, string>;
     answerMap?: Record<string, string>;
     evalType: string;
+    overrideCheckType?: string | null;
+    overrideDirection?: string | null;
   }) => {
     if (!currentCard) return;
     const expectedValue = options.expected ?? null;
@@ -774,11 +1032,13 @@ export function CogitaRevisionRunPage({
     };
     const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
+    const checkType = options.overrideCheckType ?? currentCard.checkType ?? null;
+    const direction = options.overrideDirection ?? currentCard.direction ?? null;
     void recordOutcome({
       itemType,
       itemId: currentCard.cardId,
-      checkType: currentCard.checkType ?? null,
-      direction: currentCard.direction ?? null,
+      checkType,
+      direction,
       revisionType: revisionType.id,
       evalType: options.evalType,
       correct: options.correct,
@@ -787,7 +1047,8 @@ export function CogitaRevisionRunPage({
       personRoleId: reviewer ?? null
     })
       .then(() => {
-        refreshKnowness(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction);
+        refreshKnowness(itemType, currentCard.cardId, checkType, direction);
+        void recomputeEligibility(queue);
         void syncPendingOutcomes(libraryId, reviewer);
       })
       .catch(() => {
@@ -1016,6 +1277,50 @@ export function CogitaRevisionRunPage({
     return promise;
   };
 
+  const applyQuoteFragment = (tree: QuoteFragmentTree, fragmentId: string | null, title: string) => {
+    const total = Object.keys(tree.nodes).length;
+    const completed = quoteKnownRef.current.size;
+    if (!fragmentId) {
+      setQuoteContext({
+        title,
+        before: tree.text,
+        after: '',
+        fragmentId: null,
+        total,
+        completed
+      });
+      setExpectedAnswer(null);
+      setCanAdvance(true);
+      return;
+    }
+    const fragment = tree.nodes[fragmentId];
+    if (!fragment) return;
+    const context = buildQuoteFragmentContext(tree.text, fragment);
+    setQuoteContext({
+      title,
+      before: context.before,
+      after: context.after,
+      fragmentId: fragment.id,
+      total,
+      completed
+    });
+    setExpectedAnswer(context.fragment);
+    setCanAdvance(false);
+  };
+
+  const refreshQuoteProgress = () => {
+    const tree = quoteTreeRef.current;
+    if (!tree) return;
+    setQuoteContext((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        total: Object.keys(tree.nodes).length,
+        completed: quoteKnownRef.current.size
+      };
+    });
+  };
+
   const preloadNextCard = () => {
     const next = queue[currentIndex + 1];
     if (!next) return;
@@ -1173,6 +1478,67 @@ export function CogitaRevisionRunPage({
       }
       return;
     }
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext?.fragmentId) {
+      if (!expectedAnswer) return;
+      const mask = compareStrings(expectedAnswer, answer, compareMode);
+      const exactCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
+      const thresholdCorrect = isMaskCorrect(mask);
+      const isCorrect = exactCorrect || thresholdCorrect;
+      const maskPercent = maskAveragePercent(mask);
+      if (isCorrect) {
+        quoteKnownessRef.current[quoteContext.fragmentId] = Math.max(
+          quoteKnownessRef.current[quoteContext.fragmentId] ?? 0,
+          maskPercent
+        );
+        if ((quoteKnownessRef.current[quoteContext.fragmentId] ?? 0) >= dependencyThreshold) {
+          quoteKnownRef.current.add(quoteContext.fragmentId);
+        }
+        refreshQuoteProgress();
+        setFeedback('correct');
+        setComputedFieldFeedback({});
+        setCanAdvance(true);
+        setAnswerMask(mask);
+        setAttempts(0);
+        if (maskPercent < 100 && maxTries <= 1) {
+          setShowCorrectAnswer(true);
+        }
+        applyOutcomeToSession(true, maskPercent / 100);
+        submitReview({
+          correct: true,
+          direction: `quote:${quoteContext.fragmentId}`,
+          expected: expectedAnswer,
+          answer,
+          evalType: 'quote-fragment',
+          overrideCheckType: 'quote-fragment',
+          overrideDirection: quoteContext.fragmentId
+        });
+      } else {
+        setFeedback('incorrect');
+        setComputedFieldFeedback({});
+        setCanAdvance(false);
+        setAnswerMask(mask);
+        setAttempts((prev) => {
+          const next = prev + 1;
+          if (next >= maxTries && hasExpectedAnswer) {
+            setShowCorrectAnswer(true);
+            setCanAdvance(true);
+          }
+          return next;
+        });
+        applyOutcomeToSession(false, maskPercent / 100);
+        window.setTimeout(() => answerInputRef.current?.focus(), 40);
+        submitReview({
+          correct: false,
+          direction: `quote:${quoteContext.fragmentId}`,
+          expected: expectedAnswer,
+          answer,
+          evalType: 'quote-fragment',
+          overrideCheckType: 'quote-fragment',
+          overrideDirection: quoteContext.fragmentId
+        });
+      }
+      return;
+    }
     if (!expectedAnswer) return;
     const mask = compareStrings(expectedAnswer, answer, compareMode);
     const exactCorrect = check === 'exact' && normalizeAnswer(answer) === normalizeAnswer(expectedAnswer);
@@ -1271,6 +1637,17 @@ export function CogitaRevisionRunPage({
 
   const handleSkip = () => {
     applyOutcomeToSession(false, 0);
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote') {
+      setFeedback(null);
+      setAnswer('');
+      setShowCorrectAnswer(false);
+      setComputedFieldFeedback({});
+      setCanAdvance(false);
+      setAnswerMask(null);
+      setAttempts(0);
+      setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+      return;
+    }
     advanceCard();
   };
 
@@ -1415,54 +1792,62 @@ export function CogitaRevisionRunPage({
             >
               {currentCard ? (
                 <>
-                  <CogitaRevisionCard
-                    copy={copy}
-                    currentCard={currentCard}
-                    currentTypeLabel={currentTypeLabel}
-                    prompt={prompt}
-                    languages={languages}
-                    answer={answer}
-                    onAnswerChange={(value) => setAnswer((prev) => applyScriptMode(prev, value, scriptMode))}
-                    computedExpected={computedExpected}
-                    computedAnswers={computedAnswers}
-                    onComputedAnswerChange={(key, value) =>
-                      setComputedAnswers((prev) => ({
-                        ...prev,
-                        [key]: applyScriptMode(prev[key] ?? '', value, scriptMode)
-                      }))
-                    }
-                    answerTemplate={computedAnswerTemplate}
-                    outputVariables={computedOutputVariables}
-                    variableValues={computedVariableValues}
-                    computedFieldFeedback={computedFieldFeedback}
-                    feedback={feedback}
-                    canAdvance={canAdvance}
-                    onCheckAnswer={handleCheckAnswer}
-                    onSkip={handleSkip}
-                    onLanguageSelect={handleLanguageSelect}
-                    onMarkReviewed={handleMarkReviewed}
-                    onAdvance={advanceCard}
-                    showCorrectAnswer={showCorrectAnswer}
-                    setShowCorrectAnswer={setShowCorrectAnswer}
-                    onRevealCorrect={() => setCanAdvance(true)}
-                    answerMask={answerMask}
-                    expectedAnswer={expectedAnswer}
-                    hasExpectedAnswer={hasExpectedAnswer}
-                    handleComputedKeyDown={handleComputedKeyDown}
-                    answerInputRef={answerInputRef}
-                    computedInputRefs={computedInputRefs}
-                    scriptMode={scriptMode}
-                    setScriptMode={setScriptMode}
-                    matchPairs={matchState?.pairs}
-                    matchLeftOrder={matchState?.leftOrder}
-                    matchRightOrder={matchState?.rightOrder}
-                    matchSelection={matchState?.selection}
-                    matchActiveLeft={matchState?.activeLeft}
-                    matchActiveRight={matchState?.activeRight}
-                    matchFeedback={matchFeedback}
-                    onMatchLeftSelect={handleMatchLeftSelect}
-                    onMatchRightSelect={handleMatchRightSelect}
-                  />
+                  {dependencyBlocked ? (
+                    <div className="cogita-revision-body">
+                      <p className="cogita-revision-hint">{copy.cogita.library.revision.dependenciesBlocked}</p>
+                    </div>
+                  ) : (
+                    <CogitaRevisionCard
+                      copy={copy}
+                      currentCard={currentCard}
+                      currentTypeLabel={currentTypeLabel}
+                      prompt={prompt}
+                      languages={languages}
+                      answer={answer}
+                      onAnswerChange={(value) => setAnswer((prev) => applyScriptMode(prev, value, scriptMode))}
+                      computedExpected={computedExpected}
+                      computedAnswers={computedAnswers}
+                      onComputedAnswerChange={(key, value) =>
+                        setComputedAnswers((prev) => ({
+                          ...prev,
+                          [key]: applyScriptMode(prev[key] ?? '', value, scriptMode)
+                        }))
+                      }
+                      answerTemplate={computedAnswerTemplate}
+                      outputVariables={computedOutputVariables}
+                      variableValues={computedVariableValues}
+                      computedFieldFeedback={computedFieldFeedback}
+                      feedback={feedback}
+                      canAdvance={canAdvance}
+                      quoteContext={quoteContext}
+                      quotePlaceholder={copy.cogita.library.revision.quoteMissingPlaceholder}
+                      onCheckAnswer={handleCheckAnswer}
+                      onSkip={handleSkip}
+                      onLanguageSelect={handleLanguageSelect}
+                      onMarkReviewed={handleMarkReviewed}
+                      onAdvance={advanceCard}
+                      showCorrectAnswer={showCorrectAnswer}
+                      setShowCorrectAnswer={setShowCorrectAnswer}
+                      onRevealCorrect={() => setCanAdvance(true)}
+                      answerMask={answerMask}
+                      expectedAnswer={expectedAnswer}
+                      hasExpectedAnswer={hasExpectedAnswer}
+                      handleComputedKeyDown={handleComputedKeyDown}
+                      answerInputRef={answerInputRef}
+                      computedInputRefs={computedInputRefs}
+                      scriptMode={scriptMode}
+                      setScriptMode={setScriptMode}
+                      matchPairs={matchState?.pairs}
+                      matchLeftOrder={matchState?.leftOrder}
+                      matchRightOrder={matchState?.rightOrder}
+                      matchSelection={matchState?.selection}
+                      matchActiveLeft={matchState?.activeLeft}
+                      matchActiveRight={matchState?.activeRight}
+                      matchFeedback={matchFeedback}
+                      onMatchLeftSelect={handleMatchLeftSelect}
+                      onMatchRightSelect={handleMatchRightSelect}
+                    />
+                  )}
                 </>
               ) : (
                 <div className="cogita-card-empty">

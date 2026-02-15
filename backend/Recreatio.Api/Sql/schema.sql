@@ -49,6 +49,7 @@ IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibr
 IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
+IF OBJECT_ID(N'dbo.CogitaItemDependencies', N'U') IS NOT NULL DROP TABLE dbo.CogitaItemDependencies;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
 IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
@@ -1089,6 +1090,36 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaReviewOutcomes_Client' AND object_id = OBJECT_ID('dbo.CogitaReviewOutcomes'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaReviewOutcomes_Client ON dbo.CogitaReviewOutcomes(PersonRoleId, ClientId, ClientSequence);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaItemDependencies' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaItemDependencies
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        ParentItemType NVARCHAR(32) NOT NULL,
+        ParentItemId UNIQUEIDENTIFIER NOT NULL,
+        ChildItemType NVARCHAR(32) NOT NULL,
+        ChildItemId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaItemDependencies_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaItemDependencies_Link
+        ON dbo.CogitaItemDependencies(LibraryId, ParentItemType, ParentItemId, ChildItemType, ChildItemId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaItemDependencies_Child' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
+BEGIN
+    CREATE INDEX IX_CogitaItemDependencies_Child
+        ON dbo.CogitaItemDependencies(LibraryId, ChildItemType, ChildItemId);
 END
 GO
 
