@@ -51,22 +51,29 @@ const findBestBoundary = (text: string, minIndex: number, maxIndex: number, targ
   return null;
 };
 
+const isWordBoundary = (text: string, splitIndex: number) => {
+  const left = splitIndex > 0 ? text[splitIndex - 1] : '';
+  const right = splitIndex < text.length ? text[splitIndex] : '';
+  if (!left || !right) return true;
+  return isWordChar(left) !== isWordChar(right);
+};
+
 const findSplitIndex = (text: string, start: number, end: number, minLen: number) => {
   const length = end - start;
   const minIndex = start + minLen;
   const maxIndex = end - minLen;
   if (length <= minLen * 2 || maxIndex <= minIndex) {
-    return Math.floor((start + end) / 2);
+    return null;
   }
   const target = Math.floor((start + end) / 2);
   // Prefer boundaries around spaces, then around punctuation/word edges, then punctuation groups.
   const whitespaceBoundary = findBestBoundary(text, minIndex, maxIndex, target, 3);
-  if (whitespaceBoundary !== null) return whitespaceBoundary;
+  if (whitespaceBoundary !== null && isWordBoundary(text, whitespaceBoundary)) return whitespaceBoundary;
   const wordBoundary = findBestBoundary(text, minIndex, maxIndex, target, 2);
-  if (wordBoundary !== null) return wordBoundary;
+  if (wordBoundary !== null && isWordBoundary(text, wordBoundary)) return wordBoundary;
   const punctuationBoundary = findBestBoundary(text, minIndex, maxIndex, target, 1);
-  if (punctuationBoundary !== null) return punctuationBoundary;
-  return Math.max(minIndex, Math.min(maxIndex, target));
+  if (punctuationBoundary !== null && isWordBoundary(text, punctuationBoundary)) return punctuationBoundary;
+  return null;
 };
 
 export const buildQuoteFragmentTree = (
@@ -92,10 +99,7 @@ export const buildQuoteFragmentTree = (
     const length = end - start;
     if (length > maxLen) {
       let splitIndex = findSplitIndex(text, start, end, minLen);
-      if (splitIndex <= start || splitIndex >= end) {
-        splitIndex = Math.floor((start + end) / 2);
-      }
-      if (splitIndex > start && splitIndex < end) {
+      if (splitIndex !== null && splitIndex > start && splitIndex < end) {
         const left = buildNode(start, splitIndex, depth + 1, index * 2 + 1, id);
         const right = buildNode(splitIndex, end, depth + 1, index * 2 + 2, id);
         node.leftId = left.id;
