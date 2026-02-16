@@ -112,9 +112,7 @@
   filter: blur(var(--wave-blur, 60px));
   opacity: var(--wave-opacity, 0.3);
   transform: translate3d(0, 0, 0);
-  animation: cogita-wave-drift var(--wave-drift-duration, 200s) ease-in-out infinite;
-  animation-direction: var(--wave-drift-dir, alternate);
-  animation-delay: var(--wave-drift-delay, 0s);
+  animation: none;
   pointer-events: none;
 }
 
@@ -122,9 +120,7 @@
   width: 100%;
   height: 100%;
   transform-origin: 50% 80%;
-  animation: cogita-wave-scale var(--wave-scale-duration, 180s) ease-in-out infinite;
-  animation-direction: var(--wave-scale-dir, alternate);
-  animation-delay: var(--wave-scale-delay, 0s);
+  animation: none;
 }
 
 .cogita-home-wave-shape {
@@ -155,9 +151,7 @@
       transparent 60%,
       transparent 100%
     );
-  animation: cogita-wave-sway var(--wave-sway-duration, 160s) ease-in-out infinite;
-  animation-direction: var(--wave-sway-dir, alternate);
-  animation-delay: var(--wave-sway-delay, 0s);
+  animation: none;
 }
 
 .cogita-home-glow {
