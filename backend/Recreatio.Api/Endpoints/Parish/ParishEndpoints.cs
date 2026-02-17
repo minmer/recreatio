@@ -188,7 +188,14 @@ public static class ParishEndpoints
                     x.MassDateTime,
                     x.ChurchName,
                     x.Title,
-                    x.Note))
+                    x.Note,
+                    x.IsCollective,
+                    x.DurationMinutes,
+                    x.Kind,
+                    x.BeforeService,
+                    x.AfterService,
+                    x.IntentionsJson,
+                    x.DonationSummary))
                 .ToListAsync(ct);
 
             return Results.Ok(masses);
@@ -738,12 +745,15 @@ public static class ParishEndpoints
             }
 
             var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            if (!HasParishMassWriteAccess(keyRing, parish))
             {
                 return Results.Forbid();
             }
 
             var now = DateTimeOffset.UtcNow;
+            var intentionsJson = request.Intentions is { Count: > 0 }
+                ? JsonSerializer.Serialize(request.Intentions.Where(x => !string.IsNullOrWhiteSpace(x.Text)).ToList())
+                : null;
             var mass = new ParishMass
             {
                 Id = Guid.NewGuid(),
@@ -752,6 +762,13 @@ public static class ParishEndpoints
                 ChurchName = request.ChurchName.Trim(),
                 Title = request.Title.Trim(),
                 Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+                IsCollective = request.IsCollective,
+                DurationMinutes = request.DurationMinutes,
+                Kind = string.IsNullOrWhiteSpace(request.Kind) ? null : request.Kind.Trim(),
+                BeforeService = string.IsNullOrWhiteSpace(request.BeforeService) ? null : request.BeforeService.Trim(),
+                AfterService = string.IsNullOrWhiteSpace(request.AfterService) ? null : request.AfterService.Trim(),
+                IntentionsJson = intentionsJson,
+                DonationSummary = string.IsNullOrWhiteSpace(request.DonationSummary) ? null : request.DonationSummary.Trim(),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -798,7 +815,7 @@ public static class ParishEndpoints
             }
 
             var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            if (!HasParishMassWriteAccess(keyRing, parish))
             {
                 return Results.Forbid();
             }
@@ -813,6 +830,15 @@ public static class ParishEndpoints
             mass.ChurchName = request.ChurchName.Trim();
             mass.Title = request.Title.Trim();
             mass.Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+            mass.IsCollective = request.IsCollective;
+            mass.DurationMinutes = request.DurationMinutes;
+            mass.Kind = string.IsNullOrWhiteSpace(request.Kind) ? null : request.Kind.Trim();
+            mass.BeforeService = string.IsNullOrWhiteSpace(request.BeforeService) ? null : request.BeforeService.Trim();
+            mass.AfterService = string.IsNullOrWhiteSpace(request.AfterService) ? null : request.AfterService.Trim();
+            mass.IntentionsJson = request.Intentions is { Count: > 0 }
+                ? JsonSerializer.Serialize(request.Intentions.Where(x => !string.IsNullOrWhiteSpace(x.Text)).ToList())
+                : null;
+            mass.DonationSummary = string.IsNullOrWhiteSpace(request.DonationSummary) ? null : request.DonationSummary.Trim();
             mass.UpdatedUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(ct);
 
@@ -830,6 +856,263 @@ public static class ParishEndpoints
                 signingContext);
 
             return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/mass-rules", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!HasParishMassWriteAccess(keyRing, parish))
+            {
+                return Results.Forbid();
+            }
+
+            var rulesRaw = await dbContext.ParishMassRules.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.Name)
+                .ToListAsync(ct);
+            var rules = rulesRaw
+                .Select(x =>
+                {
+                    ParishMassRuleGraph graph;
+                    try
+                    {
+                        graph = JsonSerializer.Deserialize<ParishMassRuleGraph>(x.GraphJson)
+                            ?? new ParishMassRuleGraph(string.Empty, Array.Empty<ParishMassRuleNode>(), null);
+                    }
+                    catch (JsonException)
+                    {
+                        graph = new ParishMassRuleGraph(string.Empty, Array.Empty<ParishMassRuleNode>(), null);
+                    }
+                    return new ParishMassRuleResponse(x.Id, x.Name, x.Description, graph, x.UpdatedUtc);
+                })
+                .ToList();
+            return Results.Ok(rules);
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/mass-rules", async (
+            Guid parishId,
+            ParishMassRuleUpsertRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!HasParishMassWriteAccess(keyRing, parish))
+            {
+                return Results.Forbid();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var entity = new ParishMassRule
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                Name = request.Name.Trim(),
+                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+                GraphJson = JsonSerializer.Serialize(request.Graph),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.ParishMassRules.Add(entity);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(entity.Id);
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/mass-rules/{ruleId:guid}", async (
+            Guid parishId,
+            Guid ruleId,
+            ParishMassRuleUpsertRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!HasParishMassWriteAccess(keyRing, parish))
+            {
+                return Results.Forbid();
+            }
+
+            var entity = await dbContext.ParishMassRules.FirstOrDefaultAsync(x => x.Id == ruleId && x.ParishId == parishId, ct);
+            if (entity is null)
+            {
+                return Results.NotFound();
+            }
+
+            entity.Name = request.Name.Trim();
+            entity.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+            entity.GraphJson = JsonSerializer.Serialize(request.Graph);
+            entity.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/mass-rules/{ruleId:guid}/simulate", async (
+            Guid parishId,
+            Guid ruleId,
+            ParishMassRuleSimulationRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!HasParishMassWriteAccess(keyRing, parish))
+            {
+                return Results.Forbid();
+            }
+
+            var rule = await dbContext.ParishMassRules.AsNoTracking().FirstOrDefaultAsync(x => x.Id == ruleId && x.ParishId == parishId, ct);
+            if (rule is null)
+            {
+                return Results.NotFound();
+            }
+
+            var graph = JsonSerializer.Deserialize<ParishMassRuleGraph>(rule.GraphJson);
+            if (graph is null)
+            {
+                return Results.BadRequest(new { error = "Rule graph is invalid." });
+            }
+
+            var simulated = ParishMassRuleEngine.Simulate(parishId, ruleId, graph, request.FromDate, request.ToDate);
+            if (!request.IncludeExisting)
+            {
+                var fromStart = new DateTimeOffset(request.FromDate.ToDateTime(TimeOnly.MinValue));
+                var toExclusive = new DateTimeOffset(request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue));
+                var keys = await dbContext.ParishMasses.AsNoTracking()
+                    .Where(x => x.ParishId == parishId
+                        && x.MassDateTime >= fromStart
+                        && x.MassDateTime < toExclusive)
+                    .Select(x => x.MassDateTime)
+                    .ToListAsync(ct);
+                var taken = keys.Select(x => x.UtcDateTime).ToHashSet();
+                simulated = simulated.Where(x => !taken.Contains(x.MassDateTime.UtcDateTime)).ToList();
+            }
+
+            return Results.Ok(simulated.Select(x => new ParishMassPublicResponse(
+                x.Id,
+                x.MassDateTime,
+                x.ChurchName,
+                x.Title,
+                x.Note,
+                x.IsCollective,
+                x.DurationMinutes,
+                x.Kind,
+                x.BeforeService,
+                x.AfterService,
+                x.IntentionsJson,
+                x.DonationSummary)).ToList());
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/mass-rules/{ruleId:guid}/apply", async (
+            Guid parishId,
+            Guid ruleId,
+            ParishMassRuleApplyRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!HasParishMassWriteAccess(keyRing, parish))
+            {
+                return Results.Forbid();
+            }
+
+            var rule = await dbContext.ParishMassRules.AsNoTracking().FirstOrDefaultAsync(x => x.Id == ruleId && x.ParishId == parishId, ct);
+            if (rule is null)
+            {
+                return Results.NotFound();
+            }
+
+            var graph = JsonSerializer.Deserialize<ParishMassRuleGraph>(rule.GraphJson);
+            if (graph is null)
+            {
+                return Results.BadRequest(new { error = "Rule graph is invalid." });
+            }
+
+            var generated = ParishMassRuleEngine.Simulate(parishId, ruleId, graph, request.FromDate, request.ToDate).ToList();
+            if (request.ReplaceExisting)
+            {
+                var fromStart = new DateTimeOffset(request.FromDate.ToDateTime(TimeOnly.MinValue));
+                var toExclusive = new DateTimeOffset(request.ToDate.AddDays(1).ToDateTime(TimeOnly.MinValue));
+                var existing = await dbContext.ParishMasses
+                    .Where(x => x.ParishId == parishId
+                        && x.MassDateTime >= fromStart
+                        && x.MassDateTime < toExclusive)
+                    .ToListAsync(ct);
+                dbContext.ParishMasses.RemoveRange(existing);
+            }
+
+            dbContext.ParishMasses.AddRange(generated);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { added = generated.Count });
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/offerings", async (
@@ -1296,6 +1579,13 @@ public static class ParishEndpoints
         }
 
         return null;
+    }
+
+    private static bool HasParishMassWriteAccess(RoleKeyRing keyRing, Parish parish)
+    {
+        return keyRing.ReadKeys.ContainsKey(parish.AdminRoleId)
+            || keyRing.ReadKeys.ContainsKey(parish.PriestRoleId)
+            || keyRing.ReadKeys.ContainsKey(parish.OfficeRoleId);
     }
 
     private sealed record RoleBundle(Guid RoleId, byte[] ReadKey, byte[] WriteKey, byte[] OwnerKey);

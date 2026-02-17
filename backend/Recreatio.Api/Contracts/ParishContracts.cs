@@ -62,7 +62,18 @@ public sealed record ParishMassPublicResponse(
     DateTimeOffset MassDateTime,
     string ChurchName,
     string Title,
-    string? Note);
+    string? Note,
+    bool IsCollective,
+    int? DurationMinutes,
+    string? Kind,
+    string? BeforeService,
+    string? AfterService,
+    string? IntentionsJson,
+    string? DonationSummary);
+
+public sealed record ParishMassIntentionInput(
+    string Text,
+    string? Donation);
 
 public sealed record ParishIntentionCreateRequest(
     DateTimeOffset MassDateTime,
@@ -84,13 +95,61 @@ public sealed record ParishMassCreateRequest(
     DateTimeOffset MassDateTime,
     string ChurchName,
     string Title,
-    string? Note);
+    string? Note,
+    bool IsCollective,
+    int? DurationMinutes,
+    string? Kind,
+    string? BeforeService,
+    string? AfterService,
+    IReadOnlyList<ParishMassIntentionInput>? Intentions,
+    string? DonationSummary);
 
 public sealed record ParishMassUpdateRequest(
     DateTimeOffset MassDateTime,
     string ChurchName,
     string Title,
-    string? Note);
+    string? Note,
+    bool IsCollective,
+    int? DurationMinutes,
+    string? Kind,
+    string? BeforeService,
+    string? AfterService,
+    IReadOnlyList<ParishMassIntentionInput>? Intentions,
+    string? DonationSummary);
+
+public sealed record ParishMassRuleNode(
+    string Id,
+    string Type,
+    string? NextId,
+    string? ElseId,
+    Dictionary<string, string>? Config);
+
+public sealed record ParishMassRuleGraph(
+    string StartNodeId,
+    IReadOnlyList<ParishMassRuleNode> Nodes,
+    Dictionary<string, string>? Metadata);
+
+public sealed record ParishMassRuleResponse(
+    Guid Id,
+    string Name,
+    string? Description,
+    ParishMassRuleGraph Graph,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishMassRuleUpsertRequest(
+    string Name,
+    string? Description,
+    ParishMassRuleGraph Graph);
+
+public sealed record ParishMassRuleSimulationRequest(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    bool IncludeExisting);
+
+public sealed record ParishMassRuleApplyRequest(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    bool ReplaceExisting);
 
 public sealed record ParishOfferingCreateRequest(
     Guid IntentionId,

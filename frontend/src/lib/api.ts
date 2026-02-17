@@ -1500,6 +1500,35 @@ export type ParishPublicMass = {
   churchName: string;
   title: string;
   note?: string | null;
+  isCollective?: boolean;
+  durationMinutes?: number | null;
+  kind?: string | null;
+  beforeService?: string | null;
+  afterService?: string | null;
+  intentionsJson?: string | null;
+  donationSummary?: string | null;
+};
+
+export type ParishMassRuleNode = {
+  id: string;
+  type: string;
+  nextId?: string | null;
+  elseId?: string | null;
+  config?: Record<string, string> | null;
+};
+
+export type ParishMassRuleGraph = {
+  startNodeId: string;
+  nodes: ParishMassRuleNode[];
+  metadata?: Record<string, string> | null;
+};
+
+export type ParishMassRule = {
+  id: string;
+  name: string;
+  description?: string | null;
+  graph: ParishMassRuleGraph;
+  updatedUtc: string;
 };
 
 export function listParishes() {
@@ -1581,7 +1610,19 @@ export function createParishIntention(
 
 export function createParishMass(
   parishId: string,
-  payload: { massDateTime: string; churchName: string; title: string; note?: string | null }
+  payload: {
+    massDateTime: string;
+    churchName: string;
+    title: string;
+    note?: string | null;
+    isCollective?: boolean;
+    durationMinutes?: number | null;
+    kind?: string | null;
+    beforeService?: string | null;
+    afterService?: string | null;
+    intentions?: Array<{ text: string; donation?: string | null }> | null;
+    donationSummary?: string | null;
+  }
 ) {
   return request<void>(`/parish/${parishId}/masses`, {
     method: 'POST',
@@ -1589,7 +1630,69 @@ export function createParishMass(
       massDateTime: payload.massDateTime,
       churchName: payload.churchName,
       title: payload.title,
-      note: payload.note ?? null
+      note: payload.note ?? null,
+      isCollective: payload.isCollective ?? false,
+      durationMinutes: payload.durationMinutes ?? null,
+      kind: payload.kind ?? null,
+      beforeService: payload.beforeService ?? null,
+      afterService: payload.afterService ?? null,
+      intentions: payload.intentions ?? [],
+      donationSummary: payload.donationSummary ?? null
+    })
+  });
+}
+
+export function listParishMassRules(parishId: string) {
+  return request<ParishMassRule[]>(`/parish/${parishId}/mass-rules`, { method: 'GET' });
+}
+
+export function createParishMassRule(
+  parishId: string,
+  payload: { name: string; description?: string | null; graph: ParishMassRuleGraph }
+) {
+  return request<string>(`/parish/${parishId}/mass-rules`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateParishMassRule(
+  parishId: string,
+  ruleId: string,
+  payload: { name: string; description?: string | null; graph: ParishMassRuleGraph }
+) {
+  return request<void>(`/parish/${parishId}/mass-rules/${ruleId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function simulateParishMassRule(
+  parishId: string,
+  ruleId: string,
+  payload: { fromDate: string; toDate: string; includeExisting?: boolean }
+) {
+  return request<ParishPublicMass[]>(`/parish/${parishId}/mass-rules/${ruleId}/simulate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fromDate: payload.fromDate,
+      toDate: payload.toDate,
+      includeExisting: payload.includeExisting ?? false
+    })
+  });
+}
+
+export function applyParishMassRule(
+  parishId: string,
+  ruleId: string,
+  payload: { fromDate: string; toDate: string; replaceExisting?: boolean }
+) {
+  return request<{ added: number }>(`/parish/${parishId}/mass-rules/${ruleId}/apply`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fromDate: payload.fromDate,
+      toDate: payload.toDate,
+      replaceExisting: payload.replaceExisting ?? false
     })
   });
 }

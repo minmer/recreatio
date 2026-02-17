@@ -2057,6 +2057,39 @@
   padding: 0.55rem 0.8rem;
 }
 
+.admin-form-grid textarea,
+.admin-form-grid select {
+  border-radius: 12px;
+  border: 1px solid var(--parish-line);
+  padding: 0.55rem 0.8rem;
+  background: #fff;
+  font: inherit;
+}
+
+.mass-rule-builder {
+  display: grid;
+  gap: 1rem;
+}
+
+.mass-rule-graph-shell {
+  height: 460px;
+  border: 1px solid var(--parish-line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.mass-rule-node {
+  min-width: 180px;
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  background: #fffefc;
+  padding: 0.6rem 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+  box-shadow: 0 6px 20px -16px var(--parish-shadow);
+}
+
 .admin-form-full {
   grid-column: 1 / -1;
 }
