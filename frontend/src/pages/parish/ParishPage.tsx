@@ -37,6 +37,7 @@ import {
   createParishIntention,
   createParishMass,
   createParishMassRule,
+  updateParishMass,
   getParishPublicIntentions,
   getParishPublicMasses,
   getParishSite,
@@ -1226,6 +1227,9 @@ export function ParishPage({
   const [newIntentionText, setNewIntentionText] = useState('');
   const [newIntentionInternal, setNewIntentionInternal] = useState('');
   const [newMassDate, setNewMassDate] = useState('');
+  const [newMassDay, setNewMassDay] = useState('');
+  const [newMassTime, setNewMassTime] = useState('18:00');
+  const [editingMassId, setEditingMassId] = useState<string | null>(null);
   const [newMassChurch, setNewMassChurch] = useState('');
   const [newMassTitle, setNewMassTitle] = useState('');
   const [newMassNote, setNewMassNote] = useState('');
@@ -1469,6 +1473,12 @@ export function ParishPage({
       .then((items) => setPublicMasses(items))
       .catch(() => setPublicMasses([]));
   }, [parishSlug]);
+
+  useEffect(() => {
+    if (newMassDay) return;
+    const today = new Date();
+    setNewMassDay(today.toISOString().slice(0, 10));
+  }, [newMassDay]);
 
   useEffect(() => {
     if (!isAuthenticated || !parish) {
@@ -2189,6 +2199,15 @@ export function ParishPage({
       ? getValidDropCells(editLayoutItems, dragState.size, activeColumns, activeBreakpoint, dragState.activeItemId)
       : null;
   const selectedMassRuleNode = massRuleNodes.find((node) => node.id === selectedMassFlowNodeId) ?? null;
+  const massesOfSelectedDay = useMemo(() => {
+    if (!newMassDay) return [] as ParishPublicMass[];
+    return publicMasses
+      .filter((mass) => {
+        const isoDay = new Date(mass.massDateTime).toISOString().slice(0, 10);
+        return isoDay === newMassDay;
+      })
+      .sort((a, b) => new Date(a.massDateTime).getTime() - new Date(b.massDateTime).getTime());
+  }, [publicMasses, newMassDay]);
 
 
   const handleSaveLayout = async () => {
@@ -2236,14 +2255,15 @@ export function ParishPage({
 
   const handleAddMass = async () => {
     if (!parish) return;
-    if (!newMassDate || !newMassChurch || !newMassTitle) {
+    if (!newMassDay || !newMassTime || !newMassChurch || !newMassTitle) {
       setAdminFormError('Uzupełnij datę, kościół i nazwę mszy.');
       return;
     }
     setAdminFormError(null);
     try {
-      await createParishMass(parish.id, {
-        massDateTime: new Date(newMassDate).toISOString(),
+      const massDateTime = new Date(`${newMassDay}T${newMassTime}`).toISOString();
+      const payload = {
+        massDateTime,
         churchName: newMassChurch,
         title: newMassTitle,
         note: newMassNote || null,
@@ -2261,8 +2281,15 @@ export function ParishPage({
             const [text, donation] = line.split('|').map((x) => x.trim());
             return { text, donation: donation || null };
           })
-      });
+      };
+      if (editingMassId) {
+        await updateParishMass(parish.id, editingMassId, payload);
+      } else {
+        await createParishMass(parish.id, payload);
+      }
       setNewMassDate('');
+      setNewMassTime('18:00');
+      setEditingMassId(null);
       setNewMassChurch('');
       setNewMassTitle('');
       setNewMassNote('');
@@ -2279,6 +2306,30 @@ export function ParishPage({
       }
     } catch {
       setAdminFormError('Nie udało się zapisać mszy.');
+    }
+  };
+
+  const handlePickMassForEdit = (mass: ParishPublicMass) => {
+    const dt = new Date(mass.massDateTime);
+    const day = dt.toISOString().slice(0, 10);
+    const time = dt.toISOString().slice(11, 16);
+    setEditingMassId(mass.id);
+    setNewMassDay(day);
+    setNewMassTime(time);
+    setNewMassChurch(mass.churchName ?? '');
+    setNewMassTitle(mass.title ?? '');
+    setNewMassNote(mass.note ?? '');
+    setNewMassKind(mass.kind ?? '');
+    setNewMassDurationMinutes(mass.durationMinutes ? String(mass.durationMinutes) : '60');
+    setNewMassBeforeService(mass.beforeService ?? '');
+    setNewMassAfterService(mass.afterService ?? '');
+    setNewMassDonationSummary(mass.donationSummary ?? '');
+    setNewMassCollective(Boolean(mass.isCollective));
+    try {
+      const intentions = mass.intentionsJson ? (JSON.parse(mass.intentionsJson) as Array<{ text: string; donation?: string | null }>) : [];
+      setNewMassIntentionsRaw(intentions.map((item) => `${item.text}${item.donation ? ` | ${item.donation}` : ''}`).join('\n'));
+    } catch {
+      setNewMassIntentionsRaw('');
     }
   };
 
@@ -3439,11 +3490,22 @@ export function ParishPage({
                       <>
                         <div className="admin-form-grid">
                           <label>
-                            <span>Data i godzina</span>
+                            <span>Dzień</span>
                             <input
-                              type="datetime-local"
-                              value={newMassDate}
-                              onChange={(event) => setNewMassDate(event.target.value)}
+                              type="date"
+                              value={newMassDay}
+                              onChange={(event) => {
+                                setNewMassDay(event.target.value);
+                                setEditingMassId(null);
+                              }}
+                            />
+                          </label>
+                          <label>
+                            <span>Godzina</span>
+                            <input
+                              type="time"
+                              value={newMassTime}
+                              onChange={(event) => setNewMassTime(event.target.value)}
                             />
                           </label>
                           <label>
@@ -3530,10 +3592,43 @@ export function ParishPage({
                             />
                           </label>
                         </div>
+                        <div className="parish-card">
+                          <div className="section-header">
+                            <h3>Msze dnia</h3>
+                            <span className="muted">{newMassDay || '-'}</span>
+                          </div>
+                          <ul className="status-list">
+                            {massesOfSelectedDay.length === 0 ? (
+                              <li>
+                                <span className="muted">Brak mszy w tym dniu.</span>
+                              </li>
+                            ) : (
+                              massesOfSelectedDay.map((mass) => (
+                                <li key={mass.id}>
+                                  <button type="button" className="ghost" onClick={() => handlePickMassForEdit(mass)}>
+                                    {new Date(mass.massDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {mass.title}
+                                  </button>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        </div>
                         <div className="builder-actions">
                           <button type="button" className="parish-login" onClick={handleAddMass}>
-                            Zapisz mszę
+                            {editingMassId ? 'Zapisz zmiany mszy' : 'Dodaj mszę'}
                           </button>
+                          {editingMassId && (
+                            <button
+                              type="button"
+                              className="parish-back"
+                              onClick={() => {
+                                setEditingMassId(null);
+                                setNewMassTime('18:00');
+                              }}
+                            >
+                              Anuluj edycję
+                            </button>
+                          )}
                         </div>
                       </>
                     ) : (
@@ -3825,48 +3920,370 @@ export function ParishPage({
                     <div className="section-header">
                       <div>
                         <p className="tag">Panel admina</p>
-                        <h3>Dodaj intencję</h3>
+                        <h3>Zarządzanie mszami i intencjami</h3>
                       </div>
                     </div>
-                    <div className="admin-form-grid">
-                      <label>
-                        <span>Data i godzina</span>
-                        <input
-                          type="datetime-local"
-                          value={newIntentionDate}
-                          onChange={(event) => setNewIntentionDate(event.target.value)}
-                        />
-                      </label>
-                      <label>
-                        <span>Kościół</span>
-                        <input
-                          type="text"
-                          value={newIntentionChurch}
-                          onChange={(event) => setNewIntentionChurch(event.target.value)}
-                        />
-                      </label>
-                      <label className="admin-form-full">
-                        <span>Treść publiczna</span>
-                        <input
-                          type="text"
-                          value={newIntentionText}
-                          onChange={(event) => setNewIntentionText(event.target.value)}
-                        />
-                      </label>
-                      <label className="admin-form-full">
-                        <span>Treść wewnętrzna (opcjonalnie)</span>
-                        <input
-                          type="text"
-                          value={newIntentionInternal}
-                          onChange={(event) => setNewIntentionInternal(event.target.value)}
-                        />
-                      </label>
-                    </div>
-                    <div className="builder-actions">
-                      <button type="button" className="parish-login" onClick={handleAddIntention}>
-                        Zapisz intencję
+                    <div className="tabs small">
+                      <button
+                        type="button"
+                        className={massEditorMode === 'single' ? 'is-active' : undefined}
+                        onClick={() => setMassEditorMode('single')}
+                      >
+                        Pojedyncza msza
+                      </button>
+                      <button
+                        type="button"
+                        className={massEditorMode === 'serial' ? 'is-active' : undefined}
+                        onClick={() => setMassEditorMode('serial')}
+                      >
+                        Dodawanie seryjne (node)
                       </button>
                     </div>
+                    {massEditorMode === 'single' ? (
+                      <>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Dzień</span>
+                            <input
+                              type="date"
+                              value={newMassDay}
+                              onChange={(event) => {
+                                setNewMassDay(event.target.value);
+                                setEditingMassId(null);
+                              }}
+                            />
+                          </label>
+                          <label>
+                            <span>Godzina</span>
+                            <input
+                              type="time"
+                              value={newMassTime}
+                              onChange={(event) => setNewMassTime(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Kościół</span>
+                            <input
+                              type="text"
+                              value={newMassChurch}
+                              onChange={(event) => setNewMassChurch(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Rodzaj</span>
+                            <input
+                              type="text"
+                              value={newMassKind}
+                              onChange={(event) => setNewMassKind(event.target.value)}
+                              placeholder="np. ferialna, świąteczna"
+                            />
+                          </label>
+                          <label>
+                            <span>Czas trwania (min)</span>
+                            <input
+                              type="number"
+                              min={1}
+                              value={newMassDurationMinutes}
+                              onChange={(event) => setNewMassDurationMinutes(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Nazwa</span>
+                            <input
+                              type="text"
+                              value={newMassTitle}
+                              onChange={(event) => setNewMassTitle(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Uwagi</span>
+                            <input
+                              type="text"
+                              value={newMassNote}
+                              onChange={(event) => setNewMassNote(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Nabożeństwo przed</span>
+                            <input
+                              type="text"
+                              value={newMassBeforeService}
+                              onChange={(event) => setNewMassBeforeService(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Nabożeństwo po</span>
+                            <input
+                              type="text"
+                              value={newMassAfterService}
+                              onChange={(event) => setNewMassAfterService(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Suma ofiar</span>
+                            <input
+                              type="text"
+                              value={newMassDonationSummary}
+                              onChange={(event) => setNewMassDonationSummary(event.target.value)}
+                              placeholder="np. 150 PLN"
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Intencje (linia: tekst | ofiara)</span>
+                            <textarea
+                              value={newMassIntentionsRaw}
+                              onChange={(event) => setNewMassIntentionsRaw(event.target.value)}
+                              rows={4}
+                            />
+                          </label>
+                          <label>
+                            <span>Msza zbiorowa</span>
+                            <input
+                              type="checkbox"
+                              checked={newMassCollective}
+                              onChange={(event) => setNewMassCollective(event.target.checked)}
+                            />
+                          </label>
+                        </div>
+                        <div className="parish-card">
+                          <div className="section-header">
+                            <h3>Msze dnia</h3>
+                            <span className="muted">{newMassDay || '-'}</span>
+                          </div>
+                          <ul className="status-list">
+                            {massesOfSelectedDay.length === 0 ? (
+                              <li>
+                                <span className="muted">Brak mszy w tym dniu.</span>
+                              </li>
+                            ) : (
+                              massesOfSelectedDay.map((mass) => (
+                                <li key={mass.id}>
+                                  <button type="button" className="ghost" onClick={() => handlePickMassForEdit(mass)}>
+                                    {new Date(mass.massDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {mass.title}
+                                  </button>
+                                </li>
+                              ))
+                            )}
+                          </ul>
+                        </div>
+                        <div className="builder-actions">
+                          <button type="button" className="parish-login" onClick={handleAddMass}>
+                            {editingMassId ? 'Zapisz zmiany mszy' : 'Dodaj mszę'}
+                          </button>
+                          {editingMassId && (
+                            <button
+                              type="button"
+                              className="parish-back"
+                              onClick={() => {
+                                setEditingMassId(null);
+                                setNewMassTime('18:00');
+                              }}
+                            >
+                              Anuluj edycję
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mass-rule-builder">
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Nazwa reguły</span>
+                            <input
+                              type="text"
+                              value={massRuleName}
+                              onChange={(event) => setMassRuleName(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Node startowy</span>
+                            <input
+                              type="text"
+                              value={massRuleStartNodeId}
+                              onChange={(event) => setMassRuleStartNodeId(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Opis</span>
+                            <input
+                              type="text"
+                              value={massRuleDescription}
+                              onChange={(event) => setMassRuleDescription(event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="layout-palette">
+                          {massRuleNodeTemplates.map((template) => (
+                            <button
+                              key={template.type}
+                              type="button"
+                              className="module-pill"
+                              onClick={() => handleAddRuleNode(template.type)}
+                            >
+                              {template.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mass-rule-graph-shell">
+                          <ReactFlow
+                            nodes={massFlowNodes}
+                            edges={massFlowEdges}
+                            nodeTypes={{ massRuleNode: MassRuleGraphNode }}
+                            onNodesChange={handleMassNodesChange}
+                            onEdgesChange={handleMassEdgesChange}
+                            onConnect={handleMassConnect}
+                            onNodeClick={(_, node) => setSelectedMassFlowNodeId(node.id)}
+                            fitView
+                            connectionLineStyle={{ stroke: '#7a6b58', strokeWidth: 2 }}
+                          >
+                            <Background />
+                            <Controls />
+                          </ReactFlow>
+                        </div>
+                        <div className="parish-card">
+                          {!selectedMassRuleNode ? (
+                            <p className="muted">Wybierz node w grafie, aby edytować szczegóły.</p>
+                          ) : (
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Node ID</span>
+                                <input type="text" value={selectedMassRuleNode.id} readOnly />
+                              </label>
+                              <label>
+                                <span>Typ</span>
+                                <select
+                                  value={selectedMassRuleNode.type}
+                                  onChange={(event) =>
+                                    setMassRuleNodes((current) =>
+                                      current.map((item) =>
+                                        item.id === selectedMassRuleNode.id ? { ...item, type: event.target.value } : item
+                                      )
+                                    )
+                                  }
+                                >
+                                  {massRuleNodeTemplates.map((template) => (
+                                    <option key={template.type} value={template.type}>
+                                      {template.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                <span>Next</span>
+                                <input
+                                  type="text"
+                                  value={selectedMassRuleNode.nextId ?? ''}
+                                  onChange={(event) =>
+                                    setMassRuleNodes((current) =>
+                                      current.map((item) =>
+                                        item.id === selectedMassRuleNode.id
+                                          ? { ...item, nextId: event.target.value || null }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>Else</span>
+                                <input
+                                  type="text"
+                                  value={selectedMassRuleNode.elseId ?? ''}
+                                  onChange={(event) =>
+                                    setMassRuleNodes((current) =>
+                                      current.map((item) =>
+                                        item.id === selectedMassRuleNode.id
+                                          ? { ...item, elseId: event.target.value || null }
+                                          : item
+                                      )
+                                    )
+                                  }
+                                />
+                              </label>
+                              {Object.entries(selectedMassRuleNode.config ?? {}).map(([key, value]) =>
+                                key.startsWith('_') ? null : (
+                                  <label key={key}>
+                                    <span>{key}</span>
+                                    <input
+                                      type="text"
+                                      value={value}
+                                      onChange={(event) =>
+                                        setMassRuleNodes((current) =>
+                                          current.map((item) =>
+                                            item.id === selectedMassRuleNode.id
+                                              ? {
+                                                  ...item,
+                                                  config: {
+                                                    ...(item.config ?? {}),
+                                                    [key]: event.target.value
+                                                  }
+                                                }
+                                              : item
+                                          )
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Od</span>
+                            <input type="date" value={massRuleFromDate} onChange={(event) => setMassRuleFromDate(event.target.value)} />
+                          </label>
+                          <label>
+                            <span>Do</span>
+                            <input type="date" value={massRuleToDate} onChange={(event) => setMassRuleToDate(event.target.value)} />
+                          </label>
+                          <label>
+                            <span>Podmień istniejące</span>
+                            <input
+                              type="checkbox"
+                              checked={massRuleReplaceExisting}
+                              onChange={(event) => setMassRuleReplaceExisting(event.target.checked)}
+                            />
+                          </label>
+                          <label>
+                            <span>Wybór reguły</span>
+                            <select
+                              value={selectedMassRuleId ?? ''}
+                              onChange={(event) => setSelectedMassRuleId(event.target.value || null)}
+                            >
+                              <option value="">--</option>
+                              {massRules.map((rule) => (
+                                <option key={rule.id} value={rule.id}>
+                                  {rule.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                        <div className="builder-actions">
+                          <button type="button" className="parish-back" onClick={handleSaveMassRule}>
+                            Zapisz regułę
+                          </button>
+                          <button type="button" className="parish-back" onClick={handleSimulateMassRule}>
+                            Symuluj
+                          </button>
+                          <button type="button" className="parish-login" onClick={handleApplyMassRule}>
+                            Zastosuj regułę
+                          </button>
+                        </div>
+                        {massRulePreview.length > 0 && (
+                          <ul className="status-list">
+                            {massRulePreview.slice(0, 8).map((item) => (
+                              <li key={item.id}>
+                                <strong>{new Date(item.massDateTime).toLocaleString()}</strong>
+                                <span>{item.title}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     {adminFormError && <p className="builder-error">{adminFormError}</p>}
                   </div>
                 )}

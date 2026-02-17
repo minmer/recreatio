@@ -1642,6 +1642,41 @@ export function createParishMass(
   });
 }
 
+export function updateParishMass(
+  parishId: string,
+  massId: string,
+  payload: {
+    massDateTime: string;
+    churchName: string;
+    title: string;
+    note?: string | null;
+    isCollective?: boolean;
+    durationMinutes?: number | null;
+    kind?: string | null;
+    beforeService?: string | null;
+    afterService?: string | null;
+    intentions?: Array<{ text: string; donation?: string | null }> | null;
+    donationSummary?: string | null;
+  }
+) {
+  return request<void>(`/parish/${parishId}/masses/${massId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      massDateTime: payload.massDateTime,
+      churchName: payload.churchName,
+      title: payload.title,
+      note: payload.note ?? null,
+      isCollective: payload.isCollective ?? false,
+      durationMinutes: payload.durationMinutes ?? null,
+      kind: payload.kind ?? null,
+      beforeService: payload.beforeService ?? null,
+      afterService: payload.afterService ?? null,
+      intentions: payload.intentions ?? [],
+      donationSummary: payload.donationSummary ?? null
+    })
+  });
+}
+
 export function listParishMassRules(parishId: string) {
   return request<ParishMassRule[]>(`/parish/${parishId}/mass-rules`, { method: 'GET' });
 }
