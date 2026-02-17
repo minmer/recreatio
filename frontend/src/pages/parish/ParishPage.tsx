@@ -3068,6 +3068,15 @@ export function ParishPage({
                   </button>
                 );
               })}
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  className={`menu-link ${activePage === 'intentions' ? 'is-active' : ''}`}
+                  onClick={() => selectPage('intentions')}
+                >
+                  Panel intencji
+                </button>
+              )}
             </nav>
             <div className="parish-header-right">
               <div className="parish-menu-control">
