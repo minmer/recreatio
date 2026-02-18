@@ -61,6 +61,31 @@ type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
 type MassRuleNodeData = { label: string; type: string };
 
+const isSameFlowNodes = (left: Array<Node<MassRuleNodeData>>, right: Array<Node<MassRuleNodeData>>) => {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (a.id !== b.id || a.type !== b.type) return false;
+    if (Math.round(a.position.x) !== Math.round(b.position.x) || Math.round(a.position.y) !== Math.round(b.position.y)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const isSameFlowEdges = (left: Edge[], right: Edge[]) => {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const a = left[i];
+    const b = right[i];
+    if (a.id !== b.id || a.source !== b.source || a.target !== b.target || (a.sourceHandle ?? null) !== (b.sourceHandle ?? null)) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const HOME_GAP = 16;
 const EDITOR_GAP = 0;
 const EDITOR_PADDING = 12;
@@ -186,6 +211,8 @@ const MassRuleGraphNode = ({ data }: { data: MassRuleNodeData }) => {
     </div>
   );
 };
+
+const massRuleNodeTypes = { massRuleNode: MassRuleGraphNode };
 
 const getBreakpointKey = (columns: number): LayoutBreakpoint => {
   if (columns >= 6) return 'desktop';
@@ -1226,7 +1253,6 @@ export function ParishPage({
   const [newIntentionChurch, setNewIntentionChurch] = useState('');
   const [newIntentionText, setNewIntentionText] = useState('');
   const [newIntentionInternal, setNewIntentionInternal] = useState('');
-  const [newMassDate, setNewMassDate] = useState('');
   const [newMassDay, setNewMassDay] = useState('');
   const [newMassTime, setNewMassTime] = useState('18:00');
   const [editingMassId, setEditingMassId] = useState<string | null>(null);
@@ -1535,8 +1561,8 @@ export function ParishPage({
         });
       }
     });
-    setMassFlowNodes(nextNodes);
-    setMassFlowEdges(nextEdges);
+    setMassFlowNodes((current) => (isSameFlowNodes(current, nextNodes) ? current : nextNodes));
+    setMassFlowEdges((current) => (isSameFlowEdges(current, nextEdges) ? current : nextEdges));
   }, [massRuleNodes]);
 
   useEffect(() => {
@@ -2287,7 +2313,6 @@ export function ParishPage({
       } else {
         await createParishMass(parish.id, payload);
       }
-      setNewMassDate('');
       setNewMassTime('18:00');
       setEditingMassId(null);
       setNewMassChurch('');
@@ -3675,7 +3700,7 @@ export function ParishPage({
                           <ReactFlow
                             nodes={massFlowNodes}
                             edges={massFlowEdges}
-                            nodeTypes={{ massRuleNode: MassRuleGraphNode }}
+                            nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
                             onEdgesChange={handleMassEdgesChange}
                             onConnect={handleMassConnect}
@@ -4128,7 +4153,7 @@ export function ParishPage({
                           <ReactFlow
                             nodes={massFlowNodes}
                             edges={massFlowEdges}
-                            nodeTypes={{ massRuleNode: MassRuleGraphNode }}
+                            nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
                             onEdgesChange={handleMassEdgesChange}
                             onConnect={handleMassConnect}
