@@ -409,9 +409,20 @@ public sealed class RecreatioDbContext : DbContext
             .HasForeignKey(x => x.LibraryId);
 
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
-            .HasIndex(x => new { x.LibraryId, x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId })
+            .HasIndex(x => new
+            {
+                x.LibraryId,
+                x.ParentItemType,
+                x.ParentItemId,
+                x.ParentCheckType,
+                x.ParentDirection,
+                x.ChildItemType,
+                x.ChildItemId,
+                x.ChildCheckType,
+                x.ChildDirection
+            })
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
-            .HasIndex(x => new { x.LibraryId, x.ChildItemType, x.ChildItemId });
+            .HasIndex(x => new { x.LibraryId, x.ChildItemType, x.ChildItemId, x.ChildCheckType, x.ChildDirection });
     }
 }

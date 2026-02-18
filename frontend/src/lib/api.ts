@@ -609,8 +609,12 @@ export type CogitaDependencyGraphPreview = {
 export type CogitaItemDependency = {
   parentItemType: string;
   parentItemId: string;
+  parentCheckType?: string | null;
+  parentDirection?: string | null;
   childItemType: string;
   childItemId: string;
+  childCheckType?: string | null;
+  childDirection?: string | null;
 };
 
 export type CogitaItemDependencyBundle = {

@@ -157,9 +157,11 @@ const anchorCompare = (expected: string, answer: string) => {
 export const compareStrings = (expected: string, answer: string, algorithmId: CompareAlgorithmId) => {
   const normalizedExpected = expected.trim().toLowerCase();
   const normalizedAnswer = answer.trim().toLowerCase();
-  if (algorithmId === 'prefix') return comparePrefix(normalizedExpected, normalizedAnswer);
-  if (algorithmId === 'anchors') return anchorCompare(normalizedExpected, normalizedAnswer);
-  return compareBidirectional(normalizedExpected, normalizedAnswer);
+  if (algorithmId === 'prefix' || algorithmId === 'bidirectional') {
+    // Text checks are intentionally unified to anchors.
+    return anchorCompare(normalizedExpected, normalizedAnswer);
+  }
+  return anchorCompare(normalizedExpected, normalizedAnswer);
 };
 
 export const normalizeIgnoringSpacingAndPunctuation = (value: string) =>
@@ -175,7 +177,8 @@ export const compareStringsIgnoringSpacingAndPunctuation = (
 ) => {
   const normalizedExpected = normalizeIgnoringSpacingAndPunctuation(expected);
   const normalizedAnswer = normalizeIgnoringSpacingAndPunctuation(answer);
-  if (algorithmId === 'prefix') return comparePrefix(normalizedExpected, normalizedAnswer);
-  if (algorithmId === 'anchors') return anchorCompare(normalizedExpected, normalizedAnswer);
-  return compareBidirectional(normalizedExpected, normalizedAnswer);
+  if (algorithmId === 'prefix' || algorithmId === 'bidirectional') {
+    return anchorCompare(normalizedExpected, normalizedAnswer);
+  }
+  return anchorCompare(normalizedExpected, normalizedAnswer);
 };

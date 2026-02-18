@@ -176,15 +176,23 @@ public sealed record CogitaCollectionDependencyBundleResponse(
 public sealed record CogitaItemDependencyRequest(
     string ParentItemType,
     Guid ParentItemId,
+    string? ParentCheckType,
+    string? ParentDirection,
     string ChildItemType,
-    Guid ChildItemId
+    Guid ChildItemId,
+    string? ChildCheckType,
+    string? ChildDirection
 );
 
 public sealed record CogitaItemDependencyResponse(
     string ParentItemType,
     Guid ParentItemId,
+    string? ParentCheckType,
+    string? ParentDirection,
     string ChildItemType,
-    Guid ChildItemId
+    Guid ChildItemId,
+    string? ChildCheckType,
+    string? ChildDirection
 );
 
 public sealed record CogitaItemDependencyBundleResponse(

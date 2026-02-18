@@ -1101,25 +1101,65 @@ BEGIN
         LibraryId UNIQUEIDENTIFIER NOT NULL,
         ParentItemType NVARCHAR(32) NOT NULL,
         ParentItemId UNIQUEIDENTIFIER NOT NULL,
+        ParentCheckType NVARCHAR(64) NULL,
+        ParentDirection NVARCHAR(128) NULL,
         ChildItemType NVARCHAR(32) NOT NULL,
         ChildItemId UNIQUEIDENTIFIER NOT NULL,
+        ChildCheckType NVARCHAR(64) NULL,
+        ChildDirection NVARCHAR(128) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         CONSTRAINT FK_CogitaItemDependencies_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
     );
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ParentCheckType') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD ParentCheckType NVARCHAR(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ParentDirection') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD ParentDirection NVARCHAR(128) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ChildCheckType') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD ChildCheckType NVARCHAR(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ChildDirection') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD ChildDirection NVARCHAR(128) NULL;
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
+BEGIN
+    DROP INDEX UX_CogitaItemDependencies_Link ON dbo.CogitaItemDependencies;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaItemDependencies_Link
-        ON dbo.CogitaItemDependencies(LibraryId, ParentItemType, ParentItemId, ChildItemType, ChildItemId);
+        ON dbo.CogitaItemDependencies(LibraryId, ParentItemType, ParentItemId, ParentCheckType, ParentDirection, ChildItemType, ChildItemId, ChildCheckType, ChildDirection);
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaItemDependencies_Child' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
+BEGIN
+    DROP INDEX IX_CogitaItemDependencies_Child ON dbo.CogitaItemDependencies;
 END
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaItemDependencies_Child' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     CREATE INDEX IX_CogitaItemDependencies_Child
-        ON dbo.CogitaItemDependencies(LibraryId, ChildItemType, ChildItemId);
+        ON dbo.CogitaItemDependencies(LibraryId, ChildItemType, ChildItemId, ChildCheckType, ChildDirection);
 END
 GO
 

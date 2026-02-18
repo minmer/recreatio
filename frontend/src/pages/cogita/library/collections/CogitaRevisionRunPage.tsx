@@ -22,9 +22,16 @@ import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
+import { CogitaCardKnownessPanel } from './components/CogitaCardKnownessPanel';
 import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
-import { getAllOutcomes, getOutcomesForItem, recordOutcome, syncPendingOutcomes } from '../../../../cogita/revision/outcomes';
+import {
+  getAllOutcomes,
+  getOutcomesForItem,
+  recordOutcome,
+  syncPendingOutcomes,
+  type RevisionOutcomePayload
+} from '../../../../cogita/revision/outcomes';
 import {
   getRevisionType,
   normalizeRevisionSettings,
@@ -39,128 +46,17 @@ import {
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
-
-const normalizeAnswer = (value: string) => value.trim().toLowerCase();
-const getQuoteMode = (direction?: string | null) => (direction === 'reverse' ? 'reverse' : 'forward');
-const buildQuoteFragmentDirection = (mode: 'forward' | 'reverse', fragmentId: string) => `${mode}|${fragmentId}`;
-const parseQuoteFragmentDirection = (direction?: string | null) => {
-  if (!direction) return null;
-  const [mode, fragmentId] = direction.split('|', 2);
-  if ((mode === 'forward' || mode === 'reverse') && fragmentId) {
-    return { mode, fragmentId };
-  }
-  return { mode: 'forward' as const, fragmentId: direction };
-};
-const matchesQuoteDirection = (entryDirection: string | null | undefined, currentDirection?: string | null) => {
-  const current = parseQuoteFragmentDirection(currentDirection);
-  if (!current) return true;
-  if (current.fragmentId && currentDirection) {
-    return (entryDirection ?? null) === currentDirection;
-  }
-  return (parseQuoteFragmentDirection(entryDirection)?.mode ?? 'forward') === current.mode;
-};
-const SUPERSCRIPT_MAP: Record<string, string> = {
-  '0': '⁰',
-  '1': '¹',
-  '2': '²',
-  '3': '³',
-  '4': '⁴',
-  '5': '⁵',
-  '6': '⁶',
-  '7': '⁷',
-  '8': '⁸',
-  '9': '⁹',
-  '+': '⁺',
-  '-': '⁻',
-  '=': '⁼',
-  '(': '⁽',
-  ')': '⁾',
-  n: 'ⁿ',
-  i: 'ⁱ'
-};
-const SUBSCRIPT_MAP: Record<string, string> = {
-  '0': '₀',
-  '1': '₁',
-  '2': '₂',
-  '3': '₃',
-  '4': '₄',
-  '5': '₅',
-  '6': '₆',
-  '7': '₇',
-  '8': '₈',
-  '9': '₉',
-  '+': '₊',
-  '-': '₋',
-  '=': '₌',
-  '(': '₍',
-  ')': '₎',
-  a: 'ₐ',
-  e: 'ₑ',
-  h: 'ₕ',
-  i: 'ᵢ',
-  j: 'ⱼ',
-  k: 'ₖ',
-  l: 'ₗ',
-  m: 'ₘ',
-  n: 'ₙ',
-  o: 'ₒ',
-  p: 'ₚ',
-  r: 'ᵣ',
-  s: 'ₛ',
-  t: 'ₜ',
-  u: 'ᵤ',
-  v: 'ᵥ',
-  x: 'ₓ'
-};
-
-const applyScriptMode = (prev: string, next: string, mode: 'super' | 'sub' | null) => {
-  if (!mode) return next;
-  if (!next.startsWith(prev)) return next;
-  const added = next.slice(prev.length);
-  if (!added) return next;
-  const map = mode === 'super' ? SUPERSCRIPT_MAP : SUBSCRIPT_MAP;
-  const transformed = added
-    .split('')
-    .map((char) => map[char] ?? char)
-    .join('');
-  return prev + transformed;
-};
-
-const getFirstComputedInputKey = (
-  template: string | null,
-  expected: Array<{ key: string; expected: string }>,
-  outputVariables: Record<string, string> | null
-) => {
-  if (!template) return expected[0]?.key ?? null;
-  const expectedKeys = new Set(expected.map((entry) => entry.key));
-  const pattern = /\{([^}]+)\}/g;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(template)) !== null) {
-    const token = match[1]?.trim() ?? '';
-    if (!token) continue;
-    if (expectedKeys.has(token)) return token;
-    const resolved = outputVariables?.[token];
-    if (resolved && expectedKeys.has(resolved)) return resolved;
-  }
-  return expected[0]?.key ?? null;
-};
-
-const expandQuoteDirectionCards = (cards: CogitaCardSearchResult[]) =>
-  cards.flatMap((card) => {
-    if (card.cardType !== 'info' || card.infoType !== 'quote') return [card];
-    const text = card.description ?? '';
-    if (!text.trim()) return [card];
-    const parsed = parseQuoteFragmentDirection(card.direction);
-    const mode = parsed?.mode ?? getQuoteMode(card.direction);
-    const tree = buildQuoteFragmentTree(text);
-    const nodeIds = Object.keys(tree.nodes);
-    if (nodeIds.length === 0) return [card];
-    return nodeIds.map((nodeId) => ({
-      ...card,
-      checkType: 'quote-fragment',
-      direction: buildQuoteFragmentDirection(mode, nodeId)
-    }));
-  });
+import {
+  applyScriptMode,
+  buildQuoteFragmentDirection,
+  expandQuoteDirectionCards,
+  getFirstComputedInputKey,
+  matchesDependencyChild,
+  matchesQuoteDirection,
+  normalizeAnswer,
+  normalizeDependencyToken,
+  parseQuoteFragmentDirection
+} from './revisionShared';
 
 export function CogitaRevisionRunPage({
   copy,
@@ -255,6 +151,10 @@ export function CogitaRevisionRunPage({
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
+  const [reviewOutcomes, setReviewOutcomes] = useState<RevisionOutcomePayload[]>([]);
+  const [availabilityNotice, setAvailabilityNotice] = useState<string | null>(null);
+  const previousEligibleCountRef = useRef<number | null>(null);
+  const availabilityNoticeTimerRef = useRef<number | null>(null);
   const [answerMask, setAnswerMask] = useState<Uint8Array | null>(null);
   const [attempts, setAttempts] = useState(0);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -311,7 +211,7 @@ export function CogitaRevisionRunPage({
       : queue.length;
   const progressCurrent = progressTotal ? Math.min(currentIndex + 1, progressTotal) : 0;
   const maxTries = Math.max(1, Number(revisionSettings.tries ?? 1));
-  const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'bidirectional';
+  const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'anchors';
   const minCorrectness = Math.max(0, Math.min(100, Number(revisionSettings.minCorrectness ?? 0)));
   const considerDependencies = (revisionSettings.considerDependencies ?? 'on') === 'on';
   const dependencyThreshold = Math.max(0, Math.min(100, Number(revisionSettings.dependencyThreshold ?? 85)));
@@ -367,7 +267,7 @@ export function CogitaRevisionRunPage({
       if (!bundle.nextCursor) break;
       cursor = bundle.nextCursor;
     }
-    return items;
+    return expandQuoteDirectionCards(items);
   };
 
   const getCollectionKnowness = async (collectionId: string, cardKnowness: Map<string, number>) => {
@@ -423,13 +323,13 @@ export function CogitaRevisionRunPage({
       return;
     }
     const { itemKnowness, cardKnowness } = await buildKnownessMaps();
-    const depByChild = new Map<string, CogitaItemDependency[]>();
-    itemDependencies.forEach((dep) => {
-      const key = `${dep.childItemType}:${dep.childItemId}`;
-      if (!depByChild.has(key)) depByChild.set(key, []);
-      depByChild.get(key)!.push(dep);
-    });
-    const collectionDeps = depByChild.get(`collection:${collectionId}`) ?? [];
+    const collectionDeps = itemDependencies.filter(
+      (dep) =>
+        normalizeDependencyToken(dep.childItemType) === 'collection' &&
+        dep.childItemId === collectionId &&
+        !normalizeDependencyToken(dep.childCheckType) &&
+        !normalizeDependencyToken(dep.childDirection)
+    );
     const eligible = new Set<string>();
     for (const card of evaluationCards) {
       if (card.cardType !== 'info') {
@@ -439,15 +339,25 @@ export function CogitaRevisionRunPage({
       if (!isInternalCardDependencySatisfied(card, cardKnowness)) {
         continue;
       }
-      const deps = (depByChild.get(`info:${card.cardId}`) ?? []).concat(collectionDeps);
+      const deps = itemDependencies.filter((dep) => matchesDependencyChild(dep, card)).concat(collectionDeps);
       if (deps.length === 0) {
         eligible.add(getCardKey(card));
         continue;
       }
       let total = 0;
       for (const dep of deps) {
-        if (dep.parentItemType === 'collection') {
+        if (normalizeDependencyToken(dep.parentItemType) === 'collection') {
           total += await getCollectionKnowness(dep.parentItemId, cardKnowness);
+        } else if (normalizeDependencyToken(dep.parentCheckType) || normalizeDependencyToken(dep.parentDirection)) {
+          const parentCheckType = normalizeDependencyToken(dep.parentCheckType);
+          const parentDirection = normalizeDependencyToken(dep.parentDirection);
+          const key = getOutcomeKey(
+            dep.parentItemType,
+            dep.parentItemId,
+            parentCheckType,
+            parentDirection
+          );
+          total += cardKnowness.get(key) ?? 0;
         } else {
           const key = `${dep.parentItemType}:${dep.parentItemId}`;
           total += itemKnowness.get(key) ?? 0;
@@ -545,6 +455,39 @@ export function CogitaRevisionRunPage({
     }));
     return { knownCount, unknownCount, dots };
   }, [revisionMeta, revisionType]);
+  const blockedCount = useMemo(() => {
+    if (!considerDependencies) return 0;
+    const meta = revisionMeta as { pool?: CogitaCardSearchResult[]; active?: CogitaCardSearchResult[] };
+    const cards = queue
+      .concat(meta.active ?? [])
+      .concat(meta.pool ?? [])
+      .filter((card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index);
+    return cards.filter((card) => card.cardType === 'info' && !eligibleKeys.has(getCardKey(card))).length;
+  }, [considerDependencies, revisionMeta, queue, eligibleKeys]);
+
+  useEffect(() => {
+    if (!considerDependencies || status !== 'ready') return;
+    const meta = revisionMeta as { pool?: CogitaCardSearchResult[]; active?: CogitaCardSearchResult[] };
+    const cards = queue
+      .concat(meta.active ?? [])
+      .concat(meta.pool ?? [])
+      .filter((card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index);
+    const eligibleCount = cards.filter((card) => card.cardType !== 'info' || eligibleKeys.has(getCardKey(card))).length;
+    const previous = previousEligibleCountRef.current;
+    previousEligibleCountRef.current = eligibleCount;
+    if (previous === null || eligibleCount <= previous) return;
+    const delta = eligibleCount - previous;
+    setAvailabilityNotice(`New card available (+${delta})`);
+    if (availabilityNoticeTimerRef.current) window.clearTimeout(availabilityNoticeTimerRef.current);
+    availabilityNoticeTimerRef.current = window.setTimeout(() => setAvailabilityNotice(null), 2200);
+  }, [considerDependencies, status, revisionMeta, queue, eligibleKeys]);
+
+  useEffect(
+    () => () => {
+      if (availabilityNoticeTimerRef.current) window.clearTimeout(availabilityNoticeTimerRef.current);
+    },
+    []
+  );
   const applyOutcomeToSession = (correct: boolean, correctness?: number) => {
     const nextState = revisionType.applyOutcome(
       { queue, meta: revisionMeta },
@@ -993,9 +936,15 @@ export function CogitaRevisionRunPage({
     return () => window.removeEventListener('keydown', handler);
   }, [canAdvance]);
 
+  const setKnownessFromOutcomes = (outcomes: RevisionOutcomePayload[]) => {
+    setReviewOutcomes(outcomes);
+    setReviewSummary(computeKnowness(outcomes));
+  };
+
   useEffect(() => {
     if (!currentCard) {
       setReviewSummary(null);
+      setReviewOutcomes([]);
       return;
     }
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
@@ -1009,14 +958,20 @@ export function CogitaRevisionRunPage({
               entry.checkType === 'quote-fragment' &&
               matchesQuoteDirection(entry.direction, currentCard.direction)
           );
-          setReviewSummary(computeKnowness(filtered));
+          setKnownessFromOutcomes(filtered);
         })
-        .catch(() => setReviewSummary(null));
+        .catch(() => {
+          setReviewSummary(null);
+          setReviewOutcomes([]);
+        });
       return;
     }
     getOutcomesForItem(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction)
-      .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
-      .catch(() => setReviewSummary(null));
+      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+      .catch(() => {
+        setReviewSummary(null);
+        setReviewOutcomes([]);
+      });
   }, [libraryId, currentCard, reviewer]);
 
   const refreshKnowness = (
@@ -1035,14 +990,20 @@ export function CogitaRevisionRunPage({
               entry.checkType === 'quote-fragment' &&
               matchesQuoteDirection(entry.direction, direction)
           );
-          setReviewSummary(computeKnowness(filtered));
+          setKnownessFromOutcomes(filtered);
         })
-        .catch(() => setReviewSummary(null));
+        .catch(() => {
+          setReviewSummary(null);
+          setReviewOutcomes([]);
+        });
       return;
     }
     void getOutcomesForItem(itemType, itemId, checkType, direction)
-      .then((outcomes) => setReviewSummary(computeKnowness(outcomes)))
-      .catch(() => setReviewSummary(null));
+      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+      .catch(() => {
+        setReviewSummary(null);
+        setReviewOutcomes([]);
+      });
   };
 
   const applyMatchSelection = (leftId: string, rightId: string, prev: NonNullable<typeof matchState>) => {
@@ -1931,11 +1892,17 @@ export function CogitaRevisionRunPage({
                     ) : (
                       <p>{copy.cogita.library.revision.knownessHint}</p>
                     )}
+                    <CogitaCardKnownessPanel outcomes={reviewOutcomes} />
                   </div>
                 </section>
               </div>
 
               <div className="cogita-library-panel">
+            {availabilityNotice ? (
+              <div className="cogita-revision-body">
+                <p className="cogita-revision-hint">{availabilityNotice}</p>
+              </div>
+            ) : null}
             <section
               className="cogita-revision-card"
               data-feedback={
@@ -2086,6 +2053,14 @@ export function CogitaRevisionRunPage({
                   <div className="cogita-revision-temporal-count">
                     <span>{copy.cogita.library.revision.temporalKnownLabel}</span>
                     <strong>{temporalStats.knownCount}</strong>
+                  </div>
+                </div>
+              ) : null}
+              {considerDependencies ? (
+                <div className="cogita-revision-temporal">
+                  <div className="cogita-revision-temporal-count">
+                    <span>Blocked cards</span>
+                    <strong>{blockedCount}</strong>
                   </div>
                 </div>
               ) : null}

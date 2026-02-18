@@ -1787,8 +1787,12 @@ public static class CogitaEndpoints
                 LibraryId = libraryId,
                 ParentItemType = "collection",
                 ParentItemId = request.ParentCollectionId,
+                ParentCheckType = null,
+                ParentDirection = null,
                 ChildItemType = "collection",
                 ChildItemId = request.ChildCollectionId,
+                ChildCheckType = null,
+                ChildDirection = null,
                 CreatedUtc = DateTimeOffset.UtcNow
             });
             await dbContext.SaveChangesAsync(ct);
@@ -1819,7 +1823,15 @@ public static class CogitaEndpoints
                 .Where(x => x.LibraryId == libraryId)
                 .ToListAsync(ct);
             var response = deps
-                .Select(x => new CogitaItemDependencyResponse(x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId))
+                .Select(x => new CogitaItemDependencyResponse(
+                    x.ParentItemType,
+                    x.ParentItemId,
+                    x.ParentCheckType,
+                    x.ParentDirection,
+                    x.ChildItemType,
+                    x.ChildItemId,
+                    x.ChildCheckType,
+                    x.ChildDirection))
                 .ToList();
 
             return Results.Ok(new CogitaItemDependencyBundleResponse(response));
@@ -2133,11 +2145,42 @@ public static class CogitaEndpoints
 
             var total = outcomes.Count;
             var correct = outcomes.Count(x => x.Correct);
-            var lastReviewed = outcomes.Max(x => x.CreatedUtc);
-            var daysSince = (DateTimeOffset.UtcNow - lastReviewed).TotalDays;
-            var recencyWeight = Math.Exp(-daysSince / 30.0);
-            var accuracy = total == 0 ? 0 : (double)correct / total;
-            var score = Math.Round(accuracy * 100 * recencyWeight, 2);
+            var recent = outcomes
+                .OrderBy(x => x.CreatedUtc)
+                .TakeLast(5)
+                .ToList();
+            var avgCorrectness = recent.Count == 0 ? 0 : recent.Average(x => x.Correct ? 1.0 : 0.0);
+            var now = DateTimeOffset.UtcNow;
+            const double tauMinutes = 5.0;
+            const double scale = 2.0;
+            const double correctBonus = 0.15;
+            double timeScore = 0;
+            double bonus = 0;
+            for (var i = 0; i < recent.Count; i++)
+            {
+                var start = recent[i].CreatedUtc;
+                var end = i == recent.Count - 1 ? now : recent[i + 1].CreatedUtc;
+                var deltaMinutes = Math.Max(0, (end - start).TotalMinutes);
+                var timeFactor = 1 - Math.Exp(-deltaMinutes / tauMinutes);
+                timeScore += timeFactor;
+                if (recent[i].Correct)
+                {
+                    bonus += correctBonus;
+                }
+            }
+            var knowness = avgCorrectness * timeScore * scale + bonus;
+            var lastReviewed = recent.Count > 0 ? recent[^1].CreatedUtc : (DateTimeOffset?)null;
+            var minutesSinceLast = lastReviewed.HasValue ? Math.Max(0, (now - lastReviewed.Value).TotalMinutes) : 0;
+            const double decayTauMinutes = 60.0;
+            var decay = 1.0 / (1.0 + Math.Log(1.0 + (minutesSinceLast / decayTauMinutes)));
+            knowness *= decay;
+            const double shortBoostTauMinutes = 2.0;
+            const double shortBoostAmount = 5.44;
+            if (recent.Count == 1 && recent[0].Correct)
+            {
+                knowness += shortBoostAmount * Math.Exp(-minutesSinceLast / shortBoostTauMinutes);
+            }
+            var score = Math.Round(Math.Clamp(knowness * 100, 0, 100), 2);
 
             return Results.Ok(new CogitaReviewSummaryResponse(
                 normalizedType,
@@ -3318,7 +3361,15 @@ public static class CogitaEndpoints
                 .Where(x => x.LibraryId == share.LibraryId)
                 .ToListAsync(ct);
             var response = deps
-                .Select(x => new CogitaItemDependencyResponse(x.ParentItemType, x.ParentItemId, x.ChildItemType, x.ChildItemId))
+                .Select(x => new CogitaItemDependencyResponse(
+                    x.ParentItemType,
+                    x.ParentItemId,
+                    x.ParentCheckType,
+                    x.ParentDirection,
+                    x.ChildItemType,
+                    x.ChildItemId,
+                    x.ChildCheckType,
+                    x.ChildDirection))
                 .ToList();
 
             return Results.Ok(new CogitaItemDependencyBundleResponse(response));
@@ -4150,14 +4201,54 @@ public static class CogitaEndpoints
                 }
                 var parentType = fromTypeEl.GetString() ?? "info";
                 var childType = toTypeEl.GetString() ?? "info";
+                string? parentCheckType = null;
+                if (fromPayload.TryGetProperty("checkType", out var fromCheckTypeEl) && fromCheckTypeEl.ValueKind == JsonValueKind.String)
+                {
+                    var value = fromCheckTypeEl.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        parentCheckType = value.ToLowerInvariant();
+                    }
+                }
+                string? parentDirection = null;
+                if (fromPayload.TryGetProperty("direction", out var fromDirectionEl) && fromDirectionEl.ValueKind == JsonValueKind.String)
+                {
+                    var value = fromDirectionEl.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        parentDirection = value.ToLowerInvariant();
+                    }
+                }
+                string? childCheckType = null;
+                if (toPayload.TryGetProperty("checkType", out var toCheckTypeEl) && toCheckTypeEl.ValueKind == JsonValueKind.String)
+                {
+                    var value = toCheckTypeEl.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        childCheckType = value.ToLowerInvariant();
+                    }
+                }
+                string? childDirection = null;
+                if (toPayload.TryGetProperty("direction", out var toDirectionEl) && toDirectionEl.ValueKind == JsonValueKind.String)
+                {
+                    var value = toDirectionEl.GetString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        childDirection = value.ToLowerInvariant();
+                    }
+                }
                 dependencies.Add(new CogitaItemDependency
                 {
                     Id = Guid.NewGuid(),
                     LibraryId = libraryId,
                     ParentItemType = parentType,
                     ParentItemId = fromId,
+                    ParentCheckType = parentCheckType,
+                    ParentDirection = parentDirection,
                     ChildItemType = childType,
                     ChildItemId = toId,
+                    ChildCheckType = childCheckType,
+                    ChildDirection = childDirection,
                     CreatedUtc = now
                 });
             }
