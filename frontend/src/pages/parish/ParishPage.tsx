@@ -34,7 +34,6 @@ import {
 } from '@dnd-kit/core';
 import {
   createParishSite,
-  createParishIntention,
   createParishMass,
   createParishMassRule,
   updateParishMass,
@@ -59,7 +58,15 @@ import {
 type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
-type MassRuleNodeData = { label: string; type: string; config: Record<string, string> };
+type MassNodeCategory = 'filter' | 'mass' | 'intention' | 'save' | 'stop';
+type ValidationFinding = { level: 'error' | 'warning'; message: string };
+type MassRuleNodeData = {
+  label: string;
+  type: string;
+  config: Record<string, string>;
+  requireIntentions?: boolean;
+  emitConflicts?: number;
+};
 
 const normalizeEdgeHandle = (handle?: string | null) => handle ?? 'next';
 
@@ -77,6 +84,15 @@ const normalizeFlowEdges = (edges: Edge[]) => {
   });
   return Array.from(byHandle.values()).sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
 };
+
+const MASS_NODE_COLORS = {
+  filter: '#2563EB',
+  mass: '#F59E0B',
+  intention: '#7C3AED',
+  save: '#16A34A',
+  stop: '#6B7280',
+  error: '#DC2626'
+} as const;
 
 const HOME_GAP = 16;
 const EDITOR_GAP = 0;
@@ -318,6 +334,72 @@ const massRuleNodeTemplates: Array<{ type: string; label: string; config: Record
     config: definition.config
   }));
 
+const getMassNodeCategory = (nodeType: string): MassNodeCategory => {
+  if (nodeType === 'MassTemplate') return 'mass';
+  if (nodeType === 'AddIntention') return 'intention';
+  if (nodeType === 'Emit') return 'save';
+  if (nodeType === 'Stop') return 'stop';
+  return 'filter';
+};
+
+const getMassNodeColor = (nodeType: string) => MASS_NODE_COLORS[getMassNodeCategory(nodeType)];
+
+const isMassConditionType = (nodeType: string) =>
+  nodeType === 'If' ||
+  nodeType === 'Weekday' ||
+  nodeType === 'NthWeekdayOfMonth' ||
+  nodeType === 'LiturgicalSeason' ||
+  nodeType === 'Holiday' ||
+  nodeType === 'DaysAfterHoliday';
+
+const parseIntentionLines = (raw: string | undefined) =>
+  (raw ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+const defaultMassRuleSeed: ParishMassRuleNode[] = [
+  {
+    id: 'node-1',
+    type: 'Weekday',
+    nextId: 'node-2',
+    elseId: 'node-9',
+    config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' }
+  },
+  {
+    id: 'node-2',
+    type: 'MassTemplate',
+    nextId: 'node-3',
+    elseId: null,
+    config: {
+      time: '18:00',
+      churchName: 'Kościół główny',
+      title: 'Msza święta',
+      durationMinutes: '60',
+      kind: 'ferialna',
+      isCollective: 'false'
+    }
+  },
+  {
+    id: 'node-3',
+    type: 'AddIntention',
+    nextId: 'node-4',
+    elseId: null,
+    config: { text: 'Intencja parafialna', donation: '50 PLN' }
+  },
+  { id: 'node-4', type: 'Emit', nextId: 'node-9', elseId: null, config: {} },
+  { id: 'node-9', type: 'Stop', nextId: null, elseId: null, config: {} }
+];
+
+const getMassNodePortTypes = (nodeType: string) => {
+  const category = getMassNodeCategory(nodeType);
+  if (category === 'filter') return { input: 'DataDnia', output: 'Boolean' };
+  if (category === 'mass') return { input: 'SzkicMszy', output: 'SzkicMszy' };
+  if (category === 'intention') return { input: 'SzkicMszy', output: 'Intencje[]' };
+  if (category === 'save') return { input: 'SzkicMszy', output: 'MassRow' };
+  return { input: 'Any', output: 'Stop' };
+};
+
 const parseMassNodePosition = (config?: Record<string, string> | null, fallbackIndex = 0) => {
   const x = config && Number.isFinite(Number(config._x)) ? Number(config._x) : 80 + (fallbackIndex % 3) * 260;
   const y = config && Number.isFinite(Number(config._y)) ? Number(config._y) : 60 + Math.floor(fallbackIndex / 3) * 180;
@@ -325,19 +407,68 @@ const parseMassNodePosition = (config?: Record<string, string> | null, fallbackI
 };
 
 const MassRuleGraphNode = ({ data }: { data: MassRuleNodeData }) => {
-  const isBranch = data.type === 'If' || data.type === 'Weekday' || data.type === 'NthWeekdayOfMonth' || data.type === 'LiturgicalSeason' || data.type === 'Holiday' || data.type === 'DaysAfterHoliday';
+  const isBranch = isMassConditionType(data.type);
   const definition = massRuleDefinitionsByType[data.type];
+  const color = getMassNodeColor(data.type);
+  const portTypes = getMassNodePortTypes(data.type);
+  const time = (data.config?.time ?? '').trim();
+  const church = (data.config?.churchName ?? '').trim();
+  const kind = (data.config?.kind ?? '').trim();
+  const hasMissingTime = data.type === 'MassTemplate' && !time;
+  const intentionLines = data.type === 'AddIntention' ? parseIntentionLines(data.config?.text) : [];
+  const donation = (data.config?.donation ?? '').trim();
+  const missingIntentions =
+    data.type === 'MassTemplate' && data.requireIntentions && intentionLines.length === 0;
+  const showEmitConflict = data.type === 'Emit' && (data.emitConflicts ?? 0) > 0;
   return (
-    <div className="mass-rule-node">
-      <Handle type="target" position={Position.Left} />
+    <div
+      className={`mass-rule-node ${hasMissingTime || showEmitConflict ? 'has-error' : ''}`}
+      style={{ ['--mass-node-color' as const]: color } as CSSProperties}
+    >
+      <div className="mass-rule-node-top" />
+      <Handle type="target" position={Position.Left} style={{ background: color }} />
+      <span className="mass-port-label mass-port-label-in">IN · {portTypes.input}</span>
       <strong>{definition?.label ?? data.type}</strong>
       <span className="muted">{definition?.description ?? data.label}</span>
       <div className="mass-rule-node-io">
         <span>IN: {definition?.input ?? 'dane dnia'}</span>
         <span>OUT: {definition?.output ?? 'next'}</span>
       </div>
-      <Handle id="next" type="source" position={Position.Right} />
-      {isBranch ? <Handle id="else" type="source" position={Position.Bottom} /> : null}
+      {data.type === 'MassTemplate' ? (
+        <div className="mass-node-chips">
+          <span className={`mass-chip ${hasMissingTime ? 'is-error' : 'is-mass'}`}>
+            {hasMissingTime ? '⏰ brak' : `⏰ ${time}`}
+          </span>
+          {church ? <span className="mass-chip is-outline">📍 {church}</span> : null}
+          {kind ? <span className="mass-chip is-outline">🕯️ {kind}</span> : null}
+          {missingIntentions ? <span className="mass-chip is-intention">✝ brak intencji</span> : null}
+        </div>
+      ) : null}
+      {data.type === 'AddIntention' ? (
+        <div className="mass-intention-mini">
+          {intentionLines.slice(0, 2).map((line, index) => (
+            <span key={`${line}-${index}`}>• {line}</span>
+          ))}
+          {intentionLines.length > 2 ? <span>+{intentionLines.length - 2} więcej</span> : null}
+          {donation ? <span className="mass-chip is-donation">💠 {donation}</span> : null}
+        </div>
+      ) : null}
+      {showEmitConflict ? <div className="mass-node-alert">⚠ Wykryto kolizje terminów</div> : null}
+      <Handle
+        id="next"
+        type="source"
+        position={Position.Right}
+        style={{ background: isBranch ? MASS_NODE_COLORS.save : color }}
+      />
+      <span className="mass-port-label mass-port-label-next">
+        {isBranch ? 'TRUE' : 'OUT'} · {portTypes.output}
+      </span>
+      {isBranch ? (
+        <>
+          <Handle id="else" type="source" position={Position.Bottom} style={{ background: MASS_NODE_COLORS.stop }} />
+          <span className="mass-port-label mass-port-label-else">FALSE · Stop</span>
+        </>
+      ) : null}
     </div>
   );
 };
@@ -377,6 +508,101 @@ const toFlowEdgesFromRuleNodes = (ruleNodes: ParishMassRuleNode[]): Edge[] => {
     }
   });
   return edges.sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
+};
+
+const decorateFlowEdges = (edges: Edge[], nodes: Array<Node<MassRuleNodeData>>) => {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  return edges.map((edge) => {
+    const source = nodeById.get(edge.source);
+    const branch = source ? isMassConditionType(source.data.type) : false;
+    const handle = normalizeEdgeHandle(edge.sourceHandle);
+    const isTrue = branch && handle === 'next';
+    const isFalse = branch && handle === 'else';
+    const color = isTrue
+      ? MASS_NODE_COLORS.save
+      : isFalse
+        ? MASS_NODE_COLORS.stop
+        : source
+          ? getMassNodeColor(source.data.type)
+          : MASS_NODE_COLORS.filter;
+    return {
+      ...edge,
+      style: { stroke: color, strokeWidth: isTrue ? 2.2 : isFalse ? 1.2 : 1.8 },
+      label: isTrue ? 'TRUE' : isFalse ? 'FALSE' : undefined,
+      labelStyle: { fill: color, fontWeight: 700, fontSize: 11 }
+    } as Edge;
+  });
+};
+
+const autoLayoutMassFlow = (
+  nodes: Array<Node<MassRuleNodeData>>,
+  edges: Edge[],
+  startNodeId: string
+): Array<Node<MassRuleNodeData>> => {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const nextBySource = new Map<string, string[]>();
+  edges.forEach((edge) => {
+    const source = edge.source;
+    const target = edge.target;
+    const current = nextBySource.get(source) ?? [];
+    current.push(target);
+    nextBySource.set(source, current);
+  });
+
+  const depth = new Map<string, number>();
+  const queue: string[] = [];
+  if (byId.has(startNodeId)) {
+    depth.set(startNodeId, 0);
+    queue.push(startNodeId);
+  } else {
+    nodes.forEach((node) => {
+      depth.set(node.id, 0);
+      queue.push(node.id);
+    });
+  }
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) break;
+    const currentDepth = depth.get(current) ?? 0;
+    const targets = nextBySource.get(current) ?? [];
+    targets.forEach((target) => {
+      const knownDepth = depth.get(target);
+      const proposed = currentDepth + 1;
+      if (knownDepth === undefined || proposed > knownDepth) {
+        depth.set(target, proposed);
+        queue.push(target);
+      }
+    });
+  }
+
+  const rowsByDepth = new Map<number, number>();
+  const ordered = [...nodes].sort((a, b) => {
+    const ad = depth.get(a.id) ?? 0;
+    const bd = depth.get(b.id) ?? 0;
+    if (ad !== bd) return ad - bd;
+    return a.id.localeCompare(b.id);
+  });
+
+  return ordered.map((node) => {
+    const d = depth.get(node.id) ?? 0;
+    const row = rowsByDepth.get(d) ?? 0;
+    rowsByDepth.set(d, row + 1);
+    const x = 80 + d * 280;
+    const y = 70 + row * 180;
+    return {
+      ...node,
+      position: { x, y },
+      data: {
+        ...node.data,
+        config: {
+          ...(node.data.config ?? {}),
+          _x: String(x),
+          _y: String(y)
+        }
+      }
+    };
+  });
 };
 
 const toRuleNodesFromFlow = (
@@ -512,7 +738,10 @@ const normalizeLayoutsForBreakpoint = (
   const placedMap = new Map(placed.map((frame) => [frame.id, frame]));
   return items.map((item) => {
     const nextFrame = placedMap.get(item.id)!;
-    const layouts = { ...ensureLayouts(item).layouts } as Record<LayoutBreakpoint, typeof nextFrame>;
+    const layouts = { ...ensureLayouts(item).layouts } as Record<
+      LayoutBreakpoint,
+      { position: { row: number; col: number }; size: { colSpan: number; rowSpan: number } }
+    >;
     layouts[breakpoint] = { position: nextFrame.position, size: nextFrame.size };
     return {
       ...item,
@@ -1464,26 +1693,20 @@ export function ParishPage({
   const [massRuleDescription, setMassRuleDescription] = useState('');
   const [massRuleStartNodeId, setMassRuleStartNodeId] = useState('node-1');
   const [massFlowNodes, setMassFlowNodes] = useState<Array<Node<MassRuleNodeData>>>(
-    toFlowNodesFromRuleNodes([
-    { id: 'node-1', type: 'Weekday', nextId: 'node-2', elseId: 'node-9', config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' } },
-    { id: 'node-2', type: 'MassTemplate', nextId: 'node-3', elseId: null, config: { time: '18:00', churchName: 'Kościół główny', title: 'Msza święta', durationMinutes: '60', kind: 'ferialna', isCollective: 'false' } },
-    { id: 'node-3', type: 'AddIntention', nextId: 'node-4', elseId: null, config: { text: 'Intencja parafialna', donation: '50 PLN' } },
-    { id: 'node-4', type: 'Emit', nextId: 'node-9', elseId: null, config: {} },
-    { id: 'node-9', type: 'Stop', nextId: null, elseId: null, config: {} }
-  ])
+    toFlowNodesFromRuleNodes(defaultMassRuleSeed)
   );
   const [massFlowEdges, setMassFlowEdges] = useState<Edge[]>(
-    toFlowEdgesFromRuleNodes([
-      { id: 'node-1', type: 'Weekday', nextId: 'node-2', elseId: 'node-9', config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' } },
-      { id: 'node-2', type: 'MassTemplate', nextId: 'node-3', elseId: null, config: { time: '18:00', churchName: 'Kościół główny', title: 'Msza święta', durationMinutes: '60', kind: 'ferialna', isCollective: 'false' } },
-      { id: 'node-3', type: 'AddIntention', nextId: 'node-4', elseId: null, config: { text: 'Intencja parafialna', donation: '50 PLN' } },
-      { id: 'node-4', type: 'Emit', nextId: 'node-9', elseId: null, config: {} },
-      { id: 'node-9', type: 'Stop', nextId: null, elseId: null, config: {} }
-    ])
+    toFlowEdgesFromRuleNodes(defaultMassRuleSeed)
   );
   const [massRuleFromDate, setMassRuleFromDate] = useState('');
   const [massRuleToDate, setMassRuleToDate] = useState('');
   const [massRuleReplaceExisting, setMassRuleReplaceExisting] = useState(false);
+  const [massRuleRequireIntentions, setMassRuleRequireIntentions] = useState(false);
+  const [massRuleConflicts, setMassRuleConflicts] = useState<string[]>([]);
+  const [massRuleWarning, setMassRuleWarning] = useState<string | null>(null);
+  const [massNodeSearch, setMassNodeSearch] = useState('');
+  const [massNodeCategoryFilter, setMassNodeCategoryFilter] = useState<'all' | MassNodeCategory>('all');
+  const [massRuleValidation, setMassRuleValidation] = useState<ValidationFinding[]>([]);
   const [massRulePreview, setMassRulePreview] = useState<ParishPublicMass[]>([]);
   const [selectedMassFlowNodeId, setSelectedMassFlowNodeId] = useState<string | null>(null);
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
@@ -1553,6 +1776,8 @@ export function ParishPage({
     setMassFlowNodes(toFlowNodesFromRuleNodes(rule.graph.nodes));
     setMassFlowEdges(toFlowEdgesFromRuleNodes(rule.graph.nodes));
     setSelectedMassFlowNodeId(null);
+    setMassRuleConflicts([]);
+    setMassRuleWarning(null);
   };
 
   const handleStartBuilder = () => {
@@ -1730,6 +1955,11 @@ export function ParishPage({
       })
       .catch(() => setMassRules([]));
   }, [isAuthenticated, parish?.id, selectedMassRuleId]);
+
+  useEffect(() => {
+    setMassRuleConflicts([]);
+    setMassRuleValidation([]);
+  }, [massFlowNodes, massFlowEdges, massRuleFromDate, massRuleToDate]);
 
   const announcement = useMemo(
     () => announcements.find((item) => item.id === announcementId) ?? announcements[0],
@@ -2376,6 +2606,41 @@ export function ParishPage({
       .map((key) => ({ key, label: key } as MassRuleConfigField));
     return [...configured, ...extra];
   }, [selectedMassRuleDefinition, selectedMassRuleNode]);
+  const filteredMassRuleTemplates = useMemo(() => {
+    const search = massNodeSearch.trim().toLowerCase();
+    return massRuleNodeTemplates.filter((template) => {
+      const category = getMassNodeCategory(template.type);
+      if (massNodeCategoryFilter !== 'all' && category !== massNodeCategoryFilter) return false;
+      if (!search) return true;
+      const definition = massRuleDefinitionsByType[template.type];
+      const hay = `${template.label} ${definition?.description ?? ''} ${template.type}`.toLowerCase();
+      return hay.includes(search);
+    });
+  }, [massNodeSearch, massNodeCategoryFilter]);
+  const renderedMassFlowNodes = useMemo(
+    () =>
+      massFlowNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          requireIntentions: massRuleRequireIntentions,
+          emitConflicts: node.data.type === 'Emit' ? massRuleConflicts.length : 0
+        }
+      })),
+    [massFlowNodes, massRuleRequireIntentions, massRuleConflicts.length]
+  );
+  const renderedMassFlowEdges = useMemo(
+    () => decorateFlowEdges(massFlowEdges, renderedMassFlowNodes),
+    [massFlowEdges, renderedMassFlowNodes]
+  );
+  const massRulePreviewConflictKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    massRulePreview.forEach((item) => {
+      const key = new Date(item.massDateTime).toISOString();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return new Set(Array.from(counts.entries()).filter(([, count]) => count > 1).map(([key]) => key));
+  }, [massRulePreview]);
   const massesOfSelectedDay = useMemo(() => {
     if (!newMassDay) return [] as ParishPublicMass[];
     return publicMasses
@@ -2399,34 +2664,6 @@ export function ParishPage({
       setEditMode(false);
     } catch {
       setEditError('Nie udało się zapisać układu strony.');
-    }
-  };
-
-  const handleAddIntention = async () => {
-    if (!parish) return;
-    if (!newIntentionDate || !newIntentionChurch || !newIntentionText) {
-      setAdminFormError('Uzupełnij datę, kościół i treść intencji.');
-      return;
-    }
-    setAdminFormError(null);
-    try {
-      await createParishIntention(parish.id, {
-        massDateTime: new Date(newIntentionDate).toISOString(),
-        churchName: newIntentionChurch,
-        publicText: newIntentionText,
-        internalText: newIntentionInternal || null,
-        status: 'Active'
-      });
-      setNewIntentionDate('');
-      setNewIntentionChurch('');
-      setNewIntentionText('');
-      setNewIntentionInternal('');
-      if (parishSlug) {
-        const items = await getParishPublicIntentions(parishSlug);
-        setPublicIntentions(items);
-      }
-    } catch {
-      setAdminFormError('Nie udało się zapisać intencji.');
     }
   };
 
@@ -2512,10 +2749,13 @@ export function ParishPage({
   const handleAddRuleNode = (type: string) => {
     const template = massRuleNodeTemplates.find((item) => item.type === type);
     if (!template) return;
-    const id = `node-${Date.now()}`;
-    setMassFlowNodes((current) => [
-      ...current,
-      {
+    const id = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    let wasEmpty = false;
+    setMassFlowNodes((current) => {
+      if (current.length === 0) {
+        wasEmpty = true;
+      }
+      const nextNode: Node<MassRuleNodeData> = {
         id,
         type: 'massRuleNode',
         position: {
@@ -2527,8 +2767,110 @@ export function ParishPage({
           type: template.type,
           config: { ...template.config }
         }
+      };
+      return [...current, nextNode];
+    });
+    if (selectedMassFlowNodeId) {
+      updateRuleNodeConnection(selectedMassFlowNodeId, 'next', id);
+    } else if (wasEmpty) {
+      setMassRuleStartNodeId(id);
+    }
+    setSelectedMassFlowNodeId(id);
+  };
+
+  const handleDuplicateSelectedRuleNode = () => {
+    if (!selectedMassRuleNode) return;
+    const definition = massRuleDefinitionsByType[selectedMassRuleNode.type];
+    const id = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    setMassFlowNodes((current) => {
+      const source = current.find((item) => item.id === selectedMassRuleNode.id);
+      if (!source) return current;
+      return [
+        ...current,
+        {
+          ...source,
+          id,
+          position: { x: source.position.x + 48, y: source.position.y + 48 },
+          data: {
+            ...source.data,
+            label: id,
+            type: definition?.type ?? source.data.type,
+            config: { ...(source.data.config ?? {}) }
+          }
+        }
+      ];
+    });
+    setSelectedMassFlowNodeId(id);
+  };
+
+  const handleDeleteSelectedRuleNode = () => {
+    if (!selectedMassRuleNode) return;
+    const nodeId = selectedMassRuleNode.id;
+    setMassFlowNodes((current) => {
+      const next = current.filter((item) => item.id !== nodeId);
+      if (massRuleStartNodeId === nodeId) {
+        setMassRuleStartNodeId(next[0]?.id ?? '');
       }
-    ]);
+      return next;
+    });
+    setMassFlowEdges((current) => normalizeFlowEdges(current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)));
+    setSelectedMassFlowNodeId(null);
+  };
+
+  const handleNewMassRule = () => {
+    const seedEdges = toFlowEdgesFromRuleNodes(defaultMassRuleSeed);
+    const seedNodes = autoLayoutMassFlow(toFlowNodesFromRuleNodes(defaultMassRuleSeed), seedEdges, 'node-1');
+    setSelectedMassRuleId(null);
+    setMassRuleName('Nowa reguła');
+    setMassRuleDescription('');
+    setMassRuleStartNodeId('node-1');
+    setMassFlowNodes(seedNodes);
+    setMassFlowEdges(seedEdges);
+    setMassRuleConflicts([]);
+    setMassRuleValidation([]);
+    setMassRuleWarning(null);
+    setSelectedMassFlowNodeId(null);
+  };
+
+  const validateMassGraph = (): ValidationFinding[] => {
+    const findings: ValidationFinding[] = [];
+    if (!massRuleStartNodeId || !massFlowNodes.some((node) => node.id === massRuleStartNodeId)) {
+      findings.push({ level: 'error', message: 'Brak poprawnego node startowego.' });
+    }
+    if (!massFlowNodes.some((node) => node.data.type === 'Emit')) {
+      findings.push({ level: 'error', message: 'Graf nie zawiera node "Zapisz mszę".' });
+    }
+    massFlowNodes.forEach((node) => {
+      if (node.data.type === 'MassTemplate' && !(node.data.config?.time ?? '').trim()) {
+        findings.push({ level: 'error', message: `Node ${node.id}: brak godziny mszy.` });
+      }
+      if (node.data.type === 'AddIntention' && massRuleRequireIntentions && parseIntentionLines(node.data.config?.text).length === 0) {
+        findings.push({ level: 'warning', message: `Node ${node.id}: brak treści intencji.` });
+      }
+      const outgoing = massFlowEdges.filter((edge) => edge.source === node.id);
+      if (node.data.type !== 'Stop' && outgoing.length === 0) {
+        findings.push({ level: 'warning', message: `Node ${node.id}: brak wyjścia.` });
+      }
+      if (isMassConditionType(node.data.type)) {
+        const hasTrue = outgoing.some((edge) => normalizeEdgeHandle(edge.sourceHandle) === 'next');
+        const hasFalse = outgoing.some((edge) => normalizeEdgeHandle(edge.sourceHandle) === 'else');
+        if (!hasTrue || !hasFalse) {
+          findings.push({ level: 'warning', message: `Node ${node.id}: warunek powinien mieć gałąź TRUE i FALSE.` });
+        }
+      }
+    });
+    return findings;
+  };
+
+  const handleValidateMassGraph = () => {
+    const findings = validateMassGraph();
+    setMassRuleValidation(findings);
+    const firstError = findings.find((item) => item.level === 'error');
+    if (firstError) {
+      setAdminFormError(firstError.message);
+    } else {
+      setAdminFormError(null);
+    }
   };
 
   const handleMassNodesChange = (changes: NodeChange[]) => {
@@ -2571,17 +2913,22 @@ export function ParishPage({
 
   const handleMassConnect = (connection: Connection) => {
     if (!connection.source || !connection.target) return;
+    const source = connection.source;
+    const target = connection.target;
     const sourceHandle = connection.sourceHandle ?? 'next';
     setMassFlowEdges((current) =>
       normalizeFlowEdges(
         addEdge(
         {
-          id: `${connection.source}:${sourceHandle}:${connection.target}`,
-          source: connection.source,
-          target: connection.target,
+          id: `${source}:${sourceHandle}:${target}`,
+          source,
+          target,
           sourceHandle
         },
-        current.filter((edge) => !(edge.source === connection.source && edge.sourceHandle === sourceHandle))
+        current.filter(
+          (edge) =>
+            !(edge.source === source && normalizeEdgeHandle(edge.sourceHandle) === sourceHandle)
+        )
         )
       )
     );
@@ -2642,6 +2989,10 @@ export function ParishPage({
     });
   };
 
+  const handleAutoLayoutMassGraph = () => {
+    setMassFlowNodes((current) => autoLayoutMassFlow(current, massFlowEdges, massRuleStartNodeId));
+  };
+
   const handleSaveMassRule = async () => {
     if (!parish) return;
     if (!massRuleName.trim()) {
@@ -2653,8 +3004,30 @@ export function ParishPage({
       return;
     }
     setAdminFormError(null);
+    setMassRuleWarning(null);
+    const validationFindings = validateMassGraph();
+    setMassRuleValidation(validationFindings);
+    const blocking = validationFindings.find((item) => item.level === 'error');
+    if (blocking) {
+      setAdminFormError(blocking.message);
+      return;
+    }
     try {
       const ruleNodes = toRuleNodesFromFlow(massFlowNodes, massFlowEdges);
+      const missingTimeNode = ruleNodes.find(
+        (node) => node.type === 'MassTemplate' && !(node.config?.time ?? '').trim()
+      );
+      if (missingTimeNode) {
+        setSelectedMassFlowNodeId(missingTimeNode.id);
+        setAdminFormError('Szablon mszy ma brak godziny (⏰ brak). Uzupełnij przed zapisem.');
+        return;
+      }
+      if (
+        massRuleRequireIntentions &&
+        !ruleNodes.some((node) => node.type === 'AddIntention' && (node.config?.text ?? '').trim().length > 0)
+      ) {
+        setMassRuleWarning('Wymagane intencje: w grafie brak aktywnego node Dodaj intencje.');
+      }
       const payload = {
         name: massRuleName.trim(),
         description: massRuleDescription.trim() || null,
@@ -2693,6 +3066,7 @@ export function ParishPage({
       return;
     }
     setAdminFormError(null);
+    setMassRuleWarning(null);
     try {
       const preview = await simulateParishMassRule(parish.id, selectedMassRuleId, {
         fromDate: massRuleFromDate,
@@ -2700,6 +3074,18 @@ export function ParishPage({
         includeExisting: false
       });
       setMassRulePreview(preview);
+      const bySlot = new Map<string, number>();
+      preview.forEach((item) => {
+        const key = new Date(item.massDateTime).toISOString();
+        bySlot.set(key, (bySlot.get(key) ?? 0) + 1);
+      });
+      const conflicts = Array.from(bySlot.entries())
+        .filter(([, count]) => count > 1)
+        .map(([slot, count]) => `${new Date(slot).toLocaleString()} (${count} wpisy)`);
+      setMassRuleConflicts(conflicts);
+      if (conflicts.length > 0) {
+        setMassRuleWarning('W podglądzie są kolizje terminów. Sprawdź listę konfliktów.');
+      }
     } catch {
       setAdminFormError('Nie udało się zasymulować reguły.');
     }
@@ -2711,6 +3097,11 @@ export function ParishPage({
       return;
     }
     setAdminFormError(null);
+    setMassRuleWarning(null);
+    if (massRuleConflicts.length > 0) {
+      setAdminFormError('Wykryto kolizje terminów w podglądzie. Popraw graf przed zastosowaniem.');
+      return;
+    }
     try {
       await applyParishMassRule(parish.id, selectedMassRuleId, {
         fromDate: massRuleFromDate,
@@ -3913,6 +4304,80 @@ export function ParishPage({
                             <li>5. Zakoncz sciezke `Stop` i podlacz `next/else` bez rozlaczonych wezlow.</li>
                           </ul>
                         </div>
+                        <div className="parish-card mass-rule-legend">
+                          <span><i style={{ background: '#2563EB' }} /> Warunki / filtry dat</span>
+                          <span><i style={{ background: '#F59E0B' }} /> Msza / slot / godzina</span>
+                          <span><i style={{ background: '#7C3AED' }} /> Intencje / ofiara</span>
+                          <span><i style={{ background: '#16A34A' }} /> Zapis do bazy</span>
+                          <span><i style={{ background: '#6B7280' }} /> Stop</span>
+                          <span><i style={{ background: '#DC2626' }} /> Błąd / konflikt</span>
+                        </div>
+                        <div className="builder-actions">
+                          <label className="mass-require-intentions">
+                            <input
+                              type="checkbox"
+                              checked={massRuleRequireIntentions}
+                              onChange={(event) => setMassRuleRequireIntentions(event.target.checked)}
+                            />
+                            <span>Wymagaj intencji w grafie</span>
+                          </label>
+                          <button type="button" className="parish-back" onClick={handleNewMassRule}>
+                            Nowa reguła
+                          </button>
+                          <button type="button" className="parish-back" onClick={handleAutoLayoutMassGraph}>
+                            Ułóż graf lewo-&gt;prawo
+                          </button>
+                          <button type="button" className="parish-back" onClick={handleValidateMassGraph}>
+                            Sprawdź graf
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Szukaj node</span>
+                            <input
+                              type="text"
+                              value={massNodeSearch}
+                              onChange={(event) => setMassNodeSearch(event.target.value)}
+                              placeholder="np. msza, intencja, sezon"
+                            />
+                          </label>
+                          <label>
+                            <span>Kategoria</span>
+                            <select
+                              value={massNodeCategoryFilter}
+                              onChange={(event) => setMassNodeCategoryFilter(event.target.value as 'all' | MassNodeCategory)}
+                            >
+                              <option value="all">Wszystkie</option>
+                              <option value="filter">Warunki</option>
+                              <option value="mass">Msza</option>
+                              <option value="intention">Intencje</option>
+                              <option value="save">Zapis</option>
+                              <option value="stop">Stop</option>
+                            </select>
+                          </label>
+                        </div>
+                        {massRuleConflicts.length > 0 && (
+                          <div className="parish-card mass-rule-conflicts">
+                            <strong>⚠ Konflikty terminów</strong>
+                            <ul>
+                              {massRuleConflicts.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {massRuleValidation.length > 0 && (
+                          <div className="parish-card mass-rule-validation">
+                            <strong>Wynik walidacji</strong>
+                            <ul>
+                              {massRuleValidation.map((item, index) => (
+                                <li key={`${item.level}-${index}`} className={item.level === 'error' ? 'is-error' : 'is-warning'}>
+                                  {item.level === 'error' ? '⛔' : '⚠'} {item.message}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         <div className="admin-form-grid">
                           <label>
                             <span>Nazwa reguły</span>
@@ -3940,7 +4405,7 @@ export function ParishPage({
                           </label>
                         </div>
                         <div className="layout-palette">
-                          {massRuleNodeTemplates.map((template) => (
+                          {filteredMassRuleTemplates.map((template) => (
                             <button
                               key={template.type}
                               type="button"
@@ -3953,8 +4418,8 @@ export function ParishPage({
                         </div>
                         <div className="mass-rule-graph-shell">
                           <ReactFlow
-                            nodes={massFlowNodes}
-                            edges={massFlowEdges}
+                            nodes={renderedMassFlowNodes}
+                            edges={renderedMassFlowEdges}
                             nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
                             onNodeDragStop={handleMassNodeDragStop}
@@ -4009,23 +4474,39 @@ export function ParishPage({
                               </label>
                               <label>
                                 <span>Next</span>
-                                <input
-                                  type="text"
+                                <select
                                   value={selectedMassRuleNode.nextId ?? ''}
                                   onChange={(event) =>
                                     updateRuleNodeConnection(selectedMassRuleNode.id, 'next', event.target.value || null)
                                   }
-                                />
+                                >
+                                  <option value="">-- brak --</option>
+                                  {massFlowNodes
+                                    .filter((node) => node.id !== selectedMassRuleNode.id)
+                                    .map((node) => (
+                                      <option key={node.id} value={node.id}>
+                                        {node.id}
+                                      </option>
+                                    ))}
+                                </select>
                               </label>
                               <label>
                                 <span>Else</span>
-                                <input
-                                  type="text"
+                                <select
                                   value={selectedMassRuleNode.elseId ?? ''}
                                   onChange={(event) =>
                                     updateRuleNodeConnection(selectedMassRuleNode.id, 'else', event.target.value || null)
                                   }
-                                />
+                                >
+                                  <option value="">-- brak --</option>
+                                  {massFlowNodes
+                                    .filter((node) => node.id !== selectedMassRuleNode.id)
+                                    .map((node) => (
+                                      <option key={node.id} value={node.id}>
+                                        {node.id}
+                                      </option>
+                                    ))}
+                                </select>
                               </label>
                               {selectedMassRuleFields.map((field) => (
                                 <label key={field.key}>
@@ -4039,6 +4520,14 @@ export function ParishPage({
                                   {field.hint ? <span className="muted">{field.hint}</span> : null}
                                 </label>
                               ))}
+                              <div className="builder-actions admin-form-full">
+                                <button type="button" className="parish-back" onClick={handleDuplicateSelectedRuleNode}>
+                                  Duplikuj node
+                                </button>
+                                <button type="button" className="parish-back" onClick={handleDeleteSelectedRuleNode}>
+                                  Usuń node
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -4098,11 +4587,21 @@ export function ParishPage({
                           </button>
                         </div>
                         {massRulePreview.length > 0 && (
-                          <ul className="status-list">
+                          <ul className="status-list mass-rule-preview-list">
                             {massRulePreview.slice(0, 8).map((item) => (
-                              <li key={item.id}>
-                                <strong>{new Date(item.massDateTime).toLocaleString()}</strong>
-                                <span>{item.title}</span>
+                              <li key={item.id} className={massRulePreviewConflictKeys.has(new Date(item.massDateTime).toISOString()) ? 'is-conflict' : undefined}>
+                                <strong>
+                                  <span className="mass-preview-time">
+                                    {new Date(item.massDateTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                  </span>
+                                  {massRulePreviewConflictKeys.has(new Date(item.massDateTime).toISOString()) ? (
+                                    <span className="mass-preview-conflict">⚠ kolizja</span>
+                                  ) : null}
+                                </strong>
+                                <span className="mass-preview-title">{item.title}</span>
+                                <span className="mass-preview-intention">
+                                  {(item.intentionsJson ?? '').slice(0, 80) || 'Brak intencji'}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -4110,6 +4609,7 @@ export function ParishPage({
                       </div>
                     )}
                     {adminFormError && <p className="builder-error">{adminFormError}</p>}
+                    {massRuleWarning && <p className="muted">{massRuleWarning}</p>}
                   </div>
                 )}
                 <div className="section-header">
@@ -4374,6 +4874,80 @@ export function ParishPage({
                             <li>5. Zakoncz sciezke `Stop` i podlacz `next/else` bez rozlaczonych wezlow.</li>
                           </ul>
                         </div>
+                        <div className="parish-card mass-rule-legend">
+                          <span><i style={{ background: '#2563EB' }} /> Warunki / filtry dat</span>
+                          <span><i style={{ background: '#F59E0B' }} /> Msza / slot / godzina</span>
+                          <span><i style={{ background: '#7C3AED' }} /> Intencje / ofiara</span>
+                          <span><i style={{ background: '#16A34A' }} /> Zapis do bazy</span>
+                          <span><i style={{ background: '#6B7280' }} /> Stop</span>
+                          <span><i style={{ background: '#DC2626' }} /> Błąd / konflikt</span>
+                        </div>
+                        <div className="builder-actions">
+                          <label className="mass-require-intentions">
+                            <input
+                              type="checkbox"
+                              checked={massRuleRequireIntentions}
+                              onChange={(event) => setMassRuleRequireIntentions(event.target.checked)}
+                            />
+                            <span>Wymagaj intencji w grafie</span>
+                          </label>
+                          <button type="button" className="parish-back" onClick={handleNewMassRule}>
+                            Nowa reguła
+                          </button>
+                          <button type="button" className="parish-back" onClick={handleAutoLayoutMassGraph}>
+                            Ułóż graf lewo-&gt;prawo
+                          </button>
+                          <button type="button" className="parish-back" onClick={handleValidateMassGraph}>
+                            Sprawdź graf
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Szukaj node</span>
+                            <input
+                              type="text"
+                              value={massNodeSearch}
+                              onChange={(event) => setMassNodeSearch(event.target.value)}
+                              placeholder="np. msza, intencja, sezon"
+                            />
+                          </label>
+                          <label>
+                            <span>Kategoria</span>
+                            <select
+                              value={massNodeCategoryFilter}
+                              onChange={(event) => setMassNodeCategoryFilter(event.target.value as 'all' | MassNodeCategory)}
+                            >
+                              <option value="all">Wszystkie</option>
+                              <option value="filter">Warunki</option>
+                              <option value="mass">Msza</option>
+                              <option value="intention">Intencje</option>
+                              <option value="save">Zapis</option>
+                              <option value="stop">Stop</option>
+                            </select>
+                          </label>
+                        </div>
+                        {massRuleConflicts.length > 0 && (
+                          <div className="parish-card mass-rule-conflicts">
+                            <strong>⚠ Konflikty terminów</strong>
+                            <ul>
+                              {massRuleConflicts.map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {massRuleValidation.length > 0 && (
+                          <div className="parish-card mass-rule-validation">
+                            <strong>Wynik walidacji</strong>
+                            <ul>
+                              {massRuleValidation.map((item, index) => (
+                                <li key={`${item.level}-${index}`} className={item.level === 'error' ? 'is-error' : 'is-warning'}>
+                                  {item.level === 'error' ? '⛔' : '⚠'} {item.message}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         <div className="admin-form-grid">
                           <label>
                             <span>Nazwa reguły</span>
@@ -4401,7 +4975,7 @@ export function ParishPage({
                           </label>
                         </div>
                         <div className="layout-palette">
-                          {massRuleNodeTemplates.map((template) => (
+                          {filteredMassRuleTemplates.map((template) => (
                             <button
                               key={template.type}
                               type="button"
@@ -4414,8 +4988,8 @@ export function ParishPage({
                         </div>
                         <div className="mass-rule-graph-shell">
                           <ReactFlow
-                            nodes={massFlowNodes}
-                            edges={massFlowEdges}
+                            nodes={renderedMassFlowNodes}
+                            edges={renderedMassFlowEdges}
                             nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
                             onNodeDragStop={handleMassNodeDragStop}
@@ -4470,23 +5044,39 @@ export function ParishPage({
                               </label>
                               <label>
                                 <span>Next</span>
-                                <input
-                                  type="text"
+                                <select
                                   value={selectedMassRuleNode.nextId ?? ''}
                                   onChange={(event) =>
                                     updateRuleNodeConnection(selectedMassRuleNode.id, 'next', event.target.value || null)
                                   }
-                                />
+                                >
+                                  <option value="">-- brak --</option>
+                                  {massFlowNodes
+                                    .filter((node) => node.id !== selectedMassRuleNode.id)
+                                    .map((node) => (
+                                      <option key={node.id} value={node.id}>
+                                        {node.id}
+                                      </option>
+                                    ))}
+                                </select>
                               </label>
                               <label>
                                 <span>Else</span>
-                                <input
-                                  type="text"
+                                <select
                                   value={selectedMassRuleNode.elseId ?? ''}
                                   onChange={(event) =>
                                     updateRuleNodeConnection(selectedMassRuleNode.id, 'else', event.target.value || null)
                                   }
-                                />
+                                >
+                                  <option value="">-- brak --</option>
+                                  {massFlowNodes
+                                    .filter((node) => node.id !== selectedMassRuleNode.id)
+                                    .map((node) => (
+                                      <option key={node.id} value={node.id}>
+                                        {node.id}
+                                      </option>
+                                    ))}
+                                </select>
                               </label>
                               {selectedMassRuleFields.map((field) => (
                                 <label key={field.key}>
@@ -4500,6 +5090,14 @@ export function ParishPage({
                                   {field.hint ? <span className="muted">{field.hint}</span> : null}
                                 </label>
                               ))}
+                              <div className="builder-actions admin-form-full">
+                                <button type="button" className="parish-back" onClick={handleDuplicateSelectedRuleNode}>
+                                  Duplikuj node
+                                </button>
+                                <button type="button" className="parish-back" onClick={handleDeleteSelectedRuleNode}>
+                                  Usuń node
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -4559,11 +5157,21 @@ export function ParishPage({
                           </button>
                         </div>
                         {massRulePreview.length > 0 && (
-                          <ul className="status-list">
+                          <ul className="status-list mass-rule-preview-list">
                             {massRulePreview.slice(0, 8).map((item) => (
-                              <li key={item.id}>
-                                <strong>{new Date(item.massDateTime).toLocaleString()}</strong>
-                                <span>{item.title}</span>
+                              <li key={item.id} className={massRulePreviewConflictKeys.has(new Date(item.massDateTime).toISOString()) ? 'is-conflict' : undefined}>
+                                <strong>
+                                  <span className="mass-preview-time">
+                                    {new Date(item.massDateTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                  </span>
+                                  {massRulePreviewConflictKeys.has(new Date(item.massDateTime).toISOString()) ? (
+                                    <span className="mass-preview-conflict">⚠ kolizja</span>
+                                  ) : null}
+                                </strong>
+                                <span className="mass-preview-title">{item.title}</span>
+                                <span className="mass-preview-intention">
+                                  {(item.intentionsJson ?? '').slice(0, 80) || 'Brak intencji'}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -4571,6 +5179,7 @@ export function ParishPage({
                       </div>
                     )}
                     {adminFormError && <p className="builder-error">{adminFormError}</p>}
+                    {massRuleWarning && <p className="muted">{massRuleWarning}</p>}
                   </div>
                 )}
                 <div className="section-header">

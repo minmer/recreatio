@@ -2091,14 +2091,16 @@
 }
 
 .mass-rule-node {
+  --mass-node-color: #2563eb;
   min-width: 180px;
   border: 1px solid var(--parish-line);
   border-radius: 12px;
   background: #fffefc;
-  padding: 0.6rem 0.75rem;
+  padding: 0.6rem 0.75rem 0.7rem;
   display: grid;
   gap: 0.2rem;
   box-shadow: 0 6px 20px -16px var(--parish-shadow);
+  position: relative;
 }
 
 .mass-rule-node-io {
@@ -2107,6 +2109,187 @@
   margin-top: 0.3rem;
   font-size: 0.72rem;
   color: var(--parish-muted);
+}
+
+.mass-rule-node-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  border-radius: 12px 12px 0 0;
+  background: var(--mass-node-color);
+}
+
+.mass-rule-node.has-error {
+  border-color: #dc2626;
+}
+
+.mass-port-label {
+  position: absolute;
+  font-size: 0.64rem;
+  color: var(--parish-muted);
+  font-weight: 700;
+}
+
+.mass-port-label-in {
+  left: -10px;
+  top: 50%;
+  transform: translate(-100%, -50%);
+}
+
+.mass-port-label-next {
+  right: -10px;
+  top: 50%;
+  transform: translate(100%, -50%);
+}
+
+.mass-port-label-else {
+  left: 50%;
+  bottom: -10px;
+  transform: translate(-50%, 100%);
+}
+
+.mass-node-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.mass-chip {
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.mass-chip.is-mass {
+  background: #f59e0b1f;
+  color: #b45309;
+}
+
+.mass-chip.is-outline {
+  border: 1px solid #f59e0b7a;
+  color: #b45309;
+}
+
+.mass-chip.is-error {
+  background: #dc262620;
+  color: #b91c1c;
+}
+
+.mass-chip.is-intention {
+  background: #7c3aed1f;
+  color: #5b21b6;
+}
+
+.mass-chip.is-donation {
+  background: #16a34a1a;
+  color: #166534;
+}
+
+.mass-intention-mini {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+}
+
+.mass-node-alert {
+  margin-top: 0.35rem;
+  color: #b91c1c;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.mass-rule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+}
+
+.mass-rule-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+}
+
+.mass-rule-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.mass-require-intentions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.mass-rule-conflicts strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #b91c1c;
+}
+
+.mass-rule-conflicts ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.mass-rule-validation strong {
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.mass-rule-validation ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.mass-rule-validation .is-error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.mass-rule-validation .is-warning {
+  color: #92400e;
+}
+
+.mass-rule-preview-list .is-conflict {
+  border-left: 4px solid #dc2626;
+  padding-left: 0.5rem;
+}
+
+.mass-preview-time {
+  display: inline-block;
+  background: #f59e0b1f;
+  color: #b45309;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  margin-right: 0.45rem;
+}
+
+.mass-preview-title {
+  color: #5b21b6;
+}
+
+.mass-preview-intention {
+  color: #6d28d9;
+  font-size: 0.8rem;
+}
+
+.mass-preview-conflict {
+  color: #b91c1c;
+  font-weight: 700;
 }
 
 .mass-node-intro {

@@ -430,6 +430,23 @@ export function CogitaRevisionShareRunPage({
     }
     return -1;
   };
+
+  const isCardEligibleForRevision = (card: CogitaCardSearchResult) =>
+    !considerDependencies || card.cardType !== 'info' || eligibleKeys.has(getCardKey(card));
+
+  const findEligibleFallbackCard = (excludeKeys: Set<string>) => {
+    if (revisionType.id !== 'temporal' && revisionType.id !== 'levels') return null;
+    const meta = revisionMeta as { active?: CogitaCardSearchResult[]; pool?: CogitaCardSearchResult[] };
+    const source = (meta.active ?? []).concat(meta.pool ?? []);
+    const seen = new Set<string>();
+    for (const card of source) {
+      const key = getCardKey(card);
+      if (seen.has(key) || excludeKeys.has(key)) continue;
+      seen.add(key);
+      if (isCardEligibleForRevision(card)) return card;
+    }
+    return null;
+  };
   const levelStats = useMemo(() => {
     if (revisionType.id !== 'levels') return null;
     const meta = revisionMeta as {
@@ -661,8 +678,35 @@ export function CogitaRevisionShareRunPage({
       setCurrentIndex(nextIndex);
       return;
     }
+    if (revisionType.id === 'temporal' || revisionType.id === 'levels') {
+      const preserved = queue.slice(0, currentIndex + 1);
+      const futureEligible = queue.slice(currentIndex + 1).filter(isCardEligibleForRevision);
+      const nextQueue = preserved.concat(futureEligible);
+      const existingKeys = new Set(nextQueue.map(getCardKey));
+      const fallback = findEligibleFallbackCard(existingKeys);
+      if (fallback) {
+        const fallbackKey = getCardKey(fallback);
+        if (!existingKeys.has(fallbackKey)) {
+          nextQueue.push(fallback);
+          existingKeys.add(fallbackKey);
+          setRevisionMeta((prev) => {
+            const typed = prev as { queued?: Set<string> };
+            const queued = new Set<string>(typed.queued ?? []);
+            queued.add(fallbackKey);
+            return { ...typed, queued };
+          });
+        }
+        setQueue(nextQueue);
+        const fallbackIndex = nextQueue.findIndex((card) => getCardKey(card) === fallbackKey);
+        if (fallbackIndex >= 0) {
+          setCurrentIndex(fallbackIndex);
+          setDependencyBlocked(false);
+          return;
+        }
+      }
+    }
     setDependencyBlocked(true);
-  }, [currentCard, eligibleKeys, considerDependencies, currentIndex]);
+  }, [currentCard, eligibleKeys, considerDependencies, currentIndex, queue, revisionMeta, revisionType.id]);
 
   useEffect(() => {
     setAnswer('');
