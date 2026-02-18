@@ -74,14 +74,17 @@ const isSameFlowNodes = (left: Array<Node<MassRuleNodeData>>, right: Array<Node<
   return true;
 };
 
+const normalizeEdgeHandle = (handle?: string | null) => handle ?? 'next';
+
+const edgeSignature = (edge: Edge) =>
+  `${edge.id}|${edge.source}|${edge.target}|${normalizeEdgeHandle(edge.sourceHandle)}`;
+
 const isSameFlowEdges = (left: Edge[], right: Edge[]) => {
   if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    const a = left[i];
-    const b = right[i];
-    if (a.id !== b.id || a.source !== b.source || a.target !== b.target || (a.sourceHandle ?? null) !== (b.sourceHandle ?? null)) {
-      return false;
-    }
+  const leftKeys = [...left].map(edgeSignature).sort();
+  const rightKeys = [...right].map(edgeSignature).sort();
+  for (let i = 0; i < leftKeys.length; i += 1) {
+    if (leftKeys[i] !== rightKeys[i]) return false;
   }
   return true;
 };
@@ -1556,6 +1559,7 @@ export function ParishPage({
         });
       }
     });
+    nextEdges.sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
     setMassFlowNodes((current) => (isSameFlowNodes(current, nextNodes) ? current : nextNodes));
     setMassFlowEdges((current) => (isSameFlowEdges(current, nextEdges) ? current : nextEdges));
   }, [massRuleNodes]);
@@ -1565,8 +1569,12 @@ export function ParishPage({
       {
         let changed = false;
         const mapped = current.map((node) => {
-          const nextEdge = massFlowEdges.find((edge) => edge.source === node.id && (edge.sourceHandle ?? 'next') === 'next');
-          const elseEdge = massFlowEdges.find((edge) => edge.source === node.id && edge.sourceHandle === 'else');
+          const nextEdge = massFlowEdges.find(
+            (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'next'
+          );
+          const elseEdge = massFlowEdges.find(
+            (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'else'
+          );
           const nextId = nextEdge?.target ?? null;
           const elseId = elseEdge?.target ?? null;
           if ((node.nextId ?? null) === nextId && (node.elseId ?? null) === elseId) return node;
