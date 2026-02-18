@@ -1345,6 +1345,15 @@ export function ParishPage({
     builderSlug.trim().length > 0 &&
     builderLayoutItems.length > 0;
 
+  const loadMassRuleToEditor = (rule: ParishMassRule) => {
+    setSelectedMassRuleId(rule.id);
+    setMassRuleName(rule.name);
+    setMassRuleDescription(rule.description ?? '');
+    setMassRuleStartNodeId(rule.graph.startNodeId);
+    setMassRuleNodes(rule.graph.nodes);
+    setSelectedMassFlowNodeId(null);
+  };
+
   const handleStartBuilder = () => {
     setBuilderStep(0);
     setBuilderName('');
@@ -1515,25 +1524,11 @@ export function ParishPage({
       .then((rules) => {
         setMassRules(rules);
         if (!selectedMassRuleId && rules[0]) {
-          setSelectedMassRuleId(rules[0].id);
-          setMassRuleName(rules[0].name);
-          setMassRuleDescription(rules[0].description ?? '');
-          setMassRuleStartNodeId(rules[0].graph.startNodeId);
-          setMassRuleNodes(rules[0].graph.nodes);
+          loadMassRuleToEditor(rules[0]);
         }
       })
       .catch(() => setMassRules([]));
-  }, [isAuthenticated, parish]);
-
-  useEffect(() => {
-    if (!selectedMassRuleId) return;
-    const selected = massRules.find((rule) => rule.id === selectedMassRuleId);
-    if (!selected) return;
-    setMassRuleName(selected.name);
-    setMassRuleDescription(selected.description ?? '');
-    setMassRuleStartNodeId(selected.graph.startNodeId);
-    setMassRuleNodes(selected.graph.nodes);
-  }, [selectedMassRuleId, massRules]);
+  }, [isAuthenticated, parish?.id, selectedMassRuleId]);
 
   useEffect(() => {
     const nextNodes: Node<MassRuleNodeData>[] = massRuleNodes.map((node, index) => ({
@@ -1564,33 +1559,6 @@ export function ParishPage({
     setMassFlowNodes((current) => (isSameFlowNodes(current, nextNodes) ? current : nextNodes));
     setMassFlowEdges((current) => (isSameFlowEdges(current, nextEdges) ? current : nextEdges));
   }, [massRuleNodes]);
-
-  useEffect(() => {
-    setMassRuleNodes((current) =>
-      {
-        let changed = false;
-        const mapped = current.map((node) => {
-          const flowNode = massFlowNodes.find((item) => item.id === node.id);
-          if (!flowNode) return node;
-          const nextX = String(Math.round(flowNode.position.x));
-          const nextY = String(Math.round(flowNode.position.y));
-          const prevX = node.config?._x ?? '';
-          const prevY = node.config?._y ?? '';
-          if (prevX === nextX && prevY === nextY) return node;
-          changed = true;
-          return {
-            ...node,
-            config: {
-              ...(node.config ?? {}),
-              _x: nextX,
-              _y: nextY
-            }
-          };
-        });
-        return changed ? mapped : current;
-      }
-    );
-  }, [massFlowNodes]);
 
   useEffect(() => {
     setMassRuleNodes((current) =>
@@ -2376,6 +2344,25 @@ export function ParishPage({
 
   const handleMassNodesChange = (changes: NodeChange[]) => {
     setMassFlowNodes((current) => applyNodeChanges(changes, current));
+  };
+
+  const handleMassNodeDragStop = (_: unknown, node: Node<MassRuleNodeData>) => {
+    const nextX = String(Math.round(node.position.x));
+    const nextY = String(Math.round(node.position.y));
+    setMassRuleNodes((current) =>
+      current.map((item) =>
+        item.id === node.id
+          ? {
+              ...item,
+              config: {
+                ...(item.config ?? {}),
+                _x: nextX,
+                _y: nextY
+              }
+            }
+          : item
+      )
+    );
   };
 
   const handleMassEdgesChange = (changes: EdgeChange[]) => {
@@ -3702,6 +3689,7 @@ export function ParishPage({
                             edges={massFlowEdges}
                             nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
+                            onNodeDragStop={handleMassNodeDragStop}
                             onEdgesChange={handleMassEdgesChange}
                             onConnect={handleMassConnect}
                             onNodeClick={(_, node) => setSelectedMassFlowNodeId(node.id)}
@@ -3822,7 +3810,19 @@ export function ParishPage({
                             <span>Wybór reguły</span>
                             <select
                               value={selectedMassRuleId ?? ''}
-                              onChange={(event) => setSelectedMassRuleId(event.target.value || null)}
+                              onChange={(event) => {
+                                const nextId = event.target.value || null;
+                                if (!nextId) {
+                                  setSelectedMassRuleId(null);
+                                  return;
+                                }
+                                const nextRule = massRules.find((rule) => rule.id === nextId);
+                                if (nextRule) {
+                                  loadMassRuleToEditor(nextRule);
+                                } else {
+                                  setSelectedMassRuleId(nextId);
+                                }
+                              }}
                             >
                               <option value="">--</option>
                               {massRules.map((rule) => (
@@ -4155,6 +4155,7 @@ export function ParishPage({
                             edges={massFlowEdges}
                             nodeTypes={massRuleNodeTypes}
                             onNodesChange={handleMassNodesChange}
+                            onNodeDragStop={handleMassNodeDragStop}
                             onEdgesChange={handleMassEdgesChange}
                             onConnect={handleMassConnect}
                             onNodeClick={(_, node) => setSelectedMassFlowNodeId(node.id)}
@@ -4275,7 +4276,19 @@ export function ParishPage({
                             <span>Wybór reguły</span>
                             <select
                               value={selectedMassRuleId ?? ''}
-                              onChange={(event) => setSelectedMassRuleId(event.target.value || null)}
+                              onChange={(event) => {
+                                const nextId = event.target.value || null;
+                                if (!nextId) {
+                                  setSelectedMassRuleId(null);
+                                  return;
+                                }
+                                const nextRule = massRules.find((rule) => rule.id === nextId);
+                                if (nextRule) {
+                                  loadMassRuleToEditor(nextRule);
+                                } else {
+                                  setSelectedMassRuleId(nextId);
+                                }
+                              }}
                             >
                               <option value="">--</option>
                               {massRules.map((rule) => (
