@@ -59,34 +59,23 @@ import {
 type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
-type MassRuleNodeData = { label: string; type: string };
-
-const isSameFlowNodes = (left: Array<Node<MassRuleNodeData>>, right: Array<Node<MassRuleNodeData>>) => {
-  if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    const a = left[i];
-    const b = right[i];
-    if (a.id !== b.id || a.type !== b.type) return false;
-    if (Math.round(a.position.x) !== Math.round(b.position.x) || Math.round(a.position.y) !== Math.round(b.position.y)) {
-      return false;
-    }
-  }
-  return true;
-};
+type MassRuleNodeData = { label: string; type: string; config: Record<string, string> };
 
 const normalizeEdgeHandle = (handle?: string | null) => handle ?? 'next';
 
 const edgeSignature = (edge: Edge) =>
   `${edge.id}|${edge.source}|${edge.target}|${normalizeEdgeHandle(edge.sourceHandle)}`;
 
-const isSameFlowEdges = (left: Edge[], right: Edge[]) => {
-  if (left.length !== right.length) return false;
-  const leftKeys = [...left].map(edgeSignature).sort();
-  const rightKeys = [...right].map(edgeSignature).sort();
-  for (let i = 0; i < leftKeys.length; i += 1) {
-    if (leftKeys[i] !== rightKeys[i]) return false;
-  }
-  return true;
+const normalizeFlowEdges = (edges: Edge[]) => {
+  const byHandle = new Map<string, Edge>();
+  edges.forEach((edge) => {
+    const key = `${edge.source}:${normalizeEdgeHandle(edge.sourceHandle)}`;
+    byHandle.set(key, {
+      ...edge,
+      sourceHandle: normalizeEdgeHandle(edge.sourceHandle)
+    });
+  });
+  return Array.from(byHandle.values()).sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
 };
 
 const HOME_GAP = 16;
@@ -216,6 +205,67 @@ const MassRuleGraphNode = ({ data }: { data: MassRuleNodeData }) => {
 };
 
 const massRuleNodeTypes = { massRuleNode: MassRuleGraphNode };
+
+const toFlowNodesFromRuleNodes = (ruleNodes: ParishMassRuleNode[]): Array<Node<MassRuleNodeData>> =>
+  ruleNodes.map((node, index) => ({
+    id: node.id,
+    type: 'massRuleNode',
+    position: parseMassNodePosition(node.config, index),
+    data: {
+      label: node.id,
+      type: node.type,
+      config: { ...(node.config ?? {}) }
+    }
+  }));
+
+const toFlowEdgesFromRuleNodes = (ruleNodes: ParishMassRuleNode[]): Edge[] => {
+  const edges: Edge[] = [];
+  ruleNodes.forEach((node) => {
+    if (node.nextId) {
+      edges.push({
+        id: `${node.id}:next:${node.nextId}`,
+        source: node.id,
+        target: node.nextId,
+        sourceHandle: 'next'
+      });
+    }
+    if (node.elseId) {
+      edges.push({
+        id: `${node.id}:else:${node.elseId}`,
+        source: node.id,
+        target: node.elseId,
+        sourceHandle: 'else'
+      });
+    }
+  });
+  return edges.sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
+};
+
+const toRuleNodesFromFlow = (
+  flowNodes: Array<Node<MassRuleNodeData>>,
+  flowEdges: Edge[]
+): ParishMassRuleNode[] => {
+  const sortedNodes = [...flowNodes].sort((a, b) => a.id.localeCompare(b.id));
+  return sortedNodes.map((node) => {
+    const nextEdge = flowEdges.find(
+      (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'next'
+    );
+    const elseEdge = flowEdges.find(
+      (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'else'
+    );
+    return {
+      id: node.id,
+      type: node.data.type,
+      nextId: nextEdge?.target ?? null,
+      elseId: elseEdge?.target ?? null,
+      config: {
+        ...(node.data.config ?? {}),
+        _x: String(Math.round(node.position.x)),
+        _y: String(Math.round(node.position.y))
+      }
+    };
+  });
+};
 
 const getBreakpointKey = (columns: number): LayoutBreakpoint => {
   if (columns >= 6) return 'desktop';
@@ -1275,19 +1325,28 @@ export function ParishPage({
   const [massRuleName, setMassRuleName] = useState('Nowa reguła');
   const [massRuleDescription, setMassRuleDescription] = useState('');
   const [massRuleStartNodeId, setMassRuleStartNodeId] = useState('node-1');
-  const [massRuleNodes, setMassRuleNodes] = useState<ParishMassRuleNode[]>([
+  const [massFlowNodes, setMassFlowNodes] = useState<Array<Node<MassRuleNodeData>>>(
+    toFlowNodesFromRuleNodes([
     { id: 'node-1', type: 'Weekday', nextId: 'node-2', elseId: 'node-9', config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' } },
     { id: 'node-2', type: 'MassTemplate', nextId: 'node-3', elseId: null, config: { time: '18:00', churchName: 'Kościół główny', title: 'Msza święta', durationMinutes: '60', kind: 'ferialna', isCollective: 'false' } },
     { id: 'node-3', type: 'AddIntention', nextId: 'node-4', elseId: null, config: { text: 'Intencja parafialna', donation: '50 PLN' } },
     { id: 'node-4', type: 'Emit', nextId: 'node-9', elseId: null, config: {} },
     { id: 'node-9', type: 'Stop', nextId: null, elseId: null, config: {} }
-  ]);
+  ])
+  );
+  const [massFlowEdges, setMassFlowEdges] = useState<Edge[]>(
+    toFlowEdgesFromRuleNodes([
+      { id: 'node-1', type: 'Weekday', nextId: 'node-2', elseId: 'node-9', config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' } },
+      { id: 'node-2', type: 'MassTemplate', nextId: 'node-3', elseId: null, config: { time: '18:00', churchName: 'Kościół główny', title: 'Msza święta', durationMinutes: '60', kind: 'ferialna', isCollective: 'false' } },
+      { id: 'node-3', type: 'AddIntention', nextId: 'node-4', elseId: null, config: { text: 'Intencja parafialna', donation: '50 PLN' } },
+      { id: 'node-4', type: 'Emit', nextId: 'node-9', elseId: null, config: {} },
+      { id: 'node-9', type: 'Stop', nextId: null, elseId: null, config: {} }
+    ])
+  );
   const [massRuleFromDate, setMassRuleFromDate] = useState('');
   const [massRuleToDate, setMassRuleToDate] = useState('');
   const [massRuleReplaceExisting, setMassRuleReplaceExisting] = useState(false);
   const [massRulePreview, setMassRulePreview] = useState<ParishPublicMass[]>([]);
-  const [massFlowNodes, setMassFlowNodes] = useState<Node<MassRuleNodeData>[]>([]);
-  const [massFlowEdges, setMassFlowEdges] = useState<Edge[]>([]);
   const [selectedMassFlowNodeId, setSelectedMassFlowNodeId] = useState<string | null>(null);
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
   const baseColumns = 6;
@@ -1353,7 +1412,8 @@ export function ParishPage({
     setMassRuleName(rule.name);
     setMassRuleDescription(rule.description ?? '');
     setMassRuleStartNodeId(rule.graph.startNodeId);
-    setMassRuleNodes(rule.graph.nodes);
+    setMassFlowNodes(toFlowNodesFromRuleNodes(rule.graph.nodes));
+    setMassFlowEdges(toFlowEdgesFromRuleNodes(rule.graph.nodes));
     setSelectedMassFlowNodeId(null);
   };
 
@@ -1533,58 +1593,6 @@ export function ParishPage({
       .catch(() => setMassRules([]));
   }, [isAuthenticated, parish?.id, selectedMassRuleId]);
 
-  useEffect(() => {
-    const nextNodes: Node<MassRuleNodeData>[] = massRuleNodes.map((node, index) => ({
-      id: node.id,
-      type: 'massRuleNode',
-      position: parseMassNodePosition(node.config, index),
-      data: { label: node.id, type: node.type }
-    }));
-    const nextEdges: Edge[] = [];
-    massRuleNodes.forEach((node) => {
-      if (node.nextId) {
-        nextEdges.push({
-          id: `${node.id}:next:${node.nextId}`,
-          source: node.id,
-          target: node.nextId,
-          sourceHandle: 'next'
-        });
-      }
-      if (node.elseId) {
-        nextEdges.push({
-          id: `${node.id}:else:${node.elseId}`,
-          source: node.id,
-          target: node.elseId,
-          sourceHandle: 'else'
-        });
-      }
-    });
-    nextEdges.sort((a, b) => edgeSignature(a).localeCompare(edgeSignature(b)));
-    setMassFlowNodes((current) => (isSameFlowNodes(current, nextNodes) ? current : nextNodes));
-    setMassFlowEdges((current) => (isSameFlowEdges(current, nextEdges) ? current : nextEdges));
-  }, [massRuleNodes]);
-
-  useEffect(() => {
-    setMassRuleNodes((current) =>
-      {
-        let changed = false;
-        const mapped = current.map((node) => {
-          const nextEdge = massFlowEdges.find(
-            (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'next'
-          );
-          const elseEdge = massFlowEdges.find(
-            (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'else'
-          );
-          const nextId = nextEdge?.target ?? null;
-          const elseId = elseEdge?.target ?? null;
-          if ((node.nextId ?? null) === nextId && (node.elseId ?? null) === elseId) return node;
-          changed = true;
-          return { ...node, nextId, elseId };
-        });
-        return changed ? mapped : current;
-      }
-    );
-  }, [massFlowEdges]);
   const announcement = useMemo(
     () => announcements.find((item) => item.id === announcementId) ?? announcements[0],
     [announcementId]
@@ -2200,7 +2208,24 @@ export function ParishPage({
     editDragActive && dragState.size
       ? getValidDropCells(editLayoutItems, dragState.size, activeColumns, activeBreakpoint, dragState.activeItemId)
       : null;
-  const selectedMassRuleNode = massRuleNodes.find((node) => node.id === selectedMassFlowNodeId) ?? null;
+  const selectedMassRuleNode = useMemo(() => {
+    if (!selectedMassFlowNodeId) return null;
+    const node = massFlowNodes.find((item) => item.id === selectedMassFlowNodeId);
+    if (!node) return null;
+    const nextEdge = massFlowEdges.find(
+      (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'next'
+    );
+    const elseEdge = massFlowEdges.find(
+      (edge) => edge.source === node.id && normalizeEdgeHandle(edge.sourceHandle) === 'else'
+    );
+    return {
+      id: node.id,
+      type: node.data.type,
+      nextId: nextEdge?.target ?? null,
+      elseId: elseEdge?.target ?? null,
+      config: node.data.config ?? {}
+    } as ParishMassRuleNode;
+  }, [selectedMassFlowNodeId, massFlowNodes, massFlowEdges]);
   const massesOfSelectedDay = useMemo(() => {
     if (!newMassDay) return [] as ParishPublicMass[];
     return publicMasses
@@ -2338,34 +2363,51 @@ export function ParishPage({
     const template = massRuleNodeTemplates.find((item) => item.type === type);
     if (!template) return;
     const id = `node-${Date.now()}`;
-    setMassRuleNodes((current) => [
+    setMassFlowNodes((current) => [
       ...current,
       {
         id,
-        type: template.type,
-        nextId: null,
-        elseId: null,
-        config: { ...template.config, _x: String(120 + (current.length % 3) * 260), _y: String(60 + Math.floor(current.length / 3) * 180) }
+        type: 'massRuleNode',
+        position: {
+          x: 120 + (current.length % 3) * 260,
+          y: 60 + Math.floor(current.length / 3) * 180
+        },
+        data: {
+          label: id,
+          type: template.type,
+          config: { ...template.config }
+        }
       }
     ]);
   };
 
   const handleMassNodesChange = (changes: NodeChange[]) => {
-    setMassFlowNodes((current) => applyNodeChanges(changes, current));
+    setMassFlowNodes((current) => {
+      const nextNodes = applyNodeChanges(changes, current);
+      const ids = new Set(nextNodes.map((node) => node.id));
+      setMassFlowEdges((edges) =>
+        normalizeFlowEdges(edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)))
+      );
+      return nextNodes;
+    });
   };
 
   const handleMassNodeDragStop = (_: unknown, node: Node<MassRuleNodeData>) => {
     const nextX = String(Math.round(node.position.x));
     const nextY = String(Math.round(node.position.y));
-    setMassRuleNodes((current) =>
+    setMassFlowNodes((current) =>
       current.map((item) =>
         item.id === node.id
           ? {
               ...item,
-              config: {
-                ...(item.config ?? {}),
-                _x: nextX,
-                _y: nextY
+              position: node.position,
+              data: {
+                ...item.data,
+                config: {
+                  ...(item.data.config ?? {}),
+                  _x: nextX,
+                  _y: nextY
+                }
               }
             }
           : item
@@ -2374,14 +2416,15 @@ export function ParishPage({
   };
 
   const handleMassEdgesChange = (changes: EdgeChange[]) => {
-    setMassFlowEdges((current) => applyEdgeChanges(changes, current));
+    setMassFlowEdges((current) => normalizeFlowEdges(applyEdgeChanges(changes, current)));
   };
 
   const handleMassConnect = (connection: Connection) => {
     if (!connection.source || !connection.target) return;
     const sourceHandle = connection.sourceHandle ?? 'next';
     setMassFlowEdges((current) =>
-      addEdge(
+      normalizeFlowEdges(
+        addEdge(
         {
           id: `${connection.source}:${sourceHandle}:${connection.target}`,
           source: connection.source,
@@ -2389,8 +2432,64 @@ export function ParishPage({
           sourceHandle
         },
         current.filter((edge) => !(edge.source === connection.source && edge.sourceHandle === sourceHandle))
+        )
       )
     );
+  };
+
+  const updateRuleNodeType = (nodeId: string, nextType: string) => {
+    setMassFlowNodes((current) =>
+      current.map((item) =>
+        item.id === nodeId
+          ? {
+              ...item,
+              data: {
+                ...item.data,
+                type: nextType
+              }
+            }
+          : item
+      )
+    );
+  };
+
+  const updateRuleNodeConfig = (nodeId: string, key: string, value: string) => {
+    setMassFlowNodes((current) =>
+      current.map((item) =>
+        item.id === nodeId
+          ? {
+              ...item,
+              data: {
+                ...item.data,
+                config: {
+                  ...(item.data.config ?? {}),
+                  [key]: value
+                }
+              }
+            }
+          : item
+      )
+    );
+  };
+
+  const updateRuleNodeConnection = (nodeId: string, handle: 'next' | 'else', target: string | null) => {
+    setMassFlowEdges((current) => {
+      const withoutHandle = current.filter(
+        (edge) => !(edge.source === nodeId && normalizeEdgeHandle(edge.sourceHandle) === handle)
+      );
+      if (!target) {
+        return normalizeFlowEdges(withoutHandle);
+      }
+      return normalizeFlowEdges([
+        ...withoutHandle,
+        {
+          id: `${nodeId}:${handle}:${target}`,
+          source: nodeId,
+          target,
+          sourceHandle: handle
+        }
+      ]);
+    });
   };
 
   const handleSaveMassRule = async () => {
@@ -2405,12 +2504,13 @@ export function ParishPage({
     }
     setAdminFormError(null);
     try {
+      const ruleNodes = toRuleNodesFromFlow(massFlowNodes, massFlowEdges);
       const payload = {
         name: massRuleName.trim(),
         description: massRuleDescription.trim() || null,
         graph: {
           startNodeId: massRuleStartNodeId.trim(),
-          nodes: massRuleNodes.map((node) => ({
+          nodes: ruleNodes.map((node) => ({
             id: node.id,
             type: node.type,
             nextId: node.nextId ?? null,
@@ -3721,13 +3821,7 @@ export function ParishPage({
                                 <span>Typ</span>
                                 <select
                                   value={selectedMassRuleNode.type}
-                                  onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id ? { ...item, type: event.target.value } : item
-                                      )
-                                    )
-                                  }
+                                  onChange={(event) => updateRuleNodeType(selectedMassRuleNode.id, event.target.value)}
                                 >
                                   {massRuleNodeTemplates.map((template) => (
                                     <option key={template.type} value={template.type}>
@@ -3742,13 +3836,7 @@ export function ParishPage({
                                   type="text"
                                   value={selectedMassRuleNode.nextId ?? ''}
                                   onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id
-                                          ? { ...item, nextId: event.target.value || null }
-                                          : item
-                                      )
-                                    )
+                                    updateRuleNodeConnection(selectedMassRuleNode.id, 'next', event.target.value || null)
                                   }
                                 />
                               </label>
@@ -3758,13 +3846,7 @@ export function ParishPage({
                                   type="text"
                                   value={selectedMassRuleNode.elseId ?? ''}
                                   onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id
-                                          ? { ...item, elseId: event.target.value || null }
-                                          : item
-                                      )
-                                    )
+                                    updateRuleNodeConnection(selectedMassRuleNode.id, 'else', event.target.value || null)
                                   }
                                 />
                               </label>
@@ -3775,21 +3857,7 @@ export function ParishPage({
                                     <input
                                       type="text"
                                       value={value}
-                                      onChange={(event) =>
-                                        setMassRuleNodes((current) =>
-                                          current.map((item) =>
-                                            item.id === selectedMassRuleNode.id
-                                              ? {
-                                                  ...item,
-                                                  config: {
-                                                    ...(item.config ?? {}),
-                                                    [key]: event.target.value
-                                                  }
-                                                }
-                                              : item
-                                          )
-                                        )
-                                      }
+                                      onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, key, event.target.value)}
                                     />
                                   </label>
                                 )
@@ -4187,13 +4255,7 @@ export function ParishPage({
                                 <span>Typ</span>
                                 <select
                                   value={selectedMassRuleNode.type}
-                                  onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id ? { ...item, type: event.target.value } : item
-                                      )
-                                    )
-                                  }
+                                  onChange={(event) => updateRuleNodeType(selectedMassRuleNode.id, event.target.value)}
                                 >
                                   {massRuleNodeTemplates.map((template) => (
                                     <option key={template.type} value={template.type}>
@@ -4208,13 +4270,7 @@ export function ParishPage({
                                   type="text"
                                   value={selectedMassRuleNode.nextId ?? ''}
                                   onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id
-                                          ? { ...item, nextId: event.target.value || null }
-                                          : item
-                                      )
-                                    )
+                                    updateRuleNodeConnection(selectedMassRuleNode.id, 'next', event.target.value || null)
                                   }
                                 />
                               </label>
@@ -4224,13 +4280,7 @@ export function ParishPage({
                                   type="text"
                                   value={selectedMassRuleNode.elseId ?? ''}
                                   onChange={(event) =>
-                                    setMassRuleNodes((current) =>
-                                      current.map((item) =>
-                                        item.id === selectedMassRuleNode.id
-                                          ? { ...item, elseId: event.target.value || null }
-                                          : item
-                                      )
-                                    )
+                                    updateRuleNodeConnection(selectedMassRuleNode.id, 'else', event.target.value || null)
                                   }
                                 />
                               </label>
@@ -4241,21 +4291,7 @@ export function ParishPage({
                                     <input
                                       type="text"
                                       value={value}
-                                      onChange={(event) =>
-                                        setMassRuleNodes((current) =>
-                                          current.map((item) =>
-                                            item.id === selectedMassRuleNode.id
-                                              ? {
-                                                  ...item,
-                                                  config: {
-                                                    ...(item.config ?? {}),
-                                                    [key]: event.target.value
-                                                  }
-                                                }
-                                              : item
-                                          )
-                                        )
-                                      }
+                                      onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, key, event.target.value)}
                                     />
                                   </label>
                                 )
