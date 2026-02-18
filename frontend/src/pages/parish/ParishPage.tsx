@@ -161,29 +161,162 @@ const parishModuleCatalog: { type: string; label: string; width: ModuleWidth; he
   { type: 'gallery', label: 'Galeria', width: 'two-thirds', height: 'three' }
 ];
 
-const massRuleNodeTemplates: Array<{ type: string; label: string; config: Record<string, string> }> = [
-  { type: 'Weekday', label: 'Weekday', config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' } },
-  { type: 'NthWeekdayOfMonth', label: 'Nth weekday', config: { weekday: 'Sunday', occurrences: '1,2,3,4' } },
-  { type: 'LiturgicalSeason', label: 'Liturgical season', config: { season: 'ordinary' } },
-  { type: 'Holiday', label: 'Holiday', config: { key: 'christmas' } },
-  { type: 'DaysAfterHoliday', label: 'Days after holiday', config: { key: 'easter', min: '1', max: '7' } },
-  { type: 'If', label: 'If', config: { left: '$weekday', operator: 'eq', right: 'sunday' } },
+type MassRuleConfigField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  hint?: string;
+};
+
+type MassRuleNodeDefinition = {
+  type: string;
+  label: string;
+  description: string;
+  input: string;
+  output: string;
+  config: Record<string, string>;
+  fields: MassRuleConfigField[];
+};
+
+const massRuleNodeDefinitions: MassRuleNodeDefinition[] = [
+  {
+    type: 'Weekday',
+    label: 'Dzien tygodnia',
+    description: 'Warunek przejscia tylko dla wybranych dni tygodnia.',
+    input: 'Data dnia',
+    output: 'true -> next, false -> else',
+    config: { days: 'monday,tuesday,wednesday,thursday,friday,saturday,sunday' },
+    fields: [{ key: 'days', label: 'Dni', placeholder: 'monday,tuesday,...', hint: 'Lista po przecinku.' }]
+  },
+  {
+    type: 'NthWeekdayOfMonth',
+    label: 'N-ty dzien miesiaca',
+    description: 'Sprawdza np. pierwsza niedziele miesiaca.',
+    input: 'Data dnia',
+    output: 'true -> next, false -> else',
+    config: { weekday: 'Sunday', occurrences: '1,2,3,4' },
+    fields: [
+      { key: 'weekday', label: 'Dzien tygodnia', placeholder: 'Sunday' },
+      { key: 'occurrences', label: 'Wystapienia', placeholder: '1,2,3,4', hint: 'Numery wystapien w miesiacu.' }
+    ]
+  },
+  {
+    type: 'LiturgicalSeason',
+    label: 'Okres liturgiczny',
+    description: 'Warunek dla okresu: ordinary, advent, lent, easter, christmas.',
+    input: 'Data dnia',
+    output: 'true -> next, false -> else',
+    config: { season: 'ordinary' },
+    fields: [{ key: 'season', label: 'Sezon', placeholder: 'ordinary' }]
+  },
+  {
+    type: 'Holiday',
+    label: 'Swieto',
+    description: 'Warunek daty swieta obliczanego (np. christmas, easter).',
+    input: 'Data dnia',
+    output: 'true -> next, false -> else',
+    config: { key: 'christmas' },
+    fields: [{ key: 'key', label: 'Klucz swieta', placeholder: 'christmas' }]
+  },
+  {
+    type: 'DaysAfterHoliday',
+    label: 'Dni po swiecie',
+    description: 'Warunek zakresu dni od wskazanego swieta.',
+    input: 'Data dnia',
+    output: 'true -> next, false -> else',
+    config: { key: 'easter', min: '1', max: '7' },
+    fields: [
+      { key: 'key', label: 'Swieto bazowe', placeholder: 'easter' },
+      { key: 'min', label: 'Od dnia', placeholder: '1' },
+      { key: 'max', label: 'Do dnia', placeholder: '7' }
+    ]
+  },
+  {
+    type: 'If',
+    label: 'If',
+    description: 'Uniwersalny warunek porownania lewa-operator-prawa.',
+    input: 'left, operator, right',
+    output: 'true -> next, false -> else',
+    config: { left: '$weekday', operator: 'eq', right: 'sunday' },
+    fields: [
+      { key: 'left', label: 'Lewa strona', placeholder: '$weekday' },
+      { key: 'operator', label: 'Operator', placeholder: 'eq | neq | contains' },
+      { key: 'right', label: 'Prawa strona', placeholder: 'sunday' }
+    ]
+  },
   {
     type: 'MassTemplate',
-    label: 'Mass template',
+    label: 'Szablon mszy',
+    description: 'Ustawia parametry mszy: godzina, miejsce, nazwa, rodzaj i informacje.',
+    input: 'Biezacy szkic mszy',
+    output: 'Szkic mszy zaktualizowany',
     config: {
       time: '18:00',
-      churchName: 'Kościół główny',
-      title: 'Msza święta',
+      churchName: 'Kosciol glowny',
+      title: 'Msza swieta',
       durationMinutes: '60',
       kind: 'ferialna',
-      isCollective: 'false'
-    }
+      isCollective: 'false',
+      note: '',
+      beforeService: '',
+      afterService: '',
+      donationSummary: ''
+    },
+    fields: [
+      { key: 'time', label: 'Godzina', placeholder: '18:00' },
+      { key: 'churchName', label: 'Miejsce', placeholder: 'Kosciol glowny' },
+      { key: 'title', label: 'Nazwa', placeholder: 'Msza swieta' },
+      { key: 'durationMinutes', label: 'Czas (min)', placeholder: '60' },
+      { key: 'kind', label: 'Rodzaj', placeholder: 'ferialna' },
+      { key: 'isCollective', label: 'Msza zbiorowa', placeholder: 'true/false' },
+      { key: 'note', label: 'Informacja', placeholder: 'Opis dodatkowy' },
+      { key: 'beforeService', label: 'Przed msza', placeholder: 'Rozaniec 17:30' },
+      { key: 'afterService', label: 'Po mszy', placeholder: 'Nowenna' },
+      { key: 'donationSummary', label: 'Ofiara (suma)', placeholder: '150 PLN' }
+    ]
   },
-  { type: 'AddIntention', label: 'Add intention', config: { text: 'Intencja parafialna', donation: '50 PLN' } },
-  { type: 'Emit', label: 'Emit', config: {} },
-  { type: 'Stop', label: 'Stop', config: {} }
+  {
+    type: 'AddIntention',
+    label: 'Dodaj intencje',
+    description: 'Dopisuje intencje do aktualnie budowanej mszy.',
+    input: 'tekst intencji i opcjonalna ofiara',
+    output: 'Lista intencji rozszerzona',
+    config: { text: 'Intencja parafialna', donation: '50 PLN' },
+    fields: [
+      { key: 'text', label: 'Tresc intencji', placeholder: 'Za parafian' },
+      { key: 'donation', label: 'Ofiara', placeholder: '50 PLN' }
+    ]
+  },
+  {
+    type: 'Emit',
+    label: 'Zapisz msze',
+    description: 'Tworzy wpis mszy dla danego dnia na podstawie obecnego szkicu.',
+    input: 'Szkic mszy',
+    output: 'Nowa msza w wyniku',
+    config: {},
+    fields: []
+  },
+  {
+    type: 'Stop',
+    label: 'Stop',
+    description: 'Konczy przetwarzanie grafu dla danego dnia.',
+    input: 'Brak',
+    output: 'Brak',
+    config: {},
+    fields: []
+  }
 ];
+
+const massRuleDefinitionsByType: Record<string, MassRuleNodeDefinition> = Object.fromEntries(
+  massRuleNodeDefinitions.map((definition) => [definition.type, definition])
+);
+
+const massRuleNodeTemplates: Array<{ type: string; label: string; config: Record<string, string> }> =
+  massRuleNodeDefinitions.map((definition) => ({
+    type: definition.type,
+    label: definition.label,
+    config: definition.config
+  }));
 
 const parseMassNodePosition = (config?: Record<string, string> | null, fallbackIndex = 0) => {
   const x = config && Number.isFinite(Number(config._x)) ? Number(config._x) : 80 + (fallbackIndex % 3) * 260;
@@ -193,11 +326,16 @@ const parseMassNodePosition = (config?: Record<string, string> | null, fallbackI
 
 const MassRuleGraphNode = ({ data }: { data: MassRuleNodeData }) => {
   const isBranch = data.type === 'If' || data.type === 'Weekday' || data.type === 'NthWeekdayOfMonth' || data.type === 'LiturgicalSeason' || data.type === 'Holiday' || data.type === 'DaysAfterHoliday';
+  const definition = massRuleDefinitionsByType[data.type];
   return (
     <div className="mass-rule-node">
       <Handle type="target" position={Position.Left} />
-      <strong>{data.type}</strong>
-      <span className="muted">{data.label}</span>
+      <strong>{definition?.label ?? data.type}</strong>
+      <span className="muted">{definition?.description ?? data.label}</span>
+      <div className="mass-rule-node-io">
+        <span>IN: {definition?.input ?? 'dane dnia'}</span>
+        <span>OUT: {definition?.output ?? 'next'}</span>
+      </div>
       <Handle id="next" type="source" position={Position.Right} />
       {isBranch ? <Handle id="else" type="source" position={Position.Bottom} /> : null}
     </div>
@@ -2226,6 +2364,18 @@ export function ParishPage({
       config: node.data.config ?? {}
     } as ParishMassRuleNode;
   }, [selectedMassFlowNodeId, massFlowNodes, massFlowEdges]);
+  const selectedMassRuleDefinition = selectedMassRuleNode
+    ? massRuleDefinitionsByType[selectedMassRuleNode.type]
+    : null;
+  const selectedMassRuleFields = useMemo(() => {
+    if (!selectedMassRuleNode) return [] as MassRuleConfigField[];
+    const configured = selectedMassRuleDefinition?.fields ?? [];
+    const configuredKeys = new Set(configured.map((field) => field.key));
+    const extra = Object.keys(selectedMassRuleNode.config ?? {})
+      .filter((key) => !key.startsWith('_') && !configuredKeys.has(key))
+      .map((key) => ({ key, label: key } as MassRuleConfigField));
+    return [...configured, ...extra];
+  }, [selectedMassRuleDefinition, selectedMassRuleNode]);
   const massesOfSelectedDay = useMemo(() => {
     if (!newMassDay) return [] as ParishPublicMass[];
     return publicMasses
@@ -3753,6 +3903,16 @@ export function ParishPage({
                       </>
                     ) : (
                       <div className="mass-rule-builder">
+                        <div className="parish-card mass-rule-guide">
+                          <h4>Jak budowac graf mszy</h4>
+                          <ul>
+                            <li>1. Dodaj warunki (np. dzien tygodnia, sezon, swieto), aby wybrac dni.</li>
+                            <li>2. Dodaj `Szablon mszy`, aby ustawic godzine, miejsce, rodzaj i informacje.</li>
+                            <li>3. Dodaj `Dodaj intencje` (mozna wiele razy), aby uzupelnic intencje i ofiary.</li>
+                            <li>4. Dodaj `Zapisz msze`, aby utworzyc wpis dla dnia.</li>
+                            <li>5. Zakoncz sciezke `Stop` i podlacz `next/else` bez rozlaczonych wezlow.</li>
+                          </ul>
+                        </div>
                         <div className="admin-form-grid">
                           <label>
                             <span>Nazwa reguły</span>
@@ -3813,6 +3973,14 @@ export function ParishPage({
                             <p className="muted">Wybierz node w grafie, aby edytować szczegóły.</p>
                           ) : (
                             <div className="admin-form-grid">
+                              <div className="admin-form-full mass-node-intro">
+                                <strong>{selectedMassRuleDefinition?.label ?? selectedMassRuleNode.type}</strong>
+                                <p className="note">{selectedMassRuleDefinition?.description ?? 'Konfiguracja wezla.'}</p>
+                                <p className="muted">
+                                  Wejscie: {selectedMassRuleDefinition?.input ?? 'dane dnia'} | Wyjscie:{' '}
+                                  {selectedMassRuleDefinition?.output ?? 'next'}
+                                </p>
+                              </div>
                               <label>
                                 <span>Node ID</span>
                                 <input type="text" value={selectedMassRuleNode.id} readOnly />
@@ -3821,7 +3989,16 @@ export function ParishPage({
                                 <span>Typ</span>
                                 <select
                                   value={selectedMassRuleNode.type}
-                                  onChange={(event) => updateRuleNodeType(selectedMassRuleNode.id, event.target.value)}
+                                  onChange={(event) => {
+                                    const nextType = event.target.value;
+                                    const nextDefinition = massRuleDefinitionsByType[nextType];
+                                    updateRuleNodeType(selectedMassRuleNode.id, nextType);
+                                    if (nextDefinition) {
+                                      Object.entries(nextDefinition.config).forEach(([key, value]) => {
+                                        updateRuleNodeConfig(selectedMassRuleNode.id, key, value);
+                                      });
+                                    }
+                                  }}
                                 >
                                   {massRuleNodeTemplates.map((template) => (
                                     <option key={template.type} value={template.type}>
@@ -3850,18 +4027,18 @@ export function ParishPage({
                                   }
                                 />
                               </label>
-                              {Object.entries(selectedMassRuleNode.config ?? {}).map(([key, value]) =>
-                                key.startsWith('_') ? null : (
-                                  <label key={key}>
-                                    <span>{key}</span>
-                                    <input
-                                      type="text"
-                                      value={value}
-                                      onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, key, event.target.value)}
-                                    />
-                                  </label>
-                                )
-                              )}
+                              {selectedMassRuleFields.map((field) => (
+                                <label key={field.key}>
+                                  <span>{field.label}</span>
+                                  <input
+                                    type="text"
+                                    value={selectedMassRuleNode.config?.[field.key] ?? ''}
+                                    placeholder={field.placeholder}
+                                    onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, field.key, event.target.value)}
+                                  />
+                                  {field.hint ? <span className="muted">{field.hint}</span> : null}
+                                </label>
+                              ))}
                             </div>
                           )}
                         </div>
@@ -4187,6 +4364,16 @@ export function ParishPage({
                       </>
                     ) : (
                       <div className="mass-rule-builder">
+                        <div className="parish-card mass-rule-guide">
+                          <h4>Jak budowac graf mszy</h4>
+                          <ul>
+                            <li>1. Dodaj warunki (np. dzien tygodnia, sezon, swieto), aby wybrac dni.</li>
+                            <li>2. Dodaj `Szablon mszy`, aby ustawic godzine, miejsce, rodzaj i informacje.</li>
+                            <li>3. Dodaj `Dodaj intencje` (mozna wiele razy), aby uzupelnic intencje i ofiary.</li>
+                            <li>4. Dodaj `Zapisz msze`, aby utworzyc wpis dla dnia.</li>
+                            <li>5. Zakoncz sciezke `Stop` i podlacz `next/else` bez rozlaczonych wezlow.</li>
+                          </ul>
+                        </div>
                         <div className="admin-form-grid">
                           <label>
                             <span>Nazwa reguły</span>
@@ -4247,6 +4434,14 @@ export function ParishPage({
                             <p className="muted">Wybierz node w grafie, aby edytować szczegóły.</p>
                           ) : (
                             <div className="admin-form-grid">
+                              <div className="admin-form-full mass-node-intro">
+                                <strong>{selectedMassRuleDefinition?.label ?? selectedMassRuleNode.type}</strong>
+                                <p className="note">{selectedMassRuleDefinition?.description ?? 'Konfiguracja wezla.'}</p>
+                                <p className="muted">
+                                  Wejscie: {selectedMassRuleDefinition?.input ?? 'dane dnia'} | Wyjscie:{' '}
+                                  {selectedMassRuleDefinition?.output ?? 'next'}
+                                </p>
+                              </div>
                               <label>
                                 <span>Node ID</span>
                                 <input type="text" value={selectedMassRuleNode.id} readOnly />
@@ -4255,7 +4450,16 @@ export function ParishPage({
                                 <span>Typ</span>
                                 <select
                                   value={selectedMassRuleNode.type}
-                                  onChange={(event) => updateRuleNodeType(selectedMassRuleNode.id, event.target.value)}
+                                  onChange={(event) => {
+                                    const nextType = event.target.value;
+                                    const nextDefinition = massRuleDefinitionsByType[nextType];
+                                    updateRuleNodeType(selectedMassRuleNode.id, nextType);
+                                    if (nextDefinition) {
+                                      Object.entries(nextDefinition.config).forEach(([key, value]) => {
+                                        updateRuleNodeConfig(selectedMassRuleNode.id, key, value);
+                                      });
+                                    }
+                                  }}
                                 >
                                   {massRuleNodeTemplates.map((template) => (
                                     <option key={template.type} value={template.type}>
@@ -4284,18 +4488,18 @@ export function ParishPage({
                                   }
                                 />
                               </label>
-                              {Object.entries(selectedMassRuleNode.config ?? {}).map(([key, value]) =>
-                                key.startsWith('_') ? null : (
-                                  <label key={key}>
-                                    <span>{key}</span>
-                                    <input
-                                      type="text"
-                                      value={value}
-                                      onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, key, event.target.value)}
-                                    />
-                                  </label>
-                                )
-                              )}
+                              {selectedMassRuleFields.map((field) => (
+                                <label key={field.key}>
+                                  <span>{field.label}</span>
+                                  <input
+                                    type="text"
+                                    value={selectedMassRuleNode.config?.[field.key] ?? ''}
+                                    placeholder={field.placeholder}
+                                    onChange={(event) => updateRuleNodeConfig(selectedMassRuleNode.id, field.key, event.target.value)}
+                                  />
+                                  {field.hint ? <span className="muted">{field.hint}</span> : null}
+                                </label>
+                              ))}
                             </div>
                           )}
                         </div>

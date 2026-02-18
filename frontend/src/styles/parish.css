@@ -2071,6 +2071,17 @@
   gap: 1rem;
 }
 
+.mass-rule-guide h4 {
+  margin: 0 0 0.6rem;
+}
+
+.mass-rule-guide ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
 .mass-rule-graph-shell {
   height: 460px;
   border: 1px solid var(--parish-line);
@@ -2088,6 +2099,25 @@
   display: grid;
   gap: 0.2rem;
   box-shadow: 0 6px 20px -16px var(--parish-shadow);
+}
+
+.mass-rule-node-io {
+  display: grid;
+  gap: 0.15rem;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--parish-muted);
+}
+
+.mass-node-intro {
+  border: 1px dashed var(--parish-line);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  background: #fffdf8;
+}
+
+.mass-node-intro p {
+  margin: 0.25rem 0 0;
 }
 
 .admin-form-full {
