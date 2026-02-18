@@ -350,8 +350,13 @@ export function CogitaRevisionShareRunPage({
   };
 
   const recomputeEligibility = async (cards: CogitaCardSearchResult[]) => {
+    const meta = revisionMeta as { pool?: CogitaCardSearchResult[]; active?: CogitaCardSearchResult[] };
+    const evaluationCards = cards
+      .concat(meta.active ?? [])
+      .concat(meta.pool ?? [])
+      .filter((card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index);
     if (!considerDependencies) {
-      setEligibleKeys(new Set(cards.map(getCardKey)));
+      setEligibleKeys(new Set(evaluationCards.map(getCardKey)));
       return;
     }
     const { itemKnowness, cardKnowness } = await buildKnownessMaps();
@@ -383,11 +388,11 @@ export function CogitaRevisionShareRunPage({
     const collectionId = shareInfo?.collectionId ?? null;
     const collectionDeps = collectionId ? depByChild.get(`collection:${collectionId}`) ?? [] : [];
     const collectionKnowness =
-      collectionId && cards.length > 0
-        ? cards.reduce((sum, card) => sum + (cardKnowness.get(getCardKey(card)) ?? 0), 0) / cards.length
+      collectionId && evaluationCards.length > 0
+        ? evaluationCards.reduce((sum, card) => sum + (cardKnowness.get(getCardKey(card)) ?? 0), 0) / evaluationCards.length
         : 0;
     const eligible = new Set<string>();
-    for (const card of cards) {
+    for (const card of evaluationCards) {
       if (card.cardType !== 'info') {
         eligible.add(getCardKey(card));
         continue;
@@ -696,13 +701,15 @@ export function CogitaRevisionShareRunPage({
             return { ...typed, queued };
           });
         }
+      }
+      const fallbackIndex = nextQueue.findIndex(
+        (card, index) => index !== currentIndex && isCardEligibleForRevision(card)
+      );
+      if (fallbackIndex >= 0) {
         setQueue(nextQueue);
-        const fallbackIndex = nextQueue.findIndex((card) => getCardKey(card) === fallbackKey);
-        if (fallbackIndex >= 0) {
-          setCurrentIndex(fallbackIndex);
-          setDependencyBlocked(false);
-          return;
-        }
+        setCurrentIndex(fallbackIndex);
+        setDependencyBlocked(false);
+        return;
       }
     }
     setDependencyBlocked(true);
