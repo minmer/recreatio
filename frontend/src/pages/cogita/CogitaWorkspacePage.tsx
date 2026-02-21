@@ -886,15 +886,6 @@ export function CogitaWorkspacePage({
             <p className="cogita-sidebar-note">
               {selectedLibrary ? workspaceCopy.sidebar.libraryActionsHint : workspaceCopy.status.selectLibraryFirst}
             </p>
-            <h3>{workspaceCopy.sidebar.currentPath}</h3>
-            <ul className="cogita-browser-tree">
-              {visibleNavigationLevels.map((level, index) => (
-                <li key={`sidebar:path:${level.key}`} className={index > 1 ? 'tree-child' : ''}>
-                  <span>{level.label}</span>
-                  <strong>{level.selectedLabel}</strong>
-                </li>
-              ))}
-            </ul>
             {sidebarLibraryActionsLevel ? (
               <div className="cogita-sidebar-actions">
                 {sidebarLibraryActionsLevel.options.map((option) => (

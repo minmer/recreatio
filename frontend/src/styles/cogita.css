@@ -2903,7 +2903,8 @@
   text-align: left;
   border: 0;
   border-radius: 6px;
-  padding: 0.34rem 0.2rem 0.34rem 0.6rem;
+  padding: 0.34rem 0.2rem 0.34rem 1.05rem;
+  margin-left: 0.55rem;
   color: rgba(196, 218, 242, 0.74);
   background: transparent;
   box-shadow: none;
@@ -2914,8 +2915,9 @@
 
 .cogita-sidebar-actions .ghost.active {
   color: rgba(232, 242, 255, 0.9);
-  background: rgba(120, 180, 235, 0.09);
+  background: rgba(120, 180, 235, 0.22);
   border-left-color: rgba(140, 205, 255, 0.65);
+  font-weight: 600;
 }
 
 .cogita-sidebar-actions .ghost:hover:not(:disabled),
