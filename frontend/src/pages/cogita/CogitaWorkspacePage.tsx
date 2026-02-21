@@ -91,6 +91,7 @@ type NavigationLevel = {
 };
 
 type InfoMode = 'search' | 'create' | 'selected';
+type TutorialSlide = { title: string; body: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
 const TARGET_OPTIONS: CogitaTarget[] = [
@@ -424,6 +425,7 @@ export function CogitaWorkspacePage({
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [revisionsLoading, setRevisionsLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [tutorialIndex, setTutorialIndex] = useState(0);
   const [newLibraryName, setNewLibraryName] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newRevisionName, setNewRevisionName] = useState('');
@@ -520,6 +522,63 @@ export function CogitaWorkspacePage({
   );
   const selectedRevisionLabel = revisionLabels[displayRevisionView];
   const hasLibrarySelection = Boolean(selectedLibraryId);
+  const tutorialSlides = useMemo<TutorialSlide[]>(() => {
+    if (language === 'pl') {
+      return [
+        { title: 'Witamy w Cogita', body: 'To miejsce pracy z bibliotekami, kolekcjami, powtórkami i informacjami.' },
+        { title: '1. Biblioteka', body: 'Najpierw tworzysz bibliotekę. To główny kontener dla całej wiedzy.' },
+        { title: '2. Informacje', body: 'Informacje są podstawowymi elementami. Każdy typ ma własną strukturę.' },
+        { title: '3. Typy informacji', body: 'Możesz dodawać słowa, osoby, źródła, cytaty i inne typy opisane w specyfikacji.' },
+        { title: '4. Linki', body: 'Informacje łączysz linkami, np. tematy i referencje, także między różnymi typami.' },
+        { title: '5. Kolekcje', body: 'Kolekcja grupuje wybrane informacje do konkretnego celu nauki.' },
+        { title: '6. Powtórki', body: 'Dla kolekcji tworzysz powtórki z własnymi ustawieniami i trybem sprawdzania.' },
+        { title: '7. Karty', body: 'Karty to widok sprawdzania informacji. Informacja i karta to nie to samo.' },
+        { title: '8. Graf zależności', body: 'Graf pokazuje relacje i wpływ jednych elementów na drugie.' },
+        { title: '9. Storyboardy', body: 'Storyboardy służą do szkicowania przebiegu i kontekstu nauki.' },
+        { title: '10. Teksty', body: 'Moduł tekstów łączy notatki z biblioteką jako materiał roboczy.' },
+        { title: '11. Udostępnianie', body: 'Biblioteki i powtórki możesz udostępniać do odczytu bez pełnej edycji.' },
+        { title: '12. Nawigacja', body: 'Breadcrumb pokazuje aktualną ścieżkę, a sidebar pokazuje akcje dla poziomu.' },
+        { title: '13. Zacznij teraz', body: 'Utwórz pierwszą bibliotekę. Pozostałe działania odblokują się automatycznie.' }
+      ];
+    }
+    if (language === 'de') {
+      return [
+        { title: 'Willkommen bei Cogita', body: 'Dies ist der Arbeitsbereich für Bibliotheken, Sammlungen, Wiederholungen und Informationen.' },
+        { title: '1. Bibliothek', body: 'Zuerst erstellst du eine Bibliothek. Sie ist der Hauptcontainer für dein Wissen.' },
+        { title: '2. Informationen', body: 'Informationen sind die Basiseinheiten. Jeder Typ hat eine eigene Struktur.' },
+        { title: '3. Informationstypen', body: 'Du kannst Wörter, Personen, Quellen, Zitate und weitere Typen anlegen.' },
+        { title: '4. Verknüpfungen', body: 'Informationen werden verlinkt, z. B. mit Themen und Referenzen.' },
+        { title: '5. Sammlungen', body: 'Eine Sammlung bündelt ausgewählte Informationen für ein Lernziel.' },
+        { title: '6. Wiederholungen', body: 'Für eine Sammlung erstellst du Wiederholungen mit eigenen Einstellungen.' },
+        { title: '7. Karten', body: 'Karten sind die Prüfansicht. Information und Karte sind unterschiedlich.' },
+        { title: '8. Abhängigkeitsgraph', body: 'Der Graph zeigt Beziehungen und Abhängigkeiten zwischen Elementen.' },
+        { title: '9. Storyboards', body: 'Storyboards helfen beim Entwurf von Lernablauf und Kontext.' },
+        { title: '10. Texte', body: 'Das Textmodul verbindet Notizen direkt mit der Bibliothek.' },
+        { title: '11. Teilen', body: 'Bibliotheken und Wiederholungen können schreibgeschützt geteilt werden.' },
+        { title: '12. Navigation', body: 'Breadcrumb zeigt den Pfad, die Sidebar zeigt Aktionen pro Ebene.' },
+        { title: '13. Jetzt starten', body: 'Erstelle deine erste Bibliothek. Weitere Aktionen werden danach verfügbar.' }
+      ];
+    }
+    return [
+      { title: 'Welcome to Cogita', body: 'This workspace organizes libraries, collections, revisions, and information.' },
+      { title: '1. Library first', body: 'Start by creating a library. It is the root container for your knowledge.' },
+      { title: '2. Information model', body: 'Information entries are the core units. Each type has its own structure.' },
+      { title: '3. Type-driven forms', body: 'Create and edit screens are generated from type specifications.' },
+      { title: '4. Links between infos', body: 'Link fields connect info entries, including references and topics.' },
+      { title: '5. Collections', body: 'Collections gather selected info entries for a specific learning goal.' },
+      { title: '6. Revisions', body: 'Revisions belong to collections and define how review sessions run.' },
+      { title: '7. Cards vs info', body: 'A card is a checking view of an info, not the info object itself.' },
+      { title: '8. Dependency graph', body: 'Graphs show dependencies and relation flow across your knowledge.' },
+      { title: '9. Storyboards', body: 'Storyboards support visual planning and structured learning context.' },
+      { title: '10. Text workspace', body: 'Texts module keeps writing and notes connected to the same library.' },
+      { title: '11. Sharing', body: 'Libraries can be shared for reading while keeping personal checks private.' },
+      { title: '12. Navigation logic', body: 'Breadcrumb shows current path, sidebar shows actions for current level.' },
+      { title: '13. Next step', body: 'Create your first library now. Everything else unlocks from there.' }
+    ];
+  }, [language]);
+  const tutorialTotal = tutorialSlides.length;
+  const safeTutorialIndex = Math.max(0, Math.min(tutorialIndex, tutorialTotal - 1));
+  const activeTutorialSlide = tutorialSlides[safeTutorialIndex];
   const hasCollectionSelection = Boolean(selectedCollectionId);
   const showCollectionLayer = hasLibrarySelection && selectedTarget === 'all_collections';
   const showCollectionActionLayer = hasCollectionSelection && selectedTarget === 'all_collections';
@@ -1562,6 +1621,100 @@ export function CogitaWorkspacePage({
 
           {!embeddedSubpage ? (
             <>
+              {!selectedLibraryId ? (
+                <section className="cogita-browser-intro">
+                  <div className="cogita-browser-intro-main">
+                    <article className="cogita-browser-panel cogita-browser-tutorial">
+                      <div className="cogita-browser-tutorial-head">
+                        <h2>{activeTutorialSlide.title}</h2>
+                        <p>
+                          {safeTutorialIndex + 1} / {tutorialTotal}
+                        </p>
+                      </div>
+                      <p className="cogita-browser-note">{activeTutorialSlide.body}</p>
+                      <div className="cogita-browser-tutorial-progress" role="list" aria-label="Tutorial progress">
+                        {tutorialSlides.map((slide, index) => (
+                          <button
+                            key={`tutorial:${slide.title}:${index}`}
+                            type="button"
+                            className={`ghost ${index === safeTutorialIndex ? 'active' : ''}`}
+                            onClick={() => setTutorialIndex(index)}
+                            aria-label={`${index + 1}`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="cogita-form-actions">
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={safeTutorialIndex === 0}
+                          onClick={() => setTutorialIndex((current) => Math.max(0, current - 1))}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          className="cta"
+                          disabled={safeTutorialIndex === tutorialTotal - 1}
+                          onClick={() => setTutorialIndex((current) => Math.min(tutorialTotal - 1, current + 1))}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div className="cogita-browser-intro-side">
+                    <article className="cogita-browser-panel">
+                      <h2>{copy.cogita.user.createLibraryTitle}</h2>
+                      <label className="cogita-field full">
+                        <span>{copy.cogita.user.libraryNameLabel}</span>
+                        <input
+                          type="text"
+                          value={newLibraryName}
+                          onChange={(event) => setNewLibraryName(event.target.value)}
+                          placeholder={copy.cogita.user.libraryNamePlaceholder}
+                        />
+                      </label>
+                      <button type="button" className="cta" onClick={handleCreateLibrary}>
+                        {copy.cogita.user.createLibraryAction}
+                      </button>
+                      {status ? <p className="cogita-form-error">{status}</p> : null}
+                    </article>
+
+                    <article className="cogita-browser-panel">
+                      <h2>{copy.cogita.user.availableLibraries}</h2>
+                      {libraries.length === 0 ? <p className="cogita-browser-note">{copy.cogita.user.noLibraries}</p> : null}
+                      {libraries.length > 0 ? (
+                        <div className="cogita-card-list" data-view="list">
+                          {libraries.map((library) => (
+                            <button
+                              key={library.libraryId}
+                              type="button"
+                              className="cogita-card-item"
+                              onClick={() => {
+                                setSelectedLibraryId(library.libraryId);
+                                setSelectedTarget('library_overview');
+                                setSelectedCollectionId(undefined);
+                                setSelectedRevisionId(undefined);
+                                setSelectedRevisionView('detail');
+                              }}
+                            >
+                              <div className="cogita-card-type">{copy.cogita.user.libraryRoleLabel}</div>
+                              <h3 className="cogita-card-title">{library.name}</h3>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </article>
+                  </div>
+                </section>
+              ) : null}
+
+              {selectedLibraryId ? (
+              <>
               <div className="cogita-browser-layout">
                 <article className="cogita-browser-panel">
               <h2>{workspaceCopy.panels.currentPosition}</h2>
@@ -1684,6 +1837,8 @@ export function CogitaWorkspacePage({
                   </div>
                 ) : null}
               </section>
+              </>
+              ) : null}
             </>
           ) : null}
         </div>
