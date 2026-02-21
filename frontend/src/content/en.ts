@@ -153,7 +153,7 @@ export const en: Copy = {
         revision: 'Revision'
       },
       noLibraryOption: 'No library',
-      selectCollectionOption: 'Select collection',
+      selectCollectionOption: 'Collection',
       targets: {
         libraryOverview: 'Library overview',
         allCards: 'All cards',
@@ -178,7 +178,7 @@ export const en: Copy = {
         loadingCollections: 'Loading collections...',
         noCollections: 'No collections in this library yet.',
         loadingRevisions: 'Loading revisions...',
-        noRevisions: 'No revisions in this collection yet.'
+        noRevisions: 'Revision'
       },
       panels: {
         currentPosition: 'Current position',
@@ -187,7 +187,7 @@ export const en: Copy = {
       },
       path: {
         noLibrarySelected: 'No library selected',
-        noCollectionSelected: 'No collection selected',
+        noCollectionSelected: 'Collection',
         noCollectionLayer: 'No collection layer',
         currentRoute: 'Current route:'
       },

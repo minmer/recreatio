@@ -153,7 +153,7 @@ export const de: Copy = {
         revision: 'Wiederholung'
       },
       noLibraryOption: 'Keine Bibliothek',
-      selectCollectionOption: 'Sammlung wählen',
+      selectCollectionOption: 'Sammlung',
       targets: {
         libraryOverview: 'Bibliotheksübersicht',
         allCards: 'Alle Karten',
@@ -178,7 +178,7 @@ export const de: Copy = {
         loadingCollections: 'Sammlungen werden geladen...',
         noCollections: 'In dieser Bibliothek gibt es noch keine Sammlungen.',
         loadingRevisions: 'Wiederholungen werden geladen...',
-        noRevisions: 'In dieser Sammlung gibt es noch keine Wiederholungen.'
+        noRevisions: 'Wiederholung'
       },
       panels: {
         currentPosition: 'Aktuelle Position',
@@ -187,7 +187,7 @@ export const de: Copy = {
       },
       path: {
         noLibrarySelected: 'Keine Bibliothek ausgewählt',
-        noCollectionSelected: 'Keine Sammlung ausgewählt',
+        noCollectionSelected: 'Sammlung',
         noCollectionLayer: 'Keine Sammlungsebene',
         currentRoute: 'Aktuelle Route:'
       },

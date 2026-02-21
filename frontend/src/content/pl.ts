@@ -153,7 +153,7 @@ export const pl: Copy = {
         revision: 'Powtórka'
       },
       noLibraryOption: 'Brak biblioteki',
-      selectCollectionOption: 'Wybierz kolekcję',
+      selectCollectionOption: 'Kolekcja',
       targets: {
         libraryOverview: 'Przegląd biblioteki',
         allCards: 'Wszystkie karty',
@@ -178,7 +178,7 @@ export const pl: Copy = {
         loadingCollections: 'Ładowanie kolekcji...',
         noCollections: 'Brak kolekcji w tej bibliotece.',
         loadingRevisions: 'Ładowanie powtórek...',
-        noRevisions: 'Brak zapisanych powtórek w tej kolekcji.'
+        noRevisions: 'Powtórka'
       },
       panels: {
         currentPosition: 'Aktualna pozycja',
@@ -187,7 +187,7 @@ export const pl: Copy = {
       },
       path: {
         noLibrarySelected: 'Nie wybrano biblioteki',
-        noCollectionSelected: 'Nie wybrano kolekcji',
+        noCollectionSelected: 'Kolekcja',
         noCollectionLayer: 'Brak warstwy kolekcji',
         currentRoute: 'Aktualna ścieżka:'
       },
