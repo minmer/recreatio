@@ -3139,6 +3139,14 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.cogita-browser-embedded {
+  border: 1px solid rgba(130, 190, 250, 0.24);
+  background: rgba(7, 18, 31, 0.82);
+  min-height: 70vh;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 .cogita-browser-panel {
   display: grid;
   gap: 0.7rem;

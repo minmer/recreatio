@@ -1,8 +1,10 @@
-import type { ReactNode } from 'react';
+import { createContext, useContext, type ReactNode } from 'react';
 import { AuthAction } from '../../components/AuthAction';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
+
+export const CogitaEmbeddedContext = createContext(false);
 
 export function CogitaShell({
   copy,
@@ -29,6 +31,12 @@ export function CogitaShell({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   children: ReactNode;
 }) {
+  const embedded = useContext(CogitaEmbeddedContext);
+
+  if (embedded) {
+    return <>{children}</>;
+  }
+
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       window.history.back();
