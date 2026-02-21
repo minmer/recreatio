@@ -16,7 +16,8 @@ export function CogitaLibrarySharedRevisionsPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId
+  libraryId,
+  collectionId
 }: {
   copy: Copy;
   authLabel: string;
@@ -29,6 +30,7 @@ export function CogitaLibrarySharedRevisionsPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
+  collectionId?: string;
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const [shares, setShares] = useState<CogitaRevisionShare[]>([]);
@@ -125,11 +127,13 @@ export function CogitaLibrarySharedRevisionsPage({
                       <p>{copy.cogita.library.revision.shareListLoading}</p>
                     ) : status === 'error' ? (
                       <p>{copy.cogita.library.revision.shareError}</p>
-                    ) : shares.length === 0 ? (
+                    ) : shares.filter((share) => !collectionId || share.collectionId === collectionId).length === 0 ? (
                       <p>{copy.cogita.library.revision.shareListEmpty}</p>
                     ) : (
                       <div className="cogita-share-list">
-                        {shares.map((share) => (
+                        {shares
+                          .filter((share) => !collectionId || share.collectionId === collectionId)
+                          .map((share) => (
                           <div className="cogita-share-row" key={share.shareId} data-state={share.revokedUtc ? 'revoked' : 'active'}>
                             <div>
                               <strong>{share.collectionName}</strong>
