@@ -12,20 +12,8 @@ import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 import { ParishPage } from './pages/parish/ParishPage';
 import { CogitaPage } from './pages/cogita/CogitaPage';
-import { CogitaUserPage } from './pages/cogita/CogitaUserPage';
-import { CogitaLibraryOverviewPage } from './pages/cogita/library/CogitaLibraryOverviewPage';
-import { CogitaLibraryListPage } from './pages/cogita/library/CogitaLibraryListPage';
-import { CogitaLibraryAddPage } from './pages/cogita/library/CogitaLibraryAddPage';
-import { CogitaDependencyGraphPage } from './pages/cogita/library/CogitaDependencyGraphPage';
-import { CogitaLibrarySharedRevisionsPage } from './pages/cogita/library/CogitaLibrarySharedRevisionsPage';
-import { CogitaCollectionListPage } from './pages/cogita/library/collections/CogitaCollectionListPage';
-import { CogitaCollectionCreatePage } from './pages/cogita/library/collections/CogitaCollectionCreatePage';
-import { CogitaCollectionDetailPage } from './pages/cogita/library/collections/CogitaCollectionDetailPage';
-import { CogitaRevisionSettingsPage } from './pages/cogita/library/collections/CogitaRevisionSettingsPage';
-import { CogitaRevisionRunPage } from './pages/cogita/library/collections/CogitaRevisionRunPage';
 import { CogitaRevisionShareRunPage } from './pages/cogita/library/collections/CogitaRevisionShareRunPage';
-import { CogitaCollectionGraphPage } from './pages/cogita/library/collections/CogitaCollectionGraphPage';
-import type { CogitaLibraryMode } from './pages/cogita/library/types';
+import { CogitaWorkspacePage } from './pages/cogita/CogitaWorkspacePage';
 import { AccountPage } from './pages/account/AccountPage';
 
 const deviceInfo = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
@@ -67,40 +55,6 @@ export default function App() {
   const isCogitaSharePath = pathname.startsWith('/cogita/public/revision');
   const shareSegments = pathname.split('/').filter(Boolean);
   const shareId = isCogitaSharePath ? shareSegments[3] : undefined;
-  const isCogitaLibraryPath = pathname.startsWith('/cogita/library');
-  const cogitaSegments = pathname.split('/').filter(Boolean);
-  const cogitaLibraryId = cogitaSegments[1] === 'library' ? cogitaSegments[2] : undefined;
-  const isCogitaCollectionPath = isCogitaLibraryPath && cogitaSegments[3] === 'collections';
-  const collectionSegment = isCogitaCollectionPath ? cogitaSegments[4] : undefined;
-  const collectionId = collectionSegment && collectionSegment !== 'new' ? collectionSegment : undefined;
-  const collectionView = !isCogitaCollectionPath
-    ? null
-    : !collectionSegment
-      ? 'list'
-      : collectionSegment === 'new'
-        ? 'create'
-        : cogitaSegments[5] === 'graph'
-          ? 'graph'
-          : cogitaSegments[5] === 'revision'
-            ? cogitaSegments[6] === 'run'
-              ? 'revision'
-              : 'settings'
-            : 'detail';
-  const libraryModeSegment = cogitaSegments[3];
-  const libraryMode: CogitaLibraryMode =
-    libraryModeSegment === 'collection' || libraryModeSegment === 'list' || libraryModeSegment === 'detail'
-      ? libraryModeSegment
-      : 'detail';
-  const libraryView =
-    libraryModeSegment === 'new' || libraryModeSegment === 'add' || libraryModeSegment === 'edit'
-      ? 'add'
-      : libraryModeSegment === 'dependencies'
-        ? 'dependencies'
-        : libraryModeSegment === 'shared-revisions'
-          ? 'shared-revisions'
-        : libraryModeSegment === 'list' || libraryModeSegment === 'collection' || libraryModeSegment === 'detail'
-          ? 'list'
-          : 'overview';
   const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
     pathname === '/faq' || pathname === '/legal' || pathname === '/login'
@@ -416,185 +370,18 @@ export default function App() {
         />
       ) : isCogitaPath ? (
         isAuthenticated ? (
-          isCogitaLibraryPath && cogitaLibraryId ? (
-            isCogitaCollectionPath ? (
-              collectionView === 'create' ? (
-                <CogitaCollectionCreatePage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                  onCreated={(newCollectionId) => navigate(`/cogita/library/${cogitaLibraryId}/collections/${newCollectionId}/graph`)}
-                />
-              ) : collectionView === 'detail' && collectionId ? (
-                <CogitaCollectionDetailPage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                  collectionId={collectionId}
-                />
-              ) : collectionView === 'settings' && collectionId ? (
-                <CogitaRevisionSettingsPage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                  collectionId={collectionId}
-                />
-              ) : collectionView === 'graph' && collectionId ? (
-                <CogitaCollectionGraphPage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                  collectionId={collectionId}
-                />
-              ) : collectionView === 'revision' && collectionId ? (
-                <CogitaRevisionRunPage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                  collectionId={collectionId}
-                />
-              ) : (
-                <CogitaCollectionListPage
-                  copy={t}
-                  authLabel={t.nav.account}
-                  showProfileMenu
-                  onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                  onToggleSecureMode={handleToggleMode}
-                  onLogout={handleLogout}
-                  secureMode={secureMode}
-                  onNavigate={navigateRoute}
-                  language={language}
-                  onLanguageChange={setLanguage}
-                  libraryId={cogitaLibraryId}
-                />
-              )
-            ) : libraryView === 'add' ? (
-              <CogitaLibraryAddPage
-                copy={t}
-                authLabel={t.nav.account}
-                showProfileMenu
-                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                onToggleSecureMode={handleToggleMode}
-                onLogout={handleLogout}
-                secureMode={secureMode}
-                onNavigate={navigateRoute}
-                language={language}
-                onLanguageChange={setLanguage}
-                libraryId={cogitaLibraryId}
-                editInfoId={libraryModeSegment === 'edit' ? cogitaSegments[4] : undefined}
-              />
-            ) : libraryView === 'dependencies' ? (
-              <CogitaDependencyGraphPage
-                copy={t}
-                authLabel={t.nav.account}
-                showProfileMenu
-                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                onToggleSecureMode={handleToggleMode}
-                onLogout={handleLogout}
-                secureMode={secureMode}
-                onNavigate={navigateRoute}
-                language={language}
-                onLanguageChange={setLanguage}
-                libraryId={cogitaLibraryId}
-              />
-            ) : libraryView === 'list' ? (
-              <CogitaLibraryListPage
-                copy={t}
-                authLabel={t.nav.account}
-                showProfileMenu
-                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                onToggleSecureMode={handleToggleMode}
-                onLogout={handleLogout}
-                secureMode={secureMode}
-                onNavigate={navigateRoute}
-                language={language}
-                onLanguageChange={setLanguage}
-                libraryId={cogitaLibraryId}
-                mode={libraryMode}
-              />
-            ) : libraryView === 'shared-revisions' ? (
-              <CogitaLibrarySharedRevisionsPage
-                copy={t}
-                authLabel={t.nav.account}
-                showProfileMenu
-                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                onToggleSecureMode={handleToggleMode}
-                onLogout={handleLogout}
-                secureMode={secureMode}
-                onNavigate={navigateRoute}
-                language={language}
-                onLanguageChange={setLanguage}
-                libraryId={cogitaLibraryId}
-              />
-            ) : (
-              <CogitaLibraryOverviewPage
-                copy={t}
-                authLabel={t.nav.account}
-                showProfileMenu
-                onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-                onToggleSecureMode={handleToggleMode}
-                onLogout={handleLogout}
-                secureMode={secureMode}
-                onNavigate={navigateRoute}
-                language={language}
-                onLanguageChange={setLanguage}
-                libraryId={cogitaLibraryId}
-              />
-            )
-          ) : (
-            <CogitaUserPage
-              copy={t}
-              authLabel={t.nav.account}
-              showProfileMenu
-              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-              onToggleSecureMode={handleToggleMode}
-              onLogout={handleLogout}
-              secureMode={secureMode}
-              onNavigate={navigateRoute}
-              language={language}
-              onLanguageChange={setLanguage}
-            />
-          )
+          <CogitaWorkspacePage
+            copy={t}
+            authLabel={t.nav.account}
+            showProfileMenu
+            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
         ) : (
           <CogitaPage
             copy={t}
