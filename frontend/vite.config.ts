@@ -10,26 +10,12 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules')) {
             if (
-              id.includes('/react-router-dom/') ||
-              id.includes('/react-router/') ||
-              id.includes('/history/')
-            ) {
-              return 'vendor-router';
-            }
-            if (
               id.includes('/reactflow/') ||
               id.includes('/@dnd-kit/') ||
               id.includes('/katex/') ||
               id.includes('/react-katex/')
             ) {
               return 'vendor-cogita-ui';
-            }
-            if (
-              id.includes('/react/') ||
-              id.includes('/react-dom/') ||
-              id.includes('/scheduler/')
-            ) {
-              return 'vendor-react';
             }
             return 'vendor';
           }
