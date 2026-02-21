@@ -75,13 +75,9 @@ const PREFS_ITEM_NAME = 'cogita.preferences';
 const TARGET_OPTIONS: CogitaTarget[] = [
   'library_overview',
   'all_cards',
-  'new_card',
   'all_collections',
-  'new_collection',
   'storyboards',
-  'new_storyboard',
   'texts',
-  'new_text',
   'dependencies',
   'transfer'
 ];
@@ -440,19 +436,25 @@ export function CogitaWorkspacePage({
       { value: 'detail', label: revisionLabels.detail },
       { value: 'graph', label: revisionLabels.graph },
       { value: 'settings', label: workspaceCopy.targets.allRevisions },
-      { value: 'new', label: revisionLabels.new },
       { value: 'run', label: revisionLabels.run },
       { value: 'shared', label: revisionLabels.shared }
     ],
     [
       revisionLabels.detail,
       revisionLabels.graph,
-      revisionLabels.new,
       revisionLabels.run,
       revisionLabels.shared,
       workspaceCopy.targets.allRevisions
     ]
   );
+  const displayTarget = useMemo<CogitaTarget>(() => {
+    if (selectedTarget === 'new_card') return 'all_cards';
+    if (selectedTarget === 'new_collection') return 'all_collections';
+    if (selectedTarget === 'new_storyboard') return 'storyboards';
+    if (selectedTarget === 'new_text') return 'texts';
+    return selectedTarget;
+  }, [selectedTarget]);
+  const displayRevisionView = useMemo<RevisionView>(() => (selectedRevisionView === 'new' ? 'settings' : selectedRevisionView), [selectedRevisionView]);
   const targetLabels = useMemo<Record<CogitaTarget, string>>(
     () => ({
       library_overview: workspaceCopy.targets.libraryOverview,
@@ -470,10 +472,10 @@ export function CogitaWorkspacePage({
     [workspaceCopy.targets]
   );
   const selectedTargetLabel = useMemo(
-    () => targetLabels[selectedTarget] ?? selectedTarget,
-    [selectedTarget, targetLabels]
+    () => targetLabels[displayTarget] ?? displayTarget,
+    [displayTarget, targetLabels]
   );
-  const selectedRevisionLabel = revisionLabels[selectedRevisionView];
+  const selectedRevisionLabel = revisionLabels[displayRevisionView];
   const hasLibrarySelection = Boolean(selectedLibraryId);
   const hasCollectionSelection = Boolean(selectedCollectionId);
   const showCollectionLayer = hasLibrarySelection && selectedTarget === 'all_collections';
@@ -571,7 +573,7 @@ export function CogitaWorkspacePage({
         key: 'target',
         label: workspaceCopy.layers.target,
         visible: hasLibrarySelection,
-        value: selectedTarget,
+        value: displayTarget,
         selectedLabel: selectedTargetLabel,
         disabled: !hasLibrarySelection,
         options: TARGET_OPTIONS.map((target) => ({ value: target, label: targetLabels[target] })),
@@ -611,7 +613,7 @@ export function CogitaWorkspacePage({
         key: 'collection_action',
         label: workspaceCopy.layers.revision,
         visible: showCollectionActionLayer,
-        value: selectedRevisionView,
+        value: displayRevisionView,
         selectedLabel: selectedRevisionLabel,
         disabled: !selectedCollectionId,
         options: collectionActionOptions.map((option) => ({ value: option.value, label: option.label })),
@@ -670,6 +672,8 @@ export function CogitaWorkspacePage({
       selectedRevisionLabel,
       selectedRevisionView,
       selectedTarget,
+      displayRevisionView,
+      displayTarget,
       selectedTargetLabel,
       showCollectionLayer,
       showCollectionActionLayer,
