@@ -196,6 +196,18 @@ export const pl: Copy = {
       cards: {
         collectionType: 'Kolekcja',
         itemsSuffix: 'elementów'
+      },
+      sidebar: {
+        title: 'Nawigacja',
+        openMenu: 'Otwórz menu',
+        closeMenu: 'Zamknij menu',
+        currentPath: 'Aktualna ścieżka',
+        explore: 'Przeglądaj',
+        context: 'Kontekst',
+        contextEmpty: 'Wybierz kolekcję, aby zobaczyć akcje kolekcji.',
+        alwaysAvailable: 'Zawsze dostępne',
+        accountSettings: 'Ustawienia konta',
+        cogitaHome: 'Strona główna Cogita'
       }
     },
     introSlides: [

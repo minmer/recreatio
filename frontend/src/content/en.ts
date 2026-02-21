@@ -196,6 +196,18 @@ export const en: Copy = {
       cards: {
         collectionType: 'Collection',
         itemsSuffix: 'items'
+      },
+      sidebar: {
+        title: 'Navigation',
+        openMenu: 'Open menu',
+        closeMenu: 'Close menu',
+        currentPath: 'Current path',
+        explore: 'Explore',
+        context: 'Context',
+        contextEmpty: 'Select a collection to see collection actions.',
+        alwaysAvailable: 'Always available',
+        accountSettings: 'Account settings',
+        cogitaHome: 'Cogita home'
       }
     },
     introSlides: [

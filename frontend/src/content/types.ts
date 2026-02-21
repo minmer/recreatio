@@ -153,6 +153,18 @@ export type Copy = {
         collectionType: string;
         itemsSuffix: string;
       };
+      sidebar: {
+        title: string;
+        openMenu: string;
+        closeMenu: string;
+        currentPath: string;
+        explore: string;
+        context: string;
+        contextEmpty: string;
+        alwaysAvailable: string;
+        accountSettings: string;
+        cogitaHome: string;
+      };
     };
     introSlides: Array<{
       id: string;
