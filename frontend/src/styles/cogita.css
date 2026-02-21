@@ -2974,20 +2974,16 @@
   gap: 1.1rem;
 }
 
-.cogita-browser-header {
-  display: grid;
-  gap: 0.35rem;
-}
-
 .cogita-browser-menu {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.7rem;
-  padding: 0.8rem 1rem;
-  border-radius: 14px;
-  background: rgba(8, 21, 36, 0.78);
-  border: 1px solid rgba(130, 190, 250, 0.24);
+  padding: 0.65rem 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(130, 190, 250, 0.24);
 }
 
 .cogita-browser-segment {

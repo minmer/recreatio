@@ -144,6 +144,60 @@ export const de: Copy = {
       libraryNameRequired: 'Bibliotheksname ist erforderlich.',
       libraryCreateFailed: 'Bibliothek konnte noch nicht erstellt werden.'
     },
+    workspace: {
+      navigationAria: 'Cogita Browser-Navigation',
+      layers: {
+        library: 'Bibliothek',
+        target: 'Ziel',
+        collection: 'Sammlung',
+        revision: 'Wiederholung'
+      },
+      noLibraryOption: 'Keine Bibliothek',
+      selectCollectionOption: 'Sammlung wählen',
+      targets: {
+        libraryOverview: 'Bibliotheksübersicht',
+        allCards: 'Alle Karten',
+        newCard: 'Neue Karte',
+        allCollections: 'Alle Sammlungen',
+        newCollection: 'Neue Sammlung',
+        collectionRevision: 'Sammlungs-Wiederholung',
+        sharedRevisions: 'Geteilte Wiederholungen',
+        dependencies: 'Abhängigkeitsgraph'
+      },
+      revisions: {
+        detail: 'Detail',
+        graph: 'Graph',
+        settings: 'Einstellungen',
+        run: 'Starten'
+      },
+      status: {
+        loadFailed: 'Cogita-Arbeitsbereich konnte nicht geladen werden.',
+        savePrefsFailed: 'Cogita-Einstellungen konnten nicht gespeichert werden.',
+        selectLibraryFirst: 'Bitte zuerst eine Bibliothek auswählen.',
+        loadingCollections: 'Sammlungen werden geladen...',
+        noCollections: 'In dieser Bibliothek gibt es noch keine Sammlungen.'
+      },
+      panels: {
+        currentPosition: 'Aktuelle Position',
+        quickCreate: 'Schnell erstellen',
+        collections: 'Sammlungen'
+      },
+      path: {
+        noLibrarySelected: 'Keine Bibliothek ausgewählt',
+        noCollectionSelected: 'Keine Sammlung ausgewählt',
+        noCollectionLayer: 'Keine Sammlungsebene',
+        currentRoute: 'Aktuelle Route:'
+      },
+      links: {
+        libraryOverview: 'Bibliotheksübersicht',
+        allCards: 'Kartenliste',
+        sharedRevisions: 'Geteilte Wiederholungen'
+      },
+      cards: {
+        collectionType: 'Sammlung',
+        itemsSuffix: 'Einträge'
+      }
+    },
     introSlides: [
       {
         id: 'entry',

@@ -144,6 +144,60 @@ export const en: Copy = {
       libraryNameRequired: 'Library name is required.',
       libraryCreateFailed: 'Could not create the library yet.'
     },
+    workspace: {
+      navigationAria: 'Cogita browser navigation',
+      layers: {
+        library: 'Library',
+        target: 'Target',
+        collection: 'Collection',
+        revision: 'Revision'
+      },
+      noLibraryOption: 'No library',
+      selectCollectionOption: 'Select collection',
+      targets: {
+        libraryOverview: 'Library overview',
+        allCards: 'All cards',
+        newCard: 'New card',
+        allCollections: 'All collections',
+        newCollection: 'New collection',
+        collectionRevision: 'Collection revision',
+        sharedRevisions: 'Shared revisions',
+        dependencies: 'Dependencies graph'
+      },
+      revisions: {
+        detail: 'Detail',
+        graph: 'Graph',
+        settings: 'Settings',
+        run: 'Run'
+      },
+      status: {
+        loadFailed: 'Failed to load Cogita workspace.',
+        savePrefsFailed: 'Could not save Cogita preferences.',
+        selectLibraryFirst: 'Select a library first.',
+        loadingCollections: 'Loading collections...',
+        noCollections: 'No collections in this library yet.'
+      },
+      panels: {
+        currentPosition: 'Current position',
+        quickCreate: 'Quick create',
+        collections: 'Collections'
+      },
+      path: {
+        noLibrarySelected: 'No library selected',
+        noCollectionSelected: 'No collection selected',
+        noCollectionLayer: 'No collection layer',
+        currentRoute: 'Current route:'
+      },
+      links: {
+        libraryOverview: 'Library overview',
+        allCards: 'Cards list',
+        sharedRevisions: 'Shared revisions'
+      },
+      cards: {
+        collectionType: 'Collection',
+        itemsSuffix: 'items'
+      }
+    },
     introSlides: [
       {
         id: 'entry',

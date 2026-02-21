@@ -144,6 +144,60 @@ export const pl: Copy = {
       libraryNameRequired: 'Nazwa biblioteki jest wymagana.',
       libraryCreateFailed: 'Nie udało się jeszcze utworzyć biblioteki.'
     },
+    workspace: {
+      navigationAria: 'Nawigacja przeglądarki Cogita',
+      layers: {
+        library: 'Biblioteka',
+        target: 'Cel',
+        collection: 'Kolekcja',
+        revision: 'Powtórka'
+      },
+      noLibraryOption: 'Brak biblioteki',
+      selectCollectionOption: 'Wybierz kolekcję',
+      targets: {
+        libraryOverview: 'Przegląd biblioteki',
+        allCards: 'Wszystkie karty',
+        newCard: 'Nowa karta',
+        allCollections: 'Wszystkie kolekcje',
+        newCollection: 'Nowa kolekcja',
+        collectionRevision: 'Powtórka kolekcji',
+        sharedRevisions: 'Udostępnione powtórki',
+        dependencies: 'Graf zależności'
+      },
+      revisions: {
+        detail: 'Szczegóły',
+        graph: 'Graf',
+        settings: 'Ustawienia',
+        run: 'Uruchom'
+      },
+      status: {
+        loadFailed: 'Nie udało się załadować przestrzeni Cogita.',
+        savePrefsFailed: 'Nie udało się zapisać preferencji Cogita.',
+        selectLibraryFirst: 'Najpierw wybierz bibliotekę.',
+        loadingCollections: 'Ładowanie kolekcji...',
+        noCollections: 'Brak kolekcji w tej bibliotece.'
+      },
+      panels: {
+        currentPosition: 'Aktualna pozycja',
+        quickCreate: 'Szybkie tworzenie',
+        collections: 'Kolekcje'
+      },
+      path: {
+        noLibrarySelected: 'Nie wybrano biblioteki',
+        noCollectionSelected: 'Nie wybrano kolekcji',
+        noCollectionLayer: 'Brak warstwy kolekcji',
+        currentRoute: 'Aktualna ścieżka:'
+      },
+      links: {
+        libraryOverview: 'Przegląd biblioteki',
+        allCards: 'Lista kart',
+        sharedRevisions: 'Udostępnione powtórki'
+      },
+      cards: {
+        collectionType: 'Kolekcja',
+        itemsSuffix: 'elementów'
+      }
+    },
     introSlides: [
       {
         id: 'entry',

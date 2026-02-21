@@ -100,6 +100,60 @@ export type Copy = {
       libraryNameRequired: string;
       libraryCreateFailed: string;
     };
+    workspace: {
+      navigationAria: string;
+      layers: {
+        library: string;
+        target: string;
+        collection: string;
+        revision: string;
+      };
+      noLibraryOption: string;
+      selectCollectionOption: string;
+      targets: {
+        libraryOverview: string;
+        allCards: string;
+        newCard: string;
+        allCollections: string;
+        newCollection: string;
+        collectionRevision: string;
+        sharedRevisions: string;
+        dependencies: string;
+      };
+      revisions: {
+        detail: string;
+        graph: string;
+        settings: string;
+        run: string;
+      };
+      status: {
+        loadFailed: string;
+        savePrefsFailed: string;
+        selectLibraryFirst: string;
+        loadingCollections: string;
+        noCollections: string;
+      };
+      panels: {
+        currentPosition: string;
+        quickCreate: string;
+        collections: string;
+      };
+      path: {
+        noLibrarySelected: string;
+        noCollectionSelected: string;
+        noCollectionLayer: string;
+        currentRoute: string;
+      };
+      links: {
+        libraryOverview: string;
+        allCards: string;
+        sharedRevisions: string;
+      };
+      cards: {
+        collectionType: string;
+        itemsSuffix: string;
+      };
+    };
     introSlides: Array<{
       id: string;
       title: string;
