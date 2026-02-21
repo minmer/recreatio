@@ -126,33 +126,6 @@ public sealed record CogitaCreateConnectionResponse(
     string ConnectionType
 );
 
-public sealed record CogitaGroupInfoRequest(
-    Guid? InfoId,
-    string InfoType,
-    JsonElement Payload
-);
-
-public sealed record CogitaGroupConnectionRequest(
-    Guid? ConnectionId,
-    string ConnectionType,
-    List<Guid> InfoIds,
-    JsonElement? Payload
-);
-
-public sealed record CogitaCreateGroupRequest(
-    string GroupType,
-    List<CogitaGroupInfoRequest> InfoItems,
-    List<CogitaGroupConnectionRequest> Connections,
-    JsonElement? Payload,
-    string? SignatureBase64
-);
-
-public sealed record CogitaCreateGroupResponse(
-    string GroupType,
-    List<Guid> InfoIds,
-    List<Guid> ConnectionIds
-);
-
 public sealed record CogitaCollectionItemRequest(
     string ItemType,
     Guid ItemId

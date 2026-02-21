@@ -20,8 +20,6 @@ public static class CogitaEndpoints
 
     private static readonly HashSet<string> SupportedConnectionTypes = new(CogitaTypeRegistry.SupportedConnectionTypes, StringComparer.Ordinal);
 
-    private static readonly HashSet<string> SupportedGroupTypes = new(CogitaTypeRegistry.SupportedGroupTypes, StringComparer.Ordinal);
-
     private static readonly string[] SupportedCollectionGraphNodeTypes =
     {
         "source.translation",
@@ -6867,158 +6865,13 @@ public static class CogitaEndpoints
             return Results.Ok(new { exists });
         });
 
-        group.MapPost("/libraries/{libraryId:guid}/groups", async (
-            Guid libraryId,
-            CogitaCreateGroupRequest request,
-            HttpContext context,
-            RecreatioDbContext dbContext,
-            IKeyRingService keyRingService,
-            IEncryptionService encryptionService,
-            IRoleCryptoService roleCryptoService,
-            ILedgerService ledgerService,
-            ILoggerFactory loggerFactory,
-            CancellationToken ct) =>
-        {
-            var logger = loggerFactory.CreateLogger("CogitaEndpoints");
-            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
-                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
-            {
-                return Results.Unauthorized();
-            }
-
-            try
-            {
-                var groupType = request.GroupType.Trim().ToLowerInvariant();
-                if (!SupportedGroupTypes.Contains(groupType))
-                {
-                    return Results.BadRequest(new { error = "GroupType is invalid." });
-                }
-
-                var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
-                if (library is null)
-                {
-                    return Results.NotFound();
-                }
-
-                RoleKeyRing keyRing;
-                try
-                {
-                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-                }
-                catch (InvalidOperationException)
-                {
-                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-                }
-
-                if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
-                    !keyRing.TryGetWriteKey(library.RoleId, out var writeKey) ||
-                    !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
-                {
-                    return Results.Forbid();
-                }
-
-                await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-                var infoIds = new List<Guid>();
-                var infoTypeMap = new List<(Guid InfoId, string InfoType)>();
-
-                var infoRequests = request.InfoItems ?? new List<CogitaGroupInfoRequest>();
-                var connectionRequests = request.Connections ?? new List<CogitaGroupConnectionRequest>();
-
-                foreach (var infoRequest in infoRequests)
-                {
-                    if (infoRequest.InfoId.HasValue)
-                    {
-                        var resolvedId = infoRequest.InfoId.Value;
-                        infoIds.Add(resolvedId);
-                        infoTypeMap.Add((resolvedId, infoRequest.InfoType.Trim().ToLowerInvariant()));
-                        continue;
-                    }
-
-                    var createRequest = new CogitaCreateInfoRequest(
-                        infoRequest.InfoType,
-                        infoRequest.Payload,
-                        null,
-                        request.SignatureBase64);
-                    var infoResult = await CreateInfoInternalAsync(
-                        library,
-                        createRequest,
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct);
-
-                    infoIds.Add(infoResult.InfoId);
-                    infoTypeMap.Add((infoResult.InfoId, infoResult.InfoType));
-                }
-
-                var connectionIds = new List<Guid>();
-                foreach (var connectionRequest in connectionRequests)
-                {
-                    if (connectionRequest.ConnectionId.HasValue)
-                    {
-                        connectionIds.Add(connectionRequest.ConnectionId.Value);
-                        continue;
-                    }
-
-                    var resolvedInfoIds = connectionRequest.InfoIds;
-                    if (resolvedInfoIds.Count == 0)
-                    {
-                        var wordIds = infoTypeMap
-                            .Where(item => item.InfoType == "word")
-                            .Select(item => item.InfoId)
-                            .ToList();
-                        resolvedInfoIds = wordIds.Count >= 2 ? wordIds : infoIds;
-                    }
-
-                    var createRequest = new CogitaCreateConnectionRequest(
-                        connectionRequest.ConnectionType,
-                        resolvedInfoIds,
-                        connectionRequest.Payload,
-                        null,
-                        request.SignatureBase64);
-                    var connectionResult = await CreateConnectionInternalAsync(
-                        library,
-                        createRequest,
-                        readKey,
-                        ownerKey,
-                        userId,
-                        keyRingService,
-                        encryptionService,
-                        roleCryptoService,
-                        ledgerService,
-                        dbContext,
-                        ct);
-
-                    connectionIds.Add(connectionResult.ConnectionId);
-                }
-
-                await dbContext.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
-
-                return Results.Ok(new CogitaCreateGroupResponse(groupType, infoIds, connectionIds));
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Results.BadRequest(new { error = ex.Message });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to create cogita group.");
-                return Results.Problem("Failed to create group.");
-            }
-        });
     }
 
     private static string? ResolveLabel(JsonElement payload, string infoType)
     {
         if (payload.ValueKind == JsonValueKind.Object)
         {
-            if (infoType == "quote" &&
+            if ((infoType == "quote" || infoType == "citation") &&
                 payload.TryGetProperty("title", out var quoteTitle) &&
                 quoteTitle.ValueKind == JsonValueKind.String &&
                 !string.IsNullOrWhiteSpace(quoteTitle.GetString()))
@@ -7376,6 +7229,15 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        if (CogitaTypeRegistry.ComputedBackedInfoTypes.Contains(info.InfoType))
+        {
+            var computedRow = await dbContext.CogitaComputedInfos.AsNoTracking()
+                .Where(x => x.InfoId == info.Id)
+                .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                .FirstOrDefaultAsync(ct);
+            return computedRow is null ? null : (computedRow.DataKeyId, computedRow.EncryptedBlob);
+        }
+
         switch (info.InfoType)
         {
             case "language":
@@ -7530,9 +7392,9 @@ public static class CogitaEndpoints
                         .FirstOrDefaultAsync(ct);
                     return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
                 }
-            case "computed":
+            case "citation":
                 {
-                    var row = await dbContext.CogitaComputedInfos.AsNoTracking()
+                    var row = await dbContext.CogitaQuotes.AsNoTracking()
                         .Where(x => x.InfoId == info.Id)
                         .Select(x => new { x.DataKeyId, x.EncryptedBlob })
                         .FirstOrDefaultAsync(ct);
@@ -7783,6 +7645,19 @@ public static class CogitaEndpoints
         DateTimeOffset now,
         RecreatioDbContext dbContext)
     {
+        if (CogitaTypeRegistry.ComputedBackedInfoTypes.Contains(infoType))
+        {
+            dbContext.CogitaComputedInfos.Add(new CogitaComputedInfo
+            {
+                InfoId = infoId,
+                DataKeyId = dataKeyId,
+                EncryptedBlob = encrypted,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            });
+            return;
+        }
+
         switch (infoType)
         {
             case "language":
@@ -7842,8 +7717,8 @@ public static class CogitaEndpoints
             case "quote":
                 dbContext.CogitaQuotes.Add(new CogitaQuote { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
-            case "computed":
-                dbContext.CogitaComputedInfos.Add(new CogitaComputedInfo { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+            case "citation":
+                dbContext.CogitaQuotes.Add(new CogitaQuote { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
         }
     }
@@ -7856,6 +7731,20 @@ public static class CogitaEndpoints
         DateTimeOffset now,
         RecreatioDbContext dbContext)
     {
+        if (CogitaTypeRegistry.ComputedBackedInfoTypes.Contains(infoType))
+        {
+            var computedRow = dbContext.CogitaComputedInfos.FirstOrDefault(x => x.InfoId == infoId);
+            if (computedRow is null)
+            {
+                return false;
+            }
+
+            computedRow.DataKeyId = dataKeyId;
+            computedRow.EncryptedBlob = encrypted;
+            computedRow.UpdatedUtc = now;
+            return true;
+        }
+
         switch (infoType)
         {
             case "language":
@@ -8029,9 +7918,9 @@ public static class CogitaEndpoints
                     row.UpdatedUtc = now;
                     return true;
                 }
-            case "computed":
+            case "citation":
                 {
-                    var row = dbContext.CogitaComputedInfos.FirstOrDefault(x => x.InfoId == infoId);
+                    var row = dbContext.CogitaQuotes.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;

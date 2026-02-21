@@ -18,7 +18,20 @@ export type CogitaInfoType =
   | 'music_fragment'
   | 'source'
   | 'quote'
-  | 'computed';
+  | 'computed'
+  | 'citation'
+  | 'vocab'
+  | 'book'
+  | 'word-language'
+  | 'quote-language'
+  | 'language-sentence'
+  | 'translation'
+  | 'word-topic'
+  | 'reference'
+  | 'source-resource'
+  | 'work-contributor'
+  | 'work-medium'
+  | 'orcid-link';
 
 export type CogitaConnectionType =
   | 'word-language'
@@ -31,8 +44,6 @@ export type CogitaConnectionType =
   | 'work-contributor'
   | 'work-medium'
   | 'orcid-link';
-
-export type CogitaGroupType = 'vocab' | 'citation' | 'book';
 
 export type CogitaLibraryMode = 'detail' | 'collection' | 'list';
 
@@ -62,15 +73,4 @@ export type CogitaConnectionForm = {
   sentence: CogitaInfoOption | null;
   topic: CogitaInfoOption | null;
   payload: Record<string, string>;
-};
-
-export type CogitaGroupForm = {
-  groupType: CogitaGroupType;
-  languageA: CogitaInfoOption | null;
-  wordA: CogitaInfoOption | null;
-  languageB: CogitaInfoOption | null;
-  wordB: CogitaInfoOption | null;
-  wordATags: CogitaInfoOption[];
-  wordBTags: CogitaInfoOption[];
-  translationTags: CogitaInfoOption[];
 };

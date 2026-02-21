@@ -1,9 +1,36 @@
+using System.Linq;
 using System.Text.Json;
 
 namespace Recreatio.Api.Endpoints.Cogita;
 
 public static class CogitaTypeRegistry
 {
+    public static readonly IReadOnlyList<string> ConnectionInfoTypes = new[]
+    {
+        "word-language",
+        "quote-language",
+        "language-sentence",
+        "translation",
+        "word-topic",
+        "work-contributor",
+        "work-medium",
+        "orcid-link",
+        "reference",
+        "source-resource"
+    };
+
+    public static readonly IReadOnlyList<string> GroupInfoTypes = new[]
+    {
+        "vocab",
+        "book"
+    };
+
+    private static readonly LinkFieldDisplayDescriptor CommonTopicsLink =
+        new("topics", "Topics", ["topic"], false, true);
+
+    private static readonly LinkFieldDisplayDescriptor CommonReferencesLink =
+        new("references", "References", ["source"], false, true);
+
     public sealed record RelationDescriptor(string RelationType, string Role, string TargetType);
 
     public sealed record FilterFieldDescriptor(string Key, string? Path = null, bool NormalizeDoi = false, bool NormalizeOrcid = false, bool ExpandObjectValues = false);
@@ -66,31 +93,29 @@ public static class CogitaTypeRegistry
                 [new("sourceKind"), new("locator", ExpandObjectValues: true)],
                 [new("source-resource", "resource", "work")]),
             ["quote"] = new("quote", "single", ["label", "title", "text", "notes"], [new("text")], [new("quote-language", "language", "language"), new("reference", "source", "source")]),
-            ["computed"] = new("computed", "complex", ["label", "title", "definition", "notes"], [], [])
+            ["citation"] = new("citation", "single", ["label", "title", "text", "notes"], [new("text")], [new("quote-language", "language", "language"), new("reference", "source", "source")]),
+            ["computed"] = new("computed", "complex", ["label", "title", "definition", "notes"], [], []),
+            ["word-language"] = new("word-language", "complex", ["label", "notes", "leftWordId", "rightWordId", "languageId"], [], []),
+            ["quote-language"] = new("quote-language", "complex", ["label", "notes", "quoteId", "languageId"], [], []),
+            ["language-sentence"] = new("language-sentence", "complex", ["label", "notes", "sentenceId", "languageId"], [], []),
+            ["translation"] = new("translation", "complex", ["label", "notes", "leftWordId", "rightWordId", "direction"], [], []),
+            ["word-topic"] = new("word-topic", "complex", ["label", "notes", "wordId", "topicId"], [], []),
+            ["work-contributor"] = new("work-contributor", "complex", ["label", "notes", "workId", "contributorId", "role"], [], []),
+            ["work-medium"] = new("work-medium", "complex", ["label", "notes", "workId", "mediaId"], [], []),
+            ["orcid-link"] = new("orcid-link", "complex", ["label", "notes", "personId", "orcidId"], [], []),
+            ["reference"] = new("reference", "complex", ["label", "notes", "fromInfoId", "sourceId", "locator"], [], []),
+            ["source-resource"] = new("source-resource", "complex", ["label", "notes", "sourceId", "resourceId"], [], []),
+            ["vocab"] = new("vocab", "complex", ["label", "notes", "direction", "languageAId", "languageBId"], [], []),
+            ["book"] = new("book", "complex", ["label", "title", "notes", "isbn"], [], [])
         };
 
     public static readonly IReadOnlySet<string> SupportedInfoTypes = new HashSet<string>(InfoTypes.Keys, StringComparer.Ordinal);
 
-    public static readonly IReadOnlySet<string> SupportedConnectionTypes = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "word-language",
-        "quote-language",
-        "language-sentence",
-        "translation",
-        "word-topic",
-        "work-contributor",
-        "work-medium",
-        "orcid-link",
-        "reference",
-        "source-resource"
-    };
+    public static readonly IReadOnlySet<string> SupportedConnectionTypes = new HashSet<string>(ConnectionInfoTypes, StringComparer.Ordinal);
 
-    public static readonly IReadOnlySet<string> SupportedGroupTypes = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "vocab",
-        "citation",
-        "book"
-    };
+    public static readonly IReadOnlySet<string> ComputedBackedInfoTypes = new HashSet<string>(
+        new[] { "computed" }.Concat(ConnectionInfoTypes).Concat(GroupInfoTypes),
+        StringComparer.Ordinal);
 
     public static readonly IReadOnlyDictionary<string, InfoTypeEditorDescriptor> EditorDescriptors =
         new Dictionary<string, InfoTypeEditorDescriptor>(StringComparer.Ordinal)
@@ -158,11 +183,53 @@ public static class CogitaTypeRegistry
                 [new("title", "Title"), new("text", "Quote text", "textarea", true), new("notes", "Notes", "textarea", false, false)],
                 [
                     new("languageId", "Language", ["language"], false, false),
-                    new("sources", "Sources", ["source"], false, true)
+                    new("references", "References", ["source"], false, true)
+                ]),
+            ["citation"] = new("citation",
+                [new("title", "Title"), new("text", "Citation text", "textarea", true), new("notes", "Notes", "textarea", false, false)],
+                [
+                    new("languageId", "Language", ["language"], false, false),
+                    new("references", "References", ["source"], false, true)
                 ]),
             ["computed"] = new("computed",
                 [new("label", "Name", "text", true), new("definition", "Definition JSON", "json", true), new("notes", "Notes", "textarea", false, false)],
-                [])
+                []),
+            ["word-language"] = new("word-language",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("words", "Words", ["word"], true, true), new("languageId", "Language", ["language"], false, false)]),
+            ["quote-language"] = new("quote-language",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("quoteId", "Quote", ["quote"], true, false), new("languageId", "Language", ["language"], true, false)]),
+            ["language-sentence"] = new("language-sentence",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("sentenceId", "Sentence", ["sentence"], true, false), new("languageId", "Language", ["language"], true, false)]),
+            ["translation"] = new("translation",
+                [new("label", "Label"), new("direction", "Direction"), new("notes", "Notes", "textarea", false, false)],
+                [new("words", "Words", ["word"], true, true)]),
+            ["word-topic"] = new("word-topic",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("wordId", "Word", ["word"], true, false), new("topicId", "Topic", ["topic"], true, false)]),
+            ["work-contributor"] = new("work-contributor",
+                [new("label", "Label"), new("role", "Role"), new("notes", "Notes", "textarea", false, false)],
+                [new("workId", "Work", ["work"], true, false), new("contributorId", "Contributor", ["person", "institution", "collective"], true, false)]),
+            ["work-medium"] = new("work-medium",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("workId", "Work", ["work"], true, false), new("mediaId", "Media", ["media"], true, false)]),
+            ["orcid-link"] = new("orcid-link",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("personId", "Person", ["person"], true, false), new("orcidId", "ORCID", ["orcid"], true, false)]),
+            ["reference"] = new("reference",
+                [new("label", "Label"), new("locator", "Locator"), new("notes", "Notes", "textarea", false, false)],
+                [new("fromInfoId", "From info", SupportedInfoTypes.ToArray(), true, false), new("sourceId", "Source", ["source"], true, false)]),
+            ["source-resource"] = new("source-resource",
+                [new("label", "Label"), new("notes", "Notes", "textarea", false, false)],
+                [new("sourceId", "Source", ["source"], true, false), new("resourceId", "Resource", ["work", "media"], true, false)]),
+            ["vocab"] = new("vocab",
+                [new("label", "Label"), new("direction", "Direction"), new("notes", "Notes", "textarea", false, false)],
+                [new("translations", "Translations", ["translation"], false, true)]),
+            ["book"] = new("book",
+                [new("label", "Title", "text", true), new("isbn", "ISBN"), new("notes", "Notes", "textarea", false, false)],
+                [new("works", "Works", ["work"], false, true)])
         };
 
     public static string InferEntityKind(string infoType)
@@ -172,7 +239,22 @@ public static class CogitaTypeRegistry
 
     public static InfoTypeEditorDescriptor? GetEditorDescriptor(string infoType)
     {
-        return EditorDescriptors.TryGetValue(infoType, out var descriptor) ? descriptor : null;
+        if (!EditorDescriptors.TryGetValue(infoType, out var descriptor))
+        {
+            return null;
+        }
+
+        var links = descriptor.LinkFields.ToList();
+        if (!links.Any(x => x.Key.Equals(CommonTopicsLink.Key, StringComparison.OrdinalIgnoreCase)))
+        {
+            links.Add(CommonTopicsLink);
+        }
+        if (!links.Any(x => x.Key.Equals(CommonReferencesLink.Key, StringComparison.OrdinalIgnoreCase)))
+        {
+            links.Add(CommonReferencesLink);
+        }
+
+        return new InfoTypeEditorDescriptor(descriptor.InfoType, descriptor.PayloadFields, links);
     }
 
     public static List<(string Key, string Value)> BuildInfoFilterTokens(string infoType, JsonElement payload)

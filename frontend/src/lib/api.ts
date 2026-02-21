@@ -777,12 +777,6 @@ export type CogitaConnectionCreateResponse = {
   connectionType: string;
 };
 
-export type CogitaGroupCreateResponse = {
-  groupType: string;
-  infoIds: string[];
-  connectionIds: string[];
-};
-
 export type CogitaWordLanguageCheck = {
   exists: boolean;
 };
@@ -1328,26 +1322,6 @@ export function createCogitaConnection(payload: {
 export function deleteCogitaConnection(payload: { libraryId: string; connectionId: string }) {
   return request<{ deleted: boolean }>(`/cogita/libraries/${payload.libraryId}/connections/${payload.connectionId}`, {
     method: 'DELETE'
-  });
-}
-
-export function createCogitaGroup(payload: {
-  libraryId: string;
-  groupType: string;
-  infoItems: Array<{ infoId?: string | null; infoType: string; payload: unknown }>;
-  connections: Array<{ connectionId?: string | null; connectionType: string; infoIds: string[]; payload?: unknown }>;
-  payload?: unknown;
-  signatureBase64?: string | null;
-}) {
-  return request<CogitaGroupCreateResponse>(`/cogita/libraries/${payload.libraryId}/groups`, {
-    method: 'POST',
-    body: JSON.stringify({
-      groupType: payload.groupType,
-      infoItems: payload.infoItems,
-      connections: payload.connections,
-      payload: payload.payload ?? null,
-      signatureBase64: payload.signatureBase64 ?? null
-    })
   });
 }
 

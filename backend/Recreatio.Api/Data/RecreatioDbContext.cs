@@ -72,9 +72,6 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaInfoLinkMulti> CogitaInfoLinkMultis => Set<Data.Cogita.CogitaInfoLinkMulti>();
     public DbSet<Data.Cogita.CogitaInfoSearchIndex> CogitaInfoSearchIndexes => Set<Data.Cogita.CogitaInfoSearchIndex>();
     public DbSet<Data.Cogita.CogitaEntitySearchDocument> CogitaEntitySearchDocuments => Set<Data.Cogita.CogitaEntitySearchDocument>();
-    public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
-    public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
-    public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
     public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
     public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
     public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
@@ -396,35 +393,6 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaDependencyGraph>()
             .WithMany()
             .HasForeignKey(x => x.GraphId);
-
-        modelBuilder.Entity<Data.Cogita.CogitaGroup>()
-            .HasOne<Data.Cogita.CogitaLibrary>()
-            .WithMany()
-            .HasForeignKey(x => x.LibraryId);
-        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
-            .HasOne<Data.Cogita.CogitaGroup>()
-            .WithMany()
-            .HasForeignKey(x => x.GroupId);
-        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
-            .HasOne<Data.Cogita.CogitaInfo>()
-            .WithMany()
-            .HasForeignKey(x => x.InfoId);
-        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
-            .HasOne<Data.Cogita.CogitaGroup>()
-            .WithMany()
-            .HasForeignKey(x => x.GroupId);
-        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
-            .HasOne<Data.Cogita.CogitaConnection>()
-            .WithMany()
-            .HasForeignKey(x => x.ConnectionId);
-
-        modelBuilder.Entity<Data.Cogita.CogitaGroupItem>()
-            .HasIndex(x => new { x.GroupId, x.InfoId })
-            .IsUnique();
-
-        modelBuilder.Entity<Data.Cogita.CogitaGroupConnection>()
-            .HasIndex(x => new { x.GroupId, x.ConnectionId })
-            .IsUnique();
 
         modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
             .HasIndex(x => new { x.PersonRoleId, x.ItemType, x.ItemId, x.CreatedUtc });

@@ -13,7 +13,7 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import type { CogitaInfoOption, CogitaInfoType } from './types';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
-import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
+import { getInfoTypeLabel } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 
 type LinkTypeSelectionState = Record<string, CogitaInfoType>;
@@ -65,8 +65,6 @@ export function CogitaLibraryAddPage({
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const isEditMode = Boolean(editInfoId);
-  const infoTypeOptions = useMemo(() => getInfoTypeOptions(copy).filter((item) => item.value !== 'any'), [copy]);
-
   const [specifications, setSpecifications] = useState<CogitaInfoTypeSpecification[]>([]);
   const [selectedInfoType, setSelectedInfoType] = useState<CogitaInfoType>('word');
   const [payloadValues, setPayloadValues] = useState<Record<string, string>>({});
@@ -79,6 +77,14 @@ export function CogitaLibraryAddPage({
   const currentSpec = useMemo(
     () => specifications.find((spec) => spec.infoType === selectedInfoType),
     [selectedInfoType, specifications]
+  );
+  const infoTypeOptions = useMemo(
+    () =>
+      specifications.map((spec) => ({
+        value: spec.infoType as CogitaInfoType,
+        label: getInfoTypeLabel(copy, spec.infoType as CogitaInfoType)
+      })),
+    [copy, specifications]
   );
 
   useEffect(() => {
