@@ -210,6 +210,11 @@ export const en: Copy = {
         namePlaceholder: 'Enter revision name',
         createAction: 'Create revision'
       },
+      infoActions: {
+        overview: 'Overview',
+        edit: 'Edit',
+        seeCards: 'See cards'
+      },
       sidebar: {
         title: 'Navigation',
         openMenu: 'Open menu',
@@ -220,6 +225,8 @@ export const en: Copy = {
         contextEmpty: 'Select a collection to see collection actions.',
         alwaysAvailable: 'Overall',
         libraryActionsHint: 'Library actions',
+        infoActionsHint: 'Info actions',
+        selectedInfoActionsHint: 'Selected info actions',
         collectionActionsHint: 'Collection actions',
         accountSettings: 'Account settings',
         cogitaHome: 'Cogita home'

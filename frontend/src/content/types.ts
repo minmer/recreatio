@@ -166,6 +166,11 @@ export type Copy = {
         namePlaceholder: string;
         createAction: string;
       };
+      infoActions: {
+        overview: string;
+        edit: string;
+        seeCards: string;
+      };
       sidebar: {
         title: string;
         openMenu: string;
@@ -176,6 +181,8 @@ export type Copy = {
         contextEmpty: string;
         alwaysAvailable: string;
         libraryActionsHint: string;
+        infoActionsHint: string;
+        selectedInfoActionsHint: string;
         collectionActionsHint: string;
         accountSettings: string;
         cogitaHome: string;

@@ -210,6 +210,11 @@ export const de: Copy = {
         namePlaceholder: 'Wiederholungsname eingeben',
         createAction: 'Wiederholung erstellen'
       },
+      infoActions: {
+        overview: 'Übersicht',
+        edit: 'Bearbeiten',
+        seeCards: 'Karten ansehen'
+      },
       sidebar: {
         title: 'Navigation',
         openMenu: 'Menü öffnen',
@@ -220,6 +225,8 @@ export const de: Copy = {
         contextEmpty: 'Wähle eine Sammlung, um Sammlungsaktionen zu sehen.',
         alwaysAvailable: 'Allgemein',
         libraryActionsHint: 'Bibliotheksaktionen',
+        infoActionsHint: 'Infoaktionen',
+        selectedInfoActionsHint: 'Aktionen der gewählten Info',
         collectionActionsHint: 'Sammlungsaktionen',
         accountSettings: 'Kontoeinstellungen',
         cogitaHome: 'Cogita Startseite'

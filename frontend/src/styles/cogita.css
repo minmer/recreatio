@@ -3039,6 +3039,14 @@
   font-size: 0.8rem;
 }
 
+.cogita-sidebar-actions-nested {
+  display: grid;
+  gap: 0.32rem;
+  margin-left: 0.6rem;
+  padding-left: 0.45rem;
+  border-left: 1px solid rgba(118, 167, 217, 0.18);
+}
+
 .cogita-browser-page {
   display: grid;
   gap: 1.1rem;

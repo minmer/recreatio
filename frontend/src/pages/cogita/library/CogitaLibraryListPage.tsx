@@ -343,7 +343,7 @@ export function CogitaLibraryListPage({
                         onClick={() => {
                           setSelectedInfo(result);
                           if (result.cardType === 'info') {
-                            navigate(`/cogita/library/${libraryId}/edit/${result.cardId}`);
+                            navigate(`/cogita/library/${libraryId}/list?infoId=${encodeURIComponent(result.cardId)}&infoView=overview`);
                           }
                         }}
                       >

@@ -210,6 +210,11 @@ export const pl: Copy = {
         namePlaceholder: 'Wpisz nazwę powtórki',
         createAction: 'Utwórz powtórkę'
       },
+      infoActions: {
+        overview: 'Przegląd',
+        edit: 'Edytuj',
+        seeCards: 'Zobacz karty'
+      },
       sidebar: {
         title: 'Nawigacja',
         openMenu: 'Otwórz menu',
@@ -220,6 +225,8 @@ export const pl: Copy = {
         contextEmpty: 'Wybierz kolekcję, aby zobaczyć akcje kolekcji.',
         alwaysAvailable: 'Ogólne',
         libraryActionsHint: 'Akcje biblioteki',
+        infoActionsHint: 'Akcje informacji',
+        selectedInfoActionsHint: 'Akcje wybranej informacji',
         collectionActionsHint: 'Akcje kolekcji',
         accountSettings: 'Ustawienia konta',
         cogitaHome: 'Strona główna Cogita'
