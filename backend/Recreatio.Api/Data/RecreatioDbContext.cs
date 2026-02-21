@@ -200,7 +200,7 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
             .Property(x => x.TitleNormalized)
-            .HasMaxLength(512);
+            .HasMaxLength(256);
         modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
             .HasIndex(x => new { x.LibraryId, x.EntityType, x.TitleNormalized });
         modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()

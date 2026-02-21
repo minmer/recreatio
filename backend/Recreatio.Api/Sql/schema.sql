@@ -581,7 +581,7 @@ CREATE TABLE dbo.CogitaEntitySearchDocuments
     InfoId UNIQUEIDENTIFIER NULL,
     ConnectionId UNIQUEIDENTIFIER NULL,
     Title NVARCHAR(512) NOT NULL,
-    TitleNormalized NVARCHAR(512) NOT NULL,
+    TitleNormalized NVARCHAR(256) NOT NULL,
     Summary NVARCHAR(1024) NOT NULL,
     SearchTextNormalized NVARCHAR(MAX) NOT NULL,
     FilterTextNormalized NVARCHAR(MAX) NOT NULL,
