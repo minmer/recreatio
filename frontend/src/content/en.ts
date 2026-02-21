@@ -707,7 +707,16 @@ export const en: Copy = {
         selectAllVisible: 'Select visible',
         clearSelection: 'Clear selection',
         openSelected: 'Open selected',
-        openSelectedDisabled: 'Select one info to open'
+        openSelectedDisabled: 'Select one info to open',
+        constraintLabel: 'Type filter',
+        constraintPlaceholder: 'Additional type constraint',
+        viewLabel: 'Result view',
+        viewDetails: 'Details',
+        viewWide: 'Wide cards',
+        viewGrid: 'Grid',
+        selectedStackTitle: 'Selection stack',
+        selectedStackHint: 'Selected infos remain when search conditions change.',
+        removeFromStack: 'Remove from stack'
       },
       filters: {
         title: 'Filters',

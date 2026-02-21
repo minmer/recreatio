@@ -1255,6 +1255,7 @@
 .cogita-search-field {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.6rem;
   background: rgba(7, 18, 32, 0.92);
   border: 1px solid rgba(120, 170, 220, 0.22);
@@ -1267,10 +1268,12 @@
   background: transparent;
   color: rgba(220, 236, 255, 0.85);
   font-size: 0.85rem;
+  min-width: 8.2rem;
 }
 
 .cogita-search-field input {
   flex: 1;
+  min-width: 10rem;
   border: none;
   background: transparent;
   color: #e7f1ff;
@@ -1394,6 +1397,35 @@
   flex-wrap: wrap;
 }
 
+.cogita-selection-stack {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid rgba(120, 170, 220, 0.2);
+  padding-top: 0.7rem;
+}
+
+.cogita-selection-stack-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cogita-selection-stack-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cogita-selection-remove {
+  min-width: 1.8rem;
+  height: 1.8rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: rgba(20, 48, 76, 0.5);
+  color: rgba(220, 236, 255, 0.82);
+}
+
 .cogita-card-list {
   display: grid;
   gap: 1rem;
@@ -1405,6 +1437,21 @@
 
 .cogita-card-list[data-view='list'] {
   grid-template-columns: 1fr;
+}
+
+.cogita-card-list[data-view='details'],
+.cogita-card-list--details {
+  grid-template-columns: 1fr;
+}
+
+.cogita-card-list[data-view='wide'],
+.cogita-card-list--wide {
+  grid-template-columns: 1fr;
+}
+
+.cogita-card-list[data-view='grid'],
+.cogita-card-list--grid {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
 .cogita-card-item {
@@ -1427,6 +1474,10 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.7rem;
   align-items: center;
+}
+
+.cogita-card-list[data-view='details'] .cogita-info-result-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .cogita-info-checkbox {
@@ -1459,6 +1510,10 @@
   display: grid;
   gap: 0.35rem;
   cursor: pointer;
+}
+
+.cogita-library-pane--full {
+  width: 100%;
 }
 
 .cogita-card-actions {

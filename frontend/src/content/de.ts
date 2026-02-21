@@ -707,7 +707,16 @@ export const de: Copy = {
         selectAllVisible: 'Sichtbare auswählen',
         clearSelection: 'Auswahl löschen',
         openSelected: 'Ausgewählte öffnen',
-        openSelectedDisabled: 'Wähle eine Info zum Öffnen'
+        openSelectedDisabled: 'Wähle eine Info zum Öffnen',
+        constraintLabel: 'Typ-Filter',
+        constraintPlaceholder: 'Zusätzliche Typ-Einschränkung',
+        viewLabel: 'Ergebnisansicht',
+        viewDetails: 'Details',
+        viewWide: 'Breite Karten',
+        viewGrid: 'Raster',
+        selectedStackTitle: 'Auswahlstapel',
+        selectedStackHint: 'Ausgewählte Infos bleiben bei Suchänderungen erhalten.',
+        removeFromStack: 'Aus Stapel entfernen'
       },
       filters: {
         title: 'Filter',

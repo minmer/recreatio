@@ -707,7 +707,16 @@ export const pl: Copy = {
         selectAllVisible: 'Zaznacz widoczne',
         clearSelection: 'Wyczyść wybór',
         openSelected: 'Otwórz wybraną',
-        openSelectedDisabled: 'Wybierz jedną informację, aby otworzyć'
+        openSelectedDisabled: 'Wybierz jedną informację, aby otworzyć',
+        constraintLabel: 'Filtr typu',
+        constraintPlaceholder: 'Dodatkowe ograniczenie typu',
+        viewLabel: 'Widok wyników',
+        viewDetails: 'Detale',
+        viewWide: 'Szerokie karty',
+        viewGrid: 'Siatka',
+        selectedStackTitle: 'Stos wyboru',
+        selectedStackHint: 'Wybrane informacje pozostają po zmianie wyszukiwania.',
+        removeFromStack: 'Usuń ze stosu'
       },
       filters: {
         title: 'Filtry',

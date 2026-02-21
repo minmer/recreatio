@@ -408,6 +408,15 @@ export type Copy = {
         clearSelection: string;
         openSelected: string;
         openSelectedDisabled: string;
+        constraintLabel: string;
+        constraintPlaceholder: string;
+        viewLabel: string;
+        viewDetails: string;
+        viewWide: string;
+        viewGrid: string;
+        selectedStackTitle: string;
+        selectedStackHint: string;
+        removeFromStack: string;
       };
       filters: {
         title: string;
