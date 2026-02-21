@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
+import '../../styles/cogita.css';
+import '../../styles/cogita-intro.css';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';

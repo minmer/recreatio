@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction, PointerEvent as ReactPointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../../styles/parish.css';
 import { AuthAction } from '../../components/AuthAction';
 import ReactFlow, {
   Background,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import '../../styles/account.css';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';

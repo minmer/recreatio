@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import '../../styles/cogita.css';
+import 'katex/dist/katex.min.css';
 import {
   createCogitaCollection,
   createCogitaLibrary,
