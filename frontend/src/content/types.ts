@@ -162,6 +162,8 @@ export type Copy = {
         context: string;
         contextEmpty: string;
         alwaysAvailable: string;
+        libraryActionsHint: string;
+        collectionActionsHint: string;
         accountSettings: string;
         cogitaHome: string;
       };

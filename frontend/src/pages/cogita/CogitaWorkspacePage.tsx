@@ -489,6 +489,14 @@ export function CogitaWorkspacePage({
     () => visibleNavigationLevels.filter((level) => level.key !== 'library' && level.key !== 'collection'),
     [visibleNavigationLevels]
   );
+  const sidebarLibraryActionsLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'target') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarCollectionActionsLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'revision') ?? null,
+    [sidebarActionLevels]
+  );
   const embeddedSubpage = useMemo(() => {
     const libraryId = pathState.libraryId;
     if (!libraryId || !location.pathname.startsWith('/cogita/library/')) {
@@ -874,33 +882,57 @@ export function CogitaWorkspacePage({
       <section className="cogita-browser-shell">
         <aside className={`cogita-browser-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label={workspaceCopy.sidebar.title}>
           <div className="cogita-browser-sidebar-section">
-            <h2>{workspaceCopy.sidebar.title}</h2>
+            <h2>{selectedLibrary?.name ?? workspaceCopy.path.noLibrarySelected}</h2>
+            <p className="cogita-sidebar-note">
+              {selectedLibrary ? workspaceCopy.sidebar.libraryActionsHint : workspaceCopy.status.selectLibraryFirst}
+            </p>
+            <h3>{workspaceCopy.sidebar.currentPath}</h3>
+            <ul className="cogita-browser-tree">
+              {visibleNavigationLevels.map((level, index) => (
+                <li key={`sidebar:path:${level.key}`} className={index > 1 ? 'tree-child' : ''}>
+                  <span>{level.label}</span>
+                  <strong>{level.selectedLabel}</strong>
+                </li>
+              ))}
+            </ul>
+            {sidebarLibraryActionsLevel ? (
+              <div className="cogita-sidebar-actions">
+                {sidebarLibraryActionsLevel.options.map((option) => (
+                  <button
+                    key={`sidebar:target:${option.value}`}
+                    type="button"
+                    className={`ghost ${String(sidebarLibraryActionsLevel.value) === option.value ? 'active' : ''}`}
+                    onClick={() => sidebarLibraryActionsLevel.onSelect(option.value)}
+                    disabled={sidebarLibraryActionsLevel.disabled}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
-          <div className="cogita-browser-sidebar-section">
-            <h3>{workspaceCopy.sidebar.explore}</h3>
-            {sidebarActionLevels.map((level) => (
-              <div key={level.key} className="cogita-sidebar-level">
-                <strong>{level.label}</strong>
+          {selectedCollection ? (
+            <div className="cogita-browser-sidebar-section">
+              <h3>{selectedCollection.name}</h3>
+              <p className="cogita-sidebar-note">{workspaceCopy.sidebar.collectionActionsHint}</p>
+              {sidebarCollectionActionsLevel ? (
                 <div className="cogita-sidebar-actions">
-                  {level.options.map((option) => (
+                  {sidebarCollectionActionsLevel.options.map((option) => (
                     <button
-                      key={`${level.key}:${option.value}`}
+                      key={`sidebar:revision:${option.value}`}
                       type="button"
-                      className={`ghost ${String(level.value) === option.value ? 'active' : ''}`}
-                      onClick={() => level.onSelect(option.value)}
-                      disabled={level.disabled}
+                      className={`ghost ${String(sidebarCollectionActionsLevel.value) === option.value ? 'active' : ''}`}
+                      onClick={() => sidebarCollectionActionsLevel.onSelect(option.value)}
+                      disabled={sidebarCollectionActionsLevel.disabled}
                     >
                       {option.label}
                     </button>
                   ))}
-                  {level.options.length === 0 ? (
-                    <p className="cogita-sidebar-note">{workspaceCopy.sidebar.contextEmpty}</p>
-                  ) : null}
                 </div>
-              </div>
-            ))}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="cogita-browser-sidebar-section">
             <h3>{workspaceCopy.sidebar.alwaysAvailable}</h3>
@@ -939,8 +971,8 @@ export function CogitaWorkspacePage({
           {visibleNavigationLevels.map((level, index) => (
             <div key={`menu:${level.key}`} className="cogita-browser-segment">
               {index > 0 ? <span className="cogita-browser-separator">›</span> : null}
-              <span>{level.label}</span>
               <select
+                aria-label={level.label}
                 value={level.value}
                 onChange={(event) => level.onSelect(event.target.value)}
                 disabled={level.disabled}

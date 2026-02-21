@@ -205,7 +205,9 @@ export const en: Copy = {
         explore: 'Explore',
         context: 'Context',
         contextEmpty: 'Select a collection to see collection actions.',
-        alwaysAvailable: 'Always available',
+        alwaysAvailable: 'Overall',
+        libraryActionsHint: 'Library actions',
+        collectionActionsHint: 'Collection actions',
         accountSettings: 'Account settings',
         cogitaHome: 'Cogita home'
       }

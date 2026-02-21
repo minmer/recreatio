@@ -2837,17 +2837,17 @@
 
 .cogita-browser-sidebar-section {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
   padding: 0.6rem 0.8rem;
 }
 
 .cogita-browser-sidebar-section h2,
 .cogita-browser-sidebar-section h3 {
   margin: 0;
-  font-size: 0.86rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(198, 223, 247, 0.92);
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: rgba(198, 223, 247, 0.82);
 }
 
 .cogita-browser-tree {
@@ -2869,15 +2869,15 @@
 }
 
 .cogita-browser-tree span {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(162, 195, 228, 0.84);
+  color: rgba(162, 195, 228, 0.64);
 }
 
 .cogita-browser-tree strong {
   font-weight: 500;
-  color: rgba(227, 239, 252, 0.95);
+  color: rgba(227, 239, 252, 0.86);
 }
 
 .cogita-sidebar-actions {
@@ -2902,28 +2902,32 @@
   justify-content: flex-start;
   text-align: left;
   border: 0;
-  border-radius: 8px;
-  padding: 0.46rem 0.55rem;
-  color: rgba(208, 226, 247, 0.82);
+  border-radius: 6px;
+  padding: 0.34rem 0.2rem 0.34rem 0.6rem;
+  color: rgba(196, 218, 242, 0.74);
   background: transparent;
   box-shadow: none;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  border-left: 2px solid transparent;
 }
 
 .cogita-sidebar-actions .ghost.active {
-  color: rgba(232, 242, 255, 0.95);
-  background: rgba(120, 180, 235, 0.16);
+  color: rgba(232, 242, 255, 0.9);
+  background: rgba(120, 180, 235, 0.09);
+  border-left-color: rgba(140, 205, 255, 0.65);
 }
 
 .cogita-sidebar-actions .ghost:hover:not(:disabled),
 .cogita-sidebar-actions .ghost:focus-visible {
-  background: rgba(120, 180, 235, 0.1);
+  background: rgba(120, 180, 235, 0.06);
   outline: none;
 }
 
 .cogita-sidebar-note {
   margin: 0;
   color: rgba(173, 198, 224, 0.66);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
 }
 
 .cogita-browser-page {

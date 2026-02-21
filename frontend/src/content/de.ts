@@ -205,7 +205,9 @@ export const de: Copy = {
         explore: 'Erkunden',
         context: 'Kontext',
         contextEmpty: 'Wähle eine Sammlung, um Sammlungsaktionen zu sehen.',
-        alwaysAvailable: 'Immer verfügbar',
+        alwaysAvailable: 'Allgemein',
+        libraryActionsHint: 'Bibliotheksaktionen',
+        collectionActionsHint: 'Sammlungsaktionen',
         accountSettings: 'Kontoeinstellungen',
         cogitaHome: 'Cogita Startseite'
       }
