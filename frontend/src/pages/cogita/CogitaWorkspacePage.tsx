@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createCogitaCollection,
   createCogitaLibrary,
@@ -558,7 +558,7 @@ export function CogitaWorkspacePage({
     };
   }, [workspaceCopy.status.loadFailed]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!initializedRef.current) return;
 
     if (pathState.libraryId && libraries.some((library) => library.libraryId === pathState.libraryId)) {
@@ -618,6 +618,27 @@ export function CogitaWorkspacePage({
 
   useEffect(() => {
     if (!initializedRef.current) return;
+    if (
+      pathState.libraryId &&
+      libraries.some((library) => library.libraryId === pathState.libraryId) &&
+      pathState.libraryId !== selectedLibraryId
+    ) {
+      return;
+    }
+    if (pathState.target && pathState.target !== selectedTarget) {
+      return;
+    }
+    if (pathState.revisionView && pathState.revisionView !== selectedRevisionView) {
+      return;
+    }
+    if (
+      TARGET_CAPABILITIES[selectedTarget].requiresCollection &&
+      !selectedCollectionId &&
+      pathState.target === 'collection_revision' &&
+      Boolean(pathState.collectionId)
+    ) {
+      return;
+    }
 
     const currentPath = normalizePath(location.pathname);
     const nextPath = normalizePath(buildCogitaPath(selectedLibraryId, selectedTarget, selectedCollectionId, selectedRevisionView));
@@ -630,7 +651,19 @@ export function CogitaWorkspacePage({
     }
     lastNavigationRef.current = nextPath;
     navigate(nextPath, { replace: true });
-  }, [location.pathname, navigate, selectedCollectionId, selectedLibraryId, selectedRevisionView, selectedTarget]);
+  }, [
+    libraries,
+    location.pathname,
+    navigate,
+    pathState.collectionId,
+    pathState.libraryId,
+    pathState.revisionView,
+    pathState.target,
+    selectedCollectionId,
+    selectedLibraryId,
+    selectedRevisionView,
+    selectedTarget
+  ]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
