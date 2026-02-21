@@ -175,7 +175,9 @@ export const pl: Copy = {
         savePrefsFailed: 'Nie udało się zapisać preferencji Cogita.',
         selectLibraryFirst: 'Najpierw wybierz bibliotekę.',
         loadingCollections: 'Ładowanie kolekcji...',
-        noCollections: 'Brak kolekcji w tej bibliotece.'
+        noCollections: 'Brak kolekcji w tej bibliotece.',
+        loadingRevisions: 'Ładowanie powtórek...',
+        noRevisions: 'Brak zapisanych powtórek w tej kolekcji.'
       },
       panels: {
         currentPosition: 'Aktualna pozycja',
@@ -196,6 +198,11 @@ export const pl: Copy = {
       cards: {
         collectionType: 'Kolekcja',
         itemsSuffix: 'elementów'
+      },
+      revisionForm: {
+        nameLabel: 'Nazwa powtórki',
+        namePlaceholder: 'Wpisz nazwę powtórki',
+        createAction: 'Utwórz powtórkę'
       },
       sidebar: {
         title: 'Nawigacja',

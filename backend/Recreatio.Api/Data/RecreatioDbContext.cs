@@ -74,6 +74,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
     public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
     public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
+    public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
     public DbSet<Data.Cogita.CogitaItemDependency> CogitaItemDependencies => Set<Data.Cogita.CogitaItemDependency>();
 
@@ -188,6 +189,11 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaCollectionGraph>()
             .HasIndex(x => x.CollectionInfoId)
             .IsUnique();
+
+        modelBuilder.Entity<Data.Cogita.CogitaRevision>()
+            .HasIndex(x => new { x.LibraryId, x.CollectionId, x.CreatedUtc, x.Id });
+        modelBuilder.Entity<Data.Cogita.CogitaRevision>()
+            .HasIndex(x => new { x.CollectionId, x.Name });
 
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasIndex(x => new { x.LibraryId, x.RevokedUtc });

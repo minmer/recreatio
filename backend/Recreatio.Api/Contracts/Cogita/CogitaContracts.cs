@@ -158,6 +158,37 @@ public sealed record CogitaCollectionDetailResponse(
     DateTimeOffset CreatedUtc
 );
 
+public sealed record CogitaRevisionCreateRequest(
+    string Name,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
+    string Mode,
+    string Check,
+    int Limit
+);
+
+public sealed record CogitaRevisionUpdateRequest(
+    string Name,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
+    string Mode,
+    string Check,
+    int Limit
+);
+
+public sealed record CogitaRevisionResponse(
+    Guid RevisionId,
+    Guid CollectionId,
+    string Name,
+    string? RevisionType,
+    JsonElement? RevisionSettings,
+    string Mode,
+    string Check,
+    int Limit,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
 public sealed record CogitaCollectionDependencyRequest(
     Guid ParentCollectionId,
     Guid ChildCollectionId

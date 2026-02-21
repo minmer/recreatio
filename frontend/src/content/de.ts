@@ -175,7 +175,9 @@ export const de: Copy = {
         savePrefsFailed: 'Cogita-Einstellungen konnten nicht gespeichert werden.',
         selectLibraryFirst: 'Bitte zuerst eine Bibliothek auswählen.',
         loadingCollections: 'Sammlungen werden geladen...',
-        noCollections: 'In dieser Bibliothek gibt es noch keine Sammlungen.'
+        noCollections: 'In dieser Bibliothek gibt es noch keine Sammlungen.',
+        loadingRevisions: 'Wiederholungen werden geladen...',
+        noRevisions: 'In dieser Sammlung gibt es noch keine Wiederholungen.'
       },
       panels: {
         currentPosition: 'Aktuelle Position',
@@ -196,6 +198,11 @@ export const de: Copy = {
       cards: {
         collectionType: 'Sammlung',
         itemsSuffix: 'Einträge'
+      },
+      revisionForm: {
+        nameLabel: 'Wiederholungsname',
+        namePlaceholder: 'Wiederholungsname eingeben',
+        createAction: 'Wiederholung erstellen'
       },
       sidebar: {
         title: 'Navigation',

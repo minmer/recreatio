@@ -542,6 +542,19 @@ export type CogitaCollectionDetail = {
   createdUtc: string;
 };
 
+export type CogitaRevision = {
+  revisionId: string;
+  collectionId: string;
+  name: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
+  mode: string;
+  check: string;
+  limit: number;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
 export type CogitaCollectionDependency = {
   parentCollectionId: string;
   childCollectionId: string;
@@ -829,6 +842,73 @@ export function getCogitaCollection(libraryId: string, collectionId: string) {
   return request<CogitaCollectionDetail>(`/cogita/libraries/${libraryId}/collections/${collectionId}`, {
     method: 'GET'
   });
+}
+
+export function getCogitaRevisions(payload: { libraryId: string; collectionId: string }) {
+  return request<CogitaRevision[]>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaRevision(payload: { libraryId: string; collectionId: string; revisionId: string }) {
+  return request<CogitaRevision>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions/${payload.revisionId}`,
+    { method: 'GET' }
+  );
+}
+
+export function createCogitaRevision(payload: {
+  libraryId: string;
+  collectionId: string;
+  name: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
+  mode: string;
+  check: string;
+  limit: number;
+}) {
+  return request<CogitaRevision>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name,
+        revisionType: payload.revisionType ?? null,
+        revisionSettings: payload.revisionSettings ?? null,
+        mode: payload.mode,
+        check: payload.check,
+        limit: payload.limit
+      })
+    }
+  );
+}
+
+export function updateCogitaRevision(payload: {
+  libraryId: string;
+  collectionId: string;
+  revisionId: string;
+  name: string;
+  revisionType?: string | null;
+  revisionSettings?: Record<string, unknown> | null;
+  mode: string;
+  check: string;
+  limit: number;
+}) {
+  return request<CogitaRevision>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions/${payload.revisionId}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name,
+        revisionType: payload.revisionType ?? null,
+        revisionSettings: payload.revisionSettings ?? null,
+        mode: payload.mode,
+        check: payload.check,
+        limit: payload.limit
+      })
+    }
+  );
 }
 
 export function getCogitaCollectionDependencies(libraryId: string, collectionId: string) {

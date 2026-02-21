@@ -175,7 +175,9 @@ export const en: Copy = {
         savePrefsFailed: 'Could not save Cogita preferences.',
         selectLibraryFirst: 'Select a library first.',
         loadingCollections: 'Loading collections...',
-        noCollections: 'No collections in this library yet.'
+        noCollections: 'No collections in this library yet.',
+        loadingRevisions: 'Loading revisions...',
+        noRevisions: 'No revisions in this collection yet.'
       },
       panels: {
         currentPosition: 'Current position',
@@ -196,6 +198,11 @@ export const en: Copy = {
       cards: {
         collectionType: 'Collection',
         itemsSuffix: 'items'
+      },
+      revisionForm: {
+        nameLabel: 'Revision name',
+        namePlaceholder: 'Enter revision name',
+        createAction: 'Create revision'
       },
       sidebar: {
         title: 'Navigation',

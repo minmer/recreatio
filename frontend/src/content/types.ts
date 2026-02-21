@@ -132,6 +132,8 @@ export type Copy = {
         selectLibraryFirst: string;
         loadingCollections: string;
         noCollections: string;
+        loadingRevisions: string;
+        noRevisions: string;
       };
       panels: {
         currentPosition: string;
@@ -152,6 +154,11 @@ export type Copy = {
       cards: {
         collectionType: string;
         itemsSuffix: string;
+      };
+      revisionForm: {
+        nameLabel: string;
+        namePlaceholder: string;
+        createAction: string;
       };
       sidebar: {
         title: string;

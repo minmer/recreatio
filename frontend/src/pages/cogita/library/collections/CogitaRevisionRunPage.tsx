@@ -69,7 +69,8 @@ export function CogitaRevisionRunPage({
   language,
   onLanguageChange,
   libraryId,
-  collectionId
+  collectionId,
+  revisionId
 }: {
   copy: Copy;
   authLabel: string;
@@ -83,7 +84,9 @@ export function CogitaRevisionRunPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   collectionId: string;
+  revisionId?: string;
 }) {
+  void revisionId;
   const location = useLocation();
   const baseHref = `/#/cogita/library/${libraryId}`;
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
