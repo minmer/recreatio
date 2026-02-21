@@ -15,6 +15,7 @@ import { getCardSearchOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import { LatexBlock, LatexInline } from '../../../components/LatexText';
+import { useNavigate } from 'react-router-dom';
 
 export function CogitaLibraryListPage({
   copy,
@@ -43,6 +44,7 @@ export function CogitaLibraryListPage({
   libraryId: string;
   mode: CogitaLibraryMode;
 }) {
+  const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any' | 'vocab'>('any');
@@ -338,7 +340,12 @@ export function CogitaLibraryListPage({
                         type="button"
                         className="cogita-card-item"
                         data-selected={selectedCardKey === getCardKey(result)}
-                        onClick={() => setSelectedInfo(result)}
+                        onClick={() => {
+                          setSelectedInfo(result);
+                          if (result.cardType === 'info') {
+                            navigate(`/cogita/library/${libraryId}/edit/${result.cardId}`);
+                          }
+                        }}
                       >
                         <div className="cogita-card-type">
                           {result.cardType === 'vocab'
