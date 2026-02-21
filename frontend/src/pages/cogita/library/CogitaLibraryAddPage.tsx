@@ -262,16 +262,21 @@ export function CogitaLibraryAddPage({
           setStatus(`Link '${linkField.label}' is required.`);
           return;
         }
-        links[linkField.key] = values;
+        if (values.length > 0) {
+          links[linkField.key] = values;
+        }
       } else {
         const value = singleLinks[linkField.key]?.id ?? null;
         if (linkField.required && !value) {
           setStatus(`Link '${linkField.label}' is required.`);
           return;
         }
-        links[linkField.key] = value;
+        if (value) {
+          links[linkField.key] = value;
+        }
       }
     }
+    const hasLinks = Object.keys(links).length > 0;
 
     setLoading('saving');
     setStatus(null);
@@ -281,7 +286,7 @@ export function CogitaLibraryAddPage({
           libraryId,
           infoId: editInfoId,
           payload,
-          links
+          links: hasLinks ? links : undefined
         });
         setStatus('Info updated.');
       } else {
@@ -289,7 +294,7 @@ export function CogitaLibraryAddPage({
           libraryId,
           infoType: selectedInfoType,
           payload,
-          links
+          links: hasLinks ? links : undefined
         });
         setStatus('Info saved.');
 

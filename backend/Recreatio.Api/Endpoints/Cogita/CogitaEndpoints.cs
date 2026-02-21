@@ -7527,6 +7527,8 @@ public static class CogitaEndpoints
             }
         }
 
+        try
+        {
         var existingSingles = await dbContext.CogitaInfoLinkSingles
             .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
             .ToListAsync(ct);
@@ -7584,6 +7586,12 @@ public static class CogitaEndpoints
                 });
             }
         }
+        }
+        catch (Exception ex) when (IsMissingInfoLinksSchema(ex))
+        {
+            // Keep create/update flow operational on environments that have not yet applied link-table schema.
+            return;
+        }
 
     }
 
@@ -7601,6 +7609,8 @@ public static class CogitaEndpoints
             return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
         }
 
+        try
+        {
         var singles = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
             .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
             .ToListAsync(ct);
@@ -7635,6 +7645,18 @@ public static class CogitaEndpoints
         }
 
         return JsonSerializer.SerializeToElement(root);
+        }
+        catch (Exception ex) when (IsMissingInfoLinksSchema(ex))
+        {
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+        }
+    }
+
+    private static bool IsMissingInfoLinksSchema(Exception ex)
+    {
+        var text = ex.ToString();
+        return text.Contains("CogitaInfoLinkSingles", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("CogitaInfoLinkMultis", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddInfoPayload(
