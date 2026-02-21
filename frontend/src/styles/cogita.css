@@ -1030,163 +1030,6 @@
   min-width: 0;
 }
 
-.cogita-library-sidebar {
-  position: fixed;
-  left: 0;
-  top: var(--header-h);
-  bottom: var(--footer-h);
-  width: var(--sidebar-w);
-  height: auto;
-  overflow-y: auto;
-  align-self: start;
-  background: rgba(7, 18, 32, 0.92);
-  border-right: 1px solid rgba(120, 170, 220, 0.22);
-  border-radius: 0 22px 22px 0;
-  padding: 1.2rem 1rem;
-  box-shadow: 0 20px 60px rgba(4, 12, 20, 0.55);
-}
-
-.cogita-sidebar-title {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: rgba(170, 195, 220, 0.8);
-  margin-bottom: 1rem;
-}
-
-.cogita-sidebar-section {
-  display: grid;
-  gap: 0.5rem;
-  padding-bottom: 0.8rem;
-  margin-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(110, 160, 210, 0.15);
-}
-
-.cogita-sidebar-section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
-.cogita-sidebar-section-title {
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: rgba(145, 180, 220, 0.7);
-}
-
-.cogita-sidebar-section-title::after {
-  content: '▸';
-  font-size: 0.7rem;
-  color: rgba(160, 200, 240, 0.7);
-  transform: rotate(0deg);
-  transition: transform 0.2s ease;
-}
-
-.cogita-sidebar-section-title[data-expanded='true']::after {
-  transform: rotate(90deg);
-}
-
-.cogita-sidebar-links {
-  display: grid;
-  gap: 0.4rem;
-  padding-left: 0.3rem;
-}
-
-.cogita-sidebar-subsection {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.cogita-sidebar-subtitle {
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0.2rem 0 0.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(190, 215, 242, 0.75);
-}
-
-.cogita-sidebar-subtitle::after {
-  content: '▸';
-  font-size: 0.7rem;
-  color: rgba(170, 210, 245, 0.7);
-  transform: rotate(90deg);
-  transition: transform 0.2s ease;
-}
-
-.cogita-sidebar-subtitle[data-expanded='false']::after {
-  transform: rotate(0deg);
-}
-
-.cogita-sidebar-sublinks {
-  display: grid;
-  gap: 0.4rem;
-  padding-left: 0.3rem;
-}
-
-.cogita-sidebar-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.55rem 0.7rem;
-  border-radius: 12px;
-  font-size: 0.9rem;
-  color: rgba(190, 205, 225, 0.6);
-  border: 1px dashed rgba(120, 170, 220, 0.22);
-  background: rgba(9, 22, 38, 0.35);
-}
-
-.cogita-sidebar-item.is-disabled {
-  cursor: default;
-}
-
-.cogita-sidebar-badge {
-  margin-left: 0.6rem;
-  font-size: 0.65rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 0.15rem 0.45rem;
-  border-radius: 999px;
-  background: rgba(120, 190, 235, 0.2);
-  color: rgba(210, 235, 255, 0.9);
-}
-
-.cogita-sidebar-links a,
-.cogita-sidebar-sublinks a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.55rem 0.7rem;
-  border-radius: 12px;
-  text-decoration: none;
-  font-size: 0.9rem;
-  color: rgba(220, 236, 255, 0.82);
-  border: 1px solid transparent;
-  background: rgba(9, 22, 38, 0.55);
-}
-
-.cogita-sidebar-links a[data-active='true'],
-.cogita-sidebar-sublinks a[data-active='true'] {
-  background: rgba(120, 190, 235, 0.22);
-  border-color: rgba(140, 200, 245, 0.5);
-  color: #f3f7ff;
-}
-
 .cogita-library-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
@@ -2259,9 +2102,7 @@
 }
 
 .cogita-library-dashboard {
-  --sidebar-w: 280px;
   padding: 3.5rem 6vw 5rem;
-  padding-left: calc(6vw + var(--sidebar-w) + 1.5rem);
   display: grid;
   gap: 2rem;
 }
@@ -2595,16 +2436,6 @@
   .cogita-revision-run .cogita-library-pane,
   .cogita-revision-run .cogita-library-panel {
     grid-column: auto;
-  }
-  .cogita-library-dashboard {
-    padding-left: 6vw;
-  }
-  .cogita-library-sidebar {
-    position: static;
-    width: auto;
-    height: auto;
-    border-radius: 20px;
-    border: 1px solid rgba(120, 170, 220, 0.2);
   }
   .cogita-collection-graph {
     grid-template-columns: 1fr;

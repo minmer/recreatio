@@ -4,7 +4,6 @@ import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 
 export function CogitaLibrarySharedRevisionsPage({
   copy,
@@ -111,7 +110,6 @@ export function CogitaLibrarySharedRevisionsPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
               <div className="cogita-library-panel">

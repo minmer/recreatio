@@ -188,6 +188,13 @@ function buildCogitaPath(
   return `/cogita/library/${libraryId}/collections/${collectionId}`;
 }
 
+function normalizePath(path: string) {
+  if (path.length > 1 && path.endsWith('/')) {
+    return path.slice(0, -1);
+  }
+  return path;
+}
+
 function resolvePreferenceRoleId(roles: RoleResponse[], ownedRoleIds: Set<string>): string | null {
   if (!roles.length) return null;
 
@@ -274,6 +281,7 @@ export function CogitaWorkspacePage({
   const prefsRef = useRef<CogitaPreferences>({ version: 1, byLibrary: {} });
   const initializedRef = useRef(false);
   const savingRef = useRef(false);
+  const lastNavigationRef = useRef<string | null>(null);
 
   const selectedLibrary = useMemo(
     () => libraries.find((library) => library.libraryId === selectedLibraryId) ?? null,
@@ -611,10 +619,17 @@ export function CogitaWorkspacePage({
   useEffect(() => {
     if (!initializedRef.current) return;
 
-    const nextPath = buildCogitaPath(selectedLibraryId, selectedTarget, selectedCollectionId, selectedRevisionView);
-    if (location.pathname !== nextPath) {
-      navigate(nextPath, { replace: true });
+    const currentPath = normalizePath(location.pathname);
+    const nextPath = normalizePath(buildCogitaPath(selectedLibraryId, selectedTarget, selectedCollectionId, selectedRevisionView));
+    if (currentPath === nextPath) {
+      lastNavigationRef.current = null;
+      return;
     }
+    if (lastNavigationRef.current === nextPath) {
+      return;
+    }
+    lastNavigationRef.current = nextPath;
+    navigate(nextPath, { replace: true });
   }, [location.pathname, navigate, selectedCollectionId, selectedLibraryId, selectedRevisionView, selectedTarget]);
 
   useEffect(() => {

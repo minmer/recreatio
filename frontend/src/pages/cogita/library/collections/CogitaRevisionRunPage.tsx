@@ -18,7 +18,6 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import type { CogitaInfoType } from '../types';
 import { getInfoTypeLabel } from '../libraryOptions';
-import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
@@ -1853,7 +1852,6 @@ export function CogitaRevisionRunPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
               <div className="cogita-library-pane cogita-revision-stats">

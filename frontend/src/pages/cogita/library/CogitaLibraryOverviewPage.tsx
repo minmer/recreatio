@@ -11,7 +11,6 @@ import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 
 export function CogitaLibraryOverviewPage({
   copy,
@@ -171,7 +170,6 @@ export function CogitaLibraryOverviewPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-stats">
               <div className="cogita-stat-card">

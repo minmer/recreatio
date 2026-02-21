@@ -10,7 +10,6 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { InfoSearchSelect } from '../components/InfoSearchSelect';
-import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 
 type GraphNodeParams = {
   infoType?: string;
@@ -228,7 +227,6 @@ export function CogitaCollectionCreatePage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-collection-graph">
               <div className="cogita-graph-palette">

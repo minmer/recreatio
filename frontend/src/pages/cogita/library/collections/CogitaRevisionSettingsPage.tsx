@@ -12,7 +12,6 @@ import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
-import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
 
 export function CogitaRevisionSettingsPage({
@@ -190,7 +189,6 @@ export function CogitaRevisionSettingsPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
               <div className="cogita-library-pane">

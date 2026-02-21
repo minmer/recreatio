@@ -11,7 +11,6 @@ import { buildComputedSampleFromGraph } from './utils/computedGraph';
 import { LatexBlock, LatexInline } from '../../../components/LatexText';
 import { getConnectionTypeOptions, getGroupTypeOptions, getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 import bibleBooks from '../../../content/bibleBooks.json';
 
 export function CogitaLibraryAddPage({
@@ -1273,7 +1272,6 @@ export function CogitaLibraryAddPage({
         </div>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-add-center">
               <div className="cogita-library-panel">

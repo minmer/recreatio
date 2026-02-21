@@ -14,7 +14,6 @@ import type { CogitaInfoOption, CogitaInfoType, CogitaLibraryMode } from './type
 import { getCardSearchOptions } from './libraryOptions';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
-import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 import { LatexBlock, LatexInline } from '../../../components/LatexText';
 
 export function CogitaLibraryListPage({
@@ -228,7 +227,6 @@ export function CogitaLibraryListPage({
         </div>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
               <div className="cogita-library-pane">

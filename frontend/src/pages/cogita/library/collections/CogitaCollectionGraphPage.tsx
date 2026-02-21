@@ -4,7 +4,6 @@ import 'reactflow/dist/style.css';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { CogitaShell } from '../../CogitaShell';
-import { CogitaLibrarySidebar } from '../components/CogitaLibrarySidebar';
 import { InfoSearchSelect } from '../components/InfoSearchSelect';
 import { getCogitaCollection, getCogitaCollectionGraph, previewCogitaCollectionGraph, saveCogitaCollectionGraph } from '../../../../lib/api';
 
@@ -252,7 +251,6 @@ export function CogitaCollectionGraphPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} collectionId={collectionId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-collection-graph">
               <div className="cogita-graph-palette">

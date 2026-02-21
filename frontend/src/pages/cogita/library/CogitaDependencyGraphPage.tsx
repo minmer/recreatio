@@ -4,7 +4,6 @@ import 'reactflow/dist/style.css';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
-import { CogitaLibrarySidebar } from './components/CogitaLibrarySidebar';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
 import {
   getCogitaDependencyGraph,
@@ -247,7 +246,7 @@ export function CogitaDependencyGraphPage({
         <header className="cogita-library-dashboard-header">
           <div>
             <p className="cogita-user-kicker">{copy.cogita.library.graph.kicker}</p>
-            <h1 className="cogita-library-title">{copy.cogita.library.sidebar.title}</h1>
+            <h1 className="cogita-library-title">{copy.cogita.library.navLabel}</h1>
             <p className="cogita-library-subtitle">{copy.cogita.library.graph.subtitle}</p>
           </div>
           <div className="cogita-library-actions">
@@ -261,7 +260,6 @@ export function CogitaDependencyGraphPage({
         </header>
 
         <div className="cogita-library-layout">
-          <CogitaLibrarySidebar libraryId={libraryId} labels={copy.cogita.library.sidebar} />
           <div className="cogita-library-content">
             <div className="cogita-collection-graph">
               <div className="cogita-graph-panel">
