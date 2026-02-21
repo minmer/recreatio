@@ -130,7 +130,7 @@ export const en: Copy = {
     user: {
       librariesKicker: 'Libraries',
       librariesTitle: 'Your knowledge libraries',
-      librariesSubtitle: 'Create a library role, then enter it to manage encrypted index cards and connections.',
+      librariesSubtitle: 'Create a library role, then enter it to manage encrypted infos and connections.',
       createLibraryTitle: 'Create new library',
       libraryNameLabel: 'Library name',
       libraryNamePlaceholder: 'e.g. Medieval theology',
@@ -140,7 +140,7 @@ export const en: Copy = {
       noLibraries: 'No libraries yet. Create one to begin.',
       libraryRoleLabel: 'Library role',
       openOverview: 'Open overview',
-      openCards: 'Open cards',
+      openCards: 'Open infos',
       libraryNameRequired: 'Library name is required.',
       libraryCreateFailed: 'Could not create the library yet.'
     },
@@ -157,7 +157,7 @@ export const en: Copy = {
       targets: {
         libraryOverview: 'Library overview',
         allCards: 'Infos',
-        newCard: 'New card',
+        newCard: 'New info',
         allCollections: 'Collections',
         allRevisions: 'Revisions',
         newCollection: 'New collection',
@@ -198,7 +198,7 @@ export const en: Copy = {
       },
       links: {
         libraryOverview: 'Library overview',
-        allCards: 'Cards list',
+        allCards: 'Infos',
         sharedRevisions: 'Shared revisions'
       },
       cards: {
@@ -525,7 +525,7 @@ export const en: Copy = {
     library: {
       nav: {
         overview: 'Overview',
-        list: 'Card list',
+        list: 'Infos',
         add: 'Add info',
         collections: 'Collections'
       },
@@ -533,7 +533,7 @@ export const en: Copy = {
       actions: {
         backToCogita: 'Back to Cogita',
         libraryOverview: 'Library overview',
-        openList: 'Open list',
+        openList: 'Open infos',
         collections: 'Collections',
         addInfo: 'Add new info',
         createCollection: 'Create collection',
@@ -542,7 +542,7 @@ export const en: Copy = {
         collectionDetail: 'Collection detail'
       },
       infoTypes: {
-        any: 'All index cards',
+        any: 'All infos',
         vocab: 'Vocabulary card',
         language: 'Language',
         word: 'Word',
@@ -584,7 +584,7 @@ export const en: Copy = {
       },
       overview: {
         kicker: 'Library',
-        subtitle: 'Overview of your encrypted index card library.',
+        subtitle: 'Overview of your encrypted info library.',
         stats: {
           totalInfos: 'Total infos',
           connections: 'Connections',
@@ -599,14 +599,14 @@ export const en: Copy = {
         statsCardTitle: 'Library statistics',
         statsCardHint: 'Select a counter to focus this panel.',
         knownChartTitle: 'Knowness status',
-        checksChartTitle: 'Available checking cards',
+        checksChartTitle: 'Available checks',
         known: 'Known',
         unknown: 'Not known',
         excluded: 'Excluded',
         availableChecks: 'Available',
         unavailableChecks: 'Unavailable',
         quickActionsTitle: 'Quick actions',
-        quickActionsText: 'Jump into the list to browse cards or add a new entry.',
+        quickActionsText: 'Jump into infos to browse or add a new entry.',
         browseList: 'Browse list',
         viewCollections: 'View collections',
         addInfo: 'Add info',
@@ -614,7 +614,7 @@ export const en: Copy = {
         seedSuccess: 'Mock data ready: {languages} languages, {translations} vocab cards.',
         seedFail: 'Failed to create mock data.',
         focusTitle: 'What is inside?',
-        focusBody1: 'Every info card is encrypted and linked through relationships.',
+        focusBody1: 'Every info is encrypted and linked through relationships.',
         focusBody2: 'Use the list to explore, then add or connect new knowledge nodes.',
         transferTitle: 'Export & import',
         transferBody: 'Export decrypts your library into a JSON bundle. Import rebuilds it with new keys.',
@@ -654,10 +654,10 @@ export const en: Copy = {
       },
       list: {
         kicker: 'Library list',
-        subtitle: 'Browse all encrypted info cards.',
+        subtitle: 'Browse all encrypted infos.',
         searchTitle: 'Search',
         searchPlaceholder: 'Search text, name, or label',
-        cardCount: '{shown} of {total} cards',
+        cardCount: '{shown} of {total} entries',
         cardTypeInfo: 'Info',
         cardTypeConnection: 'Connection',
         cardTypeVocab: 'Vocabulary',
@@ -667,7 +667,7 @@ export const en: Copy = {
           list: 'List'
         },
         selectedTitle: 'Selected info',
-        selectedEmpty: 'Pick an info card',
+        selectedEmpty: 'Pick an info',
         selectedHint: 'Use the add page to create connections or vocabulary links.',
         noMatch: 'No matching info found.',
         addInfo: 'Add information',
@@ -699,7 +699,7 @@ export const en: Copy = {
       },
       add: {
         kicker: 'Add info',
-        subtitle: 'Create new info cards, connections, or vocabulary links.',
+        subtitle: 'Create new infos, connections, or vocabulary links.',
         tabs: {
           info: 'info',
           connection: 'connection',
@@ -858,7 +858,7 @@ export const en: Copy = {
         citationQuoteTextLabel: 'Quote text',
         citationQuoteTextPlaceholder: 'Paste the quoted text',
         citationTitleLabel: 'Citation title',
-        citationTitlePlaceholder: 'Optional title for the citation card',
+          citationTitlePlaceholder: 'Optional title for the citation entry',
         citationLanguageLabel: 'Quote language',
         citationLanguagePlaceholder: 'Search or create a language',
           citationSourceKindLabel: 'Source kind',
@@ -900,7 +900,7 @@ export const en: Copy = {
       },
       collections: {
         listKicker: 'Collections',
-        listSubtitle: 'Curated stacks of index cards for revision.',
+        listSubtitle: 'Curated sets of infos for revision.',
         searchPlaceholder: 'Search collection name',
         emptyTitle: 'No collections yet.',
         emptyAction: 'Create the first collection',
@@ -908,14 +908,14 @@ export const en: Copy = {
         collectionLabel: 'Collection',
         noNotes: 'No notes yet',
         defaultName: 'Collection',
-        itemCountLabel: '{count} cards',
+        itemCountLabel: '{count} entries',
         detailKicker: 'Collection detail',
-        detailSubtitle: 'Curated stacks of index cards for revision.',
-        noCards: 'No cards stored in this collection yet.',
+        detailSubtitle: 'Curated sets of infos for revision.',
+        noCards: 'No entries stored in this collection yet.',
         detailFocusTitle: 'Prepare revision sets',
-        detailFocusBody: 'Create collections from words, translations, or any info cards.',
+        detailFocusBody: 'Create collections from words, translations, or any infos.',
         createKicker: 'New collection',
-        createSubtitle: 'Bundle cards for focused revision.',
+        createSubtitle: 'Bundle infos for focused revision.',
         collectionInfoTitle: 'Collection info',
         nameLabel: 'Name',
         namePlaceholder: 'e.g. German basics',
@@ -924,13 +924,13 @@ export const en: Copy = {
         saveRequiredName: 'Collection name is required.',
         saveSuccess: 'Collection saved.',
         saveFail: 'Failed to save collection.',
-        findCardsTitle: 'Find cards',
-        searchCardsPlaceholder: 'Search cards',
+        findCardsTitle: 'Find infos',
+        searchCardsPlaceholder: 'Search infos',
         addToCollection: 'Add to collection',
         added: 'Added',
-        selectedCardsTitle: 'Selected cards',
+        selectedCardsTitle: 'Selected infos',
         selectedCountLabel: '{count} items',
-        noSelected: 'No cards selected yet.',
+        noSelected: 'No infos selected yet.',
         remove: 'Remove',
         loading: 'Loading...',
         ready: 'Ready'

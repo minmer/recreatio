@@ -130,7 +130,7 @@ export const pl: Copy = {
     user: {
       librariesKicker: 'Biblioteki',
       librariesTitle: 'Twoje biblioteki wiedzy',
-      librariesSubtitle: 'Utwórz rolę biblioteki, a potem wejdź, aby zarządzać zaszyfrowanymi kartami i połączeniami.',
+      librariesSubtitle: 'Utwórz rolę biblioteki, a potem wejdź, aby zarządzać zaszyfrowanymi informacjami i połączeniami.',
       createLibraryTitle: 'Utwórz nową bibliotekę',
       libraryNameLabel: 'Nazwa biblioteki',
       libraryNamePlaceholder: 'np. Teologia średniowieczna',
@@ -140,7 +140,7 @@ export const pl: Copy = {
       noLibraries: 'Brak bibliotek. Utwórz pierwszą.',
       libraryRoleLabel: 'Rola biblioteki',
       openOverview: 'Otwórz przegląd',
-      openCards: 'Otwórz karty',
+      openCards: 'Otwórz informacje',
       libraryNameRequired: 'Nazwa biblioteki jest wymagana.',
       libraryCreateFailed: 'Nie udało się jeszcze utworzyć biblioteki.'
     },
@@ -157,7 +157,7 @@ export const pl: Copy = {
       targets: {
         libraryOverview: 'Przegląd biblioteki',
         allCards: 'Informacje',
-        newCard: 'Nowa karta',
+        newCard: 'Nowa informacja',
         allCollections: 'Kolekcje',
         allRevisions: 'Powtórki',
         newCollection: 'Nowa kolekcja',
@@ -198,7 +198,7 @@ export const pl: Copy = {
       },
       links: {
         libraryOverview: 'Przegląd biblioteki',
-        allCards: 'Lista kart',
+        allCards: 'Informacje',
         sharedRevisions: 'Udostępnione powtórki'
       },
       cards: {
@@ -525,7 +525,7 @@ export const pl: Copy = {
     library: {
       nav: {
         overview: 'Przegląd',
-        list: 'Lista kart',
+        list: 'Informacje',
         add: 'Dodaj info',
         collections: 'Kolekcje'
       },
@@ -533,7 +533,7 @@ export const pl: Copy = {
       actions: {
         backToCogita: 'Wróć do Cogita',
         libraryOverview: 'Przegląd biblioteki',
-        openList: 'Otwórz listę',
+        openList: 'Otwórz informacje',
         collections: 'Kolekcje',
         addInfo: 'Dodaj nowe info',
         createCollection: 'Utwórz kolekcję',
@@ -542,7 +542,7 @@ export const pl: Copy = {
         collectionDetail: 'Szczegóły kolekcji'
       },
       infoTypes: {
-        any: 'Wszystkie karty',
+        any: 'Wszystkie informacje',
         vocab: 'Karta słownictwa',
         language: 'Język',
         word: 'Słowo',
@@ -584,7 +584,7 @@ export const pl: Copy = {
       },
       overview: {
         kicker: 'Biblioteka',
-        subtitle: 'Przegląd zaszyfrowanej biblioteki kart.',
+        subtitle: 'Przegląd zaszyfrowanej biblioteki informacji.',
         stats: {
           totalInfos: 'Łącznie informacji',
           connections: 'Połączenia',
@@ -599,14 +599,14 @@ export const pl: Copy = {
         statsCardTitle: 'Statystyki biblioteki',
         statsCardHint: 'Wybierz licznik, aby zmienić panel.',
         knownChartTitle: 'Status znajomości',
-        checksChartTitle: 'Dostępne karty sprawdzające',
+        checksChartTitle: 'Dostępne sprawdzenia',
         known: 'Znane',
         unknown: 'Nieznane',
         excluded: 'Wyłączone',
         availableChecks: 'Dostępne',
         unavailableChecks: 'Niedostępne',
         quickActionsTitle: 'Szybkie akcje',
-        quickActionsText: 'Przejdź do listy, aby przeglądać karty lub dodać wpis.',
+        quickActionsText: 'Przejdź do informacji, aby przeglądać lub dodać wpis.',
         browseList: 'Przeglądaj listę',
         viewCollections: 'Zobacz kolekcje',
         addInfo: 'Dodaj info',
@@ -614,7 +614,7 @@ export const pl: Copy = {
         seedSuccess: 'Dane testowe gotowe: {languages} języki, {translations} kart słownictwa.',
         seedFail: 'Nie udało się utworzyć danych testowych.',
         focusTitle: 'Co jest w środku?',
-        focusBody1: 'Każda karta jest szyfrowana i łączona relacjami.',
+        focusBody1: 'Każda informacja jest szyfrowana i łączona relacjami.',
         focusBody2: 'Użyj listy do przeglądu, potem dodawaj lub łącz nowe węzły wiedzy.',
         transferTitle: 'Eksport i import',
         transferBody: 'Eksport odszyfrowuje bibliotekę do paczki JSON. Import odtwarza ją z nowymi kluczami.',
@@ -654,10 +654,10 @@ export const pl: Copy = {
       },
       list: {
         kicker: 'Lista biblioteki',
-        subtitle: 'Przeglądaj wszystkie zaszyfrowane karty.',
+        subtitle: 'Przeglądaj wszystkie zaszyfrowane informacje.',
         searchTitle: 'Wyszukaj',
         searchPlaceholder: 'Szukaj tekstu, nazwy lub etykiety',
-        cardCount: '{shown} z {total} kart',
+        cardCount: '{shown} z {total} wpisów',
         cardTypeInfo: 'Info',
         cardTypeConnection: 'Połączenie',
         cardTypeVocab: 'Słownictwo',
@@ -667,7 +667,7 @@ export const pl: Copy = {
           list: 'Lista'
         },
         selectedTitle: 'Wybrana informacja',
-        selectedEmpty: 'Wybierz kartę',
+        selectedEmpty: 'Wybierz informację',
         selectedHint: 'Użyj strony dodawania, aby tworzyć połączenia lub słownictwo.',
         noMatch: 'Brak pasujących informacji.',
         addInfo: 'Dodaj informację',
@@ -699,7 +699,7 @@ export const pl: Copy = {
       },
       add: {
         kicker: 'Dodaj info',
-        subtitle: 'Twórz nowe karty, połączenia lub słownictwo.',
+        subtitle: 'Twórz nowe informacje, połączenia lub słownictwo.',
         tabs: {
           info: 'info',
           connection: 'połączenie',
@@ -856,7 +856,7 @@ export const pl: Copy = {
           wordBLabel: 'Słowo B',
           wordBPlaceholder: 'Wyszukaj lub utwórz słowo B',
           citationTitleLabel: 'Tytuł cytatu',
-          citationTitlePlaceholder: 'Opcjonalny tytuł dla karty cytatu',
+          citationTitlePlaceholder: 'Opcjonalny tytuł dla wpisu cytatu',
           citationQuoteTextLabel: 'Treść cytatu',
           citationQuoteTextPlaceholder: 'Wklej tekst cytatu',
           citationLanguageLabel: 'Język cytatu',
@@ -900,7 +900,7 @@ export const pl: Copy = {
       },
       collections: {
         listKicker: 'Kolekcje',
-        listSubtitle: 'Zestawy kart do powtórek.',
+        listSubtitle: 'Zestawy informacji do powtórek.',
         searchPlaceholder: 'Szukaj nazwy kolekcji',
         emptyTitle: 'Brak kolekcji.',
         emptyAction: 'Utwórz pierwszą kolekcję',
@@ -908,14 +908,14 @@ export const pl: Copy = {
         collectionLabel: 'Kolekcja',
         noNotes: 'Brak notatek',
         defaultName: 'Kolekcja',
-        itemCountLabel: '{count} kart',
+        itemCountLabel: '{count} wpisów',
         detailKicker: 'Szczegóły kolekcji',
-        detailSubtitle: 'Zestawy kart do powtórek.',
-        noCards: 'Brak kart w tej kolekcji.',
+        detailSubtitle: 'Zestawy informacji do powtórek.',
+        noCards: 'Brak wpisów w tej kolekcji.',
         detailFocusTitle: 'Przygotuj zestawy powtórek',
-        detailFocusBody: 'Twórz kolekcje ze słów, tłumaczeń lub dowolnych kart.',
+        detailFocusBody: 'Twórz kolekcje ze słów, tłumaczeń lub dowolnych informacji.',
         createKicker: 'Nowa kolekcja',
-        createSubtitle: 'Zbierz karty do powtórki.',
+        createSubtitle: 'Zbierz informacje do powtórki.',
         collectionInfoTitle: 'Informacje o kolekcji',
         nameLabel: 'Nazwa',
         namePlaceholder: 'np. Podstawy niemieckiego',
@@ -924,13 +924,13 @@ export const pl: Copy = {
         saveRequiredName: 'Nazwa kolekcji jest wymagana.',
         saveSuccess: 'Kolekcja zapisana.',
         saveFail: 'Nie udało się zapisać kolekcji.',
-        findCardsTitle: 'Znajdź karty',
-        searchCardsPlaceholder: 'Szukaj kart',
+        findCardsTitle: 'Znajdź informacje',
+        searchCardsPlaceholder: 'Szukaj informacji',
         addToCollection: 'Dodaj do kolekcji',
         added: 'Dodano',
-        selectedCardsTitle: 'Wybrane karty',
+        selectedCardsTitle: 'Wybrane informacje',
         selectedCountLabel: '{count} elementów',
-        noSelected: 'Brak wybranych kart.',
+        noSelected: 'Brak wybranych informacji.',
         remove: 'Usuń',
         loading: 'Ładowanie...',
         ready: 'Gotowe'

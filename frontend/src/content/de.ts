@@ -130,7 +130,7 @@ export const de: Copy = {
     user: {
       librariesKicker: 'Bibliotheken',
       librariesTitle: 'Deine Wissensbibliotheken',
-      librariesSubtitle: 'Erstelle eine Bibliotheksrolle und betrete sie, um verschlüsselte Karteikarten und Verbindungen zu verwalten.',
+      librariesSubtitle: 'Erstelle eine Bibliotheksrolle und betrete sie, um verschlüsselte Infos und Verbindungen zu verwalten.',
       createLibraryTitle: 'Neue Bibliothek erstellen',
       libraryNameLabel: 'Bibliotheksname',
       libraryNamePlaceholder: 'z.B. Mittelalterliche Theologie',
@@ -140,7 +140,7 @@ export const de: Copy = {
       noLibraries: 'Noch keine Bibliotheken. Erstelle eine, um zu starten.',
       libraryRoleLabel: 'Bibliotheksrolle',
       openOverview: 'Übersicht öffnen',
-      openCards: 'Karten öffnen',
+      openCards: 'Infos öffnen',
       libraryNameRequired: 'Bibliotheksname ist erforderlich.',
       libraryCreateFailed: 'Bibliothek konnte noch nicht erstellt werden.'
     },
@@ -157,7 +157,7 @@ export const de: Copy = {
       targets: {
         libraryOverview: 'Bibliotheksübersicht',
         allCards: 'Infos',
-        newCard: 'Neue Karte',
+        newCard: 'Neue Info',
         allCollections: 'Sammlungen',
         allRevisions: 'Wiederholungen',
         newCollection: 'Neue Sammlung',
@@ -198,7 +198,7 @@ export const de: Copy = {
       },
       links: {
         libraryOverview: 'Bibliotheksübersicht',
-        allCards: 'Kartenliste',
+        allCards: 'Infos',
         sharedRevisions: 'Geteilte Wiederholungen'
       },
       cards: {
@@ -525,7 +525,7 @@ export const de: Copy = {
     library: {
       nav: {
         overview: 'Übersicht',
-        list: 'Kartenliste',
+        list: 'Infos',
         add: 'Info hinzufügen',
         collections: 'Sammlungen'
       },
@@ -533,7 +533,7 @@ export const de: Copy = {
       actions: {
         backToCogita: 'Zurück zu Cogita',
         libraryOverview: 'Bibliotheksübersicht',
-        openList: 'Liste öffnen',
+        openList: 'Infos öffnen',
         collections: 'Sammlungen',
         addInfo: 'Neue Info hinzufügen',
         createCollection: 'Sammlung erstellen',
@@ -542,7 +542,7 @@ export const de: Copy = {
         collectionDetail: 'Sammlungsdetails'
       },
       infoTypes: {
-        any: 'Alle Karteikarten',
+        any: 'Alle Infos',
         vocab: 'Vokabelkarte',
         language: 'Sprache',
         word: 'Wort',
@@ -584,7 +584,7 @@ export const de: Copy = {
       },
       overview: {
         kicker: 'Bibliothek',
-        subtitle: 'Übersicht deiner verschlüsselten Karteikartenbibliothek.',
+        subtitle: 'Übersicht deiner verschlüsselten Info-Bibliothek.',
         stats: {
           totalInfos: 'Gesamtinfos',
           connections: 'Verbindungen',
@@ -599,14 +599,14 @@ export const de: Copy = {
         statsCardTitle: 'Bibliotheksstatistik',
         statsCardHint: 'Wähle einen Zähler, um dieses Panel zu wechseln.',
         knownChartTitle: 'Kenntnisstatus',
-        checksChartTitle: 'Verfügbare Prüf-Karten',
+        checksChartTitle: 'Verfügbare Prüfungen',
         known: 'Bekannt',
         unknown: 'Unbekannt',
         excluded: 'Ausgeschlossen',
         availableChecks: 'Verfügbar',
         unavailableChecks: 'Nicht verfügbar',
         quickActionsTitle: 'Schnellaktionen',
-        quickActionsText: 'Zur Liste wechseln, um Karten zu durchsuchen oder einen neuen Eintrag hinzuzufügen.',
+        quickActionsText: 'Zu Infos wechseln, um zu durchsuchen oder einen neuen Eintrag hinzuzufügen.',
         browseList: 'Liste öffnen',
         viewCollections: 'Sammlungen ansehen',
         addInfo: 'Info hinzufügen',
@@ -614,7 +614,7 @@ export const de: Copy = {
         seedSuccess: 'Mock-Daten bereit: {languages} Sprachen, {translations} Vokabelkarten.',
         seedFail: 'Mock-Daten konnten nicht erstellt werden.',
         focusTitle: 'Was ist enthalten?',
-        focusBody1: 'Jede Infokarte ist verschlüsselt und über Beziehungen verknüpft.',
+        focusBody1: 'Jede Info ist verschlüsselt und über Beziehungen verknüpft.',
         focusBody2: 'Nutze die Liste zum Erkunden und füge neue Wissensknoten hinzu.',
         transferTitle: 'Export & Import',
         transferBody: 'Export entschlüsselt die Bibliothek in ein JSON-Bundle. Import erstellt sie mit neuen Schlüsseln neu.',
@@ -654,10 +654,10 @@ export const de: Copy = {
       },
       list: {
         kicker: 'Bibliotheksliste',
-        subtitle: 'Alle verschlüsselten Infokarten durchsuchen.',
+        subtitle: 'Alle verschlüsselten Infos durchsuchen.',
         searchTitle: 'Suche',
         searchPlaceholder: 'Suche nach Text, Name oder Label',
-        cardCount: '{shown} von {total} Karten',
+        cardCount: '{shown} von {total} Einträgen',
         cardTypeInfo: 'Info',
         cardTypeConnection: 'Verbindung',
         cardTypeVocab: 'Vokabeln',
@@ -699,7 +699,7 @@ export const de: Copy = {
       },
       add: {
         kicker: 'Info hinzufügen',
-        subtitle: 'Neue Infokarten, Verknüpfungen oder Vokabeln erstellen.',
+        subtitle: 'Neue Infos, Verknüpfungen oder Vokabeln erstellen.',
         tabs: {
           info: 'info',
           connection: 'verbindung',
@@ -856,7 +856,7 @@ export const de: Copy = {
           wordBLabel: 'Wort B',
           wordBPlaceholder: 'Wort B suchen oder erstellen',
           citationTitleLabel: 'Zitattitel',
-          citationTitlePlaceholder: 'Optionaler Titel für die Zitatkarte',
+          citationTitlePlaceholder: 'Optionaler Titel für den Zitateintrag',
           citationQuoteTextLabel: 'Zitattext',
           citationQuoteTextPlaceholder: 'Zitattext einfügen',
           citationLanguageLabel: 'Zitatsprache',
@@ -900,7 +900,7 @@ export const de: Copy = {
       },
       collections: {
         listKicker: 'Sammlungen',
-        listSubtitle: 'Kuratierten Karteistapel für Wiederholung.',
+        listSubtitle: 'Kuratierten Info-Sets für Wiederholung.',
         searchPlaceholder: 'Sammlungsname suchen',
         emptyTitle: 'Noch keine Sammlungen.',
         emptyAction: 'Erste Sammlung erstellen',
@@ -908,14 +908,14 @@ export const de: Copy = {
         collectionLabel: 'Sammlung',
         noNotes: 'Keine Notizen',
         defaultName: 'Sammlung',
-        itemCountLabel: '{count} Karten',
+        itemCountLabel: '{count} Einträge',
         detailKicker: 'Sammlungsdetails',
-        detailSubtitle: 'Kuratierten Karteistapel für Wiederholung.',
-        noCards: 'Noch keine Karten in dieser Sammlung.',
+        detailSubtitle: 'Kuratierten Info-Sets für Wiederholung.',
+        noCards: 'Noch keine Einträge in dieser Sammlung.',
         detailFocusTitle: 'Wiederholungen vorbereiten',
         detailFocusBody: 'Erstelle Sammlungen aus Wörtern, Übersetzungen oder beliebigen Infos.',
         createKicker: 'Neue Sammlung',
-        createSubtitle: 'Karten für fokussiertes Lernen bündeln.',
+        createSubtitle: 'Infos für fokussiertes Lernen bündeln.',
         collectionInfoTitle: 'Sammlungsinfo',
         nameLabel: 'Name',
         namePlaceholder: 'z.B. Deutsch Grundlagen',
@@ -924,13 +924,13 @@ export const de: Copy = {
         saveRequiredName: 'Sammlungsname ist erforderlich.',
         saveSuccess: 'Sammlung gespeichert.',
         saveFail: 'Sammlung konnte nicht gespeichert werden.',
-        findCardsTitle: 'Karten finden',
-        searchCardsPlaceholder: 'Karten suchen',
+        findCardsTitle: 'Infos finden',
+        searchCardsPlaceholder: 'Infos suchen',
         addToCollection: 'Zur Sammlung hinzufügen',
         added: 'Hinzugefügt',
-        selectedCardsTitle: 'Ausgewählte Karten',
+        selectedCardsTitle: 'Ausgewählte Infos',
         selectedCountLabel: '{count} Einträge',
-        noSelected: 'Noch keine Karten ausgewählt.',
+        noSelected: 'Noch keine Infos ausgewählt.',
         remove: 'Entfernen',
         loading: 'Lädt...',
         ready: 'Bereit'
