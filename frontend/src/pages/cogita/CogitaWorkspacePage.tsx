@@ -1283,7 +1283,10 @@ export function CogitaWorkspacePage({
     }
 
     const currentPath = normalizePath(`${location.pathname}${location.search}`);
-    const isMainCogitaPath = normalizePath(location.pathname) === '/cogita' && !pathState.libraryId;
+    const isMainCogitaPath =
+      normalizePath(location.pathname) === '/cogita' &&
+      !pathState.libraryId &&
+      !selectedLibraryId;
     if (isMainCogitaPath) {
       lastNavigationRef.current = null;
       return;
@@ -1728,11 +1731,13 @@ export function CogitaWorkspacePage({
                               type="button"
                               className="cogita-card-item"
                               onClick={() => {
-                                setSelectedLibraryId(library.libraryId);
-                                setSelectedTarget('library_overview');
-                                setSelectedCollectionId(undefined);
-                                setSelectedRevisionId(undefined);
-                                setSelectedRevisionView('detail');
+                                applyNavigationSelection({
+                                  libraryId: library.libraryId,
+                                  target: 'library_overview',
+                                  collectionId: undefined,
+                                  revisionId: undefined,
+                                  revisionView: 'detail'
+                                });
                               }}
                             >
                               <div className="cogita-card-type">{copy.cogita.user.libraryRoleLabel}</div>
@@ -1746,132 +1751,6 @@ export function CogitaWorkspacePage({
                 </section>
               ) : null}
 
-              {selectedLibraryId ? (
-              <>
-              <div className="cogita-browser-layout">
-                <article className="cogita-browser-panel">
-              <h2>{workspaceCopy.panels.currentPosition}</h2>
-              <p className="cogita-browser-path">
-                {visibleNavigationLevels.map((level, index) => (
-                  <span key={`path:${level.key}`}>
-                    {index > 0 ? <span> / </span> : null}
-                    <strong>{level.selectedLabel}</strong>
-                  </span>
-                ))}
-                {!showCollectionLayer ? (
-                  <span>
-                    <span> / </span>
-                    <strong>{workspaceCopy.path.noCollectionLayer}</strong>
-                  </span>
-                ) : null}
-              </p>
-              <p className="cogita-browser-note">
-                {workspaceCopy.path.currentRoute}{' '}
-                <code>
-                  {buildCogitaPath(
-                    selectedLibraryId,
-                    selectedTarget,
-                    selectedCollectionId,
-                    selectedRevisionView,
-                    selectedRevisionId,
-                    pathState.infoId,
-                    pathState.infoView ?? 'overview'
-                  )}
-                </code>
-              </p>
-
-              {selectedLibraryId ? (
-                <div className="cogita-browser-links">
-                  <a className="ghost" href={`/#/cogita/library/${selectedLibraryId}`}>
-                    {workspaceCopy.links.libraryOverview}
-                  </a>
-                  <a className="ghost" href={`/#/cogita/library/${selectedLibraryId}/list`}>
-                    {workspaceCopy.links.allCards}
-                  </a>
-                  {selectedCollectionId ? (
-                    <a className="ghost" href={`/#/cogita/library/${selectedLibraryId}/collections/${selectedCollectionId}/shared-revisions`}>
-                      {workspaceCopy.links.sharedRevisions}
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
-                </article>
-
-                <article className="cogita-browser-panel">
-              <h2>{workspaceCopy.panels.quickCreate}</h2>
-              <label className="cogita-field full">
-                <span>{copy.cogita.user.libraryNameLabel}</span>
-                <input
-                  type="text"
-                  value={newLibraryName}
-                  onChange={(event) => setNewLibraryName(event.target.value)}
-                  placeholder={copy.cogita.user.libraryNamePlaceholder}
-                />
-              </label>
-              <button type="button" className="cta" onClick={handleCreateLibrary}>
-                {copy.cogita.user.createLibraryAction}
-              </button>
-
-              <label className="cogita-field full">
-                <span>{copy.cogita.library.collections.nameLabel}</span>
-                <input
-                  type="text"
-                  value={newCollectionName}
-                  onChange={(event) => setNewCollectionName(event.target.value)}
-                  placeholder={copy.cogita.library.collections.namePlaceholder}
-                  disabled={!selectedLibraryId}
-                />
-              </label>
-              <button type="button" className="cta" onClick={handleCreateCollection} disabled={!selectedLibraryId}>
-                {copy.cogita.library.actions.createCollection}
-              </button>
-
-              <label className="cogita-field full">
-                <span>{workspaceCopy.revisionForm.nameLabel}</span>
-                <input
-                  type="text"
-                  value={newRevisionName}
-                  onChange={(event) => setNewRevisionName(event.target.value)}
-                  placeholder={workspaceCopy.revisionForm.namePlaceholder}
-                  disabled={!selectedCollectionId}
-                />
-              </label>
-              <button type="button" className="cta" onClick={handleCreateRevision} disabled={!selectedCollectionId}>
-                {workspaceCopy.revisionForm.createAction}
-              </button>
-
-              {status ? <p className="cogita-form-error">{status}</p> : null}
-                </article>
-              </div>
-              <section className="cogita-browser-collections">
-                <h2>{workspaceCopy.panels.collections}</h2>
-                {collectionsLoading ? <p className="cogita-library-subtitle">{workspaceCopy.status.loadingCollections}</p> : null}
-                {!collectionsLoading && collections.length === 0 ? (
-                  <p className="cogita-library-subtitle">{workspaceCopy.status.noCollections}</p>
-                ) : null}
-                {collections.length > 0 ? (
-                  <div className="cogita-card-list" data-view="list">
-                    {collections.map((collection) => (
-                      <button
-                        key={collection.collectionId}
-                        type="button"
-                        className={`cogita-card-item ${collection.collectionId === selectedCollectionId ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedCollectionId(collection.collectionId);
-                          setSelectedRevisionId(undefined);
-                          setSelectedRevisionView('detail');
-                        }}
-                      >
-                        <div className="cogita-card-type">{workspaceCopy.cards.collectionType}</div>
-                        <h3 className="cogita-card-title">{collection.name}</h3>
-                        <p className="cogita-card-subtitle">{collection.itemCount} {workspaceCopy.cards.itemsSuffix}</p>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-              </>
-              ) : null}
             </>
           ) : null}
         </div>
