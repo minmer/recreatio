@@ -1137,6 +1137,30 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ParentDirection') IS NOT NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.CogitaItemDependencies') AND name = 'ParentDirection' AND max_length <> 128)
+    BEGIN
+        UPDATE dbo.CogitaItemDependencies
+        SET ParentDirection = LEFT(ParentDirection, 64)
+        WHERE ParentDirection IS NOT NULL AND LEN(ParentDirection) > 64;
+        ALTER TABLE dbo.CogitaItemDependencies ALTER COLUMN ParentDirection NVARCHAR(64) NULL;
+    END
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'ChildDirection') IS NOT NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.CogitaItemDependencies') AND name = 'ChildDirection' AND max_length <> 128)
+    BEGIN
+        UPDATE dbo.CogitaItemDependencies
+        SET ChildDirection = LEFT(ChildDirection, 64)
+        WHERE ChildDirection IS NOT NULL AND LEN(ChildDirection) > 64;
+        ALTER TABLE dbo.CogitaItemDependencies ALTER COLUMN ChildDirection NVARCHAR(64) NULL;
+    END
+END
+GO
+
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     DROP INDEX UX_CogitaItemDependencies_Link ON dbo.CogitaItemDependencies;

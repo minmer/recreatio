@@ -42,8 +42,7 @@ type CogitaTarget =
   | 'new_card'
   | 'all_collections'
   | 'new_collection'
-  | 'dependencies'
-  | 'collection_revision';
+  | 'dependencies';
 
 type CogitaPreferences = {
   version: 1;
@@ -73,10 +72,8 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   library_overview: { requiresCollection: false, allowsRevision: false },
   all_cards: { requiresCollection: false, allowsRevision: false },
   new_card: { requiresCollection: false, allowsRevision: false },
-  all_collections: { requiresCollection: false, allowsRevision: false },
+  all_collections: { requiresCollection: true, allowsRevision: true },
   new_collection: { requiresCollection: false, allowsRevision: false },
-  collection_revision: { requiresCollection: true, allowsRevision: true },
-  shared_revisions: { requiresCollection: true, allowsRevision: true },
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
 const REVISION_OPTIONS: RevisionView[] = ['detail', 'graph', 'settings', 'run', 'shared'];
@@ -133,23 +130,23 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
   }
 
   if (segments[5] === 'graph') {
-    return { libraryId, target: 'collection_revision', collectionId, revisionId, revisionView: 'graph' };
+    return { libraryId, target: 'all_collections', collectionId, revisionId, revisionView: 'graph' };
   }
   if (segments[5] === 'shared-revisions') {
-    return { libraryId, target: 'collection_revision', collectionId, revisionId, revisionView: 'shared' };
+    return { libraryId, target: 'all_collections', collectionId, revisionId, revisionView: 'shared' };
   }
 
   if (segments[5] === 'revision') {
     return {
       libraryId,
-      target: 'collection_revision',
+      target: 'all_collections',
       collectionId,
       revisionId,
       revisionView: segments[6] === 'run' ? 'run' : 'settings'
     };
   }
 
-  return { libraryId, target: 'collection_revision', collectionId, revisionId, revisionView: 'detail' };
+  return { libraryId, target: 'all_collections', collectionId, revisionId, revisionView: 'detail' };
 }
 
 function buildCogitaPath(
@@ -173,36 +170,30 @@ function buildCogitaPath(
     return withRevision(`/cogita/library/${libraryId}/add`);
   }
   if (target === 'all_collections') {
-    return withRevision(`/cogita/library/${libraryId}/collections`);
+    if (!collectionId) {
+      return withRevision(`/cogita/library/${libraryId}/collections`);
+    }
+    if (revisionView === 'graph') {
+      return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/graph`);
+    }
+    if (revisionView === 'settings') {
+      return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/revision`);
+    }
+    if (revisionView === 'run') {
+      return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/revision/run`);
+    }
+    if (revisionView === 'shared') {
+      return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/shared-revisions`);
+    }
+    return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}`);
   }
   if (target === 'new_collection') {
     return withRevision(`/cogita/library/${libraryId}/collections/new`);
   }
-  if (target === 'shared_revisions') {
-    return collectionId
-      ? `/cogita/library/${libraryId}/collections/${collectionId}/shared-revisions`
-      : `/cogita/library/${libraryId}/collections`;
-  }
   if (target === 'dependencies') {
     return withRevision(`/cogita/library/${libraryId}/dependencies`);
   }
-  if (!collectionId) {
-    return withRevision(`/cogita/library/${libraryId}/collections`);
-  }
-
-  if (revisionView === 'graph') {
-    return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/graph`);
-  }
-  if (revisionView === 'settings') {
-    return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/revision`);
-  }
-  if (revisionView === 'run') {
-    return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/revision/run`);
-  }
-  if (revisionView === 'shared') {
-    return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}/shared-revisions`);
-  }
-  return withRevision(`/cogita/library/${libraryId}/collections/${collectionId}`);
+  return withRevision(`/cogita/library/${libraryId}`);
 }
 
 function normalizePath(path: string) {
@@ -343,8 +334,6 @@ export function CogitaWorkspacePage({
       new_card: workspaceCopy.targets.newCard,
       all_collections: workspaceCopy.targets.allCollections,
       new_collection: workspaceCopy.targets.newCollection,
-      collection_revision: workspaceCopy.targets.collectionRevision,
-      shared_revisions: workspaceCopy.targets.sharedRevisions,
       dependencies: workspaceCopy.targets.dependencies
     }),
     [workspaceCopy.targets]
@@ -356,8 +345,8 @@ export function CogitaWorkspacePage({
   const selectedRevisionLabel = revisionLabels[selectedRevisionView];
   const hasLibrarySelection = Boolean(selectedLibraryId);
   const hasCollectionSelection = Boolean(selectedCollectionId);
-  const showCollectionLayer = hasLibrarySelection;
-  const showRevisionLayer = hasCollectionSelection;
+  const showCollectionLayer = hasLibrarySelection && selectedTarget === 'all_collections';
+  const showRevisionLayer = hasCollectionSelection && selectedTarget === 'all_collections';
   const applyNavigationSelection = useCallback(
     (next: {
       libraryId?: string;
@@ -381,7 +370,7 @@ export function CogitaWorkspacePage({
         resolvedTarget = 'all_collections';
         resolvedRevisionId = undefined;
         resolvedRevision = 'detail';
-      } else if (!TARGET_CAPABILITIES[resolvedTarget].requiresCollection) {
+      } else if (resolvedTarget !== 'all_collections') {
         resolvedCollectionId = undefined;
         resolvedRevisionId = undefined;
       } else if (!TARGET_CAPABILITIES[resolvedTarget].allowsRevision) {
@@ -407,7 +396,7 @@ export function CogitaWorkspacePage({
   const setCollectionRevision = (revision: RevisionView) => {
     applyNavigationSelection({
       libraryId: selectedLibraryId,
-      target: 'collection_revision',
+      target: 'all_collections',
       collectionId: selectedCollectionId,
       revisionId: selectedRevisionId,
       revisionView: revision
@@ -466,7 +455,7 @@ export function CogitaWorkspacePage({
           const nextCollectionId = value || undefined;
           applyNavigationSelection({
             libraryId: selectedLibraryId,
-            target: nextCollectionId ? 'collection_revision' : selectedTarget,
+            target: 'all_collections',
             collectionId: nextCollectionId,
             revisionId: undefined,
             revisionView: selectedRevisionView
@@ -485,7 +474,7 @@ export function CogitaWorkspacePage({
         onSelect: (value: string) => {
           applyNavigationSelection({
             libraryId: selectedLibraryId,
-            target: 'collection_revision',
+            target: 'all_collections',
             collectionId: selectedCollectionId,
             revisionId: value || undefined,
             revisionView: selectedRevisionView
@@ -587,10 +576,23 @@ export function CogitaWorkspacePage({
     if (pathState.target === 'dependencies') {
       return <CogitaDependencyGraphPage {...baseProps} />;
     }
-    if (pathState.target === 'shared_revisions') {
-      return <CogitaLibrarySharedRevisionsPage {...baseProps} />;
-    }
     if (pathState.target === 'all_collections') {
+      if (pathState.collectionId) {
+        const collectionProps = { ...baseProps, collectionId: pathState.collectionId };
+        if (pathState.revisionView === 'graph') {
+          return <CogitaCollectionGraphPage {...collectionProps} />;
+        }
+        if (pathState.revisionView === 'shared') {
+          return <CogitaLibrarySharedRevisionsPage {...baseProps} collectionId={pathState.collectionId} />;
+        }
+        if (pathState.revisionView === 'settings') {
+          return <CogitaRevisionSettingsPage {...collectionProps} revisionId={pathState.revisionId} />;
+        }
+        if (pathState.revisionView === 'run') {
+          return <CogitaRevisionRunPage {...collectionProps} revisionId={pathState.revisionId} />;
+        }
+        return <CogitaCollectionDetailPage {...collectionProps} />;
+      }
       return <CogitaCollectionListPage {...baseProps} />;
     }
     if (pathState.target === 'new_collection') {
@@ -601,23 +603,6 @@ export function CogitaWorkspacePage({
         />
       );
     }
-    if (pathState.target === 'collection_revision' && pathState.collectionId) {
-      const collectionProps = { ...baseProps, collectionId: pathState.collectionId };
-      if (pathState.revisionView === 'graph') {
-        return <CogitaCollectionGraphPage {...collectionProps} />;
-      }
-      if (pathState.revisionView === 'shared') {
-        return <CogitaLibrarySharedRevisionsPage {...baseProps} collectionId={pathState.collectionId} />;
-      }
-      if (pathState.revisionView === 'settings') {
-        return <CogitaRevisionSettingsPage {...collectionProps} revisionId={pathState.revisionId} />;
-      }
-      if (pathState.revisionView === 'run') {
-        return <CogitaRevisionRunPage {...collectionProps} revisionId={pathState.revisionId} />;
-      }
-      return <CogitaCollectionDetailPage {...collectionProps} />;
-    }
-
     return null;
   }, [
     authLabel,
@@ -818,7 +803,7 @@ export function CogitaWorkspacePage({
     if (
       TARGET_CAPABILITIES[selectedTarget].requiresCollection &&
       !selectedCollectionId &&
-      pathState.target === 'collection_revision' &&
+      pathState.target === 'all_collections' &&
       Boolean(pathState.collectionId)
     ) {
       return;
@@ -969,7 +954,7 @@ export function CogitaWorkspacePage({
       setCollections(updated.items);
       setSelectedCollectionId(created.collectionId);
       setSelectedRevisionId(undefined);
-      setSelectedTarget('collection_revision');
+      setSelectedTarget('all_collections');
       setSelectedRevisionView('detail');
       setNewCollectionName('');
     } catch {
@@ -1001,7 +986,7 @@ export function CogitaWorkspacePage({
       });
       setRevisions((previous) => [created, ...previous]);
       setSelectedRevisionId(created.revisionId);
-      setSelectedTarget('collection_revision');
+      setSelectedTarget('all_collections');
       setSelectedRevisionView('settings');
       setNewRevisionName('');
     } catch {

@@ -415,6 +415,24 @@ public sealed class RecreatioDbContext : DbContext
             .HasForeignKey(x => x.LibraryId);
 
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ParentItemType)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ParentCheckType)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ParentDirection)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ChildItemType)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ChildCheckType)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .Property(x => x.ChildDirection)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
             .HasIndex(x => new
             {
                 x.LibraryId,
