@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   createCogitaCollection,
   createCogitaLibrary,
@@ -322,13 +322,48 @@ export function CogitaWorkspacePage({
     [selectedTarget, targetLabels]
   );
   const selectedRevisionLabel = revisionLabels[selectedRevisionView];
-  const selectedTargetCapability = TARGET_CAPABILITIES[selectedTarget];
-  const showCollectionLayer = selectedTargetCapability.requiresCollection;
-  const showRevisionLayer = selectedTargetCapability.allowsRevision;
+  const hasLibrarySelection = Boolean(selectedLibraryId);
+  const hasCollectionSelection = Boolean(selectedCollectionId);
+  const showCollectionLayer = hasLibrarySelection;
+  const showRevisionLayer = hasCollectionSelection;
+  const applyNavigationSelection = useCallback(
+    (next: { libraryId?: string; target: CogitaTarget; collectionId?: string; revisionView: RevisionView }) => {
+      const hasLibrary = Boolean(next.libraryId);
+      let resolvedTarget = next.target;
+      let resolvedCollectionId = next.collectionId;
+      let resolvedRevision = next.revisionView;
+
+      if (!hasLibrary) {
+        resolvedTarget = 'library_overview';
+        resolvedCollectionId = undefined;
+        resolvedRevision = 'detail';
+      } else if (TARGET_CAPABILITIES[resolvedTarget].requiresCollection && !resolvedCollectionId) {
+        resolvedTarget = 'all_collections';
+        resolvedRevision = 'detail';
+      } else if (!TARGET_CAPABILITIES[resolvedTarget].allowsRevision) {
+        resolvedRevision = 'detail';
+      }
+
+      setSelectedLibraryId(next.libraryId);
+      setSelectedTarget(resolvedTarget);
+      setSelectedCollectionId(resolvedCollectionId);
+      setSelectedRevisionView(resolvedRevision);
+      setSidebarOpen(false);
+
+      const nextPath = normalizePath(buildCogitaPath(next.libraryId, resolvedTarget, resolvedCollectionId, resolvedRevision));
+      if (normalizePath(location.pathname) === nextPath) return;
+      lastNavigationRef.current = nextPath;
+      navigate(nextPath);
+    },
+    [location.pathname, navigate]
+  );
   const setCollectionRevision = (revision: RevisionView) => {
-    setSelectedTarget('collection_revision');
-    setSelectedRevisionView(revision);
-    setSidebarOpen(false);
+    applyNavigationSelection({
+      libraryId: selectedLibraryId,
+      target: 'collection_revision',
+      collectionId: selectedCollectionId,
+      revisionView: revision
+    });
   };
   const navigationLevels = useMemo(
     () => [
@@ -342,22 +377,30 @@ export function CogitaWorkspacePage({
         options: libraries.map((library) => ({ value: library.libraryId, label: library.name })),
         emptyOption: workspaceCopy.noLibraryOption,
         onSelect: (value: string) => {
-          setSelectedLibraryId(value || undefined);
-          setSelectedCollectionId(undefined);
-          setSidebarOpen(false);
+          const nextLibraryId = value || undefined;
+          applyNavigationSelection({
+            libraryId: nextLibraryId,
+            target: nextLibraryId ? 'library_overview' : 'library_overview',
+            collectionId: undefined,
+            revisionView: 'detail'
+          });
         }
       },
       {
         key: 'target',
         label: workspaceCopy.layers.target,
-        visible: true,
+        visible: hasLibrarySelection,
         value: selectedTarget,
         selectedLabel: selectedTargetLabel,
-        disabled: !selectedLibraryId,
+        disabled: !hasLibrarySelection,
         options: TARGET_OPTIONS.map((target) => ({ value: target, label: targetLabels[target] })),
         onSelect: (value: string) => {
-          setSelectedTarget(value as CogitaTarget);
-          setSidebarOpen(false);
+          applyNavigationSelection({
+            libraryId: selectedLibraryId,
+            target: value as CogitaTarget,
+            collectionId: selectedCollectionId,
+            revisionView: selectedRevisionView
+          });
         }
       },
       {
@@ -366,12 +409,17 @@ export function CogitaWorkspacePage({
         visible: showCollectionLayer,
         value: selectedCollectionId ?? '',
         selectedLabel: selectedCollection?.name ?? workspaceCopy.path.noCollectionSelected,
-        disabled: !selectedLibraryId || collectionsLoading || collections.length === 0,
+        disabled: !hasLibrarySelection || collectionsLoading || collections.length === 0,
         options: collections.map((collection) => ({ value: collection.collectionId, label: collection.name })),
         emptyOption: workspaceCopy.selectCollectionOption,
         onSelect: (value: string) => {
-          setSelectedCollectionId(value || undefined);
-          setSidebarOpen(false);
+          const nextCollectionId = value || undefined;
+          applyNavigationSelection({
+            libraryId: selectedLibraryId,
+            target: nextCollectionId ? 'collection_revision' : selectedTarget,
+            collectionId: nextCollectionId,
+            revisionView: selectedRevisionView
+          });
         }
       },
       {
@@ -392,9 +440,12 @@ export function CogitaWorkspacePage({
       collectionsLoading,
       libraries,
       loading,
+      applyNavigationSelection,
       revisionOptions,
       selectedCollection,
       selectedCollectionId,
+      hasCollectionSelection,
+      hasLibrarySelection,
       selectedLibrary,
       selectedLibraryId,
       selectedRevisionLabel,
@@ -803,18 +854,6 @@ export function CogitaWorkspacePage({
         <aside className={`cogita-browser-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label={workspaceCopy.sidebar.title}>
           <div className="cogita-browser-sidebar-section">
             <h2>{workspaceCopy.sidebar.title}</h2>
-          </div>
-
-          <div className="cogita-browser-sidebar-section">
-            <h3>{workspaceCopy.sidebar.currentPath}</h3>
-            <ul className="cogita-browser-tree">
-              {visibleNavigationLevels.map((level, index) => (
-                <li key={level.key} className={index > 1 ? 'tree-child' : ''}>
-                  <span>{level.label}</span>
-                  <strong>{level.selectedLabel}</strong>
-                </li>
-              ))}
-            </ul>
           </div>
 
           <div className="cogita-browser-sidebar-section">
