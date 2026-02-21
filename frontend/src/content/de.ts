@@ -215,6 +215,10 @@ export const de: Copy = {
         edit: 'Bearbeiten',
         seeCards: 'Karten ansehen'
       },
+      infoMode: {
+        search: 'Suchen',
+        create: 'Erstellen'
+      },
       sidebar: {
         title: 'Navigation',
         openMenu: 'Menü öffnen',

@@ -171,6 +171,10 @@ export type Copy = {
         edit: string;
         seeCards: string;
       };
+      infoMode: {
+        search: string;
+        create: string;
+      };
       sidebar: {
         title: string;
         openMenu: string;
