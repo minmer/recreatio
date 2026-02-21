@@ -1077,12 +1077,8 @@ export function CogitaWorkspacePage({
           prefsRef.current = safeParsePreferences(preferenceNode?.value);
         }
 
-        const preferredLibraryFromPrefs = prefsRef.current.lastLibraryId;
         const selectedByRule =
-          libraryItems.find((item) => item.libraryId === pathState.libraryId)?.libraryId ??
-          (libraryItems.length === 1 ? libraryItems[0].libraryId : undefined) ??
-          libraryItems.find((item) => item.libraryId === preferredLibraryFromPrefs)?.libraryId ??
-          libraryItems[0]?.libraryId;
+          libraryItems.find((item) => item.libraryId === pathState.libraryId)?.libraryId;
 
         const preferredTargetFromPrefs = selectedByRule ? prefsRef.current.byLibrary?.[selectedByRule]?.lastTarget : undefined;
         const preferredTarget = isCogitaTarget(preferredTargetFromPrefs) ? preferredTargetFromPrefs : 'library_overview';
@@ -1110,6 +1106,15 @@ export function CogitaWorkspacePage({
 
   useLayoutEffect(() => {
     if (!initializedRef.current) return;
+
+    if (!pathState.libraryId) {
+      setSelectedLibraryId(undefined);
+      setSelectedTarget(pathState.target ?? 'library_overview');
+      setSelectedCollectionId(undefined);
+      setSelectedRevisionId(undefined);
+      setSelectedRevisionView('detail');
+      return;
+    }
 
     if (pathState.libraryId && libraries.some((library) => library.libraryId === pathState.libraryId)) {
       setSelectedLibraryId(pathState.libraryId);
