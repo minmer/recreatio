@@ -1377,6 +1377,23 @@
   color: rgba(200, 220, 245, 0.75);
 }
 
+.cogita-info-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: rgba(200, 220, 245, 0.78);
+}
+
+.cogita-info-selection-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .cogita-card-list {
   display: grid;
   gap: 1rem;
@@ -1403,6 +1420,45 @@
 .cogita-card-item[data-selected='true'] {
   border-color: rgba(170, 215, 255, 0.7);
   box-shadow: 0 12px 26px rgba(20, 40, 70, 0.35);
+}
+
+.cogita-info-result-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.cogita-info-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  cursor: pointer;
+}
+
+.cogita-info-checkbox input {
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: rgba(145, 205, 255, 0.9);
+}
+
+.cogita-info-checkbox span {
+  display: none;
+}
+
+.cogita-info-result-main {
+  border: none;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  width: 100%;
+  padding: 0.2rem 0;
+  display: grid;
+  gap: 0.35rem;
+  cursor: pointer;
 }
 
 .cogita-card-actions {

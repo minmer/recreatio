@@ -694,7 +694,20 @@ export const en: Copy = {
         editInfo: 'Edit info',
         deleteConnection: 'Delete connection',
         deleteConnectionConfirm: 'Delete this connection? This cannot be undone.',
-        deleteConnectionFailed: 'Failed to delete connection.'
+        deleteConnectionFailed: 'Failed to delete connection.',
+        searchOnlyHint: 'This page is only for searching and selecting infos.',
+        typeLabel: 'Info type',
+        sortLabel: 'Sorting',
+        sortRelevance: 'Relevance',
+        sortLabelAsc: 'Name A-Z',
+        sortLabelDesc: 'Name Z-A',
+        sortTypeAsc: 'Type A-Z',
+        sortTypeDesc: 'Type Z-A',
+        selectionCount: 'Selected: {count}',
+        selectAllVisible: 'Select visible',
+        clearSelection: 'Clear selection',
+        openSelected: 'Open selected',
+        openSelectedDisabled: 'Select one info to open'
       },
       filters: {
         title: 'Filters',

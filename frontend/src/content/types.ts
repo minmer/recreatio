@@ -395,6 +395,19 @@ export type Copy = {
         deleteConnection: string;
         deleteConnectionConfirm: string;
         deleteConnectionFailed: string;
+        searchOnlyHint: string;
+        typeLabel: string;
+        sortLabel: string;
+        sortRelevance: string;
+        sortLabelAsc: string;
+        sortLabelDesc: string;
+        sortTypeAsc: string;
+        sortTypeDesc: string;
+        selectionCount: string;
+        selectAllVisible: string;
+        clearSelection: string;
+        openSelected: string;
+        openSelectedDisabled: string;
       };
       filters: {
         title: string;

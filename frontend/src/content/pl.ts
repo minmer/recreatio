@@ -694,7 +694,20 @@ export const pl: Copy = {
         editInfo: 'Edytuj informację',
         deleteConnection: 'Usuń połączenie',
         deleteConnectionConfirm: 'Usunąć to połączenie? Tej operacji nie można cofnąć.',
-        deleteConnectionFailed: 'Nie udało się usunąć połączenia.'
+        deleteConnectionFailed: 'Nie udało się usunąć połączenia.',
+        searchOnlyHint: 'Ta strona służy wyłącznie do wyszukiwania i wyboru informacji.',
+        typeLabel: 'Typ informacji',
+        sortLabel: 'Sortowanie',
+        sortRelevance: 'Trafność',
+        sortLabelAsc: 'Nazwa A-Z',
+        sortLabelDesc: 'Nazwa Z-A',
+        sortTypeAsc: 'Typ A-Z',
+        sortTypeDesc: 'Typ Z-A',
+        selectionCount: 'Wybrano: {count}',
+        selectAllVisible: 'Zaznacz widoczne',
+        clearSelection: 'Wyczyść wybór',
+        openSelected: 'Otwórz wybraną',
+        openSelectedDisabled: 'Wybierz jedną informację, aby otworzyć'
       },
       filters: {
         title: 'Filtry',

@@ -694,7 +694,20 @@ export const de: Copy = {
         editInfo: 'Info bearbeiten',
         deleteConnection: 'Verbindung löschen',
         deleteConnectionConfirm: 'Diese Verbindung löschen? Das kann nicht rückgängig gemacht werden.',
-        deleteConnectionFailed: 'Verbindung konnte nicht gelöscht werden.'
+        deleteConnectionFailed: 'Verbindung konnte nicht gelöscht werden.',
+        searchOnlyHint: 'Diese Seite dient nur zum Suchen und Auswählen von Infos.',
+        typeLabel: 'Info-Typ',
+        sortLabel: 'Sortierung',
+        sortRelevance: 'Relevanz',
+        sortLabelAsc: 'Name A-Z',
+        sortLabelDesc: 'Name Z-A',
+        sortTypeAsc: 'Typ A-Z',
+        sortTypeDesc: 'Typ Z-A',
+        selectionCount: 'Ausgewählt: {count}',
+        selectAllVisible: 'Sichtbare auswählen',
+        clearSelection: 'Auswahl löschen',
+        openSelected: 'Ausgewählte öffnen',
+        openSelectedDisabled: 'Wähle eine Info zum Öffnen'
       },
       filters: {
         title: 'Filter',
