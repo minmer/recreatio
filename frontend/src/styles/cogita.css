@@ -2915,7 +2915,7 @@
 
 .cogita-sidebar-actions .ghost.active {
   color: rgba(232, 242, 255, 0.9);
-  background: rgba(120, 180, 235, 0.22);
+  background: rgba(98, 167, 232, 0.34);
   border-left-color: rgba(140, 205, 255, 0.65);
   font-weight: 600;
 }
@@ -2974,6 +2974,16 @@
 
 .cogita-browser-segment select:disabled {
   opacity: 0.6;
+}
+
+.cogita-browser-static {
+  min-width: 180px;
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  color: #f1f7ff;
+  background: rgba(34, 62, 96, 0.62);
+  display: inline-block;
 }
 
 .cogita-browser-separator {
@@ -3064,6 +3074,7 @@
     height: 100vh;
     border-right: 0;
     border-bottom: 0;
+    background: #06111e;
     transform: translateX(-102%);
     transition: transform 180ms ease;
     box-shadow: 10px 0 28px rgba(3, 10, 20, 0.45);
@@ -3092,20 +3103,31 @@
   }
 
   .cogita-browser-menu {
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 
   .cogita-browser-separator {
-    display: none;
+    display: inline;
   }
 
   .cogita-browser-segment {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    min-width: max-content;
+    justify-content: flex-start;
+    flex: 0 0 auto;
   }
 
   .cogita-browser-segment select {
-    min-width: 0;
-    width: 65%;
+    min-width: 150px;
+    width: auto;
+  }
+
+  .cogita-browser-static {
+    min-width: 150px;
+    width: auto;
   }
 }

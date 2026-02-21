@@ -159,6 +159,7 @@ export const en: Copy = {
         allCards: 'All cards',
         newCard: 'New card',
         allCollections: 'All collections',
+        allRevisions: 'All revisions',
         newCollection: 'New collection',
         collectionRevision: 'Collection revision',
         sharedRevisions: 'Shared revisions',

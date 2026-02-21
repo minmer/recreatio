@@ -115,6 +115,7 @@ export type Copy = {
         allCards: string;
         newCard: string;
         allCollections: string;
+        allRevisions: string;
         newCollection: string;
         collectionRevision: string;
         sharedRevisions: string;

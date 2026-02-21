@@ -159,6 +159,7 @@ export const pl: Copy = {
         allCards: 'Wszystkie karty',
         newCard: 'Nowa karta',
         allCollections: 'Wszystkie kolekcje',
+        allRevisions: 'Wszystkie powtórki',
         newCollection: 'Nowa kolekcja',
         collectionRevision: 'Powtórka kolekcji',
         sharedRevisions: 'Udostępnione powtórki',
