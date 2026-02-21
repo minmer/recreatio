@@ -16,45 +16,11 @@ namespace Recreatio.Api.Endpoints.Cogita;
 
 public static class CogitaEndpoints
 {
-    private static readonly string[] SupportedInfoTypes =
-    {
-        "language",
-        "word",
-        "sentence",
-        "topic",
-        "collection",
-        "person",
-        "institution",
-        "collective",
-        "orcid",
-        "address",
-        "email",
-        "phone",
-        "media",
-        "work",
-        "geo",
-        "music_piece",
-        "music_fragment",
-        "source",
-        "quote",
-        "computed"
-    };
+    private static readonly HashSet<string> SupportedInfoTypes = new(CogitaTypeRegistry.SupportedInfoTypes, StringComparer.Ordinal);
 
-    private static readonly string[] SupportedConnectionTypes =
-    {
-        "word-language",
-        "quote-language",
-        "language-sentence",
-        "translation",
-        "word-topic",
-        "work-contributor",
-        "work-medium",
-        "orcid-link",
-        "reference",
-        "source-resource"
-    };
+    private static readonly HashSet<string> SupportedConnectionTypes = new(CogitaTypeRegistry.SupportedConnectionTypes, StringComparer.Ordinal);
 
-    private static readonly string[] SupportedGroupTypes = { "vocab", "book" };
+    private static readonly HashSet<string> SupportedGroupTypes = new(CogitaTypeRegistry.SupportedGroupTypes, StringComparer.Ordinal);
 
     private static readonly string[] SupportedCollectionGraphNodeTypes =
     {
@@ -474,6 +440,73 @@ public static class CogitaEndpoints
             ));
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/info-types/specification", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var specs = SupportedInfoTypes
+                .OrderBy(x => x)
+                .Select(infoType =>
+                {
+                    var descriptor = CogitaTypeRegistry.GetEditorDescriptor(infoType);
+                    var payloadFields = descriptor?.PayloadFields
+                        .Select(field => new CogitaInfoPayloadFieldSpecResponse(
+                            field.Key,
+                            field.Label,
+                            field.InputType,
+                            field.Required,
+                            field.Searchable))
+                        .ToList() ?? new List<CogitaInfoPayloadFieldSpecResponse>();
+                    var linkFields = descriptor?.LinkFields
+                        .Select(field => new CogitaInfoLinkFieldSpecResponse(
+                            field.Key,
+                            field.Label,
+                            field.TargetTypes.ToList(),
+                            field.Required,
+                            field.Multiple))
+                        .ToList() ?? new List<CogitaInfoLinkFieldSpecResponse>();
+                    return new CogitaInfoTypeSpecResponse(
+                        infoType,
+                        CogitaTypeRegistry.InferEntityKind(infoType),
+                        payloadFields,
+                        linkFields);
+                })
+                .ToList();
+
+            return Results.Ok(specs);
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/infos", async (
             Guid libraryId,
             string? type,
@@ -549,6 +582,97 @@ public static class CogitaEndpoints
                 .OrderBy(x => x.LabelNormalized)
                 .Take(pageSize)
                 .Select(x => new CogitaInfoSearchResponse(x.InfoId, x.InfoType, x.Label))
+                .ToListAsync(ct);
+
+            return Results.Ok(responses);
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/entities/search", async (
+            Guid libraryId,
+            string? type,
+            string? query,
+            string? filters,
+            int? limit,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var entityType = string.IsNullOrWhiteSpace(type) ? null : type.Trim().ToLowerInvariant();
+            var loweredQuery = query?.Trim().ToLowerInvariant();
+            var pageSize = Math.Clamp(limit ?? 80, 1, 200);
+            var parsedFilters = ParseSearchFilters(filters);
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            await EnsureEntitySearchDocumentsAsync(
+                libraryId,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
+
+            var searchQuery = dbContext.CogitaEntitySearchDocuments.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId);
+
+            if (!string.IsNullOrWhiteSpace(entityType))
+            {
+                searchQuery = searchQuery.Where(x => x.EntityType == entityType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(loweredQuery))
+            {
+                searchQuery = searchQuery.Where(x =>
+                    x.TitleNormalized.Contains(loweredQuery) ||
+                    x.SearchTextNormalized.Contains(loweredQuery));
+            }
+
+            foreach (var pair in parsedFilters)
+            {
+                var token = $";{NormalizeFilterToken(pair.Key)}={NormalizeFilterToken(pair.Value)};";
+                searchQuery = searchQuery.Where(x => x.FilterTextNormalized.Contains(token));
+            }
+
+            var responses = await searchQuery
+                .OrderBy(x => x.TitleNormalized)
+                .ThenBy(x => x.EntityType)
+                .Take(pageSize)
+                .Select(x => new CogitaEntitySearchResponse(
+                    x.SourceId,
+                    x.EntityKind,
+                    x.EntityType,
+                    x.Title,
+                    x.Summary,
+                    x.InfoId,
+                    x.ConnectionId))
                 .ToListAsync(ct);
 
             return Results.Ok(responses);
@@ -633,7 +757,8 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson));
+            var linksJson = await LoadInfoLinksAsJsonAsync(libraryId, info.Id, info.InfoType, dbContext, ct);
+            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         });
 
         group.MapPut("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
@@ -743,6 +868,22 @@ public static class CogitaEndpoints
             if (!updated)
             {
                 return Results.NotFound();
+            }
+
+            try
+            {
+                await UpsertInfoLinksAsync(
+                    libraryId,
+                    info.Id,
+                    info.InfoType,
+                    request.Links,
+                    now,
+                    dbContext,
+                    ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
             }
 
             info.UpdatedUtc = now;
@@ -2129,6 +2270,16 @@ public static class CogitaEndpoints
                 ChildItemId = request.ChildCollectionId,
                 ChildCheckType = null,
                 ChildDirection = null,
+                LinkHash = BuildDependencyLinkHash(
+                    libraryId,
+                    "collection",
+                    request.ParentCollectionId,
+                    null,
+                    null,
+                    "collection",
+                    request.ChildCollectionId,
+                    null,
+                    null),
                 CreatedUtc = DateTimeOffset.UtcNow
             });
             await dbContext.SaveChangesAsync(ct);
@@ -3667,7 +3818,8 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson));
+            var linksJson = await LoadInfoLinksAsJsonAsync(share.LibraryId, info.Id, info.InfoType, dbContext, ct);
+            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         }).AllowAnonymous();
 
         group.MapGet("/public/revision/{code}/dependencies", async (
@@ -4585,6 +4737,16 @@ public static class CogitaEndpoints
                     ChildItemId = toId,
                     ChildCheckType = childCheckType,
                     ChildDirection = childDirection,
+                    LinkHash = BuildDependencyLinkHash(
+                        libraryId,
+                        parentType,
+                        fromId,
+                        parentCheckType,
+                        parentDirection,
+                        childType,
+                        toId,
+                        childCheckType,
+                        childDirection),
                     CreatedUtc = now
                 });
             }
@@ -6381,6 +6543,22 @@ public static class CogitaEndpoints
             AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
             await UpsertInfoSearchIndexAsync(libraryId, infoId, infoType, sanitizedPayload, now, dbContext, ct);
 
+            try
+            {
+                await UpsertInfoLinksAsync(
+                    libraryId,
+                    infoId,
+                    infoType,
+                    request.Links,
+                    now,
+                    dbContext,
+                    ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+
             await dbContext.SaveChangesAsync(ct);
 
             return Results.Ok(new CogitaCreateInfoResponse(infoId, infoType));
@@ -7365,6 +7543,238 @@ public static class CogitaEndpoints
         }
     }
 
+    private static Dictionary<string, List<Guid>> ParseInfoLinks(JsonElement? linksElement)
+    {
+        var result = new Dictionary<string, List<Guid>>(StringComparer.OrdinalIgnoreCase);
+        if (!linksElement.HasValue)
+        {
+            return result;
+        }
+
+        var root = linksElement.Value;
+        if (root.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        {
+            return result;
+        }
+
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException("Links must be an object.");
+        }
+
+        foreach (var property in root.EnumerateObject())
+        {
+            var key = property.Name.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            var values = new List<Guid>();
+            if (property.Value.ValueKind == JsonValueKind.String)
+            {
+                if (Guid.TryParse(property.Value.GetString(), out var id))
+                {
+                    values.Add(id);
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Link '{key}' has an invalid GUID value.");
+                }
+            }
+            else if (property.Value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in property.Value.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.String || !Guid.TryParse(item.GetString(), out var id))
+                    {
+                        throw new InvalidOperationException($"Link '{key}' contains an invalid GUID.");
+                    }
+                    values.Add(id);
+                }
+            }
+            else if (property.Value.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+            {
+                throw new InvalidOperationException($"Link '{key}' must be null, GUID string or array of GUID strings.");
+            }
+
+            result[key] = values.Distinct().ToList();
+        }
+
+        return result;
+    }
+
+    private static async Task UpsertInfoLinksAsync(
+        Guid libraryId,
+        Guid infoId,
+        string infoType,
+        JsonElement? linksElement,
+        DateTimeOffset now,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (linksElement is null || linksElement.Value.ValueKind is JsonValueKind.Undefined)
+        {
+            return;
+        }
+
+        var editorDescriptor = CogitaTypeRegistry.GetEditorDescriptor(infoType);
+        var fieldSpecs = editorDescriptor?.LinkFields ?? Array.Empty<CogitaTypeRegistry.LinkFieldDisplayDescriptor>();
+        var fieldByKey = fieldSpecs.ToDictionary(x => x.Key, x => x, StringComparer.OrdinalIgnoreCase);
+        var parsed = ParseInfoLinks(linksElement);
+
+        foreach (var key in parsed.Keys)
+        {
+            if (!fieldByKey.ContainsKey(key))
+            {
+                throw new InvalidOperationException($"Link field '{key}' is not supported for info type '{infoType}'.");
+            }
+        }
+
+        var allTargetIds = parsed.Values.SelectMany(x => x).Distinct().ToList();
+        var targetTypes = allTargetIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && allTargetIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.InfoType, ct);
+
+        foreach (var field in fieldSpecs)
+        {
+            parsed.TryGetValue(field.Key, out var values);
+            values ??= new List<Guid>();
+
+            if (!field.Multiple && values.Count > 1)
+            {
+                throw new InvalidOperationException($"Link field '{field.Key}' accepts only one value.");
+            }
+            if (field.Required && values.Count == 0)
+            {
+                throw new InvalidOperationException($"Link field '{field.Key}' is required.");
+            }
+
+            foreach (var targetId in values)
+            {
+                if (!targetTypes.TryGetValue(targetId, out var targetType))
+                {
+                    throw new InvalidOperationException($"Linked target '{targetId}' is not part of the selected library.");
+                }
+                if (!field.TargetTypes.Contains(targetType, StringComparer.Ordinal))
+                {
+                    throw new InvalidOperationException($"Linked target '{targetId}' has invalid type '{targetType}' for field '{field.Key}'.");
+                }
+            }
+        }
+
+        var existingSingles = await dbContext.CogitaInfoLinkSingles
+            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            .ToListAsync(ct);
+        if (existingSingles.Count > 0)
+        {
+            dbContext.CogitaInfoLinkSingles.RemoveRange(existingSingles);
+        }
+
+        var existingMultis = await dbContext.CogitaInfoLinkMultis
+            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            .ToListAsync(ct);
+        if (existingMultis.Count > 0)
+        {
+            dbContext.CogitaInfoLinkMultis.RemoveRange(existingMultis);
+        }
+
+        foreach (var field in fieldSpecs)
+        {
+            parsed.TryGetValue(field.Key, out var values);
+            values ??= new List<Guid>();
+            if (values.Count == 0)
+            {
+                continue;
+            }
+
+            if (field.Multiple)
+            {
+                for (var i = 0; i < values.Count; i++)
+                {
+                    dbContext.CogitaInfoLinkMultis.Add(new CogitaInfoLinkMulti
+                    {
+                        Id = Guid.NewGuid(),
+                        LibraryId = libraryId,
+                        InfoId = infoId,
+                        FieldKey = field.Key,
+                        TargetInfoId = values[i],
+                        SortOrder = i,
+                        CreatedUtc = now,
+                        UpdatedUtc = now
+                    });
+                }
+            }
+            else
+            {
+                dbContext.CogitaInfoLinkSingles.Add(new CogitaInfoLinkSingle
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    InfoId = infoId,
+                    FieldKey = field.Key,
+                    TargetInfoId = values[0],
+                    IsRequired = field.Required,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                });
+            }
+        }
+
+    }
+
+    private static async Task<JsonElement> LoadInfoLinksAsJsonAsync(
+        Guid libraryId,
+        Guid infoId,
+        string infoType,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var editorDescriptor = CogitaTypeRegistry.GetEditorDescriptor(infoType);
+        var fieldSpecs = editorDescriptor?.LinkFields ?? Array.Empty<CogitaTypeRegistry.LinkFieldDisplayDescriptor>();
+        if (fieldSpecs.Count == 0)
+        {
+            return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+        }
+
+        var singles = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            .ToListAsync(ct);
+        var multis = await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            .OrderBy(x => x.SortOrder)
+            .ToListAsync(ct);
+
+        var root = new JsonObject();
+        foreach (var field in fieldSpecs)
+        {
+            if (field.Multiple)
+            {
+                var values = multis
+                    .Where(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.TargetInfoId.ToString())
+                    .ToList();
+                var array = new JsonArray();
+                foreach (var value in values)
+                {
+                    array.Add(value);
+                }
+                root[field.Key] = array;
+            }
+            else
+            {
+                var value = singles
+                    .FirstOrDefault(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
+                    ?.TargetInfoId;
+                root[field.Key] = value?.ToString();
+            }
+        }
+
+        return JsonSerializer.SerializeToElement(root);
+    }
+
     private static void AddInfoPayload(
         string infoType,
         Guid infoId,
@@ -7802,6 +8212,584 @@ public static class CogitaEndpoints
         }
     }
 
+    private static Dictionary<string, string> ParseSearchFilters(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.Value.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                var value = prop.Value.GetString()?.Trim();
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                map[prop.Name.Trim()] = value;
+            }
+
+            return map;
+        }
+        catch
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static string NormalizeFilterToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim().ToLowerInvariant()
+            .Replace(';', ' ')
+            .Replace('=', ' ')
+            .Replace('\n', ' ')
+            .Replace('\r', ' ');
+    }
+
+    private static byte[] BuildDependencyLinkHash(
+        Guid libraryId,
+        string parentItemType,
+        Guid parentItemId,
+        string? parentCheckType,
+        string? parentDirection,
+        string childItemType,
+        Guid childItemId,
+        string? childCheckType,
+        string? childDirection)
+    {
+        static string NormalizePart(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+        }
+
+        var raw = string.Join("|",
+            libraryId.ToString("D").ToLowerInvariant(),
+            NormalizePart(parentItemType),
+            parentItemId.ToString("D").ToLowerInvariant(),
+            NormalizePart(parentCheckType),
+            NormalizePart(parentDirection),
+            NormalizePart(childItemType),
+            childItemId.ToString("D").ToLowerInvariant(),
+            NormalizePart(childCheckType),
+            NormalizePart(childDirection));
+
+        return SHA256.HashData(Encoding.UTF8.GetBytes(raw));
+    }
+
+    private static string NormalizeSearchText(string? value, int maxLength = 4096)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var lower = value.Trim().ToLowerInvariant();
+        var builder = new StringBuilder(lower.Length);
+        var lastWasSpace = false;
+        foreach (var ch in lower)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (!lastWasSpace)
+                {
+                    builder.Append(' ');
+                    lastWasSpace = true;
+                }
+                continue;
+            }
+
+            lastWasSpace = false;
+            builder.Append(ch);
+            if (builder.Length >= maxLength)
+            {
+                break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string InferEntityKindForInfoType(string infoType)
+    {
+        return CogitaTypeRegistry.InferEntityKind(infoType);
+    }
+
+    private static IEnumerable<string> CollectPayloadStrings(JsonElement payload)
+    {
+        if (payload.ValueKind == JsonValueKind.String)
+        {
+            var value = payload.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                yield return value!;
+            }
+            yield break;
+        }
+
+        if (payload.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in payload.EnumerateArray())
+            {
+                foreach (var text in CollectPayloadStrings(item))
+                {
+                    yield return text;
+                }
+            }
+            yield break;
+        }
+
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            yield break;
+        }
+
+        foreach (var prop in payload.EnumerateObject())
+        {
+            foreach (var text in CollectPayloadStrings(prop.Value))
+            {
+                yield return text;
+            }
+        }
+    }
+
+    private static List<(string Key, string Value)> BuildPayloadFilterTokens(string infoType, JsonElement payload)
+    {
+        return CogitaTypeRegistry.BuildInfoFilterTokens(infoType, payload);
+    }
+
+    private static string BuildFilterText(IEnumerable<(string Key, string Value)> tokens)
+    {
+        var builder = new StringBuilder();
+        var unique = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (key, value) in tokens)
+        {
+            var normalizedKey = NormalizeFilterToken(key);
+            var normalizedValue = NormalizeFilterToken(value);
+            if (string.IsNullOrWhiteSpace(normalizedKey) || string.IsNullOrWhiteSpace(normalizedValue))
+            {
+                continue;
+            }
+
+            var token = $";{normalizedKey}={normalizedValue};";
+            if (!unique.Add(token))
+            {
+                continue;
+            }
+
+            builder.Append(token);
+        }
+
+        return builder.ToString();
+    }
+
+    private static async Task EnsureEntitySearchDocumentsAsync(
+        Guid libraryId,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var infos = await dbContext.CogitaInfos.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId)
+            .Select(x => new { x.Id, x.InfoType, x.UpdatedUtc })
+            .ToListAsync(ct);
+        var connections = await dbContext.CogitaConnections.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId)
+            .Select(x => new { x.Id, x.ConnectionType, x.DataKeyId, x.EncryptedBlob, x.UpdatedUtc })
+            .ToListAsync(ct);
+
+        var existing = await dbContext.CogitaEntitySearchDocuments.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId)
+            .Select(x => new { x.SourceKind, x.SourceId, x.SourceUpdatedUtc, x.FilterTextNormalized })
+            .ToListAsync(ct);
+
+        var expectedCount = infos.Count + connections.Count;
+        var needsRebuild = existing.Count != expectedCount;
+
+        if (!needsRebuild)
+        {
+            if (existing.Any(x => string.IsNullOrWhiteSpace(x.FilterTextNormalized) || !x.FilterTextNormalized.Contains(";sourcekind=")))
+            {
+                needsRebuild = true;
+            }
+        }
+
+        if (!needsRebuild)
+        {
+            var existingMap = existing.ToDictionary(x => $"{x.SourceKind}:{x.SourceId}", x => x.SourceUpdatedUtc);
+            foreach (var info in infos)
+            {
+                var key = $"info:{info.Id}";
+                if (!existingMap.TryGetValue(key, out var indexedUtc) || indexedUtc != info.UpdatedUtc)
+                {
+                    needsRebuild = true;
+                    break;
+                }
+            }
+
+            if (!needsRebuild)
+            {
+                foreach (var connection in connections)
+                {
+                    var key = $"connection:{connection.Id}";
+                    if (!existingMap.TryGetValue(key, out var indexedUtc) || indexedUtc != connection.UpdatedUtc)
+                    {
+                        needsRebuild = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!needsRebuild)
+        {
+            return;
+        }
+
+        var infoLookup = await BuildInfoLookupAsync(libraryId, null, dbContext, ct);
+        var infoDataKeyIds = infoLookup.Values.Select(x => x.DataKeyId).Distinct().ToList();
+        var infoKeyMap = await dbContext.Keys.AsNoTracking()
+            .Where(x => infoDataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var infoTitles = new Dictionary<Guid, string>();
+        var infoTypes = infos.ToDictionary(x => x.Id, x => x.InfoType);
+        var infoPayloads = new Dictionary<Guid, JsonElement>();
+        var infoSummaries = new Dictionary<Guid, string>();
+
+        foreach (var info in infos)
+        {
+            if (!infoLookup.TryGetValue(info.Id, out var payloadRow))
+            {
+                continue;
+            }
+
+            if (!infoKeyMap.TryGetValue(payloadRow.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payloadRow.EncryptedBlob, info.Id.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                var root = doc.RootElement.Clone();
+                var title = ResolveLabel(root, info.InfoType) ?? info.InfoType;
+                var summary = ResolveDescription(root, info.InfoType) ?? string.Empty;
+                infoTitles[info.Id] = title;
+                infoSummaries[info.Id] = summary;
+                infoPayloads[info.Id] = root;
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+        }
+
+        var connectionIds = connections.Select(x => x.Id).ToList();
+        var connectionItems = connectionIds.Count == 0
+            ? new List<CogitaConnectionItem>()
+            : await dbContext.CogitaConnectionItems.AsNoTracking()
+                .Where(x => connectionIds.Contains(x.ConnectionId))
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync(ct);
+        var itemsByConnection = connectionItems
+            .GroupBy(x => x.ConnectionId)
+            .ToDictionary(group => group.Key, group => group.Select(x => x.InfoId).ToList());
+
+        var connectionsByInfo = connectionItems
+            .GroupBy(x => x.InfoId)
+            .ToDictionary(group => group.Key, group => group.Select(x => x.ConnectionId).Distinct().ToList());
+
+        var infoIds = infos.Select(x => x.Id).ToList();
+        var singleLinks = infoIds.Count == 0
+            ? new List<CogitaInfoLinkSingle>()
+            : await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+                .ToListAsync(ct);
+        var multiLinks = infoIds.Count == 0
+            ? new List<CogitaInfoLinkMulti>()
+            : await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+                .OrderBy(x => x.SortOrder)
+                .ToListAsync(ct);
+        var linksByInfo = singleLinks
+            .Select(x => (x.InfoId, x.FieldKey, x.TargetInfoId))
+            .Concat(multiLinks.Select(x => (x.InfoId, x.FieldKey, x.TargetInfoId)))
+            .GroupBy(x => x.InfoId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var wordIds = connectionItems
+            .Select(x => x.InfoId)
+            .Where(id => infoTypes.TryGetValue(id, out var infoType) && infoType == "word")
+            .Distinct()
+            .ToList();
+        var wordLanguageMap = wordIds.Count == 0
+            ? new Dictionary<Guid, Guid>()
+            : await dbContext.CogitaWordLanguages.AsNoTracking()
+                .Where(x => wordIds.Contains(x.WordInfoId))
+                .GroupBy(x => x.WordInfoId)
+                .ToDictionaryAsync(group => group.Key, group => group.Select(x => x.LanguageInfoId).First(), ct);
+
+        var connectionKeyIds = connections.Select(x => x.DataKeyId).Distinct().ToList();
+        var connectionKeyMap = connectionKeyIds.Count == 0
+            ? new Dictionary<Guid, KeyEntry>()
+            : await dbContext.Keys.AsNoTracking()
+                .Where(x => connectionKeyIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, ct);
+
+        var documents = new List<CogitaEntitySearchDocument>(expectedCount);
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var info in infos)
+        {
+            infoTitles.TryGetValue(info.Id, out var title);
+            infoSummaries.TryGetValue(info.Id, out var summary);
+            infoPayloads.TryGetValue(info.Id, out var payload);
+
+            title ??= info.InfoType;
+            summary ??= string.Empty;
+
+            var filterTokens = payload.ValueKind == JsonValueKind.Undefined
+                ? new List<(string Key, string Value)> { ("entityType", info.InfoType) }
+                : BuildPayloadFilterTokens(info.InfoType, payload);
+            filterTokens.Add(("sourceKind", "info"));
+
+            var relationTexts = new List<string>();
+            if (connectionsByInfo.TryGetValue(info.Id, out var relatedConnectionIds))
+            {
+                foreach (var connectionId in relatedConnectionIds)
+                {
+                    var connection = connections.FirstOrDefault(x => x.Id == connectionId);
+                    if (connection is null)
+                    {
+                        continue;
+                    }
+
+                    filterTokens.Add(("relationType", connection.ConnectionType));
+
+                    if (!itemsByConnection.TryGetValue(connection.Id, out var connectionInfoIds))
+                    {
+                        continue;
+                    }
+
+                    foreach (var relatedInfoId in connectionInfoIds)
+                    {
+                        if (relatedInfoId == info.Id)
+                        {
+                            continue;
+                        }
+
+                        filterTokens.Add(("relatedInfoId", relatedInfoId.ToString()));
+                        if (infoTypes.TryGetValue(relatedInfoId, out var relatedType))
+                        {
+                            filterTokens.Add(("relatedInfoType", relatedType));
+                            if (relatedType == "language")
+                            {
+                                filterTokens.Add(("languageId", relatedInfoId.ToString()));
+                            }
+                        }
+
+                        if (infoTitles.TryGetValue(relatedInfoId, out var relatedLabel))
+                        {
+                            relationTexts.Add(relatedLabel);
+                        }
+                    }
+                }
+            }
+
+            if (linksByInfo.TryGetValue(info.Id, out var linkedEntries))
+            {
+                foreach (var linked in linkedEntries)
+                {
+                    filterTokens.Add(("linkField", linked.FieldKey));
+                    filterTokens.Add(($"link.{linked.FieldKey}", linked.TargetInfoId.ToString()));
+                    filterTokens.Add(("relatedInfoId", linked.TargetInfoId.ToString()));
+                    if (infoTypes.TryGetValue(linked.TargetInfoId, out var relatedType))
+                    {
+                        filterTokens.Add(("relatedInfoType", relatedType));
+                        filterTokens.Add(("linkTargetType", relatedType));
+                        if (relatedType == "language")
+                        {
+                            filterTokens.Add(("languageId", linked.TargetInfoId.ToString()));
+                        }
+                    }
+                    if (infoTitles.TryGetValue(linked.TargetInfoId, out var relatedLabel))
+                    {
+                        relationTexts.Add(relatedLabel);
+                    }
+                }
+            }
+
+            var payloadText = payload.ValueKind == JsonValueKind.Undefined
+                ? string.Empty
+                : string.Join(' ', CollectPayloadStrings(payload));
+            var searchText = NormalizeSearchText($"{title} {summary} {payloadText} {string.Join(' ', relationTexts)}");
+
+            documents.Add(new CogitaEntitySearchDocument
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                SourceKind = "info",
+                SourceId = info.Id,
+                EntityKind = InferEntityKindForInfoType(info.InfoType),
+                EntityType = info.InfoType,
+                InfoId = info.Id,
+                ConnectionId = null,
+                Title = title,
+                TitleNormalized = NormalizeLabel(title),
+                Summary = summary,
+                SearchTextNormalized = searchText,
+                FilterTextNormalized = BuildFilterText(filterTokens),
+                SourceUpdatedUtc = info.UpdatedUtc,
+                UpdatedUtc = now
+            });
+        }
+
+        foreach (var connection in connections)
+        {
+            var itemIds = itemsByConnection.TryGetValue(connection.Id, out var list) ? list : new List<Guid>();
+            var itemLabels = itemIds
+                .Select(id => infoTitles.TryGetValue(id, out var label) ? label : null)
+                .Where(label => !string.IsNullOrWhiteSpace(label))
+                .Select(label => label!)
+                .ToList();
+            var title = itemLabels.Count > 0 ? string.Join(" ↔ ", itemLabels) : connection.ConnectionType;
+
+            var payloadText = string.Empty;
+            if (connectionKeyMap.TryGetValue(connection.DataKeyId, out var keyEntry))
+            {
+                try
+                {
+                    var dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                    var plain = encryptionService.Decrypt(dataKey, connection.EncryptedBlob, connection.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    payloadText = string.Join(' ', CollectPayloadStrings(doc.RootElement));
+                }
+                catch
+                {
+                    payloadText = string.Empty;
+                }
+            }
+
+            var filterTokens = new List<(string Key, string Value)>
+            {
+                ("entityType", connection.ConnectionType),
+                ("connectionType", connection.ConnectionType),
+                ("sourceKind", "connection")
+            };
+            foreach (var itemId in itemIds)
+            {
+                filterTokens.Add(("infoId", itemId.ToString()));
+                if (infoTypes.TryGetValue(itemId, out var itemType))
+                {
+                    filterTokens.Add(("infoType", itemType));
+                    if (itemType == "language")
+                    {
+                        filterTokens.Add(("languageId", itemId.ToString()));
+                    }
+                }
+            }
+
+            if (connection.ConnectionType == "translation")
+            {
+                var translationWordIds = itemIds.Where(id => infoTypes.TryGetValue(id, out var itemType) && itemType == "word").Take(2).ToList();
+                if (translationWordIds.Count > 0 && wordLanguageMap.TryGetValue(translationWordIds[0], out var languageAId))
+                {
+                    filterTokens.Add(("languageAId", languageAId.ToString()));
+                    filterTokens.Add(("languageId", languageAId.ToString()));
+                }
+                if (translationWordIds.Count > 1 && wordLanguageMap.TryGetValue(translationWordIds[1], out var languageBId))
+                {
+                    filterTokens.Add(("languageBId", languageBId.ToString()));
+                    filterTokens.Add(("languageId", languageBId.ToString()));
+                }
+            }
+
+            if (connection.ConnectionType == "reference")
+            {
+                var sourceInfoId = itemIds.FirstOrDefault(id => infoTypes.TryGetValue(id, out var itemType) && itemType == "source");
+                if (sourceInfoId != Guid.Empty && infoPayloads.TryGetValue(sourceInfoId, out var sourcePayload))
+                {
+                    if (sourcePayload.ValueKind == JsonValueKind.Object &&
+                        sourcePayload.TryGetProperty("sourceKind", out var sourceKind) &&
+                        sourceKind.ValueKind == JsonValueKind.String &&
+                        !string.IsNullOrWhiteSpace(sourceKind.GetString()))
+                    {
+                        filterTokens.Add(("referenceType", sourceKind.GetString()!));
+                    }
+                }
+            }
+
+            documents.Add(new CogitaEntitySearchDocument
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                SourceKind = "connection",
+                SourceId = connection.Id,
+                EntityKind = "connection",
+                EntityType = connection.ConnectionType,
+                InfoId = null,
+                ConnectionId = connection.Id,
+                Title = title,
+                TitleNormalized = NormalizeLabel(title),
+                Summary = connection.ConnectionType,
+                SearchTextNormalized = NormalizeSearchText($"{title} {connection.ConnectionType} {payloadText} {string.Join(' ', itemLabels)}"),
+                FilterTextNormalized = BuildFilterText(filterTokens),
+                SourceUpdatedUtc = connection.UpdatedUtc,
+                UpdatedUtc = now
+            });
+        }
+
+        var existingRows = await dbContext.CogitaEntitySearchDocuments
+            .Where(x => x.LibraryId == libraryId)
+            .ToListAsync(ct);
+        if (existingRows.Count > 0)
+        {
+            dbContext.CogitaEntitySearchDocuments.RemoveRange(existingRows);
+        }
+        if (documents.Count > 0)
+        {
+            dbContext.CogitaEntitySearchDocuments.AddRange(documents);
+        }
+        await dbContext.SaveChangesAsync(ct);
+    }
+
     private static async Task<(Guid DataKeyId, byte[] DataKey)> ResolveDataKeyAsync(
         Guid roleId,
         Guid? dataKeyId,
@@ -7912,6 +8900,14 @@ public static class CogitaEndpoints
 
         AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
         await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, sanitizedPayload, now, dbContext, ct);
+        await UpsertInfoLinksAsync(
+            library.Id,
+            infoId,
+            infoType,
+            request.Links,
+            now,
+            dbContext,
+            ct);
         dbContext.KeyEntryBindings.Add(new KeyEntryBinding
         {
             Id = Guid.NewGuid(),

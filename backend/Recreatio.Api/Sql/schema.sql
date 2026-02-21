@@ -22,6 +22,8 @@ IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
 IF OBJECT_ID(N'dbo.CogitaGroupConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroupConnections;
 IF OBJECT_ID(N'dbo.CogitaGroupItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroupItems;
 IF OBJECT_ID(N'dbo.CogitaGroups', N'U') IS NOT NULL DROP TABLE dbo.CogitaGroups;
+IF OBJECT_ID(N'dbo.CogitaInfoLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkMultis;
+IF OBJECT_ID(N'dbo.CogitaInfoLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkSingles;
 IF OBJECT_ID(N'dbo.CogitaConnectionItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaConnectionItems;
 IF OBJECT_ID(N'dbo.CogitaConnections', N'U') IS NOT NULL DROP TABLE dbo.CogitaConnections;
 IF OBJECT_ID(N'dbo.CogitaMusicFragments', N'U') IS NOT NULL DROP TABLE dbo.CogitaMusicFragments;
@@ -47,6 +49,7 @@ IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaComputedInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaComputedInfos;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
 IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
+IF OBJECT_ID(N'dbo.CogitaEntitySearchDocuments', N'U') IS NOT NULL DROP TABLE dbo.CogitaEntitySearchDocuments;
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.CogitaItemDependencies', N'U') IS NOT NULL DROP TABLE dbo.CogitaItemDependencies;
@@ -567,6 +570,29 @@ CREATE INDEX IX_CogitaInfoSearchIndexes_LibraryTypeLabel ON dbo.CogitaInfoSearch
 CREATE UNIQUE INDEX IX_CogitaInfoSearchIndexes_LibraryInfo ON dbo.CogitaInfoSearchIndexes (LibraryId, InfoId);
 GO
 
+CREATE TABLE dbo.CogitaEntitySearchDocuments
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    SourceKind NVARCHAR(32) NOT NULL,
+    SourceId UNIQUEIDENTIFIER NOT NULL,
+    EntityKind NVARCHAR(32) NOT NULL,
+    EntityType NVARCHAR(64) NOT NULL,
+    InfoId UNIQUEIDENTIFIER NULL,
+    ConnectionId UNIQUEIDENTIFIER NULL,
+    Title NVARCHAR(512) NOT NULL,
+    TitleNormalized NVARCHAR(512) NOT NULL,
+    Summary NVARCHAR(1024) NOT NULL,
+    SearchTextNormalized NVARCHAR(MAX) NOT NULL,
+    FilterTextNormalized NVARCHAR(MAX) NOT NULL,
+    SourceUpdatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL
+);
+CREATE INDEX IX_CogitaEntitySearchDocuments_LibraryTypeTitle ON dbo.CogitaEntitySearchDocuments (LibraryId, EntityType, TitleNormalized);
+CREATE UNIQUE INDEX IX_CogitaEntitySearchDocuments_LibrarySource ON dbo.CogitaEntitySearchDocuments (LibraryId, SourceKind, SourceId);
+CREATE INDEX IX_CogitaEntitySearchDocuments_LibrarySourceUpdated ON dbo.CogitaEntitySearchDocuments (LibraryId, SourceUpdatedUtc);
+GO
+
 CREATE INDEX IX_CogitaInfos_Library_Type ON dbo.CogitaInfos(LibraryId, InfoType);
 GO
 
@@ -849,6 +875,50 @@ GO
 CREATE UNIQUE INDEX UX_CogitaConnectionItems_Link ON dbo.CogitaConnectionItems(ConnectionId, InfoId);
 GO
 
+CREATE TABLE dbo.CogitaInfoLinkSingles
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    InfoId UNIQUEIDENTIFIER NOT NULL,
+    FieldKey NVARCHAR(64) NOT NULL,
+    TargetInfoId UNIQUEIDENTIFIER NOT NULL,
+    IsRequired BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaInfoLinkSingles_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+    CONSTRAINT FK_CogitaInfoLinkSingles_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id),
+    CONSTRAINT FK_CogitaInfoLinkSingles_Target FOREIGN KEY (TargetInfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaInfoLinkSingles_PerField ON dbo.CogitaInfoLinkSingles(LibraryId, InfoId, FieldKey);
+GO
+
+CREATE INDEX IX_CogitaInfoLinkSingles_FieldTarget ON dbo.CogitaInfoLinkSingles(LibraryId, FieldKey, TargetInfoId);
+GO
+
+CREATE TABLE dbo.CogitaInfoLinkMultis
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    InfoId UNIQUEIDENTIFIER NOT NULL,
+    FieldKey NVARCHAR(64) NOT NULL,
+    TargetInfoId UNIQUEIDENTIFIER NOT NULL,
+    SortOrder INT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaInfoLinkMultis_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+    CONSTRAINT FK_CogitaInfoLinkMultis_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id),
+    CONSTRAINT FK_CogitaInfoLinkMultis_Target FOREIGN KEY (TargetInfoId) REFERENCES dbo.CogitaInfos(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_CogitaInfoLinkMultis_PerFieldTarget ON dbo.CogitaInfoLinkMultis(LibraryId, InfoId, FieldKey, TargetInfoId);
+GO
+
+CREATE INDEX IX_CogitaInfoLinkMultis_FieldTarget ON dbo.CogitaInfoLinkMultis(LibraryId, FieldKey, TargetInfoId);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionItems' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaCollectionItems
@@ -1107,6 +1177,7 @@ BEGIN
         ChildItemId UNIQUEIDENTIFIER NOT NULL,
         ChildCheckType NVARCHAR(64) NULL,
         ChildDirection NVARCHAR(128) NULL,
+        LinkHash BINARY(32) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         CONSTRAINT FK_CogitaItemDependencies_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
     );
@@ -1137,6 +1208,12 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'LinkHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD LinkHash BINARY(32) NULL;
+END
+GO
+
 IF COL_LENGTH('dbo.CogitaItemDependencies', 'ParentDirection') IS NOT NULL
 BEGIN
     IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.CogitaItemDependencies') AND name = 'ParentDirection' AND max_length <> 128)
@@ -1161,6 +1238,36 @@ BEGIN
 END
 GO
 
+UPDATE dbo.CogitaItemDependencies
+SET LinkHash = HASHBYTES(
+    'SHA2_256',
+    LOWER(CONCAT(
+        CONVERT(NVARCHAR(36), LibraryId), '|',
+        LTRIM(RTRIM(COALESCE(ParentItemType, ''))), '|',
+        CONVERT(NVARCHAR(36), ParentItemId), '|',
+        LTRIM(RTRIM(COALESCE(ParentCheckType, ''))), '|',
+        LTRIM(RTRIM(COALESCE(ParentDirection, ''))), '|',
+        LTRIM(RTRIM(COALESCE(ChildItemType, ''))), '|',
+        CONVERT(NVARCHAR(36), ChildItemId), '|',
+        LTRIM(RTRIM(COALESCE(ChildCheckType, ''))), '|',
+        LTRIM(RTRIM(COALESCE(ChildDirection, '')))
+    ))
+)
+WHERE LinkHash IS NULL;
+GO
+
+IF EXISTS (
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID('dbo.CogitaItemDependencies')
+      AND name = 'LinkHash'
+      AND is_nullable = 1
+)
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ALTER COLUMN LinkHash BINARY(32) NOT NULL;
+END
+GO
+
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     DROP INDEX UX_CogitaItemDependencies_Link ON dbo.CogitaItemDependencies;
@@ -1170,7 +1277,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaItemDependencies_Link
-        ON dbo.CogitaItemDependencies(LibraryId, ParentItemType, ParentItemId, ParentCheckType, ParentDirection, ChildItemType, ChildItemId, ChildCheckType, ChildDirection);
+        ON dbo.CogitaItemDependencies(LibraryId, LinkHash);
 END
 GO
 

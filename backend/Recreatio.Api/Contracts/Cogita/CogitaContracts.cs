@@ -31,6 +31,39 @@ public sealed record CogitaInfoSearchResponse(
     string Label
 );
 
+public sealed record CogitaInfoPayloadFieldSpecResponse(
+    string Key,
+    string Label,
+    string InputType,
+    bool Required,
+    bool Searchable
+);
+
+public sealed record CogitaInfoLinkFieldSpecResponse(
+    string Key,
+    string Label,
+    List<string> TargetTypes,
+    bool Required,
+    bool Multiple
+);
+
+public sealed record CogitaInfoTypeSpecResponse(
+    string InfoType,
+    string EntityKind,
+    List<CogitaInfoPayloadFieldSpecResponse> PayloadFields,
+    List<CogitaInfoLinkFieldSpecResponse> LinkFields
+);
+
+public sealed record CogitaEntitySearchResponse(
+    Guid EntityId,
+    string EntityKind,
+    string EntityType,
+    string Title,
+    string Summary,
+    Guid? InfoId,
+    Guid? ConnectionId
+);
+
 public sealed record CogitaCardSearchResponse(
     Guid CardId,
     string CardType,
@@ -52,7 +85,8 @@ public sealed record CogitaCreateInfoRequest(
     string InfoType,
     JsonElement Payload,
     Guid? DataKeyId,
-    string? SignatureBase64
+    string? SignatureBase64,
+    JsonElement? Links = null
 );
 
 public sealed record CogitaCreateInfoResponse(
@@ -63,13 +97,15 @@ public sealed record CogitaCreateInfoResponse(
 public sealed record CogitaInfoDetailResponse(
     Guid InfoId,
     string InfoType,
-    JsonElement Payload
+    JsonElement Payload,
+    JsonElement? Links = null
 );
 
 public sealed record CogitaUpdateInfoRequest(
     JsonElement Payload,
     Guid? DataKeyId,
-    string? SignatureBase64
+    string? SignatureBase64,
+    JsonElement? Links = null
 );
 
 public sealed record CogitaUpdateInfoResponse(

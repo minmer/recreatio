@@ -716,7 +716,22 @@ export const en: Copy = {
         viewGrid: 'Grid',
         selectedStackTitle: 'Selection stack',
         selectedStackHint: 'Selected infos remain when search conditions change.',
-        removeFromStack: 'Remove from stack'
+        removeFromStack: 'Remove from stack',
+        detailColumnName: 'Name',
+        detailColumnType: 'Type',
+        detailColumnId: 'Id',
+        showFilters: 'Show filters',
+        hideFilters: 'Hide filters',
+        filtersOptionalHint: 'Filters are optional and depend on selected info type.',
+        filtersLoading: 'Loading filter data...',
+        typeFilterLanguage: 'Language',
+        typeFilterLanguageA: 'Language A',
+        typeFilterLanguageB: 'Language B',
+        typeFilterOriginalLanguage: 'Original language',
+        typeFilterDoi: 'DOI',
+        typeFilterSourceKind: 'Source type',
+        typeFilterLocator: 'Locator / reference',
+        typeFilterQuote: 'Quote text'
       },
       filters: {
         title: 'Filters',

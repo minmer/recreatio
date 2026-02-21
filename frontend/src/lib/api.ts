@@ -502,6 +502,39 @@ export type CogitaInfoSearchResult = {
   label: string;
 };
 
+export type CogitaInfoPayloadFieldSpec = {
+  key: string;
+  label: string;
+  inputType: string;
+  required: boolean;
+  searchable: boolean;
+};
+
+export type CogitaInfoLinkFieldSpec = {
+  key: string;
+  label: string;
+  targetTypes: string[];
+  required: boolean;
+  multiple: boolean;
+};
+
+export type CogitaInfoTypeSpecification = {
+  infoType: string;
+  entityKind: string;
+  payloadFields: CogitaInfoPayloadFieldSpec[];
+  linkFields: CogitaInfoLinkFieldSpec[];
+};
+
+export type CogitaEntitySearchResult = {
+  entityId: string;
+  entityKind: string;
+  entityType: string;
+  title: string;
+  summary: string;
+  infoId?: string | null;
+  connectionId?: string | null;
+};
+
 export type CogitaCardSearchResult = {
   cardId: string;
   cardType: string;
@@ -789,6 +822,29 @@ export function searchCogitaInfos(payload: {
   const qs = params.toString();
   return request<CogitaInfoSearchResult[]>(
     `/cogita/libraries/${payload.libraryId}/infos${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function searchCogitaEntities(payload: {
+  libraryId: string;
+  type?: string;
+  query?: string;
+  filters?: Record<string, string>;
+  limit?: number;
+}) {
+  const params = new URLSearchParams();
+  if (payload.type) params.set('type', payload.type);
+  if (payload.query) params.set('query', payload.query);
+  if (payload.limit) params.set('limit', String(payload.limit));
+  if (payload.filters && Object.keys(payload.filters).length > 0) {
+    params.set('filters', JSON.stringify(payload.filters));
+  }
+  const qs = params.toString();
+  return request<CogitaEntitySearchResult[]>(
+    `/cogita/libraries/${payload.libraryId}/entities/search${qs ? `?${qs}` : ''}`,
     {
       method: 'GET'
     }
@@ -1189,6 +1245,7 @@ export function createCogitaInfo(payload: {
   infoType: string;
   dataKeyId?: string | null;
   payload: unknown;
+  links?: Record<string, string | string[] | null | undefined>;
   signatureBase64?: string | null;
 }) {
   return request<CogitaInfoCreateResponse>(`/cogita/libraries/${payload.libraryId}/infos`, {
@@ -1196,6 +1253,7 @@ export function createCogitaInfo(payload: {
     body: JSON.stringify({
       infoType: payload.infoType,
       payload: payload.payload,
+      links: payload.links ?? null,
       dataKeyId: payload.dataKeyId ?? null,
       signatureBase64: payload.signatureBase64 ?? null
     })
@@ -1203,7 +1261,7 @@ export function createCogitaInfo(payload: {
 }
 
 export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string }) {
-  return request<{ infoId: string; infoType: string; payload: unknown }>(
+  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
     `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}`,
     { method: 'GET' }
   );
@@ -1212,8 +1270,15 @@ export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string
 export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: string; key?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
-  return request<{ infoId: string; infoType: string; payload: unknown }>(
+  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
     `/cogita/public/revision/${payload.shareCode}/infos/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaInfoTypeSpecification(payload: { libraryId: string }) {
+  return request<CogitaInfoTypeSpecification[]>(
+    `/cogita/libraries/${payload.libraryId}/info-types/specification`,
     { method: 'GET' }
   );
 }
@@ -1222,6 +1287,7 @@ export function updateCogitaInfo(payload: {
   libraryId: string;
   infoId: string;
   payload: unknown;
+  links?: Record<string, string | string[] | null | undefined>;
   dataKeyId?: string | null;
   signatureBase64?: string | null;
 }) {
@@ -1231,6 +1297,7 @@ export function updateCogitaInfo(payload: {
       method: 'PUT',
       body: JSON.stringify({
         payload: payload.payload,
+        links: payload.links ?? null,
         dataKeyId: payload.dataKeyId ?? null,
         signatureBase64: payload.signatureBase64 ?? null
       })

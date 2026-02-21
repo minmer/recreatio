@@ -716,7 +716,22 @@ export const pl: Copy = {
         viewGrid: 'Siatka',
         selectedStackTitle: 'Stos wyboru',
         selectedStackHint: 'Wybrane informacje pozostają po zmianie wyszukiwania.',
-        removeFromStack: 'Usuń ze stosu'
+        removeFromStack: 'Usuń ze stosu',
+        detailColumnName: 'Nazwa',
+        detailColumnType: 'Typ',
+        detailColumnId: 'Id',
+        showFilters: 'Pokaż filtry',
+        hideFilters: 'Ukryj filtry',
+        filtersOptionalHint: 'Filtry są opcjonalne i zależne od typu informacji.',
+        filtersLoading: 'Ładowanie danych filtrów...',
+        typeFilterLanguage: 'Język',
+        typeFilterLanguageA: 'Język A',
+        typeFilterLanguageB: 'Język B',
+        typeFilterOriginalLanguage: 'Język oryginału',
+        typeFilterDoi: 'DOI',
+        typeFilterSourceKind: 'Typ źródła',
+        typeFilterLocator: 'Odwołanie / locator',
+        typeFilterQuote: 'Treść cytatu'
       },
       filters: {
         title: 'Filtry',

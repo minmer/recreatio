@@ -68,7 +68,10 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaWordLanguage> CogitaWordLanguages => Set<Data.Cogita.CogitaWordLanguage>();
     public DbSet<Data.Cogita.CogitaConnection> CogitaConnections => Set<Data.Cogita.CogitaConnection>();
     public DbSet<Data.Cogita.CogitaConnectionItem> CogitaConnectionItems => Set<Data.Cogita.CogitaConnectionItem>();
+    public DbSet<Data.Cogita.CogitaInfoLinkSingle> CogitaInfoLinkSingles => Set<Data.Cogita.CogitaInfoLinkSingle>();
+    public DbSet<Data.Cogita.CogitaInfoLinkMulti> CogitaInfoLinkMultis => Set<Data.Cogita.CogitaInfoLinkMulti>();
     public DbSet<Data.Cogita.CogitaInfoSearchIndex> CogitaInfoSearchIndexes => Set<Data.Cogita.CogitaInfoSearchIndex>();
+    public DbSet<Data.Cogita.CogitaEntitySearchDocument> CogitaEntitySearchDocuments => Set<Data.Cogita.CogitaEntitySearchDocument>();
     public DbSet<Data.Cogita.CogitaGroup> CogitaGroups => Set<Data.Cogita.CogitaGroup>();
     public DbSet<Data.Cogita.CogitaGroupItem> CogitaGroupItems => Set<Data.Cogita.CogitaGroupItem>();
     public DbSet<Data.Cogita.CogitaGroupConnection> CogitaGroupConnections => Set<Data.Cogita.CogitaGroupConnection>();
@@ -169,6 +172,22 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaConnectionItem>()
             .HasIndex(x => new { x.ConnectionId, x.InfoId })
             .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkSingle>()
+            .Property(x => x.FieldKey)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkSingle>()
+            .HasIndex(x => new { x.LibraryId, x.InfoId, x.FieldKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkSingle>()
+            .HasIndex(x => new { x.LibraryId, x.FieldKey, x.TargetInfoId });
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkMulti>()
+            .Property(x => x.FieldKey)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkMulti>()
+            .HasIndex(x => new { x.LibraryId, x.InfoId, x.FieldKey, x.TargetInfoId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkMulti>()
+            .HasIndex(x => new { x.LibraryId, x.FieldKey, x.TargetInfoId });
         modelBuilder.Entity<Data.Cogita.CogitaConnection>()
             .HasIndex(x => new { x.LibraryId, x.ConnectionType, x.CreatedUtc, x.Id });
         modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
@@ -179,6 +198,16 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()
             .HasIndex(x => new { x.LibraryId, x.InfoId })
             .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
+            .Property(x => x.TitleNormalized)
+            .HasMaxLength(512);
+        modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
+            .HasIndex(x => new { x.LibraryId, x.EntityType, x.TitleNormalized });
+        modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
+            .HasIndex(x => new { x.LibraryId, x.SourceKind, x.SourceId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaEntitySearchDocument>()
+            .HasIndex(x => new { x.LibraryId, x.SourceUpdatedUtc });
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionItem>()
             .HasIndex(x => new { x.CollectionInfoId, x.ItemType, x.ItemId })
@@ -433,18 +462,11 @@ public sealed class RecreatioDbContext : DbContext
             .Property(x => x.ChildDirection)
             .HasMaxLength(64);
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
-            .HasIndex(x => new
-            {
-                x.LibraryId,
-                x.ParentItemType,
-                x.ParentItemId,
-                x.ParentCheckType,
-                x.ParentDirection,
-                x.ChildItemType,
-                x.ChildItemId,
-                x.ChildCheckType,
-                x.ChildDirection
-            })
+            .Property(x => x.LinkHash)
+            .HasMaxLength(32)
+            .HasColumnType("binary(32)");
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .HasIndex(x => new { x.LibraryId, x.LinkHash })
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
             .HasIndex(x => new { x.LibraryId, x.ChildItemType, x.ChildItemId, x.ChildCheckType, x.ChildDirection });

@@ -417,6 +417,21 @@ export type Copy = {
         selectedStackTitle: string;
         selectedStackHint: string;
         removeFromStack: string;
+        detailColumnName: string;
+        detailColumnType: string;
+        detailColumnId: string;
+        showFilters: string;
+        hideFilters: string;
+        filtersOptionalHint: string;
+        filtersLoading: string;
+        typeFilterLanguage: string;
+        typeFilterLanguageA: string;
+        typeFilterLanguageB: string;
+        typeFilterOriginalLanguage: string;
+        typeFilterDoi: string;
+        typeFilterSourceKind: string;
+        typeFilterLocator: string;
+        typeFilterQuote: string;
       };
       filters: {
         title: string;

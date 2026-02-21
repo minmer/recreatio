@@ -716,7 +716,22 @@ export const de: Copy = {
         viewGrid: 'Raster',
         selectedStackTitle: 'Auswahlstapel',
         selectedStackHint: 'Ausgewählte Infos bleiben bei Suchänderungen erhalten.',
-        removeFromStack: 'Aus Stapel entfernen'
+        removeFromStack: 'Aus Stapel entfernen',
+        detailColumnName: 'Name',
+        detailColumnType: 'Typ',
+        detailColumnId: 'Id',
+        showFilters: 'Filter anzeigen',
+        hideFilters: 'Filter ausblenden',
+        filtersOptionalHint: 'Filter sind optional und typabhängig.',
+        filtersLoading: 'Filterdaten werden geladen...',
+        typeFilterLanguage: 'Sprache',
+        typeFilterLanguageA: 'Sprache A',
+        typeFilterLanguageB: 'Sprache B',
+        typeFilterOriginalLanguage: 'Originalsprache',
+        typeFilterDoi: 'DOI',
+        typeFilterSourceKind: 'Quellentyp',
+        typeFilterLocator: 'Locator / Referenz',
+        typeFilterQuote: 'Zitattext'
       },
       filters: {
         title: 'Filter',

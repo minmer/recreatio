@@ -31,5 +31,7 @@ public sealed class CogitaItemDependency
     [MaxLength(64)]
     public string? ChildDirection { get; set; }
 
+    public byte[] LinkHash { get; set; } = Array.Empty<byte>();
+
     public DateTimeOffset CreatedUtc { get; set; }
 }
