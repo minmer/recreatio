@@ -76,12 +76,12 @@ const TARGET_OPTIONS: CogitaTarget[] = [
   'new_card',
   'all_collections',
   'new_collection',
-  'transfer',
   'storyboards',
   'new_storyboard',
   'texts',
   'new_text',
-  'dependencies'
+  'dependencies',
+  'transfer'
 ];
 const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; allowsRevision: boolean }> = {
   library_overview: { requiresCollection: false, allowsRevision: false },

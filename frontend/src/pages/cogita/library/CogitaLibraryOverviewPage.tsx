@@ -152,8 +152,6 @@ export function CogitaLibraryOverviewPage({
     { key: 'texts' as const, label: copy.cogita.library.overview.stats.texts, value: totalTexts }
   ];
 
-  const selectedCounter = counters.find((counter) => counter.key === selectedMetric) ?? counters[0];
-
   return (
     <CogitaShell
       copy={copy}
@@ -193,9 +191,6 @@ export function CogitaLibraryOverviewPage({
             <section className="cogita-overview-main-card">
               <header>
                 <h2>{copy.cogita.library.overview.statsCardTitle}</h2>
-                <p>
-                  {selectedCounter.label}: <strong>{selectedCounter.value}</strong>
-                </p>
               </header>
               {selectedMetric === 'infos' ? (
                 <div className="cogita-overview-main-grid">
@@ -236,4 +231,3 @@ export function CogitaLibraryOverviewPage({
     </CogitaShell>
   );
 }
-

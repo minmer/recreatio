@@ -156,10 +156,10 @@ export const pl: Copy = {
       selectCollectionOption: 'Kolekcja',
       targets: {
         libraryOverview: 'Przegląd biblioteki',
-        allCards: 'Wszystkie karty',
+        allCards: 'Informacje',
         newCard: 'Nowa karta',
-        allCollections: 'Wszystkie kolekcje',
-        allRevisions: 'Wszystkie powtórki',
+        allCollections: 'Kolekcje',
+        allRevisions: 'Powtórki',
         newCollection: 'Nowa kolekcja',
         transfer: 'Eksport i import',
         storyboards: 'Storyboardy',
