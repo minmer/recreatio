@@ -91,7 +91,7 @@ type NavigationLevel = {
 };
 
 type InfoMode = 'search' | 'create' | 'selected';
-type TutorialSlide = { title: string; body: string };
+type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
 const TARGET_OPTIONS: CogitaTarget[] = [
@@ -523,57 +523,66 @@ export function CogitaWorkspacePage({
   const selectedRevisionLabel = revisionLabels[displayRevisionView];
   const hasLibrarySelection = Boolean(selectedLibraryId);
   const tutorialSlides = useMemo<TutorialSlide[]>(() => {
+    const quickStart =
+      language === 'pl'
+        ? 'Ruch na teraz: utwórz bibliotekę i wpisz pierwszy element wiedzy.'
+        : language === 'de'
+          ? 'Nächster Schritt: Erstelle eine Bibliothek und füge den ersten Wissenseintrag hinzu.'
+          : 'Next action: create one library and add your first knowledge item.';
+
     if (language === 'pl') {
       return [
-        { title: 'Witamy w Cogita', body: 'To miejsce pracy z bibliotekami, kolekcjami, powtórkami i informacjami.' },
-        { title: '1. Biblioteka', body: 'Najpierw tworzysz bibliotekę. To główny kontener dla całej wiedzy.' },
-        { title: '2. Informacje', body: 'Informacje są podstawowymi elementami. Każdy typ ma własną strukturę.' },
-        { title: '3. Typy informacji', body: 'Możesz dodawać słowa, osoby, źródła, cytaty i inne typy opisane w specyfikacji.' },
-        { title: '4. Linki', body: 'Informacje łączysz linkami, np. tematy i referencje, także między różnymi typami.' },
-        { title: '5. Kolekcje', body: 'Kolekcja grupuje wybrane informacje do konkretnego celu nauki.' },
-        { title: '6. Powtórki', body: 'Dla kolekcji tworzysz powtórki z własnymi ustawieniami i trybem sprawdzania.' },
-        { title: '7. Karty', body: 'Karty to widok sprawdzania informacji. Informacja i karta to nie to samo.' },
-        { title: '8. Graf zależności', body: 'Graf pokazuje relacje i wpływ jednych elementów na drugie.' },
-        { title: '9. Storyboardy', body: 'Storyboardy służą do szkicowania przebiegu i kontekstu nauki.' },
-        { title: '10. Teksty', body: 'Moduł tekstów łączy notatki z biblioteką jako materiał roboczy.' },
-        { title: '11. Udostępnianie', body: 'Biblioteki i powtórki możesz udostępniać do odczytu bez pełnej edycji.' },
-        { title: '12. Nawigacja', body: 'Breadcrumb pokazuje aktualną ścieżkę, a sidebar pokazuje akcje dla poziomu.' },
-        { title: '13. Zacznij teraz', body: 'Utwórz pierwszą bibliotekę. Pozostałe działania odblokują się automatycznie.' }
+        { step: 'Krok 1', title: 'Czym jest Cogita?', lead: 'To centrum budowania i prowadzenia procesu nauki po zalogowaniu.', passages: ['W jednym miejscu łączysz treści, ćwiczenia i współpracę zespołu.', 'Zamiast luźnych notatek dostajesz spójny przepływ: biblioteka → kolekcja → powtórka.'], focus: ['Jedna przestrzeń robocza', 'Spójny proces'], action: quickStart },
+        { step: 'Krok 2', title: 'Zacznij od biblioteki', lead: 'Biblioteka jest bazą dla całego tematu.', passages: ['Nazwij bibliotekę jasno: np. „Historia Kościoła – semestr 1”.', 'Każdy kolejny moduł korzysta z tej samej biblioteki jako źródła.'], focus: ['Nazwa tematyczna', 'Jeden punkt startowy'], action: quickStart },
+        { step: 'Krok 3', title: 'Dodawaj informacje', lead: 'Twórz krótkie, konkretne jednostki wiedzy.', passages: ['Wpisy typu info opisują pojęcia, osoby, źródła i cytaty.', 'Małe jednostki łatwiej łączyć, powtarzać i aktualizować.'], focus: ['Krótko i konkretnie', 'Łatwe aktualizacje'], action: quickStart },
+        { step: 'Krok 4', title: 'Pracuj na typach', lead: 'Formularze dostosowują się do rodzaju informacji.', passages: ['Każdy typ pokazuje właściwe pola i porządkuje dane.', 'To zmniejsza chaos i poprawia jakość wyszukiwania.'], focus: ['Lepsza struktura', 'Mniej błędów'], action: quickStart },
+        { step: 'Krok 5', title: 'Łącz wiedzę linkami', lead: 'Buduj kontekst przez relacje między wpisami.', passages: ['Połącz temat z definicją, źródłem i przykładem.', 'Graf relacji pomaga zobaczyć, czego brakuje przed kolejnym etapem.'], focus: ['Relacje między wpisami', 'Pełniejszy kontekst'], action: quickStart },
+        { step: 'Krok 6', title: 'Twórz kolekcje celu', lead: 'Kolekcja grupuje wpisy pod konkretny scenariusz.', passages: ['Osobna kolekcja dla lekcji, osobna dla quizu lub egzaminu.', 'Nie duplikujesz treści — tylko wybierasz, co jest potrzebne.'], focus: ['Celowe grupowanie', 'Bez duplikatów'], action: quickStart },
+        { step: 'Krok 7', title: 'Dodawaj powtórki', lead: 'Powtórka definiuje jak przebiega sprawdzanie.', passages: ['Ustaw tempo, kolejność i zakres materiału.', 'Dla jednej kolekcji możesz mieć kilka powtórek o różnych poziomach.'], focus: ['Kontrola tempa', 'Różne poziomy'], action: quickStart },
+        { step: 'Krok 8', title: 'Info vs karta', lead: 'Rozróżniaj źródło wiedzy i widok ćwiczeniowy.', passages: ['Info to rekord bazowy, który przechowuje treść.', 'Karta to forma pytania/utrwalenia generowana z info.'], focus: ['Źródło danych', 'Widok ćwiczeń'], action: quickStart },
+        { step: 'Krok 9', title: 'Uruchamiaj sesję', lead: 'Tryb Run prowadzi uczestników krok po kroku.', passages: ['Prowadzący kontroluje rytm i przejścia między etapami.', 'Uczestnicy mają jasny przebieg bez zgadywania, co dalej.'], focus: ['Płynny przebieg', 'Lepsza dynamika grupy'], action: quickStart },
+        { step: 'Krok 10', title: 'Czytaj graf zależności', lead: 'Graf pokazuje priorytety nauki.', passages: ['Węzły centralne oznaczają tematy, które wpływają na wiele innych.', 'Najpierw utrwal fundamenty, potem przechodź do warstw zaawansowanych.'], focus: ['Priorytety materiału', 'Lepsza kolejność'], action: quickStart },
+        { step: 'Krok 11', title: 'Storyboard i teksty', lead: 'Plan i notatki trzymaj blisko wiedzy źródłowej.', passages: ['Storyboard układa narrację i przebieg spotkania.', 'Teksty zbierają komentarze, wnioski i gotowe treści do publikacji.'], focus: ['Lepsze przygotowanie', 'Notatki w kontekście'], action: quickStart },
+        { step: 'Krok 12', title: 'Udostępniaj bezpiecznie', lead: 'Dziel się materiałem bez utraty kontroli.', passages: ['Możesz dać dostęp tylko do odczytu dla wybranych osób.', 'Edycja pozostaje po stronie autora lub zespołu prowadzącego.'], focus: ['Kontrola uprawnień', 'Bezpieczne współdzielenie'], action: quickStart },
+        { step: 'Krok 13', title: 'Nawiguj warstwowo', lead: 'Sidebar i breadcrumb prowadzą przez poziomy.', passages: ['Zawsze widzisz, czy pracujesz na bibliotece, kolekcji czy powtórce.', 'Mniej kliknięć „w ciemno”, więcej świadomej nawigacji.'], focus: ['Orientacja w systemie', 'Szybsze decyzje'], action: quickStart },
+        { step: 'Krok 14', title: 'Plan wdrożenia 30 minut', lead: 'Najpierw prosty pilot, potem rozwijaj.', passages: ['Plan: 1 biblioteka, 10 wpisów info, 1 kolekcja, 1 powtórka testowa.', 'Po pierwszej sesji popraw strukturę i dodaj kolejne scenariusze.'], focus: ['Szybki start', 'Iteracyjne doskonalenie'], action: 'Gotowe? Załóż bibliotekę po prawej i przejdź do pierwszego wpisu.' }
       ];
     }
+
     if (language === 'de') {
       return [
-        { title: 'Willkommen bei Cogita', body: 'Dies ist der Arbeitsbereich für Bibliotheken, Sammlungen, Wiederholungen und Informationen.' },
-        { title: '1. Bibliothek', body: 'Zuerst erstellst du eine Bibliothek. Sie ist der Hauptcontainer für dein Wissen.' },
-        { title: '2. Informationen', body: 'Informationen sind die Basiseinheiten. Jeder Typ hat eine eigene Struktur.' },
-        { title: '3. Informationstypen', body: 'Du kannst Wörter, Personen, Quellen, Zitate und weitere Typen anlegen.' },
-        { title: '4. Verknüpfungen', body: 'Informationen werden verlinkt, z. B. mit Themen und Referenzen.' },
-        { title: '5. Sammlungen', body: 'Eine Sammlung bündelt ausgewählte Informationen für ein Lernziel.' },
-        { title: '6. Wiederholungen', body: 'Für eine Sammlung erstellst du Wiederholungen mit eigenen Einstellungen.' },
-        { title: '7. Karten', body: 'Karten sind die Prüfansicht. Information und Karte sind unterschiedlich.' },
-        { title: '8. Abhängigkeitsgraph', body: 'Der Graph zeigt Beziehungen und Abhängigkeiten zwischen Elementen.' },
-        { title: '9. Storyboards', body: 'Storyboards helfen beim Entwurf von Lernablauf und Kontext.' },
-        { title: '10. Texte', body: 'Das Textmodul verbindet Notizen direkt mit der Bibliothek.' },
-        { title: '11. Teilen', body: 'Bibliotheken und Wiederholungen können schreibgeschützt geteilt werden.' },
-        { title: '12. Navigation', body: 'Breadcrumb zeigt den Pfad, die Sidebar zeigt Aktionen pro Ebene.' },
-        { title: '13. Jetzt starten', body: 'Erstelle deine erste Bibliothek. Weitere Aktionen werden danach verfügbar.' }
+        { step: 'Schritt 1', title: 'Was ist Cogita?', lead: 'Ein zentraler Workspace für Lernen und Moderation nach dem Login.', passages: ['Du verbindest Inhalte, Übungen und Teamarbeit in einem Ablauf.', 'Der Prozess bleibt klar: Bibliothek → Sammlung → Wiederholung.'], focus: ['Ein Workspace', 'Klarer Ablauf'], action: quickStart },
+        { step: 'Schritt 2', title: 'Mit Bibliothek starten', lead: 'Die Bibliothek ist der Startpunkt für dein Thema.', passages: ['Vergib einen klaren Namen für Kurs oder Modul.', 'Alle weiteren Bereiche greifen auf diese Basis zu.'], focus: ['Sauberer Start', 'Gemeinsame Basis'], action: quickStart },
+        { step: 'Schritt 3', title: 'Infos anlegen', lead: 'Erfasse Wissen in kleinen, klaren Einträgen.', passages: ['Info-Einträge enthalten Begriffe, Personen, Quellen und Zitate.', 'Kleinere Einheiten lassen sich besser verknüpfen und trainieren.'], focus: ['Kleine Einheiten', 'Leicht wartbar'], action: quickStart },
+        { step: 'Schritt 4', title: 'Typbasierte Eingabe', lead: 'Formulare passen sich automatisch dem Info-Typ an.', passages: ['Dadurch bleiben Daten strukturiert und konsistent.', 'Das verbessert Qualität und Auffindbarkeit.'], focus: ['Konsistenz', 'Bessere Suche'], action: quickStart },
+        { step: 'Schritt 5', title: 'Wissen verlinken', lead: 'Verbinde Einträge zu einem Kontextnetz.', passages: ['Thema, Quelle und Beispiel werden als Beziehung sichtbar.', 'So erkennst du Lücken vor der nächsten Lernphase.'], focus: ['Kontextnetz', 'Lücken erkennen'], action: quickStart },
+        { step: 'Schritt 6', title: 'Ziel-Sammlungen bauen', lead: 'Eine Sammlung bündelt Inhalte für einen konkreten Zweck.', passages: ['Nutze getrennte Sammlungen für Unterricht, Quiz oder Prüfung.', 'Du wählst Inhalte aus statt sie zu kopieren.'], focus: ['Zielorientierung', 'Keine Duplikate'], action: quickStart },
+        { step: 'Schritt 7', title: 'Wiederholungen erstellen', lead: 'Wiederholungen definieren den Prüfungsablauf.', passages: ['Tempo, Reihenfolge und Umfang sind pro Wiederholung steuerbar.', 'Mehrere Wiederholungen pro Sammlung sind möglich.'], focus: ['Ablaufsteuerung', 'Mehrere Niveaus'], action: quickStart },
+        { step: 'Schritt 8', title: 'Info und Karte', lead: 'Datenobjekt und Trainingsansicht sind getrennt.', passages: ['Info ist die Quelle der Inhalte.', 'Die Karte ist die Übungsansicht für Frage und Antwort.'], focus: ['Sauberes Modell', 'Wiederverwendbar'], action: quickStart },
+        { step: 'Schritt 9', title: 'Sitzung durchführen', lead: 'Im Run-Modus führst du die Gruppe Schritt für Schritt.', passages: ['Moderation steuert Übergänge und Timing.', 'Teilnehmende folgen einem klaren Ablauf.'], focus: ['Klare Moderation', 'Stabile Dynamik'], action: quickStart },
+        { step: 'Schritt 10', title: 'Abhängigkeitsgraph lesen', lead: 'Der Graph zeigt Lernprioritäten.', passages: ['Zentrale Knoten beeinflussen viele weitere Themen.', 'Starte mit Grundlagen und baue danach auf.'], focus: ['Priorisierung', 'Lernreihenfolge'], action: quickStart },
+        { step: 'Schritt 11', title: 'Storyboard & Texte', lead: 'Plane Ablauf und sammle Notizen im selben Kontext.', passages: ['Storyboards strukturieren Sequenzen und Rollen.', 'Texte halten Erkenntnisse und veröffentlichungsreife Inhalte fest.'], focus: ['Planung', 'Dokumentation'], action: quickStart },
+        { step: 'Schritt 12', title: 'Sicher teilen', lead: 'Teile Inhalte ohne Kontrollverlust.', passages: ['Leserechte sind separat von Bearbeitungsrechten steuerbar.', 'So bleibt der Kernbestand geschützt.'], focus: ['Rechtekontrolle', 'Sicheres Teilen'], action: quickStart },
+        { step: 'Schritt 13', title: 'Ebenen-Navigation', lead: 'Sidebar und Breadcrumb zeigen deinen aktuellen Kontext.', passages: ['Du siehst sofort, auf welcher Ebene du arbeitest.', 'Das spart Zeit und reduziert Fehlklicks.'], focus: ['Orientierung', 'Effizienz'], action: quickStart },
+        { step: 'Schritt 14', title: '30-Minuten-Startplan', lead: 'Starte klein und erweitere iterativ.', passages: ['Plan: 1 Bibliothek, 10 Infos, 1 Sammlung, 1 Test-Wiederholung.', 'Nach der ersten Runde verbesserst du Struktur und Ablauf.'], focus: ['Schneller Einstieg', 'Iteratives Vorgehen'], action: 'Jetzt starten: Bibliothek rechts anlegen und den ersten Eintrag erfassen.' }
       ];
     }
+
     return [
-      { title: 'Welcome to Cogita', body: 'This workspace organizes libraries, collections, revisions, and information.' },
-      { title: '1. Library first', body: 'Start by creating a library. It is the root container for your knowledge.' },
-      { title: '2. Information model', body: 'Information entries are the core units. Each type has its own structure.' },
-      { title: '3. Type-driven forms', body: 'Create and edit screens are generated from type specifications.' },
-      { title: '4. Links between infos', body: 'Link fields connect info entries, including references and topics.' },
-      { title: '5. Collections', body: 'Collections gather selected info entries for a specific learning goal.' },
-      { title: '6. Revisions', body: 'Revisions belong to collections and define how review sessions run.' },
-      { title: '7. Cards vs info', body: 'A card is a checking view of an info, not the info object itself.' },
-      { title: '8. Dependency graph', body: 'Graphs show dependencies and relation flow across your knowledge.' },
-      { title: '9. Storyboards', body: 'Storyboards support visual planning and structured learning context.' },
-      { title: '10. Text workspace', body: 'Texts module keeps writing and notes connected to the same library.' },
-      { title: '11. Sharing', body: 'Libraries can be shared for reading while keeping personal checks private.' },
-      { title: '12. Navigation logic', body: 'Breadcrumb shows current path, sidebar shows actions for current level.' },
-      { title: '13. Next step', body: 'Create your first library now. Everything else unlocks from there.' }
+      { step: 'Step 1', title: 'What is Cogita?', lead: 'A post-login workspace to design, run, and improve knowledge journeys.', passages: ['You can keep content, training flow, and collaboration in one place.', 'The path stays explicit: library → collection → revision → session.'], focus: ['Single workspace', 'Clear learning flow'], action: quickStart },
+      { step: 'Step 2', title: 'Start with a library', lead: 'Your library is the root container for one domain or program.', passages: ['Name it after your course, cohort, or topic scope.', 'Every next module reuses this foundation.'], focus: ['Root container', 'Consistent base'], action: quickStart },
+      { step: 'Step 3', title: 'Add information units', lead: 'Build knowledge from small, reusable info entries.', passages: ['Capture terms, references, people, concepts, and citations.', 'Smaller entries are easier to link, review, and update.'], focus: ['Reusable units', 'Easy maintenance'], action: quickStart },
+      { step: 'Step 4', title: 'Use type-based forms', lead: 'Each info type has a matching data structure and fields.', passages: ['Form layouts adapt automatically to the selected type.', 'This improves consistency and lowers input mistakes.'], focus: ['Structured input', 'Fewer errors'], action: quickStart },
+      { step: 'Step 5', title: 'Link the knowledge graph', lead: 'Relationships turn isolated facts into usable context.', passages: ['Connect topics, sources, and supporting examples.', 'Dependency links show what must be learned first.'], focus: ['Context building', 'Better sequencing'], action: quickStart },
+      { step: 'Step 6', title: 'Build goal collections', lead: 'Collections package selected infos for a concrete objective.', passages: ['Create separate collections for class, quiz, exam, or workshop.', 'You curate from existing entries instead of duplicating content.'], focus: ['Goal-oriented sets', 'No duplication'], action: quickStart },
+      { step: 'Step 7', title: 'Create revisions', lead: 'Revisions define how practice and checking should run.', passages: ['Set pacing, order, and scope for each session style.', 'One collection can host multiple revision strategies.'], focus: ['Practice design', 'Multiple modes'], action: quickStart },
+      { step: 'Step 8', title: 'Understand info vs card', lead: 'Data objects and practice views are intentionally separate.', passages: ['Info is the canonical source object.', 'Card is the generated training/checking view.'], focus: ['Clear model', 'Reusable content'], action: quickStart },
+      { step: 'Step 9', title: 'Run live sessions', lead: 'Run mode helps facilitators guide each step with control.', passages: ['Move through prompts, responses, and timing intentionally.', 'Participants get a predictable and focused session rhythm.'], focus: ['Facilitator control', 'Group clarity'], action: quickStart },
+      { step: 'Step 10', title: 'Read dependency graphs', lead: 'Graph views expose prerequisites and high-impact nodes.', passages: ['Central nodes usually deserve priority in onboarding.', 'Use this to plan revision order and reduce confusion.'], focus: ['Priority mapping', 'Smarter progression'], action: quickStart },
+      { step: 'Step 11', title: 'Use storyboards and texts', lead: 'Plan narratives and keep notes near source knowledge.', passages: ['Storyboards model session structure and transitions.', 'Texts capture outcomes, drafts, and reusable explanations.'], focus: ['Planning layer', 'Contextual notes'], action: quickStart },
+      { step: 'Step 12', title: 'Share safely', lead: 'Share read access without losing editorial control.', passages: ['Keep editing rights restricted to owners or maintainers.', 'Collaborators can consume material while core data stays protected.'], focus: ['Access control', 'Safe collaboration'], action: quickStart },
+      { step: 'Step 13', title: 'Navigate by layers', lead: 'Sidebar and breadcrumb make system depth understandable.', passages: ['You always know whether you are at library, collection, or revision level.', 'Clear location awareness reduces wrong actions.'], focus: ['Fast orientation', 'Lower friction'], action: quickStart },
+      { step: 'Step 14', title: '30-minute launch plan', lead: 'Start with a minimum viable setup, then iterate.', passages: ['Plan: create 1 library, add 10 infos, build 1 collection, run 1 revision.', 'After the first run, refine structure and scale by scenario.'], focus: ['Immediate execution', 'Iterative improvement'], action: 'Ready now? Create your first library on the right and start adding knowledge.' }
     ];
   }, [language]);
   const tutorialTotal = tutorialSlides.length;
@@ -1626,12 +1635,26 @@ export function CogitaWorkspacePage({
                   <div className="cogita-browser-intro-main">
                     <article className="cogita-browser-panel cogita-browser-tutorial">
                       <div className="cogita-browser-tutorial-head">
-                        <h2>{activeTutorialSlide.title}</h2>
+                        <div>
+                          <p className="cogita-browser-tutorial-step">{activeTutorialSlide.step}</p>
+                          <h2>{activeTutorialSlide.title}</h2>
+                        </div>
                         <p>
                           {safeTutorialIndex + 1} / {tutorialTotal}
                         </p>
                       </div>
-                      <p className="cogita-browser-note">{activeTutorialSlide.body}</p>
+                      <p className="cogita-browser-note cogita-browser-tutorial-lead">{activeTutorialSlide.lead}</p>
+                      <div className="cogita-browser-tutorial-passages">
+                        {activeTutorialSlide.passages.map((passage) => (
+                          <p key={passage}>{passage}</p>
+                        ))}
+                      </div>
+                      <div className="cogita-browser-tutorial-focus">
+                        {activeTutorialSlide.focus.map((item) => (
+                          <span key={item}>{item}</span>
+                        ))}
+                      </div>
+                      <p className="cogita-browser-note cogita-browser-tutorial-action">{activeTutorialSlide.action}</p>
                       <div className="cogita-browser-tutorial-progress" role="list" aria-label="Tutorial progress">
                         {tutorialSlides.map((slide, index) => (
                           <button
