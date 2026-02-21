@@ -1283,6 +1283,11 @@ export function CogitaWorkspacePage({
     }
 
     const currentPath = normalizePath(`${location.pathname}${location.search}`);
+    const isMainCogitaPath = normalizePath(location.pathname) === '/cogita' && !pathState.libraryId;
+    if (isMainCogitaPath) {
+      lastNavigationRef.current = null;
+      return;
+    }
     const nextPath = normalizePath(
       buildCogitaPath(
         selectedLibraryId,
