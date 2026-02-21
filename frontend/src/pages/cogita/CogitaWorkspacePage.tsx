@@ -738,6 +738,16 @@ export function CogitaWorkspacePage({
         ],
         onSelect: (value: string) => {
           if (value === 'selected') {
+            if (!pathState.infoId) return;
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: 'all_cards',
+              collectionId: selectedCollectionId,
+              revisionId: selectedRevisionId,
+              revisionView: selectedRevisionView,
+              infoId: pathState.infoId,
+              infoView: 'overview'
+            });
             return;
           }
           if (value === 'create') {
