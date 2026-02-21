@@ -2136,6 +2136,109 @@
   color: #f1f7ff;
 }
 
+.cogita-overview-counters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.8rem;
+}
+
+.cogita-overview-counter {
+  border: 1px solid rgba(120, 170, 220, 0.24);
+  border-radius: 12px;
+  background: rgba(8, 20, 34, 0.64);
+  color: rgba(220, 236, 255, 0.86);
+  padding: 0.8rem 0.9rem;
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.cogita-overview-counter strong {
+  font-size: 1.2rem;
+  color: #f4f8ff;
+}
+
+.cogita-overview-counter.active {
+  background: rgba(90, 150, 210, 0.4);
+  border-color: rgba(140, 205, 255, 0.66);
+}
+
+.cogita-overview-main-card {
+  margin-top: 1rem;
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 16px;
+  background: rgba(7, 18, 31, 0.78);
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.cogita-overview-main-card h2,
+.cogita-overview-main-card h3 {
+  margin: 0;
+}
+
+.cogita-overview-main-card p {
+  margin: 0;
+  color: rgba(197, 220, 244, 0.82);
+}
+
+.cogita-overview-main-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.cogita-overview-main-grid article {
+  border: 1px solid rgba(120, 170, 220, 0.18);
+  border-radius: 14px;
+  background: rgba(9, 21, 36, 0.7);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cogita-overview-pie-wrap {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cogita-overview-pie {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  margin: 0 auto;
+  border: 1px solid rgba(150, 195, 236, 0.4);
+}
+
+.cogita-overview-legend {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cogita-overview-legend-item {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  color: rgba(217, 234, 252, 0.9);
+}
+
+.cogita-overview-legend-item span {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.cogita-overview-legend-item small {
+  color: rgba(180, 209, 240, 0.8);
+}
+
+.cogita-overview-placeholder {
+  display: grid;
+  gap: 0.55rem;
+}
+
 .cogita-library-dashboard .cogita-library-grid {
   margin-top: 0;
 }

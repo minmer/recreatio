@@ -28,6 +28,9 @@ import { CogitaLibraryListPage } from './library/CogitaLibraryListPage';
 import { CogitaLibraryAddPage } from './library/CogitaLibraryAddPage';
 import { CogitaDependencyGraphPage } from './library/CogitaDependencyGraphPage';
 import { CogitaLibrarySharedRevisionsPage } from './library/CogitaLibrarySharedRevisionsPage';
+import { CogitaLibraryTransferPage } from './library/CogitaLibraryTransferPage';
+import { CogitaLibraryStoryboardsPage } from './library/CogitaLibraryStoryboardsPage';
+import { CogitaLibraryTextsPage } from './library/CogitaLibraryTextsPage';
 import { CogitaCollectionListPage } from './library/collections/CogitaCollectionListPage';
 import { CogitaCollectionCreatePage } from './library/collections/CogitaCollectionCreatePage';
 import { CogitaCollectionDetailPage } from './library/collections/CogitaCollectionDetailPage';
@@ -43,6 +46,11 @@ type CogitaTarget =
   | 'new_card'
   | 'all_collections'
   | 'new_collection'
+  | 'transfer'
+  | 'storyboards'
+  | 'new_storyboard'
+  | 'texts'
+  | 'new_text'
   | 'dependencies';
 
 type CogitaPreferences = {
@@ -68,6 +76,11 @@ const TARGET_OPTIONS: CogitaTarget[] = [
   'new_card',
   'all_collections',
   'new_collection',
+  'transfer',
+  'storyboards',
+  'new_storyboard',
+  'texts',
+  'new_text',
   'dependencies'
 ];
 const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; allowsRevision: boolean }> = {
@@ -76,6 +89,11 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   new_card: { requiresCollection: false, allowsRevision: false },
   all_collections: { requiresCollection: true, allowsRevision: true },
   new_collection: { requiresCollection: false, allowsRevision: false },
+  transfer: { requiresCollection: false, allowsRevision: false },
+  storyboards: { requiresCollection: false, allowsRevision: false },
+  new_storyboard: { requiresCollection: false, allowsRevision: false },
+  texts: { requiresCollection: false, allowsRevision: false },
+  new_text: { requiresCollection: false, allowsRevision: false },
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
 const REVISION_SELECTION_VIEWS: RevisionView[] = ['settings', 'run', 'shared'];
@@ -121,6 +139,24 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
 
   if (segments[3] === 'dependencies') {
     return { libraryId, target: 'dependencies' };
+  }
+
+  if (segments[3] === 'transfer') {
+    return { libraryId, target: 'transfer' };
+  }
+
+  if (segments[3] === 'storyboards') {
+    if (segments[4] === 'new') {
+      return { libraryId, target: 'new_storyboard' };
+    }
+    return { libraryId, target: 'storyboards' };
+  }
+
+  if (segments[3] === 'texts') {
+    if (segments[4] === 'new') {
+      return { libraryId, target: 'new_text' };
+    }
+    return { libraryId, target: 'texts' };
   }
 
   if (segments[3] !== 'collections') {
@@ -227,6 +263,21 @@ function buildCogitaPath(
   if (target === 'new_collection') {
     return withQuery(`/cogita/library/${libraryId}/collections/new`, { revisionId });
   }
+  if (target === 'transfer') {
+    return withQuery(`/cogita/library/${libraryId}/transfer`, { revisionId });
+  }
+  if (target === 'storyboards') {
+    return withQuery(`/cogita/library/${libraryId}/storyboards`, { revisionId });
+  }
+  if (target === 'new_storyboard') {
+    return withQuery(`/cogita/library/${libraryId}/storyboards/new`, { revisionId });
+  }
+  if (target === 'texts') {
+    return withQuery(`/cogita/library/${libraryId}/texts`, { revisionId });
+  }
+  if (target === 'new_text') {
+    return withQuery(`/cogita/library/${libraryId}/texts/new`, { revisionId });
+  }
   if (target === 'dependencies') {
     return withQuery(`/cogita/library/${libraryId}/dependencies`, { revisionId });
   }
@@ -238,6 +289,10 @@ function normalizePath(path: string) {
     return path.slice(0, -1);
   }
   return path;
+}
+
+function isCogitaTarget(value: unknown): value is CogitaTarget {
+  return typeof value === 'string' && (TARGET_OPTIONS as string[]).includes(value);
 }
 
 function resolvePreferenceRoleId(roles: RoleResponse[], ownedRoleIds: Set<string>): string | null {
@@ -388,6 +443,11 @@ export function CogitaWorkspacePage({
       new_card: workspaceCopy.targets.newCard,
       all_collections: workspaceCopy.targets.allCollections,
       new_collection: workspaceCopy.targets.newCollection,
+      transfer: workspaceCopy.targets.transfer,
+      storyboards: workspaceCopy.targets.storyboards,
+      new_storyboard: workspaceCopy.targets.newStoryboard,
+      texts: workspaceCopy.targets.texts,
+      new_text: workspaceCopy.targets.newText,
       dependencies: workspaceCopy.targets.dependencies
     }),
     [workspaceCopy.targets]
@@ -665,6 +725,15 @@ export function CogitaWorkspacePage({
     if (pathState.target === 'dependencies') {
       return <CogitaDependencyGraphPage {...baseProps} />;
     }
+    if (pathState.target === 'transfer') {
+      return <CogitaLibraryTransferPage {...baseProps} />;
+    }
+    if (pathState.target === 'storyboards' || pathState.target === 'new_storyboard') {
+      return <CogitaLibraryStoryboardsPage {...baseProps} />;
+    }
+    if (pathState.target === 'texts' || pathState.target === 'new_text') {
+      return <CogitaLibraryTextsPage {...baseProps} />;
+    }
     if (pathState.target === 'all_collections') {
       if (pathState.collectionId) {
         const collectionProps = { ...baseProps, collectionId: pathState.collectionId };
@@ -751,8 +820,8 @@ export function CogitaWorkspacePage({
           libraryItems.find((item) => item.libraryId === preferredLibraryFromPrefs)?.libraryId ??
           libraryItems[0]?.libraryId;
 
-        const preferredTarget =
-          (selectedByRule && prefsRef.current.byLibrary?.[selectedByRule]?.lastTarget) ?? 'library_overview';
+        const preferredTargetFromPrefs = selectedByRule ? prefsRef.current.byLibrary?.[selectedByRule]?.lastTarget : undefined;
+        const preferredTarget = isCogitaTarget(preferredTargetFromPrefs) ? preferredTargetFromPrefs : 'library_overview';
         setSelectedLibraryId(selectedByRule);
         setSelectedTarget(pathState.target ?? preferredTarget);
         setSelectedRevisionId(pathState.revisionId ?? (selectedByRule ? prefsRef.current.byLibrary?.[selectedByRule]?.lastRevisionId : undefined));

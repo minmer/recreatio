@@ -117,6 +117,11 @@ export type Copy = {
         allCollections: string;
         allRevisions: string;
         newCollection: string;
+        transfer: string;
+        storyboards: string;
+        newStoryboard: string;
+        texts: string;
+        newText: string;
         collectionRevision: string;
         sharedRevisions: string;
         dependencies: string;
@@ -287,7 +292,19 @@ export type Copy = {
           sentences: string;
           languages: string;
           collections: string;
+          revisions: string;
+          storyboards: string;
+          texts: string;
         };
+        statsCardTitle: string;
+        statsCardHint: string;
+        knownChartTitle: string;
+        checksChartTitle: string;
+        known: string;
+        unknown: string;
+        excluded: string;
+        availableChecks: string;
+        unavailableChecks: string;
         quickActionsTitle: string;
         quickActionsText: string;
         browseList: string;
@@ -317,6 +334,23 @@ export type Copy = {
         importLiveProgress: string;
         importSummary: string;
         importFail: string;
+      };
+      modules: {
+        storyboardsTitle: string;
+        storyboardsSubtitle: string;
+        storyboardsNewLabel: string;
+        storyboardsNewPlaceholder: string;
+        storyboardsCreate: string;
+        storyboardsExisting: string;
+        storyboardsEmpty: string;
+        textsTitle: string;
+        textsSubtitle: string;
+        textsNewLabel: string;
+        textsNewPlaceholder: string;
+        textsCreate: string;
+        textsExisting: string;
+        textsEmpty: string;
+        draftInfo: string;
       };
       list: {
         kicker: string;
