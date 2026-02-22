@@ -2622,6 +2622,7 @@ public static class CogitaEndpoints
                         : $"Role {roleId:N}";
                     return new CogitaReviewerResponse(roleId, label, roleKind);
                 })
+                .Where(x => string.Equals(x.RoleKind?.Trim(), "person", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(x => x.Label)
                 .ToList();
 

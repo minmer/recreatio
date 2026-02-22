@@ -4,21 +4,22 @@ export function CogitaCheckcardSurface({
   children,
   flashState,
   flashTick = 0,
+  feedbackToken,
   className
 }: {
   children: ReactNode;
   flashState?: 'correct' | 'incorrect' | null;
   flashTick?: number;
+  feedbackToken?: string;
   className?: string;
 }) {
-  const feedbackToken = flashState ? `${flashState}-${flashTick}` : 'idle';
+  const resolvedFeedbackToken = feedbackToken ?? (flashState ? `${flashState}-${flashTick}` : 'idle');
   return (
     <section
       className={className ? `cogita-revision-card ${className}` : 'cogita-revision-card'}
-      data-feedback={feedbackToken}
+      data-feedback={resolvedFeedbackToken}
     >
       {children}
     </section>
   );
 }
-

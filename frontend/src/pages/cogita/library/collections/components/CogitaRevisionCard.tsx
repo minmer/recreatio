@@ -49,7 +49,10 @@ export function CogitaRevisionCard({
   onMatchLeftSelect,
   onMatchRightSelect,
   disableCheckAnswer = false,
-  hideSkipAction = false
+  hideSkipAction = false,
+  allowRevealBeforeCheck = false,
+  autoRevealAfterAnswer = false,
+  disableCheckAfterAnswer = false
 }: {
   copy: Copy;
   currentCard: CogitaCardSearchResult;
@@ -107,6 +110,9 @@ export function CogitaRevisionCard({
   onMatchRightSelect?: (rightId: string) => void;
   disableCheckAnswer?: boolean;
   hideSkipAction?: boolean;
+  allowRevealBeforeCheck?: boolean;
+  autoRevealAfterAnswer?: boolean;
+  disableCheckAfterAnswer?: boolean;
 }) {
   const inlineTemplate = useMemo(() => {
     const fallbackTemplate =
@@ -267,6 +273,11 @@ export function CogitaRevisionCard({
       ? quoteContext?.title || currentCard.label
       : currentCard.description;
 
+  const effectiveShowCorrectAnswer = showCorrectAnswer || (autoRevealAfterAnswer && feedback !== null);
+  const checkDisabled = disableCheckAnswer || (disableCheckAfterAnswer && (feedback !== null || effectiveShowCorrectAnswer));
+  const canRenderReveal =
+    hasExpectedAnswer && (allowRevealBeforeCheck || feedback === 'incorrect' || effectiveShowCorrectAnswer);
+
   return (
     <>
       <div className="cogita-revision-header">
@@ -327,7 +338,7 @@ export function CogitaRevisionCard({
               type="button"
               className="cta"
               onClick={onCheckAnswer}
-              disabled={currentCard.checkType === 'translation-match' || disableCheckAnswer}
+              disabled={currentCard.checkType === 'translation-match' || checkDisabled}
             >
               {copy.cogita.library.revision.checkAnswer}
             </button>
@@ -356,7 +367,7 @@ export function CogitaRevisionCard({
                 if (canAdvance) {
                   onAdvance();
                 } else {
-                  if (disableCheckAnswer) return;
+                  if (checkDisabled) return;
                   onCheckAnswer();
                 }
               }}
@@ -383,7 +394,7 @@ export function CogitaRevisionCard({
             </div>
           ) : null}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={disableCheckAnswer}>
+            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
               {copy.cogita.library.revision.checkAnswer}
             </button>
             {!hideSkipAction ? (
@@ -442,7 +453,7 @@ export function CogitaRevisionCard({
                     if (canAdvance) {
                       onAdvance();
                     } else {
-                      if (disableCheckAnswer) return;
+                      if (checkDisabled) return;
                       onCheckAnswer();
                     }
                   }}
@@ -471,7 +482,7 @@ export function CogitaRevisionCard({
             </div>
           ) : null}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={disableCheckAnswer}>
+            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
               {copy.cogita.library.revision.checkAnswer}
             </button>
             {!hideSkipAction ? (
@@ -505,7 +516,7 @@ export function CogitaRevisionCard({
                   if (canAdvance) {
                     onAdvance();
                   } else {
-                    if (disableCheckAnswer) return;
+                    if (checkDisabled) return;
                     onCheckAnswer();
                   }
                 }}
@@ -514,7 +525,7 @@ export function CogitaRevisionCard({
             <p className="cogita-quote-text">{quoteContext.after}</p>
           </div>
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={disableCheckAnswer}>
+            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
               {copy.cogita.library.revision.checkAnswer}
             </button>
             {!hideSkipAction ? (
@@ -566,24 +577,26 @@ export function CogitaRevisionCard({
         </div>
       )}
 
-      {feedback === 'incorrect' && hasExpectedAnswer ? (
+      {canRenderReveal ? (
         <div className="cogita-revision-reveal">
-          <button
-            type="button"
-            className="ghost"
-            onClick={() =>
-              setShowCorrectAnswer((prev) => {
-                const next = !prev;
-                if (next) {
-                  onRevealCorrect();
-                }
-                return next;
-              })
-            }
-          >
-            {copy.cogita.library.revision.showAnswer}
-          </button>
-          {showCorrectAnswer ? (
+          {!effectiveShowCorrectAnswer ? (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() =>
+                setShowCorrectAnswer((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    onRevealCorrect();
+                  }
+                  return next;
+                })
+              }
+            >
+              {copy.cogita.library.revision.showAnswer}
+            </button>
+          ) : null}
+          {effectiveShowCorrectAnswer ? (
             <div className="cogita-revision-answer">
               <p className="cogita-user-kicker">{copy.cogita.library.revision.correctAnswerLabel}</p>
               {computedExpected.length > 0 ? (

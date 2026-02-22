@@ -22,7 +22,7 @@ export type CogitaInfoType =
   | 'vocab'
   | 'book'
   | 'word-language'
-  | 'quote-language'
+  | 'citation-language'
   | 'language-sentence'
   | 'translation'
   | 'word-topic'
@@ -34,7 +34,7 @@ export type CogitaInfoType =
 
 export type CogitaConnectionType =
   | 'word-language'
-  | 'quote-language'
+  | 'citation-language'
   | 'language-sentence'
   | 'translation'
   | 'word-topic'

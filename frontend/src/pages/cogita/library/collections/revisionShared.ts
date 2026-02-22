@@ -2,25 +2,18 @@ import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../l
 import { buildQuoteFragmentTree } from '../../../../cogita/revision/quote';
 
 export const normalizeAnswer = (value: string) => value.trim().toLowerCase();
-export const getQuoteMode = (direction?: string | null) => (direction === 'reverse' ? 'reverse' : 'forward');
-export const buildQuoteFragmentDirection = (mode: 'forward' | 'reverse', fragmentId: string) => `${mode}|${fragmentId}`;
 
 export const parseQuoteFragmentDirection = (direction?: string | null) => {
-  if (!direction) return null;
-  const [mode, fragmentId] = direction.split('|', 2);
-  if ((mode === 'forward' || mode === 'reverse') && fragmentId) {
-    return { mode, fragmentId };
-  }
-  return { mode: 'forward' as const, fragmentId: direction };
+  const fragmentId = direction?.trim();
+  if (!fragmentId) return null;
+  return { fragmentId };
 };
 
 export const matchesQuoteDirection = (entryDirection: string | null | undefined, currentDirection?: string | null) => {
   const current = parseQuoteFragmentDirection(currentDirection);
   if (!current) return true;
-  if (current.fragmentId && currentDirection) {
-    return (entryDirection ?? null) === currentDirection;
-  }
-  return (parseQuoteFragmentDirection(entryDirection)?.mode ?? 'forward') === current.mode;
+  const entryParsed = parseQuoteFragmentDirection(entryDirection);
+  return entryParsed?.fragmentId === current.fragmentId;
 };
 
 export const normalizeDependencyToken = (value?: string | null) => {
@@ -129,18 +122,26 @@ export const getFirstComputedInputKey = (
 };
 
 export const expandQuoteDirectionCards = (cards: CogitaCardSearchResult[]) =>
-  cards.flatMap((card) => {
-    if (card.cardType !== 'info' || card.infoType !== 'citation') return [card];
-    const text = card.description ?? '';
-    if (!text.trim()) return [card];
-    const parsed = parseQuoteFragmentDirection(card.direction);
-    const mode = parsed?.mode ?? getQuoteMode(card.direction);
-    const tree = buildQuoteFragmentTree(text);
-    const nodeIds = Object.keys(tree.nodes);
-    if (nodeIds.length === 0) return [card];
-    return nodeIds.map((nodeId) => ({
-      ...card,
-      checkType: 'quote-fragment',
-      direction: buildQuoteFragmentDirection(mode, nodeId)
-    }));
-  });
+  (() => {
+    const seen = new Set<string>();
+    return cards.flatMap((card) => {
+      if (card.cardType !== 'info' || card.infoType !== 'citation') return [card];
+      const text = card.description ?? '';
+      if (!text.trim()) return [card];
+      const tree = buildQuoteFragmentTree(text);
+      const nodeIds = Object.keys(tree.nodes);
+      if (nodeIds.length === 0) return [card];
+      return nodeIds
+        .map((nodeId) => ({
+          ...card,
+          checkType: 'quote-fragment',
+          direction: nodeId
+        }))
+        .filter((entry) => {
+          const key = [entry.cardId, entry.checkType ?? '', entry.direction ?? ''].join('|');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    });
+  })();

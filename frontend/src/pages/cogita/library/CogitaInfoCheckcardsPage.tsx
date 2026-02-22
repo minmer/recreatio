@@ -6,6 +6,7 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from './collections/components/CogitaCheckcardSurface';
 import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
+import { getInfoTypeLabel } from './libraryOptions';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
@@ -393,6 +394,11 @@ export function CogitaInfoCheckcardsPage({
     return { ...selectedCard, description: selectedCard.label };
   }, [selectedCard, title]);
 
+  const infoTypeLabel = useMemo(() => {
+    if (!detailInfoType) return copy.cogita.library.infoTypes.any;
+    return getInfoTypeLabel(copy, detailInfoType as any);
+  }, [copy, detailInfoType]);
+
   return (
     <CogitaShell
       copy={copy}
@@ -412,7 +418,7 @@ export function CogitaInfoCheckcardsPage({
             <section className="cogita-info-checkcards-page">
               <header className="cogita-info-checkcards-header">
                 <div>
-                  <p className="cogita-user-kicker">{copy.cogita.library.infoTypes.citation}</p>
+                  <p className="cogita-user-kicker">{infoTypeLabel}</p>
                   <h2 className="cogita-card-title">{title}</h2>
                   <p className="cogita-card-subtitle">{infoId}</p>
                 </div>
@@ -494,6 +500,9 @@ export function CogitaInfoCheckcardsPage({
                               onMatchRightSelect={undefined}
                               disableCheckAnswer={selectedCardAlreadyChecked || showCorrectAnswer}
                               hideSkipAction
+                              allowRevealBeforeCheck
+                              autoRevealAfterAnswer
+                              disableCheckAfterAnswer
                             />
                           </CogitaCheckcardSurface>
                         ) : null}

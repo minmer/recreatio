@@ -11,7 +11,7 @@ export type InfoFilterLabelKey =
   | 'doi'
   | 'sourceKind'
   | 'locator'
-  | 'quote';
+  | 'citationText';
 
 export type InfoFilterFieldSchema = {
   key: string;
@@ -60,14 +60,14 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
   language: {
     infoType: 'language',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'code', 'notes'] },
+    structure: { payloadFields: ['label', 'name', 'code'] },
     filterFields: []
   },
   word: {
     infoType: 'word',
     entityKind: 'single',
     structure: {
-      payloadFields: ['label', 'lemma', 'notes', 'languageId'],
+      payloadFields: ['label', 'lemma', 'languageId'],
       connections: [{ relationType: 'word-language', role: 'language', targetType: 'language' }]
     },
     filterFields: [LANGUAGE_FILTER]
@@ -76,7 +76,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     infoType: 'sentence',
     entityKind: 'single',
     structure: {
-      payloadFields: ['label', 'text', 'notes', 'languageId'],
+      payloadFields: ['label', 'text', 'languageId'],
       connections: [{ relationType: 'language-sentence', role: 'language', targetType: 'language' }]
     },
     filterFields: [LANGUAGE_FILTER]
@@ -84,68 +84,68 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
   topic: {
     infoType: 'topic',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'notes'] },
+    structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   collection: {
     infoType: 'collection',
     entityKind: 'complex',
-    structure: { payloadFields: ['label', 'name', 'notes'] },
+    structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   person: {
     infoType: 'person',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'notes'] },
+    structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   institution: {
     infoType: 'institution',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'notes'] },
+    structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   collective: {
     infoType: 'collective',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'notes'] },
+    structure: { payloadFields: ['label', 'name'] },
     filterFields: []
   },
   orcid: {
     infoType: 'orcid',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'orcid', 'notes'] },
+    structure: { payloadFields: ['label', 'orcid'] },
     filterFields: [{ key: 'orcid', label: 'ORCID', kind: 'text', path: 'orcid', matcher: 'contains' }]
   },
   address: {
     infoType: 'address',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'street', 'city', 'postalCode', 'country', 'notes'] },
+    structure: { payloadFields: ['label', 'street', 'city', 'postalCode', 'country'] },
     filterFields: []
   },
   email: {
     infoType: 'email',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'email', 'address', 'notes'] },
+    structure: { payloadFields: ['label', 'email', 'address'] },
     filterFields: []
   },
   phone: {
     infoType: 'phone',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'phone', 'number', 'notes'] },
+    structure: { payloadFields: ['label', 'phone', 'number'] },
     filterFields: []
   },
   media: {
     infoType: 'media',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'url', 'kind', 'notes'] },
+    structure: { payloadFields: ['label', 'name', 'url', 'kind'] },
     filterFields: []
   },
   work: {
     infoType: 'work',
     entityKind: 'single',
     structure: {
-      payloadFields: ['label', 'title', 'subtitle', 'doi', 'isbn', 'issn', 'languageId', 'originalLanguageId', 'notes']
+      payloadFields: ['label', 'title', 'subtitle', 'doi', 'isbn', 'issn', 'languageId', 'originalLanguageId']
     },
     filterFields: [
       LANGUAGE_FILTER,
@@ -163,26 +163,26 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
   geo: {
     infoType: 'geo',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'name', 'country', 'region', 'city', 'notes'] },
+    structure: { payloadFields: ['label', 'name', 'country', 'region', 'city'] },
     filterFields: []
   },
   music_piece: {
     infoType: 'music_piece',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'title', 'composer', 'notes'] },
+    structure: { payloadFields: ['label', 'title', 'composer'] },
     filterFields: []
   },
   music_fragment: {
     infoType: 'music_fragment',
     entityKind: 'single',
-    structure: { payloadFields: ['label', 'title', 'text', 'notes'] },
+    structure: { payloadFields: ['label', 'title', 'text'] },
     filterFields: []
   },
   source: {
     infoType: 'source',
     entityKind: 'single',
     structure: {
-      payloadFields: ['label', 'title', 'sourceKind', 'locator', 'notes'],
+      payloadFields: ['label', 'title', 'sourceKind', 'locator'],
       connections: [{ relationType: 'source-resource', role: 'resource', targetType: 'work' }]
     },
     filterFields: [
@@ -194,19 +194,19 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     infoType: 'citation',
     entityKind: 'single',
     structure: {
-      payloadFields: ['title', 'text', 'notes'],
+      payloadFields: ['title', 'text'],
       connections: [
-        { relationType: 'quote-language', role: 'language', targetType: 'language' },
+        { relationType: 'citation-language', role: 'language', targetType: 'language' },
         { relationType: 'reference', role: 'source', targetType: 'source' }
       ]
     },
-    filterFields: [{ key: 'text', labelKey: 'quote', kind: 'text', path: 'text', matcher: 'contains' }]
+    filterFields: [{ key: 'text', labelKey: 'citationText', kind: 'text', path: 'text', matcher: 'contains' }]
   },
   computed: {
     infoType: 'computed',
     entityKind: 'complex',
     structure: {
-      payloadFields: ['label', 'title', 'definition', 'notes']
+      payloadFields: ['label', 'title', 'definition']
     },
     filterFields: []
   },
@@ -232,7 +232,7 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
 const DEFAULT_SCHEMA: InfoSchema = {
   infoType: 'default',
   entityKind: 'single',
-  structure: { payloadFields: ['label', 'notes'] },
+  structure: { payloadFields: ['label'] },
   filterFields: []
 };
 

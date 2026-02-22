@@ -21,6 +21,7 @@ import { getInfoTypeLabel } from '../libraryOptions';
 import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
+import { CogitaCheckcardSurface } from './components/CogitaCheckcardSurface';
 import { CogitaCardKnownessPanel } from './components/CogitaCardKnownessPanel';
 import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
@@ -41,12 +42,12 @@ import {
 import {
   compareStrings,
   evaluateAnchorTextAnswer,
+  maskAveragePercent,
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 import {
   applyScriptMode,
-  buildQuoteFragmentDirection,
   expandQuoteDirectionCards,
   getFirstComputedInputKey,
   matchesDependencyChild,
@@ -226,12 +227,7 @@ export function CogitaRevisionRunPage({
     return copy;
   };
 
-  const maskAveragePercent = (mask: Uint8Array) => {
-    if (!mask.length) return 0;
-    const sum = mask.reduce((acc, value) => acc + value, 0);
-    return (sum / mask.length / 255) * 100;
-  };
-  const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask) >= minCorrectness;
+  const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask, { treatSimilarCharsAsSame: true }) >= minCorrectness;
   const buildKnownessMaps = async () => {
     const outcomes = await getAllOutcomes();
     const itemGroups = new Map<string, typeof outcomes>();
@@ -306,7 +302,7 @@ export function CogitaRevisionRunPage({
     const childIds = [node.leftId, node.rightId].filter((id): id is string => Boolean(id));
     if (childIds.length === 0) return true;
     const scores = childIds.map((childId) => {
-      const key = getOutcomeKey('info', card.cardId, 'quote-fragment', buildQuoteFragmentDirection(parsed.mode, childId));
+      const key = getOutcomeKey('info', card.cardId, 'quote-fragment', childId);
       return cardKnowness.get(key) ?? 0;
     });
     const mean = scores.reduce((sum, value) => sum + value, 0) / scores.length;
@@ -768,15 +764,14 @@ export function CogitaRevisionRunPage({
     buildKnownessMaps()
       .then(({ fragmentKnowness }) => {
         if (!mounted) return;
-        const quoteMode = getQuoteMode(currentCard.direction);
         const known = new Set<string>();
         const fragmentScores: Record<string, number> = {};
         fragmentKnowness.forEach((score, key) => {
           const [itemId, rawDirection] = key.split(':', 2);
           if (itemId !== currentCard.cardId) return;
           const parsed = parseQuoteFragmentDirection(rawDirection);
-          if (!parsed || parsed.mode !== quoteMode) return;
-          const fragmentId = parsed.fragmentId;
+          if (!parsed) return;
+          const { fragmentId } = parsed;
           fragmentScores[fragmentId] = score;
           if (score >= dependencyThreshold) {
             known.add(fragmentId);
@@ -1591,11 +1586,7 @@ export function CogitaRevisionRunPage({
     if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'citation' && quoteContext?.fragmentId) {
       if (!expectedAnswer) return;
       const parsedDirection = parseQuoteFragmentDirection(currentCard.direction);
-      const quoteMode = parsedDirection?.mode ?? getQuoteMode(currentCard.direction);
-      const outcomeDirection =
-        parsedDirection?.fragmentId && currentCard.direction
-          ? currentCard.direction
-          : buildQuoteFragmentDirection(quoteMode, quoteContext.fragmentId);
+      const outcomeDirection = parsedDirection?.fragmentId ?? quoteContext.fragmentId;
       const evaluated = evaluateAnchorTextAnswer(expectedAnswer, answer, {
         thresholdPercent: 90,
         treatSimilarCharsAsSame: true,
@@ -1904,9 +1895,8 @@ export function CogitaRevisionRunPage({
                 <p className="cogita-revision-hint">{availabilityNotice}</p>
               </div>
             ) : null}
-            <section
-              className="cogita-revision-card"
-              data-feedback={
+            <CogitaCheckcardSurface
+              feedbackToken={
                 matchFlash
                   ? `${matchFlash.kind}-${matchFlash.tick}`
                   : isMatchMode
@@ -1983,7 +1973,7 @@ export function CogitaRevisionRunPage({
                   </div>
                 </div>
               )}
-            </section>
+            </CogitaCheckcardSurface>
             <section className="cogita-revision-insights">
               <div className="cogita-revision-insight-grid">
                 <div className="cogita-revision-insight-card">

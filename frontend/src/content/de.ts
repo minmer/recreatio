@@ -578,7 +578,7 @@ export const de: Copy = {
       },
       connectionTypes: {
         wordLanguage: 'Wort - Sprache',
-        quoteLanguage: 'Zitat - Sprache',
+        citationLanguage: 'Zitat - Sprache',
         wordTopic: 'Wort - Thema',
         languageSentence: 'Sprache - Satz',
         translation: 'Übersetzungsverknüpfung',
@@ -731,7 +731,7 @@ export const de: Copy = {
         typeFilterDoi: 'DOI',
         typeFilterSourceKind: 'Quellentyp',
         typeFilterLocator: 'Locator / Referenz',
-        typeFilterQuote: 'Zitattext'
+        typeFilterCitationText: 'Zitattext'
       },
       filters: {
         title: 'Filter',

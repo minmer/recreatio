@@ -177,7 +177,7 @@ export function CogitaLibraryListPage({
       doi: listCopy.typeFilterDoi,
       sourceKind: listCopy.typeFilterSourceKind,
       locator: listCopy.typeFilterLocator,
-      quote: listCopy.typeFilterQuote
+      citationText: listCopy.typeFilterCitationText
     }),
     [
       listCopy.typeFilterDoi,
@@ -186,7 +186,7 @@ export function CogitaLibraryListPage({
       listCopy.typeFilterLanguageB,
       listCopy.typeFilterLocator,
       listCopy.typeFilterOriginalLanguage,
-      listCopy.typeFilterQuote,
+      listCopy.typeFilterCitationText,
       listCopy.typeFilterSourceKind
     ]
   );

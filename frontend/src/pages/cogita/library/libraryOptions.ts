@@ -30,7 +30,7 @@ export const getInfoTypeLabel = (copy: Copy, type: CogitaInfoType | 'any' | 'voc
     source: labels.source,
     computed: labels.computed,
     'word-language': connection.wordLanguage,
-    'quote-language': connection.quoteLanguage,
+    'citation-language': connection.citationLanguage,
     'language-sentence': connection.languageSentence,
     translation: connection.translation,
     'word-topic': connection.wordTopic,
@@ -68,7 +68,7 @@ export const getInfoTypeOptions = (copy: Copy): Array<{ value: CogitaInfoType | 
   { value: 'vocab', label: getInfoTypeLabel(copy, 'vocab') },
   { value: 'book', label: getInfoTypeLabel(copy, 'book') },
   { value: 'word-language', label: getInfoTypeLabel(copy, 'word-language') },
-  { value: 'quote-language', label: getInfoTypeLabel(copy, 'quote-language') },
+  { value: 'citation-language', label: getInfoTypeLabel(copy, 'citation-language') },
   { value: 'language-sentence', label: getInfoTypeLabel(copy, 'language-sentence') },
   { value: 'translation', label: getInfoTypeLabel(copy, 'translation') },
   { value: 'word-topic', label: getInfoTypeLabel(copy, 'word-topic') },
@@ -81,7 +81,7 @@ export const getInfoTypeOptions = (copy: Copy): Array<{ value: CogitaInfoType | 
 
 export const getConnectionTypeOptions = (copy: Copy): Array<{ value: CogitaConnectionType; label: string }> => [
   { value: 'word-language', label: copy.cogita.library.connectionTypes.wordLanguage },
-  { value: 'quote-language', label: copy.cogita.library.connectionTypes.quoteLanguage },
+  { value: 'citation-language', label: copy.cogita.library.connectionTypes.citationLanguage },
   { value: 'word-topic', label: copy.cogita.library.connectionTypes.wordTopic },
   { value: 'language-sentence', label: copy.cogita.library.connectionTypes.languageSentence },
   { value: 'translation', label: copy.cogita.library.connectionTypes.translation },

@@ -167,9 +167,13 @@ const isComparableChar = (char: string) => /[\p{L}\p{N}]/u.test(char);
 
 const normalizeComparable = (value: string) => value.trim().toLowerCase();
 
-export const maskAveragePercent = (mask: Uint8Array) => {
+export const maskAveragePercent = (mask: Uint8Array, options?: { treatSimilarCharsAsSame?: boolean }) => {
   if (mask.length === 0) return 100;
-  const total = Array.from(mask).reduce((sum, value) => sum + value, 0);
+  const treatSimilarCharsAsSame = options?.treatSimilarCharsAsSame ?? false;
+  const total = Array.from(mask).reduce((sum, value) => {
+    if (treatSimilarCharsAsSame && value === 127) return sum + 255;
+    return sum + value;
+  }, 0);
   return Math.round((total / (mask.length * 255)) * 100);
 };
 
@@ -187,7 +191,7 @@ export const evaluateAnchorTextAnswer = (
 
   if (!ignorePunctuationAndSpacing) {
     const mask = anchorCompare(originalExpected, originalAnswer, { allowSimilarChars: treatSimilarCharsAsSame });
-    const percent = maskAveragePercent(mask);
+    const percent = maskAveragePercent(mask, { treatSimilarCharsAsSame });
     return {
       mask,
       percent,
@@ -228,7 +232,7 @@ export const evaluateAnchorTextAnswer = (
       mask[originalIndex] = filteredMask[i];
     }
   }
-  const percent = maskAveragePercent(filteredMask);
+  const percent = maskAveragePercent(filteredMask, { treatSimilarCharsAsSame });
 
   return {
     mask,

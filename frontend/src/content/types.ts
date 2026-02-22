@@ -278,7 +278,7 @@ export type Copy = {
       };
       connectionTypes: {
         wordLanguage: string;
-        quoteLanguage: string;
+        citationLanguage: string;
         wordTopic: string;
         languageSentence: string;
         translation: string;
@@ -431,7 +431,7 @@ export type Copy = {
         typeFilterDoi: string;
         typeFilterSourceKind: string;
         typeFilterLocator: string;
-        typeFilterQuote: string;
+        typeFilterCitationText: string;
       };
       filters: {
         title: string;
