@@ -479,12 +479,13 @@ export function CogitaWorkspacePage({
     getCogitaReviewers({ libraryId: selectedLibraryId })
       .then((items) => {
         if (cancelled) return;
-        setHeaderReviewers(items);
+        const personReviewers = items.filter((item) => (item.roleKind ?? '').trim().toLowerCase() === 'person');
+        setHeaderReviewers(personReviewers);
         try {
           const raw = window.localStorage.getItem(REVIEWER_PREFS_ITEM_NAME);
           const prefs = raw ? (JSON.parse(raw) as Record<string, string>) : {};
           const saved = prefs[selectedLibraryId] ?? '';
-          const next = saved && items.some((item) => item.roleId === saved) ? saved : '';
+          const next = saved && personReviewers.some((item) => item.roleId === saved) ? saved : '';
           setSelectedReviewerRoleId(next);
         } catch {
           setSelectedReviewerRoleId('');

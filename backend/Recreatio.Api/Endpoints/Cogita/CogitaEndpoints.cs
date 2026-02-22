@@ -2612,11 +2612,15 @@ public static class CogitaEndpoints
             var responses = reviewerRoleIds
                 .Select(roleId =>
                 {
+                    string? roleKind = lookup.ValuesByRole.TryGetValue(roleId, out var valuesByRole) &&
+                                       valuesByRole.TryGetValue(RoleFieldTypes.RoleKind, out var kind)
+                        ? kind
+                        : null;
                     var label = lookup.ValuesByRole.TryGetValue(roleId, out var values) &&
                                 values.TryGetValue(RoleFieldTypes.Nick, out var nick)
                         ? nick
                         : $"Role {roleId:N}";
-                    return new CogitaReviewerResponse(roleId, label);
+                    return new CogitaReviewerResponse(roleId, label, roleKind);
                 })
                 .OrderBy(x => x.Label)
                 .ToList();

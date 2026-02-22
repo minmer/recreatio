@@ -1620,6 +1620,7 @@
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
   gap: 0.8rem;
+  align-items: stretch;
 }
 
 .cogita-info-checkcards-main {
@@ -1646,12 +1647,17 @@
   background: rgba(10, 24, 42, 0.44);
   padding: 0.75rem;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.65rem;
-  align-content: start;
+  align-content: stretch;
+  min-height: 0;
+  height: 100%;
 }
 
 .cogita-info-checkcards-panel .cogita-info-tree {
-  max-height: 24rem;
+  max-height: none;
+  min-height: 0;
+  height: 100%;
   overflow: auto;
   padding-right: 0.2rem;
 }

@@ -4,6 +4,7 @@ import 'reactflow/dist/style.css';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
+import { CogitaCheckcardSurface } from './collections/components/CogitaCheckcardSurface';
 import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
 import {
   createCogitaReviewOutcome,
@@ -105,6 +106,7 @@ export function CogitaInfoCheckcardsPage({
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [clientSequence, setClientSequence] = useState(1);
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [flashTick, setFlashTick] = useState(0);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [checkedCardKeys, setCheckedCardKeys] = useState<Record<string, true>>({});
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
@@ -260,6 +262,7 @@ export function CogitaInfoCheckcardsPage({
   useEffect(() => {
     setAnswer('');
     setFeedback(null);
+    setFlashTick(0);
     setShowCorrectAnswer(false);
     setSaveStatus(null);
     setComputedAnswers({});
@@ -352,6 +355,7 @@ export function CogitaInfoCheckcardsPage({
     const expected = cardPreview.expected;
     const isCorrect = normalizeAnswerText(answer) === normalizeAnswerText(expected);
     setFeedback(isCorrect ? 'correct' : 'incorrect');
+    setFlashTick((prev) => prev + 1);
     setSaveStatus(selectedReviewerRoleId ? null : 'Answer checked locally (not saved: no person selected).');
     setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
     if (selectedReviewerRoleId) {
@@ -421,53 +425,55 @@ export function CogitaInfoCheckcardsPage({
                     {selectedCard ? (
                       <div className="cogita-info-checkcards-selected">
                         {cardPreview && currentRevisionCard ? (
-                          <CogitaRevisionCard
-                            copy={copy}
-                            currentCard={currentRevisionCard}
-                            currentTypeLabel=""
-                            prompt={cardPreview.kind === 'citation-fragment' ? null : cardPreview.prompt}
-                            languages={[]}
-                            answer={answer}
-                            onAnswerChange={setAnswer}
-                            computedExpected={[]}
-                            computedAnswers={computedAnswers}
-                            onComputedAnswerChange={(key, value) => setComputedAnswers((prev) => ({ ...prev, [key]: value }))}
-                            answerTemplate={null}
-                            outputVariables={null}
-                            variableValues={null}
-                            computedFieldFeedback={computedFieldFeedback}
-                            feedback={feedback}
-                            canAdvance={false}
-                            quoteContext={cardPreview.kind === 'citation-fragment' ? cardPreview.quoteContext : null}
-                            quotePlaceholder={cardPreview.kind === 'citation-fragment' ? cardPreview.quotePlaceholder : null}
-                            onCheckAnswer={() => void checkAnswerAndSave()}
-                            onSkip={() => setSelectedNodeId(null)}
-                            onLanguageSelect={() => {}}
-                            onMarkReviewed={() => {}}
-                            onAdvance={() => {}}
-                            showCorrectAnswer={showCorrectAnswer}
-                            setShowCorrectAnswer={setShowCorrectAnswer}
-                            onRevealCorrect={() => {}}
-                            answerMask={null}
-                            expectedAnswer={cardPreview.expected}
-                            hasExpectedAnswer={true}
-                            handleComputedKeyDown={() => {}}
-                            answerInputRef={answerInputRef}
-                            computedInputRefs={computedInputRefs}
-                            scriptMode={scriptMode}
-                            setScriptMode={setScriptMode}
-                            matchPairs={undefined}
-                            matchLeftOrder={undefined}
-                            matchRightOrder={undefined}
-                            matchSelection={undefined}
-                            matchActiveLeft={null}
-                            matchActiveRight={null}
-                            matchFeedback={undefined}
-                            onMatchLeftSelect={undefined}
-                            onMatchRightSelect={undefined}
-                            disableCheckAnswer={selectedCardAlreadyChecked}
-                            hideSkipAction
-                          />
+                          <CogitaCheckcardSurface flashState={feedback} flashTick={flashTick}>
+                            <CogitaRevisionCard
+                              copy={copy}
+                              currentCard={currentRevisionCard}
+                              currentTypeLabel=""
+                              prompt={cardPreview.kind === 'citation-fragment' ? null : cardPreview.prompt}
+                              languages={[]}
+                              answer={answer}
+                              onAnswerChange={setAnswer}
+                              computedExpected={[]}
+                              computedAnswers={computedAnswers}
+                              onComputedAnswerChange={(key, value) => setComputedAnswers((prev) => ({ ...prev, [key]: value }))}
+                              answerTemplate={null}
+                              outputVariables={null}
+                              variableValues={null}
+                              computedFieldFeedback={computedFieldFeedback}
+                              feedback={feedback}
+                              canAdvance={false}
+                              quoteContext={cardPreview.kind === 'citation-fragment' ? cardPreview.quoteContext : null}
+                              quotePlaceholder={cardPreview.kind === 'citation-fragment' ? cardPreview.quotePlaceholder : null}
+                              onCheckAnswer={() => void checkAnswerAndSave()}
+                              onSkip={() => setSelectedNodeId(null)}
+                              onLanguageSelect={() => {}}
+                              onMarkReviewed={() => {}}
+                              onAdvance={() => {}}
+                              showCorrectAnswer={showCorrectAnswer}
+                              setShowCorrectAnswer={setShowCorrectAnswer}
+                              onRevealCorrect={() => {}}
+                              answerMask={null}
+                              expectedAnswer={cardPreview.expected}
+                              hasExpectedAnswer={true}
+                              handleComputedKeyDown={() => {}}
+                              answerInputRef={answerInputRef}
+                              computedInputRefs={computedInputRefs}
+                              scriptMode={scriptMode}
+                              setScriptMode={setScriptMode}
+                              matchPairs={undefined}
+                              matchLeftOrder={undefined}
+                              matchRightOrder={undefined}
+                              matchSelection={undefined}
+                              matchActiveLeft={null}
+                              matchActiveRight={null}
+                              matchFeedback={undefined}
+                              onMatchLeftSelect={undefined}
+                              onMatchRightSelect={undefined}
+                              disableCheckAnswer={selectedCardAlreadyChecked}
+                              hideSkipAction
+                            />
+                          </CogitaCheckcardSurface>
                         ) : null}
                         {!selectedReviewerRoleId ? (
                           <p className="cogita-library-hint">Result can be checked without a person; saving knowness requires a selected person in the header.</p>

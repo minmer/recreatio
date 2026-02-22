@@ -689,6 +689,7 @@ export type CogitaReviewEventResponse = {
 export type CogitaReviewer = {
   roleId: string;
   label: string;
+  roleKind?: string | null;
 };
 
 export type CogitaReviewSummary = {

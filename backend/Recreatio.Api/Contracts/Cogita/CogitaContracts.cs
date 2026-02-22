@@ -302,7 +302,8 @@ public sealed record CogitaReviewSummaryResponse(
 
 public sealed record CogitaReviewerResponse(
     Guid RoleId,
-    string Label
+    string Label,
+    string? RoleKind
 );
 
 public sealed record CogitaRevisionShareCreateRequest(
