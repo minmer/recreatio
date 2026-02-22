@@ -29,6 +29,7 @@ import { CogitaLibraryOverviewPage } from './library/CogitaLibraryOverviewPage';
 import { CogitaLibraryListPage } from './library/CogitaLibraryListPage';
 import { CogitaLibraryAddPage } from './library/CogitaLibraryAddPage';
 import { CogitaDependencyGraphPage } from './library/CogitaDependencyGraphPage';
+import { CogitaInfoCheckcardsPage } from './library/CogitaInfoCheckcardsPage';
 import { CogitaLibrarySharedRevisionsPage } from './library/CogitaLibrarySharedRevisionsPage';
 import { CogitaLibraryTransferPage } from './library/CogitaLibraryTransferPage';
 import { CogitaLibraryStoryboardsPage } from './library/CogitaLibraryStoryboardsPage';
@@ -164,6 +165,17 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     return { libraryId, target: 'new_card', revisionId, infoId: segments[4] };
   }
 
+  if (segments[3] === 'infos') {
+    const infoIdFromPath = segments[4];
+    if (!infoIdFromPath) {
+      return { libraryId, target: 'all_cards', cardMode: 'list', revisionId };
+    }
+    if (segments[5] === 'checkcards') {
+      return { libraryId, target: 'all_cards', cardMode: 'list', revisionId, infoId: infoIdFromPath, infoView: 'cards' };
+    }
+    return { libraryId, target: 'all_cards', cardMode: 'list', revisionId, infoId: infoIdFromPath, infoView: 'overview' };
+  }
+
   if (segments[3] === 'shared-revisions') {
     return { libraryId, target: 'all_collections', revisionId };
   }
@@ -275,6 +287,12 @@ function buildCogitaPath(
     return withQuery(`/cogita/library/${libraryId}`, { revisionId });
   }
   if (target === 'all_cards') {
+    if (infoId) {
+      if (infoView === 'cards') {
+        return withQuery(`/cogita/library/${libraryId}/infos/${infoId}/checkcards`, { revisionId });
+      }
+      return withQuery(`/cogita/library/${libraryId}/infos/${infoId}`, { revisionId });
+    }
     return withQuery(`/cogita/library/${libraryId}/list`, { revisionId, infoId, infoView });
   }
   if (target === 'new_card') {
@@ -996,6 +1014,9 @@ export function CogitaWorkspacePage({
       return <CogitaLibraryOverviewPage {...baseProps} />;
     }
     if (pathState.target === 'all_cards') {
+      if (pathState.infoId && pathState.infoView === 'cards') {
+        return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} />;
+      }
       return <CogitaLibraryListPage {...baseProps} mode={pathState.cardMode ?? 'list'} />;
     }
     if (pathState.target === 'new_card') {

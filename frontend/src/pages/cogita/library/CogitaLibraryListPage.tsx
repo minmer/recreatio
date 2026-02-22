@@ -161,8 +161,12 @@ export function CogitaLibraryListPage({
 
   const schema = useMemo(() => getInfoSchema(searchType === 'any' ? null : searchType), [searchType]);
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const selectedInfoIdFromRoute = (queryParams.get('infoId') ?? '').trim() || null;
-  const selectedInfoView = (queryParams.get('infoView') ?? '').trim();
+  const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
+  const infoPathIndex = pathSegments.findIndex((segment) => segment === 'infos');
+  const selectedInfoIdFromPath = infoPathIndex >= 0 ? (pathSegments[infoPathIndex + 1] ?? '').trim() || null : null;
+  const selectedInfoViewFromPath = infoPathIndex >= 0 ? ((pathSegments[infoPathIndex + 2] ?? '').trim() === 'checkcards' ? 'cards' : 'overview') : '';
+  const selectedInfoIdFromRoute = selectedInfoIdFromPath ?? ((queryParams.get('infoId') ?? '').trim() || null);
+  const selectedInfoView = selectedInfoIdFromPath ? selectedInfoViewFromPath : (queryParams.get('infoView') ?? 'overview').trim();
   const isInfoOverviewRoute = selectedInfoView === 'overview' && Boolean(selectedInfoIdFromRoute);
   const filterLabelByKey = useMemo<Record<InfoFilterLabelKey, string>>(
     () => ({
@@ -434,7 +438,7 @@ export function CogitaLibraryListPage({
   };
 
   const openInfo = (infoId: string) => {
-    navigate(`/cogita/library/${libraryId}/list?infoId=${encodeURIComponent(infoId)}&infoView=overview`, { replace: true });
+    navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(infoId)}`, { replace: true });
   };
 
   const closeInfoOverview = () => {

@@ -1568,6 +1568,91 @@
   word-break: break-word;
 }
 
+.cogita-info-checkcards-page {
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid rgba(120, 170, 220, 0.18);
+  background: rgba(6, 18, 32, 0.64);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.cogita-info-checkcards-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.cogita-info-checkcards-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: 0.8rem;
+}
+
+.cogita-info-checkcards-graph {
+  min-height: 26rem;
+  border: 1px solid rgba(120, 170, 220, 0.16);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(8, 20, 34, 0.7);
+}
+
+.cogita-info-checkcards-graph .react-flow__node.selected {
+  box-shadow: 0 0 0 2px rgba(163, 217, 255, 0.85);
+}
+
+.cogita-info-checkcards-panel {
+  border: 1px solid rgba(120, 170, 220, 0.14);
+  border-radius: 10px;
+  background: rgba(10, 24, 42, 0.44);
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+
+.cogita-info-checkcards-panel > h3,
+.cogita-info-checkcards-selected > h4 {
+  margin: 0;
+}
+
+.cogita-checkcard-row {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: rgba(226, 239, 255, 0.9);
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+}
+
+.cogita-checkcard-row small {
+  color: rgba(180, 208, 236, 0.8);
+}
+
+.cogita-checkcard-row:hover {
+  background: rgba(70, 110, 148, 0.12);
+}
+
+.cogita-checkcard-row.active {
+  background: rgba(145, 195, 235, 0.22);
+}
+
+.cogita-info-checkcards-selected {
+  border-top: 1px solid rgba(120, 170, 220, 0.14);
+  padding-top: 0.6rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.cogita-info-checkcards-selected p {
+  margin: 0;
+}
+
 .cogita-library-search-surface {
   display: grid;
   gap: 1rem;
@@ -1813,6 +1898,14 @@
   .cogita-info-tree-row {
     grid-template-columns: 1fr;
     gap: 0.2rem;
+  }
+
+  .cogita-info-checkcards-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cogita-info-checkcards-graph {
+    min-height: 20rem;
   }
 }
 
