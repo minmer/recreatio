@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -7959,7 +7960,9 @@ public static class CogitaEndpoints
         }
 
         var description = ResolveDescription(snapshot.Payload, snapshot.InfoType) ?? snapshot.InfoType;
-        var cards = BuildInfoCardResponses(info.Id, info.InfoType, snapshot.Label, description);
+        var cards = info.InfoType.Equals("citation", StringComparison.OrdinalIgnoreCase)
+            ? new List<CogitaCardSearchResponse>()
+            : BuildInfoCardResponses(info.Id, info.InfoType, snapshot.Label, description);
         if (!info.InfoType.Equals("translation", StringComparison.OrdinalIgnoreCase))
         {
             if (info.InfoType.Equals("citation", StringComparison.OrdinalIgnoreCase))
@@ -8088,14 +8091,11 @@ public static class CogitaEndpoints
                 ct);
             if (snapshot is not null)
             {
-                foreach (var fragmentId in BuildCitationFragmentIds(snapshot.Payload))
+                foreach (var (parentId, childId) in BuildCitationFragmentDependencies(snapshot.Payload))
                 {
                     Add(new EffectiveCheckcardDependency(
-                        "info", info.Id, "info", "forward",
-                        "info", info.Id, "quote-fragment", fragmentId));
-                    Add(new EffectiveCheckcardDependency(
-                        "info", info.Id, "info", "reverse",
-                        "info", info.Id, "quote-fragment", fragmentId));
+                        "info", info.Id, "quote-fragment", childId,
+                        "info", info.Id, "quote-fragment", parentId));
                 }
             }
         }
@@ -8119,37 +8119,182 @@ public static class CogitaEndpoints
         return null;
     }
 
+    private sealed record CitationFragmentNode(string Id, int Start, int End, int Depth, string? ParentId, string? LeftId, string? RightId);
+
     private static IEnumerable<string> BuildCitationFragmentIds(JsonElement payload)
+    {
+        foreach (var node in BuildCitationFragmentTree(payload).Values.OrderBy(x => int.Parse(x.Id, CultureInfo.InvariantCulture)))
+        {
+            yield return node.Id;
+        }
+    }
+
+    private static IEnumerable<(string ParentId, string ChildId)> BuildCitationFragmentDependencies(JsonElement payload)
+    {
+        foreach (var node in BuildCitationFragmentTree(payload).Values)
+        {
+            if (!string.IsNullOrWhiteSpace(node.LeftId))
+            {
+                yield return (node.Id, node.LeftId!);
+            }
+
+            if (!string.IsNullOrWhiteSpace(node.RightId))
+            {
+                yield return (node.Id, node.RightId!);
+            }
+        }
+    }
+
+    private static Dictionary<string, CitationFragmentNode> BuildCitationFragmentTree(JsonElement payload)
     {
         if (payload.ValueKind != JsonValueKind.Object ||
             !payload.TryGetProperty("text", out var textNode) ||
             textNode.ValueKind != JsonValueKind.String)
         {
-            yield break;
+            return new Dictionary<string, CitationFragmentNode>(StringComparer.Ordinal);
         }
 
         var text = textNode.GetString();
         if (string.IsNullOrWhiteSpace(text))
         {
-            yield break;
+            return new Dictionary<string, CitationFragmentNode>(StringComparer.Ordinal);
         }
 
-        var normalized = text.Replace("\r", string.Empty);
-        var parts = normalized
-            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Take(24)
-            .ToList();
+        return BuildCitationFragmentTree(text!);
+    }
 
-        if (parts.Count == 0)
+    private static Dictionary<string, CitationFragmentNode> BuildCitationFragmentTree(string text, int minLen = 7, int maxLen = 13)
+    {
+        minLen = Math.Max(1, minLen);
+        maxLen = Math.Max(minLen, maxLen);
+
+        var nodes = new Dictionary<string, CitationFragmentNode>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(text))
         {
-            yield break;
+            return nodes;
         }
 
-        for (var i = 0; i < parts.Count; i++)
+        CitationFragmentNode BuildNode(int start, int end, int depth, int index, string? parentId)
         {
-            yield return (i + 1).ToString();
+            var id = index.ToString(CultureInfo.InvariantCulture);
+            var leftId = (string?)null;
+            var rightId = (string?)null;
+            var length = end - start;
+            if (length > maxLen)
+            {
+                var splitIndex = FindCitationSplitIndex(text, start, end, minLen);
+                if (splitIndex.HasValue && splitIndex.Value > start && splitIndex.Value < end)
+                {
+                    var left = BuildNode(start, splitIndex.Value, depth + 1, index * 2 + 1, id);
+                    var right = BuildNode(splitIndex.Value, end, depth + 1, index * 2 + 2, id);
+                    leftId = left.Id;
+                    rightId = right.Id;
+                }
+            }
+
+            var node = new CitationFragmentNode(id, start, end, depth, parentId, leftId, rightId);
+            nodes[id] = node;
+            return node;
         }
+
+        BuildNode(0, text.Length, 0, 0, null);
+        return nodes;
+    }
+
+    private static int? FindCitationSplitIndex(string text, int start, int end, int minLen)
+    {
+        var length = end - start;
+        var minIndex = start + minLen;
+        var maxIndex = end - minLen;
+        if (length <= minLen * 2 || maxIndex <= minIndex)
+        {
+            return null;
+        }
+
+        var target = (start + end) / 2;
+        var whitespaceBoundary = FindCitationBestBoundary(text, minIndex, maxIndex, target, minScore: 3);
+        if (whitespaceBoundary.HasValue && IsCitationWordBoundary(text, whitespaceBoundary.Value))
+        {
+            return whitespaceBoundary;
+        }
+
+        var wordBoundary = FindCitationBestBoundary(text, minIndex, maxIndex, target, minScore: 2);
+        if (wordBoundary.HasValue && IsCitationWordBoundary(text, wordBoundary.Value))
+        {
+            return wordBoundary;
+        }
+
+        var punctuationBoundary = FindCitationBestBoundary(text, minIndex, maxIndex, target, minScore: 1);
+        if (punctuationBoundary.HasValue && IsCitationWordBoundary(text, punctuationBoundary.Value))
+        {
+            return punctuationBoundary;
+        }
+
+        return null;
+    }
+
+    private static int? FindCitationBestBoundary(string text, int minIndex, int maxIndex, int target, int minScore)
+    {
+        var maxOffset = Math.Max(target - minIndex, maxIndex - target);
+        for (var offset = 0; offset <= maxOffset; offset++)
+        {
+            var left = target - offset;
+            if (left >= minIndex && left <= maxIndex && CitationBoundaryScore(text, left) >= minScore)
+            {
+                return left;
+            }
+
+            var right = target + offset;
+            if (right >= minIndex && right <= maxIndex && CitationBoundaryScore(text, right) >= minScore)
+            {
+                return right;
+            }
+        }
+
+        return null;
+    }
+
+    private static int CitationBoundaryScore(string text, int splitIndex)
+    {
+        var left = splitIndex > 0 ? text[splitIndex - 1] : '\0';
+        var right = splitIndex < text.Length ? text[splitIndex] : '\0';
+        if (left == '\0' || right == '\0')
+        {
+            return 0;
+        }
+
+        var leftWhitespace = char.IsWhiteSpace(left);
+        var rightWhitespace = char.IsWhiteSpace(right);
+        if (leftWhitespace || rightWhitespace)
+        {
+            return 3;
+        }
+
+        var leftWord = char.IsLetterOrDigit(left);
+        var rightWord = char.IsLetterOrDigit(right);
+        if (leftWord != rightWord)
+        {
+            return 2;
+        }
+
+        if (!leftWord && !rightWord)
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private static bool IsCitationWordBoundary(string text, int splitIndex)
+    {
+        var left = splitIndex > 0 ? text[splitIndex - 1] : '\0';
+        var right = splitIndex < text.Length ? text[splitIndex] : '\0';
+        if (left == '\0' || right == '\0')
+        {
+            return true;
+        }
+
+        return char.IsLetterOrDigit(left) != char.IsLetterOrDigit(right);
     }
 
     private static async Task<bool> IsValidEffectiveInfoCheckcardIdentityAsync(
