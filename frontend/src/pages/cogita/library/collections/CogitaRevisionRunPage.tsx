@@ -295,7 +295,7 @@ export function CogitaRevisionRunPage({
     cardKnowness: Map<string, number>
   ) => {
     if (!considerDependencies) return true;
-    if (card.cardType !== 'info' || card.infoType !== 'quote' || card.checkType !== 'quote-fragment') return true;
+    if (card.cardType !== 'info' || card.infoType !== 'citation' || card.checkType !== 'quote-fragment') return true;
     const parsed = parseQuoteFragmentDirection(card.direction);
     if (!parsed?.fragmentId) return true;
     const quoteText = card.description ?? '';
@@ -743,7 +743,7 @@ export function CogitaRevisionRunPage({
   }, [currentCard, copy]);
 
   useEffect(() => {
-    if (!currentCard || currentCard.cardType !== 'info' || currentCard.infoType !== 'quote') {
+    if (!currentCard || currentCard.cardType !== 'info' || currentCard.infoType !== 'citation') {
       quoteTreeRef.current = null;
       quoteKnownRef.current = new Set();
       setQuoteContext(null);
@@ -756,7 +756,7 @@ export function CogitaRevisionRunPage({
     const title =
       normalizedLabel && normalizedLabel !== normalizedQuote
         ? cardLabel
-        : copy.cogita.library.infoTypes.quote;
+        : copy.cogita.library.infoTypes.citation;
     if (!quoteText) {
       setQuoteContext(null);
       setExpectedAnswer(null);
@@ -950,7 +950,7 @@ export function CogitaRevisionRunPage({
       return;
     }
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
-    if (currentCard.cardType === 'info' && currentCard.infoType === 'quote') {
+    if (currentCard.cardType === 'info' && currentCard.infoType === 'citation') {
       getAllOutcomes()
         .then((outcomes) => {
           const filtered = outcomes.filter(
@@ -1067,7 +1067,7 @@ export function CogitaRevisionRunPage({
     if (
       currentCard &&
       currentCard.cardType === 'info' &&
-      currentCard.infoType === 'quote' &&
+      currentCard.infoType === 'citation' &&
       quoteTreeRef.current &&
       quoteContext &&
       !parseQuoteFragmentDirection(currentCard.direction)?.fragmentId
@@ -1589,7 +1589,7 @@ export function CogitaRevisionRunPage({
       }
       return;
     }
-    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext?.fragmentId) {
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'citation' && quoteContext?.fragmentId) {
       if (!expectedAnswer) return;
       const parsedDirection = parseQuoteFragmentDirection(currentCard.direction);
       const quoteMode = parsedDirection?.mode ?? getQuoteMode(currentCard.direction);
@@ -1756,7 +1756,7 @@ export function CogitaRevisionRunPage({
 
   const handleSkip = () => {
     applyOutcomeToSession(false, 0);
-    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'quote') {
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'citation') {
       setFeedback(null);
       setAnswer('');
       setShowCorrectAnswer(false);

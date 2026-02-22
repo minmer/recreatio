@@ -525,6 +525,20 @@ export type CogitaInfoTypeSpecification = {
   linkFields: CogitaInfoLinkFieldSpec[];
 };
 
+export type CogitaInfoApproachSpecification = {
+  approachKey: string;
+  label: string;
+  category: string;
+  sourceInfoTypes: string[];
+};
+
+export type CogitaInfoApproachProjection = {
+  approachKey: string;
+  sourceInfoId: string;
+  sourceInfoType: string;
+  projection: unknown;
+};
+
 export type CogitaEntitySearchResult = {
   entityId: string;
   entityKind: string;
@@ -1257,6 +1271,34 @@ export function createCogitaInfo(payload: {
 export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string }) {
   return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
     `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaApproachSpecifications(payload: { libraryId: string }) {
+  return request<CogitaInfoApproachSpecification[]>(
+    `/cogita/libraries/${payload.libraryId}/approaches/specification`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaInfoApproachProjection(payload: { libraryId: string; infoId: string; approachKey: string }) {
+  return request<CogitaInfoApproachProjection>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaInfoCheckcards(payload: { libraryId: string; infoId: string }) {
+  return request<CogitaCardSearchBundle>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}/checkcards`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaInfoCheckcardDependencies(payload: { libraryId: string; infoId: string }) {
+  return request<CogitaItemDependencyBundle>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}/checkcards/dependencies`,
     { method: 'GET' }
   );
 }

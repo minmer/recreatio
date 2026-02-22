@@ -190,8 +190,8 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
       { key: 'locator', labelKey: 'locator', kind: 'text', path: 'locator', matcher: 'locator_contains' }
     ]
   },
-  quote: {
-    infoType: 'quote',
+  citation: {
+    infoType: 'citation',
     entityKind: 'single',
     structure: {
       payloadFields: ['title', 'text', 'notes'],

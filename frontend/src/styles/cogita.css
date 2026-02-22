@@ -1432,6 +1432,142 @@
   padding-top: 0.7rem;
 }
 
+.cogita-info-overview {
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid rgba(120, 170, 220, 0.18);
+  background: rgba(6, 18, 32, 0.64);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.cogita-info-overview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.cogita-info-overview-actions {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cogita-info-overview-actions .ghost {
+  border: 0;
+  background: rgba(60, 98, 134, 0.14);
+  color: rgba(216, 234, 252, 0.86);
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+}
+
+.cogita-info-overview-actions .cta {
+  padding: 0.35rem 0.8rem;
+}
+
+.cogita-info-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.cogita-info-metric-card {
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid rgba(120, 170, 220, 0.14);
+  border-radius: 10px;
+  background: rgba(10, 24, 42, 0.56);
+  padding: 0.75rem;
+}
+
+.cogita-info-metric-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #eff7ff;
+}
+
+.cogita-info-progress {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(120, 170, 220, 0.14);
+  overflow: hidden;
+}
+
+.cogita-info-progress > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(99, 176, 238, 0.55), rgba(163, 217, 255, 0.85));
+}
+
+.cogita-info-overview-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.cogita-info-overview-panel {
+  border: 1px solid rgba(120, 170, 220, 0.14);
+  border-radius: 10px;
+  background: rgba(10, 24, 42, 0.44);
+  padding: 0.75rem;
+  min-width: 0;
+}
+
+.cogita-info-overview-panel > h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  color: rgba(229, 240, 252, 0.94);
+}
+
+.cogita-info-approach-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.cogita-info-approach-header > h3 {
+  margin: 0;
+}
+
+.cogita-info-approach-header > select {
+  min-width: 12rem;
+  border: 1px solid rgba(120, 170, 220, 0.18);
+  background: rgba(12, 28, 48, 0.7);
+  color: rgba(229, 240, 252, 0.94);
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+}
+
+.cogita-info-tree {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.cogita-info-tree-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 13rem) minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.cogita-info-tree-key {
+  color: rgba(170, 203, 236, 0.86);
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+.cogita-info-tree-value {
+  color: rgba(230, 240, 252, 0.9);
+  font-size: 0.88rem;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .cogita-library-search-surface {
   display: grid;
   gap: 1rem;
@@ -1663,6 +1799,21 @@
 
 .cogita-card-divider {
   opacity: 0.5;
+}
+
+@media (max-width: 980px) {
+  .cogita-info-overview-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .cogita-info-overview-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .cogita-info-tree-row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
 }
 
 .cogita-card-tags {

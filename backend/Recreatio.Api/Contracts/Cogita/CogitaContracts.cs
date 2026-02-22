@@ -54,6 +54,13 @@ public sealed record CogitaInfoTypeSpecResponse(
     List<CogitaInfoLinkFieldSpecResponse> LinkFields
 );
 
+public sealed record CogitaInfoApproachSpecResponse(
+    string ApproachKey,
+    string Label,
+    string Category,
+    List<string> SourceInfoTypes
+);
+
 public sealed record CogitaEntitySearchResponse(
     Guid EntityId,
     string EntityKind,
@@ -99,6 +106,13 @@ public sealed record CogitaInfoDetailResponse(
     string InfoType,
     JsonElement Payload,
     JsonElement? Links = null
+);
+
+public sealed record CogitaInfoApproachProjectionResponse(
+    string ApproachKey,
+    Guid SourceInfoId,
+    string SourceInfoType,
+    JsonElement Projection
 );
 
 public sealed record CogitaUpdateInfoRequest(

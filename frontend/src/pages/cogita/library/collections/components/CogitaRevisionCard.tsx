@@ -259,7 +259,7 @@ export function CogitaRevisionCard({
   };
 
   const headerDetail =
-    currentCard.cardType === 'info' && currentCard.infoType === 'quote'
+    currentCard.cardType === 'info' && currentCard.infoType === 'citation'
       ? quoteContext?.title || currentCard.label
       : currentCard.description;
 
@@ -469,7 +469,7 @@ export function CogitaRevisionCard({
             </button>
           </div>
         </div>
-      ) : currentCard.cardType === 'info' && currentCard.infoType === 'quote' && quoteContext ? (
+      ) : currentCard.cardType === 'info' && currentCard.infoType === 'citation' && quoteContext ? (
         <div className="cogita-revision-body">
           <div className="cogita-quote-block">
             <p className="cogita-revision-hint">

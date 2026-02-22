@@ -922,6 +922,9 @@ GO
 CREATE INDEX IX_CogitaInfoLinkMultis_FieldTarget ON dbo.CogitaInfoLinkMultis(LibraryId, FieldKey, TargetInfoId);
 GO
 
+CREATE INDEX IX_CogitaInfoLinkMultis_InfoSort ON dbo.CogitaInfoLinkMultis(LibraryId, InfoId, SortOrder);
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCollectionItems' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaCollectionItems

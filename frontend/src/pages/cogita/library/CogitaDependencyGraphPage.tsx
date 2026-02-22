@@ -203,7 +203,7 @@ export function CogitaDependencyGraphPage({
   };
 
   useEffect(() => {
-    if (!selectedNode || selectedNode.data.nodeType !== 'info' || selectedNode.data.infoType !== 'quote' || !selectedNode.data.itemId) {
+    if (!selectedNode || selectedNode.data.nodeType !== 'info' || selectedNode.data.infoType !== 'citation' || !selectedNode.data.itemId) {
       setQuotePreview(null);
       return;
     }

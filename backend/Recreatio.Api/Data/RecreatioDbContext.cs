@@ -185,6 +185,8 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaInfoLinkMulti>()
             .HasIndex(x => new { x.LibraryId, x.FieldKey, x.TargetInfoId });
+        modelBuilder.Entity<Data.Cogita.CogitaInfoLinkMulti>()
+            .HasIndex(x => new { x.LibraryId, x.InfoId, x.SortOrder });
         modelBuilder.Entity<Data.Cogita.CogitaConnection>()
             .HasIndex(x => new { x.LibraryId, x.ConnectionType, x.CreatedUtc, x.Id });
         modelBuilder.Entity<Data.Cogita.CogitaInfoSearchIndex>()

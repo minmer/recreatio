@@ -34,7 +34,7 @@ const infoTypeOptions: Array<{ value: CogitaInfoType | 'any'; label: string }> =
   { value: 'music_piece', label: 'Music piece' },
   { value: 'music_fragment', label: 'Music fragment' },
   { value: 'source', label: 'Source' },
-  { value: 'quote', label: 'Quote' }
+  { value: 'citation', label: 'Citation' }
 ];
 
 const connectionTypeOptions: Array<{ value: CogitaConnectionType; label: string }> = [

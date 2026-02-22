@@ -130,7 +130,7 @@ export const getFirstComputedInputKey = (
 
 export const expandQuoteDirectionCards = (cards: CogitaCardSearchResult[]) =>
   cards.flatMap((card) => {
-    if (card.cardType !== 'info' || card.infoType !== 'quote') return [card];
+    if (card.cardType !== 'info' || card.infoType !== 'citation') return [card];
     const text = card.description ?? '';
     if (!text.trim()) return [card];
     const parsed = parseQuoteFragmentDirection(card.direction);
