@@ -560,17 +560,6 @@ export function CogitaLibraryListPage({
                                 <div className="cogita-info-tree-key">{infoOverviewCopy.dependencyCount}</div>
                                 <div className="cogita-info-tree-value">{infoCheckcardDependencies?.items.length ?? 0}</div>
                               </div>
-                              {infoCheckcards?.items?.length ? (
-                                <div className="cogita-selection-overview">
-                                  {infoCheckcards.items.map((card, index) => (
-                                    <span key={`checkcard:${index}:${card.cardId}:${card.checkType ?? ''}:${card.direction ?? ''}`} className="cogita-tag-chip">
-                                      {formatCheckcardLabel(card)}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="cogita-library-hint">{infoOverviewCopy.noCheckcards}</p>
-                              )}
                             </div>
                           )}
                         </section>

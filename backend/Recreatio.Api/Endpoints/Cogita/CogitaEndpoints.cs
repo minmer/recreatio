@@ -7973,15 +7973,7 @@ public static class CogitaEndpoints
                         description,
                         "citation",
                         "quote-fragment",
-                        $"forward|{fragmentId}"));
-                    cards.Add(new CogitaCardSearchResponse(
-                        info.Id,
-                        "info",
-                        snapshot.Label,
-                        description,
-                        "citation",
-                        "quote-fragment",
-                        $"reverse|{fragmentId}"));
+                        fragmentId));
                 }
             }
 
@@ -8100,10 +8092,10 @@ public static class CogitaEndpoints
                 {
                     Add(new EffectiveCheckcardDependency(
                         "info", info.Id, "info", "forward",
-                        "info", info.Id, "quote-fragment", $"forward|{fragmentId}"));
+                        "info", info.Id, "quote-fragment", fragmentId));
                     Add(new EffectiveCheckcardDependency(
                         "info", info.Id, "info", "reverse",
-                        "info", info.Id, "quote-fragment", $"reverse|{fragmentId}"));
+                        "info", info.Id, "quote-fragment", fragmentId));
                 }
             }
         }

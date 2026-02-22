@@ -1591,6 +1591,12 @@
   gap: 0.8rem;
 }
 
+.cogita-info-checkcards-main {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+}
+
 .cogita-info-checkcards-graph {
   min-height: 26rem;
   border: 1px solid rgba(120, 170, 220, 0.16);
@@ -1651,6 +1657,16 @@
 
 .cogita-info-checkcards-selected p {
   margin: 0;
+}
+
+.cogita-info-checkcard-answer {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cogita-info-checkcard-answer .cogita-info-tree-value {
+  min-height: 2.2rem;
 }
 
 .cogita-library-search-surface {
@@ -1906,6 +1922,10 @@
 
   .cogita-info-checkcards-graph {
     min-height: 20rem;
+  }
+
+  .cogita-info-checkcards-panel {
+    order: -1;
   }
 }
 
