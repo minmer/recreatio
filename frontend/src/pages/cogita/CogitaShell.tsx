@@ -17,6 +17,7 @@ export function CogitaShell({
   onNavigate,
   language,
   onLanguageChange,
+  headerExtra,
   children
 }: {
   copy: Copy;
@@ -29,6 +30,7 @@ export function CogitaShell({
   onNavigate: (route: RouteKey) => void;
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  headerExtra?: ReactNode;
   children: ReactNode;
 }) {
   const embedded = useContext(CogitaEmbeddedContext);
@@ -60,17 +62,20 @@ export function CogitaShell({
           </a>
         </div>
         <LanguageSelect value={language} onChange={onLanguageChange} />
-        <AuthAction
-          copy={copy}
-          label={authLabel}
-          isAuthenticated={showProfileMenu}
-          secureMode={secureMode}
-          onLogin={() => onNavigate('home')}
-          onProfileNavigate={onProfileNavigate}
-          onToggleSecureMode={onToggleSecureMode}
-          onLogout={onLogout}
-          variant="ghost"
-        />
+        <div className="cogita-header-right">
+          {headerExtra}
+          <AuthAction
+            copy={copy}
+            label={authLabel}
+            isAuthenticated={showProfileMenu}
+            secureMode={secureMode}
+            onLogin={() => onNavigate('home')}
+            onProfileNavigate={onProfileNavigate}
+            onToggleSecureMode={onToggleSecureMode}
+            onLogout={onLogout}
+            variant="ghost"
+          />
+        </div>
       </header>
       <main className="cogita-main">{children}</main>
       <footer className="portal-footer cogita-footer">

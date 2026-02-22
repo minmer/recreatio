@@ -1,19 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
+import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
   getCogitaInfoCheckcards,
   getCogitaInfoDetail,
   getCogitaInfoApproachProjection,
-  getCogitaReviewers,
   type CogitaCardSearchResult,
-  type CogitaItemDependency,
-  type CogitaReviewer
+  type CogitaItemDependency
 } from '../../../lib/api';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 
@@ -23,6 +22,30 @@ type CheckcardNodeData = {
   checkType: string;
   direction?: string | null;
 };
+
+type DirectCardPreview =
+  | {
+      kind: 'vocab';
+      prompt: string;
+      expected: string;
+    }
+  | {
+      kind: 'citation-fragment';
+      expected: string;
+      quoteContext: {
+        title: string;
+        before: string;
+        after: string;
+        total: number;
+        completed: number;
+      };
+      quotePlaceholder: string;
+    }
+  | {
+      kind: 'generic';
+      prompt: string;
+      expected: string;
+    };
 
 function cardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {
   return [card.cardId, card.checkType ?? '', card.direction ?? ''].join('|');
@@ -53,7 +76,8 @@ export function CogitaInfoCheckcardsPage({
   language,
   onLanguageChange,
   libraryId,
-  infoId
+  infoId,
+  selectedReviewerRoleId
 }: {
   copy: Copy;
   authLabel: string;
@@ -67,6 +91,7 @@ export function CogitaInfoCheckcardsPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   infoId: string;
+  selectedReviewerRoleId?: string | null;
 }) {
   const [title, setTitle] = useState<string>(infoId);
   const [cards, setCards] = useState<CogitaCardSearchResult[]>([]);
@@ -76,12 +101,17 @@ export function CogitaInfoCheckcardsPage({
   const [detailPayload, setDetailPayload] = useState<Record<string, unknown> | null>(null);
   const [detailInfoType, setDetailInfoType] = useState<string | null>(null);
   const [vocabProjection, setVocabProjection] = useState<Record<string, unknown> | null>(null);
-  const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
-  const [selectedReviewerRoleId, setSelectedReviewerRoleId] = useState<string>('');
   const [answer, setAnswer] = useState('');
-  const [reveal, setReveal] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [clientSequence, setClientSequence] = useState(1);
+  const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
+  const [checkedCardKeys, setCheckedCardKeys] = useState<Record<string, true>>({});
+  const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
+  const [computedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
+  const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
+  const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -118,12 +148,6 @@ export function CogitaInfoCheckcardsPage({
       cancelled = true;
     };
   }, [libraryId, infoId]);
-
-  useEffect(() => {
-    getCogitaReviewers({ libraryId })
-      .then((items) => setReviewers(items))
-      .catch(() => setReviewers([]));
-  }, [libraryId]);
 
   useEffect(() => {
     if (detailInfoType !== 'translation') {
@@ -235,11 +259,13 @@ export function CogitaInfoCheckcardsPage({
 
   useEffect(() => {
     setAnswer('');
-    setReveal(false);
+    setFeedback(null);
+    setShowCorrectAnswer(false);
     setSaveStatus(null);
+    setComputedAnswers({});
   }, [selectedNodeId]);
 
-  const cardPreview = useMemo(() => {
+  const cardPreview = useMemo<DirectCardPreview | null>(() => {
     if (!selectedCard) return null;
     const infoType = detailInfoType ?? selectedCard.infoType ?? null;
     const checkType = selectedCard.checkType ?? 'info';
@@ -251,12 +277,12 @@ export function CogitaInfoCheckcardsPage({
       const wordA = words[0]?.label ?? '?';
       const wordB = words[1]?.label ?? '?';
       if (direction === 'a-to-b') {
-        return { prompt: String(wordA), expected: String(wordB), mode: 'text' as const };
+        return { kind: 'vocab', prompt: String(wordA), expected: String(wordB) };
       }
       if (direction === 'b-to-a') {
-        return { prompt: String(wordB), expected: String(wordA), mode: 'text' as const };
+        return { kind: 'vocab', prompt: String(wordB), expected: String(wordA) };
       }
-      return { prompt: `${wordA} ↔ ${wordB}`, expected: `${wordA} ↔ ${wordB}`, mode: 'self' as const };
+      return { kind: 'generic', prompt: `${wordA} ↔ ${wordB}`, expected: `${wordA} ↔ ${wordB}` };
     }
 
     if (infoType === 'citation' && checkType === 'quote-fragment' && direction && typeof payload.text === 'string') {
@@ -265,25 +291,31 @@ export function CogitaInfoCheckcardsPage({
       const node = tree.nodes[fragmentId];
       if (node) {
         const ctx = buildQuoteFragmentContext(payload.text, node);
-        const prompt = `${ctx.before} [ ... ] ${ctx.after}`.replace(/\s+/g, ' ').trim();
-        const expected = node.text;
-        return { prompt, expected, mode: 'text' as const };
+        return {
+          kind: 'citation-fragment',
+          expected: node.text,
+          quoteContext: {
+            title,
+            before: ctx.before,
+            after: ctx.after,
+            total: Object.keys(tree.nodes).length,
+            completed: 0
+          },
+          quotePlaceholder: node.text.length > 0 ? '.'.repeat(Math.max(4, Math.min(18, node.text.length))) : '...'
+        };
       }
     }
 
     return {
+      kind: 'generic',
       prompt: selectedCard.description || selectedCard.label,
-      expected: selectedCard.label,
-      mode: 'self' as const
+      expected: selectedCard.label
     };
-  }, [detailInfoType, detailPayload, selectedCard, vocabProjection]);
+  }, [detailInfoType, detailPayload, selectedCard, title, vocabProjection]);
 
   const saveKnownness = async (correct: boolean) => {
     if (!selectedCard) return;
-    if (!selectedReviewerRoleId) {
-      setSaveStatus('Select a person to save knowness.');
-      return;
-    }
+    if (!selectedReviewerRoleId) return;
     try {
       await createCogitaReviewOutcome({
         libraryId,
@@ -307,20 +339,33 @@ export function CogitaInfoCheckcardsPage({
     }
   };
 
+  const selectedCardKey = selectedCard ? cardKey(selectedCard) : null;
+  const selectedCardAlreadyChecked = selectedCardKey ? !!checkedCardKeys[selectedCardKey] : false;
+
   const checkAnswerAndSave = async () => {
     if (!selectedCard || !cardPreview) return;
-    if (cardPreview.mode !== 'text') {
-      setSaveStatus('Automatic check is available only for text answers.');
+    const key = cardKey(selectedCard);
+    if (checkedCardKeys[key]) {
+      setSaveStatus('This card was already checked.');
       return;
     }
-    if (!selectedReviewerRoleId) {
-      setSaveStatus('Select a person to save knowness.');
-      return;
+    const expected = cardPreview.expected;
+    const isCorrect = normalizeAnswerText(answer) === normalizeAnswerText(expected);
+    setFeedback(isCorrect ? 'correct' : 'incorrect');
+    setSaveStatus(selectedReviewerRoleId ? null : 'Answer checked locally (not saved: no person selected).');
+    setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
+    if (selectedReviewerRoleId) {
+      await saveKnownness(isCorrect);
     }
-    const isCorrect = normalizeAnswerText(answer) === normalizeAnswerText(cardPreview.expected);
-    setReveal(true);
-    await saveKnownness(isCorrect);
   };
+
+  const currentRevisionCard = useMemo(() => {
+    if (!selectedCard) return null;
+    if (selectedCard.infoType === 'citation') {
+      return { ...selectedCard, description: title };
+    }
+    return { ...selectedCard, description: selectedCard.label };
+  }, [selectedCard, title]);
 
   return (
     <CogitaShell
@@ -375,47 +420,59 @@ export function CogitaInfoCheckcardsPage({
                     </div>
                     {selectedCard ? (
                       <div className="cogita-info-checkcards-selected">
-                        <h4>{selectedCard.label}</h4>
-                        <p>{formatCheckTarget(selectedCard)}</p>
-                        <p className="cogita-card-subtitle">{selectedCard.description}</p>
-                        {cardPreview ? (
-                          <div className="cogita-info-checkcard-answer">
-                            <p className="cogita-user-kicker">Prompt</p>
-                            <div className="cogita-info-tree-value">{cardPreview.prompt}</div>
-                            <label className="cogita-field">
-                              <span>Answer</span>
-                              <input type="text" value={answer} onChange={(e) => setAnswer(e.target.value)} />
-                            </label>
-                            <div className="cogita-info-selection-actions">
-                              {cardPreview.mode === 'text' ? (
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() => void checkAnswerAndSave()}
-                                  disabled={!selectedReviewerRoleId}
-                                >
-                                  Check answer
-                                </button>
-                              ) : null}
-                              <button type="button" className="ghost" onClick={() => setReveal((v) => !v)}>
-                                {reveal ? 'Hide answer' : 'Show answer'}
-                              </button>
-                              <button type="button" className="ghost" onClick={() => void saveKnownness(false)} disabled={!selectedReviewerRoleId}>
-                                Incorrect
-                              </button>
-                              <button type="button" className="cta ghost" onClick={() => void saveKnownness(true)} disabled={!selectedReviewerRoleId}>
-                                Correct
-                              </button>
-                            </div>
-                            {reveal ? (
-                              <div className="cogita-info-tree-value">{cardPreview.expected}</div>
-                            ) : null}
-                            {!selectedReviewerRoleId ? (
-                              <p className="cogita-library-hint">Auto-save knowness is available only after selecting a person.</p>
-                            ) : null}
-                            {saveStatus ? <p className="cogita-library-hint">{saveStatus}</p> : null}
-                          </div>
+                        {cardPreview && currentRevisionCard ? (
+                          <CogitaRevisionCard
+                            copy={copy}
+                            currentCard={currentRevisionCard}
+                            currentTypeLabel=""
+                            prompt={cardPreview.kind === 'citation-fragment' ? null : cardPreview.prompt}
+                            languages={[]}
+                            answer={answer}
+                            onAnswerChange={setAnswer}
+                            computedExpected={[]}
+                            computedAnswers={computedAnswers}
+                            onComputedAnswerChange={(key, value) => setComputedAnswers((prev) => ({ ...prev, [key]: value }))}
+                            answerTemplate={null}
+                            outputVariables={null}
+                            variableValues={null}
+                            computedFieldFeedback={computedFieldFeedback}
+                            feedback={feedback}
+                            canAdvance={false}
+                            quoteContext={cardPreview.kind === 'citation-fragment' ? cardPreview.quoteContext : null}
+                            quotePlaceholder={cardPreview.kind === 'citation-fragment' ? cardPreview.quotePlaceholder : null}
+                            onCheckAnswer={() => void checkAnswerAndSave()}
+                            onSkip={() => setSelectedNodeId(null)}
+                            onLanguageSelect={() => {}}
+                            onMarkReviewed={() => {}}
+                            onAdvance={() => {}}
+                            showCorrectAnswer={showCorrectAnswer}
+                            setShowCorrectAnswer={setShowCorrectAnswer}
+                            onRevealCorrect={() => {}}
+                            answerMask={null}
+                            expectedAnswer={cardPreview.expected}
+                            hasExpectedAnswer={true}
+                            handleComputedKeyDown={() => {}}
+                            answerInputRef={answerInputRef}
+                            computedInputRefs={computedInputRefs}
+                            scriptMode={scriptMode}
+                            setScriptMode={setScriptMode}
+                            matchPairs={undefined}
+                            matchLeftOrder={undefined}
+                            matchRightOrder={undefined}
+                            matchSelection={undefined}
+                            matchActiveLeft={null}
+                            matchActiveRight={null}
+                            matchFeedback={undefined}
+                            onMatchLeftSelect={undefined}
+                            onMatchRightSelect={undefined}
+                            disableCheckAnswer={selectedCardAlreadyChecked}
+                            hideSkipAction
+                          />
                         ) : null}
+                        {!selectedReviewerRoleId ? (
+                          <p className="cogita-library-hint">Result can be checked without a person; saving knowness requires a selected person in the header.</p>
+                        ) : null}
+                        {saveStatus ? <p className="cogita-library-hint">{saveStatus}</p> : null}
                       </div>
                     ) : (
                       <div className="cogita-info-checkcards-selected">
@@ -425,17 +482,6 @@ export function CogitaInfoCheckcardsPage({
                     )}
                   </div>
                   <aside className="cogita-info-checkcards-panel">
-                    <label className="cogita-field">
-                      <span>Person</span>
-                      <select value={selectedReviewerRoleId} onChange={(event) => setSelectedReviewerRoleId(event.target.value)}>
-                        <option value="">Select person (optional)</option>
-                        {reviewers.map((reviewer) => (
-                          <option key={reviewer.roleId} value={reviewer.roleId}>
-                            {reviewer.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <h3>Checking cards</h3>
                     <div className="cogita-info-tree">
                       {cards.map((card) => {

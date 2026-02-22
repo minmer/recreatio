@@ -9,6 +9,7 @@ import {
   getCogitaCollections,
   getCogitaInfoDetail,
   getCogitaLibraries,
+  getCogitaReviewers,
   getCogitaRevisions,
   getRoleGraph,
   getRoles,
@@ -18,6 +19,7 @@ import {
   type CogitaCollectionSummary,
   type CogitaInfoSearchResult,
   type CogitaLibrary,
+  type CogitaReviewer,
   type CogitaRevision,
   type RoleResponse
 } from '../../lib/api';
@@ -95,6 +97,7 @@ type InfoMode = 'search' | 'create' | 'selected';
 type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
+const REVIEWER_PREFS_ITEM_NAME = 'cogita.reviewer.preferences';
 const TARGET_OPTIONS: CogitaTarget[] = [
   'library_overview',
   'all_cards',
@@ -447,6 +450,8 @@ export function CogitaWorkspacePage({
   const [newLibraryName, setNewLibraryName] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newRevisionName, setNewRevisionName] = useState('');
+  const [headerReviewers, setHeaderReviewers] = useState<CogitaReviewer[]>([]);
+  const [selectedReviewerRoleId, setSelectedReviewerRoleId] = useState('');
 
   const [preferenceRoleId, setPreferenceRoleId] = useState<string | null>(null);
   const [preferenceDataItemId, setPreferenceDataItemId] = useState<string | null>(null);
@@ -463,6 +468,53 @@ export function CogitaWorkspacePage({
     () => collections.find((collection) => collection.collectionId === selectedCollectionId) ?? null,
     [collections, selectedCollectionId]
   );
+
+  useEffect(() => {
+    if (!selectedLibraryId) {
+      setHeaderReviewers([]);
+      setSelectedReviewerRoleId('');
+      return;
+    }
+    let cancelled = false;
+    getCogitaReviewers({ libraryId: selectedLibraryId })
+      .then((items) => {
+        if (cancelled) return;
+        setHeaderReviewers(items);
+        try {
+          const raw = window.localStorage.getItem(REVIEWER_PREFS_ITEM_NAME);
+          const prefs = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+          const saved = prefs[selectedLibraryId] ?? '';
+          const next = saved && items.some((item) => item.roleId === saved) ? saved : '';
+          setSelectedReviewerRoleId(next);
+        } catch {
+          setSelectedReviewerRoleId('');
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setHeaderReviewers([]);
+        setSelectedReviewerRoleId('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedLibraryId]);
+
+  useEffect(() => {
+    if (!selectedLibraryId) return;
+    try {
+      const raw = window.localStorage.getItem(REVIEWER_PREFS_ITEM_NAME);
+      const prefs = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      if (selectedReviewerRoleId) {
+        prefs[selectedLibraryId] = selectedReviewerRoleId;
+      } else {
+        delete prefs[selectedLibraryId];
+      }
+      window.localStorage.setItem(REVIEWER_PREFS_ITEM_NAME, JSON.stringify(prefs));
+    } catch {
+      // ignore local preference persistence failures
+    }
+  }, [selectedLibraryId, selectedReviewerRoleId]);
   const selectedRevision = useMemo(
     () => revisions.find((revision) => revision.revisionId === selectedRevisionId) ?? null,
     [revisions, selectedRevisionId]
@@ -1015,7 +1067,7 @@ export function CogitaWorkspacePage({
     }
     if (pathState.target === 'all_cards') {
       if (pathState.infoId && pathState.infoView === 'cards') {
-        return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} />;
+        return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
       }
       return <CogitaLibraryListPage {...baseProps} mode={pathState.cardMode ?? 'list'} />;
     }
@@ -1076,7 +1128,8 @@ export function CogitaWorkspacePage({
     pathState.revisionView,
     pathState.target,
     secureMode,
-    showProfileMenu
+    showProfileMenu,
+    selectedReviewerRoleId
   ]);
 
   useEffect(() => {
@@ -1529,6 +1582,19 @@ export function CogitaWorkspacePage({
       onNavigate={onNavigate}
       language={language}
       onLanguageChange={onLanguageChange}
+      headerExtra={selectedLibraryId ? (
+        <label className="cogita-header-reviewer">
+          <span>Person</span>
+          <select value={selectedReviewerRoleId} onChange={(event) => setSelectedReviewerRoleId(event.target.value)}>
+            <option value="">No person</option>
+            {headerReviewers.map((reviewer) => (
+              <option key={reviewer.roleId} value={reviewer.roleId}>
+                {reviewer.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
     >
       <section className="cogita-browser-shell">
         <aside className={`cogita-browser-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label={workspaceCopy.sidebar.title}>

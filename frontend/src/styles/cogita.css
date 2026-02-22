@@ -15,6 +15,37 @@
   height: var(--header-h);
 }
 
+.cogita-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cogita-header-reviewer {
+  display: inline-grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(205, 226, 247, 0.9);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.cogita-header-reviewer > span {
+  white-space: nowrap;
+}
+
+.cogita-header-reviewer select {
+  min-width: 9rem;
+  max-width: 16rem;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 170, 220, 0.25);
+  background: rgba(6, 18, 30, 0.9);
+  color: rgba(236, 244, 255, 0.95);
+  padding: 0.35rem 0.55rem;
+}
+
 .portal-footer.cogita-footer {
   flex: 0 0 var(--footer-h);
   height: var(--footer-h);
@@ -1619,6 +1650,12 @@
   align-content: start;
 }
 
+.cogita-info-checkcards-panel .cogita-info-tree {
+  max-height: 24rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
 .cogita-info-checkcards-panel > h3,
 .cogita-info-checkcards-selected > h4 {
   margin: 0;
@@ -1655,7 +1692,7 @@
   gap: 0.25rem;
 }
 
-.cogita-info-checkcards-selected p {
+.cogita-info-checkcards-selected > p {
   margin: 0;
 }
 
@@ -1667,6 +1704,10 @@
 
 .cogita-info-checkcard-answer .cogita-info-tree-value {
   min-height: 2.2rem;
+}
+
+.cogita-info-checkcards-selected .cogita-revision-header {
+  margin-bottom: 0.45rem;
 }
 
 .cogita-library-search-surface {
@@ -1926,6 +1967,22 @@
 
   .cogita-info-checkcards-panel {
     order: -1;
+  }
+
+  .cogita-header-right {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .cogita-header-reviewer {
+    width: min(100%, 20rem);
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cogita-header-reviewer select {
+    min-width: 0;
+    width: 100%;
   }
 }
 
