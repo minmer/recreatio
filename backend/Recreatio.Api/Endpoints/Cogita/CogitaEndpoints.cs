@@ -2696,24 +2696,6 @@ public static class CogitaEndpoints
                 return Results.BadRequest(new { error = "Item does not belong to the library." });
             }
 
-            if (itemType == "info")
-            {
-                var validCheckcard = await IsValidEffectiveInfoCheckcardIdentityAsync(
-                    libraryId,
-                    request.ItemId,
-                    request.CheckType,
-                    request.Direction,
-                    personReadKey,
-                    keyRingService,
-                    encryptionService,
-                    dbContext,
-                    ct);
-                if (!validCheckcard)
-                {
-                    return Results.BadRequest(new { error = "Checkcard identity is not valid for the selected info." });
-                }
-            }
-
             byte[] payloadBytes;
             try
             {
@@ -8209,9 +8191,9 @@ public static class CogitaEndpoints
             ct);
 
         return cards.Any(card =>
-            card.cardId == infoId &&
-            string.Equals(card.checkType ?? "info", normalizedCheckType, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(card.direction ?? null, normalizedDirection, StringComparison.OrdinalIgnoreCase));
+            card.CardId == infoId &&
+            string.Equals(card.CheckType ?? "info", normalizedCheckType, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(card.Direction ?? null, normalizedDirection, StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task<JsonElement?> BuildInfoApproachProjectionAsync(
