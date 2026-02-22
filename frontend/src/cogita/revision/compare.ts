@@ -1,5 +1,10 @@
 export type CompareAlgorithmId = 'bidirectional' | 'prefix' | 'anchors';
 export type SimilarCharMap = Record<string, string[]>;
+export type AnchorTextCompareOptions = {
+  thresholdPercent?: number;
+  treatSimilarCharsAsSame?: boolean;
+  ignorePunctuationAndSpacing?: boolean;
+};
 
 const similarChars: SimilarCharMap = {
   a: ['ą', 'à', 'á', 'â', 'ä', 'ã', 'å'],
@@ -54,9 +59,13 @@ const isSimilarChar = (a: string, b: string) => {
   return reverse.includes(a);
 };
 
-const anchorCompare = (expected: string, answer: string) => {
+const charsEquivalent = (a: string, b: string, allowSimilar: boolean) =>
+  allowSimilar ? isSimilarChar(a, b) : a === b;
+
+const anchorCompare = (expected: string, answer: string, options?: { allowSimilarChars?: boolean }) => {
   const buffer = new Uint8Array(expected.length);
   if (!expected.length) return buffer;
+  const allowSimilarChars = options?.allowSimilarChars ?? true;
   const anchors: Array<{ index: number; text: string }> = [];
   for (let i = 0; i <= expected.length - 3; i += 1) {
     anchors.push({ index: i, text: expected.slice(i, i + 3) });
@@ -67,7 +76,7 @@ const anchorCompare = (expected: string, answer: string) => {
       const chunk = answer.slice(j, j + 3);
       let matches = 0;
       for (let k = 0; k < 3; k += 1) {
-        if (isSimilarChar(anchor.text[k], chunk[k])) matches += 1;
+        if (charsEquivalent(anchor.text[k], chunk[k], allowSimilarChars)) matches += 1;
       }
       if (matches < 2) continue;
       // expand from anchor
@@ -83,7 +92,7 @@ const anchorCompare = (expected: string, answer: string) => {
           scored = true;
           continue;
         }
-        if (isSimilarChar(expChar, ansChar)) {
+        if (charsEquivalent(expChar, ansChar, allowSimilarChars) && expChar !== ansChar) {
           buffer[leftExp] = Math.max(buffer[leftExp], 127);
           leftExp -= 1;
           leftAns -= 1;
@@ -108,7 +117,7 @@ const anchorCompare = (expected: string, answer: string) => {
         const idx = anchor.index + k;
         const expChar = anchor.text[k];
         const ansChar = chunk[k];
-        const score = expChar === ansChar ? 255 : isSimilarChar(expChar, ansChar) ? 127 : 0;
+        const score = expChar === ansChar ? 255 : charsEquivalent(expChar, ansChar, allowSimilarChars) ? 127 : 0;
         buffer[idx] = Math.max(buffer[idx], score);
         scored = true;
       }
@@ -125,7 +134,7 @@ const anchorCompare = (expected: string, answer: string) => {
           scored = true;
           continue;
         }
-        if (isSimilarChar(expChar, ansChar)) {
+        if (charsEquivalent(expChar, ansChar, allowSimilarChars) && expChar !== ansChar) {
           buffer[rightExp] = Math.max(buffer[rightExp], 127);
           rightExp += 1;
           rightAns += 1;
@@ -154,14 +163,90 @@ const anchorCompare = (expected: string, answer: string) => {
   return buffer;
 };
 
+const isComparableChar = (char: string) => /[\p{L}\p{N}]/u.test(char);
+
+const normalizeComparable = (value: string) => value.trim().toLowerCase();
+
+export const maskAveragePercent = (mask: Uint8Array) => {
+  if (mask.length === 0) return 100;
+  const total = Array.from(mask).reduce((sum, value) => sum + value, 0);
+  return Math.round((total / (mask.length * 255)) * 100);
+};
+
+export const evaluateAnchorTextAnswer = (
+  expected: string,
+  answer: string,
+  options?: AnchorTextCompareOptions
+) => {
+  const thresholdPercent = Math.max(0, Math.min(100, options?.thresholdPercent ?? 100));
+  const treatSimilarCharsAsSame = options?.treatSimilarCharsAsSame ?? true;
+  const ignorePunctuationAndSpacing = options?.ignorePunctuationAndSpacing ?? false;
+
+  const originalExpected = normalizeComparable(expected);
+  const originalAnswer = normalizeComparable(answer);
+
+  if (!ignorePunctuationAndSpacing) {
+    const mask = anchorCompare(originalExpected, originalAnswer, { allowSimilarChars: treatSimilarCharsAsSame });
+    const percent = maskAveragePercent(mask);
+    return {
+      mask,
+      percent,
+      isCorrect: percent >= thresholdPercent,
+      normalizedExpected: originalExpected,
+      normalizedAnswer: originalAnswer
+    };
+  }
+
+  const expectedChars = Array.from(originalExpected);
+  const answerChars = Array.from(originalAnswer);
+  const expectedFiltered: string[] = [];
+  const expectedIndexMap: number[] = [];
+  const answerFiltered: string[] = [];
+
+  expectedChars.forEach((char, index) => {
+    if (isComparableChar(char)) {
+      expectedFiltered.push(char);
+      expectedIndexMap.push(index);
+    }
+  });
+  answerChars.forEach((char) => {
+    if (isComparableChar(char)) {
+      answerFiltered.push(char);
+    }
+  });
+
+  const filteredExpected = expectedFiltered.join('');
+  const filteredAnswer = answerFiltered.join('');
+  const filteredMask = anchorCompare(filteredExpected, filteredAnswer, { allowSimilarChars: treatSimilarCharsAsSame });
+  const mask = new Uint8Array(expectedChars.length);
+  for (let i = 0; i < mask.length; i += 1) {
+    mask[i] = isComparableChar(expectedChars[i] ?? '') ? 0 : 255;
+  }
+  for (let i = 0; i < filteredMask.length; i += 1) {
+    const originalIndex = expectedIndexMap[i];
+    if (originalIndex !== undefined) {
+      mask[originalIndex] = filteredMask[i];
+    }
+  }
+  const percent = maskAveragePercent(filteredMask);
+
+  return {
+    mask,
+    percent,
+    isCorrect: percent >= thresholdPercent,
+    normalizedExpected: filteredExpected,
+    normalizedAnswer: filteredAnswer
+  };
+};
+
 export const compareStrings = (expected: string, answer: string, algorithmId: CompareAlgorithmId) => {
   const normalizedExpected = expected.trim().toLowerCase();
   const normalizedAnswer = answer.trim().toLowerCase();
   if (algorithmId === 'prefix' || algorithmId === 'bidirectional') {
     // Text checks are intentionally unified to anchors.
-    return anchorCompare(normalizedExpected, normalizedAnswer);
+    return anchorCompare(normalizedExpected, normalizedAnswer, { allowSimilarChars: true });
   }
-  return anchorCompare(normalizedExpected, normalizedAnswer);
+  return anchorCompare(normalizedExpected, normalizedAnswer, { allowSimilarChars: true });
 };
 
 export const normalizeIgnoringSpacingAndPunctuation = (value: string) =>
@@ -178,7 +263,7 @@ export const compareStringsIgnoringSpacingAndPunctuation = (
   const normalizedExpected = normalizeIgnoringSpacingAndPunctuation(expected);
   const normalizedAnswer = normalizeIgnoringSpacingAndPunctuation(answer);
   if (algorithmId === 'prefix' || algorithmId === 'bidirectional') {
-    return anchorCompare(normalizedExpected, normalizedAnswer);
+    return anchorCompare(normalizedExpected, normalizedAnswer, { allowSimilarChars: true });
   }
-  return anchorCompare(normalizedExpected, normalizedAnswer);
+  return anchorCompare(normalizedExpected, normalizedAnswer, { allowSimilarChars: true });
 };

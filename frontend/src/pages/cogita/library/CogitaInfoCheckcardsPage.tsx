@@ -15,6 +15,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../lib/api';
+import { evaluateAnchorTextAnswer } from '../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 
 type CheckcardNodeData = {
@@ -61,10 +62,6 @@ function formatCheckTarget(card: CogitaCardSearchResult) {
   return card.direction ? `${main} / ${card.direction}` : main;
 }
 
-function normalizeAnswerText(value: string) {
-  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-}
-
 export function CogitaInfoCheckcardsPage({
   copy,
   authLabel,
@@ -108,6 +105,7 @@ export function CogitaInfoCheckcardsPage({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [flashTick, setFlashTick] = useState(0);
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
+  const [answerMask, setAnswerMask] = useState<Uint8Array | null>(null);
   const [checkedCardKeys, setCheckedCardKeys] = useState<Record<string, true>>({});
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
@@ -264,6 +262,7 @@ export function CogitaInfoCheckcardsPage({
     setFeedback(null);
     setFlashTick(0);
     setShowCorrectAnswer(false);
+    setAnswerMask(null);
     setSaveStatus(null);
     setComputedAnswers({});
   }, [selectedNodeId]);
@@ -353,14 +352,37 @@ export function CogitaInfoCheckcardsPage({
       return;
     }
     const expected = cardPreview.expected;
-    const isCorrect = normalizeAnswerText(answer) === normalizeAnswerText(expected);
+    const citationMode = cardPreview.kind === 'citation-fragment';
+    const evaluation = evaluateAnchorTextAnswer(expected, answer, {
+      thresholdPercent: citationMode ? 90 : 100,
+      treatSimilarCharsAsSame: true,
+      ignorePunctuationAndSpacing: citationMode
+    });
+    const isCorrect = evaluation.isCorrect;
     setFeedback(isCorrect ? 'correct' : 'incorrect');
     setFlashTick((prev) => prev + 1);
+    setAnswerMask(evaluation.mask);
+    setShowCorrectAnswer(true);
     setSaveStatus(selectedReviewerRoleId ? null : 'Answer checked locally (not saved: no person selected).');
     setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
     if (selectedReviewerRoleId) {
       await saveKnownness(isCorrect);
     }
+  };
+
+  const handleRevealCorrectAnswer = () => {
+    if (!selectedCard || !cardPreview) return;
+    const key = cardKey(selectedCard);
+    if (!checkedCardKeys[key]) {
+      setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
+      setSaveStatus('Answer revealed (not saved).');
+    }
+    const fullMask = evaluateAnchorTextAnswer(cardPreview.expected, cardPreview.expected, {
+      thresholdPercent: 100,
+      treatSimilarCharsAsSame: true,
+      ignorePunctuationAndSpacing: cardPreview.kind === 'citation-fragment'
+    });
+    setAnswerMask(fullMask.mask);
   };
 
   const currentRevisionCard = useMemo(() => {
@@ -452,8 +474,8 @@ export function CogitaInfoCheckcardsPage({
                               onAdvance={() => {}}
                               showCorrectAnswer={showCorrectAnswer}
                               setShowCorrectAnswer={setShowCorrectAnswer}
-                              onRevealCorrect={() => {}}
-                              answerMask={null}
+                              onRevealCorrect={handleRevealCorrectAnswer}
+                              answerMask={answerMask}
                               expectedAnswer={cardPreview.expected}
                               hasExpectedAnswer={true}
                               handleComputedKeyDown={() => {}}
@@ -470,7 +492,7 @@ export function CogitaInfoCheckcardsPage({
                               matchFeedback={undefined}
                               onMatchLeftSelect={undefined}
                               onMatchRightSelect={undefined}
-                              disableCheckAnswer={selectedCardAlreadyChecked}
+                              disableCheckAnswer={selectedCardAlreadyChecked || showCorrectAnswer}
                               hideSkipAction
                             />
                           </CogitaCheckcardSurface>

@@ -40,8 +40,7 @@ import {
 } from '../../../../cogita/revision/registry';
 import {
   compareStrings,
-  compareStringsIgnoringSpacingAndPunctuation,
-  normalizeIgnoringSpacingAndPunctuation,
+  evaluateAnchorTextAnswer,
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
@@ -1547,13 +1546,14 @@ export function CogitaRevisionShareRunPage({
         parsedDirection?.fragmentId && currentCard.direction
           ? currentCard.direction
           : buildQuoteFragmentDirection(quoteMode, quoteContext.fragmentId);
-      const mask = compareStringsIgnoringSpacingAndPunctuation(expectedAnswer, answer, compareMode);
-      const exactCorrect =
-        check === 'exact' &&
-        normalizeIgnoringSpacingAndPunctuation(answer) === normalizeIgnoringSpacingAndPunctuation(expectedAnswer);
-      const thresholdCorrect = isMaskCorrect(mask);
-      const isCorrect = exactCorrect || thresholdCorrect;
-      const maskPercent = maskAveragePercent(mask);
+      const evaluated = evaluateAnchorTextAnswer(expectedAnswer, answer, {
+        thresholdPercent: 90,
+        treatSimilarCharsAsSame: true,
+        ignorePunctuationAndSpacing: true
+      });
+      const mask = evaluated.mask;
+      const isCorrect = evaluated.isCorrect;
+      const maskPercent = evaluated.percent;
       if (isCorrect) {
         quoteKnownessRef.current[quoteContext.fragmentId] = Math.max(
           quoteKnownessRef.current[quoteContext.fragmentId] ?? 0,

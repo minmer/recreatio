@@ -1651,13 +1651,12 @@
   gap: 0.65rem;
   align-content: stretch;
   min-height: 0;
-  height: 100%;
 }
 
 .cogita-info-checkcards-panel .cogita-info-tree {
   max-height: none;
   min-height: 0;
-  height: 100%;
+  align-self: stretch;
   overflow: auto;
   padding-right: 0.2rem;
 }
