@@ -8519,6 +8519,14 @@ public static class CogitaEndpoints
                         fragmentId));
                 }
             }
+            else if (info.InfoType.Equals("question", StringComparison.OrdinalIgnoreCase))
+            {
+                var questionType = TryGetQuestionDefinitionType(snapshot.Payload) ?? "question";
+                cards = new List<CogitaCardSearchResponse>
+                {
+                    new(info.Id, "info", snapshot.Label, description, "question", $"question-{questionType}", null)
+                };
+            }
 
             return cards;
         }
@@ -8683,6 +8691,45 @@ public static class CogitaEndpoints
                 yield return (node.Id, node.RightId!);
             }
         }
+    }
+
+    private static string? TryGetQuestionDefinitionType(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object ||
+            !payload.TryGetProperty("definition", out var definition) ||
+            definition.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (definition.TryGetProperty("type", out var typeNode) &&
+            typeNode.ValueKind == JsonValueKind.String)
+        {
+            var raw = typeNode.GetString();
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                return raw!.Trim().ToLowerInvariant();
+            }
+        }
+
+        if (definition.TryGetProperty("kind", out var kindNode) &&
+            kindNode.ValueKind == JsonValueKind.String)
+        {
+            var raw = kindNode.GetString();
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var normalized = raw!.Trim().ToLowerInvariant();
+                return normalized switch
+                {
+                    "multi_select" or "single_select" => "selection",
+                    "boolean" => "truefalse",
+                    "order" => "ordering",
+                    _ => normalized
+                };
+            }
+        }
+
+        return null;
     }
 
     private static Dictionary<string, CitationFragmentNode> BuildCitationFragmentTree(JsonElement payload)
@@ -11964,6 +12011,14 @@ public static class CogitaEndpoints
             return new List<CogitaCardSearchResponse>
             {
                 new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "computed", null)
+            };
+        }
+
+        if (string.Equals(infoType, "question", StringComparison.OrdinalIgnoreCase))
+        {
+            return new List<CogitaCardSearchResponse>
+            {
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "question", null)
             };
         }
 

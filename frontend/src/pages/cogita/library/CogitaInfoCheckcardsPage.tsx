@@ -46,10 +46,95 @@ type DirectCardPreview =
       quotePlaceholder: string;
     }
   | {
+      kind: 'question';
+      definition: {
+        type: 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'ordering' | 'matching';
+        title?: string;
+        question: string;
+        options?: string[];
+        answer?: number[] | string | number | boolean | { paths: number[][] };
+        columns?: string[][];
+      };
+    }
+  | {
       kind: 'generic';
       prompt: string;
       expected: string;
     };
+
+type QuestionRuntimeState = {
+  selection: number[];
+  booleanAnswer: boolean | null;
+  ordering: string[];
+  matchingRows: string[][];
+};
+
+type ParsedQuestionDefinition = Extract<DirectCardPreview, { kind: 'question' }>['definition'];
+
+function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
+  if (!value || typeof value !== 'object') return null;
+  const data = value as Record<string, unknown>;
+  const rawDef = data.definition;
+  if (!rawDef || typeof rawDef !== 'object') return null;
+  const def = rawDef as Record<string, unknown>;
+  const rawType = typeof def.type === 'string' ? def.type : typeof def.kind === 'string' ? def.kind : 'selection';
+  const type =
+    rawType === 'multi_select' || rawType === 'single_select'
+      ? 'selection'
+      : rawType === 'boolean'
+        ? 'truefalse'
+        : rawType === 'order'
+          ? 'ordering'
+          : rawType;
+  if (!['selection', 'truefalse', 'text', 'number', 'date', 'ordering', 'matching'].includes(type)) return null;
+  const normalizedType = type as ParsedQuestionDefinition['type'];
+  const title = typeof def.title === 'string' ? def.title : undefined;
+  const question = typeof def.question === 'string' ? def.question : '';
+  const options = Array.isArray(def.options) ? def.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean) : undefined;
+  const columns = Array.isArray(def.columns)
+    ? def.columns.map((col) => (Array.isArray(col) ? col.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean) : [])).filter((c) => c.length > 0)
+    : undefined;
+  const answer = (() => {
+    if (type === 'selection') {
+      const raw = Array.isArray(def.answer) ? def.answer : Array.isArray(def.correct) ? def.correct : [];
+      return raw.map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 0);
+    }
+    if (type === 'truefalse') {
+      if (typeof def.answer === 'boolean') return def.answer;
+      if (typeof def.expected === 'boolean') return def.expected;
+      return false;
+    }
+    if (type === 'matching') {
+      const answerNode = def.answer && typeof def.answer === 'object' ? (def.answer as Record<string, unknown>) : null;
+      const source = Array.isArray(answerNode?.paths) ? answerNode?.paths : Array.isArray(def.correctPairs) ? def.correctPairs : [];
+      const paths = source
+        .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 0) : []))
+        .filter((row) => row.length > 0);
+      return { paths };
+    }
+    if (typeof def.answer === 'string' || typeof def.answer === 'number') return def.answer;
+    if (typeof def.expected === 'string' || typeof def.expected === 'number') return def.expected;
+    return undefined;
+  })();
+  return { type: normalizedType, title, question, options, columns, answer };
+}
+
+function questionPathRowsFromDefinition(def: ParsedQuestionDefinition): string[][] {
+  if (def.type !== 'matching') return [[]];
+  const width = Math.max(2, def.columns?.length ?? 2);
+  const paths = def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : [];
+  const rows = (paths ?? []).map((row) => Array.from({ length: width }, (_, i) => String(row[i] ?? '')));
+  return [...rows, new Array(width).fill('')];
+}
+
+function shuffleStrings(items: string[]): string[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
 
 function cardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {
   return [card.cardId, card.checkType ?? '', card.direction ?? ''].join('|');
@@ -60,7 +145,8 @@ function dependencyKey(dep: Pick<CogitaItemDependency, 'parentItemId' | 'parentC
 }
 
 function formatCheckTarget(card: CogitaCardSearchResult) {
-  const main = card.checkType ?? 'info';
+  const raw = card.checkType ?? 'info';
+  const main = raw.startsWith('question-') ? `question / ${raw.slice('question-'.length)}` : raw;
   return card.direction ? `${main} / ${card.direction}` : main;
 }
 
@@ -112,6 +198,12 @@ export function CogitaInfoCheckcardsPage({
   const [computedAnswers, setComputedAnswers] = useState<Record<string, string>>({});
   const [computedFieldFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
+  const [questionState, setQuestionState] = useState<QuestionRuntimeState>({
+    selection: [],
+    booleanAnswer: null,
+    ordering: [],
+    matchingRows: [[]]
+  });
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
   const navigate = useNavigate();
@@ -268,6 +360,7 @@ export function CogitaInfoCheckcardsPage({
     setAnswerMask(null);
     setSaveStatus(null);
     setComputedAnswers({});
+    setQuestionState({ selection: [], booleanAnswer: null, ordering: [], matchingRows: [[]] });
   }, [selectedNodeId]);
 
   const cardPreview = useMemo<DirectCardPreview | null>(() => {
@@ -311,12 +404,30 @@ export function CogitaInfoCheckcardsPage({
       }
     }
 
+    if (infoType === 'question') {
+      const definition = parseQuestionDefinition(payload);
+      if (definition) {
+        return { kind: 'question', definition };
+      }
+    }
+
     return {
       kind: 'generic',
       prompt: selectedCard.description || selectedCard.label,
       expected: selectedCard.label
     };
   }, [detailInfoType, detailPayload, selectedCard, title, vocabProjection]);
+
+  useEffect(() => {
+    if (!cardPreview || cardPreview.kind !== 'question') return;
+    const def = cardPreview.definition;
+    setQuestionState({
+      selection: [],
+      booleanAnswer: null,
+      ordering: def.type === 'ordering' ? shuffleStrings(def.options ?? []) : [],
+      matchingRows: def.type === 'matching' ? questionPathRowsFromDefinition(def) : [[]]
+    });
+  }, [cardPreview, selectedNodeId]);
 
   const saveKnownness = async (correct: boolean) => {
     if (!selectedCard) return;
@@ -354,18 +465,67 @@ export function CogitaInfoCheckcardsPage({
       setSaveStatus('This card was already checked.');
       return;
     }
-    const expected = cardPreview.expected;
-    const citationMode = cardPreview.kind === 'citation-fragment';
-    const evaluation = evaluateAnchorTextAnswer(expected, answer, {
-      thresholdPercent: citationMode ? 90 : 100,
-      treatSimilarCharsAsSame: true,
-      ignorePunctuationAndSpacing: citationMode
-    });
-    const isCorrect = evaluation.isCorrect;
+    let isCorrect = false;
+    let nextMask: Uint8Array | null = null;
+    if (cardPreview.kind === 'question') {
+      const def = cardPreview.definition;
+      if (def.type === 'selection') {
+        const expected = Array.isArray(def.answer) ? [...def.answer].sort((a, b) => a - b) : [];
+        const actual = [...questionState.selection].sort((a, b) => a - b);
+        isCorrect = expected.length === actual.length && expected.every((value, index) => value === actual[index]);
+      } else if (def.type === 'truefalse') {
+        isCorrect = typeof def.answer === 'boolean' && questionState.booleanAnswer !== null && def.answer === questionState.booleanAnswer;
+      } else if (def.type === 'ordering') {
+        const expected = (def.options ?? []).join('\n');
+        const actual = questionState.ordering.join('\n');
+        const evaluation = evaluateAnchorTextAnswer(expected, actual, {
+          thresholdPercent: 100,
+          treatSimilarCharsAsSame: true,
+          ignorePunctuationAndSpacing: false
+        });
+        isCorrect = evaluation.isCorrect;
+        nextMask = evaluation.mask;
+      } else if (def.type === 'matching') {
+        const width = Math.max(2, def.columns?.length ?? 2);
+        const actualPaths = questionState.matchingRows
+          .map((row) => row.slice(0, width).map((cell) => cell.trim()))
+          .filter((row) => row.every((cell) => cell !== ''))
+          .map((row) => row.map((cell) => Number(cell)))
+          .filter((row) => row.every((cell) => Number.isInteger(cell) && cell >= 0))
+          .map((row) => JSON.stringify(row));
+        const expectedPaths = (
+          def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : []
+        )
+          .map((row) => JSON.stringify(row));
+        const actualSet = Array.from(new Set(actualPaths)).sort();
+        const expectedSet = Array.from(new Set(expectedPaths)).sort();
+        isCorrect = actualSet.length === expectedSet.length && actualSet.every((value, index) => value === expectedSet[index]);
+      } else {
+        const expectedText = String(def.answer ?? '');
+        const evaluation = evaluateAnchorTextAnswer(expectedText, answer, {
+          thresholdPercent: 100,
+          treatSimilarCharsAsSame: true,
+          ignorePunctuationAndSpacing: false
+        });
+        isCorrect = evaluation.isCorrect;
+        nextMask = evaluation.mask;
+      }
+      setAnswerMask(nextMask);
+      setShowCorrectAnswer(true);
+    } else {
+      const expected = cardPreview.expected;
+      const citationMode = cardPreview.kind === 'citation-fragment';
+      const evaluation = evaluateAnchorTextAnswer(expected, answer, {
+        thresholdPercent: citationMode ? 90 : 100,
+        treatSimilarCharsAsSame: true,
+        ignorePunctuationAndSpacing: citationMode
+      });
+      isCorrect = evaluation.isCorrect;
+      setAnswerMask(evaluation.mask);
+      setShowCorrectAnswer(true);
+    }
     setFeedback(isCorrect ? 'correct' : 'incorrect');
     setFlashTick((prev) => prev + 1);
-    setAnswerMask(evaluation.mask);
-    setShowCorrectAnswer(true);
     setSaveStatus(selectedReviewerRoleId ? null : 'Answer checked locally (not saved: no person selected).');
     setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
     if (selectedReviewerRoleId) {
@@ -380,6 +540,10 @@ export function CogitaInfoCheckcardsPage({
       setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
       setSaveStatus('Answer revealed (not saved).');
     }
+    if (cardPreview.kind === 'question') {
+      setAnswerMask(null);
+      return;
+    }
     const fullMask = evaluateAnchorTextAnswer(cardPreview.expected, cardPreview.expected, {
       thresholdPercent: 100,
       treatSimilarCharsAsSame: true,
@@ -390,11 +554,207 @@ export function CogitaInfoCheckcardsPage({
 
   const currentRevisionCard = useMemo(() => {
     if (!selectedCard) return null;
+    if (selectedCard.infoType === 'question') {
+      return { ...selectedCard, description: selectedCard.label };
+    }
     if (selectedCard.infoType === 'citation') {
       return { ...selectedCard, description: title };
     }
     return { ...selectedCard, description: selectedCard.label };
   }, [selectedCard, title]);
+
+  const renderQuestionCard = (preview: Extract<DirectCardPreview, { kind: 'question' }>) => {
+    const def = preview.definition;
+    const checked = selectedCardAlreadyChecked || showCorrectAnswer;
+    const rows = def.type === 'matching'
+      ? (() => {
+          const width = Math.max(2, def.columns?.length ?? 2);
+          const source = questionState.matchingRows.length ? questionState.matchingRows : [new Array(width).fill('')];
+          const normalized = source.map((row) => Array.from({ length: width }, (_, i) => row[i] ?? ''));
+          const last = normalized[normalized.length - 1];
+          return last.some((v) => v.trim()) ? [...normalized, new Array(width).fill('')] : normalized;
+        })()
+      : [];
+    const expectedSelection = Array.isArray(def.answer) ? def.answer : [];
+    const expectedMatchingPaths =
+      def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : [];
+
+    return (
+      <div className="cogita-revision-body">
+        <h2>{def.question || selectedCard?.label}</h2>
+        {def.title ? <p className="cogita-revision-hint">{def.title}</p> : null}
+
+        {def.type === 'selection' ? (
+          <div className="cogita-choice-grid" style={{ gridTemplateColumns: '1fr' }}>
+            {(def.options ?? []).map((option, index) => (
+              <label key={`q-opt:${index}`} className="cogita-field" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <input
+                  type="checkbox"
+                  checked={questionState.selection.includes(index)}
+                  disabled={checked}
+                  onChange={(event) =>
+                    setQuestionState((prev) => ({
+                      ...prev,
+                      selection: event.target.checked
+                        ? Array.from(new Set([...prev.selection, index]))
+                        : prev.selection.filter((value) => value !== index)
+                    }))
+                  }
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+
+        {def.type === 'truefalse' ? (
+          <div className="cogita-form-actions" style={{ justifyContent: 'flex-start' }}>
+            <button type="button" className="ghost" data-active={questionState.booleanAnswer === true} disabled={checked} onClick={() => setQuestionState((prev) => ({ ...prev, booleanAnswer: true }))}>True</button>
+            <button type="button" className="ghost" data-active={questionState.booleanAnswer === false} disabled={checked} onClick={() => setQuestionState((prev) => ({ ...prev, booleanAnswer: false }))}>False</button>
+          </div>
+        ) : null}
+
+        {(def.type === 'text' || def.type === 'number' || def.type === 'date') ? (
+          <label className="cogita-field">
+            <span>{copy.cogita.library.revision.answerLabel}</span>
+            <input
+              ref={answerInputRef}
+              type={def.type === 'date' ? 'date' : 'text'}
+              value={answer}
+              onChange={(event) => setAnswer(event.target.value)}
+              disabled={checked}
+              data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
+            />
+          </label>
+        ) : null}
+
+        {def.type === 'ordering' ? (
+          <div style={{ display: 'grid', gap: '0.45rem' }}>
+            {questionState.ordering.map((item, index) => (
+              <div key={`q-order:${index}:${item}`} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '0.5rem', alignItems: 'center' }}>
+                <span style={{ color: 'rgba(184,209,234,0.75)' }}>{index + 1}.</span>
+                <span>{item}</span>
+                <button type="button" className="ghost" disabled={checked || index === 0} onClick={() => setQuestionState((prev) => {
+                  const next = [...prev.ordering];
+                  [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                  return { ...prev, ordering: next };
+                })}>Up</button>
+                <button type="button" className="ghost" disabled={checked || index >= questionState.ordering.length - 1} onClick={() => setQuestionState((prev) => {
+                  const next = [...prev.ordering];
+                  [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                  return { ...prev, ordering: next };
+                })}>Down</button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {def.type === 'matching' ? (
+          <div style={{ display: 'grid', gap: '0.65rem' }}>
+            {(def.columns ?? []).map((column, columnIndex) => (
+              <div key={`q-col:${columnIndex}`} className="cogita-library-panel" style={{ display: 'grid', gap: '0.35rem', padding: '0.6rem' }}>
+                <p className="cogita-user-kicker">{`Column ${columnIndex + 1}`}</p>
+                {column.map((option, optionIndex) => (
+                  <div key={`q-col:${columnIndex}:${optionIndex}`} className="cogita-library-hint">{`${optionIndex}: ${option}`}</div>
+                ))}
+              </div>
+            ))}
+            <div style={{ display: 'grid', gap: '0.4rem' }}>
+              <p className="cogita-user-kicker">Paths (0-based indices)</p>
+              {rows.map((row, rowIndex) => {
+                const isLast = rowIndex === rows.length - 1;
+                return (
+                  <div key={`q-path:${rowIndex}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(2, (def.columns?.length ?? 2))}, minmax(0, 1fr)) auto`, gap: '0.35rem', alignItems: 'center' }}>
+                    {row.map((cell, columnIndex) => (
+                      <input
+                        key={`q-path:${rowIndex}:${columnIndex}`}
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={cell}
+                        disabled={checked}
+                        onChange={(event) =>
+                          setQuestionState((prev) => {
+                            const width = Math.max(2, def.columns?.length ?? 2);
+                            const next = (prev.matchingRows.length ? prev.matchingRows : [new Array(width).fill('')])
+                              .map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ''));
+                            next[rowIndex] = next[rowIndex] ?? new Array(width).fill('');
+                            next[rowIndex][columnIndex] = event.target.value;
+                            const last = next[next.length - 1];
+                            if (last.some((v) => v.trim())) next.push(new Array(width).fill(''));
+                            return { ...prev, matchingRows: next };
+                          })
+                        }
+                      />
+                    ))}
+                    {!isLast ? (
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={checked}
+                        onClick={() =>
+                          setQuestionState((prev) => {
+                            const width = Math.max(2, def.columns?.length ?? 2);
+                            const next = prev.matchingRows.filter((_, idx) => idx !== rowIndex);
+                            if (next.length === 0) next.push(new Array(width).fill(''));
+                            const last = next[next.length - 1];
+                            if (last.some((v) => v.trim())) next.push(new Array(width).fill(''));
+                            return { ...prev, matchingRows: next };
+                          })
+                        }
+                      >
+                        Remove
+                      </button>
+                    ) : <span />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="cogita-form-actions">
+          <button type="button" className="cta" onClick={() => void checkAnswerAndSave()} disabled={checked}>
+            {copy.cogita.library.revision.checkAnswer}
+          </button>
+        </div>
+
+        {showCorrectAnswer ? (
+          <div className="cogita-revision-answer">
+            <p className="cogita-user-kicker">{copy.cogita.library.revision.correctAnswerLabel}</p>
+            {def.type === 'selection' ? (
+              <p>{expectedSelection.length ? expectedSelection.map((i) => `${i}${def.options?.[i] ? `: ${def.options[i]}` : ''}`).join(', ') : '-'}</p>
+            ) : def.type === 'truefalse' ? (
+              <p>{String(Boolean(def.answer))}</p>
+            ) : def.type === 'ordering' ? (
+              <ol>{(def.options ?? []).map((opt, i) => <li key={`ans-order:${i}`}>{opt}</li>)}</ol>
+            ) : def.type === 'matching' ? (
+              <div style={{ display: 'grid', gap: '0.35rem' }}>
+                {expectedMatchingPaths.length ? expectedMatchingPaths.map((path, idx) => (
+                  <p key={`ans-path:${idx}`}>{path.join(' → ')}</p>
+                )) : <p>-</p>}
+              </div>
+            ) : (
+              <p>{String(def.answer ?? '')}</p>
+            )}
+          </div>
+        ) : (
+          <div className="cogita-revision-reveal">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setShowCorrectAnswer(true);
+                handleRevealCorrectAnswer();
+              }}
+            >
+              {copy.cogita.library.revision.showAnswer}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const infoTypeLabel = useMemo(() => {
     if (!detailInfoType) return copy.cogita.library.infoTypes.any;
@@ -468,56 +828,60 @@ export function CogitaInfoCheckcardsPage({
                       <div className="cogita-info-checkcards-selected">
                         {cardPreview && currentRevisionCard ? (
                           <CogitaCheckcardSurface flashState={feedback} flashTick={flashTick}>
-                            <CogitaRevisionCard
-                              copy={copy}
-                              currentCard={currentRevisionCard}
-                              currentTypeLabel=""
-                              prompt={cardPreview.kind === 'citation-fragment' ? null : cardPreview.prompt}
-                              languages={[]}
-                              answer={answer}
-                              onAnswerChange={setAnswer}
-                              computedExpected={[]}
-                              computedAnswers={computedAnswers}
-                              onComputedAnswerChange={(key, value) => setComputedAnswers((prev) => ({ ...prev, [key]: value }))}
-                              answerTemplate={null}
-                              outputVariables={null}
-                              variableValues={null}
-                              computedFieldFeedback={computedFieldFeedback}
-                              feedback={feedback}
-                              canAdvance={false}
-                              quoteContext={cardPreview.kind === 'citation-fragment' ? cardPreview.quoteContext : null}
-                              quotePlaceholder={cardPreview.kind === 'citation-fragment' ? cardPreview.quotePlaceholder : null}
-                              onCheckAnswer={() => void checkAnswerAndSave()}
-                              onSkip={() => setSelectedNodeId(null)}
-                              onLanguageSelect={() => {}}
-                              onMarkReviewed={() => {}}
-                              onAdvance={() => {}}
-                              showCorrectAnswer={showCorrectAnswer}
-                              setShowCorrectAnswer={setShowCorrectAnswer}
-                              onRevealCorrect={handleRevealCorrectAnswer}
-                              answerMask={answerMask}
-                              expectedAnswer={cardPreview.expected}
-                              hasExpectedAnswer={true}
-                              handleComputedKeyDown={() => {}}
-                              answerInputRef={answerInputRef}
-                              computedInputRefs={computedInputRefs}
-                              scriptMode={scriptMode}
-                              setScriptMode={setScriptMode}
-                              matchPairs={undefined}
-                              matchLeftOrder={undefined}
-                              matchRightOrder={undefined}
-                              matchSelection={undefined}
-                              matchActiveLeft={null}
-                              matchActiveRight={null}
-                              matchFeedback={undefined}
-                              onMatchLeftSelect={undefined}
-                              onMatchRightSelect={undefined}
-                              disableCheckAnswer={selectedCardAlreadyChecked || showCorrectAnswer}
-                              hideSkipAction
-                              allowRevealBeforeCheck
-                              autoRevealAfterAnswer
-                              disableCheckAfterAnswer
-                            />
+                            {cardPreview.kind === 'question' ? (
+                              renderQuestionCard(cardPreview)
+                            ) : (
+                              <CogitaRevisionCard
+                                copy={copy}
+                                currentCard={currentRevisionCard}
+                                currentTypeLabel=""
+                                prompt={cardPreview.kind === 'citation-fragment' ? null : cardPreview.prompt}
+                                languages={[]}
+                                answer={answer}
+                                onAnswerChange={setAnswer}
+                                computedExpected={[]}
+                                computedAnswers={computedAnswers}
+                                onComputedAnswerChange={(key, value) => setComputedAnswers((prev) => ({ ...prev, [key]: value }))}
+                                answerTemplate={null}
+                                outputVariables={null}
+                                variableValues={null}
+                                computedFieldFeedback={computedFieldFeedback}
+                                feedback={feedback}
+                                canAdvance={false}
+                                quoteContext={cardPreview.kind === 'citation-fragment' ? cardPreview.quoteContext : null}
+                                quotePlaceholder={cardPreview.kind === 'citation-fragment' ? cardPreview.quotePlaceholder : null}
+                                onCheckAnswer={() => void checkAnswerAndSave()}
+                                onSkip={() => setSelectedNodeId(null)}
+                                onLanguageSelect={() => {}}
+                                onMarkReviewed={() => {}}
+                                onAdvance={() => {}}
+                                showCorrectAnswer={showCorrectAnswer}
+                                setShowCorrectAnswer={setShowCorrectAnswer}
+                                onRevealCorrect={handleRevealCorrectAnswer}
+                                answerMask={answerMask}
+                                expectedAnswer={cardPreview.expected}
+                                hasExpectedAnswer={true}
+                                handleComputedKeyDown={() => {}}
+                                answerInputRef={answerInputRef}
+                                computedInputRefs={computedInputRefs}
+                                scriptMode={scriptMode}
+                                setScriptMode={setScriptMode}
+                                matchPairs={undefined}
+                                matchLeftOrder={undefined}
+                                matchRightOrder={undefined}
+                                matchSelection={undefined}
+                                matchActiveLeft={null}
+                                matchActiveRight={null}
+                                matchFeedback={undefined}
+                                onMatchLeftSelect={undefined}
+                                onMatchRightSelect={undefined}
+                                disableCheckAnswer={selectedCardAlreadyChecked || showCorrectAnswer}
+                                hideSkipAction
+                                allowRevealBeforeCheck
+                                autoRevealAfterAnswer
+                                disableCheckAfterAnswer
+                              />
+                            )}
                           </CogitaCheckcardSurface>
                         ) : null}
                         {!selectedReviewerRoleId ? (
