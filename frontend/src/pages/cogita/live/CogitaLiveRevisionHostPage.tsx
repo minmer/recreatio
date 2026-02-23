@@ -168,6 +168,10 @@ type InfoDetailMap = Map<string, { infoType: string; payload: unknown }>;
 async function buildLiveRounds(payload: {
   libraryId: string;
   revisionId: string;
+  labels?: {
+    selectMatchingPairPrompt?: string;
+    wordLanguagePromptPrefix?: string;
+  };
 }): Promise<LiveRound[]> {
   const revision = await getCogitaRevision({ libraryId: payload.libraryId, revisionId: payload.revisionId });
   const cardBundle = await getCogitaCollectionCards({ libraryId: payload.libraryId, collectionId: revision.collectionId, limit: 1000 });
@@ -201,6 +205,10 @@ async function buildLiveRounds(payload: {
   );
 
   const vocabLabels = Array.from(new Set(cards.filter((c) => c.cardType === 'vocab').map((c) => c.label))).filter(Boolean);
+  const labels = {
+    selectMatchingPairPrompt: payload.labels?.selectMatchingPairPrompt ?? 'Select the matching pair',
+    wordLanguagePromptPrefix: payload.labels?.wordLanguagePromptPrefix ?? 'Language of',
+  };
   const rounds: LiveRound[] = [];
   const citationProcessed = new Set<string>();
 
@@ -232,7 +240,7 @@ async function buildLiveRounds(payload: {
         rounds.push({
           roundIndex: rounds.length,
           cardKey: `connection:${card.cardId}:translation-match`,
-          publicPrompt: { kind: 'selection', title: card.label, prompt: 'Select the matching pair', options, multiple: false, cardLabel: card.description ?? undefined },
+          publicPrompt: { kind: 'selection', title: card.label, prompt: labels.selectMatchingPairPrompt, options, multiple: false, cardLabel: card.description ?? undefined },
           reveal: { kind: 'selection', expected: [correctIndex], title: card.label },
           grade: (answer) => {
             const selected = Array.isArray(answer) ? uniqSortedInts(answer) : uniqSortedInts([answer]);
@@ -256,7 +264,7 @@ async function buildLiveRounds(payload: {
       rounds.push({
         roundIndex: rounds.length,
         cardKey: `info:${card.cardId}:word-language:${card.direction ?? ''}`,
-        publicPrompt: { kind: 'text', title: card.label, prompt: `Language of: ${card.label}`, cardLabel: 'word-language' },
+        publicPrompt: { kind: 'text', title: card.label, prompt: `${labels.wordLanguagePromptPrefix}: ${card.label}`, cardLabel: 'word-language' },
         reveal: { kind: 'text', expected, title: card.label },
         grade: (answer) => normalizeText(answer) === normalizeText(expected)
       });
@@ -342,6 +350,8 @@ export function CogitaLiveRevisionHostPage(props: {
   revisionId: string;
 }) {
   const { libraryId, revisionId } = props;
+  const revisionCopy = props.copy.cogita.library.revision;
+  const liveCopy = revisionCopy.live;
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -360,6 +370,14 @@ export function CogitaLiveRevisionHostPage(props: {
     [session?.code]
   );
   const sessionStage = session?.status === 'finished' ? 'finished' : session?.status && session.status !== 'lobby' ? 'active' : 'lobby';
+  const formatLive = (template: string, values: Record<string, string | number>) =>
+    template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
+  const statusLabelMap: Record<string, string> = {
+    lobby: liveCopy.statusLobby,
+    running: liveCopy.statusRunning,
+    revealed: liveCopy.statusRevealed,
+    finished: liveCopy.statusFinished
+  };
 
   const mergeHostSecrets = (
     next: CogitaLiveRevisionSession,
@@ -373,20 +391,27 @@ export function CogitaLiveRevisionHostPage(props: {
 
   useEffect(() => {
     let canceled = false;
-    buildLiveRounds({ libraryId, revisionId })
+    buildLiveRounds({
+      libraryId,
+      revisionId,
+      labels: {
+        selectMatchingPairPrompt: liveCopy.selectMatchingPairPrompt,
+        wordLanguagePromptPrefix: liveCopy.wordLanguagePromptPrefix
+      }
+    })
       .then((built) => {
         if (canceled) return;
         setRounds(built);
       })
       .catch(() => {
         if (canceled) return;
-        setError('Failed to load revision cards for live session.');
+        setError(liveCopy.loadRoundsError);
         setStatus('error');
       });
     return () => {
       canceled = true;
     };
-  }, [libraryId, revisionId]);
+  }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
 
   useEffect(() => {
     let canceled = false;
@@ -396,7 +421,7 @@ export function CogitaLiveRevisionHostPage(props: {
           // Starting the host live page always creates a fresh public session code.
           localStorage.removeItem(storageKey);
         }
-        const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: 'Live revision' });
+        const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: liveCopy.hostKicker });
         if (canceled) return;
         setSession(created);
         localStorage.setItem(
@@ -406,7 +431,7 @@ export function CogitaLiveRevisionHostPage(props: {
         setStatus('ready');
       } catch {
         if (canceled) return;
-        setError('Failed to create live session.');
+        setError(liveCopy.createSessionError);
         setStatus('error');
       }
     }
@@ -437,6 +462,8 @@ export function CogitaLiveRevisionHostPage(props: {
     currentReveal?: unknown | null;
   }) => {
     if (!session) return;
+    const hasPrompt = Object.prototype.hasOwnProperty.call(next, 'currentPrompt');
+    const hasReveal = Object.prototype.hasOwnProperty.call(next, 'currentReveal');
     const updated = await updateCogitaLiveRevisionHostState({
       libraryId,
       sessionId: session.sessionId,
@@ -444,8 +471,8 @@ export function CogitaLiveRevisionHostPage(props: {
       status: next.status ?? session.status,
       currentRoundIndex: next.currentRoundIndex ?? session.currentRoundIndex,
       revealVersion: next.revealVersion ?? session.revealVersion,
-      currentPrompt: next.currentPrompt ?? session.currentPrompt ?? null,
-      currentReveal: next.currentReveal ?? session.currentReveal ?? null
+      currentPrompt: hasPrompt ? (next.currentPrompt ?? null) : (session.currentPrompt ?? null),
+      currentReveal: hasReveal ? (next.currentReveal ?? null) : (session.currentReveal ?? null)
     });
     setSession((prev) => mergeHostSecrets(updated, prev));
   };
@@ -520,7 +547,7 @@ export function CogitaLiveRevisionHostPage(props: {
 
   const renderPromptLikeParticipant = (prompt: Record<string, unknown> | null, revealExpected?: unknown) => {
     if (!prompt) {
-      return <p className="cogita-help">Waiting for host to publish a question.</p>;
+      return <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>;
     }
     const kind = String(prompt.kind ?? '');
     const isRevealed = typeof revealExpected !== 'undefined';
@@ -536,8 +563,8 @@ export function CogitaLiveRevisionHostPage(props: {
             <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
           </p>
           <label className="cogita-field">
-            <span>{isRevealed ? 'Correct fragment' : 'Fragment'}</span>
-            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder="Participant answer here" />
+            <span>{isRevealed ? liveCopy.correctFragmentLabel : liveCopy.fragmentLabel}</span>
+            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder={liveCopy.participantAnswerPlaceholder} />
           </label>
         </div>
       );
@@ -547,8 +574,8 @@ export function CogitaLiveRevisionHostPage(props: {
         <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <label className="cogita-field">
-            <span>{isRevealed ? 'Correct answer' : 'Answer'}</span>
-            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder="Participant answer here" />
+            <span>{isRevealed ? revisionCopy.correctAnswerLabel : revisionCopy.answerLabel}</span>
+            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder={liveCopy.participantAnswerPlaceholder} />
           </label>
         </div>
       );
@@ -559,8 +586,8 @@ export function CogitaLiveRevisionHostPage(props: {
         <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <div className="cogita-form-actions">
-            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} disabled>True</button>
-            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} disabled>False</button>
+            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} disabled>{liveCopy.trueLabel}</button>
+            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} disabled>{liveCopy.falseLabel}</button>
           </div>
         </div>
       );
@@ -639,7 +666,7 @@ export function CogitaLiveRevisionHostPage(props: {
         </div>
       );
     }
-    return <pre className="cogita-json-preview">{JSON.stringify(prompt, null, 2)}</pre>;
+    return <p className="cogita-help">{liveCopy.unsupportedPromptType}</p>;
   };
 
   return (
@@ -649,41 +676,41 @@ export function CogitaLiveRevisionHostPage(props: {
           <div className="cogita-library-content">
             <div className="cogita-library-grid cogita-live-session-layout" data-stage={sessionStage}>
               <div className="cogita-library-panel">
-                <p className="cogita-user-kicker">Live Revision Host</p>
-                <h2 className="cogita-detail-title">Host session</h2>
-                {status === 'loading' ? <p>Loading…</p> : null}
+                <p className="cogita-user-kicker">{liveCopy.hostKicker}</p>
+                <h2 className="cogita-detail-title">{liveCopy.hostTitle}</h2>
+                {status === 'loading' ? <p>{liveCopy.loading}</p> : null}
                 {error ? <p className="cogita-help">{error}</p> : null}
                 {session ? (
                   <>
-                    <div className="cogita-field"><span>Join code</span><input readOnly value={session.code} /></div>
-                    <div className="cogita-field"><span>Join URL</span><input readOnly value={joinUrl} /></div>
+                    <div className="cogita-field"><span>{liveCopy.joinCodeLabel}</span><input readOnly value={session.code} /></div>
+                    <div className="cogita-field"><span>{liveCopy.joinUrlLabel}</span><input readOnly value={joinUrl} /></div>
                     {joinUrl ? (
                       <div className="cogita-field">
-                        <span>QR</span>
+                        <span>{liveCopy.qrLabel}</span>
                         <div style={{ display: 'inline-flex', padding: '0.75rem', borderRadius: '12px', background: '#fff' }}>
                           <QRCodeSVG value={joinUrl} size={176} marginSize={2} />
                         </div>
                       </div>
                     ) : null}
-                    <div className="cogita-field"><span>Status</span><input readOnly value={session.status} /></div>
+                    <div className="cogita-field"><span>{liveCopy.statusLabel}</span><input readOnly value={statusLabelMap[session.status] ?? session.status} /></div>
                     <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>Publish current round</button>
+                      <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>{liveCopy.publishCurrentRound}</button>
                     </div>
-                    <p className="cogita-help">Rounds: {rounds.length}</p>
+                    <p className="cogita-help">{formatLive(liveCopy.roundsLabel, { count: rounds.length })}</p>
                   </>
                 ) : null}
               </div>
               <div className="cogita-library-panel">
-                <p className="cogita-user-kicker">Current round</p>
+                <p className="cogita-user-kicker">{liveCopy.currentRoundTitle}</p>
                 <h3 className="cogita-detail-title">
                   {publishedPrompt && typeof publishedPrompt.title === 'string'
                     ? publishedPrompt.title
                     : session?.status === 'lobby'
-                      ? 'Session not started'
-                      : 'Waiting for published round'}
+                      ? liveCopy.sessionNotStarted
+                      : liveCopy.waitingForPublishedRound}
                 </h3>
                 {session?.status === 'lobby' ? (
-                  <p className="cogita-help">No question is shown before the host starts the session.</p>
+                  <p className="cogita-help">{liveCopy.hiddenBeforeStart}</p>
                 ) : (
                   renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)
                 )}
@@ -695,13 +722,13 @@ export function CogitaLiveRevisionHostPage(props: {
                       onClick={handleCheckOrNext}
                       disabled={!rounds.length || !currentRound || session.status === 'finished'}
                     >
-                      {session.status === 'revealed' ? 'Next question' : 'Check answer'}
+                      {session.status === 'revealed' ? revisionCopy.nextQuestion : revisionCopy.checkAnswer}
                     </button>
                   </div>
                 ) : null}
                 {sessionStage !== 'finished' ? (
                   <>
-                    <p className="cogita-user-kicker">Participants</p>
+                    <p className="cogita-user-kicker">{liveCopy.participantsTitle}</p>
                     <div className="cogita-share-list">
                       {session?.participants.map((participant) => {
                         const answer = session.currentRoundAnswers.find((a) => a.participantId === participant.participantId);
@@ -710,27 +737,27 @@ export function CogitaLiveRevisionHostPage(props: {
                             <div>
                               <strong>{participant.displayName}</strong>
                               <div className="cogita-share-meta">
-                                {answer ? 'answered' : 'waiting'}
-                                {answer?.isCorrect === true ? ' · correct' : ''}
-                                {answer?.isCorrect === false ? ' · incorrect' : ''}
+                                {answer ? liveCopy.answerStatusAnswered : liveCopy.answerStatusWaiting}
+                                {answer?.isCorrect === true ? ` · ${liveCopy.answerStatusCorrect}` : ''}
+                                {answer?.isCorrect === false ? ` · ${liveCopy.answerStatusIncorrect}` : ''}
                               </div>
                             </div>
                           </div>
                         );
                       })}
-                      {session && session.participants.length === 0 ? <p className="cogita-help">No participants yet.</p> : null}
+                      {session && session.participants.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                     </div>
                   </>
                 ) : null}
               </div>
               {sessionStage !== 'lobby' ? (
                 <div className="cogita-library-panel cogita-live-scoreboard-panel">
-                  <p className="cogita-user-kicker">{sessionStage === 'finished' ? 'Final score' : 'Points'}</p>
+                  <p className="cogita-user-kicker">{sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
                   <div className="cogita-share-list">
                     {(session?.scoreboard ?? []).map((row) => (
                       <div className="cogita-share-row" key={`score:${row.participantId}`}>
                         <div><strong>{row.displayName}</strong></div>
-                        <div className="cogita-share-meta">{row.score} pt</div>
+                        <div className="cogita-share-meta">{row.score} {liveCopy.scoreUnit}</div>
                       </div>
                     ))}
                   </div>

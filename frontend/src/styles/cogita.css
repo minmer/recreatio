@@ -1893,6 +1893,14 @@
   border: 1px solid rgba(120, 170, 220, 0.22);
   background: rgba(8, 20, 36, 0.5);
   padding: 0.8rem;
+  color: rgba(230, 242, 255, 0.94);
+}
+
+.cogita-live-card-surface p,
+.cogita-live-card-surface span,
+.cogita-live-card-surface label,
+.cogita-live-card-surface div {
+  color: inherit;
 }
 
 .cogita-live-card-surface[data-state='correct'] {

@@ -42,6 +42,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   code: string;
 }) {
   const { code } = props;
+  const revisionCopy = props.copy.cogita.library.revision;
+  const liveCopy = revisionCopy.live;
   const [joinName, setJoinName] = useState('');
   const [participantToken, setParticipantToken] = useState<string | null>(() =>
     typeof localStorage === 'undefined' ? null : localStorage.getItem(tokenStorageKey(code))
@@ -175,7 +177,7 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const renderPromptCard = () => {
     if (!prompt) {
-      return <p className="cogita-help">Waiting for host to publish a question.</p>;
+      return <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>;
     }
     const isRevealed = Boolean(reveal);
     const selectionExpected = Array.isArray(revealExpected)
@@ -191,7 +193,7 @@ export function CogitaLiveRevisionJoinPage(props: {
             <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
           </p>
           <label className="cogita-field">
-            <span>{isRevealed ? 'Correct fragment' : 'Fragment'}</span>
+            <span>{isRevealed ? liveCopy.correctFragmentLabel : liveCopy.fragmentLabel}</span>
             <input
               value={isRevealed ? String(revealExpected ?? '') : textAnswer}
               onChange={(event) => setTextAnswer(event.target.value)}
@@ -207,7 +209,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <label className="cogita-field">
-            <span>{isRevealed ? 'Correct answer' : 'Answer'}</span>
+            <span>{isRevealed ? revisionCopy.correctAnswerLabel : revisionCopy.answerLabel}</span>
             <input
               type={prompt.inputType === 'number' ? 'number' : prompt.inputType === 'date' ? 'date' : 'text'}
               value={isRevealed ? String(revealExpected ?? '') : textAnswer}
@@ -225,8 +227,8 @@ export function CogitaLiveRevisionJoinPage(props: {
         <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <div className="cogita-form-actions">
-            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(true)} disabled={isRevealed}>True</button>
-            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(false)} disabled={isRevealed}>False</button>
+            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(true)} disabled={isRevealed}>{liveCopy.trueLabel}</button>
+            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(false)} disabled={isRevealed}>{liveCopy.falseLabel}</button>
           </div>
         </div>
       );
@@ -302,7 +304,7 @@ export function CogitaLiveRevisionJoinPage(props: {
           ) : (
             <>
               <div className="cogita-form-actions">
-                <button type="button" className="cta ghost" onClick={addMatchingPath}>Add path</button>
+                <button type="button" className="cta ghost" onClick={addMatchingPath}>{liveCopy.addPathAction}</button>
               </div>
               {matchingPaths.map((row, rowIndex) => (
                 <div className="cogita-form-actions" key={`path-${rowIndex}`}>
@@ -327,7 +329,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       );
     }
 
-    return <p className="cogita-help">Unsupported prompt type.</p>;
+    return <p className="cogita-help">{liveCopy.unsupportedPromptType}</p>;
   };
 
   return (
@@ -337,42 +339,42 @@ export function CogitaLiveRevisionJoinPage(props: {
           <div className="cogita-library-content">
             <div className="cogita-library-grid cogita-live-session-layout" data-stage={sessionStage}>
               <div className="cogita-library-panel">
-                <p className="cogita-user-kicker">Live Revision</p>
-                <h2 className="cogita-detail-title">Join session</h2>
+                <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
+                <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
                 {!participantToken ? (
                   <>
                     <label className="cogita-field">
-                      <span>Name</span>
+                      <span>{liveCopy.participantNameLabel}</span>
                       <input value={joinName} onChange={(event) => setJoinName(event.target.value)} />
                     </label>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
-                        {status === 'joining' ? 'Joining…' : 'Join'}
+                        {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
                       </button>
                     </div>
                   </>
                 ) : (
-                  <p className="cogita-help">Joined. Waiting for host.</p>
+                  <p className="cogita-help">{liveCopy.joinedWaiting}</p>
                 )}
-                {status === 'error' ? <p className="cogita-help">Connection error or invalid session.</p> : null}
+                {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 {sessionStage === 'lobby' ? (
                   <>
-                    <p className="cogita-user-kicker">Scoreboard</p>
+                    <p className="cogita-user-kicker">{liveCopy.scoreboardTitle}</p>
                     <div className="cogita-share-list">
                       {state?.scoreboard.map((row) => (
                         <div className="cogita-share-row" key={row.participantId}>
                           <div><strong>{row.displayName}</strong></div>
-                          <div className="cogita-share-meta">{row.score} pt</div>
+                          <div className="cogita-share-meta">{row.score} {liveCopy.scoreUnit}</div>
                         </div>
                       ))}
-                      {state && state.scoreboard.length === 0 ? <p className="cogita-help">No participants yet.</p> : null}
+                      {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                     </div>
                   </>
                 ) : null}
               </div>
               <div className="cogita-library-panel">
-                <p className="cogita-user-kicker">Question</p>
-                <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : 'Waiting for host'}</h3>
+                <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
+                <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
                 {prompt ? (
                   <>
                     {renderPromptCard()}
@@ -383,25 +385,25 @@ export function CogitaLiveRevisionJoinPage(props: {
                         onClick={submitAnswer}
                         disabled={!participantToken || !prompt.cardKey || state?.answerSubmitted}
                       >
-                        {state?.answerSubmitted ? 'Submitted' : 'Submit answer'}
+                        {state?.answerSubmitted ? liveCopy.submitted : liveCopy.submitAnswer}
                       </button>
                     </div>
                   </>
                 ) : (
-                  <p className="cogita-help">Waiting for host to publish a question.</p>
+                  <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
                 )}
               </div>
               {sessionStage !== 'lobby' ? (
                 <div className="cogita-library-panel cogita-live-scoreboard-panel">
-                  <p className="cogita-user-kicker">{sessionStage === 'finished' ? 'Final score' : 'Points'}</p>
+                  <p className="cogita-user-kicker">{sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
                   <div className="cogita-share-list">
                     {state?.scoreboard.map((row) => (
                       <div className="cogita-share-row" key={`score:${row.participantId}`}>
                         <div><strong>{row.displayName}</strong></div>
-                        <div className="cogita-share-meta">{row.score} pt</div>
+                        <div className="cogita-share-meta">{row.score} {liveCopy.scoreUnit}</div>
                       </div>
                     ))}
-                    {state && state.scoreboard.length === 0 ? <p className="cogita-help">No participants yet.</p> : null}
+                    {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                   </div>
                 </div>
               ) : null}
