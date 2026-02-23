@@ -3,6 +3,7 @@ import {
   getCogitaApproachSpecifications,
   getCogitaInfoCheckcardDependencies,
   getCogitaInfoCheckcards,
+  getCogitaInfoCollections,
   getCogitaInfoDetail,
   getCogitaInfoApproachProjection,
   getCogitaItemDependencies,
@@ -24,6 +25,7 @@ import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveInfoSelectionRevisionSeed } from '../../../cogita/revision/scope';
+import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -104,6 +106,8 @@ export function CogitaLibraryListPage({
   const [infoCheckcards, setInfoCheckcards] = useState<CogitaCardSearchBundle | null>(null);
   const [infoCheckcardDependencies, setInfoCheckcardDependencies] = useState<CogitaItemDependencyBundle | null>(null);
   const [checkcardsStatus, setCheckcardsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [infoCollections, setInfoCollections] = useState<Array<{ collectionId: string; name: string; notes?: string | null; itemCount: number }>>([]);
+  const [infoCollectionsStatus, setInfoCollectionsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   const infoTypeOptions = useMemo(() => getInfoTypeOptions(copy), [copy]);
   const sortOptions = useMemo(
@@ -165,10 +169,12 @@ export function CogitaLibraryListPage({
   const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
   const infoPathIndex = pathSegments.findIndex((segment) => segment === 'infos');
   const selectedInfoIdFromPath = infoPathIndex >= 0 ? (pathSegments[infoPathIndex + 1] ?? '').trim() || null : null;
-  const selectedInfoViewFromPath = infoPathIndex >= 0 ? ((pathSegments[infoPathIndex + 2] ?? '').trim() === 'checkcards' ? 'cards' : 'overview') : '';
+  const selectedInfoPathTail = infoPathIndex >= 0 ? ((pathSegments[infoPathIndex + 2] ?? '').trim()) : '';
+  const selectedInfoViewFromPath = infoPathIndex >= 0 ? (selectedInfoPathTail === 'checkcards' ? 'cards' : selectedInfoPathTail === 'collections' ? 'collections' : 'overview') : '';
   const selectedInfoIdFromRoute = selectedInfoIdFromPath ?? ((queryParams.get('infoId') ?? '').trim() || null);
   const selectedInfoView = selectedInfoIdFromPath ? selectedInfoViewFromPath : (queryParams.get('infoView') ?? 'overview').trim();
   const isInfoOverviewRoute = selectedInfoView === 'overview' && Boolean(selectedInfoIdFromRoute);
+  const isInfoCollectionsRoute = selectedInfoView === 'collections' && Boolean(selectedInfoIdFromRoute);
   const filterLabelByKey = useMemo<Record<InfoFilterLabelKey, string>>(
     () => ({
       language: listCopy.typeFilterLanguage,
@@ -251,7 +257,7 @@ export function CogitaLibraryListPage({
   }, [hasActiveTypeFilters, libraryId, searchQuery, searchType, typeFilterConfig, typeFilters]);
 
   useEffect(() => {
-    if (!selectedInfoIdFromRoute || selectedInfoView !== 'overview') {
+    if (!selectedInfoIdFromRoute || (selectedInfoView !== 'overview' && selectedInfoView !== 'collections')) {
       setSelectedInfoDetail(null);
       setSelectedInfoReviewSummary(null);
       setOverviewStatus('idle');
@@ -274,6 +280,30 @@ export function CogitaLibraryListPage({
         setSelectedInfoDetail(null);
         setSelectedInfoReviewSummary(null);
         setOverviewStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryId, selectedInfoIdFromRoute, selectedInfoView]);
+
+  useEffect(() => {
+    if (!selectedInfoIdFromRoute || selectedInfoView !== 'collections') {
+      setInfoCollections([]);
+      setInfoCollectionsStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    setInfoCollectionsStatus('loading');
+    getCogitaInfoCollections({ libraryId, infoId: selectedInfoIdFromRoute })
+      .then((items) => {
+        if (cancelled) return;
+        setInfoCollections(items);
+        setInfoCollectionsStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setInfoCollections([]);
+        setInfoCollectionsStatus('error');
       });
     return () => {
       cancelled = true;
@@ -461,6 +491,14 @@ export function CogitaLibraryListPage({
       `/cogita/library/${libraryId}/revision/run?libraryTarget=revisions&scope=info-selection&seed=${encodeURIComponent(seedId)}`
     );
   };
+  const startCollectionFromSelectedInfos = () => {
+    const seedId = saveCollectionDraftFromInfos(
+      libraryId,
+      selectedItems.map((item) => item.infoId)
+    );
+    if (!seedId) return;
+    navigate(`/cogita/library/${libraryId}/collections/new?draft=${encodeURIComponent(seedId)}&draftType=info-selection`);
+  };
 
   const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.infoId ?? null : null;
   const selectedCountLabel = listCopy.selectionCount.replace('{count}', String(selectedItems.length));
@@ -616,7 +654,42 @@ export function CogitaLibraryListPage({
                 </section>
               </section>
             ) : null}
-            {!isInfoOverviewRoute ? (
+            {isInfoCollectionsRoute ? (
+              <section className="cogita-library-search-surface">
+                <section className="cogita-info-overview">
+                  <div className="cogita-info-overview-head">
+                    <div>
+                      <p className="cogita-user-kicker">Informacja</p>
+                      <h2 className="cogita-card-title">{selectedInfoDetail ? resolveInfoTitle(selectedInfoDetail.payload, selectedInfoDetail.infoType, selectedInfoDetail.infoId) : (selectedInfoIdFromRoute ?? '')}</h2>
+                      <p className="cogita-card-subtitle">Collections using this info</p>
+                    </div>
+                    <div className="cogita-info-overview-actions">
+                      <button type="button" className="ghost" onClick={closeInfoOverview}>Back to search</button>
+                    </div>
+                  </div>
+                  {infoCollectionsStatus === 'loading' ? <div className="cogita-card-empty"><p>Loading collections...</p></div> : null}
+                  {infoCollectionsStatus === 'error' ? <div className="cogita-card-empty"><p>Failed to load collections.</p></div> : null}
+                  {infoCollectionsStatus === 'ready' && infoCollections.length === 0 ? (
+                    <div className="cogita-card-empty"><p>This info is not used in any collection yet.</p></div>
+                  ) : null}
+                  {infoCollectionsStatus === 'ready' && infoCollections.length > 0 ? (
+                    <div className="cogita-card-list" data-view="list">
+                      {infoCollections.map((collection) => (
+                        <article key={collection.collectionId} className="cogita-card-item">
+                          <a className="cogita-card-select" href={`/#/cogita/library/${libraryId}/collections/${collection.collectionId}?libraryTarget=collections`}>
+                            <div className="cogita-card-type">Collection</div>
+                            <h3 className="cogita-card-title">{collection.name}</h3>
+                            <p className="cogita-card-subtitle">{collection.itemCount} items</p>
+                          </a>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              </section>
+            ) : null}
+
+            {!isInfoOverviewRoute && !isInfoCollectionsRoute ? (
             <section className="cogita-library-search-surface">
               <div className="cogita-library-controls">
                 <div className="cogita-library-search">
@@ -724,31 +797,8 @@ export function CogitaLibraryListPage({
                   >
                     {listCopy.openSelected}
                   </button>
-                  <button
-                    type="button"
-                    className="cta"
-                    onClick={startRevisionFromSelectedInfos}
-                    disabled={selectedItems.length === 0}
-                  >
-                    Start revision
-                  </button>
                 </div>
               </div>
-
-              {selectedItems.length > 0 ? (
-                <section className="cogita-selection-stack">
-                  <p className="cogita-user-kicker">{listCopy.selectedStackTitle}</p>
-                  <p className="cogita-library-hint">{listCopy.selectedStackHint}</p>
-                  <div className="cogita-selection-overview">
-                    {selectedByType.map(([infoType, count]) => (
-                      <span key={`stack:type:${infoType}`} className="cogita-tag-chip">
-                        <span>{getInfoTypeLabel(copy, infoType as CogitaInfoType | 'any' | 'vocab')}</span>
-                        <span className="cogita-tag-count">{count}</span>
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
 
               {effectiveView === 'details' ? (
                 <div className="cogita-details-grid" role="table" aria-label={listCopy.searchTitle}>
@@ -847,6 +897,29 @@ export function CogitaLibraryListPage({
                     {listCopy.loadMore}
                   </button>
                 </div>
+              ) : null}
+
+              {selectedItems.length > 0 ? (
+                <section className="cogita-selection-stack">
+                  <p className="cogita-user-kicker">{listCopy.selectedStackTitle}</p>
+                  <p className="cogita-library-hint">{listCopy.selectedStackHint}</p>
+                  <div className="cogita-selection-overview">
+                    {selectedByType.map(([infoType, count]) => (
+                      <span key={`stack:type:${infoType}`} className="cogita-tag-chip">
+                        <span>{getInfoTypeLabel(copy, infoType as CogitaInfoType | 'any' | 'vocab')}</span>
+                        <span className="cogita-tag-count">{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta" onClick={startRevisionFromSelectedInfos} disabled={selectedItems.length === 0}>
+                      Start revision
+                    </button>
+                    <button type="button" className="ghost" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
+                      Create collection from selection
+                    </button>
+                  </div>
+                </section>
               ) : null}
             </section>
             ) : null}

@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState, type Connection } from 'reactflow';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState, type Connection, type Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import {
   createCogitaCollection,
@@ -10,6 +10,8 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { InfoSearchSelect } from '../components/InfoSearchSelect';
+import { useLocation } from 'react-router-dom';
+import { loadCollectionDraftFromInfos } from '../../../../cogita/collections/draft';
 
 type GraphNodeParams = {
   infoType?: string;
@@ -91,6 +93,7 @@ export function CogitaCollectionCreatePage({
   libraryId: string;
   onCreated: (collectionId: string) => void;
 }) {
+  const location = useLocation();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [collectionId, setCollectionId] = useState<string | null>(null);
@@ -100,10 +103,78 @@ export function CogitaCollectionCreatePage({
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const draftAppliedRef = useRef<string | null>(null);
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const draftSeed = (params.get('draft') ?? '').trim();
+    const draftType = (params.get('draftType') ?? '').trim();
+    if (!draftSeed || draftType !== 'info-selection') return;
+    if (draftAppliedRef.current === draftSeed) return;
+    const draft = loadCollectionDraftFromInfos(libraryId, draftSeed);
+    if (!draft || draft.infoIds.length === 0) return;
+
+    const outputId = crypto.randomUUID();
+    const logicId = draft.infoIds.length > 1 ? crypto.randomUUID() : null;
+
+    const sourceNodes = draft.infoIds.map((infoId, index) => ({
+      id: crypto.randomUUID(),
+      type: 'default',
+      position: { x: 80, y: 80 + index * 100 },
+      data: {
+        nodeType: 'source.info',
+        label: 'Selected info',
+        params: { infoId, infoType: 'any' }
+      } satisfies GraphNodeData
+    }));
+
+    const logicNode = logicId
+      ? [{
+          id: logicId,
+          type: 'default',
+          position: { x: 360, y: 120 + Math.max(0, (draft.infoIds.length - 1) * 50) },
+          data: {
+            nodeType: 'logic.or',
+            label: 'Selected infos',
+            params: {}
+          } satisfies GraphNodeData
+        }]
+      : [];
+
+    const outputNode = {
+      id: outputId,
+      type: 'default',
+      position: { x: 660, y: 140 + Math.max(0, (draft.infoIds.length - 1) * 35) },
+      data: {
+        nodeType: 'output.collection',
+        label: 'Collection output',
+        params: {}
+      } satisfies GraphNodeData
+    };
+
+    const nextEdges: Edge[] = sourceNodes.map((node) => ({
+      id: crypto.randomUUID(),
+      source: node.id,
+      target: logicId ?? outputId
+    }));
+    if (logicId) {
+      nextEdges.push({
+        id: crypto.randomUUID(),
+        source: logicId,
+        target: outputId
+      });
+    }
+
+    setNodes([...sourceNodes, ...logicNode, outputNode]);
+    setEdges(nextEdges);
+    setSelectedNodeId(outputId);
+    setStatusMessage(`Draft loaded from ${draft.infoIds.length} selected infos. Set name and save to create collection.`);
+    draftAppliedRef.current = draftSeed;
+  }, [libraryId, location.search, setEdges, setNodes]);
 
   const handleAddNode = (type: string) => {
     const id = crypto.randomUUID();

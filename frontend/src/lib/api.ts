@@ -911,6 +911,13 @@ export function getCogitaCollection(libraryId: string, collectionId: string) {
   });
 }
 
+export function getCogitaInfoCollections(payload: { libraryId: string; infoId: string }) {
+  return request<CogitaCollectionSummary[]>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}/collections`,
+    { method: 'GET' }
+  );
+}
+
 export function getCogitaRevisions(payload: { libraryId: string; collectionId: string }) {
   return request<CogitaRevision[]>(
     `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions`,

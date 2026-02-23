@@ -810,6 +810,83 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/collections", async (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var infoExists = await dbContext.CogitaInfos.AsNoTracking()
+                .AnyAsync(x => x.Id == infoId && x.LibraryId == libraryId, ct);
+            if (!infoExists)
+            {
+                return Results.NotFound();
+            }
+
+            var collectionIds = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .Where(x => x.ItemType == "info" && x.ItemId == infoId)
+                .Select(x => x.CollectionInfoId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            if (collectionIds.Count == 0)
+            {
+                return Results.Ok(new List<CogitaCollectionSummaryResponse>());
+            }
+
+            var itemCounts = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .Where(x => collectionIds.Contains(x.CollectionInfoId))
+                .GroupBy(x => x.CollectionInfoId)
+                .Select(g => new { CollectionId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.CollectionId, x => x.Count, ct);
+
+            var collections = await dbContext.CogitaCollections.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && collectionIds.Contains(x.CollectionInfoId))
+                .OrderBy(x => x.Name)
+                .ToListAsync(ct);
+
+            var responses = collections
+                .Select(x => new CogitaCollectionSummaryResponse(
+                    x.CollectionInfoId,
+                    x.Name,
+                    x.Notes,
+                    itemCounts.TryGetValue(x.CollectionInfoId, out var count) ? count : 0,
+                    x.CreatedUtc))
+                .ToList();
+
+            return Results.Ok(responses);
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/approaches/{approachKey}", async (
             Guid libraryId,
             Guid infoId,

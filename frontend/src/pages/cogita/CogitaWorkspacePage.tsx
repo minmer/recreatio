@@ -39,6 +39,7 @@ import { CogitaLibraryStoryboardsPage } from './library/CogitaLibraryStoryboards
 import { CogitaLibraryTextsPage } from './library/CogitaLibraryTextsPage';
 import { CogitaCollectionListPage } from './library/collections/CogitaCollectionListPage';
 import { CogitaCollectionDetailPage } from './library/collections/CogitaCollectionDetailPage';
+import { CogitaCollectionCreatePage } from './library/collections/CogitaCollectionCreatePage';
 import { CogitaRevisionSettingsPage } from './library/collections/CogitaRevisionSettingsPage';
 import { CogitaRevisionRunPage } from './library/collections/CogitaRevisionRunPage';
 import { CogitaCollectionGraphPage } from './library/collections/CogitaCollectionGraphPage';
@@ -73,7 +74,8 @@ type ParsedCogitaPath = {
   revisionView?: RevisionView;
   cardMode?: CogitaLibraryMode;
   infoId?: string;
-  infoView?: 'overview' | 'cards';
+  infoView?: 'overview' | 'cards' | 'collections';
+  collectionView?: 'overview' | 'infos';
   libraryAction?: 'new-info';
   collectionAction?: 'new-revision' | 'new-collection';
 };
@@ -96,6 +98,7 @@ type NavigationLevel = {
 };
 
 type InfoMode = 'search' | 'create' | 'selected';
+type CollectionMode = 'search' | 'create' | 'selected';
 type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
@@ -144,7 +147,12 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
   const searchParams = new URLSearchParams(search);
   const revisionId = searchParams.get('revisionId') ?? undefined;
   const infoId = searchParams.get('infoId') ?? undefined;
-  const infoView = (searchParams.get('infoView') === 'cards' ? 'cards' : 'overview') as 'overview' | 'cards';
+  const rawInfoView = searchParams.get('infoView');
+  const infoView = (rawInfoView === 'cards' ? 'cards' : rawInfoView === 'collections' ? 'collections' : 'overview') as
+    | 'overview'
+    | 'cards'
+    | 'collections';
+  const collectionView = (searchParams.get('collectionView') === 'overview' ? 'overview' : 'infos') as 'overview' | 'infos';
   const collectionAction = searchParams.get('collectionAction');
   const libraryAction = searchParams.get('libraryAction');
   const libraryTarget = searchParams.get('libraryTarget');
@@ -181,6 +189,9 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     }
     if (segments[5] === 'checkcards') {
       return { libraryId, target: 'all_cards', cardMode: 'list', revisionId, infoId: infoIdFromPath, infoView: 'cards' };
+    }
+    if (segments[5] === 'collections') {
+      return { libraryId, target: 'all_cards', cardMode: 'list', revisionId, infoId: infoIdFromPath, infoView: 'collections' };
     }
     return { libraryId, target: 'all_cards', cardMode: 'list', revisionId, infoId: infoIdFromPath, infoView: 'overview' };
   }
@@ -244,7 +255,8 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
       target: collectionBaseTarget,
       collectionId,
       revisionId,
-      revisionView: segments[6] === 'run' ? 'run' : 'settings'
+      revisionView: segments[6] === 'run' ? 'run' : 'settings',
+      collectionView
     };
   }
 
@@ -252,7 +264,7 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     return { libraryId, target: collectionBaseTarget, collectionId, revisionId, revisionView: 'new' };
   }
 
-  return { libraryId, target: collectionBaseTarget, collectionId, revisionId, revisionView: 'detail' };
+    return { libraryId, target: collectionBaseTarget, collectionId, revisionId, revisionView: 'detail', collectionView };
 }
 
 function buildCogitaPath(
@@ -262,7 +274,8 @@ function buildCogitaPath(
   revisionView?: RevisionView,
   revisionId?: string,
   infoId?: string,
-  infoView: 'overview' | 'cards' = 'overview'
+  infoView: 'overview' | 'cards' | 'collections' = 'overview',
+  collectionView: 'overview' | 'infos' = 'infos'
 ): string {
   const withQuery = (
     path: string,
@@ -272,7 +285,8 @@ function buildCogitaPath(
       libraryAction?: 'new-info';
       libraryTarget?: 'revisions';
       infoId?: string;
-      infoView?: 'overview' | 'cards';
+      infoView?: 'overview' | 'cards' | 'collections';
+      collectionView?: 'overview' | 'infos';
     }
   ) => {
     const params = new URLSearchParams();
@@ -294,6 +308,9 @@ function buildCogitaPath(
     if (query?.infoView && query?.infoId) {
       params.set('infoView', query.infoView);
     }
+    if (query?.collectionView && query.collectionView !== 'infos') {
+      params.set('collectionView', query.collectionView);
+    }
     const qs = params.toString();
     return qs ? `${path}?${qs}` : path;
   };
@@ -307,6 +324,9 @@ function buildCogitaPath(
     if (infoId) {
       if (infoView === 'cards') {
         return withQuery(`/cogita/library/${libraryId}/infos/${infoId}/checkcards`, { revisionId });
+      }
+      if (infoView === 'collections') {
+        return withQuery(`/cogita/library/${libraryId}/infos/${infoId}/collections`, { revisionId });
       }
       return withQuery(`/cogita/library/${libraryId}/infos/${infoId}`, { revisionId });
     }
@@ -345,7 +365,7 @@ function buildCogitaPath(
         collectionAction: 'new-revision'
       });
     }
-    return withQuery(`/cogita/library/${libraryId}/collections/${collectionId}`, { revisionId, libraryTarget });
+      return withQuery(`/cogita/library/${libraryId}/collections/${collectionId}`, { revisionId, libraryTarget, collectionView });
   }
   if (target === 'new_collection') {
     return withQuery(`/cogita/library/${libraryId}/collections`, { revisionId, collectionAction: 'new-collection' });
@@ -560,22 +580,6 @@ export function CogitaWorkspacePage({
       workspaceCopy.revisionForm.createAction
     ]
   );
-  const collectionActionOptions = useMemo<Array<{ value: RevisionView; label: string }>>(
-    () => [
-      { value: 'detail', label: revisionLabels.detail },
-      { value: 'graph', label: revisionLabels.graph },
-      { value: 'settings', label: workspaceCopy.targets.allRevisions },
-      { value: 'run', label: revisionLabels.run },
-      { value: 'shared', label: revisionLabels.shared }
-    ],
-    [
-      revisionLabels.detail,
-      revisionLabels.graph,
-      revisionLabels.run,
-      revisionLabels.shared,
-      workspaceCopy.targets.allRevisions
-    ]
-  );
   const displayTarget = useMemo<CogitaTarget>(() => {
     if (selectedTarget === 'new_card') return 'all_cards';
     if (selectedTarget === 'new_collection') return 'all_collections';
@@ -585,6 +589,11 @@ export function CogitaWorkspacePage({
   }, [selectedTarget]);
   const displayRevisionView = useMemo<RevisionView>(() => (selectedRevisionView === 'new' ? 'settings' : selectedRevisionView), [selectedRevisionView]);
   const isCollectionNavigationTarget = selectedTarget === 'all_collections' || selectedTarget === 'all_revisions';
+  const collectionMode = useMemo<CollectionMode>(() => {
+    if (selectedTarget === 'new_collection') return 'create';
+    if (isCollectionNavigationTarget && selectedCollectionId) return 'selected';
+    return 'search';
+  }, [isCollectionNavigationTarget, selectedCollectionId, selectedTarget]);
   const infoMode = useMemo<InfoMode>(() => {
     if (pathState.infoId) return 'selected';
     if (selectedTarget === 'new_card') return 'create';
@@ -686,7 +695,9 @@ export function CogitaWorkspacePage({
   const hasCollectionSelection = Boolean(selectedCollectionId);
   const showCollectionLayer = hasLibrarySelection && isCollectionNavigationTarget;
   const showCollectionActionLayer = hasCollectionSelection && isCollectionNavigationTarget;
-  const showRevisionLayer = hasCollectionSelection && isCollectionNavigationTarget;
+  const showRevisionLayer = hasCollectionSelection && isCollectionNavigationTarget && (
+    displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'shared'
+  );
   const applyNavigationSelection = useCallback(
     (next: {
       libraryId?: string;
@@ -695,7 +706,8 @@ export function CogitaWorkspacePage({
       revisionId?: string;
       revisionView: RevisionView;
       infoId?: string;
-      infoView?: 'overview' | 'cards';
+      infoView?: 'overview' | 'cards' | 'collections';
+      collectionView?: 'overview' | 'infos';
     }) => {
       const hasLibrary = Boolean(next.libraryId);
       let resolvedTarget = next.target;
@@ -704,6 +716,7 @@ export function CogitaWorkspacePage({
       let resolvedRevision = next.revisionView;
       let resolvedInfoId = next.infoId;
       let resolvedInfoView = next.infoView ?? pathState.infoView ?? 'overview';
+      let resolvedCollectionView = next.collectionView ?? pathState.collectionView ?? 'infos';
 
       if (!hasLibrary) {
         resolvedTarget = 'library_overview';
@@ -712,6 +725,7 @@ export function CogitaWorkspacePage({
         resolvedRevision = 'detail';
         resolvedInfoId = undefined;
         resolvedInfoView = 'overview';
+        resolvedCollectionView = 'infos';
       } else if (TARGET_CAPABILITIES[resolvedTarget].requiresCollection && !resolvedCollectionId) {
         resolvedTarget = resolvedTarget === 'all_revisions' ? 'all_revisions' : 'all_collections';
         resolvedRevisionId = undefined;
@@ -722,6 +736,9 @@ export function CogitaWorkspacePage({
         if (resolvedTarget !== 'new_card' && resolvedTarget !== 'all_cards') {
           resolvedInfoId = undefined;
           resolvedInfoView = 'overview';
+        }
+        if (resolvedTarget !== 'new_collection') {
+          resolvedCollectionView = 'infos';
         }
       } else if (!TARGET_CAPABILITIES[resolvedTarget].allowsRevision) {
         resolvedRevision = 'detail';
@@ -744,24 +761,16 @@ export function CogitaWorkspacePage({
           resolvedRevision,
           resolvedRevisionId,
           resolvedInfoId,
-          resolvedInfoView
+          resolvedInfoView,
+          resolvedCollectionView
         )
       );
       if (normalizePath(`${location.pathname}${location.search}`) === nextPath) return;
       lastNavigationRef.current = nextPath;
       navigate(nextPath);
     },
-    [location.pathname, location.search, navigate, pathState.infoView]
+    [location.pathname, location.search, navigate, pathState.collectionView, pathState.infoView]
   );
-  const setCollectionRevision = (revision: RevisionView) => {
-    applyNavigationSelection({
-      libraryId: selectedLibraryId,
-      target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
-      collectionId: selectedCollectionId,
-      revisionId: REVISION_SELECTION_VIEWS.includes(revision) ? selectedRevisionId : undefined,
-      revisionView: revision
-    });
-  };
   const navigationLevels = useMemo<NavigationLevel[]>(
     () => [
       {
@@ -868,18 +877,28 @@ export function CogitaWorkspacePage({
         key: 'info_selected_action',
         label: workspaceCopy.layers.target,
         visible: displayTarget === 'all_cards' && Boolean(pathState.infoId),
-        value: selectedTarget === 'new_card' && pathState.infoId ? 'edit' : pathState.infoView === 'cards' ? 'cards' : 'overview',
+        value:
+          selectedTarget === 'new_card' && pathState.infoId
+            ? 'edit'
+            : pathState.infoView === 'cards'
+            ? 'cards'
+            : pathState.infoView === 'collections'
+            ? 'collections'
+            : 'overview',
         selectedLabel:
           selectedTarget === 'new_card' && pathState.infoId
             ? workspaceCopy.infoActions.edit
             : pathState.infoView === 'cards'
             ? workspaceCopy.infoActions.seeCards
+            : pathState.infoView === 'collections'
+            ? 'Kolekcje'
             : workspaceCopy.infoActions.overview,
         disabled: !hasLibrarySelection || !pathState.infoId,
         options: [
           { value: 'overview', label: workspaceCopy.infoActions.overview },
           { value: 'edit', label: workspaceCopy.infoActions.edit },
-          { value: 'cards', label: workspaceCopy.infoActions.seeCards }
+          { value: 'cards', label: workspaceCopy.infoActions.seeCards },
+          { value: 'collections', label: 'Kolekcje' }
         ],
         onSelect: (value: string) => {
           if (!pathState.infoId) return;
@@ -918,9 +937,70 @@ export function CogitaWorkspacePage({
         }
       },
       {
+        key: 'collection_mode',
+        label: workspaceCopy.layers.collection,
+        visible: hasLibrarySelection && (isCollectionNavigationTarget || selectedTarget === 'new_collection'),
+        value: collectionMode,
+        selectedLabel:
+          collectionMode === 'create'
+            ? copy.cogita.library.actions.createCollection
+            : collectionMode === 'selected'
+            ? (selectedCollection?.name ?? workspaceCopy.path.noCollectionSelected)
+            : copy.cogita.library.actions.collections,
+        disabled: !hasLibrarySelection,
+        options: [
+          { value: 'search', label: copy.cogita.library.actions.collections },
+          { value: 'create', label: copy.cogita.library.actions.createCollection },
+          ...(selectedCollectionId && selectedCollection
+            ? [{ value: 'selected', label: selectedCollection.name }]
+            : [])
+        ],
+        onSelect: (value: string) => {
+          if (value === 'create') {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: 'new_collection',
+              collectionId: undefined,
+              revisionId: undefined,
+              revisionView: 'detail'
+            });
+            return;
+          }
+          if (value === 'selected' && selectedCollectionId) {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
+              collectionId: selectedCollectionId,
+              revisionId: selectedRevisionId,
+              revisionView: 'detail'
+            });
+            return;
+          }
+          if (value === 'collections') {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: 'all_cards',
+              collectionId: selectedCollectionId,
+              revisionId: selectedRevisionId,
+              revisionView: selectedRevisionView,
+              infoId: pathState.infoId,
+              infoView: 'collections'
+            });
+            return;
+          }
+          applyNavigationSelection({
+            libraryId: selectedLibraryId,
+            target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
+            collectionId: undefined,
+            revisionId: undefined,
+            revisionView: 'detail'
+          });
+        }
+      },
+      {
         key: 'collection',
         label: workspaceCopy.layers.collection,
-        visible: showCollectionLayer,
+        visible: showCollectionLayer && collectionMode !== 'create',
         value: selectedCollectionId ?? '',
         selectedLabel: selectedCollection?.name ?? workspaceCopy.path.noCollectionSelected,
         disabled: !hasLibrarySelection || collectionsLoading || collections.length === 0,
@@ -938,15 +1018,64 @@ export function CogitaWorkspacePage({
         }
       },
       {
-        key: 'collection_action',
+        key: 'collection_selected_action',
         label: workspaceCopy.layers.revision,
         visible: showCollectionActionLayer,
-        value: displayRevisionView,
-        selectedLabel: selectedRevisionLabel,
+        value:
+          displayRevisionView === 'graph'
+            ? 'edit'
+            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'shared')
+            ? 'revisions'
+            : (pathState.collectionView ?? 'infos') === 'overview'
+            ? 'overview'
+            : 'infos',
+        selectedLabel:
+          displayRevisionView === 'graph'
+            ? 'Edytuj'
+            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'shared')
+            ? workspaceCopy.targets.allRevisions
+            : (pathState.collectionView ?? 'infos') === 'overview'
+            ? 'Przegląd'
+            : 'Informacje',
         disabled: !selectedCollectionId,
-        options: collectionActionOptions.map((option) => ({ value: option.value, label: option.label })),
+        options: [
+          { value: 'overview', label: 'Przegląd' },
+          { value: 'edit', label: 'Edytuj' },
+          { value: 'infos', label: 'Informacje' },
+          { value: 'revisions', label: workspaceCopy.targets.allRevisions }
+        ],
         onSelect: (value: string) => {
-          setCollectionRevision(value as RevisionView);
+          if (!selectedCollectionId) return;
+          if (value === 'edit') {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
+              collectionId: selectedCollectionId,
+              revisionId: undefined,
+              revisionView: 'graph'
+            });
+            return;
+          }
+          if (value === 'revisions') {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
+              collectionId: selectedCollectionId,
+              revisionId: selectedRevisionId,
+              revisionView: 'settings'
+            });
+            return;
+          }
+          applyNavigationSelection({
+            libraryId: selectedLibraryId,
+            target: isCollectionNavigationTarget ? selectedTarget : 'all_collections',
+            collectionId: selectedCollectionId,
+            revisionId: undefined,
+            revisionView: 'detail',
+            infoId: pathState.infoId,
+            infoView: pathState.infoView,
+            collectionView: value === 'overview' ? 'overview' : 'infos'
+          });
         }
       },
       {
@@ -970,7 +1099,6 @@ export function CogitaWorkspacePage({
       }
     ],
     [
-      collectionActionOptions,
       collections,
       collectionsLoading,
       infoMode,
@@ -1004,6 +1132,7 @@ export function CogitaWorkspacePage({
       copy.cogita.library.list.selectedEmpty,
       pathState.infoId,
       pathState.infoView,
+      pathState.collectionView,
       workspaceCopy.infoActions.edit,
       workspaceCopy.infoActions.overview,
       workspaceCopy.infoActions.seeCards,
@@ -1014,7 +1143,9 @@ export function CogitaWorkspacePage({
       workspaceCopy.noLibraryOption,
       workspaceCopy.path.noCollectionSelected,
       workspaceCopy.path.noLibrarySelected,
-      workspaceCopy.selectCollectionOption
+      workspaceCopy.selectCollectionOption,
+      workspaceCopy.targets.allRevisions,
+      collectionMode
     ]
   );
   const visibleNavigationLevels = useMemo<NavigationLevel[]>(
@@ -1043,7 +1174,11 @@ export function CogitaWorkspacePage({
     [sidebarActionLevels]
   );
   const sidebarCollectionActionsLevel = useMemo(
-    () => sidebarActionLevels.find((level) => level.key === 'collection_action') ?? null,
+    () => sidebarActionLevels.find((level) => level.key === 'collection_mode') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarSelectedCollectionActionsLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'collection_selected_action') ?? null,
     [sidebarActionLevels]
   );
   const sidebarRevisionEntriesLevel = useMemo(
@@ -1135,11 +1270,25 @@ export function CogitaWorkspacePage({
       return <CogitaCollectionListPage {...baseProps} />;
     }
     if (pathState.target === 'new_collection') {
-      return <CogitaCollectionListPage {...baseProps} />;
+      return (
+        <CogitaCollectionCreatePage
+          {...baseProps}
+          onCreated={(collectionId) => {
+            applyNavigationSelection({
+              libraryId,
+              target: selectedTarget === 'all_revisions' ? 'all_revisions' : 'all_collections',
+              collectionId,
+              revisionId: undefined,
+              revisionView: 'graph'
+            });
+          }}
+        />
+      );
     }
     return null;
   }, [
     authLabel,
+    applyNavigationSelection,
     copy,
     language,
     location.pathname,
@@ -1158,6 +1307,7 @@ export function CogitaWorkspacePage({
     pathState.target,
     secureMode,
     showProfileMenu,
+    selectedTarget,
     selectedReviewerRoleId
   ]);
 
@@ -1427,7 +1577,8 @@ export function CogitaWorkspacePage({
         selectedRevisionView,
         selectedRevisionId,
         pathState.infoId,
-        pathState.infoView ?? 'overview'
+        pathState.infoView ?? 'overview',
+        pathState.collectionView ?? 'infos'
       )
     );
     if (currentPath === nextPath) {
@@ -1447,6 +1598,7 @@ export function CogitaWorkspacePage({
     pathState.collectionId,
     pathState.infoId,
     pathState.infoView,
+    pathState.collectionView,
     pathState.libraryId,
     pathState.revisionId,
     pathState.revisionView,
@@ -1681,17 +1833,22 @@ export function CogitaWorkspacePage({
               </div>
             ) : null}
 
-            {selectedCollection ? (
+            {sidebarCollectionActionsLevel ? (
               <div className="cogita-sidebar-actions-nested" data-level="branch">
-                <p className="cogita-sidebar-note">{selectedCollection.name}</p>
                 <p className="cogita-sidebar-note">{workspaceCopy.sidebar.collectionActionsHint}</p>
                 {renderSidebarActions(sidebarCollectionActionsLevel, 'sidebar')}
-                {sidebarRevisionEntriesLevel ? (
+                {selectedCollection && sidebarSelectedCollectionActionsLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note">
-                      {selectedRevision?.name ?? workspaceCopy.status.noRevisions}
-                    </p>
-                    {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
+                    <p className="cogita-sidebar-note">{selectedCollection.name}</p>
+                    {renderSidebarActions(sidebarSelectedCollectionActionsLevel, 'sidebar')}
+                    {sidebarRevisionEntriesLevel ? (
+                      <div className="cogita-sidebar-actions-nested" data-level="branch">
+                        <p className="cogita-sidebar-note">
+                          {selectedRevision?.name ?? workspaceCopy.status.noRevisions}
+                        </p>
+                        {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -1761,25 +1918,6 @@ export function CogitaWorkspacePage({
 
           {embeddedSubpage ? (
             <>
-              {selectedTarget === 'new_collection' ? (
-                <article className="cogita-browser-panel">
-                  <h2>{copy.cogita.library.actions.createCollection}</h2>
-                  <label className="cogita-field full">
-                    <span>{copy.cogita.library.collections.nameLabel}</span>
-                    <input
-                      type="text"
-                      value={newCollectionName}
-                      onChange={(event) => setNewCollectionName(event.target.value)}
-                      placeholder={copy.cogita.library.collections.namePlaceholder}
-                      disabled={!selectedLibraryId}
-                    />
-                  </label>
-                  <button type="button" className="cta" onClick={handleCreateCollection} disabled={!selectedLibraryId}>
-                    {copy.cogita.library.actions.createCollection}
-                  </button>
-                  {status ? <p className="cogita-form-error">{status}</p> : null}
-                </article>
-              ) : null}
               {(selectedTarget === 'all_collections' || selectedTarget === 'all_revisions') && selectedCollectionId && selectedRevisionView === 'new' ? (
                 <article className="cogita-browser-panel">
                   <h2>{workspaceCopy.revisionForm.createAction}</h2>
