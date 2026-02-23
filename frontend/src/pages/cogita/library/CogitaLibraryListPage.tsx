@@ -95,6 +95,7 @@ export function CogitaLibraryListPage({
   const [selectionStack, setSelectionStack] = useState<Record<string, SelectedInfoStackItem>>(() => loadSelectionStack(libraryId));
   const [typeFilters, setTypeFilters] = useState<Record<string, string>>({});
   const [languages, setLanguages] = useState<CogitaInfoSearchResult[]>([]);
+  const [referenceSources, setReferenceSources] = useState<CogitaInfoSearchResult[]>([]);
   const [selectedInfoDetail, setSelectedInfoDetail] = useState<InfoDetailState | null>(null);
   const [selectedInfoReviewSummary, setSelectedInfoReviewSummary] = useState<CogitaReviewSummary | null>(null);
   const [dependenciesBundle, setDependenciesBundle] = useState<CogitaItemDependencyBundle | null>(null);
@@ -157,6 +158,26 @@ export function CogitaLibraryListPage({
         setLanguages(mapped);
       })
       .catch(() => setLanguages([]));
+  }, [libraryId]);
+
+  useEffect(() => {
+    searchCogitaEntities({
+      libraryId,
+      type: 'source',
+      filters: { sourceKind: 'info' },
+      limit: 200
+    })
+      .then((items) => {
+        const mapped = items
+          .map((item) => ({
+            infoId: item.infoId ?? '',
+            infoType: item.entityType,
+            label: item.title
+          }))
+          .filter((item) => item.infoId.length > 0);
+        setReferenceSources(mapped);
+      })
+      .catch(() => setReferenceSources([]));
   }, [libraryId]);
 
   useEffect(() => {
@@ -225,6 +246,10 @@ export function CogitaLibraryListPage({
         if (!value) continue;
         filterPayload[field.path ?? field.key] = value;
       }
+    }
+    const referenceId = (typeFilters.__referenceId ?? '').trim();
+    if (referenceId) {
+      filterPayload['link.references'] = referenceId;
     }
 
     setSearchStatus('loading');
@@ -742,9 +767,33 @@ export function CogitaLibraryListPage({
                 </button>
                 <span className="cogita-sidebar-note">{listCopy.filtersOptionalHint}</span>
               </div>
-              {showAdvancedFilters && typeFilterConfig.length > 0 ? (
+              {showAdvancedFilters ? (
                 <section className="cogita-library-filters cogita-library-filters--compact">
                   <div className="cogita-filter-grid">
+                    <label className="cogita-field">
+                      <span>{listCopy.typeLabel}</span>
+                      <select value={searchType} onChange={(event) => setSearchType(event.target.value as CogitaInfoType | 'any')}>
+                        {infoTypeOptions.map((option) => (
+                          <option key={`advanced-type:${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="cogita-field">
+                      <span>Reference</span>
+                      <select
+                        value={typeFilters.__referenceId ?? ''}
+                        onChange={(event) => setTypeFilters((prev) => ({ ...prev, __referenceId: event.target.value }))}
+                      >
+                        <option value="">{copy.cogita.library.filters.clear}</option>
+                        {referenceSources.map((source) => (
+                          <option key={`reference:${source.infoId}`} value={source.infoId}>
+                            {source.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     {typeFilterConfig.map((field) => (
                       <label key={`type-filter:${field.key}`} className="cogita-field">
                         <span>{field.label}</span>

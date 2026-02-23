@@ -413,7 +413,7 @@ public static class CogitaEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
             {
                 return Results.Forbid();
             }
@@ -816,6 +816,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -841,7 +842,7 @@ public static class CogitaEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
             {
                 return Results.Forbid();
             }
@@ -870,19 +871,69 @@ public static class CogitaEndpoints
                 .Select(g => new { CollectionId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.CollectionId, x => x.Count, ct);
 
-            var collections = await dbContext.CogitaCollections.AsNoTracking()
-                .Where(x => x.LibraryId == libraryId && collectionIds.Contains(x.CollectionInfoId))
-                .OrderBy(x => x.Name)
+            var collectionInfos = await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.InfoType == "collection" && collectionIds.Contains(x.Id))
+                .OrderBy(x => x.CreatedUtc)
+                .ThenBy(x => x.Id)
                 .ToListAsync(ct);
 
-            var responses = collections
-                .Select(x => new CogitaCollectionSummaryResponse(
-                    x.CollectionInfoId,
-                    x.Name,
-                    x.Notes,
-                    itemCounts.TryGetValue(x.CollectionInfoId, out var count) ? count : 0,
-                    x.CreatedUtc))
-                .ToList();
+            var payloads = await dbContext.CogitaCollections.AsNoTracking()
+                .Where(x => collectionIds.Contains(x.InfoId))
+                .ToListAsync(ct);
+            var payloadByInfoId = payloads.ToDictionary(x => x.InfoId, x => x);
+
+            var dataKeyIds = payloads.Select(x => x.DataKeyId).Distinct().ToList();
+            var keyEntryById = dataKeyIds.Count == 0
+                ? new Dictionary<Guid, KeyEntry>()
+                : await dbContext.Keys.AsNoTracking()
+                    .Where(x => dataKeyIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, ct);
+
+            var responses = new List<CogitaCollectionSummaryResponse>();
+            foreach (var info in collectionInfos)
+            {
+                if (!payloadByInfoId.TryGetValue(info.Id, out var payload))
+                {
+                    continue;
+                }
+                if (!keyEntryById.TryGetValue(payload.DataKeyId, out var keyEntry))
+                {
+                    continue;
+                }
+
+                byte[] dataKey;
+                try
+                {
+                    dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                string label;
+                string description;
+                try
+                {
+                    var plain = encryptionService.Decrypt(dataKey, payload.EncryptedBlob, info.Id.ToByteArray());
+                    using var doc = JsonDocument.Parse(plain);
+                    label = ResolveLabel(doc.RootElement, "collection") ?? "Collection";
+                    description = ResolveDescription(doc.RootElement, "collection") ?? string.Empty;
+                }
+                catch (CryptographicException)
+                {
+                    continue;
+                }
+
+                responses.Add(new CogitaCollectionSummaryResponse(
+                    info.Id,
+                    label,
+                    string.IsNullOrWhiteSpace(description) ? null : description,
+                    itemCounts.TryGetValue(info.Id, out var count) ? count : 0,
+                    info.CreatedUtc));
+            }
+
+            responses = responses.OrderBy(x => x.Name).ToList();
 
             return Results.Ok(responses);
         });
