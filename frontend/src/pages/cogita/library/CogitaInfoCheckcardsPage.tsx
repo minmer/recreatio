@@ -136,6 +136,51 @@ function shuffleStrings(items: string[]): string[] {
   return next;
 }
 
+function shuffleWithIndexMap<T>(items: T[]) {
+  const indexed = items.map((value, oldIndex) => ({ value, oldIndex }));
+  for (let i = indexed.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+  }
+  const values = indexed.map((entry) => entry.value);
+  const oldToNew = new Map<number, number>();
+  indexed.forEach((entry, newIndex) => oldToNew.set(entry.oldIndex, newIndex));
+  return { values, oldToNew };
+}
+
+function shuffleQuestionDefinitionForRuntime(def: ParsedQuestionDefinition): ParsedQuestionDefinition {
+  if (def.type === 'selection') {
+    const options = def.options ?? [];
+    const shuffled = shuffleWithIndexMap(options);
+    const expected = Array.isArray(def.answer) ? def.answer : [];
+    return {
+      ...def,
+      options: shuffled.values,
+      answer: expected
+        .map((index) => shuffled.oldToNew.get(index))
+        .filter((index): index is number => Number.isInteger(index))
+        .sort((a, b) => a - b)
+    };
+  }
+
+  if (def.type === 'matching') {
+    const columns = def.columns ?? [];
+    const shuffledColumns = columns.map((column) => shuffleWithIndexMap(column ?? []));
+    const originalPaths =
+      def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : [];
+    const remappedPaths = originalPaths.map((path) =>
+      path.map((oldIndex, columnIndex) => shuffledColumns[columnIndex]?.oldToNew.get(oldIndex) ?? oldIndex)
+    );
+    return {
+      ...def,
+      columns: shuffledColumns.map((entry) => entry.values),
+      answer: { paths: remappedPaths }
+    };
+  }
+
+  return def;
+}
+
 function cardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {
   return [card.cardId, card.checkType ?? '', card.direction ?? ''].join('|');
 }
@@ -407,7 +452,7 @@ export function CogitaInfoCheckcardsPage({
     if (infoType === 'question') {
       const definition = parseQuestionDefinition(payload);
       if (definition) {
-        return { kind: 'question', definition };
+        return { kind: 'question', definition: shuffleQuestionDefinitionForRuntime(definition) };
       }
     }
 

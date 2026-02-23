@@ -54,6 +54,27 @@ const normalizeText = (value: unknown) => String(value ?? '').trim().toLocaleLow
 const uniqSortedInts = (values: unknown[]) => Array.from(new Set(values.map((x) => Number(x)).filter(Number.isFinite))).sort((a, b) => a - b);
 const normalizePathSet = (paths: number[][]) => paths.map((p) => p.join(',')).sort().join('|');
 
+function shuffleList<T>(items: T[]): T[] {
+  const next = [...items];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
+function shuffleWithIndexMap<T>(items: T[]) {
+  const indexed = items.map((value, oldIndex) => ({ value, oldIndex }));
+  for (let i = indexed.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+  }
+  const values = indexed.map((entry) => entry.value);
+  const oldToNew = new Map<number, number>();
+  indexed.forEach((entry, newIndex) => oldToNew.set(entry.oldIndex, newIndex));
+  return { values, oldToNew };
+}
+
 function parseWordPair(label: string) {
   const parts = label.split('↔').map((x) => x.trim()).filter(Boolean);
   if (parts.length >= 2) return [parts[0], parts[1]] as const;
@@ -81,14 +102,19 @@ function buildQuestionRound(
   if (type === 'selection') {
     const options = Array.isArray(definition.options) ? definition.options.filter((x): x is string => typeof x === 'string') : [];
     const expected = Array.isArray(definition.answer) ? uniqSortedInts(definition.answer as unknown[]) : [];
+    const shuffled = shuffleWithIndexMap(options);
+    const remappedExpected = expected
+      .map((index) => shuffled.oldToNew.get(index))
+      .filter((index): index is number => Number.isInteger(index))
+      .sort((a, b) => a - b);
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-selection`,
-      publicPrompt: { kind: 'selection', title, prompt: question, options, multiple: true, cardLabel: 'question' },
-      reveal: { kind: 'selection', expected, title },
+      publicPrompt: { kind: 'selection', title, prompt: question, options: shuffled.values, multiple: true, cardLabel: 'question' },
+      reveal: { kind: 'selection', expected: remappedExpected, title },
       grade: (answer) => {
         const actual = Array.isArray(answer) ? uniqSortedInts(answer) : [];
-        return JSON.stringify(actual) === JSON.stringify(expected);
+        return JSON.stringify(actual) === JSON.stringify(remappedExpected);
       }
     };
   }
@@ -124,10 +150,11 @@ function buildQuestionRound(
 
   if (type === 'ordering') {
     const options = Array.isArray(definition.options) ? definition.options.filter((x): x is string => typeof x === 'string') : [];
+    const shuffledOptions = shuffleList(options);
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-ordering`,
-      publicPrompt: { kind: 'ordering', title, prompt: question, options, cardLabel: 'question' },
+      publicPrompt: { kind: 'ordering', title, prompt: question, options: shuffledOptions, cardLabel: 'question' },
       reveal: { kind: 'ordering', expected: options, title },
       grade: (answer) => JSON.stringify(Array.isArray(answer) ? answer.map(String) : []) === JSON.stringify(options)
     };
@@ -137,16 +164,20 @@ function buildQuestionRound(
     const columns = Array.isArray(definition.columns)
       ? definition.columns.map((col) => (Array.isArray(col) ? col.filter((x): x is string => typeof x === 'string') : []))
       : [];
+    const shuffledColumns = columns.map((column) => shuffleWithIndexMap(column));
     const answerObj = (definition.answer ?? {}) as Record<string, unknown>;
-    const expectedPaths = Array.isArray(answerObj.paths)
+    const expectedPathsRaw = Array.isArray(answerObj.paths)
       ? answerObj.paths
           .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter(Number.isFinite) : null))
           .filter((row): row is number[] => Array.isArray(row))
       : [];
+    const expectedPaths = expectedPathsRaw.map((path) =>
+      path.map((oldIndex, columnIndex) => shuffledColumns[columnIndex]?.oldToNew.get(oldIndex) ?? oldIndex)
+    );
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-matching`,
-      publicPrompt: { kind: 'matching', title, prompt: question, columns, cardLabel: 'question' },
+      publicPrompt: { kind: 'matching', title, prompt: question, columns: shuffledColumns.map((entry) => entry.values), cardLabel: 'question' },
       reveal: { kind: 'matching', expected: { paths: expectedPaths }, title },
       grade: (answer) => {
         const root = (answer ?? {}) as Record<string, unknown>;
