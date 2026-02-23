@@ -1901,6 +1901,39 @@
   animation: cogita-reveal-correct-flash 700ms ease-out;
 }
 
+.cogita-live-session-layout[data-stage='active'] > .cogita-library-panel:nth-child(2),
+.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:nth-child(2) {
+  grid-column: 1 / -1;
+}
+
+.cogita-live-session-layout[data-stage='active'] > .cogita-library-panel:first-child {
+  display: none;
+}
+
+.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:first-child {
+  display: none;
+}
+
+.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:nth-child(2) {
+  display: none;
+}
+
+.cogita-live-scoreboard-panel {
+  grid-column: 1 / -1;
+}
+
+.cogita-live-session-layout[data-stage='finished'] .cogita-live-scoreboard-panel {
+  max-width: 720px;
+  width: 100%;
+  justify-self: center;
+}
+
+.cogita-live-session-layout[data-stage='finished'] .cogita-live-scoreboard-panel .cogita-user-kicker,
+.cogita-live-session-layout[data-stage='finished'] .cogita-live-scoreboard-panel .cogita-detail-title,
+.cogita-live-session-layout[data-stage='finished'] .cogita-live-scoreboard-panel p {
+  text-align: center;
+}
+
 .cogita-share-row[data-state='correct'] {
   border-color: rgba(90, 220, 130, 0.5);
   background: rgba(20, 65, 38, 0.28);

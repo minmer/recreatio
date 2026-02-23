@@ -359,6 +359,7 @@ export function CogitaLiveRevisionHostPage(props: {
       : ''),
     [session?.code]
   );
+  const sessionStage = session?.status === 'finished' ? 'finished' : session?.status && session.status !== 'lobby' ? 'active' : 'lobby';
 
   const mergeHostSecrets = (
     next: CogitaLiveRevisionSession,
@@ -631,7 +632,7 @@ export function CogitaLiveRevisionHostPage(props: {
       <section className="cogita-library-dashboard">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
-            <div className="cogita-library-grid">
+            <div className="cogita-library-grid cogita-live-session-layout" data-stage={sessionStage}>
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">Live Revision Host</p>
                 <h2 className="cogita-detail-title">Host session</h2>
@@ -673,26 +674,43 @@ export function CogitaLiveRevisionHostPage(props: {
                 ) : (
                   renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)
                 )}
-                <p className="cogita-user-kicker">Participants</p>
-                <div className="cogita-share-list">
-                  {session?.participants.map((participant) => {
-                    const answer = session.currentRoundAnswers.find((a) => a.participantId === participant.participantId);
-                    return (
-                      <div className="cogita-share-row" key={participant.participantId}>
-                        <div>
-                          <strong>{participant.displayName}</strong>
-                          <div className="cogita-share-meta">
-                            {participant.score} pt · {answer ? 'answered' : 'waiting'}
-                            {answer?.isCorrect === true ? ' · correct' : ''}
-                            {answer?.isCorrect === false ? ' · incorrect' : ''}
+                {sessionStage !== 'finished' ? (
+                  <>
+                    <p className="cogita-user-kicker">Participants</p>
+                    <div className="cogita-share-list">
+                      {session?.participants.map((participant) => {
+                        const answer = session.currentRoundAnswers.find((a) => a.participantId === participant.participantId);
+                        return (
+                          <div className="cogita-share-row" key={participant.participantId}>
+                            <div>
+                              <strong>{participant.displayName}</strong>
+                              <div className="cogita-share-meta">
+                                {answer ? 'answered' : 'waiting'}
+                                {answer?.isCorrect === true ? ' · correct' : ''}
+                                {answer?.isCorrect === false ? ' · incorrect' : ''}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {session && session.participants.length === 0 ? <p className="cogita-help">No participants yet.</p> : null}
-                </div>
+                        );
+                      })}
+                      {session && session.participants.length === 0 ? <p className="cogita-help">No participants yet.</p> : null}
+                    </div>
+                  </>
+                ) : null}
               </div>
+              {sessionStage !== 'lobby' ? (
+                <div className="cogita-library-panel cogita-live-scoreboard-panel">
+                  <p className="cogita-user-kicker">{sessionStage === 'finished' ? 'Final score' : 'Points'}</p>
+                  <div className="cogita-share-list">
+                    {(session?.scoreboard ?? []).map((row) => (
+                      <div className="cogita-share-row" key={`score:${row.participantId}`}>
+                        <div><strong>{row.displayName}</strong></div>
+                        <div className="cogita-share-meta">{row.score} pt</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
