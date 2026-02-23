@@ -273,6 +273,7 @@ export type Copy = {
         musicPiece: string;
         musicFragment: string;
         source: string;
+        question: string;
         quote: string;
         computed: string;
       };

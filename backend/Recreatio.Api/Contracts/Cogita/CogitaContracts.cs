@@ -184,6 +184,7 @@ public sealed record CogitaCollectionDetailResponse(
 );
 
 public sealed record CogitaRevisionCreateRequest(
+    Guid? CollectionId,
     string Name,
     string? RevisionType,
     JsonElement? RevisionSettings,
@@ -193,6 +194,7 @@ public sealed record CogitaRevisionCreateRequest(
 );
 
 public sealed record CogitaRevisionUpdateRequest(
+    Guid? CollectionId,
     string Name,
     string? RevisionType,
     JsonElement? RevisionSettings,

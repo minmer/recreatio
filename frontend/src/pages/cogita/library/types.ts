@@ -17,6 +17,7 @@ export type CogitaInfoType =
   | 'music_piece'
   | 'music_fragment'
   | 'source'
+  | 'question'
   | 'computed'
   | 'citation'
   | 'vocab'

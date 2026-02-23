@@ -202,6 +202,17 @@ const INFO_SCHEMAS: Record<string, InfoSchema> = {
     },
     filterFields: [{ key: 'text', labelKey: 'citationText', kind: 'text', path: 'text', matcher: 'contains' }]
   },
+  question: {
+    infoType: 'question',
+    entityKind: 'single',
+    structure: {
+      payloadFields: ['definition']
+    },
+    filterFields: [
+      { key: 'questionType', labelKey: 'type', kind: 'text', path: 'definition.type', matcher: 'contains' },
+      { key: 'questionText', labelKey: 'text', kind: 'text', path: 'definition.question', matcher: 'contains' }
+    ]
+  },
   computed: {
     infoType: 'computed',
     entityKind: 'complex',

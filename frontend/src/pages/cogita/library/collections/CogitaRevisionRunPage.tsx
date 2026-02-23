@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import {
   getCogitaCollection,
   getCogitaCollectionCards,
+  getCogitaRevision,
   getCogitaComputedSample,
   getCogitaInfoDetail,
   getCogitaInfoCheckcards,
@@ -89,7 +90,6 @@ export function CogitaRevisionRunPage({
   collectionId?: string;
   revisionId?: string;
 }) {
-  void revisionId;
   const location = useLocation();
   const baseHref = `/#/cogita/library/${libraryId}`;
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -106,7 +106,9 @@ export function CogitaRevisionRunPage({
   const revisionScope = scopeParam === 'info' || scopeParam === 'info-selection' ? scopeParam : 'collection';
   const scopedInfoId = revisionScope === 'info' ? (params.get('infoId') ?? '').trim() : '';
   const scopedSeedId = revisionScope === 'info-selection' ? (params.get('seed') ?? '').trim() : '';
-  const isCollectionScope = revisionScope === 'collection' && Boolean(collectionId);
+  const [resolvedRevisionCollectionId, setResolvedRevisionCollectionId] = useState<string | null>(null);
+  const effectiveCollectionId = collectionId ?? resolvedRevisionCollectionId ?? undefined;
+  const isCollectionScope = revisionScope === 'collection' && Boolean(effectiveCollectionId);
   const modeLabel = useMemo(
     () => copy.cogita.library.revision[revisionType.labelKey] ?? mode,
     [copy, mode, revisionType]
@@ -178,6 +180,16 @@ export function CogitaRevisionRunPage({
   const quoteTreeRef = useRef<QuoteFragmentTree | null>(null);
   const quoteKnownRef = useRef<Set<string>>(new Set());
   const quoteKnownessRef = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!revisionId || collectionId) {
+      setResolvedRevisionCollectionId(null);
+      return;
+    }
+    getCogitaRevision({ libraryId, revisionId })
+      .then((revision) => setResolvedRevisionCollectionId(revision.collectionId))
+      .catch(() => setResolvedRevisionCollectionId(null));
+  }, [collectionId, libraryId, revisionId]);
 
   const currentCard = queue[currentIndex] ?? null;
   const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
@@ -510,8 +522,8 @@ export function CogitaRevisionRunPage({
   };
 
   useEffect(() => {
-    if (isCollectionScope && collectionId) {
-      getCogitaCollection(libraryId, collectionId)
+    if (isCollectionScope && effectiveCollectionId) {
+      getCogitaCollection(libraryId, effectiveCollectionId)
         .then((detail) => setCollectionName(detail.name))
         .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
       return;
@@ -532,7 +544,7 @@ export function CogitaRevisionRunPage({
       return;
     }
     setCollectionName(copy.cogita.library.collections.defaultName);
-  }, [copy, isCollectionScope, collectionId, libraryId, revisionScope, scopedInfoId, scopedSeedId]);
+  }, [copy, effectiveCollectionId, isCollectionScope, libraryId, revisionScope, scopedInfoId, scopedSeedId]);
 
   useEffect(() => {
     searchCogitaInfos({ libraryId, type: 'language' })
@@ -555,7 +567,7 @@ export function CogitaRevisionRunPage({
 
   useEffect(() => {
     void recomputeEligibility(queue);
-  }, [queue, itemDependencies, considerDependencies, dependencyThreshold, collectionId]);
+  }, [queue, itemDependencies, considerDependencies, dependencyThreshold, effectiveCollectionId]);
 
   useEffect(() => {
     if (!currentCard || !considerDependencies) {
@@ -710,7 +722,7 @@ export function CogitaRevisionRunPage({
         do {
           const bundle = await getCogitaCollectionCards({
             libraryId,
-            collectionId: collectionId!,
+              collectionId: effectiveCollectionId!,
             limit: 300,
             cursor
           });
@@ -812,7 +824,7 @@ export function CogitaRevisionRunPage({
     return () => {
       mounted = false;
     };
-  }, [collectionId, isCollectionScope, libraryId, limit, revisionScope, revisionSettings, revisionType, reviewer, scopedInfoId, scopedSeedId]);
+  }, [effectiveCollectionId, isCollectionScope, libraryId, limit, revisionScope, revisionSettings, revisionType, reviewer, scopedInfoId, scopedSeedId]);
 
   useEffect(() => {
     setAnswer('');
@@ -1962,7 +1974,7 @@ export function CogitaRevisionRunPage({
                 <a className="cta ghost" href={`${baseHref}/collections`}>
                   {copy.cogita.library.actions.collections}
                 </a>
-                <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
+                <a className="cta ghost" href={`${baseHref}/collections/${effectiveCollectionId}`}>
                   {copy.cogita.library.actions.collectionDetail}
                 </a>
               </>
@@ -2096,7 +2108,7 @@ export function CogitaRevisionRunPage({
                 <div className="cogita-card-empty">
                   <p>{copy.cogita.library.revision.completed}</p>
                   <div className="cogita-form-actions">
-                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${collectionId}` : `${baseHref}/list`}>
+                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${effectiveCollectionId}` : `${baseHref}/list`}>
                       {isCollectionScope ? copy.cogita.library.actions.collectionDetail : copy.cogita.library.actions.allCards}
                     </a>
                   </div>

@@ -918,14 +918,26 @@ export function getCogitaInfoCollections(payload: { libraryId: string; infoId: s
   );
 }
 
-export function getCogitaRevisions(payload: { libraryId: string; collectionId: string }) {
+export function getCogitaRevisions(payload: { libraryId: string; collectionId?: string }) {
+  if (!payload.collectionId) {
+    return request<CogitaRevision[]>(
+      `/cogita/libraries/${payload.libraryId}/revisions`,
+      { method: 'GET' }
+    );
+  }
   return request<CogitaRevision[]>(
     `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions`,
     { method: 'GET' }
   );
 }
 
-export function getCogitaRevision(payload: { libraryId: string; collectionId: string; revisionId: string }) {
+export function getCogitaRevision(payload: { libraryId: string; revisionId: string; collectionId?: string }) {
+  if (!payload.collectionId) {
+    return request<CogitaRevision>(
+      `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}`,
+      { method: 'GET' }
+    );
+  }
   return request<CogitaRevision>(
     `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions/${payload.revisionId}`,
     { method: 'GET' }
@@ -943,10 +955,11 @@ export function createCogitaRevision(payload: {
   limit: number;
 }) {
   return request<CogitaRevision>(
-    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions`,
+    `/cogita/libraries/${payload.libraryId}/revisions`,
     {
       method: 'POST',
       body: JSON.stringify({
+        collectionId: payload.collectionId,
         name: payload.name,
         revisionType: payload.revisionType ?? null,
         revisionSettings: payload.revisionSettings ?? null,
@@ -962,6 +975,7 @@ export function updateCogitaRevision(payload: {
   libraryId: string;
   collectionId: string;
   revisionId: string;
+  targetCollectionId?: string;
   name: string;
   revisionType?: string | null;
   revisionSettings?: Record<string, unknown> | null;
@@ -970,10 +984,11 @@ export function updateCogitaRevision(payload: {
   limit: number;
 }) {
   return request<CogitaRevision>(
-    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/revisions/${payload.revisionId}`,
+    `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}`,
     {
       method: 'POST',
       body: JSON.stringify({
+        collectionId: payload.targetCollectionId ?? null,
         name: payload.name,
         revisionType: payload.revisionType ?? null,
         revisionSettings: payload.revisionSettings ?? null,

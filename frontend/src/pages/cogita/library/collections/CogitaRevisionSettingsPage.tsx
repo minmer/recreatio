@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   createCogitaRevisionShare,
   getCogitaCollection,
+  getCogitaCollections,
   getCogitaRevision,
+  getCogitaRevisions,
   getCogitaRevisionShares,
   getCogitaReviewers,
   revokeCogitaRevisionShare,
   updateCogitaRevision,
+  type CogitaRevision,
   type CogitaReviewer,
   type CogitaRevisionShare
 } from '../../../../lib/api';
@@ -15,6 +18,7 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
+import { useNavigate } from 'react-router-dom';
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -42,12 +46,15 @@ export function CogitaRevisionSettingsPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  collectionId: string;
+  collectionId?: string;
   revisionId?: string;
 }) {
+  const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
+  const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');
   const [revisionName, setRevisionName] = useState('');
   const [limit, setLimit] = useState(20);
   const [mode, setMode] = useState('random');
@@ -56,6 +63,8 @@ export function CogitaRevisionSettingsPage({
   const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
   const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
   const [shares, setShares] = useState<CogitaRevisionShare[]>([]);
+  const [revisions, setRevisions] = useState<CogitaRevision[]>([]);
+  const [revisionQuery, setRevisionQuery] = useState('');
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -71,17 +80,43 @@ export function CogitaRevisionSettingsPage({
     [revisionType, revisionSettings]
   );
   const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
+  const filteredRevisions = useMemo(() => {
+    const needle = revisionQuery.trim().toLocaleLowerCase();
+    if (!needle) return revisions;
+    return revisions.filter((revision) => revision.name.toLocaleLowerCase().includes(needle));
+  }, [revisionQuery, revisions]);
 
   useEffect(() => {
-    getCogitaCollection(libraryId, collectionId)
+    setSelectedCollectionId(collectionId ?? '');
+  }, [collectionId]);
+
+  useEffect(() => {
+    if (!selectedCollectionId) {
+      setCollectionName(copy.cogita.library.collections.defaultName);
+      return;
+    }
+    getCogitaCollection(libraryId, selectedCollectionId)
       .then((detail) => setCollectionName(detail.name))
       .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
-  }, [libraryId, collectionId]);
+  }, [copy.cogita.library.collections.defaultName, libraryId, selectedCollectionId]);
+
+  useEffect(() => {
+    getCogitaCollections({ libraryId, limit: 200 })
+      .then((bundle) => setAvailableCollections(bundle.items.map((item) => ({ collectionId: item.collectionId, name: item.name }))))
+      .catch(() => setAvailableCollections([]));
+  }, [libraryId]);
+
+  useEffect(() => {
+    getCogitaRevisions({ libraryId })
+      .then((items) => setRevisions(items))
+      .catch(() => setRevisions([]));
+  }, [libraryId]);
 
   useEffect(() => {
     if (!revisionId) return;
-    getCogitaRevision({ libraryId, collectionId, revisionId })
+    getCogitaRevision({ libraryId, revisionId })
       .then((revision) => {
+        setSelectedCollectionId(revision.collectionId);
         setRevisionName(revision.name);
         setMode(revision.mode || 'random');
         setCheck(revision.check || 'exact');
@@ -91,7 +126,7 @@ export function CogitaRevisionSettingsPage({
       .catch(() => {
         setRevisionName('');
       });
-  }, [collectionId, libraryId, revisionId]);
+  }, [libraryId, revisionId]);
 
   useEffect(() => {
     getCogitaReviewers({ libraryId })
@@ -127,9 +162,13 @@ export function CogitaRevisionSettingsPage({
     setShareStatus('working');
     setShareCopyStatus('idle');
     try {
+      if (!selectedCollectionId) {
+        setShareStatus('error');
+        return;
+      }
       const response = await createCogitaRevisionShare({
         libraryId,
-        collectionId,
+        collectionId: selectedCollectionId,
         revisionType: revisionType.id,
         revisionSettings: normalizedSettings,
         mode,
@@ -150,8 +189,9 @@ export function CogitaRevisionSettingsPage({
     try {
       await updateCogitaRevision({
         libraryId,
-        collectionId,
+        collectionId: collectionId ?? selectedCollectionId,
         revisionId,
+        targetCollectionId: selectedCollectionId,
         name: revisionName || collectionName,
         revisionType: revisionType.id,
         revisionSettings: normalizedSettings,
@@ -160,6 +200,11 @@ export function CogitaRevisionSettingsPage({
         limit
       });
       setSaveStatus('saved');
+      if (selectedCollectionId) {
+        navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(revisionId)}`, {
+          replace: true
+        });
+      }
     } catch {
       setSaveStatus('error');
     }
@@ -214,12 +259,18 @@ export function CogitaRevisionSettingsPage({
             <a className="cta ghost" href={`${baseHref}/collections`}>
               {copy.cogita.library.actions.collections}
             </a>
-            <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
+            <a className="cta ghost" href={selectedCollectionId ? `${baseHref}/collections/${selectedCollectionId}` : `${baseHref}/collections`}>
               {copy.cogita.library.actions.collectionDetail}
             </a>
             <a
               className="cta"
-              href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+              href={`${baseHref}${
+                revisionId
+                  ? `/revisions/${encodeURIComponent(revisionId)}/run`
+                  : selectedCollectionId
+                    ? `/collections/${selectedCollectionId}/revision/run`
+                    : '/revision/run'
+              }?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
                 settingsQuery ? `&${settingsQuery}` : ''
               }${
                 reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
@@ -237,12 +288,47 @@ export function CogitaRevisionSettingsPage({
             <div className="cogita-library-grid">
               <div className="cogita-library-pane">
                 <div className="cogita-library-controls">
-                  <div className="cogita-library-search">
-                    <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-                    <label className="cogita-field">
-                      <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
-                      <input value={revisionName} onChange={(event) => setRevisionName(event.target.value)} />
-                    </label>
+	                  <div className="cogita-library-search">
+	                    <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
+                      <div className="cogita-search-field">
+                        <input
+                          type="text"
+                          value={revisionQuery}
+                          onChange={(event) => setRevisionQuery(event.target.value)}
+                          placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
+                        />
+                      </div>
+                      <div className="cogita-card-list" data-view="list">
+                        <a className="cogita-card-select" href={`${baseHref}/revisions/new`} style={{ display: 'block' }}>
+                          <div className="cogita-card-type">{copy.cogita.workspace.layers.revision}</div>
+                          <h3 className="cogita-card-title">{copy.cogita.workspace.revisionForm.createAction}</h3>
+                        </a>
+                        {filteredRevisions.map((revision) => (
+                          <a
+                            key={revision.revisionId}
+                            className="cogita-card-select"
+                            href={`${baseHref}/revisions/${encodeURIComponent(revision.revisionId)}`}
+                            style={{ display: 'block' }}
+                          >
+                            <div className="cogita-card-type">{copy.cogita.workspace.layers.revision}</div>
+                            <h3 className="cogita-card-title">{revision.name}</h3>
+                          </a>
+                        ))}
+                      </div>
+	                    <label className="cogita-field">
+	                      <span>{copy.cogita.library.actions.collections}</span>
+	                      <select value={selectedCollectionId} onChange={(event) => setSelectedCollectionId(event.target.value)}>
+	                        {availableCollections.map((collectionOption) => (
+	                          <option key={collectionOption.collectionId} value={collectionOption.collectionId}>
+	                            {collectionOption.name}
+	                          </option>
+	                        ))}
+	                      </select>
+	                    </label>
+	                    <label className="cogita-field">
+	                      <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
+	                      <input value={revisionName} onChange={(event) => setRevisionName(event.target.value)} />
+	                    </label>
                     <label className="cogita-field">
                       <span>{copy.cogita.library.revision.modeLabel}</span>
                       <select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -342,7 +428,13 @@ export function CogitaRevisionSettingsPage({
                     ) : null}
                     <a
                       className="cta"
-                      href={`${baseHref}/collections/${collectionId}/revision/run?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
+                      href={`${baseHref}${
+                        revisionId
+                          ? `/revisions/${encodeURIComponent(revisionId)}/run`
+                          : selectedCollectionId
+                            ? `/collections/${selectedCollectionId}/revision/run`
+                            : '/revision/run'
+                      }?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
                         settingsQuery ? `&${settingsQuery}` : ''
                       }${
                         reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''

@@ -97,6 +97,7 @@ public static class CogitaTypeRegistry
                 [new("sourceKind"), new("locator", ExpandObjectValues: true)],
                 [new("source-resource", "resource", "work")]),
             ["citation"] = new("citation", "single", ["label", "title", "text"], [new("text")], [new("citation-language", "language", "language"), new("reference", "source", "source")]),
+            ["question"] = new("question", "single", ["definition"], [new("questionType", "definition.type"), new("questionText", "definition.question")], []),
             ["computed"] = new("computed", "complex", ["label", "title", "definition"], [], []),
             ["word-language"] = new("word-language", "complex", ["label", "leftWordId", "rightWordId", "languageId"], [], []),
             ["citation-language"] = new("citation-language", "complex", ["label", "citationId", "languageId"], [], []),
@@ -193,6 +194,9 @@ public static class CogitaTypeRegistry
                     new("languageId", "Language", ["language"], false, false, KeepOnCreate: true),
                     new("references", "References", ["source"], false, true, KeepOnCreate: true)
                 ]),
+            ["question"] = new("question",
+                [new("definition", "Question definition JSON", "json", true)],
+                []),
             ["computed"] = new("computed",
                 [new("label", "Name", "text", true), new("definition", "Definition JSON", "json", true)],
                 []),

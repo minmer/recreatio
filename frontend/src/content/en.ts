@@ -573,6 +573,7 @@ export const en: Copy = {
         musicPiece: 'Music piece',
         musicFragment: 'Music fragment',
         source: 'Source',
+        question: 'Question',
         quote: 'Quote',
         computed: 'Computed'
       },
