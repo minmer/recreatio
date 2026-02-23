@@ -359,6 +359,98 @@ public sealed record CogitaPublicRevisionShareResponse(
     int Limit
 );
 
+public sealed record CogitaLiveRevisionSessionCreateRequest(
+    Guid? RevisionId,
+    Guid? CollectionId,
+    string? Title
+);
+
+public sealed record CogitaLiveRevisionParticipantScoreResponse(
+    Guid ParticipantId,
+    string DisplayName,
+    int Score
+);
+
+public sealed record CogitaLiveRevisionParticipantResponse(
+    Guid ParticipantId,
+    string DisplayName,
+    int Score,
+    bool IsConnected,
+    DateTimeOffset JoinedUtc
+);
+
+public sealed record CogitaLiveRevisionAnswerResponse(
+    Guid ParticipantId,
+    int RoundIndex,
+    string? CardKey,
+    JsonElement? Answer,
+    bool? IsCorrect,
+    int PointsAwarded,
+    DateTimeOffset SubmittedUtc
+);
+
+public sealed record CogitaLiveRevisionSessionResponse(
+    Guid SessionId,
+    string Code,
+    string HostSecret,
+    Guid LibraryId,
+    Guid? RevisionId,
+    Guid? CollectionId,
+    string Status,
+    int CurrentRoundIndex,
+    int RevealVersion,
+    JsonElement? CurrentPrompt,
+    JsonElement? CurrentReveal,
+    List<CogitaLiveRevisionParticipantResponse> Participants,
+    List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
+    List<CogitaLiveRevisionAnswerResponse> CurrentRoundAnswers
+);
+
+public sealed record CogitaLiveRevisionJoinRequest(string Name);
+
+public sealed record CogitaLiveRevisionJoinResponse(
+    Guid SessionId,
+    Guid ParticipantId,
+    string ParticipantToken,
+    string Name
+);
+
+public sealed record CogitaLiveRevisionPublicStateResponse(
+    Guid SessionId,
+    string Status,
+    int CurrentRoundIndex,
+    int RevealVersion,
+    JsonElement? CurrentPrompt,
+    JsonElement? CurrentReveal,
+    List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
+    bool AnswerSubmitted
+);
+
+public sealed record CogitaLiveRevisionHostStateUpdateRequest(
+    string Status,
+    int CurrentRoundIndex,
+    int RevealVersion,
+    JsonElement? CurrentPrompt,
+    JsonElement? CurrentReveal
+);
+
+public sealed record CogitaLiveRevisionAnswerSubmitRequest(
+    string ParticipantToken,
+    int RoundIndex,
+    string? CardKey,
+    JsonElement? Answer
+);
+
+public sealed record CogitaLiveRevisionRevealScoreRequest(
+    List<CogitaLiveRevisionParticipantScoreDeltaRequest> Scores
+);
+
+public sealed record CogitaLiveRevisionParticipantScoreDeltaRequest(
+    Guid ParticipantId,
+    bool? IsCorrect,
+    int PointsAwarded
+);
+
 public sealed record CogitaComputedSampleResponse(
     string Prompt,
     string ExpectedAnswer,

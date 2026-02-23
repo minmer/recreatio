@@ -71,6 +71,7 @@ export function CogitaPersonsPage({
     try {
       const created = await createRole({
         fields: [
+          { fieldType: 'nick', plainValue: label },
           { fieldType: 'role_kind', plainValue: 'person' },
           { fieldType: 'label', plainValue: label },
           { fieldType: 'display_name', plainValue: label }

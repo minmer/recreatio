@@ -444,6 +444,14 @@ export function CogitaRevisionSettingsPage({
                     >
                       {copy.cogita.library.actions.startRevision}
                     </a>
+                    {revisionId ? (
+                      <a
+                        className="cta ghost"
+                        href={`/#/cogita/live-revision-host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}`}
+                      >
+                        Live session
+                      </a>
+                    ) : null}
                   </div>
                   {saveStatus === 'error' ? <p className="cogita-help">Failed to save revision.</p> : null}
                 </section>

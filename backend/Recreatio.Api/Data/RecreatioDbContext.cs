@@ -77,6 +77,9 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
     public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
+    public DbSet<Data.Cogita.CogitaLiveRevisionSession> CogitaLiveRevisionSessions => Set<Data.Cogita.CogitaLiveRevisionSession>();
+    public DbSet<Data.Cogita.CogitaLiveRevisionParticipant> CogitaLiveRevisionParticipants => Set<Data.Cogita.CogitaLiveRevisionParticipant>();
+    public DbSet<Data.Cogita.CogitaLiveRevisionAnswer> CogitaLiveRevisionAnswers => Set<Data.Cogita.CogitaLiveRevisionAnswer>();
     public DbSet<Data.Cogita.CogitaItemDependency> CogitaItemDependencies => Set<Data.Cogita.CogitaItemDependency>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -228,6 +231,27 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.LibraryId, x.RevokedUtc });
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasIndex(x => x.PublicCodeHash);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .Property(x => x.Status)
+            .HasMaxLength(24);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .HasIndex(x => new { x.LibraryId, x.RevisionId });
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .HasIndex(x => x.PublicCodeHash)
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .Property(x => x.DisplayName)
+            .HasMaxLength(120);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .HasIndex(x => new { x.SessionId, x.DisplayName });
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .HasIndex(x => x.JoinTokenHash)
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionAnswer>()
+            .HasIndex(x => new { x.SessionId, x.RoundIndex });
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionAnswer>()
+            .HasIndex(x => new { x.SessionId, x.ParticipantId, x.RoundIndex })
+            .IsUnique();
 
         modelBuilder.Entity<Data.Cogita.CogitaCollectionGraphNode>()
             .HasIndex(x => x.GraphId);
@@ -419,6 +443,27 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()
             .HasForeignKey(x => x.LibraryId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .HasOne<Data.Cogita.CogitaRevision>()
+            .WithMany()
+            .HasForeignKey(x => x.RevisionId);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .HasOne<Data.Cogita.CogitaLiveRevisionSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionAnswer>()
+            .HasOne<Data.Cogita.CogitaLiveRevisionSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionAnswer>()
+            .HasOne<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId);
 
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
             .Property(x => x.ParentItemType)

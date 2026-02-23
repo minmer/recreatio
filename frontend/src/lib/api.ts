@@ -750,6 +750,65 @@ export type CogitaRevisionShareCreateResponse = {
   createdUtc: string;
 };
 
+export type CogitaLiveRevisionParticipantScore = {
+  participantId: string;
+  displayName: string;
+  score: number;
+};
+
+export type CogitaLiveRevisionParticipant = {
+  participantId: string;
+  displayName: string;
+  score: number;
+  isConnected: boolean;
+  joinedUtc: string;
+};
+
+export type CogitaLiveRevisionAnswer = {
+  participantId: string;
+  roundIndex: number;
+  cardKey?: string | null;
+  answer?: unknown;
+  isCorrect?: boolean | null;
+  pointsAwarded: number;
+  submittedUtc: string;
+};
+
+export type CogitaLiveRevisionSession = {
+  sessionId: string;
+  code: string;
+  hostSecret: string;
+  libraryId: string;
+  revisionId?: string | null;
+  collectionId?: string | null;
+  status: string;
+  currentRoundIndex: number;
+  revealVersion: number;
+  currentPrompt?: unknown;
+  currentReveal?: unknown;
+  participants: CogitaLiveRevisionParticipant[];
+  scoreboard: CogitaLiveRevisionParticipantScore[];
+  currentRoundAnswers: CogitaLiveRevisionAnswer[];
+};
+
+export type CogitaLiveRevisionJoinResponse = {
+  sessionId: string;
+  participantId: string;
+  participantToken: string;
+  name: string;
+};
+
+export type CogitaLiveRevisionPublicState = {
+  sessionId: string;
+  status: string;
+  currentRoundIndex: number;
+  revealVersion: number;
+  currentPrompt?: unknown;
+  currentReveal?: unknown;
+  scoreboard: CogitaLiveRevisionParticipantScore[];
+  answerSubmitted: boolean;
+};
+
 export type CogitaPublicRevisionShare = {
   shareId: string;
   libraryId: string;
@@ -1144,6 +1203,112 @@ export function revokeCogitaRevisionShare(payload: { libraryId: string; shareId:
     method: 'POST',
     body: JSON.stringify({})
   });
+}
+
+export function createCogitaLiveRevisionSession(payload: {
+  libraryId: string;
+  revisionId: string;
+  collectionId?: string | null;
+  title?: string | null;
+}) {
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}/live-sessions`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        revisionId: payload.revisionId,
+        collectionId: payload.collectionId ?? null,
+        title: payload.title ?? null
+      })
+    }
+  );
+}
+
+export function getCogitaLiveRevisionSession(payload: { libraryId: string; sessionId: string; hostSecret: string }) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}?${params.toString()}`,
+    { method: 'GET' }
+  );
+}
+
+export function updateCogitaLiveRevisionHostState(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  status: string;
+  currentRoundIndex: number;
+  revealVersion: number;
+  currentPrompt?: unknown | null;
+  currentReveal?: unknown | null;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/state?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        status: payload.status,
+        currentRoundIndex: payload.currentRoundIndex,
+        revealVersion: payload.revealVersion,
+        currentPrompt: payload.currentPrompt ?? null,
+        currentReveal: payload.currentReveal ?? null
+      })
+    }
+  );
+}
+
+export function scoreCogitaLiveRevisionRound(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  scores: Array<{ participantId: string; isCorrect?: boolean | null; pointsAwarded: number }>;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/score?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ scores: payload.scores })
+    }
+  );
+}
+
+export function joinCogitaLiveRevision(payload: { code: string; name: string }) {
+  return request<CogitaLiveRevisionJoinResponse>(
+    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/join`,
+    { method: 'POST', body: JSON.stringify({ name: payload.name }) }
+  );
+}
+
+export function getCogitaLiveRevisionPublicState(payload: { code: string; participantToken?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.participantToken) params.set('participantToken', payload.participantToken);
+  return request<CogitaLiveRevisionPublicState>(
+    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/state${params.toString() ? `?${params.toString()}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function submitCogitaLiveRevisionAnswer(payload: {
+  code: string;
+  participantToken: string;
+  roundIndex: number;
+  cardKey?: string | null;
+  answer?: unknown | null;
+}) {
+  return request<void>(
+    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/answer`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        roundIndex: payload.roundIndex,
+        cardKey: payload.cardKey ?? null,
+        answer: payload.answer ?? null
+      })
+    }
+  );
 }
 
 export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: string }) {

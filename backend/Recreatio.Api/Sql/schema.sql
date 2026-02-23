@@ -55,7 +55,11 @@ IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibr
 IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
 IF OBJECT_ID(N'dbo.CogitaEntitySearchDocuments', N'U') IS NOT NULL DROP TABLE dbo.CogitaEntitySearchDocuments;
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
+IF OBJECT_ID(N'dbo.CogitaLiveRevisionAnswers', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionAnswers;
+IF OBJECT_ID(N'dbo.CogitaLiveRevisionParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionParticipants;
+IF OBJECT_ID(N'dbo.CogitaLiveRevisionSessions', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionSessions;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
+IF OBJECT_ID(N'dbo.CogitaRevisions', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisions;
 IF OBJECT_ID(N'dbo.CogitaItemDependencies', N'U') IS NOT NULL DROP TABLE dbo.CogitaItemDependencies;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
@@ -1329,5 +1333,141 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
 BEGIN
     CREATE INDEX IX_CogitaRevisionShares_PublicCodeHash ON dbo.CogitaRevisionShares(PublicCodeHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaRevisions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        CollectionId UNIQUEIDENTIFIER NOT NULL,
+        Name NVARCHAR(200) NOT NULL,
+        RevisionType NVARCHAR(64) NOT NULL,
+        RevisionSettingsJson NVARCHAR(MAX) NULL,
+        Mode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_Mode DEFAULT (N'random'),
+        CheckMode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_CheckMode DEFAULT (N'exact'),
+        CardLimit INT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaRevisions_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaRevisions_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_LibraryCollectionCreated' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisions_LibraryCollectionCreated ON dbo.CogitaRevisions(LibraryId, CollectionId, CreatedUtc, Id);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_CollectionName' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisions_CollectionName ON dbo.CogitaRevisions(CollectionId, Name);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaLiveRevisionSessions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaLiveRevisionSessions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        RevisionId UNIQUEIDENTIFIER NOT NULL,
+        CollectionId UNIQUEIDENTIFIER NOT NULL,
+        HostRoleId UNIQUEIDENTIFIER NOT NULL,
+        PublicCodeHash VARBINARY(64) NOT NULL,
+        HostSecretHash VARBINARY(64) NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        CurrentRoundIndex INT NOT NULL,
+        RevealVersion INT NOT NULL,
+        CurrentPromptJson NVARCHAR(MAX) NULL,
+        CurrentRevealJson NVARCHAR(MAX) NULL,
+        SessionMetaJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        StartedUtc DATETIMEOFFSET NULL,
+        FinishedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CogitaLiveRevisionSessions_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaLiveRevisionSessions_Revision FOREIGN KEY (RevisionId) REFERENCES dbo.CogitaRevisions(Id),
+        CONSTRAINT FK_CogitaLiveRevisionSessions_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id),
+        CONSTRAINT FK_CogitaLiveRevisionSessions_HostRole FOREIGN KEY (HostRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionSessions_LibraryRevision' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionSessions'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionSessions_LibraryRevision ON dbo.CogitaLiveRevisionSessions(LibraryId, RevisionId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaLiveRevisionSessions_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionSessions'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaLiveRevisionSessions_PublicCodeHash ON dbo.CogitaLiveRevisionSessions(PublicCodeHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaLiveRevisionParticipants' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaLiveRevisionParticipants
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        DisplayName NVARCHAR(120) NOT NULL,
+        UserId UNIQUEIDENTIFIER NULL,
+        JoinTokenHash VARBINARY(64) NOT NULL,
+        Score INT NOT NULL CONSTRAINT DF_CogitaLiveRevisionParticipants_Score DEFAULT (0),
+        IsConnected BIT NOT NULL CONSTRAINT DF_CogitaLiveRevisionParticipants_IsConnected DEFAULT (1),
+        JoinedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaLiveRevisionParticipants_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaLiveRevisionSessions(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionName' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionName ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayName);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaLiveRevisionParticipants_JoinTokenHash' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaLiveRevisionParticipants_JoinTokenHash ON dbo.CogitaLiveRevisionParticipants(JoinTokenHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaLiveRevisionAnswers' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaLiveRevisionAnswers
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        RoundIndex INT NOT NULL,
+        CardKey NVARCHAR(256) NULL,
+        AnswerJson NVARCHAR(MAX) NULL,
+        IsCorrect BIT NULL,
+        PointsAwarded INT NOT NULL CONSTRAINT DF_CogitaLiveRevisionAnswers_Points DEFAULT (0),
+        SubmittedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaLiveRevisionAnswers_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaLiveRevisionSessions(Id),
+        CONSTRAINT FK_CogitaLiveRevisionAnswers_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaLiveRevisionParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionAnswers_SessionRound' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionAnswers'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionAnswers_SessionRound ON dbo.CogitaLiveRevisionAnswers(SessionId, RoundIndex);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaLiveRevisionAnswers_SessionParticipantRound' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionAnswers'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaLiveRevisionAnswers_SessionParticipantRound ON dbo.CogitaLiveRevisionAnswers(SessionId, ParticipantId, RoundIndex);
 END
 GO
