@@ -390,11 +390,17 @@ export function CogitaLiveRevisionHostPage(props: {
         const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null;
         if (stored) {
           const parsed = JSON.parse(stored) as { sessionId: string; hostSecret: string; code?: string };
+          // Older stored sessions may not contain the public join code. The backend stores only the hash,
+          // so the code cannot be reconstructed; create a fresh live session instead.
+          if (!parsed.code) {
+            localStorage.removeItem(storageKey);
+          } else {
           const existing = await getCogitaLiveRevisionSession({ libraryId, sessionId: parsed.sessionId, hostSecret: parsed.hostSecret });
           if (canceled) return;
           setSession((prev) => mergeHostSecrets(existing, prev, parsed));
           setStatus('ready');
           return;
+          }
         }
         const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: 'Live revision' });
         if (canceled) return;
