@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   createCogitaLiveRevisionSession,
@@ -391,20 +391,9 @@ export function CogitaLiveRevisionHostPage(props: {
     let canceled = false;
     async function ensureSession() {
       try {
-        const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null;
-        if (stored) {
-          const parsed = JSON.parse(stored) as { sessionId: string; hostSecret: string; code?: string };
-          // Older stored sessions may not contain the public join code. The backend stores only the hash,
-          // so the code cannot be reconstructed; create a fresh live session instead.
-          if (!parsed.code) {
-            localStorage.removeItem(storageKey);
-          } else {
-          const existing = await getCogitaLiveRevisionSession({ libraryId, sessionId: parsed.sessionId, hostSecret: parsed.hostSecret });
-          if (canceled) return;
-          setSession((prev) => mergeHostSecrets(existing, prev, parsed));
-          setStatus('ready');
-          return;
-          }
+        if (typeof localStorage !== 'undefined') {
+          // Starting the host live page always creates a fresh public session code.
+          localStorage.removeItem(storageKey);
         }
         const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: 'Live revision' });
         if (canceled) return;
@@ -513,73 +502,82 @@ export function CogitaLiveRevisionHostPage(props: {
     await publishRound(nextIndex);
   };
 
-  const renderPromptLikeParticipant = (prompt: Record<string, unknown> | null) => {
+  const renderPromptLikeParticipant = (prompt: Record<string, unknown> | null, revealExpected?: unknown) => {
     if (!prompt) {
       return <p className="cogita-help">Waiting for host to publish a question.</p>;
     }
     const kind = String(prompt.kind ?? '');
+    const isRevealed = typeof revealExpected !== 'undefined';
+    const selectionExpected = Array.isArray(revealExpected)
+      ? revealExpected.map((x) => Number(x)).filter(Number.isFinite)
+      : [];
     if (kind === 'citation-fragment') {
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>
             <span style={{ opacity: 0.7 }}>{String(prompt.before ?? '')}</span>
             <strong> [ ... ] </strong>
             <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
           </p>
           <label className="cogita-field">
-            <span>Fragment</span>
-            <input readOnly value="" placeholder="Participant answer here" />
+            <span>{isRevealed ? 'Correct fragment' : 'Fragment'}</span>
+            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder="Participant answer here" />
           </label>
-        </>
+        </div>
       );
     }
     if (kind === 'text') {
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <label className="cogita-field">
-            <span>Answer</span>
-            <input readOnly value="" placeholder="Participant answer here" />
+            <span>{isRevealed ? 'Correct answer' : 'Answer'}</span>
+            <input readOnly value={isRevealed ? String(revealExpected ?? '') : ''} placeholder="Participant answer here" />
           </label>
-        </>
+        </div>
       );
     }
     if (kind === 'boolean') {
+      const expected = Boolean(revealExpected);
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <div className="cogita-form-actions">
-            <button type="button" className="cta ghost" disabled>True</button>
-            <button type="button" className="cta ghost" disabled>False</button>
+            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} disabled>True</button>
+            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} disabled>False</button>
           </div>
-        </>
+        </div>
       );
     }
     if (kind === 'selection') {
       const options = Array.isArray(prompt.options) ? prompt.options.map(String) : [];
       const multiple = Boolean(prompt.multiple);
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <div className="cogita-share-list">
             {options.map((option, index) => (
-              <label className="cogita-share-row" key={`${index}-${option}`}>
+              <label
+                className="cogita-share-row"
+                data-state={isRevealed && selectionExpected.includes(index) ? 'correct' : undefined}
+                key={`${index}-${option}`}
+              >
                 <span>{option}</span>
-                <input type={multiple ? 'checkbox' : 'radio'} disabled />
+                <input type={multiple ? 'checkbox' : 'radio'} disabled checked={isRevealed ? selectionExpected.includes(index) : false} readOnly />
               </label>
             ))}
           </div>
-        </>
+        </div>
       );
     }
     if (kind === 'ordering') {
-      const options = Array.isArray(prompt.options) ? prompt.options.map(String) : [];
+      const options = Array.isArray((isRevealed ? revealExpected : prompt.options)) ? (isRevealed ? (revealExpected as unknown[]) : (prompt.options as unknown[])).map(String) : [];
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
           <div className="cogita-share-list">
             {options.map((option, index) => (
-              <div className="cogita-share-row" key={`${index}-${option}`}>
+              <div className="cogita-share-row" data-state={isRevealed ? 'correct' : undefined} key={`${index}-${option}`}>
                 <span>{option}</span>
                 <div className="cogita-form-actions">
                   <button type="button" className="ghost" disabled>↑</button>
@@ -588,45 +586,44 @@ export function CogitaLiveRevisionHostPage(props: {
               </div>
             ))}
           </div>
-        </>
+        </div>
       );
     }
     if (kind === 'matching') {
       const columns = Array.isArray(prompt.columns) ? (prompt.columns as unknown[][]) : [];
+      const revealPaths = (revealExpected as { paths?: number[][] } | undefined)?.paths ?? [];
       return (
-        <>
+        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
           <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-form-actions">
-            {columns.map((column, columnIndex) => (
-              <select key={`host-col-${columnIndex}`} disabled>
-                {(Array.isArray(column) ? column : []).map((option, optionIndex) => (
-                  <option key={`${columnIndex}-${optionIndex}`}>{String(option)}</option>
-                ))}
-              </select>
-            ))}
-          </div>
-        </>
+          {isRevealed ? (
+            <div className="cogita-share-list">
+              {revealPaths.map((path, pathIndex) => (
+                <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
+                  <span>
+                    {path.map((selectedIndex, columnIndex) => {
+                      const col = Array.isArray(columns[columnIndex]) ? columns[columnIndex] : [];
+                      const label = String(col[selectedIndex] ?? selectedIndex);
+                      return `${columnIndex > 0 ? ' → ' : ''}${label}`;
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="cogita-form-actions">
+              {columns.map((column, columnIndex) => (
+                <select key={`host-col-${columnIndex}`} disabled>
+                  {(Array.isArray(column) ? column : []).map((option, optionIndex) => (
+                    <option key={`${columnIndex}-${optionIndex}`}>{String(option)}</option>
+                  ))}
+                </select>
+              ))}
+            </div>
+          )}
+        </div>
       );
     }
     return <pre className="cogita-json-preview">{JSON.stringify(prompt, null, 2)}</pre>;
-  };
-
-  const renderReveal = (reveal: Record<string, unknown> | null) => {
-    if (!reveal) return null;
-    const kind = String(reveal.kind ?? '');
-    let body: ReactNode = null;
-    if (kind === 'selection') {
-      body = <pre className="cogita-json-preview">{JSON.stringify(reveal.expected ?? [], null, 2)}</pre>;
-    } else if (kind === 'matching' || kind === 'ordering') {
-      body = <pre className="cogita-json-preview">{JSON.stringify(reveal.expected ?? null, null, 2)}</pre>;
-    } else {
-      body = <div className="cogita-live-reveal-answer">{String(reveal.expected ?? '')}</div>;
-    }
-    return (
-      <div className="cogita-live-reveal-card" data-state="correct">
-        {body}
-      </div>
-    );
   };
 
   return (
@@ -674,14 +671,8 @@ export function CogitaLiveRevisionHostPage(props: {
                 {session?.status === 'lobby' ? (
                   <p className="cogita-help">No question is shown before the host starts the session.</p>
                 ) : (
-                  renderPromptLikeParticipant(publishedPrompt)
+                  renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)
                 )}
-                {session?.status === 'revealed' && publishedReveal ? (
-                  <>
-                    <p className="cogita-user-kicker">Reveal</p>
-                    {renderReveal(publishedReveal)}
-                  </>
-                ) : null}
                 <p className="cogita-user-kicker">Participants</p>
                 <div className="cogita-share-list">
                   {session?.participants.map((participant) => {

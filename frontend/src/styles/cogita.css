@@ -1888,6 +1888,35 @@
   word-break: break-word;
 }
 
+.cogita-live-card-surface {
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  background: rgba(8, 20, 36, 0.5);
+  padding: 0.8rem;
+}
+
+.cogita-live-card-surface[data-state='correct'] {
+  border-color: rgba(90, 220, 130, 0.45);
+  background: rgba(18, 54, 34, 0.28);
+  animation: cogita-reveal-correct-flash 700ms ease-out;
+}
+
+.cogita-share-row[data-state='correct'] {
+  border-color: rgba(90, 220, 130, 0.5);
+  background: rgba(20, 65, 38, 0.28);
+}
+
+.portal-page.cogita .ghost.live-correct-answer:not(.cta),
+.cogita-user .ghost.live-correct-answer:not(.cta),
+.cogita-library .ghost.live-correct-answer:not(.cta),
+.cogita-library-dashboard .ghost.live-correct-answer:not(.cta),
+.portal-page.cogita .cta.ghost.live-correct-answer,
+.cogita-library-dashboard .cta.ghost.live-correct-answer {
+  border-color: rgba(90, 220, 130, 0.55);
+  background: rgba(20, 72, 40, 0.32);
+  color: rgba(225, 255, 235, 0.96);
+}
+
 .cogita-details-grid-head {
   background: rgba(22, 44, 70, 0.52);
   color: rgba(201, 221, 246, 0.9);
