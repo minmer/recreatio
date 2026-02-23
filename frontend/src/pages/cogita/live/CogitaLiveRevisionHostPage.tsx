@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   createCogitaLiveRevisionSession,
@@ -349,6 +349,10 @@ export function CogitaLiveRevisionHostPage(props: {
   const storageKey = `cogita.live.host.${libraryId}.${revisionId}`;
 
   const currentRound = session ? rounds[session.currentRoundIndex] ?? null : null;
+  const publishedPrompt = (session?.status && session.status !== 'lobby'
+    ? ((session.currentPrompt ?? null) as Record<string, unknown> | null)
+    : null);
+  const publishedReveal = (session?.currentReveal ?? null) as Record<string, unknown> | null;
   const joinUrl = useMemo(
     () => (session?.code && typeof window !== 'undefined'
       ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(session.code)}`
@@ -509,6 +513,122 @@ export function CogitaLiveRevisionHostPage(props: {
     await publishRound(nextIndex);
   };
 
+  const renderPromptLikeParticipant = (prompt: Record<string, unknown> | null) => {
+    if (!prompt) {
+      return <p className="cogita-help">Waiting for host to publish a question.</p>;
+    }
+    const kind = String(prompt.kind ?? '');
+    if (kind === 'citation-fragment') {
+      return (
+        <>
+          <p>
+            <span style={{ opacity: 0.7 }}>{String(prompt.before ?? '')}</span>
+            <strong> [ ... ] </strong>
+            <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
+          </p>
+          <label className="cogita-field">
+            <span>Fragment</span>
+            <input readOnly value="" placeholder="Participant answer here" />
+          </label>
+        </>
+      );
+    }
+    if (kind === 'text') {
+      return (
+        <>
+          <p>{String(prompt.prompt ?? '')}</p>
+          <label className="cogita-field">
+            <span>Answer</span>
+            <input readOnly value="" placeholder="Participant answer here" />
+          </label>
+        </>
+      );
+    }
+    if (kind === 'boolean') {
+      return (
+        <>
+          <p>{String(prompt.prompt ?? '')}</p>
+          <div className="cogita-form-actions">
+            <button type="button" className="cta ghost" disabled>True</button>
+            <button type="button" className="cta ghost" disabled>False</button>
+          </div>
+        </>
+      );
+    }
+    if (kind === 'selection') {
+      const options = Array.isArray(prompt.options) ? prompt.options.map(String) : [];
+      const multiple = Boolean(prompt.multiple);
+      return (
+        <>
+          <p>{String(prompt.prompt ?? '')}</p>
+          <div className="cogita-share-list">
+            {options.map((option, index) => (
+              <label className="cogita-share-row" key={`${index}-${option}`}>
+                <span>{option}</span>
+                <input type={multiple ? 'checkbox' : 'radio'} disabled />
+              </label>
+            ))}
+          </div>
+        </>
+      );
+    }
+    if (kind === 'ordering') {
+      const options = Array.isArray(prompt.options) ? prompt.options.map(String) : [];
+      return (
+        <>
+          <p>{String(prompt.prompt ?? '')}</p>
+          <div className="cogita-share-list">
+            {options.map((option, index) => (
+              <div className="cogita-share-row" key={`${index}-${option}`}>
+                <span>{option}</span>
+                <div className="cogita-form-actions">
+                  <button type="button" className="ghost" disabled>↑</button>
+                  <button type="button" className="ghost" disabled>↓</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    }
+    if (kind === 'matching') {
+      const columns = Array.isArray(prompt.columns) ? (prompt.columns as unknown[][]) : [];
+      return (
+        <>
+          <p>{String(prompt.prompt ?? '')}</p>
+          <div className="cogita-form-actions">
+            {columns.map((column, columnIndex) => (
+              <select key={`host-col-${columnIndex}`} disabled>
+                {(Array.isArray(column) ? column : []).map((option, optionIndex) => (
+                  <option key={`${columnIndex}-${optionIndex}`}>{String(option)}</option>
+                ))}
+              </select>
+            ))}
+          </div>
+        </>
+      );
+    }
+    return <pre className="cogita-json-preview">{JSON.stringify(prompt, null, 2)}</pre>;
+  };
+
+  const renderReveal = (reveal: Record<string, unknown> | null) => {
+    if (!reveal) return null;
+    const kind = String(reveal.kind ?? '');
+    let body: ReactNode = null;
+    if (kind === 'selection') {
+      body = <pre className="cogita-json-preview">{JSON.stringify(reveal.expected ?? [], null, 2)}</pre>;
+    } else if (kind === 'matching' || kind === 'ordering') {
+      body = <pre className="cogita-json-preview">{JSON.stringify(reveal.expected ?? null, null, 2)}</pre>;
+    } else {
+      body = <div className="cogita-live-reveal-answer">{String(reveal.expected ?? '')}</div>;
+    }
+    return (
+      <div className="cogita-live-reveal-card" data-state="correct">
+        {body}
+      </div>
+    );
+  };
+
   return (
     <CogitaShell {...props}>
       <section className="cogita-library-dashboard">
@@ -544,16 +664,22 @@ export function CogitaLiveRevisionHostPage(props: {
               </div>
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">Current round</p>
-                <h3 className="cogita-detail-title">{currentRound?.publicPrompt.title ?? 'No round selected'}</h3>
-                {currentRound ? (
-                  <pre className="cogita-json-preview">{JSON.stringify(currentRound.publicPrompt, null, 2)}</pre>
+                <h3 className="cogita-detail-title">
+                  {publishedPrompt && typeof publishedPrompt.title === 'string'
+                    ? publishedPrompt.title
+                    : session?.status === 'lobby'
+                      ? 'Session not started'
+                      : 'Waiting for published round'}
+                </h3>
+                {session?.status === 'lobby' ? (
+                  <p className="cogita-help">No question is shown before the host starts the session.</p>
                 ) : (
-                  <p className="cogita-help">No rounds generated from this revision yet.</p>
+                  renderPromptLikeParticipant(publishedPrompt)
                 )}
-                {session?.currentReveal ? (
+                {session?.status === 'revealed' && publishedReveal ? (
                   <>
                     <p className="cogita-user-kicker">Reveal</p>
-                    <pre className="cogita-json-preview">{JSON.stringify(session.currentReveal, null, 2)}</pre>
+                    {renderReveal(publishedReveal)}
                   </>
                 ) : null}
                 <p className="cogita-user-kicker">Participants</p>

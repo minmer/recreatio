@@ -66,7 +66,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     setBoolAnswer(null);
     setOrderingAnswer(Array.isArray(prompt?.options) ? [...(prompt.options ?? [])] : []);
     setMatchingPaths([]);
-  }, [promptKey, prompt?.options]);
+  }, [promptKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -333,4 +333,3 @@ export function CogitaLiveRevisionJoinPage(props: {
     </CogitaShell>
   );
 }
-

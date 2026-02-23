@@ -1854,6 +1854,40 @@
   overflow: auto;
 }
 
+@keyframes cogita-reveal-correct-flash {
+  0% {
+    background: rgba(26, 88, 46, 0.18);
+    box-shadow: 0 0 0 0 rgba(72, 220, 120, 0.35);
+  }
+  35% {
+    background: rgba(38, 132, 64, 0.34);
+    box-shadow: 0 0 0 10px rgba(72, 220, 120, 0.12);
+  }
+  100% {
+    background: rgba(20, 70, 38, 0.2);
+    box-shadow: 0 0 0 0 rgba(72, 220, 120, 0);
+  }
+}
+
+.cogita-live-reveal-card {
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.25);
+  padding: 0.85rem;
+  background: rgba(8, 20, 36, 0.6);
+}
+
+.cogita-live-reveal-card[data-state='correct'] {
+  border-color: rgba(90, 220, 130, 0.45);
+  animation: cogita-reveal-correct-flash 700ms ease-out;
+}
+
+.cogita-live-reveal-answer {
+  color: rgba(220, 255, 230, 0.96);
+  font-weight: 700;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .cogita-details-grid-head {
   background: rgba(22, 44, 70, 0.52);
   color: rgba(201, 221, 246, 0.9);
@@ -2125,6 +2159,21 @@
   border-radius: 14px;
   border: 1px solid rgba(120, 170, 220, 0.2);
   background: rgba(8, 20, 36, 0.55);
+  color: rgba(230, 242, 255, 0.92);
+}
+
+.cogita-share-row strong {
+  color: rgba(235, 245, 255, 0.96);
+}
+
+.cogita-form-actions input,
+.cogita-form-actions select,
+.cogita-form-actions textarea {
+  border: 1px solid rgba(120, 170, 220, 0.25);
+  border-radius: 12px;
+  padding: 0.5rem 0.65rem;
+  background: rgba(8, 20, 36, 0.8);
+  color: #e7f1ff;
 }
 
 .cogita-share-row[data-state='revoked'] {
