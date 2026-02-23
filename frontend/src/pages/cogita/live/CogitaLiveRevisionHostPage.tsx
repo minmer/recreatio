@@ -503,6 +503,21 @@ export function CogitaLiveRevisionHostPage(props: {
     await publishRound(nextIndex);
   };
 
+  const handleCheckOrNext = async () => {
+    if (!session) return;
+    if (session.status === 'running') {
+      await handleReveal();
+      return;
+    }
+    if (session.status === 'revealed') {
+      await handleNext();
+      return;
+    }
+    if (session.status === 'lobby') {
+      await handleStart();
+    }
+  };
+
   const renderPromptLikeParticipant = (prompt: Record<string, unknown> | null, revealExpected?: unknown) => {
     if (!prompt) {
       return <p className="cogita-help">Waiting for host to publish a question.</p>;
@@ -653,8 +668,14 @@ export function CogitaLiveRevisionHostPage(props: {
                     <div className="cogita-field"><span>Status</span><input readOnly value={session.status} /></div>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>Publish current round</button>
-                      <button type="button" className="cta ghost" onClick={handleReveal} disabled={!currentRound}>Reveal + score</button>
-                      <button type="button" className="cta ghost" onClick={handleNext} disabled={!rounds.length}>Next</button>
+                      <button
+                        type="button"
+                        className="cta ghost"
+                        onClick={handleCheckOrNext}
+                        disabled={!rounds.length || !currentRound || session.status === 'finished'}
+                      >
+                        {session.status === 'revealed' ? 'Next question' : 'Check answer'}
+                      </button>
                     </div>
                     <p className="cogita-help">Rounds: {rounds.length}</p>
                   </>
