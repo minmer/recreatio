@@ -55,6 +55,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaMusicFragment> CogitaMusicFragments => Set<Data.Cogita.CogitaMusicFragment>();
     public DbSet<Data.Cogita.CogitaSource> CogitaSources => Set<Data.Cogita.CogitaSource>();
     public DbSet<Data.Cogita.CogitaQuote> CogitaQuotes => Set<Data.Cogita.CogitaQuote>();
+    public DbSet<Data.Cogita.CogitaQuestion> CogitaQuestions => Set<Data.Cogita.CogitaQuestion>();
     public DbSet<Data.Cogita.CogitaComputedInfo> CogitaComputedInfos => Set<Data.Cogita.CogitaComputedInfo>();
     public DbSet<Data.Cogita.CogitaCollection> CogitaCollections => Set<Data.Cogita.CogitaCollection>();
     public DbSet<Data.Cogita.CogitaCollectionItem> CogitaCollectionItems => Set<Data.Cogita.CogitaCollectionItem>();
@@ -318,6 +319,12 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.InfoId);
         modelBuilder.Entity<Data.Cogita.CogitaQuote>()
+            .HasOne<Data.Cogita.CogitaInfo>()
+            .WithMany()
+            .HasForeignKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaQuestion>()
+            .HasKey(x => x.InfoId);
+        modelBuilder.Entity<Data.Cogita.CogitaQuestion>()
             .HasOne<Data.Cogita.CogitaInfo>()
             .WithMany()
             .HasForeignKey(x => x.InfoId);

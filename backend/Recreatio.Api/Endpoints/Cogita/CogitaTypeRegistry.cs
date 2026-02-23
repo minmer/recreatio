@@ -118,7 +118,7 @@ public static class CogitaTypeRegistry
     public static readonly IReadOnlySet<string> SupportedConnectionTypes = new HashSet<string>(ConnectionInfoTypes, StringComparer.Ordinal);
 
     public static readonly IReadOnlySet<string> ComputedBackedInfoTypes = new HashSet<string>(
-        new[] { "computed", "question" }.Concat(ConnectionInfoTypes).Concat(GroupInfoTypes),
+        new[] { "computed" }.Concat(ConnectionInfoTypes).Concat(GroupInfoTypes),
         StringComparer.Ordinal);
 
     public static readonly IReadOnlyDictionary<string, InfoTypeEditorDescriptor> EditorDescriptors =

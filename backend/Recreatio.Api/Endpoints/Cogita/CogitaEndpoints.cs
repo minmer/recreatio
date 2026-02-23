@@ -8049,6 +8049,14 @@ public static class CogitaEndpoints
 
         switch (info.InfoType)
         {
+            case "question":
+                {
+                    var row = await dbContext.CogitaQuestions.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
             case "language":
                 {
                     var row = await dbContext.CogitaLanguages.AsNoTracking()
@@ -9243,6 +9251,9 @@ public static class CogitaEndpoints
 
         switch (infoType)
         {
+            case "question":
+                dbContext.CogitaQuestions.Add(new CogitaQuestion { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
             case "language":
                 dbContext.CogitaLanguages.Add(new CogitaLanguage { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
@@ -9327,6 +9338,15 @@ public static class CogitaEndpoints
 
         switch (infoType)
         {
+            case "question":
+                {
+                    var row = dbContext.CogitaQuestions.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
             case "language":
                 {
                     var row = dbContext.CogitaLanguages.FirstOrDefault(x => x.InfoId == infoId);

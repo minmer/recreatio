@@ -50,6 +50,7 @@ IF OBJECT_ID(N'dbo.CogitaWordLanguages', N'U') IS NOT NULL DROP TABLE dbo.Cogita
 IF OBJECT_ID(N'dbo.CogitaLanguages', N'U') IS NOT NULL DROP TABLE dbo.CogitaLanguages;
 IF OBJECT_ID(N'dbo.CogitaInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfos;
 IF OBJECT_ID(N'dbo.CogitaComputedInfos', N'U') IS NOT NULL DROP TABLE dbo.CogitaComputedInfos;
+IF OBJECT_ID(N'dbo.CogitaQuestions', N'U') IS NOT NULL DROP TABLE dbo.CogitaQuestions;
 IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibraries;
 IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
 IF OBJECT_ID(N'dbo.CogitaEntitySearchDocuments', N'U') IS NOT NULL DROP TABLE dbo.CogitaEntitySearchDocuments;
@@ -842,6 +843,35 @@ BEGIN
         CONSTRAINT FK_CogitaComputedInfos_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
     );
 END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaQuestions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaQuestions
+    (
+        InfoId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        DataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EncryptedBlob VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaQuestions_Info FOREIGN KEY (InfoId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
+GO
+
+INSERT INTO dbo.CogitaQuestions (InfoId, DataKeyId, EncryptedBlob, CreatedUtc, UpdatedUtc)
+SELECT ci.InfoId, ci.DataKeyId, ci.EncryptedBlob, ci.CreatedUtc, ci.UpdatedUtc
+FROM dbo.CogitaComputedInfos ci
+JOIN dbo.CogitaInfos i ON i.Id = ci.InfoId
+LEFT JOIN dbo.CogitaQuestions q ON q.InfoId = ci.InfoId
+WHERE i.InfoType = 'question'
+  AND q.InfoId IS NULL;
+GO
+
+DELETE ci
+FROM dbo.CogitaComputedInfos ci
+JOIN dbo.CogitaInfos i ON i.Id = ci.InfoId
+WHERE i.InfoType = 'question';
 GO
 
 CREATE TABLE dbo.CogitaConnections
