@@ -29,7 +29,7 @@ public static class CogitaTypeRegistry
         new("topics", "Topics", ["topic"], false, true);
 
     private static readonly LinkFieldDisplayDescriptor CommonReferencesLink =
-        new("references", "References", ["source"], false, true);
+        new("references", "References", ["source"], false, true, KeepOnCreate: true);
 
     public sealed record RelationDescriptor(string RelationType, string Role, string TargetType);
 
@@ -40,14 +40,16 @@ public static class CogitaTypeRegistry
         string Label,
         string InputType = "text",
         bool Required = false,
-        bool Searchable = true);
+        bool Searchable = true,
+        bool KeepOnCreate = false);
 
     public sealed record LinkFieldDisplayDescriptor(
         string Key,
         string Label,
         IReadOnlyList<string> TargetTypes,
         bool Required = false,
-        bool Multiple = false);
+        bool Multiple = false,
+        bool KeepOnCreate = false);
 
     public sealed record InfoTypeDescriptor(
         string InfoType,
@@ -59,7 +61,9 @@ public static class CogitaTypeRegistry
     public sealed record InfoTypeEditorDescriptor(
         string InfoType,
         IReadOnlyList<PayloadFieldDisplayDescriptor> PayloadFields,
-        IReadOnlyList<LinkFieldDisplayDescriptor> LinkFields);
+        IReadOnlyList<LinkFieldDisplayDescriptor> LinkFields,
+        bool AllowCommonTopics = true,
+        bool AllowCommonReferences = true);
 
     public static readonly IReadOnlyDictionary<string, InfoTypeDescriptor> InfoTypes =
         new Dictionary<string, InfoTypeDescriptor>(StringComparer.Ordinal)
@@ -124,10 +128,10 @@ public static class CogitaTypeRegistry
                 []),
             ["word"] = new("word",
                 [new("label", "Label", "text", true), new("lemma", "Lemma")],
-                [new("languageId", "Language", ["language"], false, false)]),
+                [new("languageId", "Language", ["language"], false, false, KeepOnCreate: true)]),
             ["sentence"] = new("sentence",
                 [new("label", "Label"), new("text", "Text", "textarea", true)],
-                [new("languageId", "Language", ["language"], false, false)]),
+                [new("languageId", "Language", ["language"], false, false, KeepOnCreate: true)]),
             ["topic"] = new("topic",
                 [new("label", "Topic", "text", true)],
                 []),
@@ -161,8 +165,8 @@ public static class CogitaTypeRegistry
             ["work"] = new("work",
                 [new("label", "Title", "text", true), new("subtitle", "Subtitle"), new("doi", "DOI")],
                 [
-                    new("languageId", "Language", ["language"], false, false),
-                    new("originalLanguageId", "Original language", ["language"], false, false),
+                    new("languageId", "Language", ["language"], false, false, KeepOnCreate: true),
+                    new("originalLanguageId", "Original language", ["language"], false, false, KeepOnCreate: true),
                     new("contributors", "Contributors", ["person", "institution", "collective"], false, true),
                     new("media", "Media", ["media"], false, true)
                 ]),
@@ -176,13 +180,18 @@ public static class CogitaTypeRegistry
                 [new("label", "Title", "text", true), new("text", "Text", "textarea", false)],
                 []),
             ["source"] = new("source",
-                [new("label", "Label"), new("sourceKind", "Source type", "text", true), new("locator", "Locator", "textarea")],
-                [new("resource", "Resource", ["work", "media"], false, false)]),
+                [
+                    new("label", "Label"),
+                    new("sourceKind", "Source type", "text", true, true, KeepOnCreate: true),
+                    new("locator", "Locator", "textarea")
+                ],
+                [new("resource", "Resource", ["work", "media"], false, false, KeepOnCreate: true)],
+                AllowCommonReferences: false),
             ["citation"] = new("citation",
                 [new("title", "Title"), new("text", "Citation text", "textarea", true)],
                 [
-                    new("languageId", "Language", ["language"], false, false),
-                    new("references", "References", ["source"], false, true)
+                    new("languageId", "Language", ["language"], false, false, KeepOnCreate: true),
+                    new("references", "References", ["source"], false, true, KeepOnCreate: true)
                 ]),
             ["computed"] = new("computed",
                 [new("label", "Name", "text", true), new("definition", "Definition JSON", "json", true)],
@@ -238,16 +247,25 @@ public static class CogitaTypeRegistry
         }
 
         var links = descriptor.LinkFields.ToList();
-        if (!links.Any(x => x.Key.Equals(CommonTopicsLink.Key, StringComparison.OrdinalIgnoreCase)))
+        if (descriptor.AllowCommonTopics &&
+            !links.Any(x => x.Key.Equals(CommonTopicsLink.Key, StringComparison.OrdinalIgnoreCase)))
         {
             links.Add(CommonTopicsLink);
         }
-        if (!links.Any(x => x.Key.Equals(CommonReferencesLink.Key, StringComparison.OrdinalIgnoreCase)))
+        if (descriptor.AllowCommonReferences &&
+            !ConnectionInfoTypes.Contains(infoType) &&
+            !GroupInfoTypes.Contains(infoType) &&
+            !links.Any(x => x.Key.Equals(CommonReferencesLink.Key, StringComparison.OrdinalIgnoreCase)))
         {
             links.Add(CommonReferencesLink);
         }
 
-        return new InfoTypeEditorDescriptor(descriptor.InfoType, descriptor.PayloadFields, links);
+        return new InfoTypeEditorDescriptor(
+            descriptor.InfoType,
+            descriptor.PayloadFields,
+            links,
+            descriptor.AllowCommonTopics,
+            descriptor.AllowCommonReferences);
     }
 
     public static List<(string Key, string Value)> BuildInfoFilterTokens(string infoType, JsonElement payload)

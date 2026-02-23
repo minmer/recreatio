@@ -485,7 +485,8 @@ public static class CogitaEndpoints
                             field.Label,
                             field.InputType,
                             field.Required,
-                            field.Searchable))
+                            field.Searchable,
+                            field.KeepOnCreate))
                         .ToList() ?? new List<CogitaInfoPayloadFieldSpecResponse>();
                     var linkFields = descriptor?.LinkFields
                         .Select(field => new CogitaInfoLinkFieldSpecResponse(
@@ -493,7 +494,8 @@ public static class CogitaEndpoints
                             field.Label,
                             field.TargetTypes.ToList(),
                             field.Required,
-                            field.Multiple))
+                            field.Multiple,
+                            field.KeepOnCreate))
                         .ToList() ?? new List<CogitaInfoLinkFieldSpecResponse>();
                     return new CogitaInfoTypeSpecResponse(
                         infoType,
@@ -1132,7 +1134,17 @@ public static class CogitaEndpoints
             info.UpdatedUtc = now;
             await UpsertInfoSearchIndexAsync(libraryId, info.Id, info.InfoType, sanitizedPayload, now, dbContext, ct);
 
-            await dbContext.SaveChangesAsync(ct);
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (IsMissingInfoLinksSchema(ex))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "Database schema for Cogita info links is outdated. Apply the latest schema.sql on the API database (CogitaInfoLinkSingles/CogitaInfoLinkMultis)."
+                });
+            }
 
             return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
         });
@@ -6824,6 +6836,13 @@ public static class CogitaEndpoints
             try
             {
                 await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (IsMissingInfoLinksSchema(ex))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "Database schema for Cogita info links is outdated. Apply the latest schema.sql on the API database (CogitaInfoLinkSingles/CogitaInfoLinkMultis)."
+                });
             }
             catch (DbUpdateException ex) when (LooksLikeUnsupportedInfoTypeSchema(ex, infoType))
             {

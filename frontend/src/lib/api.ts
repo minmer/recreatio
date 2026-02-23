@@ -508,6 +508,7 @@ export type CogitaInfoPayloadFieldSpec = {
   inputType: string;
   required: boolean;
   searchable: boolean;
+  keepOnCreate: boolean;
 };
 
 export type CogitaInfoLinkFieldSpec = {
@@ -516,6 +517,7 @@ export type CogitaInfoLinkFieldSpec = {
   targetTypes: string[];
   required: boolean;
   multiple: boolean;
+  keepOnCreate: boolean;
 };
 
 export type CogitaInfoTypeSpecification = {

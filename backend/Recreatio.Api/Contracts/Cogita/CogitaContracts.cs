@@ -36,7 +36,8 @@ public sealed record CogitaInfoPayloadFieldSpecResponse(
     string Label,
     string InputType,
     bool Required,
-    bool Searchable
+    bool Searchable,
+    bool KeepOnCreate
 );
 
 public sealed record CogitaInfoLinkFieldSpecResponse(
@@ -44,7 +45,8 @@ public sealed record CogitaInfoLinkFieldSpecResponse(
     string Label,
     List<string> TargetTypes,
     bool Required,
-    bool Multiple
+    bool Multiple,
+    bool KeepOnCreate
 );
 
 public sealed record CogitaInfoTypeSpecResponse(
