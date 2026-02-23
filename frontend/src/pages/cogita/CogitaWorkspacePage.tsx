@@ -1665,39 +1665,38 @@ export function CogitaWorkspacePage({
               {selectedLibrary ? workspaceCopy.sidebar.libraryActionsHint : workspaceCopy.status.selectLibraryFirst}
             </p>
             {renderSidebarActions(sidebarLibraryActionsLevel, 'sidebar')}
+            {sidebarInfoActionsLevel ? (
+              <div className="cogita-sidebar-actions-nested" data-level="branch">
+                <p className="cogita-sidebar-note">{workspaceCopy.sidebar.infoActionsHint}</p>
+                {renderSidebarActions(sidebarInfoActionsLevel, 'sidebar')}
+                {sidebarSelectedInfoActionsLevel ? (
+                  <div className="cogita-sidebar-actions-nested" data-level="branch">
+                    <p className="cogita-sidebar-note">
+                      {selectedInfoOption?.label ?? selectedInfoLabel ?? copy.cogita.library.list.selectedEmpty}
+                    </p>
+                    <p className="cogita-sidebar-note">{workspaceCopy.sidebar.selectedInfoActionsHint}</p>
+                    {renderSidebarActions(sidebarSelectedInfoActionsLevel, 'sidebar')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {selectedCollection ? (
+              <div className="cogita-sidebar-actions-nested" data-level="branch">
+                <p className="cogita-sidebar-note">{selectedCollection.name}</p>
+                <p className="cogita-sidebar-note">{workspaceCopy.sidebar.collectionActionsHint}</p>
+                {renderSidebarActions(sidebarCollectionActionsLevel, 'sidebar')}
+                {sidebarRevisionEntriesLevel ? (
+                  <div className="cogita-sidebar-actions-nested" data-level="branch">
+                    <p className="cogita-sidebar-note">
+                      {selectedRevision?.name ?? workspaceCopy.status.noRevisions}
+                    </p>
+                    {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-
-          {sidebarInfoActionsLevel ? (
-            <div className="cogita-browser-sidebar-section">
-              <h3>{workspaceCopy.sidebar.infoActionsHint}</h3>
-              {renderSidebarActions(sidebarInfoActionsLevel, 'sidebar')}
-              {sidebarSelectedInfoActionsLevel ? (
-                <div className="cogita-sidebar-actions-nested">
-                  <p className="cogita-sidebar-note">
-                    {selectedInfoOption?.label ?? selectedInfoLabel ?? copy.cogita.library.list.selectedEmpty}
-                  </p>
-                  <p className="cogita-sidebar-note">{workspaceCopy.sidebar.selectedInfoActionsHint}</p>
-                  {renderSidebarActions(sidebarSelectedInfoActionsLevel, 'sidebar')}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {selectedCollection ? (
-            <div className="cogita-browser-sidebar-section">
-              <h3>{selectedCollection.name}</h3>
-              <p className="cogita-sidebar-note">{workspaceCopy.sidebar.collectionActionsHint}</p>
-              {renderSidebarActions(sidebarCollectionActionsLevel, 'sidebar')}
-              {sidebarRevisionEntriesLevel ? (
-                <div className="cogita-sidebar-actions-nested">
-                  <p className="cogita-sidebar-note">
-                    {selectedRevision?.name ?? workspaceCopy.status.noRevisions}
-                  </p>
-                  {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
 
           <div className="cogita-browser-sidebar-section">
             <h3>{workspaceCopy.sidebar.alwaysAvailable}</h3>

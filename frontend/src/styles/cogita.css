@@ -3629,6 +3629,23 @@
   color: rgba(198, 219, 241, 0.7);
 }
 
+.cogita-sidebar-actions-nested .cogita-sidebar-actions-nested {
+  margin-left: 0.7rem;
+  padding-left: 0.6rem;
+  border-left-color: rgba(118, 167, 217, 0.16);
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-actions-nested::before {
+  width: 0.4rem;
+  border-top-color: rgba(118, 167, 217, 0.14);
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-actions-nested .cogita-sidebar-actions .ghost {
+  margin-left: 0.1rem;
+  padding-left: 0.7rem;
+  font-size: 0.82rem;
+}
+
 .cogita-browser-page {
   display: grid;
   gap: 1.1rem;
