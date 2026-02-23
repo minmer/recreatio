@@ -46,6 +46,16 @@
   padding: 0.35rem 0.55rem;
 }
 
+.cogita-header-reviewer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cogita-header-reviewer-actions > .ghost {
+  white-space: nowrap;
+}
+
 .portal-footer.cogita-footer {
   flex: 0 0 var(--footer-h);
   height: var(--footer-h);
@@ -1815,13 +1825,15 @@
   display: grid;
   border: 1px solid rgba(120, 170, 220, 0.22);
   border-radius: 8px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .cogita-details-grid-head,
 .cogita-details-row {
   display: grid;
   grid-template-columns: 2rem minmax(18rem, 2fr) minmax(10rem, 1fr) minmax(12rem, 1.3fr) 2.4rem;
+  min-width: 46rem;
   align-items: center;
   gap: 0.5rem;
   padding: 0.3rem 0.45rem;
@@ -3586,9 +3598,35 @@
 .cogita-sidebar-actions-nested {
   display: grid;
   gap: 0.32rem;
-  margin-left: 0.6rem;
-  padding-left: 0.45rem;
-  border-left: 1px solid rgba(118, 167, 217, 0.18);
+  margin: 0.15rem 0 0.1rem 0.95rem;
+  padding: 0.15rem 0 0.15rem 0.7rem;
+  border-left: 1px solid rgba(118, 167, 217, 0.24);
+  position: relative;
+}
+
+.cogita-sidebar-actions-nested::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0.35rem;
+  width: 0.55rem;
+  border-top: 1px solid rgba(118, 167, 217, 0.2);
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-note {
+  font-size: 0.76rem;
+  color: rgba(184, 209, 234, 0.7);
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-actions {
+  gap: 0.22rem;
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-actions .ghost {
+  margin-left: 0.2rem;
+  padding-left: 0.85rem;
+  font-size: 0.84rem;
+  color: rgba(198, 219, 241, 0.7);
 }
 
 .cogita-browser-page {

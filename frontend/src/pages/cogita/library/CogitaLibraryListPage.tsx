@@ -457,7 +457,9 @@ export function CogitaLibraryListPage({
       selectedItems.map((item) => item.infoId)
     );
     if (!seedId) return;
-    navigate(`/cogita/library/${libraryId}/revision/run?scope=info-selection&seed=${encodeURIComponent(seedId)}`);
+    navigate(
+      `/cogita/library/${libraryId}/revision/run?libraryTarget=revisions&scope=info-selection&seed=${encodeURIComponent(seedId)}`
+    );
   };
 
   const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.infoId ?? null : null;

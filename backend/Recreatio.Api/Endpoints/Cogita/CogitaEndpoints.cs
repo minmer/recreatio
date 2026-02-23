@@ -11443,33 +11443,33 @@ public static class CogitaEndpoints
         string label,
         string description)
     {
-        var checkType = infoType == "word"
-            ? "word-language"
-            : infoType == "computed"
-                ? "computed"
-                : "info";
-
-        if (infoType == "word")
+        if (string.Equals(infoType, "word", StringComparison.OrdinalIgnoreCase))
         {
             return new List<CogitaCardSearchResponse>
             {
-                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, checkType, "word-to-language")
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "word-language", "word-to-language")
             };
         }
 
-        if (infoType == "citation")
+        if (string.Equals(infoType, "citation", StringComparison.OrdinalIgnoreCase))
         {
             return new List<CogitaCardSearchResponse>
             {
-                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, checkType, "forward"),
-                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, checkType, "reverse")
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "info", "forward"),
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "info", "reverse")
             };
         }
 
-        return new List<CogitaCardSearchResponse>
+        if (string.Equals(infoType, "computed", StringComparison.OrdinalIgnoreCase))
         {
-            new CogitaCardSearchResponse(infoId, "info", label, description, infoType, checkType, null)
-        };
+            return new List<CogitaCardSearchResponse>
+            {
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "computed", null)
+            };
+        }
+
+        // No generic fallback card: infos without explicit checkcard definitions are ignored by revisions.
+        return new List<CogitaCardSearchResponse>();
     }
 
     private static string GenerateNumericShareCode(int length)

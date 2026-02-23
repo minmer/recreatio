@@ -432,7 +432,9 @@ export function CogitaInfoCheckcardsPage({
                     className="cta"
                     disabled={cards.length === 0}
                     onClick={() =>
-                      navigate(`/cogita/library/${libraryId}/revision/run?scope=info&infoId=${encodeURIComponent(infoId)}`)
+                      navigate(
+                        `/cogita/library/${libraryId}/revision/run?libraryTarget=revisions&scope=info&infoId=${encodeURIComponent(infoId)}`
+                      )
                     }
                   >
                     Start revision
