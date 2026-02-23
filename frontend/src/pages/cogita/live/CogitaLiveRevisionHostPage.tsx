@@ -356,6 +356,16 @@ export function CogitaLiveRevisionHostPage(props: {
     [session?.code]
   );
 
+  const mergeHostSecrets = (
+    next: CogitaLiveRevisionSession,
+    previous?: CogitaLiveRevisionSession | null,
+    fallback?: { hostSecret?: string; code?: string } | null
+  ): CogitaLiveRevisionSession => ({
+    ...next,
+    hostSecret: next.hostSecret || previous?.hostSecret || fallback?.hostSecret || '',
+    code: next.code || previous?.code || fallback?.code || ''
+  });
+
   useEffect(() => {
     let canceled = false;
     buildLiveRounds({ libraryId, revisionId })
@@ -379,17 +389,20 @@ export function CogitaLiveRevisionHostPage(props: {
       try {
         const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(storageKey) : null;
         if (stored) {
-          const parsed = JSON.parse(stored) as { sessionId: string; hostSecret: string };
+          const parsed = JSON.parse(stored) as { sessionId: string; hostSecret: string; code?: string };
           const existing = await getCogitaLiveRevisionSession({ libraryId, sessionId: parsed.sessionId, hostSecret: parsed.hostSecret });
           if (canceled) return;
-          setSession(existing);
+          setSession((prev) => mergeHostSecrets(existing, prev, parsed));
           setStatus('ready');
           return;
         }
         const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: 'Live revision' });
         if (canceled) return;
         setSession(created);
-        localStorage.setItem(storageKey, JSON.stringify({ sessionId: created.sessionId, hostSecret: created.hostSecret }));
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({ sessionId: created.sessionId, hostSecret: created.hostSecret, code: created.code })
+        );
         setStatus('ready');
       } catch {
         if (canceled) return;
@@ -408,7 +421,7 @@ export function CogitaLiveRevisionHostPage(props: {
     const timer = window.setInterval(async () => {
       try {
         const fresh = await getCogitaLiveRevisionSession({ libraryId, sessionId: session.sessionId, hostSecret: session.hostSecret });
-        setSession(fresh);
+        setSession((prev) => mergeHostSecrets(fresh, prev));
       } catch {
         // ignore poll errors
       }
@@ -434,7 +447,7 @@ export function CogitaLiveRevisionHostPage(props: {
       currentPrompt: next.currentPrompt ?? session.currentPrompt ?? null,
       currentReveal: next.currentReveal ?? session.currentReveal ?? null
     });
-    setSession(updated);
+    setSession((prev) => mergeHostSecrets(updated, prev));
   };
 
   const publishRound = async (index: number) => {
@@ -472,7 +485,7 @@ export function CogitaLiveRevisionHostPage(props: {
       hostSecret: session.hostSecret,
       scores
     });
-    setSession(afterScore);
+    setSession((prev) => mergeHostSecrets(afterScore, prev));
     await pushState({
       status: 'revealed',
       revealVersion: afterScore.revealVersion + 1,

@@ -128,6 +128,15 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
 const REVISION_SELECTION_VIEWS: RevisionView[] = ['settings', 'run', 'shared'];
+const SIDEBAR_NAV_LABEL_MAX = 30;
+const BREADCRUMB_NAV_LABEL_MAX = 42;
+
+function shortenNavLabel(label: string, maxLength: number) {
+  const text = (label ?? '').trim();
+  if (text.length <= maxLength) return text;
+  if (maxLength <= 1) return text.slice(0, maxLength);
+  return `${text.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
 
 function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPath {
   const segments = pathname.split('/').filter(Boolean);
@@ -1336,8 +1345,9 @@ export function CogitaWorkspacePage({
               className={`ghost ${String(level.value) === option.value ? 'active' : ''}`}
               onClick={() => level.onSelect(option.value)}
               disabled={level.disabled}
+              title={option.label}
             >
-              {option.label}
+              {shortenNavLabel(option.label, SIDEBAR_NAV_LABEL_MAX)}
             </button>
           ))}
         </div>
@@ -1973,7 +1983,9 @@ export function CogitaWorkspacePage({
       <section className="cogita-browser-shell">
         <aside className={`cogita-browser-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label={workspaceCopy.sidebar.title}>
           <div className="cogita-browser-sidebar-section">
-            <h2>{selectedLibrary?.name ?? workspaceCopy.path.noLibrarySelected}</h2>
+            <h2 title={selectedLibrary?.name ?? workspaceCopy.path.noLibrarySelected}>
+              {shortenNavLabel(selectedLibrary?.name ?? workspaceCopy.path.noLibrarySelected, SIDEBAR_NAV_LABEL_MAX)}
+            </h2>
             <p className="cogita-sidebar-note">
               {selectedLibrary ? workspaceCopy.sidebar.libraryActionsHint : workspaceCopy.status.selectLibraryFirst}
             </p>
@@ -1985,7 +1997,9 @@ export function CogitaWorkspacePage({
                 {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
                 {sidebarRevisionActionsLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note">{selectedRevision?.name ?? workspaceCopy.status.noRevisions}</p>
+                    <p className="cogita-sidebar-note" title={selectedRevision?.name ?? workspaceCopy.status.noRevisions}>
+                      {shortenNavLabel(selectedRevision?.name ?? workspaceCopy.status.noRevisions, SIDEBAR_NAV_LABEL_MAX)}
+                    </p>
                     {renderSidebarActions(sidebarRevisionActionsLevel, 'sidebar')}
                   </div>
                 ) : null}
@@ -1997,8 +2011,14 @@ export function CogitaWorkspacePage({
                 {renderSidebarActions(sidebarInfoActionsLevel, 'sidebar')}
                 {sidebarSelectedInfoActionsLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note">
-                      {selectedInfoOption?.label ?? selectedInfoLabel ?? copy.cogita.library.list.selectedEmpty}
+                    <p
+                      className="cogita-sidebar-note"
+                      title={selectedInfoOption?.label ?? selectedInfoLabel ?? copy.cogita.library.list.selectedEmpty}
+                    >
+                      {shortenNavLabel(
+                        selectedInfoOption?.label ?? selectedInfoLabel ?? copy.cogita.library.list.selectedEmpty,
+                        SIDEBAR_NAV_LABEL_MAX
+                      )}
                     </p>
                     <p className="cogita-sidebar-note">{workspaceCopy.sidebar.selectedInfoActionsHint}</p>
                     {renderSidebarActions(sidebarSelectedInfoActionsLevel, 'sidebar')}
@@ -2013,7 +2033,9 @@ export function CogitaWorkspacePage({
                 {renderSidebarActions(sidebarCollectionActionsLevel, 'sidebar')}
                 {selectedCollection && sidebarSelectedCollectionActionsLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note">{selectedCollection.name}</p>
+                    <p className="cogita-sidebar-note" title={selectedCollection.name}>
+                      {shortenNavLabel(selectedCollection.name, SIDEBAR_NAV_LABEL_MAX)}
+                    </p>
                     {renderSidebarActions(sidebarSelectedCollectionActionsLevel, 'sidebar')}
                     {selectedTarget !== 'all_revisions' && sidebarRevisionEntriesLevel ? (
                       <div className="cogita-sidebar-actions-nested" data-level="branch">
@@ -2022,7 +2044,9 @@ export function CogitaWorkspacePage({
                         {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
                         {sidebarRevisionActionsLevel ? (
                           <div className="cogita-sidebar-actions-nested" data-level="branch">
-                            <p className="cogita-sidebar-note">{selectedRevision?.name ?? workspaceCopy.status.noRevisions}</p>
+                            <p className="cogita-sidebar-note" title={selectedRevision?.name ?? workspaceCopy.status.noRevisions}>
+                              {shortenNavLabel(selectedRevision?.name ?? workspaceCopy.status.noRevisions, SIDEBAR_NAV_LABEL_MAX)}
+                            </p>
                             {renderSidebarActions(sidebarRevisionActionsLevel, 'sidebar')}
                           </div>
                         ) : null}
@@ -2072,8 +2096,8 @@ export function CogitaWorkspacePage({
             <div key={`menu:${level.key}`} className="cogita-browser-segment">
               {index > 0 ? <span className="cogita-browser-separator">›</span> : null}
               {level.options.length === 0 ? (
-                <span className="cogita-browser-static" aria-label={level.label}>
-                  {level.selectedLabel}
+                <span className="cogita-browser-static" aria-label={level.label} title={level.selectedLabel}>
+                  {shortenNavLabel(level.selectedLabel, BREADCRUMB_NAV_LABEL_MAX)}
                 </span>
               ) : (
                 <select
@@ -2084,8 +2108,8 @@ export function CogitaWorkspacePage({
                 >
                   {level.emptyOption ? <option value="">{level.emptyOption}</option> : null}
                   {level.options.map((option) => (
-                    <option key={`${level.key}:${option.value}`} value={option.value}>
-                      {option.label}
+                    <option key={`${level.key}:${option.value}`} value={option.value} title={option.label}>
+                      {shortenNavLabel(option.label, BREADCRUMB_NAV_LABEL_MAX)}
                     </option>
                   ))}
                 </select>
