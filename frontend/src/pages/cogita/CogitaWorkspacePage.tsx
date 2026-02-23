@@ -183,6 +183,10 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     return { libraryId, target: 'all_collections', revisionId };
   }
 
+  if (segments[3] === 'revision' && segments[4] === 'run') {
+    return { libraryId, target: 'all_collections', revisionView: 'run', revisionId, infoId, infoView };
+  }
+
   if (segments[3] === 'dependencies') {
     return { libraryId, target: 'dependencies' };
   }
@@ -1004,8 +1008,7 @@ export function CogitaWorkspacePage({
       visibleNavigationLevels.filter(
         (level) =>
           level.key !== 'library' &&
-          level.key !== 'collection' &&
-          level.key !== 'revision_entry'
+          level.key !== 'collection'
       ),
     [visibleNavigationLevels]
   );
@@ -1023,6 +1026,10 @@ export function CogitaWorkspacePage({
   );
   const sidebarCollectionActionsLevel = useMemo(
     () => sidebarActionLevels.find((level) => level.key === 'collection_action') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarRevisionEntriesLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'revision_entry') ?? null,
     [sidebarActionLevels]
   );
   const renderSidebarActions = useCallback((level: NavigationLevel | null, keyPrefix: string) => {
@@ -1088,6 +1095,9 @@ export function CogitaWorkspacePage({
       return <CogitaLibraryTextsPage {...baseProps} />;
     }
     if (pathState.target === 'all_collections') {
+      if (!pathState.collectionId && pathState.revisionView === 'run') {
+        return <CogitaRevisionRunPage {...baseProps} revisionId={pathState.revisionId} />;
+      }
       if (pathState.collectionId) {
         const collectionProps = { ...baseProps, collectionId: pathState.collectionId };
         if (pathState.revisionView === 'graph') {
@@ -1376,6 +1386,17 @@ export function CogitaWorkspacePage({
       lastNavigationRef.current = null;
       return;
     }
+    const isLibraryRevisionRunPath =
+      normalizePath(location.pathname) === `/cogita/library/${selectedLibraryId}/revision/run` &&
+      pathState.revisionView === 'run' &&
+      !pathState.collectionId &&
+      selectedTarget === 'all_collections' &&
+      selectedRevisionView === 'run' &&
+      !selectedCollectionId;
+    if (isLibraryRevisionRunPath) {
+      lastNavigationRef.current = null;
+      return;
+    }
     const nextPath = normalizePath(
       buildCogitaPath(
         selectedLibraryId,
@@ -1628,6 +1649,14 @@ export function CogitaWorkspacePage({
               <h3>{selectedCollection.name}</h3>
               <p className="cogita-sidebar-note">{workspaceCopy.sidebar.collectionActionsHint}</p>
               {renderSidebarActions(sidebarCollectionActionsLevel, 'sidebar')}
+              {sidebarRevisionEntriesLevel ? (
+                <div className="cogita-sidebar-actions-nested">
+                  <p className="cogita-sidebar-note">
+                    {selectedRevision?.name ?? workspaceCopy.status.noRevisions}
+                  </p>
+                  {renderSidebarActions(sidebarRevisionEntriesLevel, 'sidebar')}
+                </div>
+              ) : null}
             </div>
           ) : null}
 

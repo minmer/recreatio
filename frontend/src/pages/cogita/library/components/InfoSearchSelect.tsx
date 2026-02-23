@@ -13,6 +13,7 @@ type InfoSearchSelectCommonProps = {
   createLabel?: string;
   savingLabel?: string;
   loadMoreLabel?: string;
+  allowCreate?: boolean;
   inputRef?: Ref<HTMLInputElement>;
   autoAdvance?: boolean;
   onCommit?: () => void;
@@ -56,6 +57,7 @@ export function InfoSearchSelect({
   createLabel,
   savingLabel,
   loadMoreLabel,
+  allowCreate = true,
   inputRef,
   autoAdvance,
   onCommit,
@@ -73,11 +75,12 @@ export function InfoSearchSelect({
   const cacheRef = useRef(new Map<string, CogitaInfoOption[]>());
 
   const showCreate = useMemo(() => {
+    if (!allowCreate) return false;
     if (multiple) {
       return query.trim().length > 0;
     }
     return query.trim().length > 0 && !value;
-  }, [query, value, multiple]);
+  }, [allowCreate, query, value, multiple]);
 
   useEffect(() => {
     if (!multiple) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
@@ -113,6 +114,7 @@ export function CogitaInfoCheckcardsPage({
   const [scriptMode, setScriptMode] = useState<'super' | 'sub' | null>(null);
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -425,6 +427,16 @@ export function CogitaInfoCheckcardsPage({
                 <div className="cogita-selection-overview">
                   <span className="cogita-tag-chip">{`Cards: ${cards.length}`}</span>
                   <span className="cogita-tag-chip">{`Dependencies: ${dependencies.length}`}</span>
+                  <button
+                    type="button"
+                    className="cta"
+                    disabled={cards.length === 0}
+                    onClick={() =>
+                      navigate(`/cogita/library/${libraryId}/revision/run?scope=info&infoId=${encodeURIComponent(infoId)}`)
+                    }
+                  >
+                    Start revision
+                  </button>
                 </div>
               </header>
 

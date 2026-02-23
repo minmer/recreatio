@@ -23,6 +23,7 @@ import type { CogitaInfoType, CogitaLibraryMode } from './types';
 import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { saveInfoSelectionRevisionSeed } from '../../../cogita/revision/scope';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -450,6 +451,15 @@ export function CogitaLibraryListPage({
     navigate(`/cogita/library/${libraryId}/edit/${encodeURIComponent(selectedInfoIdFromRoute)}`, { replace: true });
   };
 
+  const startRevisionFromSelectedInfos = () => {
+    const seedId = saveInfoSelectionRevisionSeed(
+      libraryId,
+      selectedItems.map((item) => item.infoId)
+    );
+    if (!seedId) return;
+    navigate(`/cogita/library/${libraryId}/revision/run?scope=info-selection&seed=${encodeURIComponent(seedId)}`);
+  };
+
   const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.infoId ?? null : null;
   const selectedCountLabel = listCopy.selectionCount.replace('{count}', String(selectedItems.length));
 
@@ -711,6 +721,14 @@ export function CogitaLibraryListPage({
                     title={!singleSelectedId ? listCopy.openSelectedDisabled : undefined}
                   >
                     {listCopy.openSelected}
+                  </button>
+                  <button
+                    type="button"
+                    className="cta"
+                    onClick={startRevisionFromSelectedInfos}
+                    disabled={selectedItems.length === 0}
+                  >
+                    Start revision
                   </button>
                 </div>
               </div>

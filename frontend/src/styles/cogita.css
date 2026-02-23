@@ -1704,6 +1704,10 @@
 .cogita-info-checkcards-selected > p {
   margin: 0;
 }
+.cogita-info-checkcards-selected > h4,
+.cogita-info-checkcards-selected > .cogita-card-subtitle {
+  color: #e8f2ff;
+}
 
 .cogita-info-checkcard-answer {
   margin-top: 0.4rem;

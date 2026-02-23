@@ -6805,6 +6805,8 @@ public static class CogitaEndpoints
             var payloadBytes = JsonSerializer.SerializeToUtf8Bytes(sanitizedPayload);
             var encrypted = encryptionService.Encrypt(dataKeyResult.DataKey, payloadBytes, infoId.ToByteArray());
 
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
             dbContext.CogitaInfos.Add(new CogitaInfo
             {
                 Id = infoId,
@@ -6815,6 +6817,19 @@ public static class CogitaEndpoints
             });
 
             AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
+
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (LooksLikeUnsupportedInfoTypeSchema(ex, infoType))
+            {
+                return Results.BadRequest(new
+                {
+                    error = $"Database schema does not support info type '{infoType}' yet. Apply the latest schema.sql on the API database."
+                });
+            }
+
             await UpsertInfoSearchIndexAsync(libraryId, infoId, infoType, sanitizedPayload, now, dbContext, ct);
 
             try
@@ -6851,6 +6866,8 @@ public static class CogitaEndpoints
                     error = $"Database schema does not support info type '{infoType}' yet. Apply the latest schema.sql on the API database."
                 });
             }
+
+            await transaction.CommitAsync(ct);
 
             return Results.Ok(new CogitaCreateInfoResponse(infoId, infoType));
         });

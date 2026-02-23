@@ -503,6 +503,28 @@ export function CogitaLibraryAddPage({
         if (current.some((item) => item.id === option.id)) return prev;
         return { ...prev, [fieldKey]: [...current, option] };
       });
+      if (isEditMode && editInfoId) {
+        const currentDetail = await getCogitaInfoDetail({ libraryId, infoId: editInfoId });
+        const nextLinks: Record<string, string | string[] | null> =
+          currentDetail.links && typeof currentDetail.links === 'object'
+            ? ({ ...(currentDetail.links as Record<string, string | string[] | null>) })
+            : {};
+        const currentFieldValue = nextLinks[fieldKey];
+        const nextIds = Array.isArray(currentFieldValue)
+          ? currentFieldValue.filter((value): value is string => typeof value === 'string')
+          : typeof currentFieldValue === 'string'
+            ? [currentFieldValue]
+            : [];
+        if (!nextIds.includes(option.id)) {
+          nextLinks[fieldKey] = [...nextIds, option.id];
+          await updateCogitaInfo({
+            libraryId,
+            infoId: editInfoId,
+            payload: currentDetail.payload,
+            links: nextLinks
+          });
+        }
+      }
       setInlineReferenceForms((prev) => ({ ...prev, [fieldKey]: resetReferenceFormAfterCreate(form) }));
       setInlineReferenceStatus((prev) => ({ ...prev, [fieldKey]: null }));
     } catch (error) {
@@ -702,6 +724,7 @@ export function CogitaLibraryAddPage({
             multiple
             values={multiLinks[field.key] ?? []}
             onChangeMultiple={(values) => setMultiLinks((prev) => ({ ...prev, [field.key]: values }))}
+            allowCreate={!isReferenceAttachmentField}
             searchFailedText="Search failed"
             createFailedText="Create failed"
           />
