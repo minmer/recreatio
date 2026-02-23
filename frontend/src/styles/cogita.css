@@ -3622,6 +3622,15 @@
   gap: 0.22rem;
 }
 
+.cogita-sidebar-actions-nested .cogita-sidebar-search {
+  margin: 0.05rem 0.15rem 0.2rem 0.2rem;
+}
+
+.cogita-sidebar-actions-nested .cogita-sidebar-search input {
+  min-height: 2rem;
+  font-size: 0.82rem;
+}
+
 .cogita-sidebar-actions-nested .cogita-sidebar-actions .ghost {
   margin-left: 0.2rem;
   padding-left: 0.85rem;
