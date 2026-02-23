@@ -668,14 +668,6 @@ export function CogitaLiveRevisionHostPage(props: {
                     <div className="cogita-field"><span>Status</span><input readOnly value={session.status} /></div>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>Publish current round</button>
-                      <button
-                        type="button"
-                        className="cta ghost"
-                        onClick={handleCheckOrNext}
-                        disabled={!rounds.length || !currentRound || session.status === 'finished'}
-                      >
-                        {session.status === 'revealed' ? 'Next question' : 'Check answer'}
-                      </button>
                     </div>
                     <p className="cogita-help">Rounds: {rounds.length}</p>
                   </>
@@ -695,6 +687,18 @@ export function CogitaLiveRevisionHostPage(props: {
                 ) : (
                   renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)
                 )}
+                {sessionStage !== 'lobby' ? (
+                  <div className="cogita-form-actions">
+                    <button
+                      type="button"
+                      className="cta"
+                      onClick={handleCheckOrNext}
+                      disabled={!rounds.length || !currentRound || session.status === 'finished'}
+                    >
+                      {session.status === 'revealed' ? 'Next question' : 'Check answer'}
+                    </button>
+                  </div>
+                ) : null}
                 {sessionStage !== 'finished' ? (
                   <>
                     <p className="cogita-user-kicker">Participants</p>
