@@ -1894,7 +1894,9 @@ export function CogitaRevisionShareRunPage({
                         ? `${matchFlash.kind}-${matchFlash.tick}`
                         : isMatchMode
                           ? 'idle'
-                          : feedback ?? 'idle'
+                          : feedback
+                            ? `${feedback}-${currentIndex}-${attempts}`
+                            : 'idle'
                     }
                   >
                 {shareStatus !== 'ready' ? (

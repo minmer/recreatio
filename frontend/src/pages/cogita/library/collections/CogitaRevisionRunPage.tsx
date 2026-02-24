@@ -2091,7 +2091,9 @@ export function CogitaRevisionRunPage({
                   ? `${matchFlash.kind}-${matchFlash.tick}`
                   : isMatchMode
                     ? 'idle'
-                    : feedback ?? 'idle'
+                    : feedback
+                      ? `${feedback}-${currentIndex}-${attempts}`
+                      : 'idle'
               }
             >
               {currentCard ? (

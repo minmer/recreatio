@@ -627,6 +627,28 @@ export function CogitaInfoCheckcardsPage({
       const key = toPathKey(path);
       expectedCounts.set(key, (expectedCounts.get(key) ?? 0) + 1);
     }
+    const chosenCounts = new Map<string, number>();
+    for (const path of chosenMatchingPaths) {
+      const key = toPathKey(path);
+      chosenCounts.set(key, (chosenCounts.get(key) ?? 0) + 1);
+    }
+    const remainingPaths = expectedMatchingPaths.filter((path) => {
+      const key = toPathKey(path);
+      const used = chosenCounts.get(key) ?? 0;
+      if (used > 0) {
+        chosenCounts.set(key, used - 1);
+        return false;
+      }
+      return true;
+    });
+    const remainingUsageByColumn = new Map<number, Map<number, number>>();
+    for (const path of remainingPaths) {
+      path.forEach((optionIndex, columnIndex) => {
+        const columnMap = remainingUsageByColumn.get(columnIndex) ?? new Map<number, number>();
+        columnMap.set(optionIndex, (columnMap.get(optionIndex) ?? 0) + 1);
+        remainingUsageByColumn.set(columnIndex, columnMap);
+      });
+    }
     const handleMatchingPick = (columnIndex: number, optionIndex: number) => {
       if (checked) return;
       setQuestionState((prev) => {
@@ -749,7 +771,11 @@ export function CogitaInfoCheckcardsPage({
                       type="button"
                       className="ghost cogita-checkcard-row"
                       style={{ textAlign: 'left' }}
-                      disabled={checked}
+                      disabled={
+                        checked ||
+                        (matchingSelection[columnIndex] !== optionIndex &&
+                          ((remainingUsageByColumn.get(columnIndex)?.get(optionIndex) ?? 0) <= 0))
+                      }
                       data-active={matchingSelection[columnIndex] === optionIndex ? 'true' : undefined}
                       onClick={() => handleMatchingPick(columnIndex, optionIndex)}
                     >
