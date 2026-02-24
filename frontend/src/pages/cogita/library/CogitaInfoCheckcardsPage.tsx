@@ -627,34 +627,6 @@ export function CogitaInfoCheckcardsPage({
       const key = toPathKey(path);
       expectedCounts.set(key, (expectedCounts.get(key) ?? 0) + 1);
     }
-    const chosenCounts = new Map<string, number>();
-    for (const path of chosenMatchingPaths) {
-      const key = toPathKey(path);
-      chosenCounts.set(key, (chosenCounts.get(key) ?? 0) + 1);
-    }
-    const remainingPaths = expectedMatchingPaths.filter((path) => {
-      const key = toPathKey(path);
-      const used = chosenCounts.get(key) ?? 0;
-      if (used > 0) {
-        chosenCounts.set(key, used - 1);
-        return false;
-      }
-      return true;
-    });
-    // restore chosenCounts after temporary subtraction
-    chosenCounts.clear();
-    for (const path of chosenMatchingPaths) {
-      const key = toPathKey(path);
-      chosenCounts.set(key, (chosenCounts.get(key) ?? 0) + 1);
-    }
-    const isMatchingOptionEnabled = (columnIndex: number, optionIndex: number) => {
-      if (checked) return false;
-      if (matchingSelection[columnIndex] === optionIndex) return true;
-      return remainingPaths.some((path) => {
-        if ((path[columnIndex] ?? -1) !== optionIndex) return false;
-        return matchingSelection.every((selected, idx) => selected == null || idx === columnIndex || path[idx] === selected);
-      });
-    };
     const handleMatchingPick = (columnIndex: number, optionIndex: number) => {
       if (checked) return;
       setQuestionState((prev) => {
@@ -760,25 +732,34 @@ export function CogitaInfoCheckcardsPage({
 
         {def.type === 'matching' ? (
           <div style={{ display: 'grid', gap: '0.65rem' }}>
-            {(def.columns ?? []).map((column, columnIndex) => (
-              <div key={`q-col:${columnIndex}`} className="cogita-library-panel" style={{ display: 'grid', gap: '0.35rem', padding: '0.6rem' }}>
-                <p className="cogita-user-kicker">{`Column ${columnIndex + 1}`}</p>
-                {column.map((option, optionIndex) => (
-                  <button
-                    key={`q-col:${columnIndex}:${optionIndex}`}
-                    type="button"
-                    className="ghost cogita-checkcard-row"
-                    style={{ textAlign: 'left' }}
-                    disabled={!isMatchingOptionEnabled(columnIndex, optionIndex)}
-                    data-active={matchingSelection[columnIndex] === optionIndex ? 'true' : undefined}
-                    onClick={() => handleMatchingPick(columnIndex, optionIndex)}
-                  >
-                    <span>{option}</span>
-                    <small>{optionIndex}</small>
-                  </button>
-                ))}
-              </div>
-            ))}
+            <div
+              style={{
+                display: 'grid',
+                gap: '0.65rem',
+                gridTemplateColumns: `repeat(${Math.max(2, (def.columns?.length ?? 2))}, minmax(0, 1fr))`,
+                alignItems: 'start'
+              }}
+            >
+              {(def.columns ?? []).map((column, columnIndex) => (
+                <div key={`q-col:${columnIndex}`} className="cogita-library-panel" style={{ display: 'grid', gap: '0.35rem', padding: '0.6rem' }}>
+                  <p className="cogita-user-kicker">{`Column ${columnIndex + 1}`}</p>
+                  {column.map((option, optionIndex) => (
+                    <button
+                      key={`q-col:${columnIndex}:${optionIndex}`}
+                      type="button"
+                      className="ghost cogita-checkcard-row"
+                      style={{ textAlign: 'left' }}
+                      disabled={checked}
+                      data-active={matchingSelection[columnIndex] === optionIndex ? 'true' : undefined}
+                      onClick={() => handleMatchingPick(columnIndex, optionIndex)}
+                    >
+                      <span>{option}</span>
+                      <small>{optionIndex}</small>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
             <div style={{ display: 'grid', gap: '0.4rem' }}>
               <p className="cogita-user-kicker">Selected paths</p>
               {chosenMatchingPaths.length ? (
