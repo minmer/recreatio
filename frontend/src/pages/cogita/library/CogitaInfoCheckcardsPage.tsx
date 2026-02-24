@@ -66,7 +66,8 @@ type QuestionRuntimeState = {
   selection: number[];
   booleanAnswer: boolean | null;
   ordering: string[];
-  matchingRows: string[][];
+  matchingRows: number[][];
+  matchingSelection: Array<number | null>;
 };
 
 type ParsedQuestionDefinition = Extract<DirectCardPreview, { kind: 'question' }>['definition'];
@@ -247,7 +248,8 @@ export function CogitaInfoCheckcardsPage({
     selection: [],
     booleanAnswer: null,
     ordering: [],
-    matchingRows: [[]]
+    matchingRows: [],
+    matchingSelection: []
   });
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
@@ -405,7 +407,7 @@ export function CogitaInfoCheckcardsPage({
     setAnswerMask(null);
     setSaveStatus(null);
     setComputedAnswers({});
-    setQuestionState({ selection: [], booleanAnswer: null, ordering: [], matchingRows: [[]] });
+    setQuestionState({ selection: [], booleanAnswer: null, ordering: [], matchingRows: [], matchingSelection: [] });
   }, [selectedNodeId]);
 
   const cardPreview = useMemo<DirectCardPreview | null>(() => {
@@ -470,7 +472,8 @@ export function CogitaInfoCheckcardsPage({
       selection: [],
       booleanAnswer: null,
       ordering: def.type === 'ordering' ? shuffleStrings(def.options ?? []) : [],
-      matchingRows: def.type === 'matching' ? questionPathRowsFromDefinition(def) : [[]]
+      matchingRows: [],
+      matchingSelection: def.type === 'matching' ? new Array(Math.max(2, def.columns?.length ?? 2)).fill(null) : []
     });
   }, [cardPreview, selectedNodeId]);
 
@@ -533,10 +536,8 @@ export function CogitaInfoCheckcardsPage({
       } else if (def.type === 'matching') {
         const width = Math.max(2, def.columns?.length ?? 2);
         const actualPaths = questionState.matchingRows
-          .map((row) => row.slice(0, width).map((cell) => cell.trim()))
-          .filter((row) => row.every((cell) => cell !== ''))
-          .map((row) => row.map((cell) => Number(cell)))
-          .filter((row) => row.every((cell) => Number.isInteger(cell) && cell >= 0))
+          .map((row) => row.slice(0, width))
+          .filter((row) => row.length === width && row.every((cell) => Number.isInteger(cell) && cell >= 0))
           .map((row) => JSON.stringify(row));
         const expectedPaths = (
           def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : []
@@ -611,18 +612,81 @@ export function CogitaInfoCheckcardsPage({
   const renderQuestionCard = (preview: Extract<DirectCardPreview, { kind: 'question' }>) => {
     const def = preview.definition;
     const checked = selectedCardAlreadyChecked || showCorrectAnswer;
-    const rows = def.type === 'matching'
-      ? (() => {
-          const width = Math.max(2, def.columns?.length ?? 2);
-          const source = questionState.matchingRows.length ? questionState.matchingRows : [new Array(width).fill('')];
-          const normalized = source.map((row) => Array.from({ length: width }, (_, i) => row[i] ?? ''));
-          const last = normalized[normalized.length - 1];
-          return last.some((v) => v.trim()) ? [...normalized, new Array(width).fill('')] : normalized;
-        })()
-      : [];
     const expectedSelection = Array.isArray(def.answer) ? def.answer : [];
     const expectedMatchingPaths =
       def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : [];
+    const matchingWidth = Math.max(2, def.columns?.length ?? 2);
+    const chosenMatchingPaths =
+      def.type === 'matching'
+        ? questionState.matchingRows.filter((row): row is number[] => row.length === matchingWidth && row.every((v) => Number.isInteger(v) && v >= 0))
+        : [];
+    const matchingSelection = Array.from({ length: matchingWidth }, (_, i) => questionState.matchingSelection[i] ?? null);
+    const toPathKey = (path: number[]) => path.join('|');
+    const expectedCounts = new Map<string, number>();
+    for (const path of expectedMatchingPaths) {
+      const key = toPathKey(path);
+      expectedCounts.set(key, (expectedCounts.get(key) ?? 0) + 1);
+    }
+    const chosenCounts = new Map<string, number>();
+    for (const path of chosenMatchingPaths) {
+      const key = toPathKey(path);
+      chosenCounts.set(key, (chosenCounts.get(key) ?? 0) + 1);
+    }
+    const remainingPaths = expectedMatchingPaths.filter((path) => {
+      const key = toPathKey(path);
+      const used = chosenCounts.get(key) ?? 0;
+      if (used > 0) {
+        chosenCounts.set(key, used - 1);
+        return false;
+      }
+      return true;
+    });
+    // restore chosenCounts after temporary subtraction
+    chosenCounts.clear();
+    for (const path of chosenMatchingPaths) {
+      const key = toPathKey(path);
+      chosenCounts.set(key, (chosenCounts.get(key) ?? 0) + 1);
+    }
+    const isMatchingOptionEnabled = (columnIndex: number, optionIndex: number) => {
+      if (checked) return false;
+      if (matchingSelection[columnIndex] === optionIndex) return true;
+      return remainingPaths.some((path) => {
+        if ((path[columnIndex] ?? -1) !== optionIndex) return false;
+        return matchingSelection.every((selected, idx) => selected == null || idx === columnIndex || path[idx] === selected);
+      });
+    };
+    const handleMatchingPick = (columnIndex: number, optionIndex: number) => {
+      if (checked) return;
+      setQuestionState((prev) => {
+        const width = Math.max(2, def.columns?.length ?? 2);
+        const nextSelection = Array.from({ length: width }, (_, i) => prev.matchingSelection[i] ?? null);
+        nextSelection[columnIndex] = nextSelection[columnIndex] === optionIndex ? null : optionIndex;
+        if (nextSelection.some((value) => value == null)) {
+          return { ...prev, matchingSelection: nextSelection };
+        }
+        const completed = nextSelection.map((value) => Number(value));
+        const completedKey = toPathKey(completed);
+        const usedCount = prev.matchingRows.filter((row) => toPathKey(row) === completedKey).length;
+        const totalCount = expectedCounts.get(completedKey) ?? 0;
+        if (totalCount > usedCount) {
+          setFeedback('correct');
+          setFlashTick((tick) => tick + 1);
+          setSaveStatus(null);
+          return {
+            ...prev,
+            matchingRows: [...prev.matchingRows, completed],
+            matchingSelection: new Array(width).fill(null)
+          };
+        }
+        setFeedback('incorrect');
+        setFlashTick((tick) => tick + 1);
+        setSaveStatus('This path is not valid or has already been used.');
+        return {
+          ...prev,
+          matchingSelection: new Array(width).fill(null)
+        };
+      });
+    };
 
     return (
       <div className="cogita-revision-body">
@@ -700,60 +764,51 @@ export function CogitaInfoCheckcardsPage({
               <div key={`q-col:${columnIndex}`} className="cogita-library-panel" style={{ display: 'grid', gap: '0.35rem', padding: '0.6rem' }}>
                 <p className="cogita-user-kicker">{`Column ${columnIndex + 1}`}</p>
                 {column.map((option, optionIndex) => (
-                  <div key={`q-col:${columnIndex}:${optionIndex}`} className="cogita-library-hint">{`${optionIndex}: ${option}`}</div>
+                  <button
+                    key={`q-col:${columnIndex}:${optionIndex}`}
+                    type="button"
+                    className="ghost cogita-checkcard-row"
+                    style={{ textAlign: 'left' }}
+                    disabled={!isMatchingOptionEnabled(columnIndex, optionIndex)}
+                    data-active={matchingSelection[columnIndex] === optionIndex ? 'true' : undefined}
+                    onClick={() => handleMatchingPick(columnIndex, optionIndex)}
+                  >
+                    <span>{option}</span>
+                    <small>{optionIndex}</small>
+                  </button>
                 ))}
               </div>
             ))}
             <div style={{ display: 'grid', gap: '0.4rem' }}>
-              <p className="cogita-user-kicker">Paths (0-based indices)</p>
-              {rows.map((row, rowIndex) => {
-                const isLast = rowIndex === rows.length - 1;
-                return (
-                  <div key={`q-path:${rowIndex}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(2, (def.columns?.length ?? 2))}, minmax(0, 1fr)) auto`, gap: '0.35rem', alignItems: 'center' }}>
-                    {row.map((cell, columnIndex) => (
-                      <input
-                        key={`q-path:${rowIndex}:${columnIndex}`}
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={cell}
-                        disabled={checked}
-                        onChange={(event) =>
-                          setQuestionState((prev) => {
-                            const width = Math.max(2, def.columns?.length ?? 2);
-                            const next = (prev.matchingRows.length ? prev.matchingRows : [new Array(width).fill('')])
-                              .map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ''));
-                            next[rowIndex] = next[rowIndex] ?? new Array(width).fill('');
-                            next[rowIndex][columnIndex] = event.target.value;
-                            const last = next[next.length - 1];
-                            if (last.some((v) => v.trim())) next.push(new Array(width).fill(''));
-                            return { ...prev, matchingRows: next };
-                          })
-                        }
-                      />
-                    ))}
-                    {!isLast ? (
+              <p className="cogita-user-kicker">Selected paths</p>
+              {chosenMatchingPaths.length ? (
+                chosenMatchingPaths.map((path, rowIndex) => (
+                  <div key={`q-path:${rowIndex}`} className="cogita-share-row" style={{ alignItems: 'center' }}>
+                    <span>
+                      {path.map((selectedIndex, columnIndex) => {
+                        const label = String(def.columns?.[columnIndex]?.[selectedIndex] ?? selectedIndex);
+                        return `${columnIndex > 0 ? ' -> ' : ''}${label}`;
+                      })}
+                    </span>
+                    {!checked ? (
                       <button
                         type="button"
                         className="ghost"
-                        disabled={checked}
                         onClick={() =>
-                          setQuestionState((prev) => {
-                            const width = Math.max(2, def.columns?.length ?? 2);
-                            const next = prev.matchingRows.filter((_, idx) => idx !== rowIndex);
-                            if (next.length === 0) next.push(new Array(width).fill(''));
-                            const last = next[next.length - 1];
-                            if (last.some((v) => v.trim())) next.push(new Array(width).fill(''));
-                            return { ...prev, matchingRows: next };
-                          })
+                          setQuestionState((prev) => ({
+                            ...prev,
+                            matchingRows: prev.matchingRows.filter((_, idx) => idx !== rowIndex)
+                          }))
                         }
                       >
                         Remove
                       </button>
-                    ) : <span />}
+                    ) : null}
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                <p className="cogita-library-hint">Choose one option in each column. After the last column is selected, the path is checked automatically.</p>
+              )}
             </div>
           </div>
         ) : null}

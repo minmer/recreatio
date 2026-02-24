@@ -1264,8 +1264,57 @@ export function CogitaRevisionShareRunPage({
           answerTemplate: null,
           outputVariables: null,
           variableValues: null
+          })
+        );
+    } else if (card.cardType === 'info' && card.infoType === 'question') {
+      promise = getCogitaPublicInfoDetail({ shareCode: shareId, infoId: card.cardId, key: shareKey })
+        .then((detail) => {
+          const root = (detail.payload ?? {}) as Record<string, unknown>;
+          const rawDef = ((root.definition ?? root) as Record<string, unknown>) ?? {};
+          const type = typeof rawDef.type === 'string' ? rawDef.type : '';
+          const question =
+            (typeof rawDef.question === 'string' && rawDef.question.trim() ? rawDef.question.trim() : null) ??
+            (typeof rawDef.title === 'string' && rawDef.title.trim() ? rawDef.title.trim() : null) ??
+            card.label;
+          const answerValue = rawDef.answer;
+          if (type === 'text' || type === 'number' || type === 'date') {
+            return finalize({
+              prompt: question,
+              expectedAnswer: typeof answerValue === 'string' || typeof answerValue === 'number' ? String(answerValue) : null,
+              computedExpected: [],
+              computedAnswers: {},
+              computedValues: null,
+              answerTemplate: null,
+              outputVariables: null,
+              variableValues: null
+            });
+          }
+          return finalize({
+            prompt: question,
+            expectedAnswer: null,
+            computedExpected: [],
+            computedAnswers: {},
+            computedValues: null,
+            answerTemplate: null,
+            outputVariables: null,
+            variableValues: null
+          });
         })
-      );
+        .catch(() =>
+          finalize({
+            prompt: card.label,
+            expectedAnswer: null,
+            computedExpected: [],
+            computedAnswers: {},
+            computedValues: null,
+            answerTemplate: null,
+            outputVariables: null,
+            variableValues: null
+          })
+        )
+        .finally(() => {
+          resolvedCardPromises.current.delete(cacheKey);
+        });
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
       promise = fetchComputedSample(card.cardId, cacheKey)
         .then((result) => {
