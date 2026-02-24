@@ -3360,13 +3360,11 @@
 .cogita-revision-card[data-feedback^='correct'] {
   border-color: rgba(100, 210, 150, 0.7);
   box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
-  animation: revisionFlashGreen 0.7s ease;
 }
 
 .cogita-revision-card[data-feedback^='incorrect'] {
   border-color: rgba(230, 110, 120, 0.7);
   box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
-  animation: revisionFlashRed 0.7s ease;
 }
 
 .cogita-revision-card {
@@ -3390,12 +3388,51 @@
 
 .cogita-revision-card[data-feedback^='correct']::after {
   background: rgba(80, 200, 140, 0.25);
-  animation: revisionFlashFillGreen 0.6s ease;
 }
 
 .cogita-revision-card[data-feedback^='incorrect']::after {
   background: rgba(220, 90, 110, 0.28);
-  animation: revisionFlashFillRed 0.6s ease;
+}
+
+.cogita-revision-card[data-feedback^='correct'][data-feedback-variant='a'] {
+  animation: revisionFlashGreenA 0.7s ease;
+}
+
+.cogita-revision-card[data-feedback^='correct'][data-feedback-variant='b'] {
+  animation: revisionFlashGreenB 0.7s ease;
+}
+
+.cogita-revision-card[data-feedback^='incorrect'][data-feedback-variant='a'] {
+  animation: revisionFlashRedA 0.7s ease;
+}
+
+.cogita-revision-card[data-feedback^='incorrect'][data-feedback-variant='b'] {
+  animation: revisionFlashRedB 0.7s ease;
+}
+
+.cogita-revision-card[data-feedback^='correct'][data-feedback-variant='a']::after {
+  animation: revisionFlashFillGreenA 0.6s ease;
+}
+
+.cogita-revision-card[data-feedback^='correct'][data-feedback-variant='b']::after {
+  animation: revisionFlashFillGreenB 0.6s ease;
+}
+
+.cogita-revision-card[data-feedback^='incorrect'][data-feedback-variant='a']::after {
+  animation: revisionFlashFillRedA 0.6s ease;
+}
+
+.cogita-revision-card[data-feedback^='incorrect'][data-feedback-variant='b']::after {
+  animation: revisionFlashFillRedB 0.6s ease;
+}
+
+.cogita-checkcard-row:disabled {
+  opacity: 0.42;
+  background: rgba(120, 150, 180, 0.08);
+  border-color: rgba(120, 150, 180, 0.14);
+  color: rgba(205, 220, 235, 0.55);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .cogita-revision-card .ghost[data-active='true'] {
@@ -3600,6 +3637,90 @@
 }
 
 @keyframes revisionFlashFillRed {
+  0% { opacity: 0; }
+  30% { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+
+@keyframes revisionFlashGreenA {
+  0% {
+    box-shadow: 0 0 0 rgba(60, 180, 120, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(60, 180, 120, 0.18);
+    background: rgba(10, 32, 20, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
+    background: rgba(6, 18, 32, 0.8);
+  }
+}
+
+@keyframes revisionFlashGreenB {
+  0% {
+    box-shadow: 0 0 0 rgba(60, 180, 120, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(60, 180, 120, 0.18);
+    background: rgba(10, 32, 20, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(60, 180, 120, 0.25);
+    background: rgba(6, 18, 32, 0.8);
+  }
+}
+
+@keyframes revisionFlashRedA {
+  0% {
+    box-shadow: 0 0 0 rgba(200, 80, 90, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(200, 80, 90, 0.18);
+    background: rgba(38, 12, 18, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
+    background: rgba(6, 18, 32, 0.8);
+  }
+}
+
+@keyframes revisionFlashRedB {
+  0% {
+    box-shadow: 0 0 0 rgba(200, 80, 90, 0);
+    background: rgba(6, 18, 32, 0.8);
+  }
+  40% {
+    box-shadow: 0 0 0 12px rgba(200, 80, 90, 0.18);
+    background: rgba(38, 12, 18, 0.85);
+  }
+  100% {
+    box-shadow: 0 20px 50px rgba(200, 80, 90, 0.2);
+    background: rgba(6, 18, 32, 0.8);
+  }
+}
+
+@keyframes revisionFlashFillGreenA {
+  0% { opacity: 0; }
+  30% { opacity: 0.65; }
+  100% { opacity: 0; }
+}
+
+@keyframes revisionFlashFillGreenB {
+  0% { opacity: 0; }
+  30% { opacity: 0.65; }
+  100% { opacity: 0; }
+}
+
+@keyframes revisionFlashFillRedA {
+  0% { opacity: 0; }
+  30% { opacity: 0.7; }
+  100% { opacity: 0; }
+}
+
+@keyframes revisionFlashFillRedB {
   0% { opacity: 0; }
   30% { opacity: 0.7; }
   100% { opacity: 0; }
