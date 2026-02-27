@@ -5,17 +5,7 @@ import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
-
-type LivePrompt = Record<string, unknown> & {
-  kind?: string;
-  title?: string;
-  prompt?: string;
-  options?: string[];
-  multiple?: boolean;
-  columns?: string[][];
-  before?: string;
-  after?: string;
-};
+import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 
 export function CogitaLiveRevisionPresenterPage(props: {
   copy: Copy;
@@ -63,117 +53,6 @@ export function CogitaLiveRevisionPresenterPage(props: {
     };
   }, [code]);
 
-  const renderPrompt = () => {
-    if (!prompt) {
-      return <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>;
-    }
-    const kind = String(prompt.kind ?? '');
-    const isRevealed = Boolean(reveal);
-    const selectionExpected = Array.isArray(revealExpected)
-      ? revealExpected.map((x) => Number(x)).filter(Number.isFinite)
-      : [];
-
-    if (kind === 'citation-fragment') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>
-            <span style={{ opacity: 0.7 }}>{String(prompt.before ?? '')}</span>
-            <strong> [ ... ] </strong>
-            <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
-          </p>
-          {isRevealed ? <p>{String(revealExpected ?? '')}</p> : null}
-        </div>
-      );
-    }
-
-    if (kind === 'text') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          {isRevealed ? <p>{String(revealExpected ?? '')}</p> : null}
-        </div>
-      );
-    }
-
-    if (kind === 'boolean') {
-      const expected = Boolean(revealExpected);
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-form-actions">
-            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} disabled>{liveCopy.trueLabel}</button>
-            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} disabled>{liveCopy.falseLabel}</button>
-          </div>
-        </div>
-      );
-    }
-
-    if (kind === 'selection') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-share-list">
-            {(Array.isArray(prompt.options) ? prompt.options : []).map((option, index) => (
-              <label
-                className="cogita-share-row"
-                data-state={isRevealed && selectionExpected.includes(index) ? 'correct' : undefined}
-                key={`${index}-${option}`}
-              >
-                <span>{option}</span>
-                <input type={prompt.multiple ? 'checkbox' : 'radio'} disabled checked={isRevealed ? selectionExpected.includes(index) : false} readOnly />
-              </label>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (kind === 'ordering') {
-      const options = Array.isArray((isRevealed ? revealExpected : prompt.options))
-        ? (isRevealed ? (revealExpected as unknown[]) : (prompt.options as unknown[])).map(String)
-        : [];
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-share-list">
-            {options.map((option, index) => (
-              <div className="cogita-share-row" data-state={isRevealed ? 'correct' : undefined} key={`${index}-${option}`}>
-                <span>{option}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (kind === 'matching') {
-      const columns = Array.isArray(prompt.columns) ? (prompt.columns as unknown[][]) : [];
-      const revealPaths = (revealExpected as { paths?: number[][] } | undefined)?.paths ?? [];
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          {isRevealed ? (
-            <div className="cogita-share-list">
-              {revealPaths.map((path, pathIndex) => (
-                <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
-                  <span>
-                    {path.map((selectedIndex, columnIndex) => {
-                      const col = Array.isArray(columns[columnIndex]) ? columns[columnIndex] : [];
-                      const label = String(col[selectedIndex] ?? selectedIndex);
-                      return `${columnIndex > 0 ? ' -> ' : ''}${label}`;
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      );
-    }
-
-    return <p className="cogita-help">{liveCopy.unsupportedPromptType}</p>;
-  };
-
   return (
     <CogitaShell {...props}>
       <section className="cogita-library-dashboard">
@@ -199,7 +78,25 @@ export function CogitaLiveRevisionPresenterPage(props: {
                     className="cogita-live-card-container"
                     feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
                   >
-                    {renderPrompt()}
+                    <CogitaLivePromptCard
+                      prompt={prompt}
+                      revealExpected={revealExpected}
+                      mode="readonly"
+                      labels={{
+                        answerLabel: props.copy.cogita.library.revision.answerLabel,
+                        correctAnswerLabel: props.copy.cogita.library.revision.correctAnswerLabel,
+                        trueLabel: liveCopy.trueLabel,
+                        falseLabel: liveCopy.falseLabel,
+                        fragmentLabel: liveCopy.fragmentLabel,
+                        correctFragmentLabel: liveCopy.correctFragmentLabel,
+                        participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                        unsupportedPromptType: liveCopy.unsupportedPromptType,
+                        waitingForReveal: 'Waiting for reveal.',
+                        selectedPaths: 'Selected paths',
+                        removePath: 'Remove',
+                        columnPrefix: 'Column'
+                      }}
+                    />
                   </CogitaCheckcardSurface>
                 )}
               </div>

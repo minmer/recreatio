@@ -19,6 +19,11 @@ import {
 } from '../../../lib/api';
 import { evaluateAnchorTextAnswer } from '../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
+import {
+  parseQuestionDefinition,
+  shuffleQuestionDefinitionForRuntime,
+  type ParsedQuestionDefinition
+} from './questions/questionRuntime';
 
 type CheckcardNodeData = {
   label: string;
@@ -70,58 +75,6 @@ type QuestionRuntimeState = {
   matchingSelection: Array<number | null>;
 };
 
-type ParsedQuestionDefinition = Extract<DirectCardPreview, { kind: 'question' }>['definition'];
-
-function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
-  if (!value || typeof value !== 'object') return null;
-  const data = value as Record<string, unknown>;
-  const rawDef = data.definition;
-  if (!rawDef || typeof rawDef !== 'object') return null;
-  const def = rawDef as Record<string, unknown>;
-  const rawType = typeof def.type === 'string' ? def.type : typeof def.kind === 'string' ? def.kind : 'selection';
-  const type =
-    rawType === 'multi_select' || rawType === 'single_select'
-      ? 'selection'
-      : rawType === 'boolean'
-        ? 'truefalse'
-        : rawType === 'order'
-          ? 'ordering'
-          : rawType === 'short' || rawType === 'open' || rawType === 'short_text'
-            ? 'text'
-          : rawType;
-  if (!['selection', 'truefalse', 'text', 'number', 'date', 'ordering', 'matching'].includes(type)) return null;
-  const normalizedType = type as ParsedQuestionDefinition['type'];
-  const title = typeof def.title === 'string' ? def.title : undefined;
-  const question = typeof def.question === 'string' ? def.question : '';
-  const options = Array.isArray(def.options) ? def.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean) : undefined;
-  const columns = Array.isArray(def.columns)
-    ? def.columns.map((col) => (Array.isArray(col) ? col.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean) : [])).filter((c) => c.length > 0)
-    : undefined;
-  const answer = (() => {
-    if (type === 'selection') {
-      const raw = Array.isArray(def.answer) ? def.answer : Array.isArray(def.correct) ? def.correct : [];
-      return raw.map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 0);
-    }
-    if (type === 'truefalse') {
-      if (typeof def.answer === 'boolean') return def.answer;
-      if (typeof def.expected === 'boolean') return def.expected;
-      return false;
-    }
-    if (type === 'matching') {
-      const answerNode = def.answer && typeof def.answer === 'object' ? (def.answer as Record<string, unknown>) : null;
-      const source = Array.isArray(answerNode?.paths) ? answerNode?.paths : Array.isArray(def.correctPairs) ? def.correctPairs : [];
-      const paths = source
-        .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter((x) => Number.isInteger(x) && x >= 0) : []))
-        .filter((row) => row.length > 0);
-      return { paths };
-    }
-    if (typeof def.answer === 'string' || typeof def.answer === 'number') return def.answer;
-    if (typeof def.expected === 'string' || typeof def.expected === 'number') return def.expected;
-    return undefined;
-  })();
-  return { type: normalizedType, title, question, options, columns, answer };
-}
-
 function questionPathRowsFromDefinition(def: ParsedQuestionDefinition): string[][] {
   if (def.type !== 'matching') return [[]];
   const width = Math.max(2, def.columns?.length ?? 2);
@@ -137,51 +90,6 @@ function shuffleStrings(items: string[]): string[] {
     [next[i], next[j]] = [next[j], next[i]];
   }
   return next;
-}
-
-function shuffleWithIndexMap<T>(items: T[]) {
-  const indexed = items.map((value, oldIndex) => ({ value, oldIndex }));
-  for (let i = indexed.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
-  }
-  const values = indexed.map((entry) => entry.value);
-  const oldToNew = new Map<number, number>();
-  indexed.forEach((entry, newIndex) => oldToNew.set(entry.oldIndex, newIndex));
-  return { values, oldToNew };
-}
-
-function shuffleQuestionDefinitionForRuntime(def: ParsedQuestionDefinition): ParsedQuestionDefinition {
-  if (def.type === 'selection') {
-    const options = def.options ?? [];
-    const shuffled = shuffleWithIndexMap(options);
-    const expected = Array.isArray(def.answer) ? def.answer : [];
-    return {
-      ...def,
-      options: shuffled.values,
-      answer: expected
-        .map((index) => shuffled.oldToNew.get(index))
-        .filter((index): index is number => Number.isInteger(index))
-        .sort((a, b) => a - b)
-    };
-  }
-
-  if (def.type === 'matching') {
-    const columns = def.columns ?? [];
-    const shuffledColumns = columns.map((column) => shuffleWithIndexMap(column ?? []));
-    const originalPaths =
-      def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : [];
-    const remappedPaths = originalPaths.map((path) =>
-      path.map((oldIndex, columnIndex) => shuffledColumns[columnIndex]?.oldToNew.get(oldIndex) ?? oldIndex)
-    );
-    return {
-      ...def,
-      columns: shuffledColumns.map((entry) => entry.values),
-      answer: { paths: remappedPaths }
-    };
-  }
-
-  return def;
 }
 
 function cardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {

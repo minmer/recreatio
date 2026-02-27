@@ -12,21 +12,7 @@ import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
-
-type LivePrompt = Record<string, unknown> & {
-  kind?: string;
-  title?: string;
-  prompt?: string;
-  options?: string[];
-  multiple?: boolean;
-  inputType?: string;
-  columns?: string[][];
-  before?: string;
-  after?: string;
-  fragmentId?: string;
-  roundIndex?: number;
-  cardKey?: string;
-};
+import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 
 function tokenStorageKey(code: string) {
   return `cogita.live.join.${code}`;
@@ -58,7 +44,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [selectionAnswer, setSelectionAnswer] = useState<number[]>([]);
   const [boolAnswer, setBoolAnswer] = useState<boolean | null>(null);
   const [orderingAnswer, setOrderingAnswer] = useState<string[]>([]);
-  const [matchingPaths, setMatchingPaths] = useState<number[][]>([]);
+  const [matchingRows, setMatchingRows] = useState<number[][]>([]);
+  const [matchingSelection, setMatchingSelection] = useState<Array<number | null>>([]);
   const [reloginRequestId, setReloginRequestId] = useState<string | null>(null);
   const [reloginPending, setReloginPending] = useState(false);
 
@@ -76,7 +63,9 @@ export function CogitaLiveRevisionJoinPage(props: {
     setSelectionAnswer([]);
     setBoolAnswer(null);
     setOrderingAnswer(Array.isArray(prompt?.options) ? [...(prompt.options ?? [])] : []);
-    setMatchingPaths([]);
+    const matchingWidth = Array.isArray(prompt?.columns) ? Math.max(2, prompt.columns.length) : 0;
+    setMatchingRows([]);
+    setMatchingSelection(matchingWidth > 0 ? new Array(matchingWidth).fill(null) : []);
   }, [promptKey]);
 
   useEffect(() => {
@@ -165,15 +154,19 @@ export function CogitaLiveRevisionJoinPage(props: {
     });
   };
 
-  const addMatchingPath = () => {
+  const handleMatchingPick = (columnIndex: number, optionIndex: number) => {
     const columns = Array.isArray(prompt?.columns) ? prompt.columns : [];
-    setMatchingPaths((prev) => [...prev, columns.map(() => 0)]);
-  };
-
-  const updateMatchingPath = (rowIndex: number, columnIndex: number, value: number) => {
-    setMatchingPaths((prev) =>
-      prev.map((row, ri) => (ri !== rowIndex ? row : row.map((current, ci) => (ci === columnIndex ? value : current))))
-    );
+    const width = Math.max(2, columns.length);
+    setMatchingSelection((prev) => {
+      const next = Array.from({ length: width }, (_, index) => prev[index] ?? null);
+      next[columnIndex] = next[columnIndex] === optionIndex ? null : optionIndex;
+      if (next.some((value) => value == null)) {
+        return next;
+      }
+      const completed = next.map((value) => Number(value));
+      setMatchingRows((existing) => [...existing, completed]);
+      return new Array(width).fill(null);
+    });
   };
 
   const submitAnswer = async () => {
@@ -191,7 +184,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         answer = orderingAnswer;
         break;
       case 'matching':
-        answer = { paths: matchingPaths };
+        answer = { paths: matchingRows };
         break;
       case 'citation-fragment':
       case 'text':
@@ -214,163 +207,6 @@ export function CogitaLiveRevisionJoinPage(props: {
     } catch {
       setStatus('error');
     }
-  };
-
-  const renderPromptCard = () => {
-    if (!prompt) {
-      return <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>;
-    }
-    const isRevealed = Boolean(reveal);
-    const selectionExpected = Array.isArray(revealExpected)
-      ? revealExpected.map((x) => Number(x)).filter(Number.isFinite)
-      : [];
-
-    if (prompt.kind === 'citation-fragment') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>
-            <span style={{ opacity: 0.7 }}>{String(prompt.before ?? '')}</span>
-            <strong> [ ... ] </strong>
-            <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
-          </p>
-          <label className="cogita-field">
-            <span>{isRevealed ? liveCopy.correctFragmentLabel : liveCopy.fragmentLabel}</span>
-            <input
-              value={isRevealed ? String(revealExpected ?? '') : textAnswer}
-              onChange={(event) => setTextAnswer(event.target.value)}
-              readOnly={isRevealed}
-            />
-          </label>
-        </div>
-      );
-    }
-
-    if (prompt.kind === 'text') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <label className="cogita-field">
-            <span>{isRevealed ? revisionCopy.correctAnswerLabel : revisionCopy.answerLabel}</span>
-            <input
-              type={prompt.inputType === 'number' ? 'number' : prompt.inputType === 'date' ? 'date' : 'text'}
-              value={isRevealed ? String(revealExpected ?? '') : textAnswer}
-              onChange={(event) => setTextAnswer(event.target.value)}
-              readOnly={isRevealed}
-            />
-          </label>
-        </div>
-      );
-    }
-
-    if (prompt.kind === 'boolean') {
-      const expected = Boolean(revealExpected);
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-form-actions">
-            <button type="button" className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(true)} disabled={isRevealed}>{liveCopy.trueLabel}</button>
-            <button type="button" className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`} onClick={() => setBoolAnswer(false)} disabled={isRevealed}>{liveCopy.falseLabel}</button>
-          </div>
-        </div>
-      );
-    }
-
-    if (prompt.kind === 'selection') {
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-share-list">
-            {(Array.isArray(prompt.options) ? prompt.options : []).map((option, index) => (
-              <label
-                className="cogita-share-row"
-                data-state={isRevealed && selectionExpected.includes(index) ? 'correct' : undefined}
-                key={`${index}-${option}`}
-              >
-                <span>{option}</span>
-                <input
-                  type={prompt.multiple ? 'checkbox' : 'radio'}
-                  name="live-selection"
-                  checked={isRevealed ? selectionExpected.includes(index) : selectionAnswer.includes(index)}
-                  onChange={() => toggleSelection(index)}
-                  disabled={isRevealed}
-                />
-              </label>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (prompt.kind === 'ordering') {
-      const shown = Array.isArray(isRevealed ? revealExpected : orderingAnswer)
-        ? (isRevealed ? (revealExpected as unknown[]) : orderingAnswer).map(String)
-        : [];
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          <div className="cogita-share-list">
-            {shown.map((option, index) => (
-              <div className="cogita-share-row" data-state={isRevealed ? 'correct' : undefined} key={`${index}-${option}`}>
-                <span>{option}</span>
-                <div className="cogita-form-actions">
-                  <button type="button" className="ghost" onClick={() => moveOrdering(index, -1)} disabled={isRevealed}>↑</button>
-                  <button type="button" className="ghost" onClick={() => moveOrdering(index, 1)} disabled={isRevealed}>↓</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (prompt.kind === 'matching') {
-      const columns = Array.isArray(prompt.columns) ? prompt.columns : [];
-      const revealPaths = (revealExpected as { paths?: number[][] } | undefined)?.paths ?? [];
-      return (
-        <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
-          <p>{String(prompt.prompt ?? '')}</p>
-          {isRevealed ? (
-            <div className="cogita-share-list">
-              {revealPaths.map((path, pathIndex) => (
-                <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
-                  <span>
-                    {path.map((selectedIndex, columnIndex) => {
-                      const col = Array.isArray(columns[columnIndex]) ? columns[columnIndex] : [];
-                      return `${columnIndex > 0 ? ' → ' : ''}${String(col[selectedIndex] ?? selectedIndex)}`;
-                    })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="cogita-form-actions">
-                <button type="button" className="cta ghost" onClick={addMatchingPath}>{liveCopy.addPathAction}</button>
-              </div>
-              {matchingPaths.map((row, rowIndex) => (
-                <div className="cogita-form-actions" key={`path-${rowIndex}`}>
-                  {columns.map((column, columnIndex) => (
-                    <select
-                      key={`path-${rowIndex}-col-${columnIndex}`}
-                      value={row[columnIndex] ?? 0}
-                      onChange={(event) => updateMatchingPath(rowIndex, columnIndex, Number(event.target.value))}
-                    >
-                      {column.map((option, optionIndex) => (
-                        <option key={`${columnIndex}-${optionIndex}`} value={optionIndex}>
-                          {optionIndex}: {option}
-                        </option>
-                      ))}
-                    </select>
-                  ))}
-                </div>
-              ))}
-            </>
-          )}
-        </div>
-      );
-    }
-
-    return <p className="cogita-help">{liveCopy.unsupportedPromptType}</p>;
   };
 
   return (
@@ -425,7 +261,41 @@ export function CogitaLiveRevisionJoinPage(props: {
                       className="cogita-live-card-container"
                       feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
                     >
-                      {renderPromptCard()}
+                      <CogitaLivePromptCard
+                        prompt={prompt}
+                        revealExpected={revealExpected}
+                        mode="interactive"
+                        labels={{
+                          answerLabel: revisionCopy.answerLabel,
+                          correctAnswerLabel: revisionCopy.correctAnswerLabel,
+                          trueLabel: liveCopy.trueLabel,
+                          falseLabel: liveCopy.falseLabel,
+                          fragmentLabel: liveCopy.fragmentLabel,
+                          correctFragmentLabel: liveCopy.correctFragmentLabel,
+                          participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                          unsupportedPromptType: liveCopy.unsupportedPromptType,
+                          waitingForReveal: 'Waiting for reveal.',
+                          selectedPaths: 'Selected paths',
+                          removePath: 'Remove',
+                          columnPrefix: 'Column'
+                        }}
+                        answers={{
+                          text: textAnswer,
+                          selection: selectionAnswer,
+                          booleanAnswer: boolAnswer,
+                          ordering: orderingAnswer,
+                          matchingRows,
+                          matchingSelection
+                        }}
+                        onTextChange={setTextAnswer}
+                        onSelectionToggle={toggleSelection}
+                        onBooleanChange={setBoolAnswer}
+                        onOrderingMove={moveOrdering}
+                        onMatchingPick={handleMatchingPick}
+                        onMatchingRemovePath={(pathIndex) =>
+                          setMatchingRows((prev) => prev.filter((_, idx) => idx !== pathIndex))
+                        }
+                      />
                     </CogitaCheckcardSurface>
                     <div className="cogita-form-actions">
                       <button
