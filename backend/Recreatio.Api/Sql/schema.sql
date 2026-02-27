@@ -57,6 +57,7 @@ IF OBJECT_ID(N'dbo.CogitaEntitySearchDocuments', N'U') IS NOT NULL DROP TABLE db
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionAnswers', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionAnswers;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionParticipants;
+IF OBJECT_ID(N'dbo.CogitaLiveRevisionReloginRequests', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionReloginRequests;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionSessions', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionSessions;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.CogitaRevisions', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisions;
@@ -1469,5 +1470,27 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaLiveRevisionAnswers_SessionParticipantRound' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionAnswers'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaLiveRevisionAnswers_SessionParticipantRound ON dbo.CogitaLiveRevisionAnswers(SessionId, ParticipantId, RoundIndex);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaLiveRevisionReloginRequests' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaLiveRevisionReloginRequests
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        DisplayName NVARCHAR(120) NOT NULL,
+        Status NVARCHAR(24) NOT NULL CONSTRAINT DF_CogitaLiveRevisionReloginRequests_Status DEFAULT (N'pending'),
+        RequestedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        ApprovedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CogitaLiveRevisionReloginRequests_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaLiveRevisionSessions(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayName, Status);
 END
 GO

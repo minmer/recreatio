@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ApiError,
+  createCogitaLiveRevisionReloginRequest,
   getCogitaLiveRevisionPublicState,
+  getCogitaLiveRevisionReloginRequest,
   joinCogitaLiveRevision,
   submitCogitaLiveRevisionAnswer,
   type CogitaLiveRevisionPublicState
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
+import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 
@@ -55,6 +59,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [boolAnswer, setBoolAnswer] = useState<boolean | null>(null);
   const [orderingAnswer, setOrderingAnswer] = useState<string[]>([]);
   const [matchingPaths, setMatchingPaths] = useState<number[][]>([]);
+  const [reloginRequestId, setReloginRequestId] = useState<string | null>(null);
+  const [reloginPending, setReloginPending] = useState(false);
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -93,14 +99,49 @@ export function CogitaLiveRevisionJoinPage(props: {
     };
   }, [code, participantToken, status]);
 
+  useEffect(() => {
+    if (!reloginRequestId || !reloginPending || participantToken) return;
+    let canceled = false;
+    const id = window.setInterval(async () => {
+      try {
+        const request = await getCogitaLiveRevisionReloginRequest({ code, requestId: reloginRequestId });
+        if (canceled) return;
+        if (request.status === 'approved') {
+          setReloginPending(false);
+          setStatus('idle');
+        }
+      } catch {
+        // keep polling until approved
+      }
+    }, 1200);
+    return () => {
+      canceled = true;
+      window.clearInterval(id);
+    };
+  }, [code, participantToken, reloginPending, reloginRequestId]);
+
   const handleJoin = async () => {
     setStatus('joining');
     try {
       const joined = await joinCogitaLiveRevision({ code, name: joinName });
       setParticipantToken(joined.participantToken);
       localStorage.setItem(tokenStorageKey(code), joined.participantToken);
+      setReloginPending(false);
+      setReloginRequestId(null);
       setStatus('ready');
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        try {
+          const relogin = await createCogitaLiveRevisionReloginRequest({ code, name: joinName });
+          setReloginRequestId(relogin.requestId);
+          setReloginPending(true);
+          setStatus('ready');
+          return;
+        } catch {
+          setStatus('error');
+          return;
+        }
+      }
       setStatus('error');
     }
   };
@@ -356,6 +397,9 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : (
                   <p className="cogita-help">{liveCopy.joinedWaiting}</p>
                 )}
+                {reloginPending ? (
+                  <p className="cogita-help">Relogin request sent. Wait for host approval and join again.</p>
+                ) : null}
                 {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 {sessionStage === 'lobby' ? (
                   <>
@@ -377,7 +421,12 @@ export function CogitaLiveRevisionJoinPage(props: {
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
                 {prompt ? (
                   <>
-                    {renderPromptCard()}
+                    <CogitaCheckcardSurface
+                      className="cogita-live-card-container"
+                      feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
+                    >
+                      {renderPromptCard()}
+                    </CogitaCheckcardSurface>
                     <div className="cogita-form-actions">
                       <button
                         type="button"

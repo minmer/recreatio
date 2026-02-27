@@ -2073,6 +2073,18 @@ export function CogitaWorkspacePage({
               <button type="button" className="ghost" onClick={onToggleSecureMode}>
                 {secureMode ? copy.account.secureModeDisable : copy.account.secureModeEnable}
               </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!selectedLibraryId}
+                onClick={() => {
+                  if (!selectedLibraryId) return;
+                  navigate(`/cogita/live-sessions/${encodeURIComponent(selectedLibraryId)}`);
+                  setSidebarOpen(false);
+                }}
+              >
+                {copy.cogita.library.revision.live.hostTitle}
+              </button>
             </div>
           </div>
         </aside>

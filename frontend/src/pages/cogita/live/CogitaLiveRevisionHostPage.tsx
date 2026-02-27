@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  approveCogitaLiveRevisionReloginRequest,
+  attachCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   getCogitaCollectionCards,
   getCogitaComputedSample,
@@ -16,8 +18,10 @@ import {
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
+import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 import { evaluateAnchorTextAnswer } from '../../../cogita/revision/compare';
+import { useLocation } from 'react-router-dom';
 
 type LivePrompt =
   | { kind: 'text'; title: string; prompt: string; inputType?: 'text' | 'number' | 'date'; multiLine?: boolean; cardLabel?: string }
@@ -381,6 +385,7 @@ export function CogitaLiveRevisionHostPage(props: {
   revisionId: string;
 }) {
   const { libraryId, revisionId } = props;
+  const location = useLocation();
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
@@ -397,6 +402,12 @@ export function CogitaLiveRevisionHostPage(props: {
   const joinUrl = useMemo(
     () => (session?.code && typeof window !== 'undefined'
       ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(session.code)}`
+      : ''),
+    [session?.code]
+  );
+  const presenterUrl = useMemo(
+    () => (session?.code && typeof window !== 'undefined'
+      ? `${window.location.origin}/#/cogita/public/live-revision-screen/${encodeURIComponent(session.code)}`
       : ''),
     [session?.code]
   );
@@ -448,10 +459,33 @@ export function CogitaLiveRevisionHostPage(props: {
     let canceled = false;
     async function ensureSession() {
       try {
-        if (typeof localStorage !== 'undefined') {
-          // Starting the host live page always creates a fresh public session code.
-          localStorage.removeItem(storageKey);
+        const params = new URLSearchParams(location.search);
+        const sessionIdFromQuery = params.get('sessionId');
+        const hostSecretFromQuery = params.get('hostSecret');
+        const codeFromQuery = params.get('code');
+        const hasAttachPayload = Boolean(sessionIdFromQuery && hostSecretFromQuery);
+        if (hasAttachPayload && sessionIdFromQuery && hostSecretFromQuery) {
+          const attached = await getCogitaLiveRevisionSession({
+            libraryId,
+            sessionId: sessionIdFromQuery,
+            hostSecret: hostSecretFromQuery
+          });
+          if (canceled) return;
+          const merged = mergeHostSecrets(attached, null, {
+            hostSecret: hostSecretFromQuery,
+            code: codeFromQuery ?? undefined
+          });
+          setSession(merged);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(
+              storageKey,
+              JSON.stringify({ sessionId: merged.sessionId, hostSecret: merged.hostSecret, code: merged.code })
+            );
+          }
+          setStatus('ready');
+          return;
         }
+
         const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: liveCopy.hostKicker });
         if (canceled) return;
         setSession(created);
@@ -470,7 +504,7 @@ export function CogitaLiveRevisionHostPage(props: {
     return () => {
       canceled = true;
     };
-  }, [libraryId, revisionId, storageKey]);
+  }, [libraryId, liveCopy.hostKicker, location.search, revisionId, storageKey]);
 
   useEffect(() => {
     if (!session) return;
@@ -573,6 +607,37 @@ export function CogitaLiveRevisionHostPage(props: {
     }
     if (session.status === 'lobby') {
       await handleStart();
+    }
+  };
+
+  const handleApproveRelogin = async (requestId: string) => {
+    if (!session?.hostSecret) return;
+    try {
+      const updated = await approveCogitaLiveRevisionReloginRequest({
+        libraryId,
+        sessionId: session.sessionId,
+        hostSecret: session.hostSecret,
+        requestId
+      });
+      setSession((prev) => mergeHostSecrets(updated, prev));
+    } catch {
+      // keep page usable even on temporary approval errors
+    }
+  };
+
+  const handleRefreshCode = async () => {
+    if (!session) return;
+    try {
+      const attached = await attachCogitaLiveRevisionSession({ libraryId, sessionId: session.sessionId });
+      setSession(attached);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({ sessionId: attached.sessionId, hostSecret: attached.hostSecret, code: attached.code })
+        );
+      }
+    } catch {
+      // ignore refresh errors
     }
   };
 
@@ -715,6 +780,7 @@ export function CogitaLiveRevisionHostPage(props: {
                   <>
                     <div className="cogita-field"><span>{liveCopy.joinCodeLabel}</span><input readOnly value={session.code} /></div>
                     <div className="cogita-field"><span>{liveCopy.joinUrlLabel}</span><input readOnly value={joinUrl} /></div>
+                    <div className="cogita-field"><span>Presenter URL</span><input readOnly value={presenterUrl} /></div>
                     {joinUrl ? (
                       <div className="cogita-field">
                         <span>{liveCopy.qrLabel}</span>
@@ -726,6 +792,7 @@ export function CogitaLiveRevisionHostPage(props: {
                     <div className="cogita-field"><span>{liveCopy.statusLabel}</span><input readOnly value={statusLabelMap[session.status] ?? session.status} /></div>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>{liveCopy.publishCurrentRound}</button>
+                      <button type="button" className="cta ghost" onClick={handleRefreshCode}>Refresh links</button>
                     </div>
                     <p className="cogita-help">{formatLive(liveCopy.roundsLabel, { count: rounds.length })}</p>
                   </>
@@ -743,7 +810,12 @@ export function CogitaLiveRevisionHostPage(props: {
                 {session?.status === 'lobby' ? (
                   <p className="cogita-help">{liveCopy.hiddenBeforeStart}</p>
                 ) : (
-                  renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)
+                  <CogitaCheckcardSurface
+                    className="cogita-live-card-container"
+                    feedbackToken={publishedReveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}
+                  >
+                    {renderPromptLikeParticipant(publishedPrompt, publishedReveal?.expected)}
+                  </CogitaCheckcardSurface>
                 )}
                 {sessionStage !== 'lobby' ? (
                   <div className="cogita-form-actions">
@@ -778,6 +850,24 @@ export function CogitaLiveRevisionHostPage(props: {
                       })}
                       {session && session.participants.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                     </div>
+                    {session && (session.pendingReloginRequests?.length ?? 0) > 0 ? (
+                      <>
+                        <p className="cogita-user-kicker">Relogin requests</p>
+                        <div className="cogita-share-list">
+                          {(session.pendingReloginRequests ?? []).map((request) => (
+                            <div className="cogita-share-row" key={request.requestId}>
+                              <div>
+                                <strong>{request.displayName}</strong>
+                                <div className="cogita-share-meta">{new Date(request.requestedUtc).toLocaleTimeString()}</div>
+                              </div>
+                              <button type="button" className="ghost" onClick={() => handleApproveRelogin(request.requestId)}>
+                                Allow relogin
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </div>

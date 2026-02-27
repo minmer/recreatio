@@ -389,6 +389,26 @@ public sealed record CogitaLiveRevisionAnswerResponse(
     DateTimeOffset SubmittedUtc
 );
 
+public sealed record CogitaLiveRevisionReloginRequestResponse(
+    Guid RequestId,
+    string DisplayName,
+    string Status,
+    DateTimeOffset RequestedUtc,
+    DateTimeOffset? ApprovedUtc
+);
+
+public sealed record CogitaLiveRevisionSessionListItemResponse(
+    Guid SessionId,
+    Guid LibraryId,
+    Guid RevisionId,
+    Guid CollectionId,
+    string Status,
+    int CurrentRoundIndex,
+    DateTimeOffset UpdatedUtc,
+    string? Title,
+    int ParticipantCount
+);
+
 public sealed record CogitaLiveRevisionSessionResponse(
     Guid SessionId,
     string Code,
@@ -403,7 +423,8 @@ public sealed record CogitaLiveRevisionSessionResponse(
     JsonElement? CurrentReveal,
     List<CogitaLiveRevisionParticipantResponse> Participants,
     List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
-    List<CogitaLiveRevisionAnswerResponse> CurrentRoundAnswers
+    List<CogitaLiveRevisionAnswerResponse> CurrentRoundAnswers,
+    List<CogitaLiveRevisionReloginRequestResponse> PendingReloginRequests
 );
 
 public sealed record CogitaLiveRevisionJoinRequest(string Name);
@@ -412,6 +433,15 @@ public sealed record CogitaLiveRevisionJoinResponse(
     Guid SessionId,
     Guid ParticipantId,
     string ParticipantToken,
+    string Name
+);
+
+public sealed record CogitaLiveRevisionReloginRequestCreateRequest(string Name);
+
+public sealed record CogitaLiveRevisionReloginRequestCreateResponse(
+    Guid SessionId,
+    Guid RequestId,
+    string Status,
     string Name
 );
 
