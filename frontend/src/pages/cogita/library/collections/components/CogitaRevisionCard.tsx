@@ -404,6 +404,41 @@ export function CogitaRevisionCard({
             ) : null}
           </div>
         </div>
+      ) : currentCard.cardType === 'info' && currentCard.infoType === 'question' ? (
+        <div className="cogita-revision-body">
+          <h2>{prompt}</h2>
+          <label className="cogita-field">
+            <span>{copy.cogita.library.revision.answerLabel}</span>
+            <input
+              ref={answerInputRef as MutableRefObject<HTMLInputElement | null>}
+              value={answer}
+              onChange={(event) => onAnswerChange(event.target.value)}
+              placeholder={copy.cogita.library.revision.answerPlaceholder}
+              data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (canAdvance) {
+                  onAdvance();
+                } else {
+                  if (checkDisabled) return;
+                  onCheckAnswer();
+                }
+              }}
+            />
+          </label>
+          <div className="cogita-form-actions">
+            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
+              {copy.cogita.library.revision.checkAnswer}
+            </button>
+            {!hideSkipAction ? (
+              <button type="button" className="ghost" onClick={onSkip}>
+                {copy.cogita.library.revision.skip}
+              </button>
+            ) : null}
+          </div>
+        </div>
       ) : currentCard.cardType === 'info' && currentCard.infoType === 'computed' ? (
         <div className="cogita-revision-body">
           {currentCard.label ? <p className="cogita-revision-hint">{currentCard.label}</p> : null}
