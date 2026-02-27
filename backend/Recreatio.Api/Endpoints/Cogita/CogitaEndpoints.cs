@@ -4863,8 +4863,8 @@ public static class CogitaEndpoints
                 }
 
                 var nowApproved = DateTimeOffset.UtcNow;
-                var participantToken = GenerateAlphaNumericCode(24);
-                existingParticipant.JoinTokenHash = HashToken(participantToken);
+                var reloginParticipantToken = GenerateAlphaNumericCode(24);
+                existingParticipant.JoinTokenHash = HashToken(reloginParticipantToken);
                 existingParticipant.IsConnected = true;
                 existingParticipant.UserId = EndpointHelpers.TryGetUserId(context, out var reloginUserId) ? reloginUserId : existingParticipant.UserId;
                 existingParticipant.UpdatedUtc = nowApproved;
@@ -4873,7 +4873,7 @@ public static class CogitaEndpoints
                 session.UpdatedUtc = nowApproved;
                 await dbContext.SaveChangesAsync(ct);
 
-                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, participantToken, existingParticipant.DisplayName));
+                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, reloginParticipantToken, existingParticipant.DisplayName));
             }
 
             var now = DateTimeOffset.UtcNow;
