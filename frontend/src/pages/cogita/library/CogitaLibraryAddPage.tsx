@@ -489,6 +489,8 @@ export function CogitaLibraryAddPage({
     normalizeQuestionDefinition(JSON.parse(QUESTION_DEFINITION_TEMPLATE)) ?? createDefaultQuestionDefinition()
   );
   const [questionImportJson, setQuestionImportJson] = useState(QUESTION_DEFINITION_TEMPLATE);
+  const [questionImportQueue, setQuestionImportQueue] = useState<QuestionDefinition[]>([]);
+  const [questionImportQueueIndex, setQuestionImportQueueIndex] = useState(0);
 
   const currentSpec = useMemo(
     () => specifications.find((spec) => spec.infoType === selectedInfoType),
@@ -579,11 +581,13 @@ export function CogitaLibraryAddPage({
       const normalized = normalizeQuestionDefinition(parsed);
       if (!normalized) return;
       setQuestionDefinition(normalized);
-      setQuestionImportJson(JSON.stringify(parsed, null, 2));
+      if (questionImportQueue.length === 0) {
+        setQuestionImportJson(JSON.stringify(parsed, null, 2));
+      }
     } catch {
       // keep current UI state; invalid JSON is handled on save/import action
     }
-  }, [payloadValues.definition, selectedInfoType]);
+  }, [payloadValues.definition, questionImportQueue.length, selectedInfoType]);
 
   useEffect(() => {
     if (!isEditMode || !editInfoId || specifications.length === 0) return;
@@ -894,11 +898,40 @@ export function CogitaLibraryAddPage({
           payload,
           links
         });
-        setStatus('Info saved.');
+        const hasQueuedQuestionImport =
+          selectedInfoType === 'question' &&
+          questionImportQueue.length > 0 &&
+          questionImportQueueIndex < questionImportQueue.length - 1;
+
+        if (hasQueuedQuestionImport) {
+          const nextIndex = questionImportQueueIndex + 1;
+          const nextDefinition = questionImportQueue[nextIndex] ?? null;
+          if (nextDefinition) {
+            const serializedNext = serializeQuestionDefinition(nextDefinition);
+            setQuestionImportQueueIndex(nextIndex);
+            setQuestionDefinition(nextDefinition);
+            setPayloadValues((prev) => ({ ...prev, definition: serializedNext }));
+            setStatus(`Info saved. Loaded next question (${nextIndex + 1}/${questionImportQueue.length}).`);
+          } else {
+            setStatus('Info saved.');
+          }
+        } else {
+          if (selectedInfoType === 'question' && questionImportQueue.length > 0) {
+            setQuestionImportQueue([]);
+            setQuestionImportQueueIndex(0);
+          }
+          setStatus('Info saved.');
+        }
 
         const nextPayload: Record<string, string> = {};
         for (const field of currentSpec.payloadFields) {
           nextPayload[field.key] = field.keepOnCreate ? (payloadValues[field.key] ?? '') : '';
+        }
+        if (hasQueuedQuestionImport) {
+          const activeDefinition = questionImportQueue[Math.min(questionImportQueueIndex + 1, questionImportQueue.length - 1)];
+          if (activeDefinition) {
+            nextPayload.definition = serializeQuestionDefinition(activeDefinition);
+          }
         }
         setPayloadValues(nextPayload);
 
@@ -1252,11 +1285,28 @@ export function CogitaLibraryAddPage({
                   onClick={() => {
                     try {
                       const parsed = JSON.parse(questionImportJson);
-                      const normalized = normalizeQuestionDefinition(parsed);
-                      if (!normalized) {
-                        setStatus('Question JSON must be an object.');
+                      if (Array.isArray(parsed)) {
+                        const normalizedItems = parsed
+                          .map((item) => normalizeQuestionDefinition(item))
+                          .filter((item): item is QuestionDefinition => Boolean(item));
+                        if (normalizedItems.length === 0) {
+                          setStatus('Question JSON array must contain at least one valid question object.');
+                          return;
+                        }
+                        const first = normalizedItems[0];
+                        setQuestionImportQueue(normalizedItems);
+                        setQuestionImportQueueIndex(0);
+                        applyQuestionDefinition(first);
+                        setStatus(`Loaded question array (${normalizedItems.length} items).`);
                         return;
                       }
+                      const normalized = normalizeQuestionDefinition(parsed);
+                      if (!normalized) {
+                        setStatus('Question JSON must be an object or an array of question objects.');
+                        return;
+                      }
+                      setQuestionImportQueue([]);
+                      setQuestionImportQueueIndex(0);
                       applyQuestionDefinition(normalized);
                       setStatus(null);
                     } catch {
@@ -1266,6 +1316,11 @@ export function CogitaLibraryAddPage({
                 >
                   Interpret JSON
                 </button>
+                {questionImportQueue.length > 0 ? (
+                  <span className="cogita-library-hint">
+                    Queue: {Math.min(questionImportQueueIndex + 1, questionImportQueue.length)} / {questionImportQueue.length}
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>
