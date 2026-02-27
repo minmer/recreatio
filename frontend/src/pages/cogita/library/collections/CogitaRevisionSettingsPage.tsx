@@ -3,6 +3,7 @@ import {
   createCogitaRevisionShare,
   getCogitaCollection,
   getCogitaCollections,
+  getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
   getCogitaRevisions,
   getCogitaRevisionShares,
@@ -10,6 +11,7 @@ import {
   revokeCogitaRevisionShare,
   updateCogitaRevision,
   type CogitaRevision,
+  type CogitaLiveRevisionSessionListItem,
   type CogitaReviewer,
   type CogitaRevisionShare
 } from '../../../../lib/api';
@@ -70,6 +72,7 @@ export function CogitaRevisionSettingsPage({
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [shareListStatus, setShareListStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [liveSessions, setLiveSessions] = useState<CogitaLiveRevisionSessionListItem[]>([]);
   const shareBase = useMemo(() => {
     if (typeof window === 'undefined') return '/#/cogita/public/revision';
     return `${window.location.origin}/#/cogita/public/revision`;
@@ -158,22 +161,27 @@ export function CogitaRevisionSettingsPage({
     loadShares();
   }, [libraryId]);
 
+  useEffect(() => {
+    if (!revisionId) {
+      setLiveSessions([]);
+      return;
+    }
+    getCogitaLiveRevisionSessionsByRevision({ libraryId, revisionId })
+      .then((items) => setLiveSessions(items))
+      .catch(() => setLiveSessions([]));
+  }, [libraryId, revisionId]);
+
   const handleCreateShare = async () => {
     setShareStatus('working');
     setShareCopyStatus('idle');
     try {
-      if (!selectedCollectionId) {
+      if (!revisionId) {
         setShareStatus('error');
         return;
       }
       const response = await createCogitaRevisionShare({
         libraryId,
-        collectionId: selectedCollectionId,
-        revisionType: revisionType.id,
-        revisionSettings: normalizedSettings,
-        mode,
-        check,
-        limit
+        revisionId
       });
       setShareLink(`${shareBase}/${response.shareCode}${settingsQuery ? `?${settingsQuery}` : ''}`);
       setShareStatus('ready');
@@ -502,14 +510,15 @@ export function CogitaRevisionSettingsPage({
                     <p className="cogita-user-kicker">{copy.cogita.library.revision.shareListTitle}</p>
                     {shareListStatus === 'loading' ? (
                       <p>{copy.cogita.library.revision.shareListLoading}</p>
-                    ) : shares.length === 0 ? (
+                    ) : shares.filter((share) => !revisionId || share.revisionId === revisionId).length === 0 ? (
                       <p>{copy.cogita.library.revision.shareListEmpty}</p>
                     ) : (
                       <div className="cogita-share-list">
-                        {shares.map((share) => (
+                        {shares.filter((share) => !revisionId || share.revisionId === revisionId).map((share) => (
                           <div className="cogita-share-row" key={share.shareId} data-state={share.revokedUtc ? 'revoked' : 'active'}>
                             <div>
-                              <strong>{share.collectionName}</strong>
+                              <strong>{share.revisionName}</strong>
+                              <div className="cogita-share-meta">{share.collectionName}</div>
                               <div className="cogita-share-meta">
                                 {new Date(share.createdUtc).toLocaleString()}
                                 {share.revokedUtc ? ` · ${copy.cogita.library.revision.shareRevoked}` : ''}
@@ -526,6 +535,37 @@ export function CogitaRevisionSettingsPage({
                     )}
                   </div>
                 </section>
+                {revisionId ? (
+                  <section className="cogita-library-detail">
+                    <div className="cogita-detail-header">
+                      <div>
+                        <p className="cogita-user-kicker">Live sessions</p>
+                        <h3 className="cogita-detail-title">Active sessions for this revision</h3>
+                      </div>
+                    </div>
+                    <div className="cogita-detail-body">
+                      {liveSessions.length === 0 ? (
+                        <p className="cogita-help">No active sessions.</p>
+                      ) : (
+                        <div className="cogita-share-list">
+                          {liveSessions.map((item) => (
+                            <div className="cogita-share-row" key={`revision-live:${item.sessionId}`}>
+                              <div>
+                                <strong>{item.title || item.sessionId}</strong>
+                                <div className="cogita-share-meta">
+                                  {item.status} · participants: {item.participantCount}
+                                </div>
+                              </div>
+                              <a className="ghost" href={`/#/cogita/live-sessions/${encodeURIComponent(libraryId)}`}>
+                                Open sessions
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
               </div>
             </div>
           </div>

@@ -1305,6 +1305,7 @@ BEGIN
     (
         Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         LibraryId UNIQUEIDENTIFIER NOT NULL,
+        RevisionId UNIQUEIDENTIFIER NOT NULL,
         CollectionId UNIQUEIDENTIFIER NOT NULL,
         OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
         SharedViewId UNIQUEIDENTIFIER NOT NULL,
@@ -1318,6 +1319,7 @@ BEGIN
         CreatedUtc DATETIMEOFFSET NOT NULL,
         RevokedUtc DATETIMEOFFSET NULL,
         CONSTRAINT FK_CogitaRevisionShares_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaRevisionShares_Revision FOREIGN KEY (RevisionId) REFERENCES dbo.CogitaRevisions(Id),
         CONSTRAINT FK_CogitaRevisionShares_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id),
         CONSTRAINT FK_CogitaRevisionShares_SharedView FOREIGN KEY (SharedViewId) REFERENCES dbo.SharedViews(Id),
         CONSTRAINT FK_CogitaRevisionShares_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
@@ -1328,6 +1330,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_Library_Revoked' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
 BEGIN
     CREATE INDEX IX_CogitaRevisionShares_Library_Revoked ON dbo.CogitaRevisionShares(LibraryId, RevokedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_Library_Revision_Revoked' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisionShares_Library_Revision_Revoked ON dbo.CogitaRevisionShares(LibraryId, RevisionId, RevokedUtc);
 END
 GO
 

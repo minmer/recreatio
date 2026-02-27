@@ -52,7 +52,16 @@ export function CogitaLiveRevisionJoinPage(props: {
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
   const revealExpected = reveal?.expected;
-  const sessionStage = state?.status === 'finished' ? 'finished' : state?.status && state.status !== 'lobby' ? 'active' : 'lobby';
+  const sessionStage =
+    state?.status === 'finished' || state?.status === 'closed'
+      ? 'finished'
+      : state?.status && state.status !== 'lobby'
+        ? 'active'
+        : 'lobby';
+  const participantViewMode = state?.participantViewMode ?? 'question';
+  const showJoinPanel = participantViewMode !== 'fullscreen' || sessionStage === 'lobby' || !participantToken;
+  const showQuestionPanel = participantViewMode !== 'score';
+  const showScorePanel = participantViewMode !== 'question' || sessionStage === 'finished';
   const promptKey = useMemo(
     () => `${state?.currentRoundIndex ?? 0}:${state?.revealVersion ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex, state?.revealVersion]
@@ -214,7 +223,12 @@ export function CogitaLiveRevisionJoinPage(props: {
       <section className="cogita-library-dashboard">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
-            <div className="cogita-library-grid cogita-live-session-layout" data-stage={sessionStage}>
+            <div
+              className="cogita-library-grid cogita-live-session-layout"
+              data-stage={sessionStage}
+              data-participant-view={participantViewMode}
+            >
+              {showJoinPanel ? (
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
                 <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
@@ -252,7 +266,9 @@ export function CogitaLiveRevisionJoinPage(props: {
                   </>
                 ) : null}
               </div>
-              <div className="cogita-library-panel">
+              ) : null}
+              {showQuestionPanel ? (
+              <div className={`cogita-library-panel ${participantViewMode === 'fullscreen' ? 'cogita-live-fullscreen-panel' : ''}`}>
                 <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
                 {prompt ? (
@@ -312,7 +328,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
                 )}
               </div>
-              {sessionStage !== 'lobby' ? (
+              ) : null}
+              {sessionStage !== 'lobby' && showScorePanel ? (
                 <div className="cogita-library-panel cogita-live-scoreboard-panel">
                   <p className="cogita-user-kicker">{sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
                   <div className="cogita-share-list">

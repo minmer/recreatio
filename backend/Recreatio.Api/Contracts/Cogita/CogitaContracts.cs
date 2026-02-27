@@ -311,18 +311,16 @@ public sealed record CogitaReviewerResponse(
 );
 
 public sealed record CogitaRevisionShareCreateRequest(
-    Guid CollectionId,
-    string? RevisionType,
-    JsonElement? RevisionSettings,
-    string Mode,
-    string Check,
-    int Limit,
+    Guid RevisionId,
     string? SignatureBase64
 );
 
 public sealed record CogitaRevisionShareCreateResponse(
     Guid ShareId,
+    Guid RevisionId,
+    string RevisionName,
     Guid CollectionId,
+    string CollectionName,
     string ShareCode,
     string? RevisionType,
     JsonElement? RevisionSettings,
@@ -334,6 +332,8 @@ public sealed record CogitaRevisionShareCreateResponse(
 
 public sealed record CogitaRevisionShareResponse(
     Guid ShareId,
+    Guid RevisionId,
+    string RevisionName,
     Guid CollectionId,
     string CollectionName,
     string ShareCode,
@@ -348,6 +348,8 @@ public sealed record CogitaRevisionShareResponse(
 
 public sealed record CogitaPublicRevisionShareResponse(
     Guid ShareId,
+    Guid RevisionId,
+    string RevisionName,
     Guid LibraryId,
     Guid CollectionId,
     string CollectionName,
@@ -362,7 +364,11 @@ public sealed record CogitaPublicRevisionShareResponse(
 public sealed record CogitaLiveRevisionSessionCreateRequest(
     Guid? RevisionId,
     Guid? CollectionId,
-    string? Title
+    string? Title,
+    string? SessionMode,
+    string? HostViewMode,
+    string? ParticipantViewMode,
+    JsonElement? SessionSettings
 );
 
 public sealed record CogitaLiveRevisionParticipantScoreResponse(
@@ -402,6 +408,9 @@ public sealed record CogitaLiveRevisionSessionListItemResponse(
     Guid LibraryId,
     Guid RevisionId,
     Guid CollectionId,
+    string SessionMode,
+    string? HostViewMode,
+    string? ParticipantViewMode,
     string Status,
     int CurrentRoundIndex,
     DateTimeOffset UpdatedUtc,
@@ -416,6 +425,10 @@ public sealed record CogitaLiveRevisionSessionResponse(
     Guid LibraryId,
     Guid? RevisionId,
     Guid? CollectionId,
+    string SessionMode,
+    string? HostViewMode,
+    string? ParticipantViewMode,
+    JsonElement? SessionSettings,
     string Status,
     int CurrentRoundIndex,
     int RevealVersion,
@@ -447,6 +460,9 @@ public sealed record CogitaLiveRevisionReloginRequestCreateResponse(
 
 public sealed record CogitaLiveRevisionPublicStateResponse(
     Guid SessionId,
+    string SessionMode,
+    string? ParticipantViewMode,
+    JsonElement? SessionSettings,
     string Status,
     int CurrentRoundIndex,
     int RevealVersion,
@@ -454,6 +470,23 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     JsonElement? CurrentReveal,
     List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
     bool AnswerSubmitted
+);
+
+public sealed record CogitaLiveRevisionParticipantSessionListItemResponse(
+    Guid SessionId,
+    Guid LibraryId,
+    Guid RevisionId,
+    Guid CollectionId,
+    string SessionMode,
+    string? HostViewMode,
+    string? ParticipantViewMode,
+    string Status,
+    int CurrentRoundIndex,
+    DateTimeOffset UpdatedUtc,
+    string? Title,
+    int ParticipantCount,
+    int ParticipantScore,
+    bool IsConnected
 );
 
 public sealed record CogitaLiveRevisionHostStateUpdateRequest(

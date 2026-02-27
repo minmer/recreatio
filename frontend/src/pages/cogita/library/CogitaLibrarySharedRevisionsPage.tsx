@@ -136,7 +136,8 @@ export function CogitaLibrarySharedRevisionsPage({
                           .map((share) => (
                           <div className="cogita-share-row" key={share.shareId} data-state={share.revokedUtc ? 'revoked' : 'active'}>
                             <div>
-                              <strong>{share.collectionName}</strong>
+                              <strong>{share.revisionName}</strong>
+                              <div className="cogita-share-meta">{share.collectionName}</div>
                               <div className="cogita-share-meta">
                                 {new Date(share.createdUtc).toLocaleString()}
                                 {share.revokedUtc ? ` · ${copy.cogita.library.revision.shareRevoked}` : ''}

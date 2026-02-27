@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { attachCogitaLiveRevisionSession, getCogitaLiveRevisionSessions, type CogitaLiveRevisionSessionListItem } from '../../../lib/api';
+import {
+  attachCogitaLiveRevisionSession,
+  getCogitaLiveRevisionSessions,
+  getCogitaParticipatingLiveRevisionSessions,
+  type CogitaLiveRevisionParticipantSessionListItem,
+  type CogitaLiveRevisionSessionListItem
+} from '../../../lib/api';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
@@ -22,6 +28,7 @@ export function CogitaLiveSessionsPage(props: {
   const liveCopy = props.copy.cogita.library.revision.live;
   const { libraryId } = props;
   const [items, setItems] = useState<CogitaLiveRevisionSessionListItem[]>([]);
+  const [participatingItems, setParticipatingItems] = useState<CogitaLiveRevisionParticipantSessionListItem[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
   const [attachedBySessionId, setAttachedBySessionId] = useState<Record<string, { sessionId: string; code: string; hostSecret: string }>>({});
@@ -30,7 +37,8 @@ export function CogitaLiveSessionsPage(props: {
       lobby: liveCopy.statusLobby,
       running: liveCopy.statusRunning,
       revealed: liveCopy.statusRevealed,
-      finished: liveCopy.statusFinished
+      finished: liveCopy.statusFinished,
+      closed: 'Closed'
     }),
     [liveCopy.statusFinished, liveCopy.statusLobby, liveCopy.statusRevealed, liveCopy.statusRunning]
   );
@@ -38,11 +46,16 @@ export function CogitaLiveSessionsPage(props: {
   const load = async () => {
     setStatus('loading');
     try {
-      const list = await getCogitaLiveRevisionSessions({ libraryId });
+      const [list, participating] = await Promise.all([
+        getCogitaLiveRevisionSessions({ libraryId }),
+        getCogitaParticipatingLiveRevisionSessions({ libraryId })
+      ]);
       setItems(list);
+      setParticipatingItems(participating);
       setStatus('ready');
     } catch {
       setItems([]);
+      setParticipatingItems([]);
       setStatus('error');
     }
   };
@@ -122,6 +135,29 @@ export function CogitaLiveSessionsPage(props: {
                       <button type="button" className="ghost" onClick={() => attachAndOpen(item, 'login')} disabled={busySessionId === item.sessionId}>
                         Login panel
                       </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="cogita-detail-header" style={{ marginTop: '1rem' }}>
+                <div>
+                  <p className="cogita-user-kicker">Participant sessions</p>
+                  <h3 className="cogita-detail-title">Sessions where you participate</h3>
+                </div>
+              </div>
+              {status === 'ready' && participatingItems.length === 0 ? <p className="cogita-help">No participant sessions.</p> : null}
+              <div className="cogita-share-list">
+                {participatingItems.map((item) => (
+                  <div className="cogita-share-row" key={`participating:${item.sessionId}`}>
+                    <div>
+                      <strong>{item.title || item.sessionId}</strong>
+                      <div className="cogita-share-meta">
+                        {statusLabelMap[item.status] ?? item.status} · {liveCopy.participantsTitle}: {item.participantCount}
+                      </div>
+                      <div className="cogita-share-meta">
+                        Score: {item.participantScore} · {item.isConnected ? 'Connected' : 'Disconnected'}
+                      </div>
                     </div>
                   </div>
                 ))}

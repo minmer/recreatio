@@ -726,6 +726,8 @@ export type CogitaReviewOutcomeResponse = {
 
 export type CogitaRevisionShare = {
   shareId: string;
+  revisionId: string;
+  revisionName: string;
   collectionId: string;
   collectionName: string;
   shareCode: string;
@@ -740,7 +742,10 @@ export type CogitaRevisionShare = {
 
 export type CogitaRevisionShareCreateResponse = {
   shareId: string;
+  revisionId: string;
+  revisionName: string;
   collectionId: string;
+  collectionName: string;
   shareCode: string;
   revisionType?: string | null;
   revisionSettings?: Record<string, unknown> | null;
@@ -787,11 +792,31 @@ export type CogitaLiveRevisionSessionListItem = {
   libraryId: string;
   revisionId: string;
   collectionId: string;
+  sessionMode: string;
+  hostViewMode?: string | null;
+  participantViewMode?: string | null;
   status: string;
   currentRoundIndex: number;
   updatedUtc: string;
   title?: string | null;
   participantCount: number;
+};
+
+export type CogitaLiveRevisionParticipantSessionListItem = {
+  sessionId: string;
+  libraryId: string;
+  revisionId: string;
+  collectionId: string;
+  sessionMode: string;
+  hostViewMode?: string | null;
+  participantViewMode?: string | null;
+  status: string;
+  currentRoundIndex: number;
+  updatedUtc: string;
+  title?: string | null;
+  participantCount: number;
+  participantScore: number;
+  isConnected: boolean;
 };
 
 export type CogitaLiveRevisionSession = {
@@ -801,6 +826,10 @@ export type CogitaLiveRevisionSession = {
   libraryId: string;
   revisionId?: string | null;
   collectionId?: string | null;
+  sessionMode: string;
+  hostViewMode?: string | null;
+  participantViewMode?: string | null;
+  sessionSettings?: Record<string, unknown> | null;
   status: string;
   currentRoundIndex: number;
   revealVersion: number;
@@ -828,6 +857,9 @@ export type CogitaLiveRevisionReloginRequestCreateResponse = {
 
 export type CogitaLiveRevisionPublicState = {
   sessionId: string;
+  sessionMode: string;
+  participantViewMode?: string | null;
+  sessionSettings?: Record<string, unknown> | null;
   status: string;
   currentRoundIndex: number;
   revealVersion: number;
@@ -839,6 +871,8 @@ export type CogitaLiveRevisionPublicState = {
 
 export type CogitaPublicRevisionShare = {
   shareId: string;
+  revisionId: string;
+  revisionName: string;
   libraryId: string;
   collectionId: string;
   collectionName: string;
@@ -1198,23 +1232,13 @@ export function getCogitaReviewSummary(payload: {
 
 export function createCogitaRevisionShare(payload: {
   libraryId: string;
-  collectionId: string;
-  revisionType?: string | null;
-  revisionSettings?: Record<string, unknown> | null;
-  mode: string;
-  check: string;
-  limit: number;
+  revisionId: string;
   signatureBase64?: string | null;
 }) {
   return request<CogitaRevisionShareCreateResponse>(`/cogita/libraries/${payload.libraryId}/revision-shares`, {
     method: 'POST',
     body: JSON.stringify({
-      collectionId: payload.collectionId,
-      revisionType: payload.revisionType ?? null,
-      revisionSettings: payload.revisionSettings ?? null,
-      mode: payload.mode,
-      check: payload.check,
-      limit: payload.limit,
+      revisionId: payload.revisionId,
       signatureBase64: payload.signatureBase64 ?? null
     })
   });
@@ -1238,6 +1262,10 @@ export function createCogitaLiveRevisionSession(payload: {
   revisionId: string;
   collectionId?: string | null;
   title?: string | null;
+  sessionMode?: 'simultaneous' | 'asynchronous';
+  hostViewMode?: 'panel' | 'question' | 'score';
+  participantViewMode?: 'question' | 'score' | 'fullscreen';
+  sessionSettings?: Record<string, unknown> | null;
 }) {
   return request<CogitaLiveRevisionSession>(
     `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}/live-sessions`,
@@ -1246,7 +1274,11 @@ export function createCogitaLiveRevisionSession(payload: {
       body: JSON.stringify({
         revisionId: payload.revisionId,
         collectionId: payload.collectionId ?? null,
-        title: payload.title ?? null
+        title: payload.title ?? null,
+        sessionMode: payload.sessionMode ?? 'simultaneous',
+        hostViewMode: payload.hostViewMode ?? 'panel',
+        participantViewMode: payload.participantViewMode ?? 'question',
+        sessionSettings: payload.sessionSettings ?? null
       })
     }
   );
@@ -1255,6 +1287,20 @@ export function createCogitaLiveRevisionSession(payload: {
 export function getCogitaLiveRevisionSessions(payload: { libraryId: string }) {
   return request<CogitaLiveRevisionSessionListItem[]>(
     `/cogita/libraries/${payload.libraryId}/live-sessions`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaLiveRevisionSessionsByRevision(payload: { libraryId: string; revisionId: string }) {
+  return request<CogitaLiveRevisionSessionListItem[]>(
+    `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}/live-sessions`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaParticipatingLiveRevisionSessions(payload: { libraryId: string }) {
+  return request<CogitaLiveRevisionParticipantSessionListItem[]>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/participating`,
     { method: 'GET' }
   );
 }
@@ -1325,6 +1371,18 @@ export function approveCogitaLiveRevisionReloginRequest(payload: {
   const params = new URLSearchParams({ hostSecret: payload.hostSecret });
   return request<CogitaLiveRevisionSession>(
     `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/relogin-requests/${payload.requestId}/approve?${params.toString()}`,
+    { method: 'POST', body: JSON.stringify({}) }
+  );
+}
+
+export function closeCogitaLiveRevisionSession(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/close?${params.toString()}`,
     { method: 'POST', body: JSON.stringify({}) }
   );
 }

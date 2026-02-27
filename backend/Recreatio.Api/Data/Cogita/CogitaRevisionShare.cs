@@ -9,6 +9,8 @@ public sealed class CogitaRevisionShare
 
     public Guid LibraryId { get; set; }
 
+    public Guid RevisionId { get; set; }
+
     public Guid CollectionId { get; set; }
 
     public Guid OwnerRoleId { get; set; }

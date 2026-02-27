@@ -1909,24 +1909,24 @@
   animation: cogita-reveal-correct-flash 700ms ease-out;
 }
 
-.cogita-live-session-layout[data-stage='active'] > .cogita-library-panel:nth-child(2),
-.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:nth-child(2) {
-  grid-column: 1 / -1;
-}
-
-.cogita-live-session-layout[data-stage='active'] > .cogita-library-panel:first-child {
-  display: none;
-}
-
-.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:first-child {
-  display: none;
-}
-
-.cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel:nth-child(2) {
-  display: none;
+.cogita-live-session-layout > .cogita-library-panel {
+  grid-column: span 6;
 }
 
 .cogita-live-scoreboard-panel {
+  grid-column: 1 / -1;
+}
+
+.cogita-live-fullscreen-panel {
+  grid-column: 1 / -1;
+  min-height: calc(100vh - 10rem);
+}
+
+.cogita-live-session-layout[data-participant-view='fullscreen'] {
+  align-items: stretch;
+}
+
+.cogita-live-session-layout[data-participant-view='fullscreen'] > .cogita-library-panel {
   grid-column: 1 / -1;
 }
 

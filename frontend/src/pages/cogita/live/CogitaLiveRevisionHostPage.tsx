@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import {
   approveCogitaLiveRevisionReloginRequest,
   attachCogitaLiveRevisionSession,
+  closeCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   getCogitaCollectionCards,
   getCogitaComputedSample,
@@ -20,10 +21,10 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
-import { evaluateAnchorTextAnswer } from '../../../cogita/revision/compare';
 import { useLocation } from 'react-router-dom';
 import { parseQuestionDefinition, type ParsedQuestionDefinition } from '../library/questions/questionRuntime';
 import { CogitaLivePromptCard } from './components/CogitaLivePromptCard';
+import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
 
 type LivePrompt =
   | { kind: 'text'; title: string; prompt: string; inputType?: 'text' | 'number' | 'date'; multiLine?: boolean; cardLabel?: string }
@@ -47,9 +48,7 @@ type LiveRound = {
   grade: (answer: unknown) => boolean;
 };
 
-const normalizeText = (value: unknown) => String(value ?? '').trim().toLocaleLowerCase();
 const uniqSortedInts = (values: unknown[]) => Array.from(new Set(values.map((x) => Number(x)).filter(Number.isFinite))).sort((a, b) => a - b);
-const normalizePathSet = (paths: number[][]) => paths.map((p) => p.join(',')).sort().join('|');
 
 function shuffleList<T>(items: T[]): T[] {
   const next = [...items];
@@ -110,10 +109,12 @@ function buildQuestionRound(
       cardKey: `info:${infoId}:question-selection`,
       publicPrompt: { kind: 'selection', title, prompt: question, options: shuffled.values, multiple, cardLabel: 'question' },
       reveal: { kind: 'selection', expected: remappedExpected, title },
-      grade: (answer) => {
-        const actual = Array.isArray(answer) ? uniqSortedInts(answer) : [];
-        return JSON.stringify(actual) === JSON.stringify(remappedExpected);
-      }
+      grade: (answer) =>
+        evaluateCheckcardAnswer({
+          prompt: { kind: 'selection', options: shuffled.values },
+          expected: remappedExpected,
+          answer: { selection: Array.isArray(answer) ? (answer as number[]) : [] }
+        }).correct
     };
   }
 
@@ -124,7 +125,12 @@ function buildQuestionRound(
       cardKey: `info:${infoId}:question-truefalse`,
       publicPrompt: { kind: 'boolean', title, prompt: question, cardLabel: 'question' },
       reveal: { kind: 'boolean', expected, title },
-      grade: (answer) => Boolean(answer) === expected
+      grade: (answer) =>
+        evaluateCheckcardAnswer({
+          prompt: { kind: 'boolean' },
+          expected,
+          answer: { booleanAnswer: answer == null ? null : Boolean(answer) }
+        }).correct
     };
   }
 
@@ -135,14 +141,12 @@ function buildQuestionRound(
       cardKey: `info:${infoId}:question-${type}`,
       publicPrompt: { kind: 'text', title, prompt: question, inputType: type === 'number' ? 'number' : type === 'date' ? 'date' : 'text', cardLabel: 'question' },
       reveal: { kind: 'text', expected, title },
-      grade: (answer) => {
-        if (type === 'number') {
-          const a = Number(answer);
-          const b = Number(expected);
-          return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-9;
-        }
-        return normalizeText(answer) === normalizeText(expected);
-      }
+      grade: (answer) =>
+        evaluateCheckcardAnswer({
+          prompt: { kind: 'text', inputType: type === 'number' ? 'number' : type === 'date' ? 'date' : 'text' },
+          expected,
+          answer: { text: String(answer ?? '') }
+        }).correct
     };
   }
 
@@ -154,7 +158,12 @@ function buildQuestionRound(
       cardKey: `info:${infoId}:question-ordering`,
       publicPrompt: { kind: 'ordering', title, prompt: question, options: shuffledOptions, cardLabel: 'question' },
       reveal: { kind: 'ordering', expected: options, title },
-      grade: (answer) => JSON.stringify(Array.isArray(answer) ? answer.map(String) : []) === JSON.stringify(options)
+      grade: (answer) =>
+        evaluateCheckcardAnswer({
+          prompt: { kind: 'ordering', options },
+          expected: options,
+          answer: { ordering: Array.isArray(answer) ? answer.map(String) : [] }
+        }).correct
     };
   }
 
@@ -184,7 +193,11 @@ function buildQuestionRound(
               .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter(Number.isFinite) : null))
               .filter((row): row is number[] => Array.isArray(row))
           : [];
-        return normalizePathSet(paths) === normalizePathSet(expectedPaths);
+        return evaluateCheckcardAnswer({
+          prompt: { kind: 'matching', columns: shuffledColumns.map((entry) => entry.values) },
+          expected: { paths: expectedPaths },
+          answer: { matchingPaths: paths }
+        }).correct;
       }
     };
   }
@@ -252,7 +265,12 @@ async function buildLiveRounds(payload: {
           cardKey: `connection:${card.cardId}:translation:a-to-b`,
           publicPrompt: { kind: 'text', title: card.label, prompt: a, cardLabel: card.description ?? undefined },
           reveal: { kind: 'text', expected: b, title: card.label },
-          grade: (answer) => normalizeText(answer) === normalizeText(b)
+          grade: (answer) =>
+            evaluateCheckcardAnswer({
+              prompt: { kind: 'text', inputType: 'text' },
+              expected: b,
+              answer: { text: String(answer ?? '') }
+            }).correct
         });
       } else if (card.checkType === 'translation' && card.direction === 'b-to-a') {
         const [a, b] = pair;
@@ -261,7 +279,12 @@ async function buildLiveRounds(payload: {
           cardKey: `connection:${card.cardId}:translation:b-to-a`,
           publicPrompt: { kind: 'text', title: card.label, prompt: b, cardLabel: card.description ?? undefined },
           reveal: { kind: 'text', expected: a, title: card.label },
-          grade: (answer) => normalizeText(answer) === normalizeText(a)
+          grade: (answer) =>
+            evaluateCheckcardAnswer({
+              prompt: { kind: 'text', inputType: 'text' },
+              expected: a,
+              answer: { text: String(answer ?? '') }
+            }).correct
         });
       } else if (card.checkType === 'translation-match') {
         const options = Array.from(new Set([card.label, ...vocabLabels.filter((x) => x !== card.label).slice(0, 3)]));
@@ -271,10 +294,16 @@ async function buildLiveRounds(payload: {
           cardKey: `connection:${card.cardId}:translation-match`,
           publicPrompt: { kind: 'selection', title: card.label, prompt: labels.selectMatchingPairPrompt, options, multiple: false, cardLabel: card.description ?? undefined },
           reveal: { kind: 'selection', expected: [correctIndex], title: card.label },
-          grade: (answer) => {
-            const selected = Array.isArray(answer) ? uniqSortedInts(answer) : uniqSortedInts([answer]);
-            return selected.length === 1 && selected[0] === correctIndex;
-          }
+          grade: (answer) =>
+            evaluateCheckcardAnswer({
+              prompt: { kind: 'selection', options },
+              expected: [correctIndex],
+              answer: {
+                selection: Array.isArray(answer)
+                  ? answer.map((entry) => Number(entry)).filter(Number.isFinite)
+                  : [Number(answer)].filter(Number.isFinite)
+              }
+            }).correct
         });
       }
       continue;
@@ -295,7 +324,12 @@ async function buildLiveRounds(payload: {
         cardKey: `info:${card.cardId}:word-language:${card.direction ?? ''}`,
         publicPrompt: { kind: 'text', title: card.label, prompt: `${labels.wordLanguagePromptPrefix}: ${card.label}`, cardLabel: 'word-language' },
         reveal: { kind: 'text', expected, title: card.label },
-        grade: (answer) => normalizeText(answer) === normalizeText(expected)
+        grade: (answer) =>
+          evaluateCheckcardAnswer({
+            prompt: { kind: 'text', inputType: 'text' },
+            expected,
+            answer: { text: String(answer ?? '') }
+          }).correct
       });
       continue;
     }
@@ -308,7 +342,12 @@ async function buildLiveRounds(payload: {
         cardKey: `info:${card.cardId}:computed`,
         publicPrompt: { kind: 'text', title: card.label, prompt: sample.prompt, multiLine: false, cardLabel: 'computed' },
         reveal: { kind: 'text', expected: sample.expectedAnswer, title: card.label },
-        grade: (answer) => normalizeText(answer) === normalizeText(sample.expectedAnswer)
+        grade: (answer) =>
+          evaluateCheckcardAnswer({
+            prompt: { kind: 'text', inputType: 'text' },
+            expected: sample.expectedAnswer,
+            answer: { text: String(answer ?? '') }
+          }).correct
       });
       continue;
     }
@@ -346,14 +385,12 @@ async function buildLiveRounds(payload: {
             cardLabel: 'quote-fragment'
           },
           reveal: { kind: 'citation-fragment', expected: ctx.fragment, title },
-          grade: (answer) => {
-            const result = evaluateAnchorTextAnswer(ctx.fragment, String(answer ?? ''), {
-              thresholdPercent: 90,
-              treatSimilarCharsAsSame: true,
-              ignorePunctuationAndSpacing: true
-            });
-            return result.isCorrect;
-          }
+          grade: (answer) =>
+            evaluateCheckcardAnswer({
+              prompt: { kind: 'citation-fragment' },
+              expected: ctx.fragment,
+              answer: { text: String(answer ?? '') }
+            }).correct
         });
       }
       continue;
@@ -385,6 +422,9 @@ export function CogitaLiveRevisionHostPage(props: {
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [sessionMode, setSessionMode] = useState<'simultaneous' | 'asynchronous'>('simultaneous');
+  const [hostViewMode, setHostViewMode] = useState<'panel' | 'question' | 'score'>('panel');
+  const [participantViewMode, setParticipantViewMode] = useState<'question' | 'score' | 'fullscreen'>('question');
   const storageKey = `cogita.live.host.${libraryId}.${revisionId}`;
 
   const currentRound = session ? rounds[session.currentRoundIndex] ?? null : null;
@@ -414,14 +454,23 @@ export function CogitaLiveRevisionHostPage(props: {
     });
     return `${base}?${params.toString()}`;
   }, [libraryId, revisionId, session?.code, session?.hostSecret, session?.sessionId]);
-  const sessionStage = session?.status === 'finished' ? 'finished' : session?.status && session.status !== 'lobby' ? 'active' : 'lobby';
+  const sessionStage =
+    session?.status === 'finished' || session?.status === 'closed'
+      ? 'finished'
+      : session?.status && session.status !== 'lobby'
+        ? 'active'
+        : 'lobby';
+  const showHostPanel = hostViewMode === 'panel';
+  const showQuestionPanel = hostViewMode === 'panel' || hostViewMode === 'question';
+  const showScorePanel = hostViewMode === 'panel' || hostViewMode === 'score';
   const formatLive = (template: string, values: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
   const statusLabelMap: Record<string, string> = {
     lobby: liveCopy.statusLobby,
     running: liveCopy.statusRunning,
     revealed: liveCopy.statusRevealed,
-    finished: liveCopy.statusFinished
+    finished: liveCopy.statusFinished,
+    closed: 'Closed'
   };
 
   const mergeHostSecrets = (
@@ -434,6 +483,42 @@ export function CogitaLiveRevisionHostPage(props: {
     code: next.code || previous?.code || fallback?.code || ''
   });
   const autoRevealLockRef = useRef<string | null>(null);
+
+  const createSessionWithCurrentSettings = async () => {
+    const created = await createCogitaLiveRevisionSession({
+      libraryId,
+      revisionId,
+      title: liveCopy.hostKicker,
+      sessionMode,
+      hostViewMode,
+      participantViewMode,
+      sessionSettings: {
+        mode: sessionMode,
+        hostViewMode,
+        participantViewMode
+      }
+    });
+    setSession(created);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ sessionId: created.sessionId, hostSecret: created.hostSecret, code: created.code })
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (!session?.sessionId) return;
+    setSessionMode(session.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous');
+    setHostViewMode(
+      session.hostViewMode === 'question' || session.hostViewMode === 'score' ? session.hostViewMode : 'panel'
+    );
+    setParticipantViewMode(
+      session.participantViewMode === 'score' || session.participantViewMode === 'fullscreen'
+        ? session.participantViewMode
+        : 'question'
+    );
+  }, [session?.sessionId]);
 
   useEffect(() => {
     let canceled = false;
@@ -490,7 +575,19 @@ export function CogitaLiveRevisionHostPage(props: {
           return;
         }
 
-        const created = await createCogitaLiveRevisionSession({ libraryId, revisionId, title: liveCopy.hostKicker });
+        const created = await createCogitaLiveRevisionSession({
+          libraryId,
+          revisionId,
+          title: liveCopy.hostKicker,
+          sessionMode,
+          hostViewMode,
+          participantViewMode,
+          sessionSettings: {
+            mode: sessionMode,
+            hostViewMode,
+            participantViewMode
+          }
+        });
         if (canceled) return;
         setSession(created);
         localStorage.setItem(
@@ -526,6 +623,7 @@ export function CogitaLiveRevisionHostPage(props: {
   useEffect(() => {
     if (!session || !currentRound) return;
     if (session.status !== 'running') return;
+    if (session.sessionMode !== 'simultaneous') return;
 
     const connectedParticipants = session.participants.filter((participant) => participant.isConnected);
     if (connectedParticipants.length === 0) return;
@@ -682,12 +780,38 @@ export function CogitaLiveRevisionHostPage(props: {
     }
   };
 
+  const handleCreateNewSession = async () => {
+    try {
+      setStatus('loading');
+      await createSessionWithCurrentSettings();
+      setStatus('ready');
+    } catch {
+      setError(liveCopy.createSessionError);
+      setStatus('error');
+    }
+  };
+
+  const handleCloseSession = async () => {
+    if (!session) return;
+    try {
+      const updated = await closeCogitaLiveRevisionSession({
+        libraryId,
+        sessionId: session.sessionId,
+        hostSecret: session.hostSecret
+      });
+      setSession((prev) => mergeHostSecrets(updated, prev));
+    } catch {
+      // keep UI state as-is on temporary close failures
+    }
+  };
+
   return (
     <CogitaShell {...props}>
       <section className="cogita-library-dashboard">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid cogita-live-session-layout" data-stage={sessionStage}>
+              {showHostPanel ? (
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.hostKicker}</p>
                 <h2 className="cogita-detail-title">{liveCopy.hostTitle}</h2>
@@ -695,6 +819,32 @@ export function CogitaLiveRevisionHostPage(props: {
                 {error ? <p className="cogita-help">{error}</p> : null}
                 {session ? (
                   <>
+                    <label className="cogita-field">
+                      <span>Session mode</span>
+                      <select value={sessionMode} onChange={(event) => setSessionMode(event.target.value as 'simultaneous' | 'asynchronous')}>
+                        <option value="simultaneous">Simultaneous</option>
+                        <option value="asynchronous">Asynchronous</option>
+                      </select>
+                    </label>
+                    <label className="cogita-field">
+                      <span>Host view</span>
+                      <select value={hostViewMode} onChange={(event) => setHostViewMode(event.target.value as 'panel' | 'question' | 'score')}>
+                        <option value="panel">Panel</option>
+                        <option value="question">Question</option>
+                        <option value="score">Score</option>
+                      </select>
+                    </label>
+                    <label className="cogita-field">
+                      <span>Participant view</span>
+                      <select
+                        value={participantViewMode}
+                        onChange={(event) => setParticipantViewMode(event.target.value as 'question' | 'score' | 'fullscreen')}
+                      >
+                        <option value="question">Question</option>
+                        <option value="score">Score</option>
+                        <option value="fullscreen">Fullscreen</option>
+                      </select>
+                    </label>
                     <div className="cogita-field"><span>{liveCopy.joinCodeLabel}</span><input readOnly value={session.code} /></div>
                     <div className="cogita-field"><span>{liveCopy.joinUrlLabel}</span><input readOnly value={joinUrl} /></div>
                     <div className="cogita-field"><span>Host URL</span><input readOnly value={hostUrl} /></div>
@@ -710,12 +860,18 @@ export function CogitaLiveRevisionHostPage(props: {
                     <div className="cogita-field"><span>{liveCopy.statusLabel}</span><input readOnly value={statusLabelMap[session.status] ?? session.status} /></div>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta" onClick={handleStart} disabled={!rounds.length}>{liveCopy.publishCurrentRound}</button>
+                      <button type="button" className="cta ghost" onClick={handleCreateNewSession}>New session</button>
                       <button type="button" className="cta ghost" onClick={handleRefreshCode}>Refresh links</button>
+                      <button type="button" className="cta ghost" onClick={handleCloseSession} disabled={session.status === 'closed'}>
+                        Close session
+                      </button>
                     </div>
                     <p className="cogita-help">{formatLive(liveCopy.roundsLabel, { count: rounds.length })}</p>
                   </>
                 ) : null}
               </div>
+              ) : null}
+              {showQuestionPanel ? (
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.currentRoundTitle}</p>
                 <h3 className="cogita-detail-title">
@@ -759,7 +915,7 @@ export function CogitaLiveRevisionHostPage(props: {
                       type="button"
                       className="cta"
                       onClick={handleCheckOrNext}
-                      disabled={!rounds.length || !currentRound || session.status === 'finished'}
+                      disabled={!rounds.length || !currentRound || session.status === 'finished' || session.status === 'closed'}
                     >
                       {session.status === 'revealed' ? revisionCopy.nextQuestion : revisionCopy.checkAnswer}
                     </button>
@@ -807,7 +963,8 @@ export function CogitaLiveRevisionHostPage(props: {
                   </>
                 ) : null}
               </div>
-              {sessionStage !== 'lobby' ? (
+              ) : null}
+              {sessionStage !== 'lobby' && showScorePanel ? (
                 <div className="cogita-library-panel cogita-live-scoreboard-panel">
                   <p className="cogita-user-kicker">{sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
                   <div className="cogita-share-list">

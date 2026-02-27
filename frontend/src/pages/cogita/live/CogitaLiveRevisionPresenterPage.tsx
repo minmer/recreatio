@@ -27,6 +27,15 @@ export function CogitaLiveRevisionPresenterPage(props: {
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
   const revealExpected = reveal?.expected;
+  const participantViewMode = state?.participantViewMode ?? 'question';
+  const stage =
+    state?.status === 'finished' || state?.status === 'closed'
+      ? 'finished'
+      : state?.status && state.status !== 'lobby'
+        ? 'active'
+        : 'lobby';
+  const showQuestionPanel = participantViewMode !== 'score';
+  const showScorePanel = participantViewMode !== 'question' || stage === 'finished';
   const joinUrl = useMemo(
     () => (typeof window !== 'undefined' ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(code)}` : ''),
     [code]
@@ -58,8 +67,9 @@ export function CogitaLiveRevisionPresenterPage(props: {
       <section className="cogita-library-dashboard">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
-            <div className="cogita-library-grid cogita-live-session-layout" data-stage={state?.status === 'lobby' ? 'lobby' : 'active'}>
-              <div className="cogita-library-panel">
+            <div className="cogita-library-grid cogita-live-session-layout" data-stage={stage} data-participant-view={participantViewMode}>
+              {showQuestionPanel ? (
+              <div className={`cogita-library-panel ${participantViewMode === 'fullscreen' ? 'cogita-live-fullscreen-panel' : ''}`}>
                 <p className="cogita-user-kicker">{liveCopy.hostKicker}</p>
                 <h2 className="cogita-detail-title">{status === 'error' ? liveCopy.connectionError : liveCopy.statusLobby}</h2>
                 {state?.status === 'lobby' ? (
@@ -100,6 +110,8 @@ export function CogitaLiveRevisionPresenterPage(props: {
                   </CogitaCheckcardSurface>
                 )}
               </div>
+              ) : null}
+              {showScorePanel ? (
               <div className="cogita-library-panel cogita-live-scoreboard-panel">
                 <p className="cogita-user-kicker">{state?.status === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
                 <div className="cogita-share-list">
@@ -112,6 +124,7 @@ export function CogitaLiveRevisionPresenterPage(props: {
                   {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                 </div>
               </div>
+              ) : null}
             </div>
           </div>
         </div>

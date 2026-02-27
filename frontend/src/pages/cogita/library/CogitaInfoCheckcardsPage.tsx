@@ -24,6 +24,7 @@ import {
   shuffleQuestionDefinitionForRuntime,
   type ParsedQuestionDefinition
 } from './questions/questionRuntime';
+import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from './checkcards/checkcardRuntime';
 
 type CheckcardNodeData = {
   label: string;
@@ -423,63 +424,44 @@ export function CogitaInfoCheckcardsPage({
       setSaveStatus('This card was already checked.');
       return;
     }
-    let isCorrect = false;
-    let nextMask: Uint8Array | null = null;
-    if (cardPreview.kind === 'question') {
-      const def = cardPreview.definition;
-      if (def.type === 'selection') {
-        const expected = Array.isArray(def.answer) ? [...def.answer].sort((a, b) => a - b) : [];
-        const actual = [...questionState.selection].sort((a, b) => a - b);
-        isCorrect = expected.length === actual.length && expected.every((value, index) => value === actual[index]);
-      } else if (def.type === 'truefalse') {
-        isCorrect = typeof def.answer === 'boolean' && questionState.booleanAnswer !== null && def.answer === questionState.booleanAnswer;
-      } else if (def.type === 'ordering') {
-        const expected = (def.options ?? []).join('\n');
-        const actual = questionState.ordering.join('\n');
-        const evaluation = evaluateAnchorTextAnswer(expected, actual, {
-          thresholdPercent: 100,
-          treatSimilarCharsAsSame: true,
-          ignorePunctuationAndSpacing: false
-        });
-        isCorrect = evaluation.isCorrect;
-        nextMask = evaluation.mask;
-      } else if (def.type === 'matching') {
-        const width = Math.max(2, def.columns?.length ?? 2);
-        const actualPaths = questionState.matchingRows
-          .map((row) => row.slice(0, width))
-          .filter((row) => row.length === width && row.every((cell) => Number.isInteger(cell) && cell >= 0))
-          .map((row) => JSON.stringify(row));
-        const expectedPaths = (
-          def.answer && typeof def.answer === 'object' && 'paths' in def.answer ? def.answer.paths : []
-        )
-          .map((row) => JSON.stringify(row));
-        const actualSet = Array.from(new Set(actualPaths)).sort();
-        const expectedSet = Array.from(new Set(expectedPaths)).sort();
-        isCorrect = actualSet.length === expectedSet.length && actualSet.every((value, index) => value === expectedSet[index]);
-      } else {
-        const expectedText = String(def.answer ?? '');
-        const evaluation = evaluateAnchorTextAnswer(expectedText, answer, {
-          thresholdPercent: 100,
-          treatSimilarCharsAsSame: true,
-          ignorePunctuationAndSpacing: false
-        });
-        isCorrect = evaluation.isCorrect;
-        nextMask = evaluation.mask;
+    const promptModel: CheckcardPromptModel =
+      cardPreview.kind === 'question'
+        ? cardPreview.definition.type === 'selection'
+          ? { kind: 'selection', options: cardPreview.definition.options ?? [] }
+          : cardPreview.definition.type === 'truefalse'
+            ? { kind: 'boolean' }
+            : cardPreview.definition.type === 'ordering'
+              ? { kind: 'ordering', options: cardPreview.definition.options ?? [] }
+              : cardPreview.definition.type === 'matching'
+                ? { kind: 'matching', columns: cardPreview.definition.columns ?? [] }
+                : {
+                    kind: 'text',
+                    inputType:
+                      cardPreview.definition.type === 'number'
+                        ? 'number'
+                        : cardPreview.definition.type === 'date'
+                          ? 'date'
+                          : 'text'
+                  }
+        : { kind: cardPreview.kind === 'citation-fragment' ? 'citation-fragment' : 'text', inputType: 'text' };
+
+    const expectedModel: CheckcardExpectedModel =
+      cardPreview.kind === 'question' ? cardPreview.definition.answer : cardPreview.expected;
+
+    const evaluation = evaluateCheckcardAnswer({
+      prompt: promptModel,
+      expected: expectedModel,
+      answer: {
+        text: answer,
+        selection: questionState.selection,
+        booleanAnswer: questionState.booleanAnswer,
+        ordering: questionState.ordering,
+        matchingPaths: questionState.matchingRows
       }
-      setAnswerMask(nextMask);
-      setShowCorrectAnswer(true);
-    } else {
-      const expected = cardPreview.expected;
-      const citationMode = cardPreview.kind === 'citation-fragment';
-      const evaluation = evaluateAnchorTextAnswer(expected, answer, {
-        thresholdPercent: citationMode ? 90 : 100,
-        treatSimilarCharsAsSame: true,
-        ignorePunctuationAndSpacing: citationMode
-      });
-      isCorrect = evaluation.isCorrect;
-      setAnswerMask(evaluation.mask);
-      setShowCorrectAnswer(true);
-    }
+    });
+    const isCorrect = evaluation.correct;
+    setAnswerMask(evaluation.mask);
+    setShowCorrectAnswer(true);
     setFeedback(isCorrect ? 'correct' : 'incorrect');
     setFlashTick((prev) => prev + 1);
     setSaveStatus(selectedReviewerRoleId ? null : 'Answer checked locally (not saved: no person selected).');

@@ -231,6 +231,8 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasIndex(x => new { x.LibraryId, x.RevokedUtc });
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
+            .HasIndex(x => new { x.LibraryId, x.RevisionId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasIndex(x => x.PublicCodeHash);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
             .Property(x => x.Status)
@@ -458,6 +460,10 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.LibraryId);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
+            .HasOne<Data.Cogita.CogitaRevision>()
+            .WithMany()
+            .HasForeignKey(x => x.RevisionId);
+        modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
             .HasOne<Data.Cogita.CogitaRevision>()
             .WithMany()
             .HasForeignKey(x => x.RevisionId);
