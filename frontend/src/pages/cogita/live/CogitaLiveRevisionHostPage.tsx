@@ -92,13 +92,28 @@ function parseLanguageDescription(description?: string | null) {
   return description.trim();
 }
 
+function normalizeQuestionType(
+  rawType: unknown
+): 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'ordering' | 'matching' | '' {
+  if (typeof rawType !== 'string') return '';
+  const value = rawType.trim().toLowerCase();
+  if (value === 'single_select' || value === 'multi_select') return 'selection';
+  if (value === 'boolean' || value === 'true_false') return 'truefalse';
+  if (value === 'order') return 'ordering';
+  if (value === 'short' || value === 'open' || value === 'short_text') return 'text';
+  if (value === 'selection' || value === 'truefalse' || value === 'text' || value === 'number' || value === 'date' || value === 'ordering' || value === 'matching') {
+    return value;
+  }
+  return '';
+}
+
 function buildQuestionRound(
   infoId: string,
   titleFallback: string,
   definition: QuestionDefinition,
   roundIndex: number
 ): LiveRound | null {
-  const type = typeof definition.type === 'string' ? definition.type : '';
+  const type = normalizeQuestionType(definition.type);
   const title = typeof definition.title === 'string' && definition.title.trim() ? definition.title.trim() : titleFallback;
   const question = typeof definition.question === 'string' ? definition.question : titleFallback;
   if (!type || !question) return null;
@@ -106,6 +121,7 @@ function buildQuestionRound(
   if (type === 'selection') {
     const options = Array.isArray(definition.options) ? definition.options.filter((x): x is string => typeof x === 'string') : [];
     const expected = Array.isArray(definition.answer) ? uniqSortedInts(definition.answer as unknown[]) : [];
+    const multiple = expected.length !== 1;
     const shuffled = shuffleWithIndexMap(options);
     const remappedExpected = expected
       .map((index) => shuffled.oldToNew.get(index))
@@ -114,7 +130,7 @@ function buildQuestionRound(
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-selection`,
-      publicPrompt: { kind: 'selection', title, prompt: question, options: shuffled.values, multiple: true, cardLabel: 'question' },
+      publicPrompt: { kind: 'selection', title, prompt: question, options: shuffled.values, multiple, cardLabel: 'question' },
       reveal: { kind: 'selection', expected: remappedExpected, title },
       grade: (answer) => {
         const actual = Array.isArray(answer) ? uniqSortedInts(answer) : [];

@@ -54,6 +54,7 @@ import {
   matchesQuoteDirection,
   normalizeAnswer,
   normalizeDependencyToken,
+  normalizeQuestionType,
   parseQuoteFragmentDirection
 } from './revisionShared';
 
@@ -1271,7 +1272,7 @@ export function CogitaRevisionShareRunPage({
         .then((detail) => {
           const root = (detail.payload ?? {}) as Record<string, unknown>;
           const rawDef = ((root.definition ?? root) as Record<string, unknown>) ?? {};
-          const type = typeof rawDef.type === 'string' ? rawDef.type : '';
+          const type = normalizeQuestionType(rawDef.type ?? rawDef.kind);
           const question =
             (typeof rawDef.question === 'string' && rawDef.question.trim() ? rawDef.question.trim() : null) ??
             (typeof rawDef.title === 'string' && rawDef.title.trim() ? rawDef.title.trim() : null) ??

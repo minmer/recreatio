@@ -86,6 +86,8 @@ function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | nul
         ? 'truefalse'
         : rawType === 'order'
           ? 'ordering'
+          : rawType === 'short' || rawType === 'open' || rawType === 'short_text'
+            ? 'text'
           : rawType;
   if (!['selection', 'truefalse', 'text', 'number', 'date', 'ordering', 'matching'].includes(type)) return null;
   const normalizedType = type as ParsedQuestionDefinition['type'];

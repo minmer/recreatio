@@ -3,6 +3,21 @@ import { buildQuoteFragmentTree } from '../../../../cogita/revision/quote';
 
 export const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 
+export const normalizeQuestionType = (
+  rawType: unknown
+): 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'ordering' | 'matching' | '' => {
+  if (typeof rawType !== 'string') return '';
+  const value = rawType.trim().toLowerCase();
+  if (value === 'single_select' || value === 'multi_select') return 'selection';
+  if (value === 'boolean' || value === 'true_false') return 'truefalse';
+  if (value === 'order') return 'ordering';
+  if (value === 'short' || value === 'open' || value === 'short_text') return 'text';
+  if (value === 'selection' || value === 'truefalse' || value === 'text' || value === 'number' || value === 'date' || value === 'ordering' || value === 'matching') {
+    return value;
+  }
+  return '';
+};
+
 export const parseQuoteFragmentDirection = (direction?: string | null) => {
   const fragmentId = direction?.trim();
   if (!fragmentId) return null;

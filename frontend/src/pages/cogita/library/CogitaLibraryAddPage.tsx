@@ -81,6 +81,8 @@ function normalizeQuestionDefinition(value: unknown): QuestionDefinition | null 
         ? 'truefalse'
         : rawTypeValue === 'order'
           ? 'ordering'
+          : rawTypeValue === 'short' || rawTypeValue === 'open' || rawTypeValue === 'short_text'
+            ? 'text'
           : rawTypeValue;
   const kind = isQuestionKind(kindAlias) ? kindAlias : 'selection';
   const title = typeof raw.title === 'string' ? raw.title : '';
