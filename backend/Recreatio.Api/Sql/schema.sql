@@ -1299,6 +1299,39 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaRevisions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        CollectionId UNIQUEIDENTIFIER NOT NULL,
+        Name NVARCHAR(200) NOT NULL,
+        RevisionType NVARCHAR(64) NOT NULL,
+        RevisionSettingsJson NVARCHAR(MAX) NULL,
+        Mode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_Mode DEFAULT (N'random'),
+        CheckMode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_CheckMode DEFAULT (N'exact'),
+        CardLimit INT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaRevisions_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaRevisions_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_LibraryCollectionCreated' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisions_LibraryCollectionCreated ON dbo.CogitaRevisions(LibraryId, CollectionId, CreatedUtc, Id);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_CollectionName' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
+BEGIN
+    CREATE INDEX IX_CogitaRevisions_CollectionName ON dbo.CogitaRevisions(CollectionId, Name);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisionShares' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaRevisionShares
@@ -1342,39 +1375,6 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
 BEGIN
     CREATE INDEX IX_CogitaRevisionShares_PublicCodeHash ON dbo.CogitaRevisionShares(PublicCodeHash);
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisions' AND schema_id = SCHEMA_ID('dbo'))
-BEGIN
-    CREATE TABLE dbo.CogitaRevisions
-    (
-        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-        LibraryId UNIQUEIDENTIFIER NOT NULL,
-        CollectionId UNIQUEIDENTIFIER NOT NULL,
-        Name NVARCHAR(200) NOT NULL,
-        RevisionType NVARCHAR(64) NOT NULL,
-        RevisionSettingsJson NVARCHAR(MAX) NULL,
-        Mode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_Mode DEFAULT (N'random'),
-        CheckMode NVARCHAR(32) NOT NULL CONSTRAINT DF_CogitaRevisions_CheckMode DEFAULT (N'exact'),
-        CardLimit INT NOT NULL,
-        CreatedUtc DATETIMEOFFSET NOT NULL,
-        UpdatedUtc DATETIMEOFFSET NOT NULL,
-        CONSTRAINT FK_CogitaRevisions_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
-        CONSTRAINT FK_CogitaRevisions_Collection FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id)
-    );
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_LibraryCollectionCreated' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
-BEGIN
-    CREATE INDEX IX_CogitaRevisions_LibraryCollectionCreated ON dbo.CogitaRevisions(LibraryId, CollectionId, CreatedUtc, Id);
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisions_CollectionName' AND object_id = OBJECT_ID('dbo.CogitaRevisions'))
-BEGIN
-    CREATE INDEX IX_CogitaRevisions_CollectionName ON dbo.CogitaRevisions(CollectionId, Name);
 END
 GO
 

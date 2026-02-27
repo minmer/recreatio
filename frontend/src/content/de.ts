@@ -992,7 +992,7 @@ export const de: Copy = {
         modeSummary: 'Modus: {mode} · Prüfung: {check}',
         modeLabel: 'Modus',
         modeValue: 'Zufällig',
-        modeValueRandomOnce: 'Zufällig (jede einmal)',
+        modeValueRandomOnce: 'Zufällig (jede Karte einmal)',
         modeValueLevels: 'Stufen',
         modeValueTemporal: 'Zeitverlauf',
         levelsLabel: 'Stufen',

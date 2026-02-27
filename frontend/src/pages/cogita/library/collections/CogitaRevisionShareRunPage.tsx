@@ -500,7 +500,7 @@ export function CogitaRevisionShareRunPage({
       setStatus('loading');
       setLoadProgress({
         current: 0,
-        total: revisionType.id === 'levels' ? 0 : revisionType.getFetchLimit(limit, revisionSettings)
+        total: revisionType.id === 'levels' || revisionType.id === 'random-once' ? 0 : revisionType.getFetchLimit(limit, revisionSettings)
       });
       try {
         const gathered: CogitaCardSearchResult[] = [];
@@ -514,7 +514,7 @@ export function CogitaRevisionShareRunPage({
             cursor
           });
           gathered.push(...bundle.items);
-          if ((revisionType.id === 'levels' || revisionType.id === 'temporal') && bundle.total) {
+          if ((revisionType.id === 'levels' || revisionType.id === 'temporal' || revisionType.id === 'random-once') && bundle.total) {
             targetTotal = bundle.total;
           }
           setLoadProgress((prev) => ({
@@ -523,7 +523,7 @@ export function CogitaRevisionShareRunPage({
           }));
           cursor = bundle.nextCursor ?? null;
           if (targetTotal !== null && gathered.length >= targetTotal) break;
-          if (revisionType.id !== 'levels' && revisionType.id !== 'temporal') {
+          if (revisionType.id !== 'levels' && revisionType.id !== 'temporal' && revisionType.id !== 'random-once') {
             if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
           }
         } while (cursor);
