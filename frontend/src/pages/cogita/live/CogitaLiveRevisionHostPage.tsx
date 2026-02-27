@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   approveCogitaLiveRevisionReloginRequest,
@@ -404,6 +404,16 @@ export function CogitaLiveRevisionHostPage(props: {
       : ''),
     [session?.code]
   );
+  const hostUrl = useMemo(() => {
+    if (!session?.sessionId || !session?.hostSecret || typeof window === 'undefined') return '';
+    const base = `${window.location.origin}/#/cogita/live-revision-host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}`;
+    const params = new URLSearchParams({
+      sessionId: session.sessionId,
+      hostSecret: session.hostSecret,
+      code: session.code
+    });
+    return `${base}?${params.toString()}`;
+  }, [libraryId, revisionId, session?.code, session?.hostSecret, session?.sessionId]);
   const sessionStage = session?.status === 'finished' ? 'finished' : session?.status && session.status !== 'lobby' ? 'active' : 'lobby';
   const formatLive = (template: string, values: Record<string, string | number>) =>
     template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''));
@@ -423,6 +433,7 @@ export function CogitaLiveRevisionHostPage(props: {
     hostSecret: next.hostSecret || previous?.hostSecret || fallback?.hostSecret || '',
     code: next.code || previous?.code || fallback?.code || ''
   });
+  const autoRevealLockRef = useRef<string | null>(null);
 
   useEffect(() => {
     let canceled = false;
@@ -512,6 +523,35 @@ export function CogitaLiveRevisionHostPage(props: {
     return () => window.clearInterval(timer);
   }, [libraryId, session]);
 
+  useEffect(() => {
+    if (!session || !currentRound) return;
+    if (session.status !== 'running') return;
+
+    const connectedParticipants = session.participants.filter((participant) => participant.isConnected);
+    if (connectedParticipants.length === 0) return;
+
+    const answeredParticipants = new Set(
+      session.currentRoundAnswers
+        .filter(
+          (answer) =>
+            answer.roundIndex === session.currentRoundIndex &&
+            (answer.cardKey ?? '') === currentRound.cardKey
+        )
+        .map((answer) => answer.participantId)
+    );
+    const allAnswered = connectedParticipants.every((participant) =>
+      answeredParticipants.has(participant.participantId)
+    );
+    if (!allAnswered) return;
+
+    const lockKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:running`;
+    if (autoRevealLockRef.current === lockKey) return;
+    autoRevealLockRef.current = lockKey;
+    void handleReveal().catch(() => {
+      autoRevealLockRef.current = null;
+    });
+  }, [currentRound, session]);
+
   const pushState = async (next: {
     status?: string;
     currentRoundIndex?: number;
@@ -558,7 +598,15 @@ export function CogitaLiveRevisionHostPage(props: {
 
   const handleReveal = async () => {
     if (!session || !currentRound) return;
-    const answerByParticipant = new Map(session.currentRoundAnswers.map((a) => [a.participantId, a.answer]));
+    const answerByParticipant = new Map(
+      session.currentRoundAnswers
+        .filter(
+          (answer) =>
+            answer.roundIndex === session.currentRoundIndex &&
+            (answer.cardKey ?? '') === currentRound.cardKey
+        )
+        .map((answer) => [answer.participantId, answer.answer])
+    );
     const scores = session.participants.map((participant) => {
       const answer = answerByParticipant.get(participant.participantId);
       const isCorrect = currentRound.grade(answer);
@@ -649,6 +697,7 @@ export function CogitaLiveRevisionHostPage(props: {
                   <>
                     <div className="cogita-field"><span>{liveCopy.joinCodeLabel}</span><input readOnly value={session.code} /></div>
                     <div className="cogita-field"><span>{liveCopy.joinUrlLabel}</span><input readOnly value={joinUrl} /></div>
+                    <div className="cogita-field"><span>Host URL</span><input readOnly value={hostUrl} /></div>
                     <div className="cogita-field"><span>Presenter URL</span><input readOnly value={presenterUrl} /></div>
                     {joinUrl ? (
                       <div className="cogita-field">
