@@ -992,6 +992,7 @@ export const en: Copy = {
         modeSummary: 'Mode: {mode} · Check: {check}',
         modeLabel: 'Mode',
         modeValue: 'Random',
+        modeValueRandomOnce: 'Random (once each)',
         modeValueLevels: 'Levels',
         modeValueTemporal: 'Temporal',
         levelsLabel: 'Levels',

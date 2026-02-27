@@ -3,7 +3,7 @@ import type { CogitaCardSearchResult } from '../../lib/api';
 import { computeTemporalKnowness, type TemporalEntry } from './knowness';
 import { getCardKey } from './cards';
 
-export type RevisionTypeId = 'random' | 'levels' | 'temporal';
+export type RevisionTypeId = 'random' | 'random-once' | 'levels' | 'temporal';
 export type RevisionSettings = Record<string, number | string>;
 
 export type RevisionSettingsField = {
@@ -218,6 +218,36 @@ const randomType: RevisionTypeDefinition = {
   applyOutcome: (state) => state
 };
 
+const randomOnceType: RevisionTypeDefinition = {
+  id: 'random-once',
+  labelKey: 'modeValueRandomOnce',
+  defaultSettings: { tries: 2, compare: 'anchors', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
+  settingsFields: [
+    { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
+    { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
+    { key: 'minCorrectness', labelKey: 'minCorrectnessLabel', type: 'number', min: 0, max: 100, step: 1 },
+    {
+      key: 'considerDependencies',
+      labelKey: 'considerDependenciesLabel',
+      type: 'select',
+      options: [
+        { value: 'on', labelKey: 'considerDependenciesOn' },
+        { value: 'off', labelKey: 'considerDependenciesOff' }
+      ]
+    }
+  ],
+  // Fetch full collection; queue will include each unique card once in random order.
+  getFetchLimit: () => Number.MAX_SAFE_INTEGER,
+  prepare: (cards) => {
+    const ordered = shuffle(cards);
+    const unique = ordered.filter(
+      (card, index, list) => list.findIndex((c) => getCardKey(c) === getCardKey(card)) === index
+    );
+    return { queue: unique, meta: {} };
+  },
+  applyOutcome: (state) => state
+};
+
 export const prepareLevelsState = (
   cards: CogitaCardSearchResult[],
   limit: number,
@@ -421,6 +451,7 @@ const temporalType: RevisionTypeDefinition = {
 
 const registry: Record<RevisionTypeId, RevisionTypeDefinition> = {
   random: randomType,
+  'random-once': randomOnceType,
   levels: levelsType,
   temporal: temporalType
 };
@@ -430,7 +461,8 @@ export const revisionTypes = Object.values(registry);
 export const getRevisionType = (id: string | null | undefined): RevisionTypeDefinition => {
   if (!id) return randomType;
   const normalized = id.trim().toLowerCase();
-  if (normalized === 'random' || normalized === 'levels' || normalized === 'temporal') return registry[normalized];
+  if (normalized === 'random' || normalized === 'levels' || normalized === 'temporal' || normalized === 'random-once') return registry[normalized];
+  if (normalized === 'random_once') return registry['random-once'];
   return randomType;
 };
 

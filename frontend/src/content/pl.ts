@@ -992,6 +992,7 @@ export const pl: Copy = {
         modeSummary: 'Tryb: {mode} · Sprawdzanie: {check}',
         modeLabel: 'Tryb',
         modeValue: 'Losowy',
+        modeValueRandomOnce: 'Losowy (każda karta raz)',
         modeValueLevels: 'Poziomy',
         modeValueTemporal: 'Czasowy',
         levelsLabel: 'Poziomy',

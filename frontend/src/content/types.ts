@@ -692,6 +692,7 @@ export type Copy = {
         modeSummary: string;
         modeLabel: string;
         modeValue: string;
+        modeValueRandomOnce: string;
         modeValueLevels: string;
         modeValueTemporal: string;
         levelsLabel: string;
