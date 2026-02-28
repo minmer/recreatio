@@ -284,28 +284,6 @@ export function CogitaRevisionLiveSessionsPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="list">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">{copy.cogita.workspace.revisions.live}</p>
-            <h1 className="cogita-library-title">{revisionName || revisionId}</h1>
-            <p className="cogita-library-subtitle">{copy.cogita.library.revision.live.hostKicker}</p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href="/#/cogita">
-              {copy.cogita.library.actions.backToCogita}
-            </a>
-            <a className="cta ghost" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}`}>
-              {copy.cogita.workspace.infoActions.edit}
-            </a>
-            <a className="cta ghost" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions`}>
-              {copy.cogita.workspace.infoMode.search}
-            </a>
-            <a className="cta" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions/new`}>
-              {copy.cogita.workspace.infoMode.create}
-            </a>
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">

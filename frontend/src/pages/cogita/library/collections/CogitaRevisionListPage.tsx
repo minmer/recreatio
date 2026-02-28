@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getCogitaCollection, getCogitaRevisions, type CogitaRevision } from '../../../../lib/api';
+import { getCogitaRevisions, type CogitaRevision } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
-import { getRevisionType } from '../../../../cogita/revision/registry';
+import { getRevisionType, revisionTypes } from '../../../../cogita/revision/registry';
 import { getCachedCollections } from '../cogitaMetaCache';
 
 export function CogitaRevisionListPage({
@@ -34,24 +33,12 @@ export function CogitaRevisionListPage({
   libraryId: string;
   collectionId?: string;
 }) {
-  const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [revisions, setRevisions] = useState<CogitaRevision[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
-  const [collectionName, setCollectionName] = useState('');
   const [collectionNameById, setCollectionNameById] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (!collectionId) {
-      setCollectionName('');
-      return;
-    }
-    getCogitaCollection(libraryId, collectionId)
-      .then((detail) => setCollectionName(detail.name))
-      .catch(() => setCollectionName(''));
-  }, [libraryId, collectionId]);
 
   useEffect(() => {
     getCachedCollections(libraryId)
@@ -78,18 +65,7 @@ export function CogitaRevisionListPage({
       });
   }, [libraryId, collectionId]);
 
-  const revisionTypeOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const values: string[] = [];
-    revisions.forEach((revision) => {
-      const key = (revision.revisionType ?? revision.mode ?? 'random').toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        values.push(key);
-      }
-    });
-    return values;
-  }, [revisions]);
+  const revisionTypeOptions = useMemo(() => revisionTypes.map((type) => type.id), []);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -122,30 +98,6 @@ export function CogitaRevisionListPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="list">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">{copy.cogita.workspace.infoMode.search}</p>
-            <h1 className="cogita-library-title">{collectionName || libraryName}</h1>
-            <p className="cogita-library-subtitle">{copy.cogita.workspace.targets.allRevisions}</p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href="/#/cogita">
-              {copy.cogita.library.actions.backToCogita}
-            </a>
-            <a className="cta ghost" href={baseHref}>
-              {copy.cogita.library.actions.libraryOverview}
-            </a>
-            {collectionId ? (
-              <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
-                {copy.cogita.workspace.targets.allCollections}
-              </a>
-            ) : null}
-            <a className="cta" href={createHref}>
-              {copy.cogita.workspace.revisionForm.createAction}
-            </a>
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">

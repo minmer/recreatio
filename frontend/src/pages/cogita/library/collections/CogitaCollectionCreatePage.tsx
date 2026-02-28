@@ -11,7 +11,6 @@ import {
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { InfoSearchSelect } from '../components/InfoSearchSelect';
 import { useLocation } from 'react-router-dom';
 import { loadCollectionDraftFromInfos } from '../../../../cogita/collections/draft';
@@ -99,8 +98,6 @@ export function CogitaCollectionCreatePage({
   onCreated: (collectionId: string) => void;
 }) {
   const location = useLocation();
-  const { libraryName } = useCogitaLibraryMeta(libraryId);
-  const baseHref = `/#/cogita/library/${libraryId}`;
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(collectionId ?? null);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
@@ -113,7 +110,6 @@ export function CogitaCollectionCreatePage({
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
   );
-  const isEditMode = Boolean(activeCollectionId);
 
   useEffect(() => {
     setActiveCollectionId(collectionId ?? null);
@@ -344,37 +340,6 @@ export function CogitaCollectionCreatePage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="detail">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">
-              {isEditMode ? copy.cogita.library.collections.detailKicker : copy.cogita.library.collections.createKicker}
-            </p>
-            <h1 className="cogita-library-title">{isEditMode ? name || copy.cogita.library.collections.defaultName : libraryName}</h1>
-            <p className="cogita-library-subtitle">
-              {isEditMode ? copy.cogita.library.collections.detailSubtitle : copy.cogita.library.collections.createSubtitle}
-            </p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href="/#/cogita">
-              {copy.cogita.library.actions.backToCogita}
-            </a>
-            <a className="cta ghost" href={baseHref}>
-              {copy.cogita.library.actions.libraryOverview}
-            </a>
-            <a className="cta ghost" href={`${baseHref}/collections`}>
-              {copy.cogita.library.actions.collections}
-            </a>
-            {activeCollectionId ? (
-              <a className="cta ghost" href={`${baseHref}/collections/${activeCollectionId}`}>
-                {copy.cogita.library.actions.collectionDetail}
-              </a>
-            ) : null}
-            <button type="button" className="cta" onClick={handleCreate}>
-              {copy.cogita.library.actions.saveCollection}
-            </button>
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-collection-graph">

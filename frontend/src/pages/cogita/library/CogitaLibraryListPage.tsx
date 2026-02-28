@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   getCogitaApproachSpecifications,
+  getCogitaCollectionGraph,
   getCogitaInfoCheckcardDependencies,
   getCogitaInfoCheckcards,
   getCogitaInfoCollections,
@@ -64,7 +65,8 @@ export function CogitaLibraryListPage({
   language,
   onLanguageChange,
   libraryId,
-  mode
+  mode,
+  filterCollectionId
 }: {
   copy: Copy;
   authLabel: string;
@@ -78,6 +80,7 @@ export function CogitaLibraryListPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   mode: CogitaLibraryMode;
+  filterCollectionId?: string;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -109,6 +112,8 @@ export function CogitaLibraryListPage({
   const [checkcardsStatus, setCheckcardsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [infoCollections, setInfoCollections] = useState<Array<{ collectionId: string; name: string; notes?: string | null; itemCount: number }>>([]);
   const [infoCollectionsStatus, setInfoCollectionsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [collectionScopeInfoIds, setCollectionScopeInfoIds] = useState<Set<string> | null>(null);
+  const [collectionScopeReady, setCollectionScopeReady] = useState(true);
 
   const infoTypeOptions = useMemo(() => getInfoTypeOptions(copy), [copy]);
   const sortOptions = useMemo(
@@ -127,6 +132,44 @@ export function CogitaLibraryListPage({
     setTypeFilters({});
     setShowAdvancedFilters(false);
   }, [libraryId]);
+
+  useEffect(() => {
+    if (!filterCollectionId) {
+      setCollectionScopeInfoIds(null);
+      setCollectionScopeReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    setCollectionScopeReady(false);
+    getCogitaCollectionGraph({ libraryId, collectionId: filterCollectionId })
+      .then((graph) => {
+        if (cancelled) return;
+        let includesAllInfos = false;
+        const ids = new Set<string>();
+        for (const node of graph.nodes ?? []) {
+          if (node.nodeType === 'source.info.all') {
+            includesAllInfos = true;
+            break;
+          }
+          if (node.nodeType !== 'source.info') continue;
+          const payload = (node.payload ?? {}) as { params?: { infoId?: string | null }; infoId?: string | null };
+          const infoId = (payload.params?.infoId ?? payload.infoId ?? '').trim();
+          if (infoId) ids.add(infoId);
+        }
+        setCollectionScopeInfoIds(includesAllInfos ? null : ids);
+        setCollectionScopeReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCollectionScopeInfoIds(new Set());
+        setCollectionScopeReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterCollectionId, libraryId]);
 
   useEffect(() => {
     getCogitaItemDependencies({ libraryId })
@@ -238,6 +281,11 @@ export function CogitaLibraryListPage({
   }, [searchType]);
 
   useEffect(() => {
+    if (filterCollectionId && !collectionScopeReady) {
+      setSearchStatus('loading');
+      return;
+    }
+
     const filterPayload: Record<string, string> = { sourceKind: 'info' };
     if (hasActiveTypeFilters) {
       for (const field of typeFilterConfig) {
@@ -268,7 +316,11 @@ export function CogitaLibraryListPage({
               label: item.title
             }))
             .filter((item) => item.infoId.length > 0);
-          setRawResults(mapped);
+          if (filterCollectionId && collectionScopeInfoIds) {
+            setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
+          } else {
+            setRawResults(mapped);
+          }
           setSearchStatus('ready');
         })
         .catch(() => {
@@ -278,7 +330,7 @@ export function CogitaLibraryListPage({
     }, 240);
 
     return () => window.clearTimeout(handle);
-  }, [hasActiveTypeFilters, libraryId, searchQuery, searchType, typeFilterConfig, typeFilters]);
+  }, [collectionScopeInfoIds, collectionScopeReady, filterCollectionId, hasActiveTypeFilters, libraryId, searchQuery, searchType, typeFilterConfig, typeFilters]);
 
   useEffect(() => {
     if (!selectedInfoIdFromRoute || (selectedInfoView !== 'overview' && selectedInfoView !== 'collections')) {

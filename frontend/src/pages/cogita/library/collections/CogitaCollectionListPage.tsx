@@ -3,7 +3,6 @@ import { getCogitaCollections, type CogitaCollectionSummary } from '../../../../
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 
 export function CogitaCollectionListPage({
   copy,
@@ -30,7 +29,6 @@ export function CogitaCollectionListPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
 }) {
-  const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [query, setQuery] = useState('');
   const [collections, setCollections] = useState<CogitaCollectionSummary[]>([]);
@@ -91,25 +89,6 @@ export function CogitaCollectionListPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="list">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
-            <h1 className="cogita-library-title">{libraryName}</h1>
-            <p className="cogita-library-subtitle">{copy.cogita.library.collections.listSubtitle}</p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href="/#/cogita">
-              {copy.cogita.library.actions.backToCogita}
-            </a>
-            <a className="cta ghost" href={baseHref}>
-              {copy.cogita.library.actions.libraryOverview}
-            </a>
-            <a className="cta" href={`${baseHref}/collections/new`}>
-              {copy.cogita.library.actions.createCollection}
-            </a>
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">

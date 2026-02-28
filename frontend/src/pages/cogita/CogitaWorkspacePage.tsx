@@ -74,6 +74,7 @@ type ParsedCogitaPath = {
   libraryId?: string;
   target?: CogitaTarget;
   collectionId?: string;
+  filterCollectionId?: string;
   revisionId?: string;
   revisionView?: RevisionView;
   liveSessionId?: string;
@@ -144,7 +145,7 @@ function shortenNavLabel(label: string, maxLength: number) {
   return `${text.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
 }
 
-function parseCogitaPath(pathname: string): ParsedCogitaPath {
+function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPath {
   const segments = pathname.split('/').filter(Boolean);
   if (segments[0] !== 'cogita' || segments[1] !== 'library') {
     return {};
@@ -154,6 +155,8 @@ function parseCogitaPath(pathname: string): ParsedCogitaPath {
   if (!libraryId) {
     return {};
   }
+  const searchParams = new URLSearchParams(search);
+  const filterCollectionId = (searchParams.get('filterCollectionId') ?? '').trim() || undefined;
 
   if (!segments[3]) {
     return { libraryId, target: 'library_overview' };
@@ -182,27 +185,27 @@ function parseCogitaPath(pathname: string): ParsedCogitaPath {
   if (segments[3] === 'revisions') {
     const revisionId = segments[4];
     if (!revisionId) {
-      return { libraryId, target: 'all_revisions' };
+      return { libraryId, target: 'all_revisions', filterCollectionId };
     }
     if (revisionId === 'new') {
-      return { libraryId, target: 'all_revisions', revisionView: 'new' };
+      return { libraryId, target: 'all_revisions', revisionView: 'new', filterCollectionId };
     }
     if (revisionId === 'run') {
-      return { libraryId, target: 'all_revisions', revisionView: 'run' };
+      return { libraryId, target: 'all_revisions', revisionView: 'run', filterCollectionId };
     }
     if (segments[5] === 'run') {
-      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'run' };
+      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'run', filterCollectionId };
     }
     if (segments[5] === 'shared') {
-      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'shared' };
+      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'shared', filterCollectionId };
     }
     if (segments[5] === 'live-sessions') {
       const liveSessionId = segments[6];
       if (!liveSessionId) {
-        return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'list' };
+        return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'list', filterCollectionId };
       }
       if (liveSessionId === 'new') {
-        return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'new' };
+        return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'new', filterCollectionId };
       }
       if (segments[7] === 'edit') {
         return {
@@ -211,7 +214,8 @@ function parseCogitaPath(pathname: string): ParsedCogitaPath {
           revisionId,
           revisionView: 'live',
           liveSessionId,
-          liveSessionView: 'edit'
+          liveSessionView: 'edit',
+          filterCollectionId
         };
       }
       return {
@@ -220,10 +224,11 @@ function parseCogitaPath(pathname: string): ParsedCogitaPath {
         revisionId,
         revisionView: 'live',
         liveSessionId,
-        liveSessionView: 'detail'
+        liveSessionView: 'detail',
+        filterCollectionId
       };
     }
-    return { libraryId, target: 'all_revisions', revisionId, revisionView: 'settings' };
+    return { libraryId, target: 'all_revisions', revisionId, revisionView: 'settings', filterCollectionId };
   }
 
   if (segments[3] === 'dependencies') {
@@ -262,8 +267,11 @@ function parseCogitaPath(pathname: string): ParsedCogitaPath {
   if (segments[5] === 'edit') {
     return { libraryId, target: 'all_collections', collectionId, revisionView: 'graph' };
   }
+  if (segments[5] === 'revisions') {
+    return { libraryId, target: 'all_revisions', collectionId, filterCollectionId: collectionId };
+  }
   if (segments[5] === 'infos') {
-    return { libraryId, target: 'all_collections', collectionId, revisionView: 'detail', collectionView: 'infos' };
+    return { libraryId, target: 'all_cards', collectionId, cardMode: 'list', filterCollectionId: collectionId };
   }
   return { libraryId, target: 'all_collections', collectionId, revisionView: 'detail', collectionView: 'overview' };
 }
@@ -278,7 +286,8 @@ function buildCogitaPath(
   liveSessionView: LiveSessionView = 'list',
   infoId?: string,
   infoView: 'overview' | 'cards' | 'collections' = 'overview',
-  collectionView: 'overview' | 'infos' = 'infos'
+  collectionView: 'overview' | 'infos' = 'infos',
+  filterCollectionId?: string
 ): string {
   const buildRevisionPath = (id?: string, view?: RevisionView) => {
     if (!id) {
@@ -306,6 +315,9 @@ function buildCogitaPath(
     return `/cogita/library/${libraryId}`;
   }
   if (target === 'all_cards') {
+    if (filterCollectionId && !infoId) {
+      return `/cogita/library/${libraryId}/collections/${filterCollectionId}/infos`;
+    }
     if (infoId) {
       if (infoView === 'cards') {
         return `/cogita/library/${libraryId}/infos/${infoId}/checkcards`;
@@ -324,6 +336,9 @@ function buildCogitaPath(
     return `/cogita/library/${libraryId}/infos/new`;
   }
   if (target === 'all_revisions') {
+    if (filterCollectionId && !revisionId && (!revisionView || revisionView === 'settings')) {
+      return `/cogita/library/${libraryId}/collections/${filterCollectionId}/revisions`;
+    }
     return buildRevisionPath(revisionId, revisionView);
   }
   if (target === 'all_collections') {
@@ -440,7 +455,7 @@ export function CogitaWorkspacePage({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const pathState = useMemo(() => parseCogitaPath(location.pathname), [location.pathname]);
+  const pathState = useMemo(() => parseCogitaPath(location.pathname, location.search), [location.pathname, location.search]);
   const workspaceCopy = copy.cogita.workspace;
 
   const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
@@ -712,6 +727,7 @@ export function CogitaWorkspacePage({
       infoId?: string;
       infoView?: 'overview' | 'cards' | 'collections';
       collectionView?: 'overview' | 'infos';
+      filterCollectionId?: string;
     }) => {
       const hasLibrary = Boolean(next.libraryId);
       let resolvedTarget = next.target;
@@ -723,6 +739,7 @@ export function CogitaWorkspacePage({
       let resolvedInfoId = next.infoId;
       let resolvedInfoView = next.infoView ?? pathState.infoView ?? 'overview';
       let resolvedCollectionView = next.collectionView ?? pathState.collectionView ?? 'infos';
+      let resolvedFilterCollectionId = next.filterCollectionId ?? pathState.filterCollectionId;
 
       if (!hasLibrary) {
         resolvedTarget = 'library_overview';
@@ -734,12 +751,14 @@ export function CogitaWorkspacePage({
         resolvedInfoId = undefined;
         resolvedInfoView = 'overview';
         resolvedCollectionView = 'infos';
+        resolvedFilterCollectionId = undefined;
       } else if (TARGET_CAPABILITIES[resolvedTarget].requiresCollection && !resolvedCollectionId) {
         resolvedTarget = resolvedTarget === 'all_revisions' ? 'all_revisions' : 'all_collections';
         resolvedRevisionId = undefined;
         resolvedRevision = 'detail';
         resolvedLiveSessionId = undefined;
         resolvedLiveSessionView = 'list';
+        resolvedFilterCollectionId = undefined;
       } else if (resolvedTarget !== 'all_collections' && resolvedTarget !== 'all_revisions') {
         resolvedCollectionId = undefined;
         resolvedRevisionId = undefined;
@@ -752,12 +771,16 @@ export function CogitaWorkspacePage({
         if (resolvedTarget !== 'new_collection') {
           resolvedCollectionView = 'infos';
         }
+        resolvedFilterCollectionId = undefined;
       } else if (!TARGET_CAPABILITIES[resolvedTarget].allowsRevision) {
         resolvedRevision = 'detail';
       } else if (!REVISION_SELECTION_VIEWS.includes(resolvedRevision)) {
         resolvedRevisionId = undefined;
         resolvedLiveSessionId = undefined;
         resolvedLiveSessionView = 'list';
+      }
+      if (resolvedTarget !== 'all_cards' && resolvedTarget !== 'all_revisions') {
+        resolvedFilterCollectionId = undefined;
       }
 
       if (resolvedRevision !== 'live') {
@@ -788,14 +811,15 @@ export function CogitaWorkspacePage({
           resolvedLiveSessionView,
           resolvedInfoId,
           resolvedInfoView,
-          resolvedCollectionView
+          resolvedCollectionView,
+          resolvedFilterCollectionId
         )
       );
       if (normalizePath(location.pathname) === nextPath) return;
       lastNavigationRef.current = nextPath;
       navigate(nextPath);
     },
-    [location.pathname, navigate, pathState.collectionView, pathState.infoView, pathState.liveSessionView]
+    [location.pathname, navigate, pathState.collectionView, pathState.filterCollectionId, pathState.infoView, pathState.liveSessionView]
   );
   const navigationLevels = useMemo<NavigationLevel[]>(
     () => [
@@ -1053,10 +1077,22 @@ export function CogitaWorkspacePage({
           if (value === 'revisions') {
             applyNavigationSelection({
               libraryId: selectedLibraryId,
-              target: 'all_collections',
+              target: 'all_revisions',
+              collectionId: undefined,
+              revisionId: undefined,
+              revisionView: 'settings',
+              filterCollectionId: selectedCollectionId
+            });
+            return;
+          }
+          if (value === 'infos') {
+            applyNavigationSelection({
+              libraryId: selectedLibraryId,
+              target: 'all_cards',
               collectionId: selectedCollectionId,
               revisionId: undefined,
-              revisionView: 'settings'
+              revisionView: 'detail',
+              filterCollectionId: selectedCollectionId
             });
             return;
           }
@@ -1275,6 +1311,7 @@ export function CogitaWorkspacePage({
       pathState.infoId,
       pathState.infoView,
       pathState.collectionView,
+      pathState.filterCollectionId,
       pathState.liveSessionId,
       pathState.liveSessionView,
       workspaceCopy.infoActions.edit,
@@ -1446,7 +1483,10 @@ export function CogitaWorkspacePage({
                     return buildCogitaPath(selectedLibraryId, 'all_collections', selectedCollectionId, 'graph');
                   }
                   if (option.value === 'revisions') {
-                    return buildCogitaPath(selectedLibraryId, 'all_collections', selectedCollectionId, 'settings');
+                    return buildCogitaPath(selectedLibraryId, 'all_revisions', undefined, 'settings', undefined, undefined, 'list', undefined, 'overview', 'infos', selectedCollectionId);
+                  }
+                  if (option.value === 'infos') {
+                    return buildCogitaPath(selectedLibraryId, 'all_cards', selectedCollectionId, 'detail', undefined, undefined, 'list', undefined, 'overview', 'infos', selectedCollectionId);
                   }
                   return buildCogitaPath(
                     selectedLibraryId,
@@ -1458,7 +1498,8 @@ export function CogitaWorkspacePage({
                     'list',
                     pathState.infoId,
                     pathState.infoView ?? 'overview',
-                    option.value === 'overview' ? 'overview' : 'infos'
+                    option.value === 'overview' ? 'overview' : 'infos',
+                    pathState.filterCollectionId
                   );
                 }
                 if (level.key === 'revision_mode') {
@@ -1466,19 +1507,19 @@ export function CogitaWorkspacePage({
                   const nextTarget = isLibraryRevisionBranch ? 'all_revisions' : 'all_collections';
                   const nextCollectionId = isLibraryRevisionBranch ? undefined : selectedCollectionId;
                   if (option.value === 'create') {
-                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'new');
+                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'new', undefined, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
                   }
                   if (option.value === 'shared') {
-                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'shared');
+                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'shared', undefined, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
                   }
                   if (option.value === 'selected' && selectedRevisionId) {
                     const mode =
                       displayRevisionView === 'run' || displayRevisionView === 'shared' || displayRevisionView === 'live'
                         ? displayRevisionView
                         : 'settings';
-                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, mode, selectedRevisionId);
+                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, mode, selectedRevisionId, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
                   }
-                  return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'settings');
+                  return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'settings', undefined, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
                 }
                 if (level.key === 'revision_selected_action' && selectedRevisionId) {
                   const isLibraryRevisionBranch = displayTarget === 'all_revisions';
@@ -1549,6 +1590,7 @@ export function CogitaWorkspacePage({
       displayTarget,
       location.pathname,
       pathState.collectionView,
+      pathState.filterCollectionId,
       pathState.infoId,
       pathState.infoView,
       pathState.liveSessionId,
@@ -1627,7 +1669,7 @@ export function CogitaWorkspacePage({
       if (pathState.infoId && pathState.infoView === 'cards') {
         return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
       }
-      return <CogitaLibraryListPage {...baseProps} mode={pathState.cardMode ?? 'list'} />;
+      return <CogitaLibraryListPage {...baseProps} mode={pathState.cardMode ?? 'list'} filterCollectionId={pathState.filterCollectionId} />;
     }
     if (pathState.target === 'new_card') {
       return <CogitaLibraryAddPage {...baseProps} editInfoId={pathState.infoId} />;
@@ -1646,7 +1688,7 @@ export function CogitaWorkspacePage({
     }
     if (pathState.target === 'all_revisions') {
       if (!pathState.revisionId && !pathState.revisionView) {
-        return <CogitaRevisionListPage {...baseProps} />;
+        return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
       if (pathState.revisionView === 'run') {
         return <CogitaRevisionRunPage {...baseProps} revisionId={pathState.revisionId} />;
@@ -1714,7 +1756,7 @@ export function CogitaWorkspacePage({
         );
       }
       if (!pathState.revisionId && (pathState.revisionView === 'settings' || pathState.revisionView === 'live' || pathState.revisionView === 'shared')) {
-        return <CogitaRevisionListPage {...baseProps} />;
+        return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
       return <CogitaRevisionSettingsPage {...baseProps} revisionId={pathState.revisionId} />;
     }
@@ -1944,7 +1986,8 @@ export function CogitaWorkspacePage({
       return;
     }
 
-    const revisionCacheKey = `${selectedLibraryId}:${selectedTarget === 'all_revisions' ? '__library__' : selectedCollectionId ?? '__none__'}`;
+    const scopedRevisionCollectionId = selectedTarget === 'all_revisions' ? pathState.filterCollectionId : selectedCollectionId;
+    const revisionCacheKey = `${selectedLibraryId}:${scopedRevisionCollectionId ?? '__library__'}`;
     const cachedRevisions = revisionsCacheRef.current[revisionCacheKey];
     if (cachedRevisions) {
       setRevisions(cachedRevisions);
@@ -1958,7 +2001,7 @@ export function CogitaWorkspacePage({
     let cancelled = false;
     getCogitaRevisions({
       libraryId: selectedLibraryId,
-      collectionId: selectedTarget === 'all_revisions' ? undefined : selectedCollectionId
+      collectionId: scopedRevisionCollectionId
     })
       .then((items) => {
         if (cancelled) return;
@@ -1978,7 +2021,7 @@ export function CogitaWorkspacePage({
     return () => {
       cancelled = true;
     };
-  }, [pathState.revisionId, selectedCollectionId, selectedLibraryId, selectedTarget]);
+  }, [pathState.filterCollectionId, pathState.revisionId, selectedCollectionId, selectedLibraryId, selectedTarget]);
 
   useEffect(() => {
     if (!selectedLibraryId || !selectedRevisionId || displayRevisionView !== 'live') {
@@ -2095,7 +2138,8 @@ export function CogitaWorkspacePage({
         pathState.liveSessionView ?? 'list',
         pathState.infoId,
         pathState.infoView ?? 'overview',
-        pathState.collectionView ?? 'infos'
+        pathState.collectionView ?? 'infos',
+        pathState.filterCollectionId
       )
     );
     if (currentPath === nextPath) {
@@ -2115,6 +2159,7 @@ export function CogitaWorkspacePage({
     pathState.infoId,
     pathState.infoView,
     pathState.collectionView,
+    pathState.filterCollectionId,
     pathState.liveSessionId,
     pathState.liveSessionView,
     pathState.libraryId,

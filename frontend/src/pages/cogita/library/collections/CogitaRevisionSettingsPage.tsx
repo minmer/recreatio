@@ -14,7 +14,6 @@ import {
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
 import { useNavigate } from 'react-router-dom';
 
@@ -48,7 +47,6 @@ export function CogitaRevisionSettingsPage({
   revisionId?: string;
 }) {
   const navigate = useNavigate();
-  const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');
@@ -247,30 +245,6 @@ export function CogitaRevisionSettingsPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="detail">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-            <h1 className="cogita-library-title">{revisionName || (isCreateMode ? copy.cogita.workspace.revisionForm.createAction : libraryName)}</h1>
-            <p className="cogita-library-subtitle">{libraryName}</p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href="/#/cogita">
-              {copy.cogita.library.actions.backToCogita}
-            </a>
-            <a className="cta ghost" href={baseHref}>
-              {copy.cogita.library.actions.libraryOverview}
-            </a>
-            <a className="cta ghost" href={`${baseHref}/revisions`}>
-              {copy.cogita.workspace.targets.allRevisions}
-            </a>
-            {!isCreateMode && revisionId ? (
-              <a className="cta" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/run`}>
-                {copy.cogita.library.actions.startRevision}
-              </a>
-            ) : null}
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
