@@ -2153,7 +2153,7 @@ export function CogitaRevisionRunPage({
                 </a>
               </>
             ) : (
-              <a className="cta ghost" href={`${baseHref}/list`}>
+              <a className="cta ghost" href={`${baseHref}/infos`}>
                 {copy.cogita.library.actions.allCards}
               </a>
             )}
@@ -2301,7 +2301,7 @@ export function CogitaRevisionRunPage({
                 <div className="cogita-card-empty">
                   <p>{copy.cogita.library.revision.completed}</p>
                   <div className="cogita-form-actions">
-                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${effectiveCollectionId}` : `${baseHref}/list`}>
+                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${effectiveCollectionId}` : `${baseHref}/infos`}>
                       {isCollectionScope ? copy.cogita.library.actions.collectionDetail : copy.cogita.library.actions.allCards}
                     </a>
                   </div>

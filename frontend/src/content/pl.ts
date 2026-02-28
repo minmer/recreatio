@@ -174,7 +174,8 @@ export const pl: Copy = {
         detail: 'Szczegóły',
         graph: 'Graf',
         settings: 'Ustawienia',
-        run: 'Uruchom'
+        run: 'Uruchom',
+        live: 'Sesje live'
       },
       status: {
         loadFailed: 'Nie udało się załadować przestrzeni Cogita.',
@@ -232,6 +233,8 @@ export const pl: Copy = {
         infoActionsHint: 'Akcje informacji',
         selectedInfoActionsHint: 'Akcje wybranej informacji',
         collectionActionsHint: 'Akcje kolekcji',
+        revisionLiveSessionsHint: 'Sesje live uczestnika',
+        noRevisionLiveSessions: 'Brak sesji uczestnika.',
         accountSettings: 'Ustawienia konta',
         cogitaHome: 'Strona główna Cogita'
       }
@@ -1081,6 +1084,18 @@ export const pl: Copy = {
           joinUrlLabel: 'URL dołączenia',
           qrLabel: 'QR',
           statusLabel: 'Status',
+          sessionModeLabel: 'Tryb sesji',
+          modeSimultaneous: 'Jednoczesna',
+          modeAsynchronous: 'Asynchroniczna',
+          hostViewModeLabel: 'Widok hosta',
+          hostViewPanel: 'Panel',
+          hostViewQuestion: 'Pytanie',
+          hostViewScore: 'Wyniki',
+          participantViewModeLabel: 'Widok uczestnika',
+          participantViewQuestion: 'Pytanie',
+          participantViewScore: 'Wyniki',
+          participantViewFullscreen: 'Pełny ekran',
+          sessionSettingsLabel: 'Ustawienia sesji (JSON)',
           statusLobby: 'Poczekalnia',
           statusRunning: 'Trwa',
           statusRevealed: 'Po odsłonięciu',

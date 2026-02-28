@@ -184,6 +184,11 @@ public sealed record CogitaCollectionDetailResponse(
     DateTimeOffset CreatedUtc
 );
 
+public sealed record CogitaCollectionUpdateRequest(
+    string Name,
+    string? Notes
+);
+
 public sealed record CogitaRevisionCreateRequest(
     Guid? CollectionId,
     string Name,
@@ -365,6 +370,14 @@ public sealed record CogitaPublicRevisionShareResponse(
 public sealed record CogitaLiveRevisionSessionCreateRequest(
     Guid? RevisionId,
     Guid? CollectionId,
+    string? Title,
+    string? SessionMode,
+    string? HostViewMode,
+    string? ParticipantViewMode,
+    JsonElement? SessionSettings
+);
+
+public sealed record CogitaLiveRevisionSessionUpdateRequest(
     string? Title,
     string? SessionMode,
     string? HostViewMode,

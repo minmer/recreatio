@@ -131,6 +131,7 @@ export type Copy = {
         graph: string;
         settings: string;
         run: string;
+        live: string;
       };
       status: {
         loadFailed: string;
@@ -188,6 +189,8 @@ export type Copy = {
         infoActionsHint: string;
         selectedInfoActionsHint: string;
         collectionActionsHint: string;
+        revisionLiveSessionsHint: string;
+        noRevisionLiveSessions: string;
         accountSettings: string;
         cogitaHome: string;
       };
@@ -781,6 +784,18 @@ export type Copy = {
           joinUrlLabel: string;
           qrLabel: string;
           statusLabel: string;
+          sessionModeLabel: string;
+          modeSimultaneous: string;
+          modeAsynchronous: string;
+          hostViewModeLabel: string;
+          hostViewPanel: string;
+          hostViewQuestion: string;
+          hostViewScore: string;
+          participantViewModeLabel: string;
+          participantViewQuestion: string;
+          participantViewScore: string;
+          participantViewFullscreen: string;
+          sessionSettingsLabel: string;
           statusLobby: string;
           statusRunning: string;
           statusRevealed: string;

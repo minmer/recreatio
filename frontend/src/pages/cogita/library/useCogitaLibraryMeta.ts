@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getCogitaLibraries, getCogitaLibraryStats, type CogitaLibraryStats } from '../../../lib/api';
+import type { CogitaLibraryStats } from '../../../lib/api';
+import { getCachedLibraryName, getCachedLibraryStats } from './cogitaMetaCache';
 
 export function useCogitaLibraryMeta(libraryId: string) {
   const [libraryName, setLibraryName] = useState('Cogita library');
@@ -7,11 +8,10 @@ export function useCogitaLibraryMeta(libraryId: string) {
 
   useEffect(() => {
     let cancelled = false;
-    getCogitaLibraries()
-      .then((libraries) => {
-        if (cancelled) return;
-        const match = libraries.find((library) => library.libraryId === libraryId);
-        if (match) setLibraryName(match.name);
+    getCachedLibraryName(libraryId)
+      .then((name) => {
+        if (cancelled || !name) return;
+        setLibraryName(name);
       })
       .catch(() => {
         if (!cancelled) setLibraryName('Cogita library');
@@ -23,7 +23,7 @@ export function useCogitaLibraryMeta(libraryId: string) {
 
   useEffect(() => {
     let cancelled = false;
-    getCogitaLibraryStats(libraryId)
+    getCachedLibraryStats(libraryId)
       .then((next) => {
         if (cancelled) return;
         setStats(next);

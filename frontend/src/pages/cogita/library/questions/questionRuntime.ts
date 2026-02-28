@@ -12,10 +12,6 @@ export type ParsedQuestionDefinition = {
 export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
   if (typeof rawType !== 'string') return '';
   const value = rawType.trim().toLowerCase();
-  if (value === 'single_select' || value === 'multi_select') return 'selection';
-  if (value === 'boolean' || value === 'true_false') return 'truefalse';
-  if (value === 'order') return 'ordering';
-  if (value === 'short' || value === 'open' || value === 'short_text') return 'text';
   if (value === 'selection' || value === 'truefalse' || value === 'text' || value === 'number' || value === 'date' || value === 'ordering' || value === 'matching') {
     return value;
   }
@@ -25,33 +21,13 @@ export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
 export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
   if (!value || typeof value !== 'object') return null;
   const data = value as Record<string, unknown>;
-  const root = (() => {
-    if (data.definition && typeof data.definition === 'object') {
-      return data.definition as Record<string, unknown>;
-    }
-    if (typeof data.definition === 'string') {
-      try {
-        const parsed = JSON.parse(data.definition);
-        if (parsed && typeof parsed === 'object') {
-          return parsed as Record<string, unknown>;
-        }
-      } catch {
-        // ignore malformed legacy definition strings
-      }
-    }
-    return data;
-  })();
-
-  const type = normalizeQuestionType(root.type ?? root.kind ?? root.questionType);
+  const root = data.definition && typeof data.definition === 'object' ? (data.definition as Record<string, unknown>) : data;
+  const type = normalizeQuestionType(root.type);
   if (!type) return null;
 
   const title = typeof root.title === 'string' ? root.title : undefined;
-  const question =
-    typeof root.question === 'string'
-      ? root.question
-      : typeof root.prompt === 'string'
-        ? root.prompt
-        : '';
+  const question = typeof root.question === 'string' ? root.question : '';
+  if (!question.trim()) return null;
 
   const options = Array.isArray(root.options)
     ? root.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
@@ -69,11 +45,7 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
 
   const answer = (() => {
     if (type === 'selection') {
-      const source = Array.isArray(root.answer)
-        ? root.answer
-        : Array.isArray(root.correct)
-          ? root.correct
-          : [];
+      const source = Array.isArray(root.answer) ? root.answer : [];
       return source
         .map((x) => Number(x))
         .filter((x) => Number.isInteger(x) && x >= 0)
@@ -82,7 +54,6 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
 
     if (type === 'truefalse') {
       if (typeof root.answer === 'boolean') return root.answer;
-      if (typeof root.expected === 'boolean') return root.expected;
       return false;
     }
 
@@ -90,11 +61,7 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
       const answerNode = root.answer && typeof root.answer === 'object'
         ? (root.answer as Record<string, unknown>)
         : null;
-      const source = Array.isArray(answerNode?.paths)
-        ? answerNode.paths
-        : Array.isArray(root.correctPairs)
-          ? root.correctPairs
-          : [];
+      const source = Array.isArray(answerNode?.paths) ? answerNode.paths : [];
       const paths = source
         .map((row) =>
           Array.isArray(row)
@@ -108,7 +75,6 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
     }
 
     if (typeof root.answer === 'string' || typeof root.answer === 'number') return root.answer;
-    if (typeof root.expected === 'string' || typeof root.expected === 'number') return root.expected;
     return undefined;
   })();
 

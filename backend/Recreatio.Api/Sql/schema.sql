@@ -1372,6 +1372,29 @@ BEGIN
 END
 GO
 
+;WITH ActiveShares AS (
+    SELECT
+        Id,
+        RevisionId,
+        ROW_NUMBER() OVER (PARTITION BY RevisionId ORDER BY CreatedUtc DESC, Id DESC) AS rn
+    FROM dbo.CogitaRevisionShares
+    WHERE RevokedUtc IS NULL
+)
+UPDATE s
+SET RevokedUtc = COALESCE(s.RevokedUtc, SWITCHOFFSET(SYSDATETIMEOFFSET(), '+00:00'))
+FROM dbo.CogitaRevisionShares s
+INNER JOIN ActiveShares a ON a.Id = s.Id
+WHERE a.rn > 1;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaRevisionShares_ActiveRevision' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaRevisionShares_ActiveRevision
+        ON dbo.CogitaRevisionShares(RevisionId)
+        WHERE RevokedUtc IS NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
 BEGIN
     CREATE INDEX IX_CogitaRevisionShares_PublicCodeHash ON dbo.CogitaRevisionShares(PublicCodeHash);

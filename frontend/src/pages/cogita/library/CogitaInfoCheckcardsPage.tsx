@@ -792,7 +792,7 @@ export function CogitaInfoCheckcardsPage({
                     disabled={cards.length === 0}
                     onClick={() =>
                       navigate(
-                        `/cogita/library/${libraryId}/revision/run?libraryTarget=revisions&scope=info&infoId=${encodeURIComponent(infoId)}`
+                        `/cogita/library/${libraryId}/revisions/run?scope=info&infoId=${encodeURIComponent(infoId)}`
                       )
                     }
                   >

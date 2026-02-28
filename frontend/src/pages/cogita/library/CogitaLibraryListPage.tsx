@@ -186,14 +186,13 @@ export function CogitaLibraryListPage({
   }, [libraryId, selectionStack]);
 
   const schema = useMemo(() => getInfoSchema(searchType === 'any' ? null : searchType), [searchType]);
-  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const pathSegments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
   const infoPathIndex = pathSegments.findIndex((segment) => segment === 'infos');
   const selectedInfoIdFromPath = infoPathIndex >= 0 ? (pathSegments[infoPathIndex + 1] ?? '').trim() || null : null;
   const selectedInfoPathTail = infoPathIndex >= 0 ? ((pathSegments[infoPathIndex + 2] ?? '').trim()) : '';
   const selectedInfoViewFromPath = infoPathIndex >= 0 ? (selectedInfoPathTail === 'checkcards' ? 'cards' : selectedInfoPathTail === 'collections' ? 'collections' : 'overview') : '';
-  const selectedInfoIdFromRoute = selectedInfoIdFromPath ?? ((queryParams.get('infoId') ?? '').trim() || null);
-  const selectedInfoView = selectedInfoIdFromPath ? selectedInfoViewFromPath : (queryParams.get('infoView') ?? 'overview').trim();
+  const selectedInfoIdFromRoute = selectedInfoIdFromPath;
+  const selectedInfoView = selectedInfoIdFromPath ? selectedInfoViewFromPath : '';
   const isInfoOverviewRoute = selectedInfoView === 'overview' && Boolean(selectedInfoIdFromRoute);
   const isInfoCollectionsRoute = selectedInfoView === 'collections' && Boolean(selectedInfoIdFromRoute);
   const filterLabelByKey = useMemo<Record<InfoFilterLabelKey, string>>(
@@ -498,12 +497,12 @@ export function CogitaLibraryListPage({
   };
 
   const closeInfoOverview = () => {
-    navigate(`/cogita/library/${libraryId}/list`, { replace: true });
+    navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
   };
 
   const editSelectedInfo = () => {
     if (!selectedInfoIdFromRoute) return;
-    navigate(`/cogita/library/${libraryId}/edit/${encodeURIComponent(selectedInfoIdFromRoute)}`, { replace: true });
+    navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(selectedInfoIdFromRoute)}/edit`, { replace: true });
   };
 
   const startRevisionFromSelectedInfos = () => {
@@ -513,7 +512,7 @@ export function CogitaLibraryListPage({
     );
     if (!seedId) return;
     navigate(
-      `/cogita/library/${libraryId}/revision/run?libraryTarget=revisions&scope=info-selection&seed=${encodeURIComponent(seedId)}`
+      `/cogita/library/${libraryId}/revisions/run?scope=info-selection&seed=${encodeURIComponent(seedId)}`
     );
   };
   const startCollectionFromSelectedInfos = () => {
@@ -701,7 +700,7 @@ export function CogitaLibraryListPage({
                     <div className="cogita-card-list" data-view="list">
                       {infoCollections.map((collection) => (
                         <article key={collection.collectionId} className="cogita-card-item">
-                          <a className="cogita-card-select" href={`/#/cogita/library/${libraryId}/collections/${collection.collectionId}?libraryTarget=collections`}>
+                          <a className="cogita-card-select" href={`/#/cogita/library/${libraryId}/collections/${collection.collectionId}`}>
                             <div className="cogita-card-type">Collection</div>
                             <h3 className="cogita-card-title">{collection.name}</h3>
                             <p className="cogita-card-subtitle">{collection.itemCount} items</p>

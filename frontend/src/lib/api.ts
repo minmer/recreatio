@@ -1285,6 +1285,31 @@ export function createCogitaLiveRevisionSession(payload: {
   );
 }
 
+export function updateCogitaLiveRevisionSession(payload: {
+  libraryId: string;
+  revisionId: string;
+  sessionId: string;
+  title?: string | null;
+  sessionMode?: 'simultaneous' | 'asynchronous' | null;
+  hostViewMode?: 'panel' | 'question' | 'score' | null;
+  participantViewMode?: 'question' | 'score' | 'fullscreen' | null;
+  sessionSettings?: Record<string, unknown> | null;
+}) {
+  return request<CogitaLiveRevisionSessionListItem>(
+    `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}/live-sessions/${payload.sessionId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: payload.title ?? null,
+        sessionMode: payload.sessionMode ?? null,
+        hostViewMode: payload.hostViewMode ?? null,
+        participantViewMode: payload.participantViewMode ?? null,
+        sessionSettings: payload.sessionSettings ?? null
+      })
+    }
+  );
+}
+
 export function getCogitaLiveRevisionSessions(payload: { libraryId: string }) {
   return request<CogitaLiveRevisionSessionListItem[]>(
     `/cogita/libraries/${payload.libraryId}/live-sessions`,
@@ -1715,6 +1740,21 @@ export function createCogitaCollection(payload: {
         : null,
       dataKeyId: payload.dataKeyId ?? null,
       signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function updateCogitaCollection(payload: {
+  libraryId: string;
+  collectionId: string;
+  name: string;
+  notes?: string | null;
+}) {
+  return request<CogitaCollectionDetail>(`/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: payload.name,
+      notes: payload.notes ?? null
     })
   });
 }

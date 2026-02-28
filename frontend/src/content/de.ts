@@ -174,7 +174,8 @@ export const de: Copy = {
         detail: 'Detail',
         graph: 'Graph',
         settings: 'Einstellungen',
-        run: 'Starten'
+        run: 'Starten',
+        live: 'Live-Sitzungen'
       },
       status: {
         loadFailed: 'Cogita-Arbeitsbereich konnte nicht geladen werden.',
@@ -232,6 +233,8 @@ export const de: Copy = {
         infoActionsHint: 'Infoaktionen',
         selectedInfoActionsHint: 'Aktionen der gewählten Info',
         collectionActionsHint: 'Sammlungsaktionen',
+        revisionLiveSessionsHint: 'Live-Sessions mit Teilnahme',
+        noRevisionLiveSessions: 'Keine Teilnahmesitzungen.',
         accountSettings: 'Kontoeinstellungen',
         cogitaHome: 'Cogita Startseite'
       }
@@ -1081,6 +1084,18 @@ export const de: Copy = {
           joinUrlLabel: 'Beitritts-URL',
           qrLabel: 'QR',
           statusLabel: 'Status',
+          sessionModeLabel: 'Sitzungsmodus',
+          modeSimultaneous: 'Synchron',
+          modeAsynchronous: 'Asynchron',
+          hostViewModeLabel: 'Host-Ansicht',
+          hostViewPanel: 'Panel',
+          hostViewQuestion: 'Frage',
+          hostViewScore: 'Punktestand',
+          participantViewModeLabel: 'Teilnehmenden-Ansicht',
+          participantViewQuestion: 'Frage',
+          participantViewScore: 'Punktestand',
+          participantViewFullscreen: 'Vollbild',
+          sessionSettingsLabel: 'Sitzungseinstellungen (JSON)',
           statusLobby: 'Lobby',
           statusRunning: 'Läuft',
           statusRevealed: 'Aufgedeckt',

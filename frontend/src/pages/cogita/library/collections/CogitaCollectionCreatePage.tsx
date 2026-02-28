@@ -3,7 +3,10 @@ import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState,
 import 'reactflow/dist/style.css';
 import {
   createCogitaCollection,
-  saveCogitaCollectionGraph
+  getCogitaCollection,
+  getCogitaCollectionGraph,
+  saveCogitaCollectionGraph,
+  updateCogitaCollection
 } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
@@ -78,6 +81,7 @@ export function CogitaCollectionCreatePage({
   language,
   onLanguageChange,
   libraryId,
+  collectionId,
   onCreated
 }: {
   copy: Copy;
@@ -91,12 +95,13 @@ export function CogitaCollectionCreatePage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
+  collectionId?: string;
   onCreated: (collectionId: string) => void;
 }) {
   const location = useLocation();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
-  const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(collectionId ?? null);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNodeData>([]);
@@ -108,8 +113,64 @@ export function CogitaCollectionCreatePage({
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId]
   );
+  const isEditMode = Boolean(activeCollectionId);
 
   useEffect(() => {
+    setActiveCollectionId(collectionId ?? null);
+  }, [collectionId]);
+
+  useEffect(() => {
+    if (!collectionId) return;
+    let cancelled = false;
+    Promise.all([
+      getCogitaCollection(libraryId, collectionId),
+      getCogitaCollectionGraph({ libraryId, collectionId })
+    ])
+      .then(([detail, graph]) => {
+        if (cancelled) return;
+        setName(detail.name ?? '');
+        setNotes(detail.notes ?? '');
+        if (!graph.graphId || graph.graphId === '00000000-0000-0000-0000-000000000000') {
+          setNodes([]);
+          setEdges([]);
+          return;
+        }
+        setNodes(
+          graph.nodes.map((node) => {
+            const payload = (node.payload as { position?: { x: number; y: number }; params?: GraphNodeParams }) ?? {};
+            return {
+              id: node.nodeId,
+              type: 'default',
+              position: payload.position ?? { x: 120, y: 120 },
+              data: {
+                nodeType: node.nodeType,
+                label: NODE_CATALOG.find((entry) => entry.type === node.nodeType)?.label ?? node.nodeType,
+                params: payload.params ?? {}
+              }
+            };
+          })
+        );
+        setEdges(
+          graph.edges.map((edge) => ({
+            id: edge.edgeId,
+            source: edge.fromNodeId,
+            target: edge.toNodeId,
+            sourceHandle: edge.fromPort ?? undefined,
+            targetHandle: edge.toPort ?? undefined
+          }))
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatusMessage(copy.cogita.library.collections.saveFail);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionId, copy.cogita.library.collections.saveFail, libraryId, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (collectionId) return;
     const params = new URLSearchParams(location.search);
     const draftSeed = (params.get('draft') ?? '').trim();
     const draftType = (params.get('draftType') ?? '').trim();
@@ -174,7 +235,7 @@ export function CogitaCollectionCreatePage({
     setSelectedNodeId(outputId);
     setStatusMessage(`Draft loaded from ${draft.infoIds.length} selected infos. Set name and save to create collection.`);
     draftAppliedRef.current = draftSeed;
-  }, [libraryId, location.search, setEdges, setNodes]);
+  }, [collectionId, libraryId, location.search, setEdges, setNodes]);
 
   const handleAddNode = (type: string) => {
     const id = crypto.randomUUID();
@@ -233,9 +294,9 @@ export function CogitaCollectionCreatePage({
           toPort: edge.targetHandle ?? null
         }))
       };
-      let activeCollectionId = collectionId;
+      let collectionIdToSave = activeCollectionId;
       let createdNow = false;
-      if (!activeCollectionId) {
+      if (!collectionIdToSave) {
         const created = await createCogitaCollection({
           libraryId,
           name: name.trim(),
@@ -243,21 +304,29 @@ export function CogitaCollectionCreatePage({
           items: [],
           graph: graphPayload
         });
-        activeCollectionId = created.collectionId;
+        collectionIdToSave = created.collectionId;
         createdNow = true;
-        setCollectionId(created.collectionId);
+        setActiveCollectionId(created.collectionId);
       } else {
+        await updateCogitaCollection({
+          libraryId,
+          collectionId: collectionIdToSave,
+          name: name.trim(),
+          notes: notes.trim() || null
+        });
         await saveCogitaCollectionGraph({
           libraryId,
-          collectionId: activeCollectionId,
+          collectionId: collectionIdToSave,
           nodes: graphPayload.nodes,
           edges: graphPayload.edges
         });
       }
       setStatusMessage(createdNow ? copy.cogita.library.collections.saveSuccess : copy.cogita.library.graph.saveSuccess);
-      onCreated(activeCollectionId);
+      if (createdNow) {
+        onCreated(collectionIdToSave);
+      }
     } catch {
-      setStatusMessage(collectionId ? copy.cogita.library.graph.saveFail : copy.cogita.library.collections.saveFail);
+      setStatusMessage(activeCollectionId ? copy.cogita.library.graph.saveFail : copy.cogita.library.collections.saveFail);
     }
   };
 
@@ -277,9 +346,13 @@ export function CogitaCollectionCreatePage({
       <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">{copy.cogita.library.collections.createKicker}</p>
-            <h1 className="cogita-library-title">{libraryName}</h1>
-            <p className="cogita-library-subtitle">{copy.cogita.library.collections.createSubtitle}</p>
+            <p className="cogita-user-kicker">
+              {isEditMode ? copy.cogita.library.collections.detailKicker : copy.cogita.library.collections.createKicker}
+            </p>
+            <h1 className="cogita-library-title">{isEditMode ? name || copy.cogita.library.collections.defaultName : libraryName}</h1>
+            <p className="cogita-library-subtitle">
+              {isEditMode ? copy.cogita.library.collections.detailSubtitle : copy.cogita.library.collections.createSubtitle}
+            </p>
           </div>
           <div className="cogita-library-actions">
             <a className="cta ghost" href="/#/cogita">
@@ -291,6 +364,11 @@ export function CogitaCollectionCreatePage({
             <a className="cta ghost" href={`${baseHref}/collections`}>
               {copy.cogita.library.actions.collections}
             </a>
+            {activeCollectionId ? (
+              <a className="cta ghost" href={`${baseHref}/collections/${activeCollectionId}`}>
+                {copy.cogita.library.actions.collectionDetail}
+              </a>
+            ) : null}
             <button type="button" className="cta" onClick={handleCreate}>
               {copy.cogita.library.actions.saveCollection}
             </button>

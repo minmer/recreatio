@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  createCogitaRevision,
   createCogitaRevisionShare,
-  getCogitaCollection,
   getCogitaCollections,
-  getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
-  getCogitaRevisions,
   getCogitaRevisionShares,
   getCogitaReviewers,
   revokeCogitaRevisionShare,
   updateCogitaRevision,
-  type CogitaRevision,
-  type CogitaLiveRevisionSessionListItem,
-  type CogitaReviewer,
-  type CogitaRevisionShare
+  type CogitaRevisionShare,
+  type CogitaReviewer
 } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
@@ -54,126 +50,47 @@ export function CogitaRevisionSettingsPage({
   const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const baseHref = `/#/cogita/library/${libraryId}`;
-  const [collectionName, setCollectionName] = useState(copy.cogita.library.collections.defaultName);
   const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');
   const [revisionName, setRevisionName] = useState('');
   const [limit, setLimit] = useState(20);
   const [mode, setMode] = useState('random');
-  const [revisionSettings, setRevisionSettings] = useState<Record<string, number>>({});
-  const [check, setCheck] = useState('exact');
+  const [revisionSettings, setRevisionSettings] = useState<Record<string, number | string>>({});
+  const [check] = useState('exact');
   const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
   const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
-  const [shares, setShares] = useState<CogitaRevisionShare[]>([]);
-  const [revisions, setRevisions] = useState<CogitaRevision[]>([]);
-  const [revisionQuery, setRevisionQuery] = useState('');
-  const [revisionTypeFilter, setRevisionTypeFilter] = useState('all');
-  const [revisionModeFilter, setRevisionModeFilter] = useState('all');
-  const [revisionCollectionFilter, setRevisionCollectionFilter] = useState('all');
-  const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const [shareListStatus, setShareListStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [liveSessions, setLiveSessions] = useState<CogitaLiveRevisionSessionListItem[]>([]);
-  const shareBase = useMemo(() => {
-    if (typeof window === 'undefined') return '/#/cogita/public/revision';
-    return `${window.location.origin}/#/cogita/public/revision`;
-  }, []);
+
+  const [activeShare, setActiveShare] = useState<CogitaRevisionShare | null>(null);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
+  const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  const isCreateMode = !revisionId;
   const revisionType = useMemo(() => getRevisionType(mode), [mode]);
   const normalizedSettings = useMemo(
     () => normalizeRevisionSettings(revisionType, revisionSettings),
     [revisionType, revisionSettings]
   );
   const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
-  const collectionNameById = useMemo(
-    () => new Map(availableCollections.map((item) => [item.collectionId, item.name])),
-    [availableCollections]
-  );
-  const revisionTypeOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const values: string[] = [];
-    revisions.forEach((revision) => {
-      const key = (revision.revisionType ?? revision.mode ?? 'random').toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        values.push(key);
-      }
-    });
-    return values;
-  }, [revisions]);
-  const revisionModeOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const values: string[] = [];
-    revisions.forEach((revision) => {
-      const key = (revision.mode ?? 'random').toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        values.push(key);
-      }
-    });
-    return values;
-  }, [revisions]);
-  const filteredRevisions = useMemo(() => {
-    const needle = revisionQuery.trim().toLocaleLowerCase();
-    return revisions.filter((revision) => {
-      const typeKey = (revision.revisionType ?? revision.mode ?? 'random').toLowerCase();
-      const modeKey = (revision.mode ?? 'random').toLowerCase();
-      const collectionName = collectionNameById.get(revision.collectionId) ?? '';
-      if (revisionTypeFilter !== 'all' && typeKey !== revisionTypeFilter) return false;
-      if (revisionModeFilter !== 'all' && modeKey !== revisionModeFilter) return false;
-      if (revisionCollectionFilter !== 'all' && revision.collectionId !== revisionCollectionFilter) return false;
-      if (!needle) return true;
-      return (
-        revision.name.toLocaleLowerCase().includes(needle) ||
-        collectionName.toLocaleLowerCase().includes(needle) ||
-        typeKey.includes(needle) ||
-        modeKey.includes(needle)
-      );
-    });
-  }, [collectionNameById, revisionCollectionFilter, revisionModeFilter, revisionQuery, revisionTypeFilter, revisions]);
+  const shareBase = useMemo(() => {
+    if (typeof window === 'undefined') return '/#/cogita/public/revision';
+    return `${window.location.origin}/#/cogita/public/revision`;
+  }, []);
 
   useEffect(() => {
     setSelectedCollectionId(collectionId ?? '');
   }, [collectionId]);
 
   useEffect(() => {
-    if (!selectedCollectionId) {
-      setCollectionName(copy.cogita.library.collections.defaultName);
-      return;
-    }
-    getCogitaCollection(libraryId, selectedCollectionId)
-      .then((detail) => setCollectionName(detail.name))
-      .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
-  }, [copy.cogita.library.collections.defaultName, libraryId, selectedCollectionId]);
-
-  useEffect(() => {
     getCogitaCollections({ libraryId, limit: 200 })
-      .then((bundle) => setAvailableCollections(bundle.items.map((item) => ({ collectionId: item.collectionId, name: item.name }))))
-      .catch(() => setAvailableCollections([]));
-  }, [libraryId]);
-
-  useEffect(() => {
-    getCogitaRevisions({ libraryId })
-      .then((items) => setRevisions(items))
-      .catch(() => setRevisions([]));
-  }, [libraryId]);
-
-  useEffect(() => {
-    if (!revisionId) return;
-    getCogitaRevision({ libraryId, revisionId })
-      .then((revision) => {
-        setSelectedCollectionId(revision.collectionId);
-        setRevisionName(revision.name);
-        setMode(revision.mode || 'random');
-        setCheck(revision.check || 'exact');
-        setLimit(revision.limit || 20);
-        setRevisionSettings((revision.revisionSettings as Record<string, number> | null | undefined) ?? {});
+      .then((bundle) => {
+        setAvailableCollections(bundle.items.map((item) => ({ collectionId: item.collectionId, name: item.name })));
+        if (!selectedCollectionId && bundle.items.length > 0) {
+          setSelectedCollectionId(bundle.items[0].collectionId);
+        }
       })
-      .catch(() => {
-        setRevisionName('');
-      });
-  }, [libraryId, revisionId]);
+      .catch(() => setAvailableCollections([]));
+  }, [libraryId, selectedCollectionId]);
 
   useEffect(() => {
     getCogitaReviewers({ libraryId })
@@ -183,68 +100,77 @@ export function CogitaRevisionSettingsPage({
           setReviewerRoleId(list[0].roleId);
         }
       })
-      .catch(() => {
-        setReviewers([]);
-      });
-  }, [libraryId]);
-
-  const loadShares = () => {
-    setShareListStatus('loading');
-    getCogitaRevisionShares({ libraryId })
-      .then((list) => {
-        setShares(list);
-        setShareListStatus('idle');
-      })
-      .catch(() => {
-        setShares([]);
-        setShareListStatus('error');
-      });
-  };
-
-  useEffect(() => {
-    loadShares();
-  }, [libraryId]);
+      .catch(() => setReviewers([]));
+  }, [libraryId, reviewerRoleId]);
 
   useEffect(() => {
     if (!revisionId) {
-      setLiveSessions([]);
+      setRevisionName('');
+      setMode('random');
+      setLimit(20);
+      setRevisionSettings({});
+      setActiveShare(null);
       return;
     }
-    getCogitaLiveRevisionSessionsByRevision({ libraryId, revisionId })
-      .then((items) => setLiveSessions(items))
-      .catch(() => setLiveSessions([]));
+
+    getCogitaRevision({ libraryId, revisionId })
+      .then((revision) => {
+        setSelectedCollectionId(revision.collectionId);
+        setRevisionName(revision.name);
+        setMode(revision.mode || 'random');
+        setLimit(revision.limit || 20);
+        setRevisionSettings((revision.revisionSettings as Record<string, number | string> | null | undefined) ?? {});
+      })
+      .catch(() => {
+        setRevisionName('');
+      });
+
+    getCogitaRevisionShares({ libraryId })
+      .then((shares) => {
+        const current = shares.find((share) => share.revisionId === revisionId && !share.revokedUtc) ?? null;
+        setActiveShare(current);
+      })
+      .catch(() => setActiveShare(null));
   }, [libraryId, revisionId]);
 
-  const handleCreateShare = async () => {
-    setShareStatus('working');
-    setShareCopyStatus('idle');
-    try {
-      if (!revisionId) {
-        setShareStatus('error');
-        return;
-      }
-      const response = await createCogitaRevisionShare({
-        libraryId,
-        revisionId
-      });
-      setShareLink(`${shareBase}/${response.shareCode}${settingsQuery ? `?${settingsQuery}` : ''}`);
-      setShareStatus('ready');
-      loadShares();
-    } catch {
-      setShareStatus('error');
-    }
-  };
+  const activeShareLink = useMemo(() => {
+    if (!activeShare?.shareCode) return null;
+    return `${shareBase}/${activeShare.shareCode}${settingsQuery ? `?${settingsQuery}` : ''}`;
+  }, [activeShare?.shareCode, settingsQuery, shareBase]);
 
   const handleSaveRevision = async () => {
-    if (!revisionId) return;
+    if (!selectedCollectionId) {
+      setSaveStatus('error');
+      return;
+    }
+    if (!revisionName.trim()) {
+      setSaveStatus('error');
+      return;
+    }
+
     setSaveStatus('saving');
     try {
-      await updateCogitaRevision({
+      if (revisionId) {
+        await updateCogitaRevision({
+          libraryId,
+          collectionId: selectedCollectionId,
+          revisionId,
+          targetCollectionId: selectedCollectionId,
+          name: revisionName.trim(),
+          revisionType: revisionType.id,
+          revisionSettings: normalizedSettings,
+          mode,
+          check,
+          limit
+        });
+        setSaveStatus('saved');
+        return;
+      }
+
+      const created = await createCogitaRevision({
         libraryId,
-        collectionId: collectionId ?? selectedCollectionId,
-        revisionId,
-        targetCollectionId: selectedCollectionId,
-        name: revisionName || collectionName,
+        collectionId: selectedCollectionId,
+        name: revisionName.trim(),
         revisionType: revisionType.id,
         revisionSettings: normalizedSettings,
         mode,
@@ -252,32 +178,58 @@ export function CogitaRevisionSettingsPage({
         limit
       });
       setSaveStatus('saved');
-      if (selectedCollectionId) {
-        navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(revisionId)}`, {
-          replace: true
-        });
-      }
+      navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(created.revisionId)}`, { replace: true });
     } catch {
       setSaveStatus('error');
     }
   };
 
-  const handleCopyShare = async () => {
-    if (!shareLink) return;
+  const handleCreateShare = async () => {
+    if (!revisionId) return;
+    setShareStatus('working');
+    setShareCopyStatus('idle');
     try {
-      await navigator.clipboard.writeText(shareLink);
-      setShareCopyStatus('copied');
+      const response = await createCogitaRevisionShare({ libraryId, revisionId });
+      setActiveShare({
+        shareId: response.shareId,
+        revisionId: response.revisionId,
+        revisionName: response.revisionName,
+        collectionId: response.collectionId,
+        collectionName: response.collectionName,
+        shareCode: response.shareCode,
+        revisionType: response.revisionType ?? null,
+        revisionSettings: response.revisionSettings ?? null,
+        mode: response.mode,
+        check: response.check,
+        limit: response.limit,
+        createdUtc: response.createdUtc,
+        revokedUtc: null
+      });
+      setShareStatus('ready');
     } catch {
-      setShareCopyStatus('failed');
+      setShareStatus('error');
     }
   };
 
-  const handleRevokeShare = async (shareId: string) => {
+  const handleRevokeShare = async () => {
+    if (!activeShare) return;
     try {
-      await revokeCogitaRevisionShare({ libraryId, shareId });
-      loadShares();
+      await revokeCogitaRevisionShare({ libraryId, shareId: activeShare.shareId });
+      setActiveShare(null);
+      setShareStatus('idle');
+      setShareCopyStatus('idle');
     } catch {
-      loadShares();
+      setShareStatus('error');
+    }
+  };
+
+  const handleCopyShare = async () => {
+    if (!activeShareLink) return;
+    try {
+      await navigator.clipboard.writeText(activeShareLink);
+      setShareCopyStatus('copied');
+    } catch {
+      setShareCopyStatus('failed');
     }
   };
 
@@ -298,7 +250,7 @@ export function CogitaRevisionSettingsPage({
         <header className="cogita-library-dashboard-header">
           <div>
             <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-            <h1 className="cogita-library-title">{collectionName}</h1>
+            <h1 className="cogita-library-title">{revisionName || (isCreateMode ? copy.cogita.workspace.revisionForm.createAction : libraryName)}</h1>
             <p className="cogita-library-subtitle">{libraryName}</p>
           </div>
           <div className="cogita-library-actions">
@@ -308,30 +260,14 @@ export function CogitaRevisionSettingsPage({
             <a className="cta ghost" href={baseHref}>
               {copy.cogita.library.actions.libraryOverview}
             </a>
-            <a className="cta ghost" href={`${baseHref}/collections`}>
-              {copy.cogita.library.actions.collections}
+            <a className="cta ghost" href={`${baseHref}/revisions`}>
+              {copy.cogita.workspace.targets.allRevisions}
             </a>
-            <a className="cta ghost" href={selectedCollectionId ? `${baseHref}/collections/${selectedCollectionId}` : `${baseHref}/collections`}>
-              {copy.cogita.library.actions.collectionDetail}
-            </a>
-            <a
-              className="cta"
-              href={`${baseHref}${
-                revisionId
-                  ? `/revisions/${encodeURIComponent(revisionId)}/run`
-                  : selectedCollectionId
-                    ? `/collections/${selectedCollectionId}/revision/run`
-                    : '/revision/run'
-              }?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
-                settingsQuery ? `&${settingsQuery}` : ''
-              }${
-                reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
-              }${
-                revisionId ? `&revisionId=${encodeURIComponent(revisionId)}` : ''
-              }`}
-            >
-              {copy.cogita.library.actions.startRevision}
-            </a>
+            {!isCreateMode && revisionId ? (
+              <a className="cta" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/run`}>
+                {copy.cogita.library.actions.startRevision}
+              </a>
+            ) : null}
           </div>
         </header>
 
@@ -340,95 +276,27 @@ export function CogitaRevisionSettingsPage({
             <div className="cogita-library-grid">
               <div className="cogita-library-pane">
                 <div className="cogita-library-controls">
-	                  <div className="cogita-library-search">
-	                    <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-                      <div className="cogita-search-field">
-                        <input
-                          type="text"
-                          value={revisionQuery}
-                          onChange={(event) => setRevisionQuery(event.target.value)}
-                          placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
-                        />
-                      </div>
-                      <label className="cogita-field">
-                        <span>{copy.cogita.library.revision.modeLabel}</span>
-                        <select
-                          value={revisionTypeFilter}
-                          onChange={(event) => setRevisionTypeFilter(event.target.value)}
-                        >
-                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
-                          {revisionTypeOptions.map((typeKey) => (
-                            <option key={`type:${typeKey}`} value={typeKey}>
-                              {copy.cogita.library.revision[getRevisionType(typeKey).labelKey]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{copy.cogita.library.revision.modeLabel}</span>
-                        <select
-                          value={revisionModeFilter}
-                          onChange={(event) => setRevisionModeFilter(event.target.value)}
-                        >
-                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
-                          {revisionModeOptions.map((modeKey) => (
-                            <option key={`mode:${modeKey}`} value={modeKey}>
-                              {modeKey}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{copy.cogita.library.actions.collections}</span>
-                        <select
-                          value={revisionCollectionFilter}
-                          onChange={(event) => setRevisionCollectionFilter(event.target.value)}
-                        >
-                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
-                          {availableCollections.map((collectionOption) => (
-                            <option key={`filter:${collectionOption.collectionId}`} value={collectionOption.collectionId}>
-                              {collectionOption.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <div className="cogita-card-list" data-view="list">
-                        <a className="cogita-card-select" href={`${baseHref}/revisions/new`} style={{ display: 'block' }}>
-                          <div className="cogita-card-type">{copy.cogita.workspace.layers.revision}</div>
-                          <h3 className="cogita-card-title">{copy.cogita.workspace.revisionForm.createAction}</h3>
-                        </a>
-                        {filteredRevisions.map((revision) => (
-                          <a
-                            key={revision.revisionId}
-                            className="cogita-card-select"
-                            href={`${baseHref}/revisions/${encodeURIComponent(revision.revisionId)}`}
-                            style={{ display: 'block' }}
-                          >
-                            <div className="cogita-card-type">
-                              {copy.cogita.library.revision[getRevisionType((revision.revisionType ?? revision.mode ?? 'random').toLowerCase()).labelKey]}
-                            </div>
-                            <h3 className="cogita-card-title">{revision.name}</h3>
-                            <p className="cogita-card-meta">
-                              {(collectionNameById.get(revision.collectionId) ?? revision.collectionId)} · {revision.mode}
-                            </p>
-                          </a>
+                  <div className="cogita-library-search">
+                    <p className="cogita-user-kicker">{isCreateMode ? copy.cogita.workspace.revisionForm.createAction : copy.cogita.workspace.infoActions.edit}</p>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.library.actions.collections}</span>
+                      <select value={selectedCollectionId} onChange={(event) => setSelectedCollectionId(event.target.value)}>
+                        <option value="">{copy.cogita.workspace.selectCollectionOption}</option>
+                        {availableCollections.map((collectionOption) => (
+                          <option key={collectionOption.collectionId} value={collectionOption.collectionId}>
+                            {collectionOption.name}
+                          </option>
                         ))}
-                        {filteredRevisions.length === 0 ? <p className="cogita-help">{copy.cogita.workspace.status.noRevisions}</p> : null}
-                      </div>
-	                    <label className="cogita-field">
-	                      <span>{copy.cogita.library.actions.collections}</span>
-	                      <select value={selectedCollectionId} onChange={(event) => setSelectedCollectionId(event.target.value)}>
-	                        {availableCollections.map((collectionOption) => (
-	                          <option key={collectionOption.collectionId} value={collectionOption.collectionId}>
-	                            {collectionOption.name}
-	                          </option>
-	                        ))}
-	                      </select>
-	                    </label>
-	                    <label className="cogita-field">
-	                      <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
-	                      <input value={revisionName} onChange={(event) => setRevisionName(event.target.value)} />
-	                    </label>
+                      </select>
+                    </label>
+                    <label className="cogita-field">
+                      <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
+                      <input
+                        value={revisionName}
+                        onChange={(event) => setRevisionName(event.target.value)}
+                        placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
+                      />
+                    </label>
                     <label className="cogita-field">
                       <span>{copy.cogita.library.revision.modeLabel}</span>
                       <select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -464,7 +332,7 @@ export function CogitaRevisionSettingsPage({
                             min={field.min}
                             max={field.max}
                             step={field.step}
-                            value={normalizedSettings[field.key] ?? 0}
+                            value={Number(normalizedSettings[field.key] ?? 0)}
                             onChange={(event) =>
                               setRevisionSettings((prev) => ({
                                 ...prev,
@@ -475,10 +343,6 @@ export function CogitaRevisionSettingsPage({
                         )}
                       </label>
                     ))}
-                    <label className="cogita-field">
-                      <span>{copy.cogita.library.revision.checkLabel}</span>
-                      <input value={copy.cogita.library.revision.checkValue} disabled />
-                    </label>
                     {revisionType.id === 'random' ? (
                       <label className="cogita-field">
                         <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
@@ -504,157 +368,89 @@ export function CogitaRevisionSettingsPage({
                         ))}
                       </select>
                     </label>
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={handleSaveRevision} disabled={saveStatus === 'saving'}>
+                        {saveStatus === 'saving'
+                          ? '...'
+                          : isCreateMode
+                            ? copy.cogita.workspace.revisionForm.createAction
+                            : copy.cogita.workspace.infoActions.edit}
+                      </button>
+                    </div>
+                    {saveStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.error}</p> : null}
                   </div>
                 </div>
               </div>
 
               <div className="cogita-library-panel">
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
-                      <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsKicker}</p>
-                      <h3 className="cogita-detail-title">{copy.cogita.library.revision.previewTitle}</h3>
+                {!isCreateMode && revisionId ? (
+                  <section className="cogita-library-detail">
+                    <div className="cogita-detail-header">
+                      <div>
+                        <p className="cogita-user-kicker">{copy.cogita.library.revision.shareKicker}</p>
+                        <h3 className="cogita-detail-title">{copy.cogita.library.revision.shareTitle}</h3>
+                      </div>
                     </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.revision.previewBody1}</p>
-                    <p>{copy.cogita.library.revision.previewBody2}</p>
-                  </div>
-                  <div className="cogita-form-actions">
-                    {revisionId ? (
-                      <button type="button" className="cta ghost" onClick={handleSaveRevision} disabled={saveStatus === 'saving'}>
-                        {saveStatus === 'saving' ? '...' : copy.cogita.workspace.revisionForm.createAction}
+                    <div className="cogita-detail-body">
+                      <p>{copy.cogita.library.revision.shareBody}</p>
+                      {activeShareLink ? (
+                        <div className="cogita-field">
+                          <span>{copy.cogita.library.revision.shareLinkLabel}</span>
+                          <input value={activeShareLink} readOnly />
+                        </div>
+                      ) : (
+                        <p>{copy.cogita.library.revision.shareListEmpty}</p>
+                      )}
+                      {shareStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.shareError}</p> : null}
+                      {shareCopyStatus === 'copied' ? (
+                        <p className="cogita-help">{copy.cogita.library.revision.shareCopied}</p>
+                      ) : shareCopyStatus === 'failed' ? (
+                        <p className="cogita-help">{copy.cogita.library.revision.shareCopyError}</p>
+                      ) : null}
+                    </div>
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={handleCreateShare} disabled={shareStatus === 'working'}>
+                        {shareStatus === 'working'
+                          ? copy.cogita.library.revision.shareWorking
+                          : activeShare
+                            ? copy.cogita.library.revision.shareAction
+                            : copy.cogita.library.revision.shareAction}
                       </button>
-                    ) : null}
-                    <a
-                      className="cta"
-                      href={`${baseHref}${
-                        revisionId
-                          ? `/revisions/${encodeURIComponent(revisionId)}/run`
-                          : selectedCollectionId
-                            ? `/collections/${selectedCollectionId}/revision/run`
-                            : '/revision/run'
-                      }?mode=${encodeURIComponent(mode)}&check=${encodeURIComponent(check)}&limit=${limit}${
-                        settingsQuery ? `&${settingsQuery}` : ''
-                      }${
-                        reviewerRoleId ? `&reviewer=${encodeURIComponent(reviewerRoleId)}` : ''
-                      }${
-                        revisionId ? `&revisionId=${encodeURIComponent(revisionId)}` : ''
-                      }`}
-                    >
-                      {copy.cogita.library.actions.startRevision}
-                    </a>
-                    {revisionId ? (
+                      {activeShareLink ? (
+                        <button type="button" className="cta ghost" onClick={handleCopyShare}>
+                          {copy.cogita.library.revision.shareCopyAction}
+                        </button>
+                      ) : null}
+                      {activeShare ? (
+                        <button type="button" className="cta ghost" onClick={handleRevokeShare}>
+                          {copy.cogita.library.revision.shareRevokeAction}
+                        </button>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
+
+                {!isCreateMode && revisionId ? (
+                  <section className="cogita-library-detail">
+                    <div className="cogita-detail-header">
+                      <div>
+                        <p className="cogita-user-kicker">{copy.cogita.workspace.revisions.live}</p>
+                        <h3 className="cogita-detail-title">{copy.cogita.workspace.infoMode.search}</h3>
+                      </div>
+                    </div>
+                    <div className="cogita-detail-body">
+                      <p>{copy.cogita.library.revision.live.hostTitle}</p>
+                    </div>
+                    <div className="cogita-form-actions">
+                      <a className="cta ghost" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions`}>
+                        {copy.cogita.workspace.revisions.live}
+                      </a>
                       <a
                         className="cta ghost"
                         href={`/#/cogita/live-revision-host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}`}
                       >
-                        Live session
+                        {copy.cogita.library.revision.live.hostTitle}
                       </a>
-                    ) : null}
-                    <a
-                      className="cta ghost"
-                      href={`/#/cogita/live-sessions/${encodeURIComponent(libraryId)}`}
-                    >
-                      Active live sessions
-                    </a>
-                  </div>
-                  {saveStatus === 'error' ? <p className="cogita-help">Failed to save revision.</p> : null}
-                </section>
-
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
-                      <p className="cogita-user-kicker">{copy.cogita.library.revision.shareKicker}</p>
-                      <h3 className="cogita-detail-title">{copy.cogita.library.revision.shareTitle}</h3>
-                    </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.revision.shareBody}</p>
-                    {shareLink ? (
-                      <div className="cogita-field">
-                        <span>{copy.cogita.library.revision.shareLinkLabel}</span>
-                        <input value={shareLink} readOnly />
-                      </div>
-                    ) : null}
-                    {shareStatus === 'error' ? (
-                      <p className="cogita-help">{copy.cogita.library.revision.shareError}</p>
-                    ) : null}
-                    {shareCopyStatus === 'copied' ? (
-                      <p className="cogita-help">{copy.cogita.library.revision.shareCopied}</p>
-                    ) : shareCopyStatus === 'failed' ? (
-                      <p className="cogita-help">{copy.cogita.library.revision.shareCopyError}</p>
-                    ) : null}
-                  </div>
-                  <div className="cogita-form-actions">
-                    <button type="button" className="cta" onClick={handleCreateShare} disabled={shareStatus === 'working'}>
-                      {shareStatus === 'working'
-                        ? copy.cogita.library.revision.shareWorking
-                        : copy.cogita.library.revision.shareAction}
-                    </button>
-                    {shareLink ? (
-                      <button type="button" className="cta ghost" onClick={handleCopyShare}>
-                        {copy.cogita.library.revision.shareCopyAction}
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p className="cogita-user-kicker">{copy.cogita.library.revision.shareListTitle}</p>
-                    {shareListStatus === 'loading' ? (
-                      <p>{copy.cogita.library.revision.shareListLoading}</p>
-                    ) : shares.filter((share) => !revisionId || share.revisionId === revisionId).length === 0 ? (
-                      <p>{copy.cogita.library.revision.shareListEmpty}</p>
-                    ) : (
-                      <div className="cogita-share-list">
-                        {shares.filter((share) => !revisionId || share.revisionId === revisionId).map((share) => (
-                          <div className="cogita-share-row" key={share.shareId} data-state={share.revokedUtc ? 'revoked' : 'active'}>
-                            <div>
-                              <strong>{share.revisionName}</strong>
-                              <div className="cogita-share-meta">{share.collectionName}</div>
-                              <div className="cogita-share-meta">
-                                {new Date(share.createdUtc).toLocaleString()}
-                                {share.revokedUtc ? ` · ${copy.cogita.library.revision.shareRevoked}` : ''}
-                              </div>
-                            </div>
-                            {!share.revokedUtc ? (
-                              <button type="button" className="ghost" onClick={() => handleRevokeShare(share.shareId)}>
-                                {copy.cogita.library.revision.shareRevokeAction}
-                              </button>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </section>
-                {revisionId ? (
-                  <section className="cogita-library-detail">
-                    <div className="cogita-detail-header">
-                      <div>
-                        <p className="cogita-user-kicker">Live sessions</p>
-                        <h3 className="cogita-detail-title">Active sessions for this revision</h3>
-                      </div>
-                    </div>
-                    <div className="cogita-detail-body">
-                      {liveSessions.length === 0 ? (
-                        <p className="cogita-help">No active sessions.</p>
-                      ) : (
-                        <div className="cogita-share-list">
-                          {liveSessions.map((item) => (
-                            <div className="cogita-share-row" key={`revision-live:${item.sessionId}`}>
-                              <div>
-                                <strong>{item.title || item.sessionId}</strong>
-                                <div className="cogita-share-meta">
-                                  {item.status} · participants: {item.participantCount}
-                                </div>
-                              </div>
-                              <a className="ghost" href={`/#/cogita/live-sessions/${encodeURIComponent(libraryId)}`}>
-                                Open sessions
-                              </a>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </section>
                 ) : null}

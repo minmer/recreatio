@@ -122,10 +122,10 @@ export function CogitaCollectionDetailPage({
             <a className="cta ghost" href={`${baseHref}/collections`}>
               {copy.cogita.library.actions.collections}
             </a>
-            <a className="cta ghost" href={`${baseHref}/collections/${collectionId}/graph`}>
+            <a className="cta ghost" href={`${baseHref}/collections/${collectionId}/edit`}>
               {copy.cogita.library.graph.kicker}
             </a>
-            <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
+            <a className="cta" href={`${baseHref}/revisions`}>
               {copy.cogita.library.actions.startRevision}
             </a>
           </div>
@@ -185,7 +185,7 @@ export function CogitaCollectionDetailPage({
                     <p>{copy.cogita.library.collections.detailFocusBody}</p>
                   </div>
                   <div className="cogita-form-actions">
-                    <a className="cta" href={`${baseHref}/collections/${collectionId}/revision`}>
+                    <a className="cta" href={`${baseHref}/revisions`}>
                       {copy.cogita.library.actions.startRevision}
                     </a>
                   </div>

@@ -174,7 +174,8 @@ export const en: Copy = {
         detail: 'Detail',
         graph: 'Graph',
         settings: 'Settings',
-        run: 'Run'
+        run: 'Run',
+        live: 'Live sessions'
       },
       status: {
         loadFailed: 'Failed to load Cogita workspace.',
@@ -232,6 +233,8 @@ export const en: Copy = {
         infoActionsHint: 'Info actions',
         selectedInfoActionsHint: 'Selected info actions',
         collectionActionsHint: 'Collection actions',
+        revisionLiveSessionsHint: 'Participating live sessions',
+        noRevisionLiveSessions: 'No participating sessions.',
         accountSettings: 'Account settings',
         cogitaHome: 'Cogita home'
       }
@@ -1081,6 +1084,18 @@ export const en: Copy = {
           joinUrlLabel: 'Join URL',
           qrLabel: 'QR',
           statusLabel: 'Status',
+          sessionModeLabel: 'Session mode',
+          modeSimultaneous: 'Simultaneous',
+          modeAsynchronous: 'Asynchronous',
+          hostViewModeLabel: 'Host view',
+          hostViewPanel: 'Panel',
+          hostViewQuestion: 'Question',
+          hostViewScore: 'Score',
+          participantViewModeLabel: 'Participant view',
+          participantViewQuestion: 'Question',
+          participantViewScore: 'Score',
+          participantViewFullscreen: 'Fullscreen',
+          sessionSettingsLabel: 'Session settings (JSON)',
           statusLobby: 'Lobby',
           statusRunning: 'Running',
           statusRevealed: 'Revealed',

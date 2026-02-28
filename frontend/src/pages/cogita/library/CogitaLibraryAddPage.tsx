@@ -1479,7 +1479,7 @@ export function CogitaLibraryAddPage({
             <p className="cogita-library-subtitle">Specification-driven editor</p>
           </div>
           <div className="cogita-library-actions">
-            <a className="cta ghost" href={`/#/cogita/library/${libraryId}/list`}>
+            <a className="cta ghost" href={`/#/cogita/library/${libraryId}/infos`}>
               Back to list
             </a>
           </div>
