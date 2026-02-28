@@ -67,6 +67,9 @@ export function CogitaRevisionSettingsPage({
   const [shares, setShares] = useState<CogitaRevisionShare[]>([]);
   const [revisions, setRevisions] = useState<CogitaRevision[]>([]);
   const [revisionQuery, setRevisionQuery] = useState('');
+  const [revisionTypeFilter, setRevisionTypeFilter] = useState('all');
+  const [revisionModeFilter, setRevisionModeFilter] = useState('all');
+  const [revisionCollectionFilter, setRevisionCollectionFilter] = useState('all');
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -83,11 +86,52 @@ export function CogitaRevisionSettingsPage({
     [revisionType, revisionSettings]
   );
   const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
+  const collectionNameById = useMemo(
+    () => new Map(availableCollections.map((item) => [item.collectionId, item.name])),
+    [availableCollections]
+  );
+  const revisionTypeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const values: string[] = [];
+    revisions.forEach((revision) => {
+      const key = (revision.revisionType ?? revision.mode ?? 'random').toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        values.push(key);
+      }
+    });
+    return values;
+  }, [revisions]);
+  const revisionModeOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const values: string[] = [];
+    revisions.forEach((revision) => {
+      const key = (revision.mode ?? 'random').toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        values.push(key);
+      }
+    });
+    return values;
+  }, [revisions]);
   const filteredRevisions = useMemo(() => {
     const needle = revisionQuery.trim().toLocaleLowerCase();
-    if (!needle) return revisions;
-    return revisions.filter((revision) => revision.name.toLocaleLowerCase().includes(needle));
-  }, [revisionQuery, revisions]);
+    return revisions.filter((revision) => {
+      const typeKey = (revision.revisionType ?? revision.mode ?? 'random').toLowerCase();
+      const modeKey = (revision.mode ?? 'random').toLowerCase();
+      const collectionName = collectionNameById.get(revision.collectionId) ?? '';
+      if (revisionTypeFilter !== 'all' && typeKey !== revisionTypeFilter) return false;
+      if (revisionModeFilter !== 'all' && modeKey !== revisionModeFilter) return false;
+      if (revisionCollectionFilter !== 'all' && revision.collectionId !== revisionCollectionFilter) return false;
+      if (!needle) return true;
+      return (
+        revision.name.toLocaleLowerCase().includes(needle) ||
+        collectionName.toLocaleLowerCase().includes(needle) ||
+        typeKey.includes(needle) ||
+        modeKey.includes(needle)
+      );
+    });
+  }, [collectionNameById, revisionCollectionFilter, revisionModeFilter, revisionQuery, revisionTypeFilter, revisions]);
 
   useEffect(() => {
     setSelectedCollectionId(collectionId ?? '');
@@ -306,6 +350,48 @@ export function CogitaRevisionSettingsPage({
                           placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
                         />
                       </div>
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.revision.modeLabel}</span>
+                        <select
+                          value={revisionTypeFilter}
+                          onChange={(event) => setRevisionTypeFilter(event.target.value)}
+                        >
+                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
+                          {revisionTypeOptions.map((typeKey) => (
+                            <option key={`type:${typeKey}`} value={typeKey}>
+                              {copy.cogita.library.revision[getRevisionType(typeKey).labelKey]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.revision.modeLabel}</span>
+                        <select
+                          value={revisionModeFilter}
+                          onChange={(event) => setRevisionModeFilter(event.target.value)}
+                        >
+                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
+                          {revisionModeOptions.map((modeKey) => (
+                            <option key={`mode:${modeKey}`} value={modeKey}>
+                              {modeKey}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.actions.collections}</span>
+                        <select
+                          value={revisionCollectionFilter}
+                          onChange={(event) => setRevisionCollectionFilter(event.target.value)}
+                        >
+                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
+                          {availableCollections.map((collectionOption) => (
+                            <option key={`filter:${collectionOption.collectionId}`} value={collectionOption.collectionId}>
+                              {collectionOption.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <div className="cogita-card-list" data-view="list">
                         <a className="cogita-card-select" href={`${baseHref}/revisions/new`} style={{ display: 'block' }}>
                           <div className="cogita-card-type">{copy.cogita.workspace.layers.revision}</div>
@@ -318,10 +404,16 @@ export function CogitaRevisionSettingsPage({
                             href={`${baseHref}/revisions/${encodeURIComponent(revision.revisionId)}`}
                             style={{ display: 'block' }}
                           >
-                            <div className="cogita-card-type">{copy.cogita.workspace.layers.revision}</div>
+                            <div className="cogita-card-type">
+                              {copy.cogita.library.revision[getRevisionType((revision.revisionType ?? revision.mode ?? 'random').toLowerCase()).labelKey]}
+                            </div>
                             <h3 className="cogita-card-title">{revision.name}</h3>
+                            <p className="cogita-card-meta">
+                              {(collectionNameById.get(revision.collectionId) ?? revision.collectionId)} · {revision.mode}
+                            </p>
                           </a>
                         ))}
+                        {filteredRevisions.length === 0 ? <p className="cogita-help">{copy.cogita.workspace.status.noRevisions}</p> : null}
                       </div>
 	                    <label className="cogita-field">
 	                      <span>{copy.cogita.library.actions.collections}</span>

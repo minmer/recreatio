@@ -1,6 +1,128 @@
 import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../lib/api';
 import { buildQuoteFragmentTree } from '../../../../cogita/revision/quote';
+import {
+  normalizeQuestionType,
+  parseQuestionDefinition,
+  shuffleQuestionDefinitionForRuntime
+} from '../questions/questionRuntime';
+import type { CheckcardExpectedModel, CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 export { normalizeQuestionType } from '../questions/questionRuntime';
+
+export type RevisionQuestionPrompt = {
+  kind: 'text' | 'selection' | 'boolean' | 'ordering' | 'matching';
+  prompt: string;
+  options?: string[];
+  multiple?: boolean;
+  inputType?: 'text' | 'number' | 'date';
+  columns?: string[][];
+};
+
+export type RevisionQuestionAnswers = {
+  text: string;
+  selection: number[];
+  booleanAnswer: boolean | null;
+  ordering: string[];
+  matchingRows: number[][];
+  matchingSelection: Array<number | null>;
+};
+
+export type RevisionQuestionRuntime = {
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+  expectedModel: CheckcardExpectedModel;
+  promptPayload: RevisionQuestionPrompt;
+  initialAnswers: RevisionQuestionAnswers;
+};
+
+export const emptyQuestionAnswers = (): RevisionQuestionAnswers => ({
+  text: '',
+  selection: [],
+  booleanAnswer: null,
+  ordering: [],
+  matchingRows: [],
+  matchingSelection: []
+});
+
+function shuffleStrings(values: string[]) {
+  const next = [...values];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
+export function buildRevisionQuestionRuntime(value: unknown, fallbackPrompt: string): RevisionQuestionRuntime | null {
+  const parsed = parseQuestionDefinition(value);
+  if (!parsed) return null;
+  const def = shuffleQuestionDefinitionForRuntime(parsed);
+  const promptText = (def.question || def.title || fallbackPrompt || '').trim();
+
+  if (def.type === 'selection') {
+    const options = def.options ?? [];
+    const expected = Array.isArray(def.answer) ? def.answer : [];
+    return {
+      promptText,
+      promptModel: { kind: 'selection', options },
+      expectedModel: expected,
+      promptPayload: { kind: 'selection', prompt: promptText, options, multiple: expected.length !== 1 },
+      initialAnswers: emptyQuestionAnswers()
+    };
+  }
+
+  if (def.type === 'truefalse') {
+    const expected = typeof def.answer === 'boolean' ? def.answer : false;
+    return {
+      promptText,
+      promptModel: { kind: 'boolean' },
+      expectedModel: expected,
+      promptPayload: { kind: 'boolean', prompt: promptText },
+      initialAnswers: emptyQuestionAnswers()
+    };
+  }
+
+  if (def.type === 'ordering') {
+    const options = def.options ?? [];
+    return {
+      promptText,
+      promptModel: { kind: 'ordering', options },
+      expectedModel: options,
+      promptPayload: { kind: 'ordering', prompt: promptText, options },
+      initialAnswers: {
+        ...emptyQuestionAnswers(),
+        ordering: shuffleStrings(options)
+      }
+    };
+  }
+
+  if (def.type === 'matching') {
+    const columns = def.columns ?? [];
+    const expected =
+      def.answer && typeof def.answer === 'object' && 'paths' in def.answer
+        ? { paths: Array.isArray(def.answer.paths) ? def.answer.paths : [] }
+        : { paths: [] };
+    return {
+      promptText,
+      promptModel: { kind: 'matching', columns },
+      expectedModel: expected,
+      promptPayload: { kind: 'matching', prompt: promptText, columns },
+      initialAnswers: {
+        ...emptyQuestionAnswers(),
+        matchingSelection: new Array(Math.max(2, columns.length)).fill(null)
+      }
+    };
+  }
+
+  const expected = typeof def.answer === 'string' || typeof def.answer === 'number' ? def.answer : '';
+  const inputType = def.type === 'number' ? 'number' : def.type === 'date' ? 'date' : 'text';
+  return {
+    promptText,
+    promptModel: { kind: 'text', inputType },
+    expectedModel: expected,
+    promptPayload: { kind: 'text', prompt: promptText, inputType },
+    initialAnswers: emptyQuestionAnswers()
+  };
+}
 
 export const normalizeAnswer = (value: string) => value.trim().toLowerCase();
 

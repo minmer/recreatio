@@ -3,6 +3,8 @@ import type { KeyboardEvent, MutableRefObject } from 'react';
 import type { Copy } from '../../../../../content/types';
 import type { CogitaCardSearchResult, CogitaInfoSearchResult } from '../../../../../lib/api';
 import { LatexBlock } from '../../../../../components/LatexText';
+import { CogitaLivePromptCard } from '../../../live/components/CogitaLivePromptCard';
+import type { RevisionQuestionAnswers, RevisionQuestionPrompt } from '../revisionShared';
 
 export function CogitaRevisionCard({
   copy,
@@ -48,6 +50,15 @@ export function CogitaRevisionCard({
   matchFeedback,
   onMatchLeftSelect,
   onMatchRightSelect,
+  questionPrompt,
+  questionAnswers,
+  questionRevealExpected,
+  onQuestionTextChange,
+  onQuestionSelectionToggle,
+  onQuestionBooleanChange,
+  onQuestionOrderingMove,
+  onQuestionMatchingPick,
+  onQuestionMatchingRemovePath,
   disableCheckAnswer = false,
   hideSkipAction = false,
   allowRevealBeforeCheck = false,
@@ -108,6 +119,15 @@ export function CogitaRevisionCard({
   matchFeedback?: Record<string, 'correct' | 'incorrect'>;
   onMatchLeftSelect?: (leftId: string) => void;
   onMatchRightSelect?: (rightId: string) => void;
+  questionPrompt?: RevisionQuestionPrompt | null;
+  questionAnswers?: RevisionQuestionAnswers;
+  questionRevealExpected?: unknown;
+  onQuestionTextChange?: (value: string) => void;
+  onQuestionSelectionToggle?: (index: number) => void;
+  onQuestionBooleanChange?: (value: boolean) => void;
+  onQuestionOrderingMove?: (index: number, delta: -1 | 1) => void;
+  onQuestionMatchingPick?: (columnIndex: number, optionIndex: number) => void;
+  onQuestionMatchingRemovePath?: (pathIndex: number) => void;
   disableCheckAnswer?: boolean;
   hideSkipAction?: boolean;
   allowRevealBeforeCheck?: boolean;
@@ -406,28 +426,50 @@ export function CogitaRevisionCard({
         </div>
       ) : currentCard.cardType === 'info' && currentCard.infoType === 'question' ? (
         <div className="cogita-revision-body">
-          <h2>{prompt}</h2>
-          <label className="cogita-field">
-            <span>{copy.cogita.library.revision.answerLabel}</span>
-            <input
-              ref={answerInputRef as MutableRefObject<HTMLInputElement | null>}
-              value={answer}
-              onChange={(event) => onAnswerChange(event.target.value)}
-              placeholder={copy.cogita.library.revision.answerPlaceholder}
-              data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                event.stopPropagation();
-                if (canAdvance) {
-                  onAdvance();
-                } else {
-                  if (checkDisabled) return;
-                  onCheckAnswer();
-                }
+          {questionPrompt ? (
+            <CogitaLivePromptCard
+              prompt={questionPrompt}
+              revealExpected={questionRevealExpected}
+              mode="interactive"
+              labels={{
+                answerLabel: copy.cogita.library.revision.answerLabel,
+                correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
+                participantAnswerPlaceholder: copy.cogita.library.revision.answerPlaceholder
               }}
+              answers={questionAnswers}
+              onTextChange={onQuestionTextChange}
+              onSelectionToggle={onQuestionSelectionToggle}
+              onBooleanChange={onQuestionBooleanChange}
+              onOrderingMove={onQuestionOrderingMove}
+              onMatchingPick={onQuestionMatchingPick}
+              onMatchingRemovePath={onQuestionMatchingRemovePath}
             />
-          </label>
+          ) : (
+            <>
+              <h2>{prompt}</h2>
+              <label className="cogita-field">
+                <span>{copy.cogita.library.revision.answerLabel}</span>
+                <input
+                  ref={answerInputRef as MutableRefObject<HTMLInputElement | null>}
+                  value={answer}
+                  onChange={(event) => onAnswerChange(event.target.value)}
+                  placeholder={copy.cogita.library.revision.answerPlaceholder}
+                  data-state={feedback === 'correct' ? 'correct' : feedback === 'incorrect' ? 'incorrect' : undefined}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (canAdvance) {
+                      onAdvance();
+                    } else {
+                      if (checkDisabled) return;
+                      onCheckAnswer();
+                    }
+                  }}
+                />
+              </label>
+            </>
+          )}
           <div className="cogita-form-actions">
             <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
               {copy.cogita.library.revision.checkAnswer}

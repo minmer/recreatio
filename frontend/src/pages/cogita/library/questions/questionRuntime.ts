@@ -25,15 +25,33 @@ export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
 export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
   if (!value || typeof value !== 'object') return null;
   const data = value as Record<string, unknown>;
-  const root = data.definition && typeof data.definition === 'object'
-    ? (data.definition as Record<string, unknown>)
-    : data;
+  const root = (() => {
+    if (data.definition && typeof data.definition === 'object') {
+      return data.definition as Record<string, unknown>;
+    }
+    if (typeof data.definition === 'string') {
+      try {
+        const parsed = JSON.parse(data.definition);
+        if (parsed && typeof parsed === 'object') {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        // ignore malformed legacy definition strings
+      }
+    }
+    return data;
+  })();
 
-  const type = normalizeQuestionType(root.type ?? root.kind);
+  const type = normalizeQuestionType(root.type ?? root.kind ?? root.questionType);
   if (!type) return null;
 
   const title = typeof root.title === 'string' ? root.title : undefined;
-  const question = typeof root.question === 'string' ? root.question : '';
+  const question =
+    typeof root.question === 'string'
+      ? root.question
+      : typeof root.prompt === 'string'
+        ? root.prompt
+        : '';
 
   const options = Array.isArray(root.options)
     ? root.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)

@@ -46,15 +46,19 @@ import {
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
+import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 import {
   applyScriptMode,
+  buildRevisionQuestionRuntime,
+  emptyQuestionAnswers,
   expandQuoteDirectionCards,
   getFirstComputedInputKey,
   matchesDependencyChild,
   matchesQuoteDirection,
   normalizeAnswer,
   normalizeDependencyToken,
-  normalizeQuestionType,
+  type RevisionQuestionAnswers,
+  type RevisionQuestionPrompt,
   parseQuoteFragmentDirection
 } from './revisionShared';
 
@@ -96,6 +100,10 @@ export function CogitaRevisionShareRunPage({
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
   const [expectedAnswer, setExpectedAnswer] = useState<string | null>(null);
+  const [questionPrompt, setQuestionPrompt] = useState<RevisionQuestionPrompt | null>(null);
+  const [questionPromptModel, setQuestionPromptModel] = useState<CheckcardPromptModel | null>(null);
+  const [questionExpectedModel, setQuestionExpectedModel] = useState<CheckcardExpectedModel>(null);
+  const [questionAnswers, setQuestionAnswers] = useState<RevisionQuestionAnswers>(() => emptyQuestionAnswers());
   const [quoteContext, setQuoteContext] = useState<{
     title: string;
     before: string;
@@ -173,24 +181,22 @@ export function CogitaRevisionShareRunPage({
   const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
   const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
   const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
-  const resolvedCardCache = useRef(new Map<string, {
+  type ResolvedCardResult = {
     prompt: string | null;
     expectedAnswer: string | null;
     computedExpected: Array<{ key: string; expected: string }>;
     computedAnswers: Record<string, string>;
+    computedValues: Record<string, number | string> | null;
     answerTemplate: string | null;
     outputVariables: Record<string, string> | null;
     variableValues: Record<string, string> | null;
-  }>());
-  const resolvedCardPromises = useRef(new Map<string, Promise<{
-    prompt: string | null;
-    expectedAnswer: string | null;
-    computedExpected: Array<{ key: string; expected: string }>;
-    computedAnswers: Record<string, string>;
-    answerTemplate: string | null;
-    outputVariables: Record<string, string> | null;
-    variableValues: Record<string, string> | null;
-  } | null>>());
+    questionPrompt: RevisionQuestionPrompt | null;
+    questionPromptModel: CheckcardPromptModel | null;
+    questionExpectedModel: CheckcardExpectedModel;
+    questionInitialAnswers: RevisionQuestionAnswers;
+  };
+  const resolvedCardCache = useRef(new Map<string, ResolvedCardResult>());
+  const resolvedCardPromises = useRef(new Map<string, Promise<ResolvedCardResult | null>>());
   const currentTypeLabel = useMemo(() => {
     if (!currentCard) return '';
     if (currentCard.cardType === 'vocab') return copy.cogita.library.revision.vocabLabel;
@@ -665,6 +671,10 @@ export function CogitaRevisionShareRunPage({
     setComputedAnswerTemplate(null);
     setComputedOutputVariables(null);
     setComputedVariableValues(null);
+    setQuestionPrompt(null);
+    setQuestionPromptModel(null);
+    setQuestionExpectedModel(null);
+    setQuestionAnswers(emptyQuestionAnswers());
     setShowCorrectAnswer(false);
     setCanAdvance(false);
     setScriptMode(null);
@@ -673,6 +683,10 @@ export function CogitaRevisionShareRunPage({
     if (!currentCard) {
       setPrompt(null);
       setExpectedAnswer(null);
+      setQuestionPrompt(null);
+      setQuestionPromptModel(null);
+      setQuestionExpectedModel(null);
+      setQuestionAnswers(emptyQuestionAnswers());
       return;
     }
     if (currentCard.cardType === 'info' && currentCard.infoType === 'computed') {
@@ -689,6 +703,10 @@ export function CogitaRevisionShareRunPage({
       setComputedAnswerTemplate(resolved.answerTemplate);
       setComputedOutputVariables(resolved.outputVariables);
       setComputedVariableValues(resolved.variableValues);
+      setQuestionPrompt(resolved.questionPrompt);
+      setQuestionPromptModel(resolved.questionPromptModel);
+      setQuestionExpectedModel(resolved.questionExpectedModel);
+      setQuestionAnswers(resolved.questionInitialAnswers);
     });
     return () => {
       mounted = false;
@@ -1022,6 +1040,47 @@ export function CogitaRevisionShareRunPage({
     });
   };
 
+  const handleQuestionSelectionToggle = (index: number) => {
+    setQuestionAnswers((prev) => {
+      if (questionPrompt?.multiple) {
+        const selected = prev.selection.includes(index)
+          ? prev.selection.filter((item) => item !== index)
+          : Array.from(new Set([...prev.selection, index]));
+        return { ...prev, selection: selected };
+      }
+      return { ...prev, selection: prev.selection[0] === index ? [] : [index] };
+    });
+  };
+
+  const handleQuestionMatchingPick = (columnIndex: number, optionIndex: number) => {
+    setQuestionAnswers((prev) => {
+      const width = Math.max(2, questionPrompt?.columns?.length ?? 2);
+      const nextSelection = Array.from({ length: width }, (_, index) => prev.matchingSelection[index] ?? null);
+      nextSelection[columnIndex] = nextSelection[columnIndex] === optionIndex ? null : optionIndex;
+      if (nextSelection.some((value) => value == null)) {
+        return { ...prev, matchingSelection: nextSelection };
+      }
+      const completedPath = nextSelection.map((value) => Number(value));
+      const completedKey = completedPath.join('|');
+      const exists = prev.matchingRows.some((row) => row.join('|') === completedKey);
+      return {
+        ...prev,
+        matchingRows: exists ? prev.matchingRows : [...prev.matchingRows, completedPath],
+        matchingSelection: new Array(width).fill(null)
+      };
+    });
+  };
+
+  const handleQuestionOrderingMove = (index: number, delta: -1 | 1) => {
+    setQuestionAnswers((prev) => {
+      const next = [...prev.ordering];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...prev, ordering: next };
+    });
+  };
+
   const advanceCard = () => {
     if (
       currentCard &&
@@ -1168,15 +1227,7 @@ export function CogitaRevisionShareRunPage({
     return promise;
   };
 
-  const resolveCard = (card: CogitaCardSearchResult, index: number): Promise<{
-    prompt: string | null;
-    expectedAnswer: string | null;
-    computedExpected: Array<{ key: string; expected: string }>;
-    computedAnswers: Record<string, string>;
-    answerTemplate: string | null;
-    outputVariables: Record<string, string> | null;
-    variableValues: Record<string, string> | null;
-  } | null> => {
+  const resolveCard = (card: CogitaCardSearchResult, index: number): Promise<ResolvedCardResult | null> => {
     const cacheKey = `${getCardKey(card)}:${index}`;
     const cached = resolvedCardCache.current.get(cacheKey);
     if (cached) return Promise.resolve(cached);
@@ -1188,23 +1239,27 @@ export function CogitaRevisionShareRunPage({
       expectedAnswer: string | null;
       computedExpected: Array<{ key: string; expected: string }>;
       computedAnswers: Record<string, string>;
+      computedValues: Record<string, number | string> | null;
       answerTemplate: string | null;
       outputVariables: Record<string, string> | null;
       variableValues: Record<string, string> | null;
+      questionPrompt?: RevisionQuestionPrompt | null;
+      questionPromptModel?: CheckcardPromptModel | null;
+      questionExpectedModel?: CheckcardExpectedModel;
+      questionInitialAnswers?: RevisionQuestionAnswers;
     }) => {
-      resolvedCardCache.current.set(cacheKey, resolved);
-      return resolved;
+      const normalized: ResolvedCardResult = {
+        ...resolved,
+        questionPrompt: resolved.questionPrompt ?? null,
+        questionPromptModel: resolved.questionPromptModel ?? null,
+        questionExpectedModel: resolved.questionExpectedModel ?? null,
+        questionInitialAnswers: resolved.questionInitialAnswers ?? emptyQuestionAnswers()
+      };
+      resolvedCardCache.current.set(cacheKey, normalized);
+      return normalized;
     };
 
-    let promise: Promise<{
-      prompt: string | null;
-      expectedAnswer: string | null;
-      computedExpected: Array<{ key: string; expected: string }>;
-      computedAnswers: Record<string, string>;
-      answerTemplate: string | null;
-      outputVariables: Record<string, string> | null;
-      variableValues: Record<string, string> | null;
-    } | null>;
+    let promise: Promise<ResolvedCardResult | null>;
 
     if (card.cardType === 'vocab') {
       if (card.checkType === 'translation-match') {
@@ -1234,6 +1289,7 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: expected,
             computedExpected: [],
             computedAnswers: {},
+            computedValues: null,
             answerTemplate: null,
             outputVariables: null,
             variableValues: null
@@ -1246,6 +1302,7 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
+            computedValues: null,
             answerTemplate: null,
             outputVariables: null,
             variableValues: null
@@ -1262,26 +1319,64 @@ export function CogitaRevisionShareRunPage({
           expectedAnswer: match,
           computedExpected: [],
           computedAnswers: {},
+          computedValues: null,
           answerTemplate: null,
           outputVariables: null,
           variableValues: null
           })
         );
     } else if (card.cardType === 'info' && card.infoType === 'question') {
-      promise = getCogitaPublicInfoDetail({ shareCode: shareId, infoId: card.cardId, key: shareKey })
-        .then((detail) => {
-          const root = (detail.payload ?? {}) as Record<string, unknown>;
-          const rawDef = ((root.definition ?? root) as Record<string, unknown>) ?? {};
-          const type = normalizeQuestionType(rawDef.type ?? rawDef.kind);
-          const question =
-            (typeof rawDef.question === 'string' && rawDef.question.trim() ? rawDef.question.trim() : null) ??
-            (typeof rawDef.title === 'string' && rawDef.title.trim() ? rawDef.title.trim() : null) ??
-            card.label;
-          const answerValue = rawDef.answer;
-          if (type === 'text' || type === 'number' || type === 'date') {
+      const runtimeFromCard = buildRevisionQuestionRuntime(card.payload ?? null, card.label);
+      if (runtimeFromCard) {
+        promise = Promise.resolve(
+          finalize({
+            prompt: runtimeFromCard.promptText,
+            expectedAnswer:
+              runtimeFromCard.promptModel.kind === 'text'
+                ? (typeof runtimeFromCard.expectedModel === 'string' || typeof runtimeFromCard.expectedModel === 'number'
+                    ? String(runtimeFromCard.expectedModel)
+                    : null)
+                : null,
+            computedExpected: [],
+            computedAnswers: {},
+            computedValues: null,
+            answerTemplate: null,
+            outputVariables: null,
+            variableValues: null,
+            questionPrompt: runtimeFromCard.promptPayload,
+            questionPromptModel: runtimeFromCard.promptModel,
+            questionExpectedModel: runtimeFromCard.expectedModel,
+            questionInitialAnswers: runtimeFromCard.initialAnswers
+          })
+        );
+      } else {
+        promise = getCogitaPublicInfoDetail({ shareCode: shareId, infoId: card.cardId, key: shareKey })
+          .then((detail) => {
+            const runtime = buildRevisionQuestionRuntime(detail.payload ?? {}, card.label);
+            if (runtime) {
+              return finalize({
+                prompt: runtime.promptText,
+                expectedAnswer:
+                  runtime.promptModel.kind === 'text'
+                    ? (typeof runtime.expectedModel === 'string' || typeof runtime.expectedModel === 'number'
+                        ? String(runtime.expectedModel)
+                        : null)
+                    : null,
+                computedExpected: [],
+                computedAnswers: {},
+                computedValues: null,
+                answerTemplate: null,
+                outputVariables: null,
+                variableValues: null,
+                questionPrompt: runtime.promptPayload,
+                questionPromptModel: runtime.promptModel,
+                questionExpectedModel: runtime.expectedModel,
+                questionInitialAnswers: runtime.initialAnswers
+              });
+            }
             return finalize({
-              prompt: question,
-              expectedAnswer: typeof answerValue === 'string' || typeof answerValue === 'number' ? String(answerValue) : null,
+              prompt: card.label,
+              expectedAnswer: null,
               computedExpected: [],
               computedAnswers: {},
               computedValues: null,
@@ -1289,33 +1384,23 @@ export function CogitaRevisionShareRunPage({
               outputVariables: null,
               variableValues: null
             });
-          }
-          return finalize({
-            prompt: question,
-            expectedAnswer: null,
-            computedExpected: [],
-            computedAnswers: {},
-            computedValues: null,
-            answerTemplate: null,
-            outputVariables: null,
-            variableValues: null
-          });
-        })
-        .catch(() =>
-          finalize({
-            prompt: card.label,
-            expectedAnswer: null,
-            computedExpected: [],
-            computedAnswers: {},
-            computedValues: null,
-            answerTemplate: null,
-            outputVariables: null,
-            variableValues: null
           })
-        )
-        .finally(() => {
-          resolvedCardPromises.current.delete(cacheKey);
-        });
+          .catch(() =>
+            finalize({
+              prompt: card.label,
+              expectedAnswer: null,
+              computedExpected: [],
+              computedAnswers: {},
+              computedValues: null,
+              answerTemplate: null,
+              outputVariables: null,
+              variableValues: null
+            })
+          )
+          .finally(() => {
+            resolvedCardPromises.current.delete(cacheKey);
+          });
+      }
     } else if (card.cardType === 'info' && card.infoType === 'computed') {
       promise = fetchComputedSample(card.cardId, cacheKey)
         .then((result) => {
@@ -1325,6 +1410,7 @@ export function CogitaRevisionShareRunPage({
               expectedAnswer: null,
               computedExpected: [],
               computedAnswers: {},
+              computedValues: null,
               answerTemplate: null,
               outputVariables: null,
               variableValues: null
@@ -1346,6 +1432,7 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: expectedEntries.length > 0 ? sentenceExpected : sample.expectedAnswer?.trim() || null,
             computedExpected: expectedEntries,
             computedAnswers,
+            computedValues: sample.values ?? null,
             answerTemplate: result.answerTemplate,
             outputVariables: sample.outputVariables ?? null,
             variableValues: sample.variableValues ?? null
@@ -1357,6 +1444,7 @@ export function CogitaRevisionShareRunPage({
             expectedAnswer: null,
             computedExpected: [],
             computedAnswers: {},
+            computedValues: null,
             answerTemplate: null,
             outputVariables: null,
             variableValues: null
@@ -1372,6 +1460,7 @@ export function CogitaRevisionShareRunPage({
           expectedAnswer: null,
           computedExpected: [],
           computedAnswers: {},
+          computedValues: null,
           answerTemplate: null,
           outputVariables: null,
           variableValues: null
@@ -1519,6 +1608,50 @@ export function CogitaRevisionShareRunPage({
         .catch(() => {
           // local store may be unavailable
         });
+      return;
+    }
+    if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'question' && questionPromptModel) {
+      const answerModel = {
+        text: questionAnswers.text,
+        selection: questionAnswers.selection,
+        booleanAnswer: questionAnswers.booleanAnswer,
+        ordering: questionAnswers.ordering,
+        matchingPaths: questionAnswers.matchingRows
+      };
+      const evaluation = evaluateCheckcardAnswer({
+        prompt: questionPromptModel,
+        expected: questionExpectedModel,
+        answer: answerModel
+      });
+      const maskPercent = evaluation.mask ? maskAveragePercent(evaluation.mask) : evaluation.correct ? 100 : 0;
+      setAnswerMask(evaluation.mask);
+      if (evaluation.correct) {
+        setFeedback('correct');
+        setComputedFieldFeedback({});
+        setCanAdvance(true);
+        setAttempts(0);
+        applyOutcomeToSession(true, maskPercent / 100);
+      } else {
+        setFeedback('incorrect');
+        setComputedFieldFeedback({});
+        setCanAdvance(false);
+        setAttempts((prev) => {
+          const next = prev + 1;
+          if (next >= maxTries) {
+            setShowCorrectAnswer(true);
+            setCanAdvance(true);
+          }
+          return next;
+        });
+        applyOutcomeToSession(false, maskPercent / 100);
+      }
+      submitReview({
+        correct: evaluation.correct,
+        direction: prompt ? `${prompt} -> question` : 'question',
+        expected: JSON.stringify(questionExpectedModel ?? null),
+        answer: JSON.stringify(answerModel),
+        evalType: `question:${questionPromptModel.kind}`
+      });
       return;
     }
     if (computedExpected.length > 0) {
@@ -1782,7 +1915,10 @@ export function CogitaRevisionShareRunPage({
   }, [currentIndex, queue]);
 
   const revealPolicy = copy.cogita.library.revision.revealModeAfterIncorrect;
-  const hasExpectedAnswer = computedExpected.length > 0 || !!expectedAnswer;
+  const hasExpectedAnswer =
+    computedExpected.length > 0 ||
+    !!expectedAnswer ||
+    (currentCard?.cardType === 'info' && currentCard.infoType === 'question' && questionPromptModel !== null);
 
   return (
     <CogitaShell
@@ -1969,6 +2105,23 @@ export function CogitaRevisionShareRunPage({
                           matchFeedback={matchFeedback}
                           onMatchLeftSelect={handleMatchLeftSelect}
                           onMatchRightSelect={handleMatchRightSelect}
+                          questionPrompt={questionPrompt}
+                          questionAnswers={questionAnswers}
+                          questionRevealExpected={showCorrectAnswer ? questionExpectedModel : undefined}
+                          onQuestionTextChange={(value) => {
+                            setAnswer(value);
+                            setQuestionAnswers((prev) => ({ ...prev, text: value }));
+                          }}
+                          onQuestionSelectionToggle={handleQuestionSelectionToggle}
+                          onQuestionBooleanChange={(value) => setQuestionAnswers((prev) => ({ ...prev, booleanAnswer: value }))}
+                          onQuestionOrderingMove={handleQuestionOrderingMove}
+                          onQuestionMatchingPick={handleQuestionMatchingPick}
+                          onQuestionMatchingRemovePath={(pathIndex) =>
+                            setQuestionAnswers((prev) => ({
+                              ...prev,
+                              matchingRows: prev.matchingRows.filter((_, index) => index !== pathIndex)
+                            }))
+                          }
                         />
                       )}
                       </>

@@ -559,6 +559,7 @@ export type CogitaCardSearchResult = {
   infoType?: string | null;
   checkType?: string | null;
   direction?: string | null;
+  payload?: unknown | null;
 };
 
 export type CogitaCardSearchBundle = {

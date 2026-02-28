@@ -6840,7 +6840,7 @@ public static class CogitaEndpoints
                             using var doc = JsonDocument.Parse(plain);
                             label = ResolveLabel(doc.RootElement, entry.InfoType) ?? entry.InfoType;
                             description = ResolveDescription(doc.RootElement, entry.InfoType) ?? entry.InfoType;
-                            infoResponsesGraph[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description);
+                            infoResponsesGraph[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description, doc.RootElement.Clone());
                             continue;
                         }
                         catch (CryptographicException)
@@ -7077,7 +7077,7 @@ public static class CogitaEndpoints
                             }
                         }
 
-                        infoResponses[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description);
+                        infoResponses[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description, doc.RootElement.Clone());
                         continue;
                     }
                     catch (CryptographicException)
@@ -9569,7 +9569,7 @@ public static class CogitaEndpoints
         var description = ResolveDescription(snapshot.Payload, snapshot.InfoType) ?? snapshot.InfoType;
         var cards = info.InfoType.Equals("citation", StringComparison.OrdinalIgnoreCase)
             ? new List<CogitaCardSearchResponse>()
-            : BuildInfoCardResponses(info.Id, info.InfoType, snapshot.Label, description);
+            : BuildInfoCardResponses(info.Id, info.InfoType, snapshot.Label, description, snapshot.Payload);
         if (!info.InfoType.Equals("translation", StringComparison.OrdinalIgnoreCase))
         {
             if (info.InfoType.Equals("citation", StringComparison.OrdinalIgnoreCase))
@@ -9591,7 +9591,7 @@ public static class CogitaEndpoints
                 var questionType = TryGetQuestionDefinitionType(snapshot.Payload) ?? "question";
                 cards = new List<CogitaCardSearchResponse>
                 {
-                    new(info.Id, "info", snapshot.Label, description, "question", $"question-{questionType}", null)
+                    new(info.Id, "info", snapshot.Label, description, "question", $"question-{questionType}", null, snapshot.Payload)
                 };
             }
 
@@ -12977,7 +12977,7 @@ public static class CogitaEndpoints
                     }
                 }
 
-                infoResponses[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description);
+                infoResponses[entry.InfoId] = BuildInfoCardResponses(entry.InfoId, entry.InfoType, label, description, doc.RootElement.Clone());
                 continue;
             }
             catch (CryptographicException)
@@ -13066,7 +13066,8 @@ public static class CogitaEndpoints
         Guid infoId,
         string infoType,
         string label,
-        string description)
+        string description,
+        JsonElement? payload = null)
     {
         if (string.Equals(infoType, "word", StringComparison.OrdinalIgnoreCase))
         {
@@ -13097,7 +13098,7 @@ public static class CogitaEndpoints
         {
             return new List<CogitaCardSearchResponse>
             {
-                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "question", null)
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "question", null, payload)
             };
         }
 
