@@ -1026,7 +1026,7 @@ export function CogitaLibraryAddPage({
               <span>Question type</span>
               <select value={kind} onChange={(event) => setKind(event.target.value as QuestionKind)}>
                 <option value="selection">Selection</option>
-                <option value="truefalse">{copy.cogita.library.live.trueLabel} / {copy.cogita.library.live.falseLabel}</option>
+                <option value="truefalse">{copy.cogita.library.revision.live.trueLabel} / {copy.cogita.library.revision.live.falseLabel}</option>
                 <option value="text">Text answer</option>
                 <option value="number">Number answer</option>
                 <option value="date">Date answer</option>
@@ -1128,8 +1128,8 @@ export function CogitaLibraryAddPage({
                   value={String(Boolean(questionDefinition.answer))}
                   onChange={(event) => applyQuestionDefinition({ ...questionDefinition, answer: event.target.value === 'true' })}
                 >
-                  <option value="true">{copy.cogita.library.live.trueLabel}</option>
-                  <option value="false">{copy.cogita.library.live.falseLabel}</option>
+                  <option value="true">{copy.cogita.library.revision.live.trueLabel}</option>
+                  <option value="false">{copy.cogita.library.revision.live.falseLabel}</option>
                 </select>
               </label>
             ) : null}
