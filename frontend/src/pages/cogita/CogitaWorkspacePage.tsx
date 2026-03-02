@@ -1603,7 +1603,14 @@ export function CogitaWorkspacePage({
       if (pathState.infoId && pathState.infoView === 'cards') {
         return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
       }
-      return <CogitaLibraryListPage {...baseProps} mode={pathState.cardMode ?? 'list'} filterCollectionId={pathState.filterCollectionId} />;
+      return (
+        <CogitaLibraryListPage
+          {...baseProps}
+          mode={pathState.cardMode ?? 'list'}
+          filterCollectionId={pathState.filterCollectionId}
+          filterCollectionLabel={pathState.filterCollectionId === selectedCollectionId ? (selectedCollection?.name ?? undefined) : undefined}
+        />
+      );
     }
     if (pathState.target === 'new_card') {
       return <CogitaLibraryAddPage {...baseProps} editInfoId={pathState.infoId} />;
@@ -1750,6 +1757,7 @@ export function CogitaWorkspacePage({
     pathState.target,
     secureMode,
     showProfileMenu,
+    selectedCollection,
     selectedCollectionId,
     selectedTarget,
     selectedReviewerRoleId

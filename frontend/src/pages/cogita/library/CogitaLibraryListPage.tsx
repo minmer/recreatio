@@ -66,7 +66,8 @@ export function CogitaLibraryListPage({
   onLanguageChange,
   libraryId,
   mode,
-  filterCollectionId
+  filterCollectionId,
+  filterCollectionLabel
 }: {
   copy: Copy;
   authLabel: string;
@@ -81,10 +82,29 @@ export function CogitaLibraryListPage({
   libraryId: string;
   mode: CogitaLibraryMode;
   filterCollectionId?: string;
+  filterCollectionLabel?: string;
 }) {
   const navigate = useNavigate();
   const location = useLocation();
   const listCopy = copy.cogita.library.list;
+  const collectionScopeCopy = useMemo(() => {
+    if (language === 'de') {
+      return {
+        prefix: 'Gefiltert nach Sammlung',
+        clear: 'Filter entfernen'
+      };
+    }
+    if (language === 'en') {
+      return {
+        prefix: 'Filtered by collection',
+        clear: 'Clear filter'
+      };
+    }
+    return {
+      prefix: 'Filtrowanie po kolekcji',
+      clear: 'Wyczyść filtr'
+    };
+  }, [language]);
 
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any'>('any');
   const [searchQuery, setSearchQuery] = useState('');
@@ -552,6 +572,10 @@ export function CogitaLibraryListPage({
     navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
   };
 
+  const clearCollectionScope = () => {
+    navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+  };
+
   const editSelectedInfo = () => {
     if (!selectedInfoIdFromRoute) return;
     navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(selectedInfoIdFromRoute)}/edit`, { replace: true });
@@ -807,6 +831,17 @@ export function CogitaLibraryListPage({
                 <span>{listCopy.cardCount.replace('{shown}', String(visibleResults.length)).replace('{total}', String(sortedResults.length))}</span>
                 <span>{searchStatus === 'loading' ? listCopy.loading : listCopy.ready}</span>
               </div>
+
+              {filterCollectionId ? (
+                <div className="cogita-filters-toggle-row">
+                  <span className="cogita-sidebar-note">
+                    {collectionScopeCopy.prefix}: <strong>{(filterCollectionLabel ?? filterCollectionId).trim()}</strong>
+                  </span>
+                  <button type="button" className="ghost cogita-filters-toggle" onClick={clearCollectionScope}>
+                    {collectionScopeCopy.clear}
+                  </button>
+                </div>
+              ) : null}
 
               <div className="cogita-filters-toggle-row">
                 <button

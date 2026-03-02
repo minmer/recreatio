@@ -85,6 +85,10 @@ export function CogitaRevisionSettingsPage({
         .sort((a, b) => Number(b.key === 'considerDependencies') - Number(a.key === 'considerDependencies')),
     [commonSettingKeys, visibleSettingsFields]
   );
+  const hasSpecificSettings = useMemo(
+    () => specificSettingsFields.length > 0 || revisionType.id === 'random',
+    [revisionType.id, specificSettingsFields.length]
+  );
   const selectedCollectionName = useMemo(
     () => availableCollections.find((item) => item.collectionId === selectedCollectionId)?.name ?? copy.cogita.workspace.selectCollectionOption,
     [availableCollections, copy.cogita.workspace.selectCollectionOption, selectedCollectionId]
@@ -92,7 +96,16 @@ export function CogitaRevisionSettingsPage({
   const settingsImpactLines = useMemo(() => {
     const revisionCopy = copy.cogita.library.revision;
     const lines: string[] = [];
+    const modeLongDescription =
+      revisionType.id === 'random'
+        ? revisionCopy.modeDescriptionRandom
+        : revisionType.id === 'random-once'
+          ? revisionCopy.modeDescriptionRandomOnce
+          : revisionType.id === 'levels'
+            ? revisionCopy.modeDescriptionLevels
+            : revisionCopy.modeDescriptionTemporal;
 
+    lines.push(modeLongDescription);
     lines.push(revisionCopy.effectCollection.replace('{collection}', selectedCollectionName));
 
     const triesValue = Number(normalizedSettings.tries ?? 0);
@@ -102,18 +115,6 @@ export function CogitaRevisionSettingsPage({
 
     const considerDependencies = String(normalizedSettings.considerDependencies ?? 'off') === 'on';
     lines.push(considerDependencies ? revisionCopy.effectConsiderDependenciesOn : revisionCopy.effectConsiderDependenciesOff);
-
-    if (considerDependencies) {
-      const dependencyThreshold = Number(normalizedSettings.dependencyThreshold ?? 0);
-      if (Number.isFinite(dependencyThreshold) && dependencyThreshold > 0) {
-        lines.push(revisionCopy.effectDependencyThreshold.replace('{value}', String(dependencyThreshold)));
-      }
-    }
-
-    const minCorrectnessValue = Number(normalizedSettings.minCorrectness ?? 0);
-    if (Number.isFinite(minCorrectnessValue) && minCorrectnessValue > 0) {
-      lines.push(revisionCopy.effectMinCorrectness.replace('{value}', String(minCorrectnessValue)));
-    }
 
     const stackSizeValue = Number(normalizedSettings.stackSize ?? 0);
     if (Number.isFinite(stackSizeValue) && stackSizeValue > 0) {
@@ -167,6 +168,12 @@ export function CogitaRevisionSettingsPage({
         setRevisionName('');
       });
   }, [libraryId, revisionId]);
+
+  useEffect(() => {
+    if (!hasSpecificSettings) {
+      setShowSpecificSettings(false);
+    }
+  }, [hasSpecificSettings]);
 
   const handleSaveRevision = async () => {
     if (!selectedCollectionId) {
@@ -328,33 +335,35 @@ export function CogitaRevisionSettingsPage({
                   ) : null}
                 </section>
 
-                <section className="cogita-library-panel cogita-revision-settings-form">
-                  <div className="cogita-form-actions">
-                    <button type="button" className="ghost" onClick={() => setShowSpecificSettings((prev) => !prev)}>
-                      {showSpecificSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
-                      {copy.cogita.library.revision.specificSettingsTitle}
-                    </button>
-                  </div>
-                  {showSpecificSettings ? (
-                    <div className="cogita-revision-settings-block">
-                      <div className="cogita-revision-settings-stack">
-                        {specificSettingsFields.map((field) => renderSettingsField(field))}
-                      </div>
-                      {revisionType.id === 'random' ? (
-                        <label className="cogita-field">
-                          <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
-                          <input
-                            type="number"
-                            min={1}
-                            max={200}
-                            value={limit}
-                            onChange={(event) => setLimit(Number(event.target.value || 1))}
-                          />
-                        </label>
-                      ) : null}
+                {hasSpecificSettings ? (
+                  <section className="cogita-library-panel cogita-revision-settings-form">
+                    <div className="cogita-form-actions">
+                      <button type="button" className="ghost" onClick={() => setShowSpecificSettings((prev) => !prev)}>
+                        {showSpecificSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
+                        {copy.cogita.library.revision.specificSettingsTitle}
+                      </button>
                     </div>
-                  ) : null}
-                </section>
+                    {showSpecificSettings ? (
+                      <div className="cogita-revision-settings-block">
+                        <div className="cogita-revision-settings-stack">
+                          {specificSettingsFields.map((field) => renderSettingsField(field))}
+                        </div>
+                        {revisionType.id === 'random' ? (
+                          <label className="cogita-field">
+                            <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={200}
+                              value={limit}
+                              onChange={(event) => setLimit(Number(event.target.value || 1))}
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
 
                 <div className="cogita-form-actions cogita-revision-settings-submit">
                   <button type="button" className="cta" onClick={handleSaveRevision} disabled={saveStatus === 'saving'}>

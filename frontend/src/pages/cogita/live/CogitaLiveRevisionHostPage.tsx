@@ -112,16 +112,12 @@ function growthRatio(mode: BonusGrowthMode, ratio: number) {
 }
 
 function streakBonus(mode: BonusGrowthMode, base: number, streak: number, limit: number) {
-  const normalizedBase = Math.max(0, base);
+  const maxBonus = Math.max(0, base);
   const extraCount = Math.max(0, streak - 1);
-  if (normalizedBase === 0 || extraCount === 0) return 0;
-  if (mode === 'exponential') {
-    return clampInt(normalizedBase * (Math.pow(2, extraCount) - 1), 0, 10000);
-  }
-  if (mode === 'limited') {
-    return clampInt(normalizedBase * Math.min(extraCount, Math.max(1, limit)), 0, 10000);
-  }
-  return clampInt(normalizedBase * extraCount, 0, 10000);
+  if (maxBonus === 0 || extraCount === 0) return 0;
+  const fullAfter = Math.max(1, limit);
+  const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
+  return clampInt(growthRatio(mode, progress) * maxBonus, 0, 100000);
 }
 
 function buildRankMap(
@@ -1016,10 +1012,10 @@ export function CogitaLiveRevisionHostPage(props: {
       }
 
       const factors: string[] = [];
-      let points = clampInt(liveRules.scoring.baseCorrect, 0, 10000);
+      let points = clampInt(liveRules.scoring.baseCorrect, 0, 500000);
       if (points > 0) factors.push('base');
       if (firstCorrectParticipantId && row.participantId === firstCorrectParticipantId && liveRules.scoring.firstCorrectBonus > 0) {
-        points += clampInt(liveRules.scoring.firstCorrectBonus, 0, 10000);
+        points += clampInt(liveRules.scoring.firstCorrectBonus, 0, 500000);
         factors.push('first');
       }
 
@@ -1036,7 +1032,7 @@ export function CogitaLiveRevisionHostPage(props: {
           const speedBonus = clampInt(
             growthRatio(liveRules.timer.speedBonusGrowth, ratio) * liveRules.timer.speedBonusMax,
             0,
-            10000
+            500000
           );
           if (speedBonus > 0) {
             points += speedBonus;
@@ -1357,12 +1353,12 @@ export function CogitaLiveRevisionHostPage(props: {
                         <input
                           type="number"
                           min={0}
-                          max={100}
+                          max={500000}
                           value={liveRules.scoring.baseCorrect}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              scoring: { ...previous.scoring, baseCorrect: clampInt(Number(event.target.value), 0, 100) }
+                              scoring: { ...previous.scoring, baseCorrect: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -1372,12 +1368,12 @@ export function CogitaLiveRevisionHostPage(props: {
                         <input
                           type="number"
                           min={0}
-                          max={100}
+                          max={500000}
                           value={liveRules.scoring.firstCorrectBonus}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 100) }
+                              scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -1387,12 +1383,12 @@ export function CogitaLiveRevisionHostPage(props: {
                         <input
                           type="number"
                           min={0}
-                          max={100}
+                          max={500000}
                           value={liveRules.timer.speedBonusMax}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, speedBonusMax: clampInt(Number(event.target.value), 0, 100) }
+                              timer: { ...previous.timer, speedBonusMax: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -1418,12 +1414,12 @@ export function CogitaLiveRevisionHostPage(props: {
                         <input
                           type="number"
                           min={0}
-                          max={100}
+                          max={500000}
                           value={liveRules.scoring.streakBaseBonus}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 100) }
+                              scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
