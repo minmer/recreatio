@@ -912,6 +912,7 @@ export type Copy = {
           summaryTimerEnabled: string;
           summaryTimerDisabled: string;
           summaryScoringFlow: string;
+          summaryBasePoints: string;
           summarySpeedCurve: string;
           summaryAsyncPreset: string;
           summarySyncPreset: string;

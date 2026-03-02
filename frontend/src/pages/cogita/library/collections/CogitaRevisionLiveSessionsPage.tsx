@@ -314,76 +314,53 @@ export function CogitaRevisionLiveSessionsPage({
       (hasSpeedBonus ? formLiveRules.timer.speedBonusMax : 0) +
       (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
 
-    const scoringFlow = liveCopy.summaryScoringFlow
-      .replace('{base}', String(formLiveRules.scoring.baseCorrect))
-      .replace('{first}', String(formLiveRules.scoring.firstCorrectBonus))
-      .replace('{seconds}', String(formLiveRules.timer.seconds))
-      .replace('{halfSeconds}', String(halfSeconds))
-      .replace('{halfBonus}', String(halfBonus))
-      .replace('{endBonus}', '0');
-    const lines: string[] = [];
-    lines.push(liveCopy.summaryPreset.replace('{preset}', presetLabelById(formPresetId)));
-    if (hasFirstBonus || hasSpeedBonus) {
-      lines.push(scoringFlow);
-    } else {
-      lines.push(
-        liveCopy.summaryBonusNone.replace('{base}', String(formLiveRules.scoring.baseCorrect))
-      );
-    }
-    lines.push(
-      liveCopy.summaryPoints
-        .replace('{base}', String(formLiveRules.scoring.baseCorrect))
-        .replace('{first}', String(formLiveRules.scoring.firstCorrectBonus))
-    );
-    lines.push(isAsyncSession ? liveCopy.summaryAsyncPreset : liveCopy.summarySyncPreset);
-    lines.push(timerInfo);
+    const sentences: string[] = [];
+    sentences.push(liveCopy.summaryPreset.replace('{preset}', presetLabelById(formPresetId)));
+    sentences.push(isAsyncSession ? liveCopy.summaryAsyncPreset : liveCopy.summarySyncPreset);
+    sentences.push(liveCopy.summaryBasePoints.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
     if (hasFirstBonus) {
-      lines.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
+      sentences.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
     }
     if (hasSpeedBonus) {
-      lines.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.timer.speedBonusMax)));
-    } else {
-      lines.push(liveCopy.summaryBonusSpeedDisabled);
-    }
-    if (hasStreakBonus) {
-      lines.push(
-        liveCopy.summaryBonusStreak
-          .replace('{growth}', formLiveRules.scoring.streakGrowth)
-          .replace('{limit}', String(formLiveRules.scoring.streakLimit))
-      );
-    } else {
-      lines.push(liveCopy.summaryBonusStreakDisabled);
-    }
-    if (formLiveRules.timer.enabled && formLiveRules.timer.speedBonusMax > 0) {
-      lines.push(
+      sentences.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.timer.speedBonusMax)));
+      sentences.push(timerInfo);
+      sentences.push(
         liveCopy.summarySpeedCurve
           .replace('{halfSeconds}', String(halfSeconds))
           .replace('{halfBonus}', String(halfBonus))
           .replace('{endSeconds}', String(formLiveRules.timer.seconds))
           .replace('{endBonus}', '0')
       );
+    } else {
+      sentences.push(formLiveRules.timer.enabled ? timerInfo : liveCopy.summaryTimerDisabled);
+      sentences.push(liveCopy.summaryBonusSpeedDisabled);
     }
     if (hasStreakBonus) {
-      lines.push(
+      sentences.push(
         liveCopy.summaryStreak
           .replace('{growth}', formLiveRules.scoring.streakGrowth)
           .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
           .replace('{limit}', String(formLiveRules.scoring.streakLimit))
       );
+    } else {
+      sentences.push(liveCopy.summaryBonusStreakDisabled);
     }
-    lines.push(
+    if (!hasFirstBonus && !hasSpeedBonus && !hasStreakBonus) {
+      sentences.push(liveCopy.summaryBonusNone.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
+    }
+    sentences.push(
       liveCopy.summaryPointsTotalHint
         .replace('{min}', String(minPoints))
         .replace('{max}', String(maxPoints))
     );
-    lines.push(liveCopy.summaryEvaluationFlow);
-    lines.push(
+    sentences.push(liveCopy.summaryEvaluationFlow);
+    sentences.push(
       liveCopy.summaryActions
         .replace('{firstAction}', firstActionLabel)
         .replace('{allAction}', allAnsweredLabel)
         .replace('{expireAction}', expireLabel)
     );
-    return lines;
+    return [sentences.join(' ')];
   }, [formLiveRules, formPresetId, isAsyncSession, liveCopy]);
 
   const statusOptions = useMemo(() => {

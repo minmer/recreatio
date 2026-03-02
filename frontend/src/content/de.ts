@@ -1212,6 +1212,7 @@ export const de: Copy = {
           summaryTimerEnabled: 'Der Timer ist aktiv und läuft {seconds} Sekunden.',
           summaryTimerDisabled: 'Der Timer ist deaktiviert, Antworten sind nicht zeitkritisch.',
           summaryScoringFlow: 'Jede richtige Antwort gibt der teilnehmenden Person {base} Punkte. Wer als erste Person richtig antwortet, erhält zusätzlich {first} Punkte. Ein Zeitbonus kann ebenfalls vergeben werden: nach {halfSeconds} Sekunden fällt der Bonus auf etwa {halfBonus} Punkte, und nach {seconds} Sekunden liegt er bei {endBonus} Punkten.',
+          summaryBasePoints: 'Jede richtige Antwort gibt der teilnehmenden Person {base} Punkte.',
           summarySpeedCurve: 'Zeitbonus-Kurve: nach {halfSeconds}s ≈ {halfBonus} Punkte, nach {endSeconds}s = {endBonus} Punkte.',
           summaryAsyncPreset: 'Dies ist ein asynchrones Preset: die meisten Zeit- und Rundeneinstellungen sind ausgeblendet, weil Teilnehmende in eigenem Tempo arbeiten.',
           summarySyncPreset: 'Dies ist ein synchrones Preset: Teilnehmende beantworten dieselbe Runde parallel, und der Host steuert das Tempo.',

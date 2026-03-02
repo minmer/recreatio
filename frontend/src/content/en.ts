@@ -1212,6 +1212,7 @@ export const en: Copy = {
           summaryTimerEnabled: 'Timer is enabled and runs for {seconds} seconds.',
           summaryTimerDisabled: 'Timer is disabled, so answers are not time-pressured.',
           summaryScoringFlow: 'Every correct answer gives the participant {base} points. If the participant is the first one with a correct answer, they get an additional {first} points. A time bonus can also be granted: after {halfSeconds} seconds the bonus drops to about {halfBonus} points, and after {seconds} seconds it reaches {endBonus} points.',
+          summaryBasePoints: 'Every correct answer gives the participant {base} points.',
           summarySpeedCurve: 'Time-bonus curve: after {halfSeconds}s ≈ {halfBonus} points, after {endSeconds}s = {endBonus} points.',
           summaryAsyncPreset: 'This is an asynchronous preset: most timer and round-auto-action settings are hidden because participants solve rounds at their own pace.',
           summarySyncPreset: 'This is a synchronous preset: participants answer the same round in parallel and the host controls the pace.',
