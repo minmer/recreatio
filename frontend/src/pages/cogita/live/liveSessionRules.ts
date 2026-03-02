@@ -6,13 +6,20 @@ export type TimerExpireAction = 'none' | 'reveal' | 'next';
 export type LiveRules = {
   firstAnswerAction: FirstAnswerAction;
   allAnsweredAction: AllAnsweredAction;
-  timer: {
+  actionTimer: {
     enabled: boolean;
     seconds: number;
-    triggerMode: 'first_or_single';
     onExpire: TimerExpireAction;
-    speedBonusMax: number;
-    speedBonusGrowth: BonusGrowthMode;
+  };
+  bonusTimer: {
+    enabled: boolean;
+    seconds: number;
+    startMode: 'round_start' | 'first_answer';
+  };
+  speedBonus: {
+    enabled: boolean;
+    maxPoints: number;
+    growth: BonusGrowthMode;
   };
   scoring: {
     baseCorrect: number;
@@ -26,13 +33,20 @@ export type LiveRules = {
 export const DEFAULT_LIVE_RULES: LiveRules = {
   firstAnswerAction: 'start_timer',
   allAnsweredAction: 'reveal',
-  timer: {
+  actionTimer: {
     enabled: true,
     seconds: 10,
-    triggerMode: 'first_or_single',
-    onExpire: 'reveal',
-    speedBonusMax: 500,
-    speedBonusGrowth: 'exponential'
+    onExpire: 'reveal'
+  },
+  bonusTimer: {
+    enabled: true,
+    seconds: 10,
+    startMode: 'first_answer'
+  },
+  speedBonus: {
+    enabled: true,
+    maxPoints: 500,
+    growth: 'exponential'
   },
   scoring: {
     baseCorrect: 1000,
@@ -69,7 +83,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'reveal',
-      timer: { enabled: true, seconds: 10, triggerMode: 'first_or_single', onExpire: 'reveal', speedBonusMax: 500, speedBonusGrowth: 'exponential' },
+      actionTimer: { enabled: true, seconds: 10, onExpire: 'reveal' },
+      bonusTimer: { enabled: true, seconds: 10, startMode: 'first_answer' },
+      speedBonus: { enabled: true, maxPoints: 500, growth: 'exponential' },
       scoring: { baseCorrect: 1000, firstCorrectBonus: 500, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
     }
   },
@@ -81,7 +97,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'next',
-      timer: { enabled: true, seconds: 8, triggerMode: 'first_or_single', onExpire: 'next', speedBonusMax: 700, speedBonusGrowth: 'exponential' },
+      actionTimer: { enabled: true, seconds: 8, onExpire: 'next' },
+      bonusTimer: { enabled: true, seconds: 8, startMode: 'first_answer' },
+      speedBonus: { enabled: true, maxPoints: 700, growth: 'exponential' },
       scoring: { baseCorrect: 900, firstCorrectBonus: 600, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4 }
     }
   },
@@ -93,7 +111,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'reveal',
-      timer: { enabled: false, seconds: 20, triggerMode: 'first_or_single', onExpire: 'none', speedBonusMax: 0, speedBonusGrowth: 'linear' },
+      actionTimer: { enabled: false, seconds: 20, onExpire: 'none' },
+      bonusTimer: { enabled: false, seconds: 20, startMode: 'round_start' },
+      speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1200, firstCorrectBonus: 200, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6 }
     }
   },
@@ -105,7 +125,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'reveal',
-      timer: { enabled: true, seconds: 12, triggerMode: 'first_or_single', onExpire: 'reveal', speedBonusMax: 300, speedBonusGrowth: 'linear' },
+      actionTimer: { enabled: true, seconds: 12, onExpire: 'reveal' },
+      bonusTimer: { enabled: true, seconds: 12, startMode: 'first_answer' },
+      speedBonus: { enabled: true, maxPoints: 300, growth: 'linear' },
       scoring: { baseCorrect: 800, firstCorrectBonus: 300, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6 }
     }
   },
@@ -117,7 +139,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'reveal',
-      timer: { enabled: true, seconds: 15, triggerMode: 'first_or_single', onExpire: 'reveal', speedBonusMax: 250, speedBonusGrowth: 'linear' },
+      actionTimer: { enabled: true, seconds: 15, onExpire: 'reveal' },
+      bonusTimer: { enabled: true, seconds: 15, startMode: 'round_start' },
+      speedBonus: { enabled: true, maxPoints: 250, growth: 'linear' },
       scoring: { baseCorrect: 1100, firstCorrectBonus: 250, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7 }
     }
   },
@@ -129,7 +153,9 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'none',
-      timer: { enabled: false, seconds: 10, triggerMode: 'first_or_single', onExpire: 'none', speedBonusMax: 0, speedBonusGrowth: 'linear' },
+      actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
+      bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
+      speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1000, firstCorrectBonus: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
     }
   }
@@ -178,11 +204,19 @@ export function parseLiveRules(settings: unknown): LiveRules {
   const liveRulesRoot =
     root.liveRules && typeof root.liveRules === 'object'
       ? (root.liveRules as Record<string, unknown>)
-      : root;
+      : {};
 
-  const timerRoot =
-    liveRulesRoot.timer && typeof liveRulesRoot.timer === 'object'
-      ? (liveRulesRoot.timer as Record<string, unknown>)
+  const actionTimerRoot =
+    liveRulesRoot.actionTimer && typeof liveRulesRoot.actionTimer === 'object'
+      ? (liveRulesRoot.actionTimer as Record<string, unknown>)
+      : {};
+  const bonusTimerRoot =
+    liveRulesRoot.bonusTimer && typeof liveRulesRoot.bonusTimer === 'object'
+      ? (liveRulesRoot.bonusTimer as Record<string, unknown>)
+      : {};
+  const speedBonusRoot =
+    liveRulesRoot.speedBonus && typeof liveRulesRoot.speedBonus === 'object'
+      ? (liveRulesRoot.speedBonus as Record<string, unknown>)
       : {};
   const scoringRoot =
     liveRulesRoot.scoring && typeof liveRulesRoot.scoring === 'object'
@@ -198,20 +232,27 @@ export function parseLiveRules(settings: unknown): LiveRules {
       ? liveRulesRoot.allAnsweredAction
       : 'reveal';
   const onExpire: TimerExpireAction =
-    timerRoot.onExpire === 'none' || timerRoot.onExpire === 'next'
-      ? timerRoot.onExpire
+    actionTimerRoot.onExpire === 'none' || actionTimerRoot.onExpire === 'next'
+      ? actionTimerRoot.onExpire
       : 'reveal';
 
   return {
     firstAnswerAction,
     allAnsweredAction,
-    timer: {
-      enabled: timerRoot.enabled == null ? DEFAULT_LIVE_RULES.timer.enabled : Boolean(timerRoot.enabled),
-      seconds: clampInt(Number(timerRoot.seconds ?? DEFAULT_LIVE_RULES.timer.seconds), 3, 600),
-      triggerMode: 'first_or_single',
+    actionTimer: {
+      enabled: actionTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.actionTimer.enabled : Boolean(actionTimerRoot.enabled),
+      seconds: clampInt(Number(actionTimerRoot.seconds ?? DEFAULT_LIVE_RULES.actionTimer.seconds), 3, 600),
       onExpire,
-      speedBonusMax: clampInt(Number(timerRoot.speedBonusMax ?? DEFAULT_LIVE_RULES.timer.speedBonusMax), 0, 500000),
-      speedBonusGrowth: normalizeGrowthMode(timerRoot.speedBonusGrowth)
+    },
+    bonusTimer: {
+      enabled: bonusTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.bonusTimer.enabled : Boolean(bonusTimerRoot.enabled),
+      seconds: clampInt(Number(bonusTimerRoot.seconds ?? DEFAULT_LIVE_RULES.bonusTimer.seconds), 1, 600),
+      startMode: bonusTimerRoot.startMode === 'round_start' ? 'round_start' : 'first_answer'
+    },
+    speedBonus: {
+      enabled: speedBonusRoot.enabled == null ? DEFAULT_LIVE_RULES.speedBonus.enabled : Boolean(speedBonusRoot.enabled),
+      maxPoints: clampInt(Number(speedBonusRoot.maxPoints ?? DEFAULT_LIVE_RULES.speedBonus.maxPoints), 0, 500000),
+      growth: normalizeGrowthMode(speedBonusRoot.growth)
     },
     scoring: {
       baseCorrect: clampInt(Number(scoringRoot.baseCorrect ?? DEFAULT_LIVE_RULES.scoring.baseCorrect), 0, 500000),

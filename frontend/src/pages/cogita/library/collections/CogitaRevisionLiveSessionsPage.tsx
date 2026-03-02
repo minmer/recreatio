@@ -105,14 +105,14 @@ export function CogitaRevisionLiveSessionsPage({
   const isAsyncSession = formSessionMode === 'asynchronous';
   const bonusUsage = useMemo<'all' | 'none' | 'first' | 'speed' | 'streak'>(() => {
     const hasFirst = formLiveRules.scoring.firstCorrectBonus > 0;
-    const hasSpeed = formLiveRules.timer.speedBonusMax > 0;
+    const hasSpeed = formLiveRules.speedBonus.enabled && formLiveRules.speedBonus.maxPoints > 0;
     const hasStreak = formLiveRules.scoring.streakBaseBonus > 0;
     if (!hasFirst && !hasSpeed && !hasStreak) return 'none';
     if (hasFirst && !hasSpeed && !hasStreak) return 'first';
     if (!hasFirst && hasSpeed && !hasStreak) return 'speed';
     if (!hasFirst && !hasSpeed && hasStreak) return 'streak';
     return 'all';
-  }, [formLiveRules.scoring.firstCorrectBonus, formLiveRules.scoring.streakBaseBonus, formLiveRules.timer.speedBonusMax]);
+  }, [formLiveRules.scoring.firstCorrectBonus, formLiveRules.scoring.streakBaseBonus, formLiveRules.speedBonus.enabled, formLiveRules.speedBonus.maxPoints]);
 
   const applyBonusUsage = (value: 'all' | 'none' | 'first' | 'speed' | 'streak') => {
     setFormLiveRules((previous) => {
@@ -120,28 +120,33 @@ export function CogitaRevisionLiveSessionsPage({
         return {
           ...previous,
           scoring: { ...previous.scoring, firstCorrectBonus: 0, streakBaseBonus: 0 },
-          timer: { ...previous.timer, speedBonusMax: 0 }
+          speedBonus: { ...previous.speedBonus, enabled: false, maxPoints: 0 }
         };
       }
       if (value === 'first') {
         return {
           ...previous,
           scoring: { ...previous.scoring, firstCorrectBonus: previous.scoring.firstCorrectBonus > 0 ? previous.scoring.firstCorrectBonus : 500, streakBaseBonus: 0 },
-          timer: { ...previous.timer, speedBonusMax: 0 }
+          speedBonus: { ...previous.speedBonus, enabled: false, maxPoints: 0 }
         };
       }
       if (value === 'speed') {
         return {
           ...previous,
           scoring: { ...previous.scoring, firstCorrectBonus: 0, streakBaseBonus: 0 },
-          timer: { ...previous.timer, enabled: true, speedBonusMax: previous.timer.speedBonusMax > 0 ? previous.timer.speedBonusMax : 500 }
+          bonusTimer: { ...previous.bonusTimer, enabled: true },
+          speedBonus: {
+            ...previous.speedBonus,
+            enabled: true,
+            maxPoints: previous.speedBonus.maxPoints > 0 ? previous.speedBonus.maxPoints : 500
+          }
         };
       }
       if (value === 'streak') {
         return {
           ...previous,
           scoring: { ...previous.scoring, firstCorrectBonus: 0, streakBaseBonus: previous.scoring.streakBaseBonus > 0 ? previous.scoring.streakBaseBonus : 1000 },
-          timer: { ...previous.timer, speedBonusMax: 0 }
+          speedBonus: { ...previous.speedBonus, enabled: false, maxPoints: 0 }
         };
       }
       return {
@@ -151,10 +156,14 @@ export function CogitaRevisionLiveSessionsPage({
           firstCorrectBonus: previous.scoring.firstCorrectBonus > 0 ? previous.scoring.firstCorrectBonus : 500,
           streakBaseBonus: previous.scoring.streakBaseBonus > 0 ? previous.scoring.streakBaseBonus : 1000
         },
-        timer: {
-          ...previous.timer,
+        bonusTimer: {
+          ...previous.bonusTimer,
+          enabled: true
+        },
+        speedBonus: {
+          ...previous.speedBonus,
           enabled: true,
-          speedBonusMax: previous.timer.speedBonusMax > 0 ? previous.timer.speedBonusMax : 500
+          maxPoints: previous.speedBonus.maxPoints > 0 ? previous.speedBonus.maxPoints : 500
         }
       };
     });
@@ -292,26 +301,29 @@ export function CogitaRevisionLiveSessionsPage({
           ? liveCopy.optionRevealScore
           : liveCopy.optionDoNothing;
     const expireLabel =
-      formLiveRules.timer.onExpire === 'next'
+      formLiveRules.actionTimer.onExpire === 'next'
         ? liveCopy.optionRevealNext
-        : formLiveRules.timer.onExpire === 'reveal'
+        : formLiveRules.actionTimer.onExpire === 'reveal'
           ? liveCopy.optionRevealScore
           : liveCopy.optionDoNothing;
 
-    const timerInfo = formLiveRules.timer.enabled
-      ? liveCopy.summaryTimerEnabled.replace('{seconds}', String(formLiveRules.timer.seconds))
-      : liveCopy.summaryTimerDisabled;
-    const halfSeconds = Math.max(1, Math.round(formLiveRules.timer.seconds / 2));
-    const halfRatio = Math.max(0, 1 - halfSeconds / Math.max(1, formLiveRules.timer.seconds));
-    const halfBonus = clampInt(growthRatio(formLiveRules.timer.speedBonusGrowth, halfRatio) * formLiveRules.timer.speedBonusMax, 0, 500000);
+    const actionTimerInfo = formLiveRules.actionTimer.enabled
+      ? `${liveCopy.actionTimerLabel}: ${liveCopy.summaryTimerEnabled.replace('{seconds}', String(formLiveRules.actionTimer.seconds))}`
+      : `${liveCopy.actionTimerLabel}: ${liveCopy.summaryTimerDisabled}`;
+    const bonusTimerInfo = formLiveRules.bonusTimer.enabled
+      ? `${liveCopy.bonusTimerLabel}: ${liveCopy.summaryTimerEnabled.replace('{seconds}', String(formLiveRules.bonusTimer.seconds))} ${liveCopy.bonusTimerStartLabel}: ${formLiveRules.bonusTimer.startMode === 'round_start' ? liveCopy.bonusTimerStartRound : liveCopy.bonusTimerStartAfterFirst}.`
+      : `${liveCopy.bonusTimerLabel}: ${liveCopy.summaryTimerDisabled}`;
+    const halfSeconds = Math.max(1, Math.round(formLiveRules.bonusTimer.seconds / 2));
+    const halfRatio = Math.max(0, 1 - halfSeconds / Math.max(1, formLiveRules.bonusTimer.seconds));
+    const halfBonus = clampInt(growthRatio(formLiveRules.speedBonus.growth, halfRatio) * formLiveRules.speedBonus.maxPoints, 0, 500000);
     const hasFirstBonus = formLiveRules.scoring.firstCorrectBonus > 0;
-    const hasSpeedBonus = formLiveRules.timer.enabled && formLiveRules.timer.speedBonusMax > 0;
+    const hasSpeedBonus = formLiveRules.speedBonus.enabled && formLiveRules.speedBonus.maxPoints > 0;
     const hasStreakBonus = formLiveRules.scoring.streakBaseBonus > 0;
     const minPoints = formLiveRules.scoring.baseCorrect;
     const maxPoints =
       formLiveRules.scoring.baseCorrect +
       (hasFirstBonus ? formLiveRules.scoring.firstCorrectBonus : 0) +
-      (hasSpeedBonus ? formLiveRules.timer.speedBonusMax : 0) +
+      (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
       (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
 
     const sentences: string[] = [];
@@ -322,17 +334,17 @@ export function CogitaRevisionLiveSessionsPage({
       sentences.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
     }
     if (hasSpeedBonus) {
-      sentences.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.timer.speedBonusMax)));
-      sentences.push(timerInfo);
+      sentences.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.speedBonus.maxPoints)));
+      sentences.push(bonusTimerInfo);
       sentences.push(
         liveCopy.summarySpeedCurve
           .replace('{halfSeconds}', String(halfSeconds))
           .replace('{halfBonus}', String(halfBonus))
-          .replace('{endSeconds}', String(formLiveRules.timer.seconds))
+          .replace('{endSeconds}', String(formLiveRules.bonusTimer.seconds))
           .replace('{endBonus}', '0')
       );
     } else {
-      sentences.push(formLiveRules.timer.enabled ? timerInfo : liveCopy.summaryTimerDisabled);
+      sentences.push(bonusTimerInfo);
       sentences.push(liveCopy.summaryBonusSpeedDisabled);
     }
     if (hasStreakBonus) {
@@ -354,6 +366,7 @@ export function CogitaRevisionLiveSessionsPage({
         .replace('{max}', String(maxPoints))
     );
     sentences.push(liveCopy.summaryEvaluationFlow);
+    sentences.push(actionTimerInfo);
     sentences.push(
       liveCopy.summaryActions
         .replace('{firstAction}', firstActionLabel)
@@ -625,13 +638,13 @@ export function CogitaRevisionLiveSessionsPage({
                         </select>
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.timerEnabledLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerEnabledLabel}`}</span>
                         <select
-                          value={formLiveRules.timer.enabled ? 'yes' : 'no'}
+                          value={formLiveRules.actionTimer.enabled ? 'yes' : 'no'}
                           onChange={(event) =>
                             setFormLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, enabled: event.target.value === 'yes' }
+                              actionTimer: { ...previous.actionTimer, enabled: event.target.value === 'yes' }
                             }))
                           }
                         >
@@ -640,28 +653,28 @@ export function CogitaRevisionLiveSessionsPage({
                         </select>
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.timerSecondsLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerSecondsLabel}`}</span>
                         <input
                           type="number"
                           min={3}
                           max={600}
-                          value={formLiveRules.timer.seconds}
+                          value={formLiveRules.actionTimer.seconds}
                           onChange={(event) =>
                             setFormLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                              actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
                             }))
                           }
                         />
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.onTimerExpiredLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.onTimerExpiredLabel}`}</span>
                         <select
-                          value={formLiveRules.timer.onExpire}
+                          value={formLiveRules.actionTimer.onExpire}
                           onChange={(event) =>
                             setFormLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, onExpire: event.target.value as TimerExpireAction }
+                              actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
                             }))
                           }
                         >
@@ -705,16 +718,77 @@ export function CogitaRevisionLiveSessionsPage({
                       {!isAsyncSession ? (
                       <>
                       <label className="cogita-field">
+                        <span>{liveCopy.bonusTimerEnabledLabel}</span>
+                        <select
+                          value={formLiveRules.bonusTimer.enabled ? 'yes' : 'no'}
+                          onChange={(event) =>
+                            setFormLiveRules((previous) => ({
+                              ...previous,
+                              bonusTimer: { ...previous.bonusTimer, enabled: event.target.value === 'yes' }
+                            }))
+                          }
+                        >
+                          <option value="yes">{liveCopy.optionYes}</option>
+                          <option value="no">{liveCopy.optionNo}</option>
+                        </select>
+                      </label>
+                      <label className="cogita-field">
+                        <span>{liveCopy.bonusTimerSecondsLabel}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={600}
+                          value={formLiveRules.bonusTimer.seconds}
+                          onChange={(event) =>
+                            setFormLiveRules((previous) => ({
+                              ...previous,
+                              bonusTimer: { ...previous.bonusTimer, seconds: clampInt(Number(event.target.value), 1, 600) }
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="cogita-field">
+                        <span>{liveCopy.bonusTimerStartLabel}</span>
+                        <select
+                          value={formLiveRules.bonusTimer.startMode}
+                          onChange={(event) =>
+                            setFormLiveRules((previous) => ({
+                              ...previous,
+                              bonusTimer: { ...previous.bonusTimer, startMode: event.target.value === 'round_start' ? 'round_start' : 'first_answer' }
+                            }))
+                          }
+                        >
+                          <option value="first_answer">{liveCopy.bonusTimerStartAfterFirst}</option>
+                          <option value="round_start">{liveCopy.bonusTimerStartRound}</option>
+                        </select>
+                      </label>
+                      <label className="cogita-field">
+                        <span>{liveCopy.speedBonusEnabledLabel}</span>
+                        <select
+                          value={formLiveRules.speedBonus.enabled ? 'yes' : 'no'}
+                          onChange={(event) =>
+                            setFormLiveRules((previous) => ({
+                              ...previous,
+                              speedBonus: { ...previous.speedBonus, enabled: event.target.value === 'yes' }
+                            }))
+                          }
+                        >
+                          <option value="yes">{liveCopy.optionYes}</option>
+                          <option value="no">{liveCopy.optionNo}</option>
+                        </select>
+                      </label>
+                      <label className="cogita-field">
                         <span>{liveCopy.speedBonusMaxLabel}</span>
                         <input
                           type="number"
                           min={0}
                           max={500000}
-                          value={formLiveRules.timer.speedBonusMax}
+                          value={formLiveRules.speedBonus.maxPoints}
+                          disabled={!formLiveRules.speedBonus.enabled}
                           onChange={(event) =>
                             setFormLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, speedBonusMax: clampInt(Number(event.target.value), 0, 500000) }
+                              speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -722,11 +796,11 @@ export function CogitaRevisionLiveSessionsPage({
                       <label className="cogita-field">
                         <span>{liveCopy.speedGrowthLabel}</span>
                         <select
-                          value={formLiveRules.timer.speedBonusGrowth}
+                          value={formLiveRules.speedBonus.growth}
                           onChange={(event) =>
                             setFormLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, speedBonusGrowth: event.target.value as BonusGrowthMode }
+                              speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode }
                             }))
                           }
                         >

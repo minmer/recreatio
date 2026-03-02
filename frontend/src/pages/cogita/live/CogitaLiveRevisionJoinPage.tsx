@@ -91,14 +91,14 @@ export function CogitaLiveRevisionJoinPage(props: {
     [prompt?.cardKey, state?.currentRoundIndex]
   );
   const promptTimerEndMs = useMemo(() => {
-    const raw = typeof prompt?.timerEndsUtc === 'string' ? Date.parse(prompt.timerEndsUtc) : NaN;
+    const raw = typeof prompt?.actionTimerEndsUtc === 'string' ? Date.parse(prompt.actionTimerEndsUtc) : NaN;
     return Number.isFinite(raw) ? raw : null;
-  }, [prompt?.timerEndsUtc]);
+  }, [prompt?.actionTimerEndsUtc]);
   const promptTimerTotalSeconds = useMemo(() => {
-    const raw = Number(prompt?.timerSeconds ?? 0);
+    const raw = Number(prompt?.actionTimerSeconds ?? 0);
     if (!Number.isFinite(raw) || raw <= 0) return 0;
     return Math.max(1, Math.min(600, Math.round(raw)));
-  }, [prompt?.timerSeconds]);
+  }, [prompt?.actionTimerSeconds]);
   const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
   const timerExpired = promptTimerEndMs != null && timerRemainingMs === 0;
   const timerProgress =
@@ -428,7 +428,7 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className={`cogita-library-panel ${participantViewMode === 'fullscreen' ? 'cogita-live-fullscreen-panel' : ''}`}>
                 <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
-                {sessionStage === 'active' && prompt && prompt.timerEnabled && promptTimerEndMs != null ? (
+                {sessionStage === 'active' && prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
                   <div className="cogita-live-timer">
                     <div className="cogita-live-timer-head">
                       <span>{liveCopy.timerLabel}</span>

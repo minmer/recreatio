@@ -44,14 +44,14 @@ export function CogitaLiveRevisionPresenterPage(props: {
   const showQuestionPanel = effectiveViewMode !== 'score';
   const showScorePanel = effectiveViewMode !== 'question' || stage === 'finished';
   const promptTimerEndMs = useMemo(() => {
-    const raw = typeof prompt?.timerEndsUtc === 'string' ? Date.parse(prompt.timerEndsUtc) : NaN;
+    const raw = typeof prompt?.actionTimerEndsUtc === 'string' ? Date.parse(prompt.actionTimerEndsUtc) : NaN;
     return Number.isFinite(raw) ? raw : null;
-  }, [prompt?.timerEndsUtc]);
+  }, [prompt?.actionTimerEndsUtc]);
   const promptTimerTotalSeconds = useMemo(() => {
-    const raw = Number(prompt?.timerSeconds ?? 0);
+    const raw = Number(prompt?.actionTimerSeconds ?? 0);
     if (!Number.isFinite(raw) || raw <= 0) return 0;
     return Math.max(1, Math.min(600, Math.round(raw)));
-  }, [prompt?.timerSeconds]);
+  }, [prompt?.actionTimerSeconds]);
   const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
   const timerProgress =
     timerRemainingMs == null || promptTimerTotalSeconds <= 0
@@ -135,7 +135,7 @@ export function CogitaLiveRevisionPresenterPage(props: {
                   </>
                 ) : (
                   <>
-                    {stage === 'active' && prompt && prompt.timerEnabled && promptTimerEndMs != null ? (
+                    {stage === 'active' && prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
                       <div className="cogita-live-timer">
                         <div className="cogita-live-timer-head">
                           <span>{liveCopy.timerLabel}</span>

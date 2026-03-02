@@ -153,6 +153,28 @@ function normalizeQuestionDefinition(value: unknown): QuestionDefinition | null 
   return { type: kind, title, question, options: options.length ? options : [''], answer };
 }
 
+function parseQuestionDefinitionFromPayload(rawValue: unknown): QuestionDefinition | null {
+  if (rawValue === null || rawValue === undefined) return null;
+  if (typeof rawValue === 'object') {
+    return normalizeQuestionDefinition(rawValue);
+  }
+  if (typeof rawValue !== 'string') return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    const normalized = normalizeQuestionDefinition(parsed);
+    if (normalized) return normalized;
+    if (typeof parsed === 'string') {
+      const nested = JSON.parse(parsed) as unknown;
+      return normalizeQuestionDefinition(nested);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function serializeQuestionDefinition(definition: QuestionDefinition): string {
   const title = (definition.title ?? '').trim();
   const question = (definition.question ?? '').trim();
@@ -571,23 +593,17 @@ export function CogitaLibraryAddPage({
 
   useEffect(() => {
     if (selectedInfoType !== 'question') return;
-    const raw = payloadValues.definition ?? '';
-    if (!raw.trim()) {
+    const normalized = parseQuestionDefinitionFromPayload(payloadValues.definition);
+    if (!normalized) {
       const fallback = normalizeQuestionDefinition(JSON.parse(QUESTION_DEFINITION_TEMPLATE)) ?? createDefaultQuestionDefinition();
       setQuestionDefinition(fallback);
       setQuestionImportJson(QUESTION_DEFINITION_TEMPLATE);
+      setPayloadValues((prev) => (prev.definition === QUESTION_DEFINITION_TEMPLATE ? prev : { ...prev, definition: QUESTION_DEFINITION_TEMPLATE }));
       return;
     }
-    try {
-      const parsed = JSON.parse(raw);
-      const normalized = normalizeQuestionDefinition(parsed);
-      if (!normalized) return;
-      setQuestionDefinition(normalized);
-      if (questionImportQueue.length === 0) {
-        setQuestionImportJson(JSON.stringify(parsed, null, 2));
-      }
-    } catch {
-      // keep current UI state; invalid JSON is handled on save/import action
+    setQuestionDefinition(normalized);
+    if (questionImportQueue.length === 0) {
+      setQuestionImportJson(serializeQuestionDefinition(normalized));
     }
   }, [payloadValues.definition, questionImportQueue.length, selectedInfoType]);
 
@@ -974,6 +990,7 @@ export function CogitaLibraryAddPage({
     if (selectedInfoType === 'question' && field.key === 'definition' && field.inputType === 'json') {
       const kind = questionDefinition.type;
       const setKind = (nextKind: QuestionKind) => {
+        if (!isQuestionKind(nextKind)) return;
         const currentTitle = questionDefinition.title ?? '';
         const currentQuestion = questionDefinition.question ?? '';
         applyQuestionDefinition({

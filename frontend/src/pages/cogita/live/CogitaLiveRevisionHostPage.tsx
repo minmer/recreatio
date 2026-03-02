@@ -492,12 +492,12 @@ export function CogitaLiveRevisionHostPage(props: {
     { points?: number; factors?: string[]; streak?: number; rankDelta?: number }
   > | null;
   const promptTimerEndMs = useMemo(() => {
-    const raw = typeof publishedPrompt?.timerEndsUtc === 'string' ? Date.parse(publishedPrompt.timerEndsUtc) : NaN;
+    const raw = typeof publishedPrompt?.actionTimerEndsUtc === 'string' ? Date.parse(publishedPrompt.actionTimerEndsUtc) : NaN;
     return Number.isFinite(raw) ? raw : null;
-  }, [publishedPrompt?.timerEndsUtc]);
+  }, [publishedPrompt?.actionTimerEndsUtc]);
   const promptTimerTotalSeconds = useMemo(
-    () => clampInt(Number(publishedPrompt?.timerSeconds ?? liveRules.timer.seconds), 1, 600),
-    [liveRules.timer.seconds, publishedPrompt?.timerSeconds]
+    () => clampInt(Number(publishedPrompt?.actionTimerSeconds ?? liveRules.actionTimer.seconds), 1, 600),
+    [liveRules.actionTimer.seconds, publishedPrompt?.actionTimerSeconds]
   );
   const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
   const timerProgress = timerRemainingMs == null
@@ -746,10 +746,11 @@ export function CogitaLiveRevisionHostPage(props: {
       answeredParticipants.has(participant.participantId)
     );
 
-    const timerStarted = typeof prompt?.timerStartedUtc === 'string' && prompt.timerStartedUtc.length > 0;
-    const timerEndsMs = typeof prompt?.timerEndsUtc === 'string' ? Date.parse(prompt.timerEndsUtc) : NaN;
-    const timerExpired = timerStarted && Number.isFinite(timerEndsMs) && Date.now() >= timerEndsMs;
-    const baseKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:${session.revealVersion}:${answeredRows.length}:${String(prompt?.timerStartedUtc ?? '')}:${String(prompt?.timerEndsUtc ?? '')}`;
+    const actionTimerStarted = typeof prompt?.actionTimerStartedUtc === 'string' && prompt.actionTimerStartedUtc.length > 0;
+    const actionTimerEndsMs = typeof prompt?.actionTimerEndsUtc === 'string' ? Date.parse(prompt.actionTimerEndsUtc) : NaN;
+    const actionTimerExpired = actionTimerStarted && Number.isFinite(actionTimerEndsMs) && Date.now() >= actionTimerEndsMs;
+    const bonusTimerStarted = typeof prompt?.bonusTimerStartedUtc === 'string' && prompt.bonusTimerStartedUtc.length > 0;
+    const baseKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:${session.revealVersion}:${answeredRows.length}:${String(prompt?.actionTimerStartedUtc ?? '')}:${String(prompt?.actionTimerEndsUtc ?? '')}:${String(prompt?.bonusTimerStartedUtc ?? '')}`;
 
     const executeOnce = (suffix: string, action: () => Promise<void>) => {
       const key = `${baseKey}:${suffix}`;
@@ -760,24 +761,49 @@ export function CogitaLiveRevisionHostPage(props: {
       });
     };
 
-    const startTimerNow = async () => {
+    const startActionTimerNow = async () => {
       if (!prompt) return;
       const timerStartedUtc = new Date().toISOString();
-      const seconds = clampInt(liveRules.timer.seconds, 3, 600);
+      const seconds = clampInt(liveRules.actionTimer.seconds, 3, 600);
       const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
       await pushState({
         currentPrompt: {
           ...prompt,
-          timerEnabled: true,
-          timerSeconds: seconds,
-          timerStartedUtc,
-          timerEndsUtc
+          actionTimerEnabled: true,
+          actionTimerSeconds: seconds,
+          actionTimerStartedUtc: timerStartedUtc,
+          actionTimerEndsUtc: timerEndsUtc
+        }
+      });
+    };
+    const startBonusTimerNow = async () => {
+      if (!prompt) return;
+      const timerStartedUtc = new Date().toISOString();
+      const seconds = clampInt(liveRules.bonusTimer.seconds, 1, 600);
+      const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
+      await pushState({
+        currentPrompt: {
+          ...prompt,
+          bonusTimerEnabled: true,
+          bonusTimerSeconds: seconds,
+          bonusTimerStartedUtc: timerStartedUtc,
+          bonusTimerEndsUtc: timerEndsUtc
         }
       });
     };
 
-    if (liveRules.firstAnswerAction === 'start_timer' && liveRules.timer.enabled && firstAnswered && !timerStarted) {
-      executeOnce('first-start-timer', startTimerNow);
+    if (
+      liveRules.bonusTimer.enabled &&
+      liveRules.bonusTimer.startMode === 'first_answer' &&
+      liveRules.firstAnswerAction !== 'reveal' &&
+      firstAnswered &&
+      !bonusTimerStarted
+    ) {
+      executeOnce('first-start-bonus-timer', startBonusTimerNow);
+      return;
+    }
+    if (liveRules.firstAnswerAction === 'start_timer' && liveRules.actionTimer.enabled && firstAnswered && !actionTimerStarted) {
+      executeOnce('first-start-action-timer', startActionTimerNow);
       return;
     }
     if (liveRules.firstAnswerAction === 'reveal' && firstAnswered) {
@@ -803,14 +829,14 @@ export function CogitaLiveRevisionHostPage(props: {
       }
     }
 
-    if (timerExpired) {
-      if (liveRules.timer.onExpire === 'reveal') {
+    if (actionTimerExpired) {
+      if (liveRules.actionTimer.onExpire === 'reveal') {
         executeOnce('timer-reveal', async () => {
           await handleReveal();
         });
         return;
       }
-      if (liveRules.timer.onExpire === 'next') {
+      if (liveRules.actionTimer.onExpire === 'next') {
         executeOnce('timer-next', async () => {
           await handleReveal();
           await handleNext();
@@ -931,14 +957,18 @@ export function CogitaLiveRevisionHostPage(props: {
     setRoundGainByParticipant({});
     const activeParticipants = session.participants.filter((participant) => participant.isConnected);
     const participantCount = activeParticipants.length > 0 ? activeParticipants.length : session.participants.length;
-    const startTimerImmediately =
+    const startActionTimerImmediately =
       session.sessionMode === 'simultaneous' &&
-      liveRules.timer.enabled &&
-      liveRules.timer.triggerMode === 'first_or_single' &&
+      liveRules.actionTimer.enabled &&
       participantCount <= 1;
-    const timerStartedUtc = startTimerImmediately ? new Date().toISOString() : null;
-    const timerEndsUtc = timerStartedUtc
-      ? new Date(Date.parse(timerStartedUtc) + clampInt(liveRules.timer.seconds, 3, 600) * 1000).toISOString()
+    const actionTimerStartedUtc = startActionTimerImmediately ? new Date().toISOString() : null;
+    const actionTimerEndsUtc = actionTimerStartedUtc
+      ? new Date(Date.parse(actionTimerStartedUtc) + clampInt(liveRules.actionTimer.seconds, 3, 600) * 1000).toISOString()
+      : null;
+    const startBonusTimerImmediately = liveRules.bonusTimer.enabled && liveRules.bonusTimer.startMode === 'round_start';
+    const bonusTimerStartedUtc = startBonusTimerImmediately ? new Date().toISOString() : null;
+    const bonusTimerEndsUtc = bonusTimerStartedUtc
+      ? new Date(Date.parse(bonusTimerStartedUtc) + clampInt(liveRules.bonusTimer.seconds, 1, 600) * 1000).toISOString()
       : null;
 
     await pushState({
@@ -950,10 +980,15 @@ export function CogitaLiveRevisionHostPage(props: {
         ...round.publicPrompt,
         roundIndex: index,
         cardKey: round.cardKey,
-        timerEnabled: liveRules.timer.enabled,
-        timerSeconds: clampInt(liveRules.timer.seconds, 3, 600),
-        timerStartedUtc,
-        timerEndsUtc,
+        actionTimerEnabled: liveRules.actionTimer.enabled,
+        actionTimerSeconds: clampInt(liveRules.actionTimer.seconds, 3, 600),
+        actionTimerStartedUtc,
+        actionTimerEndsUtc,
+        bonusTimerEnabled: liveRules.bonusTimer.enabled,
+        bonusTimerSeconds: clampInt(liveRules.bonusTimer.seconds, 1, 600),
+        bonusTimerStartMode: liveRules.bonusTimer.startMode,
+        bonusTimerStartedUtc,
+        bonusTimerEndsUtc,
         streakState: streakByParticipantRef.current
       }
     });
@@ -966,8 +1001,8 @@ export function CogitaLiveRevisionHostPage(props: {
 
   const handleReveal = async () => {
     if (!session || !currentRound) return;
-    const timerStartedMs = typeof publishedPrompt?.timerStartedUtc === 'string' ? Date.parse(publishedPrompt.timerStartedUtc) : NaN;
-    const timerEndsMs = typeof publishedPrompt?.timerEndsUtc === 'string' ? Date.parse(publishedPrompt.timerEndsUtc) : NaN;
+    const timerStartedMs = typeof publishedPrompt?.bonusTimerStartedUtc === 'string' ? Date.parse(publishedPrompt.bonusTimerStartedUtc) : NaN;
+    const timerEndsMs = typeof publishedPrompt?.bonusTimerEndsUtc === 'string' ? Date.parse(publishedPrompt.bonusTimerEndsUtc) : NaN;
     const answerByParticipant = new Map(
       session.currentRoundAnswers
         .filter(
@@ -1020,8 +1055,9 @@ export function CogitaLiveRevisionHostPage(props: {
       }
 
       if (
-        liveRules.timer.enabled &&
-        liveRules.timer.speedBonusMax > 0 &&
+        liveRules.bonusTimer.enabled &&
+        liveRules.speedBonus.enabled &&
+        liveRules.speedBonus.maxPoints > 0 &&
         Number.isFinite(timerStartedMs) &&
         Number.isFinite(timerEndsMs) &&
         row.submittedUtc
@@ -1030,7 +1066,7 @@ export function CogitaLiveRevisionHostPage(props: {
         if (Number.isFinite(submittedMs) && submittedMs <= timerEndsMs) {
           const ratio = Math.max(0, Math.min(1, (timerEndsMs - submittedMs) / Math.max(1, timerEndsMs - timerStartedMs)));
           const speedBonus = clampInt(
-            growthRatio(liveRules.timer.speedBonusGrowth, ratio) * liveRules.timer.speedBonusMax,
+            growthRatio(liveRules.speedBonus.growth, ratio) * liveRules.speedBonus.maxPoints,
             0,
             500000
           );
@@ -1303,13 +1339,13 @@ export function CogitaLiveRevisionHostPage(props: {
                         </select>
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.timerEnabledLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerEnabledLabel}`}</span>
                         <select
-                          value={liveRules.timer.enabled ? 'yes' : 'no'}
+                          value={liveRules.actionTimer.enabled ? 'yes' : 'no'}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, enabled: event.target.value === 'yes' }
+                              actionTimer: { ...previous.actionTimer, enabled: event.target.value === 'yes' }
                             }))
                           }
                         >
@@ -1318,28 +1354,28 @@ export function CogitaLiveRevisionHostPage(props: {
                         </select>
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.timerSecondsLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerSecondsLabel}`}</span>
                         <input
                           type="number"
                           min={3}
                           max={600}
-                          value={liveRules.timer.seconds}
+                          value={liveRules.actionTimer.seconds}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                              actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
                             }))
                           }
                         />
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.onTimerExpiredLabel}</span>
+                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.onTimerExpiredLabel}`}</span>
                         <select
-                          value={liveRules.timer.onExpire}
+                          value={liveRules.actionTimer.onExpire}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, onExpire: event.target.value as TimerExpireAction }
+                              actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
                             }))
                           }
                         >
@@ -1379,16 +1415,16 @@ export function CogitaLiveRevisionHostPage(props: {
                         />
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.speedBonusMaxLabel}</span>
+                        <span>{`${liveCopy.bonusTimerLabel} · ${liveCopy.speedBonusMaxLabel}`}</span>
                         <input
                           type="number"
                           min={0}
                           max={500000}
-                          value={liveRules.timer.speedBonusMax}
+                          value={liveRules.speedBonus.maxPoints}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, speedBonusMax: clampInt(Number(event.target.value), 0, 500000) }
+                              speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -1396,11 +1432,11 @@ export function CogitaLiveRevisionHostPage(props: {
                       <label className="cogita-field">
                         <span>{liveCopy.speedGrowthLabel}</span>
                         <select
-                          value={liveRules.timer.speedBonusGrowth}
+                          value={liveRules.speedBonus.growth}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              timer: { ...previous.timer, speedBonusGrowth: event.target.value as BonusGrowthMode }
+                              speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode }
                             }))
                           }
                         >
@@ -1492,7 +1528,7 @@ export function CogitaLiveRevisionHostPage(props: {
                       ? liveCopy.sessionNotStarted
                       : liveCopy.waitingForPublishedRound}
                 </h3>
-                {session?.status === 'running' && publishedPrompt && Boolean(publishedPrompt.timerEnabled) ? (
+                {session?.status === 'running' && publishedPrompt && Boolean(publishedPrompt.actionTimerEnabled) ? (
                   <div className="cogita-live-timer">
                     <div className="cogita-live-timer-head">
                       <span>{liveCopy.timerLabel}</span>
@@ -1533,21 +1569,21 @@ export function CogitaLiveRevisionHostPage(props: {
                 )}
                 {sessionStage !== 'lobby' ? (
                   <div className="cogita-form-actions">
-                    {session?.status === 'running' && publishedPrompt && liveRules.timer.enabled && !publishedPrompt.timerStartedUtc ? (
+                    {session?.status === 'running' && publishedPrompt && liveRules.actionTimer.enabled && !publishedPrompt.actionTimerStartedUtc ? (
                       <button
                         type="button"
                         className="cta ghost"
                         onClick={() => {
                           const timerStartedUtc = new Date().toISOString();
-                          const seconds = clampInt(liveRules.timer.seconds, 3, 600);
+                          const seconds = clampInt(liveRules.actionTimer.seconds, 3, 600);
                           const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
                           void pushState({
                             currentPrompt: {
                               ...(publishedPrompt ?? {}),
-                              timerEnabled: true,
-                              timerSeconds: seconds,
-                              timerStartedUtc,
-                              timerEndsUtc
+                              actionTimerEnabled: true,
+                              actionTimerSeconds: seconds,
+                              actionTimerStartedUtc: timerStartedUtc,
+                              actionTimerEndsUtc: timerEndsUtc
                             }
                           });
                         }}
