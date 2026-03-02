@@ -162,20 +162,6 @@ export function CogitaRevisionListPage({
                 </div>
               </div>
 
-              <div className="cogita-library-panel">
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
-                      <p className="cogita-user-kicker">{copy.cogita.workspace.targets.allRevisions}</p>
-                      <h3 className="cogita-detail-title">{copy.cogita.workspace.infoMode.search}</h3>
-                    </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.revision.previewBody1}</p>
-                    <p>{copy.cogita.library.revision.previewBody2}</p>
-                  </div>
-                </section>
-              </div>
             </div>
           </div>
         </div>

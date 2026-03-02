@@ -69,6 +69,81 @@ export function CogitaRevisionSettingsPage({
     () => normalizeRevisionSettings(revisionType, revisionSettings),
     [revisionType, revisionSettings]
   );
+  const selectedCollectionName = useMemo(
+    () => availableCollections.find((entry) => entry.collectionId === selectedCollectionId)?.name ?? selectedCollectionId,
+    [availableCollections, selectedCollectionId]
+  );
+  const reviewerLabel = useMemo(
+    () => reviewers.find((reviewer) => reviewer.roleId === reviewerRoleId)?.label ?? '',
+    [reviewerRoleId, reviewers]
+  );
+  const revisionSummaryRows = useMemo(() => {
+    const rows: Array<{ key: string; label: string; value: string }> = [
+      {
+        key: 'collection',
+        label: copy.cogita.library.actions.collections,
+        value: selectedCollectionName || copy.cogita.workspace.selectCollectionOption
+      },
+      {
+        key: 'mode',
+        label: copy.cogita.library.revision.modeLabel,
+        value: copy.cogita.library.revision[revisionType.labelKey]
+      }
+    ];
+
+    revisionType.settingsFields.forEach((field) => {
+      const rawValue = normalizedSettings[field.key];
+      const value =
+        field.type === 'select'
+          ? (() => {
+              const option = field.options?.find((entry) => entry.value === String(rawValue ?? ''));
+              return option ? copy.cogita.library.revision[option.labelKey] : String(rawValue ?? '');
+            })()
+          : String(Number(rawValue ?? 0));
+      rows.push({
+        key: field.key,
+        label: copy.cogita.library.revision[field.labelKey],
+        value
+      });
+    });
+
+    if (revisionType.id === 'random') {
+      rows.push({
+        key: 'limit',
+        label: copy.cogita.library.revision.cardsPerSessionLabel,
+        value: String(limit)
+      });
+    }
+
+    if (reviewerLabel) {
+      rows.push({
+        key: 'reviewer',
+        label: copy.cogita.library.revision.reviewerLabel,
+        value: reviewerLabel
+      });
+    }
+
+    return rows;
+  }, [
+    copy.cogita.library.actions.collections,
+    copy.cogita.library.revision,
+    copy.cogita.workspace.selectCollectionOption,
+    limit,
+    normalizedSettings,
+    reviewerLabel,
+    revisionType,
+    selectedCollectionName
+  ]);
+  const revisionSummaryText = useMemo(
+    () => revisionSummaryRows.map((row) => `${row.label}: ${row.value}`).join(' • '),
+    [revisionSummaryRows]
+  );
+  const revisionModeDescription = useMemo(() => {
+    if (revisionType.id === 'random-once') return copy.cogita.library.revision.modeDescriptionRandomOnce;
+    if (revisionType.id === 'levels') return copy.cogita.library.revision.modeDescriptionLevels;
+    if (revisionType.id === 'temporal') return copy.cogita.library.revision.modeDescriptionTemporal;
+    return copy.cogita.library.revision.modeDescriptionRandom;
+  }, [copy.cogita.library.revision, revisionType.id]);
   const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
   const shareBase = useMemo(() => {
     if (typeof window === 'undefined') return '/#/cogita/public/revision';
@@ -357,6 +432,28 @@ export function CogitaRevisionSettingsPage({
               </div>
 
               <div className="cogita-library-panel">
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <p className="cogita-user-kicker">{copy.cogita.workspace.infoActions.overview}</p>
+                      <h3 className="cogita-detail-title">
+                        {isCreateMode ? copy.cogita.workspace.revisionForm.createAction : copy.cogita.workspace.infoActions.edit}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{revisionModeDescription}</p>
+                    <p>{revisionSummaryText}</p>
+                    <div className="cogita-info-tree">
+                      {revisionSummaryRows.map((row) => (
+                        <div key={row.key} className="cogita-info-tree-row">
+                          <div className="cogita-info-tree-key">{row.label}</div>
+                          <div className="cogita-info-tree-value">{row.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
                 {!isCreateMode && revisionId ? (
                   <section className="cogita-library-detail">
                     <div className="cogita-detail-header">
