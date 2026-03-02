@@ -2,6 +2,7 @@ import type { Copy } from '../../content/types';
 import type { CogitaCardSearchResult } from '../../lib/api';
 import { computeTemporalKnowness, type TemporalEntry } from './knowness';
 import { getCardKey } from './cards';
+import { DEFAULT_DEPENDENCY_CORRECTNESS, DEFAULT_QUESTION_CORRECTNESS } from '../globalSettings';
 
 export type RevisionTypeId = 'random' | 'random-once' | 'levels' | 'temporal';
 export type RevisionSettings = Record<string, number | string>;
@@ -192,7 +193,13 @@ export const prepareTemporalState = (
 const randomType: RevisionTypeDefinition = {
   id: 'random',
   labelKey: 'modeValue',
-  defaultSettings: { tries: 2, compare: 'anchors', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
+  defaultSettings: {
+    tries: 2,
+    compare: 'anchors',
+    minCorrectness: DEFAULT_QUESTION_CORRECTNESS,
+    considerDependencies: 'on',
+    dependencyThreshold: DEFAULT_DEPENDENCY_CORRECTNESS
+  },
   settingsFields: [
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
     { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
@@ -221,7 +228,13 @@ const randomType: RevisionTypeDefinition = {
 const randomOnceType: RevisionTypeDefinition = {
   id: 'random-once',
   labelKey: 'modeValueRandomOnce',
-  defaultSettings: { tries: 2, compare: 'anchors', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
+  defaultSettings: {
+    tries: 2,
+    compare: 'anchors',
+    minCorrectness: DEFAULT_QUESTION_CORRECTNESS,
+    considerDependencies: 'on',
+    dependencyThreshold: DEFAULT_DEPENDENCY_CORRECTNESS
+  },
   settingsFields: [
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },
     { key: 'dependencyThreshold', labelKey: 'dependencyThresholdLabel', type: 'number', min: 0, max: 100, step: 1 },
@@ -307,7 +320,15 @@ export const prepareLevelsState = (
 const levelsType: RevisionTypeDefinition = {
   id: 'levels',
   labelKey: 'modeValueLevels',
-  defaultSettings: { levels: 5, stackSize: 20, tries: 2, compare: 'anchors', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
+  defaultSettings: {
+    levels: 5,
+    stackSize: 20,
+    tries: 2,
+    compare: 'anchors',
+    minCorrectness: DEFAULT_QUESTION_CORRECTNESS,
+    considerDependencies: 'on',
+    dependencyThreshold: DEFAULT_DEPENDENCY_CORRECTNESS
+  },
   settingsFields: [
     { key: 'levels', labelKey: 'levelsLabel', type: 'number', min: 1, max: 20, step: 1 },
     { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
@@ -368,7 +389,14 @@ const levelsType: RevisionTypeDefinition = {
 const temporalType: RevisionTypeDefinition = {
   id: 'temporal',
   labelKey: 'modeValueTemporal',
-  defaultSettings: { stackSize: 20, tries: 2, compare: 'anchors', minCorrectness: 70, considerDependencies: 'on', dependencyThreshold: 85 },
+  defaultSettings: {
+    stackSize: 20,
+    tries: 2,
+    compare: 'anchors',
+    minCorrectness: DEFAULT_QUESTION_CORRECTNESS,
+    considerDependencies: 'on',
+    dependencyThreshold: DEFAULT_DEPENDENCY_CORRECTNESS
+  },
   settingsFields: [
     { key: 'stackSize', labelKey: 'stackLabel', type: 'number', min: 1, max: 200, step: 1 },
     { key: 'tries', labelKey: 'triesLabel', type: 'number', min: 1, max: 10, step: 1 },

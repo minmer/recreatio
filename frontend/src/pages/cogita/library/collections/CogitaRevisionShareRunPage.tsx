@@ -45,6 +45,7 @@ import {
   maskAveragePercent,
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
+import { loadCogitaGlobalSettings } from '../../../../cogita/globalSettings';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 import {
@@ -216,9 +217,10 @@ export function CogitaRevisionShareRunPage({
   const progressCurrent = progressTotal ? Math.min(currentIndex + 1, progressTotal) : 0;
   const maxTries = Math.max(1, Number(revisionSettings.tries ?? 1));
   const compareMode = (revisionSettings.compare as CompareAlgorithmId | undefined) ?? 'anchors';
-  const minCorrectness = Math.max(0, Math.min(100, Number(revisionSettings.minCorrectness ?? 0)));
+  const globalSettings = useMemo(() => loadCogitaGlobalSettings(), []);
+  const minCorrectness = Math.max(0, Math.min(100, Number(globalSettings.questionCorrectness)));
   const considerDependencies = (revisionSettings.considerDependencies ?? 'on') === 'on';
-  const dependencyThreshold = Math.max(0, Math.min(100, Number(revisionSettings.dependencyThreshold ?? 85)));
+  const dependencyThreshold = Math.max(0, Math.min(100, Number(globalSettings.dependencyCorrectness)));
 
   const shuffleList = <T,>(items: T[]) => {
     const copy = items.slice();

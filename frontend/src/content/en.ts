@@ -992,6 +992,12 @@ export const en: Copy = {
       revision: {
         settingsKicker: 'Revision settings',
         settingsSubtitle: 'Revision settings',
+        identitySettingsTitle: 'Identity',
+        showSectionAction: 'Show',
+        hideSectionAction: 'Hide',
+        globalThresholdsTitle: 'Global correctness thresholds',
+        globalQuestionCorrectnessLabel: 'Question correctness (%)',
+        globalDependencyCorrectnessLabel: 'Dependency correctness (%)',
         runKicker: 'Revision',
         shareRunKicker: 'Shared revision',
         modeSummary: 'Mode: {mode} · Check: {check}',

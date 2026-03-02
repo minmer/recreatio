@@ -992,6 +992,12 @@ export const pl: Copy = {
       revision: {
         settingsKicker: 'Ustawienia powtórki',
         settingsSubtitle: 'Ustawienia powtórki',
+        identitySettingsTitle: 'Tożsamość',
+        showSectionAction: 'Pokaż',
+        hideSectionAction: 'Ukryj',
+        globalThresholdsTitle: 'Globalne progi poprawności',
+        globalQuestionCorrectnessLabel: 'Poprawność pytań (%)',
+        globalDependencyCorrectnessLabel: 'Poprawność zależności (%)',
         runKicker: 'Powtórka',
         shareRunKicker: 'Udostępniona powtórka',
         modeSummary: 'Tryb: {mode} · Sprawdzanie: {check}',

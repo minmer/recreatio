@@ -992,6 +992,12 @@ export const de: Copy = {
       revision: {
         settingsKicker: 'Wiederholungseinstellungen',
         settingsSubtitle: 'Wiederholungseinstellungen',
+        identitySettingsTitle: 'Grunddaten',
+        showSectionAction: 'Anzeigen',
+        hideSectionAction: 'Ausblenden',
+        globalThresholdsTitle: 'Globale Korrektheitsgrenzen',
+        globalQuestionCorrectnessLabel: 'Fragen-Korrektheit (%)',
+        globalDependencyCorrectnessLabel: 'Abhängigkeits-Korrektheit (%)',
         runKicker: 'Wiederholung',
         shareRunKicker: 'Geteilte Wiederholung',
         modeSummary: 'Modus: {mode} · Prüfung: {check}',

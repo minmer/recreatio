@@ -692,6 +692,12 @@ export type Copy = {
       revision: {
         settingsKicker: string;
         settingsSubtitle: string;
+        identitySettingsTitle: string;
+        showSectionAction: string;
+        hideSectionAction: string;
+        globalThresholdsTitle: string;
+        globalQuestionCorrectnessLabel: string;
+        globalDependencyCorrectnessLabel: string;
         runKicker: string;
         shareRunKicker: string;
         modeSummary: string;
