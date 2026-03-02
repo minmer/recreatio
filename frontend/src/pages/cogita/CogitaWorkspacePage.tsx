@@ -134,7 +134,7 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   new_text: { requiresCollection: false, allowsRevision: false },
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
-const REVISION_SELECTION_VIEWS: RevisionView[] = ['settings', 'run', 'live'];
+const REVISION_SELECTION_VIEWS: RevisionView[] = ['detail', 'settings', 'run', 'live'];
 const SIDEBAR_NAV_LABEL_MAX = 30;
 const BREADCRUMB_NAV_LABEL_MAX = 42;
 
@@ -201,6 +201,9 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     }
     if (segments[5] === 'shared') {
       return { libraryId, target: 'all_revisions', revisionId, revisionView: 'detail', filterCollectionId };
+    }
+    if (segments[5] === 'edit') {
+      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'settings', filterCollectionId };
     }
     if (segments[5] === 'live-sessions') {
       const liveSessionId = segments[6];
@@ -298,6 +301,7 @@ function buildCogitaPath(
       if (view === 'live') return `/cogita/library/${libraryId}/revisions/live-sessions`;
       return `/cogita/library/${libraryId}/revisions`;
     }
+    if (view === 'settings') return `/cogita/library/${libraryId}/revisions/${id}/edit`;
     if (view === 'run') return `/cogita/library/${libraryId}/revisions/${id}/run`;
     if (view === 'live') {
       if (liveSessionView === 'new') {
@@ -1572,30 +1576,6 @@ export function CogitaWorkspacePage({
       selectedRevisionView
     ]
   );
-  const revisionLiveSessionsSubmenu = useMemo(() => {
-    if (!selectedLibraryId) return null;
-    const sessionsPath = `/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/live-sessions`;
-    const isActive = normalizePath(location.pathname) === normalizePath(sessionsPath);
-    return (
-      <div className="cogita-sidebar-actions">
-        <a
-          key="sidebar:live-sessions:participant"
-          className={`ghost ${isActive ? 'active' : ''}`}
-          href={`/#${sessionsPath}`}
-          onClick={(event) => {
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-              return;
-            }
-            event.preventDefault();
-            navigate(sessionsPath);
-            setSidebarOpen(false);
-          }}
-        >
-          {workspaceCopy.sidebar.revisionParticipantSessionsHint}
-        </a>
-      </div>
-    );
-  }, [location.pathname, navigate, selectedLibraryId, workspaceCopy.sidebar.revisionParticipantSessionsHint]);
   const embeddedSubpage = useMemo(() => {
     const libraryId = pathState.libraryId;
     if (!libraryId || !location.pathname.startsWith('/cogita/library/')) {
@@ -2303,7 +2283,6 @@ export function CogitaWorkspacePage({
                         ) : null}
                       </div>
                     ) : null}
-                    {selectedRevisionId ? revisionLiveSessionsSubmenu : null}
                   </div>
                 ) : null}
               </div>
@@ -2364,7 +2343,6 @@ export function CogitaWorkspacePage({
                                 ) : null}
                               </div>
                             ) : null}
-                            {selectedRevisionId ? revisionLiveSessionsSubmenu : null}
                           </div>
                         ) : null}
                       </div>

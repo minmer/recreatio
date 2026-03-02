@@ -3421,6 +3421,14 @@
   gap: 0;
 }
 
+.cogita-library-dashboard[data-mode='list'] .cogita-library-grid {
+  grid-template-columns: 1fr;
+}
+
+.cogita-revision-overview .cogita-library-grid {
+  grid-template-columns: 1fr;
+}
+
 .cogita-flat-search-list .cogita-flat-search-header {
   width: 100%;
   padding: 0;

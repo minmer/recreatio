@@ -123,7 +123,7 @@ export function CogitaRevisionOverviewPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard" data-mode="detail">
+      <section className="cogita-library-dashboard cogita-revision-overview" data-mode="detail">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
@@ -192,4 +192,3 @@ export function CogitaRevisionOverviewPage({
     </CogitaShell>
   );
 }
-
