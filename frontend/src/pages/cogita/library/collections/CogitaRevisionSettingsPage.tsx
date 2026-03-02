@@ -5,25 +5,15 @@ import {
   getCogitaCollections,
   getCogitaRevision,
   getCogitaRevisionShares,
-  getCogitaReviewers,
   revokeCogitaRevisionShare,
   updateCogitaRevision,
-  type CogitaRevisionShare,
-  type CogitaReviewer
+  type CogitaRevisionShare
 } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
 import { useNavigate } from 'react-router-dom';
-import { loadCogitaGlobalSettings, saveCogitaGlobalSettings, type CogitaGlobalSettings } from '../../../../cogita/globalSettings';
-
-function fillTemplate(template: string, tokens: Record<string, string | number>) {
-  return Object.entries(tokens).reduce(
-    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
-    template
-  );
-}
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -63,10 +53,7 @@ export function CogitaRevisionSettingsPage({
   const [mode, setMode] = useState('random');
   const [revisionSettings, setRevisionSettings] = useState<Record<string, number | string>>({});
   const [check] = useState('exact');
-  const [reviewers, setReviewers] = useState<CogitaReviewer[]>([]);
-  const [reviewerRoleId, setReviewerRoleId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [globalSettings, setGlobalSettings] = useState<CogitaGlobalSettings>(() => loadCogitaGlobalSettings());
   const [showCommonSettings, setShowCommonSettings] = useState(false);
   const [showSpecificSettings, setShowSpecificSettings] = useState(false);
 
@@ -80,11 +67,6 @@ export function CogitaRevisionSettingsPage({
     () => normalizeRevisionSettings(revisionType, revisionSettings),
     [revisionType, revisionSettings]
   );
-  const selectedCollectionName = useMemo(
-    () => availableCollections.find((entry) => entry.collectionId === selectedCollectionId)?.name ?? selectedCollectionId,
-    [availableCollections, selectedCollectionId]
-  );
-  const dependenciesEnabled = String(normalizedSettings.considerDependencies ?? 'on') === 'on';
   const hiddenPerRevisionSettingKeys = useMemo(() => new Set(['minCorrectness', 'dependencyThreshold']), []);
   const visibleSettingsFields = useMemo(
     () => revisionType.settingsFields.filter((field) => !hiddenPerRevisionSettingKeys.has(field.key)),
@@ -112,156 +94,6 @@ export function CogitaRevisionSettingsPage({
         .sort((a, b) => Number(b.key === 'considerDependencies') - Number(a.key === 'considerDependencies')),
     [commonSettingKeys, visibleSettingsFields]
   );
-  const reviewerLabel = useMemo(
-    () => reviewers.find((reviewer) => reviewer.roleId === reviewerRoleId)?.label ?? '',
-    [reviewerRoleId, reviewers]
-  );
-  const revisionSummaryRows = useMemo(() => {
-    const rows: Array<{ key: string; label: string; value: string }> = [
-      {
-        key: 'collection',
-        label: copy.cogita.library.actions.collections,
-        value: selectedCollectionName || copy.cogita.workspace.selectCollectionOption
-      },
-      {
-        key: 'mode',
-        label: copy.cogita.library.revision.modeLabel,
-        value: copy.cogita.library.revision[revisionType.labelKey]
-      }
-    ];
-
-    visibleSettingsFields.forEach((field) => {
-      const rawValue = normalizedSettings[field.key];
-      const value =
-        field.type === 'select'
-          ? (() => {
-              const option = field.options?.find((entry) => entry.value === String(rawValue ?? ''));
-              return option ? copy.cogita.library.revision[option.labelKey] : String(rawValue ?? '');
-            })()
-          : String(Number(rawValue ?? 0));
-      rows.push({
-        key: field.key,
-        label: copy.cogita.library.revision[field.labelKey],
-        value
-      });
-    });
-
-    if (revisionType.id === 'random') {
-      rows.push({
-        key: 'limit',
-        label: copy.cogita.library.revision.cardsPerSessionLabel,
-        value: String(limit)
-      });
-    }
-
-    rows.push({
-      key: 'globalQuestionCorrectness',
-      label: copy.cogita.library.revision.globalQuestionCorrectnessLabel,
-      value: String(globalSettings.questionCorrectness)
-    });
-    if (dependenciesEnabled) {
-      rows.push({
-        key: 'globalDependencyCorrectness',
-        label: copy.cogita.library.revision.globalDependencyCorrectnessLabel,
-        value: String(globalSettings.dependencyCorrectness)
-      });
-    }
-
-    if (reviewerLabel) {
-      rows.push({
-        key: 'reviewer',
-        label: copy.cogita.library.revision.reviewerLabel,
-        value: reviewerLabel
-      });
-    }
-
-    return rows;
-  }, [
-    copy.cogita.library.actions.collections,
-    copy.cogita.library.revision,
-    copy.cogita.workspace.selectCollectionOption,
-    limit,
-    normalizedSettings,
-    globalSettings.dependencyCorrectness,
-    globalSettings.questionCorrectness,
-    reviewerLabel,
-    revisionType,
-    selectedCollectionName,
-    visibleSettingsFields,
-    dependenciesEnabled
-  ]);
-  const revisionSummaryText = useMemo(
-    () => revisionSummaryRows.map((row) => `${row.label}: ${row.value}`).join(' • '),
-    [revisionSummaryRows]
-  );
-  const revisionModeDescription = useMemo(() => {
-    if (revisionType.id === 'random-once') return copy.cogita.library.revision.modeDescriptionRandomOnce;
-    if (revisionType.id === 'levels') return copy.cogita.library.revision.modeDescriptionLevels;
-    if (revisionType.id === 'temporal') return copy.cogita.library.revision.modeDescriptionTemporal;
-    return copy.cogita.library.revision.modeDescriptionRandom;
-  }, [copy.cogita.library.revision, revisionType.id]);
-  const revisionEffects = useMemo(() => {
-    const effects = [
-      fillTemplate(copy.cogita.library.revision.effectCollection, {
-        collection: selectedCollectionName || copy.cogita.workspace.selectCollectionOption
-      }),
-      revisionModeDescription
-    ];
-
-    if (dependenciesEnabled) {
-      effects.push(copy.cogita.library.revision.effectConsiderDependenciesOn);
-      effects.push(
-        fillTemplate(copy.cogita.library.revision.effectDependencyThreshold, {
-          value: Math.round(Number(globalSettings.dependencyCorrectness))
-        })
-      );
-    } else {
-      effects.push(copy.cogita.library.revision.effectConsiderDependenciesOff);
-    }
-
-    effects.push(
-      fillTemplate(copy.cogita.library.revision.effectMinCorrectness, {
-        value: Math.round(Number(globalSettings.questionCorrectness))
-      })
-    );
-
-    const triesValue = Number(normalizedSettings.tries ?? NaN);
-    if (Number.isFinite(triesValue) && triesValue > 0) {
-      effects.push(fillTemplate(copy.cogita.library.revision.effectTries, { value: Math.round(triesValue) }));
-    }
-
-    const stackSize = Number(normalizedSettings.stackSize ?? NaN);
-    if (Number.isFinite(stackSize) && stackSize > 0) {
-      effects.push(fillTemplate(copy.cogita.library.revision.effectStackSize, { value: Math.round(stackSize) }));
-    }
-
-    const levels = Number(normalizedSettings.levels ?? NaN);
-    if (Number.isFinite(levels) && levels > 0) {
-      effects.push(fillTemplate(copy.cogita.library.revision.effectLevels, { value: Math.round(levels) }));
-    }
-
-    if (revisionType.id === 'random') {
-      effects.push(fillTemplate(copy.cogita.library.revision.effectCardsPerSession, { value: Math.round(limit) }));
-    }
-
-    if (reviewerLabel) {
-      effects.push(fillTemplate(copy.cogita.library.revision.effectReviewer, { reviewer: reviewerLabel }));
-    }
-
-    return effects;
-  }, [
-    copy.cogita.library.revision,
-    copy.cogita.workspace.selectCollectionOption,
-    dependenciesEnabled,
-    globalSettings.dependencyCorrectness,
-    globalSettings.questionCorrectness,
-    limit,
-    normalizedSettings,
-    reviewerLabel,
-    revisionModeDescription,
-    revisionType.id,
-    selectedCollectionName
-  ]);
   const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
   const shareBase = useMemo(() => {
     if (typeof window === 'undefined') return '/#/cogita/public/revision';
@@ -282,17 +114,6 @@ export function CogitaRevisionSettingsPage({
       })
       .catch(() => setAvailableCollections([]));
   }, [libraryId, selectedCollectionId]);
-
-  useEffect(() => {
-    getCogitaReviewers({ libraryId })
-      .then((list) => {
-        setReviewers(list);
-        if (!reviewerRoleId && list.length > 0) {
-          setReviewerRoleId(list[0].roleId);
-        }
-      })
-      .catch(() => setReviewers([]));
-  }, [libraryId, reviewerRoleId]);
 
   useEffect(() => {
     if (!revisionId) {
@@ -423,10 +244,6 @@ export function CogitaRevisionSettingsPage({
       setShareCopyStatus('failed');
     }
   };
-  const updateGlobal = (next: CogitaGlobalSettings) => {
-    setGlobalSettings(next);
-    saveCogitaGlobalSettings(next);
-  };
   const renderSettingsField = (field: (typeof revisionType.settingsFields)[number]) => {
     return (
       <label key={field.key} className="cogita-field">
@@ -488,7 +305,7 @@ export function CogitaRevisionSettingsPage({
             <div className="cogita-library-grid">
               <div className="cogita-library-pane">
                 <div className="cogita-library-controls">
-                  <div className="cogita-library-search">
+                  <div className="cogita-library-search cogita-revision-settings-form">
                     <p className="cogita-user-kicker">{isCreateMode ? copy.cogita.workspace.revisionForm.createAction : copy.cogita.workspace.infoActions.edit}</p>
                     <p className="cogita-user-kicker">{copy.cogita.library.revision.identitySettingsTitle}</p>
                     <label className="cogita-field">
@@ -529,58 +346,12 @@ export function CogitaRevisionSettingsPage({
                           </button>
                         </div>
                         {showCommonSettings ? (
-                          <>
+                          <div className="cogita-revision-settings-block">
                             <p className="cogita-user-kicker">{copy.cogita.library.revision.commonSettingsTitle}</p>
-                            {commonSettingsFields.map((field) => renderSettingsField(field))}
-                            <p className="cogita-user-kicker">{copy.cogita.library.revision.globalThresholdsTitle}</p>
-                            <label className="cogita-field">
-                              <span>{copy.cogita.library.revision.globalQuestionCorrectnessLabel}</span>
-                              <input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={globalSettings.questionCorrectness}
-                                onChange={(event) =>
-                                  updateGlobal({
-                                    ...globalSettings,
-                                    questionCorrectness: Math.max(0, Math.min(100, Number(event.target.value || 0)))
-                                  })
-                                }
-                              />
-                            </label>
-                            {dependenciesEnabled ? (
-                              <label className="cogita-field">
-                                <span>{copy.cogita.library.revision.globalDependencyCorrectnessLabel}</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={globalSettings.dependencyCorrectness}
-                                  onChange={(event) =>
-                                    updateGlobal({
-                                      ...globalSettings,
-                                      dependencyCorrectness: Math.max(0, Math.min(100, Number(event.target.value || 0)))
-                                    })
-                                  }
-                                />
-                              </label>
-                            ) : (
-                              <p className="cogita-help">{copy.cogita.library.revision.dependencyThresholdDisabledHint}</p>
-                            )}
-                            <label className="cogita-field">
-                              <span>{copy.cogita.library.revision.reviewerLabel}</span>
-                              <select
-                                value={reviewerRoleId ?? ''}
-                                onChange={(event) => setReviewerRoleId(event.target.value || null)}
-                              >
-                                {reviewers.map((reviewer) => (
-                                  <option key={reviewer.roleId} value={reviewer.roleId}>
-                                    {reviewer.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </>
+                            <div className="cogita-revision-settings-stack">
+                              {commonSettingsFields.map((field) => renderSettingsField(field))}
+                            </div>
+                          </div>
                         ) : null}
                       </>
                     ) : null}
@@ -593,8 +364,10 @@ export function CogitaRevisionSettingsPage({
                           </button>
                         </div>
                         {showSpecificSettings ? (
-                          <>
-                            {specificSettingsFields.map((field) => renderSettingsField(field))}
+                          <div className="cogita-revision-settings-block">
+                            <div className="cogita-revision-settings-stack">
+                              {specificSettingsFields.map((field) => renderSettingsField(field))}
+                            </div>
                             {revisionType.id === 'random' ? (
                               <label className="cogita-field">
                                 <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
@@ -607,7 +380,7 @@ export function CogitaRevisionSettingsPage({
                                 />
                               </label>
                             ) : null}
-                          </>
+                          </div>
                         ) : null}
                       </>
                     ) : null}
@@ -617,7 +390,7 @@ export function CogitaRevisionSettingsPage({
                           ? '...'
                           : isCreateMode
                             ? copy.cogita.workspace.revisionForm.createAction
-                            : copy.cogita.workspace.infoActions.edit}
+                            : copy.cogita.workspace.revisionForm.saveAction}
                       </button>
                     </div>
                     {saveStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.error}</p> : null}
@@ -626,34 +399,6 @@ export function CogitaRevisionSettingsPage({
               </div>
 
               <div className="cogita-library-panel">
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
-                      <p className="cogita-user-kicker">{copy.cogita.workspace.infoActions.overview}</p>
-                      <h3 className="cogita-detail-title">
-                        {isCreateMode ? copy.cogita.workspace.revisionForm.createAction : copy.cogita.workspace.infoActions.edit}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.revision.settingsImpactIntro}</p>
-                    <p>{revisionSummaryText}</p>
-                    <p className="cogita-user-kicker">{copy.cogita.library.revision.settingsImpactTitle}</p>
-                    <div>
-                      {revisionEffects.map((line, index) => (
-                        <p key={`effect:${index}`}>{line}</p>
-                      ))}
-                    </div>
-                    <div className="cogita-info-tree">
-                      {revisionSummaryRows.map((row) => (
-                        <div key={row.key} className="cogita-info-tree-row">
-                          <div className="cogita-info-tree-key">{row.label}</div>
-                          <div className="cogita-info-tree-value">{row.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
                 {!isCreateMode && revisionId ? (
                   <section className="cogita-library-detail">
                     <div className="cogita-detail-header">

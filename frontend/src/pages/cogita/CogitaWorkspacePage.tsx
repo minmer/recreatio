@@ -8,7 +8,6 @@ import {
   getCogitaInfoDetail,
   getCogitaLibraries,
   getCogitaLiveRevisionSessionsByRevision,
-  getCogitaParticipatingLiveRevisionSessions,
   getCogitaReviewers,
   getCogitaRevisions,
   getRoleGraph,
@@ -20,7 +19,6 @@ import {
   type CogitaInfoSearchResult,
   type CogitaLibrary,
   type CogitaLiveRevisionSessionListItem,
-  type CogitaLiveRevisionParticipantSessionListItem,
   type CogitaReviewer,
   type CogitaRevision,
   type RoleResponse
@@ -475,7 +473,6 @@ export function CogitaWorkspacePage({
   const [headerReviewers, setHeaderReviewers] = useState<CogitaReviewer[]>([]);
   const [selectedReviewerRoleId, setSelectedReviewerRoleId] = useState('');
   const [reviewersReloadTick, setReviewersReloadTick] = useState(0);
-  const [participatingLiveSessions, setParticipatingLiveSessions] = useState<CogitaLiveRevisionParticipantSessionListItem[]>([]);
   const [revisionLiveSessions, setRevisionLiveSessions] = useState<CogitaLiveRevisionSessionListItem[]>([]);
 
   const [preferenceRoleId, setPreferenceRoleId] = useState<string | null>(null);
@@ -531,26 +528,6 @@ export function CogitaWorkspacePage({
       cancelled = true;
     };
   }, [selectedLibraryId, reviewersReloadTick]);
-
-  useEffect(() => {
-    if (!selectedLibraryId || !selectedReviewerRoleId) {
-      setParticipatingLiveSessions([]);
-      return;
-    }
-    let cancelled = false;
-    getCogitaParticipatingLiveRevisionSessions({ libraryId: selectedLibraryId })
-      .then((items) => {
-        if (cancelled) return;
-        setParticipatingLiveSessions(items);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setParticipatingLiveSessions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLibraryId, reviewersReloadTick, selectedReviewerRoleId]);
 
   useEffect(() => {
     if (!selectedLibraryId) return;
@@ -1588,121 +1565,28 @@ export function CogitaWorkspacePage({
   );
   const revisionLiveSessionsSubmenu = useMemo(() => {
     if (!selectedLibraryId) return null;
-    const hasParticipantContext = Boolean(selectedReviewerRoleId);
-    if (!selectedRevisionId && !hasParticipantContext) return null;
-    const hostedSessions = selectedRevisionId
-      ? revisionLiveSessions.filter((session) => session.revisionId === selectedRevisionId)
-      : [];
+    const sessionsPath = `/cogita/live-sessions/${encodeURIComponent(selectedLibraryId)}`;
+    const isActive = normalizePath(location.pathname) === normalizePath(sessionsPath);
     return (
-      <div className="cogita-sidebar-actions-nested" data-level="branch">
-        {selectedRevisionId ? (
-          <>
-            <p className="cogita-sidebar-note">{workspaceCopy.sidebar.revisionHostedLiveSessionsHint}</p>
-            {hostedSessions.length > 0 ? (
-              <div className="cogita-sidebar-actions">
-                <a
-                  key="sidebar:hosted-live:search"
-                  className={`ghost ${displayRevisionView === 'live' && pathState.liveSessionView !== 'new' && !pathState.liveSessionId ? 'active' : ''}`}
-                  href={`/#/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(selectedRevisionId)}/live-sessions`}
-                  onClick={(event) => {
-                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                      return;
-                    }
-                    event.preventDefault();
-                    navigate(
-                      `/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(selectedRevisionId)}/live-sessions`
-                    );
-                    setSidebarOpen(false);
-                  }}
-                >
-                  {workspaceCopy.infoMode.search}
-                </a>
-                {hostedSessions.map((session) => (
-                  <a
-                    key={`sidebar:hosted-live:${session.sessionId}`}
-                    className={`ghost ${pathState.liveSessionId === session.sessionId ? 'active' : ''}`}
-                    title={session.title || session.sessionId}
-                    href={`/#/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(session.revisionId)}/live-sessions/${encodeURIComponent(session.sessionId)}`}
-                    onClick={(event) => {
-                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                        return;
-                      }
-                      event.preventDefault();
-                      navigate(
-                        `/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(session.revisionId)}/live-sessions/${encodeURIComponent(session.sessionId)}`
-                      );
-                      setSidebarOpen(false);
-                    }}
-                  >
-                    {shortenNavLabel(session.title || session.sessionId, SIDEBAR_NAV_LABEL_MAX)}
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <p className="cogita-sidebar-note">{workspaceCopy.sidebar.noRevisionHostedLiveSessions}</p>
-            )}
-          </>
-        ) : null}
-        {hasParticipantContext ? <p className="cogita-sidebar-note">{workspaceCopy.sidebar.revisionLiveSessionsHint}</p> : null}
-        {hasParticipantContext && participatingLiveSessions.length > 0 ? (
-          <div className="cogita-sidebar-actions">
-            <a
-              key="sidebar:participant-live:search"
-              className="ghost"
-              href={`/#/cogita/live-sessions/${encodeURIComponent(selectedLibraryId)}`}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                  return;
-                }
-                event.preventDefault();
-                navigate(`/cogita/live-sessions/${encodeURIComponent(selectedLibraryId)}`);
-                setSidebarOpen(false);
-              }}
-            >
-              {workspaceCopy.infoMode.search}
-            </a>
-            {participatingLiveSessions.map((session) => (
-              <a
-                key={`sidebar:participant-live:${session.sessionId}`}
-                className={`ghost ${pathState.liveSessionId === session.sessionId ? 'active' : ''}`}
-                title={session.title || session.sessionId}
-                href={`/#/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(session.revisionId)}/live-sessions/${encodeURIComponent(session.sessionId)}`}
-                onClick={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                    return;
-                  }
-                  event.preventDefault();
-                  navigate(
-                    `/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/${encodeURIComponent(session.revisionId)}/live-sessions/${encodeURIComponent(session.sessionId)}`
-                  );
-                  setSidebarOpen(false);
-                }}
-              >
-                {shortenNavLabel(session.title || session.sessionId, SIDEBAR_NAV_LABEL_MAX)}
-              </a>
-            ))}
-          </div>
-        ) : hasParticipantContext ? (
-          <p className="cogita-sidebar-note">{workspaceCopy.sidebar.noRevisionLiveSessions}</p>
-        ) : null}
+      <div className="cogita-sidebar-actions">
+        <a
+          key="sidebar:live-sessions:participant"
+          className={`ghost ${isActive ? 'active' : ''}`}
+          href={`/#${sessionsPath}`}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+              return;
+            }
+            event.preventDefault();
+            navigate(sessionsPath);
+            setSidebarOpen(false);
+          }}
+        >
+          {workspaceCopy.sidebar.revisionParticipantSessionsHint}
+        </a>
       </div>
     );
-  }, [
-    navigate,
-    displayRevisionView,
-    pathState.liveSessionView,
-    pathState.liveSessionId,
-    participatingLiveSessions,
-    revisionLiveSessions,
-    selectedLibraryId,
-    selectedRevisionId,
-    selectedReviewerRoleId,
-    workspaceCopy.infoMode.search,
-    workspaceCopy.sidebar.noRevisionHostedLiveSessions,
-    workspaceCopy.sidebar.noRevisionLiveSessions,
-    workspaceCopy.sidebar.revisionHostedLiveSessionsHint,
-    workspaceCopy.sidebar.revisionLiveSessionsHint
-  ]);
+  }, [location.pathname, navigate, selectedLibraryId, workspaceCopy.sidebar.revisionParticipantSessionsHint]);
   const embeddedSubpage = useMemo(() => {
     const libraryId = pathState.libraryId;
     if (!libraryId || !location.pathname.startsWith('/cogita/library/')) {

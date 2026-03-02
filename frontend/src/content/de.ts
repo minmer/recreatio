@@ -209,7 +209,8 @@ export const de: Copy = {
       revisionForm: {
         nameLabel: 'Wiederholungsname',
         namePlaceholder: 'Wiederholungsname eingeben',
-        createAction: 'Wiederholung erstellen'
+        createAction: 'Wiederholung erstellen',
+        saveAction: 'Wiederholung speichern'
       },
       infoActions: {
         overview: 'Übersicht',
@@ -233,6 +234,7 @@ export const de: Copy = {
         infoActionsHint: 'Infoaktionen',
         selectedInfoActionsHint: 'Aktionen der gewählten Info',
         collectionActionsHint: 'Sammlungsaktionen',
+        revisionParticipantSessionsHint: 'Sitzungsteilnahme',
         revisionHostedLiveSessionsHint: 'Gehostete Live-Sitzungen',
         noRevisionHostedLiveSessions: 'Keine Host-Sitzungen in dieser Wiederholung.',
         revisionLiveSessionsHint: 'Live-Sessions mit Teilnahme',
@@ -1211,7 +1213,23 @@ export const de: Copy = {
           columnPrefixLabel: 'Spalte',
           trueLabel: 'Wahr',
           falseLabel: 'Falsch',
-          scoreUnit: 'Pkt'
+          scoreUnit: 'Pkt',
+          activeSessionsTitle: 'Aktive Live-Sitzungen',
+          roleLabel: 'Rolle',
+          roleHost: 'Host',
+          roleParticipant: 'Teilnehmende',
+          roleBoth: 'Host und teilnehmend',
+          hostSessionsTitle: 'Gehostete Sitzungen',
+          participantSessionsTitle: 'Teilnahmesitzungen',
+          sharedRoleSessionsTitle: 'Sitzungen mit beiden Rollen',
+          noHostSessions: 'Keine gehosteten Sitzungen.',
+          noParticipantSessions: 'Keine Teilnahmesitzungen.',
+          noSessionsForRole: 'Keine Sitzungen in dieser Rolle.',
+          yourScoreLabel: 'Dein Punktestand',
+          connectedLabel: 'Verbunden',
+          disconnectedLabel: 'Getrennt',
+          refreshAction: 'Aktualisieren',
+          closedStatus: 'Geschlossen'
         },
       },
       lookup: {

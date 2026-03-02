@@ -2940,6 +2940,23 @@
   cursor: not-allowed;
 }
 
+.cogita-revision-settings-form .cogita-form-actions {
+  margin-top: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.cogita-revision-settings-form .cogita-revision-settings-block {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.55rem;
+  margin-bottom: 1.1rem;
+}
+
+.cogita-revision-settings-form .cogita-revision-settings-stack {
+  display: grid;
+  gap: 0.95rem;
+}
+
 .cogita-form-error {
   margin: 0;
   color: rgba(255, 190, 170, 0.9);

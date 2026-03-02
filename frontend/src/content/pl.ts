@@ -209,7 +209,8 @@ export const pl: Copy = {
       revisionForm: {
         nameLabel: 'Nazwa powtórki',
         namePlaceholder: 'Wpisz nazwę powtórki',
-        createAction: 'Utwórz powtórkę'
+        createAction: 'Utwórz powtórkę',
+        saveAction: 'Zapisz powtórkę'
       },
       infoActions: {
         overview: 'Przegląd',
@@ -233,6 +234,7 @@ export const pl: Copy = {
         infoActionsHint: 'Akcje informacji',
         selectedInfoActionsHint: 'Akcje wybranej informacji',
         collectionActionsHint: 'Akcje kolekcji',
+        revisionParticipantSessionsHint: 'Sesje uczestnika',
         revisionHostedLiveSessionsHint: 'Sesje live hosta',
         noRevisionHostedLiveSessions: 'Brak sesji hosta w tej powtórce.',
         revisionLiveSessionsHint: 'Sesje live uczestnika',
@@ -1211,7 +1213,23 @@ export const pl: Copy = {
           columnPrefixLabel: 'Kolumna',
           trueLabel: 'Prawda',
           falseLabel: 'Fałsz',
-          scoreUnit: 'pkt'
+          scoreUnit: 'pkt',
+          activeSessionsTitle: 'Aktywne sesje live',
+          roleLabel: 'Rola',
+          roleHost: 'Host',
+          roleParticipant: 'Uczestnik',
+          roleBoth: 'Host i uczestnik',
+          hostSessionsTitle: 'Sesje hostowane',
+          participantSessionsTitle: 'Sesje uczestnika',
+          sharedRoleSessionsTitle: 'Sesje z obiema rolami',
+          noHostSessions: 'Brak sesji hostowanych.',
+          noParticipantSessions: 'Brak sesji uczestnika.',
+          noSessionsForRole: 'Brak sesji w tej roli.',
+          yourScoreLabel: 'Twój wynik',
+          connectedLabel: 'Połączony',
+          disconnectedLabel: 'Rozłączony',
+          refreshAction: 'Odśwież',
+          closedStatus: 'Zamknięta'
         },
       },
       lookup: {

@@ -209,7 +209,8 @@ export const en: Copy = {
       revisionForm: {
         nameLabel: 'Revision name',
         namePlaceholder: 'Enter revision name',
-        createAction: 'Create revision'
+        createAction: 'Create revision',
+        saveAction: 'Save revision'
       },
       infoActions: {
         overview: 'Overview',
@@ -233,6 +234,7 @@ export const en: Copy = {
         infoActionsHint: 'Info actions',
         selectedInfoActionsHint: 'Selected info actions',
         collectionActionsHint: 'Collection actions',
+        revisionParticipantSessionsHint: 'Participant sessions',
         revisionHostedLiveSessionsHint: 'Hosted live sessions',
         noRevisionHostedLiveSessions: 'No hosted sessions in this revision.',
         revisionLiveSessionsHint: 'Participating live sessions',
@@ -1211,7 +1213,23 @@ export const en: Copy = {
           columnPrefixLabel: 'Column',
           trueLabel: 'True',
           falseLabel: 'False',
-          scoreUnit: 'pt'
+          scoreUnit: 'pt',
+          activeSessionsTitle: 'Active live sessions',
+          roleLabel: 'Role',
+          roleHost: 'Host',
+          roleParticipant: 'Participant',
+          roleBoth: 'Host and participant',
+          hostSessionsTitle: 'Hosted sessions',
+          participantSessionsTitle: 'Participating sessions',
+          sharedRoleSessionsTitle: 'Sessions with both roles',
+          noHostSessions: 'No hosted sessions.',
+          noParticipantSessions: 'No participant sessions.',
+          noSessionsForRole: 'No sessions in this role.',
+          yourScoreLabel: 'Your score',
+          connectedLabel: 'Connected',
+          disconnectedLabel: 'Disconnected',
+          refreshAction: 'Refresh',
+          closedStatus: 'Closed'
         },
       },
       lookup: {

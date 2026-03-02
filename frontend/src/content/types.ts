@@ -166,6 +166,7 @@ export type Copy = {
         nameLabel: string;
         namePlaceholder: string;
         createAction: string;
+        saveAction: string;
       };
       infoActions: {
         overview: string;
@@ -189,6 +190,7 @@ export type Copy = {
         infoActionsHint: string;
         selectedInfoActionsHint: string;
         collectionActionsHint: string;
+        revisionParticipantSessionsHint: string;
         revisionHostedLiveSessionsHint: string;
         noRevisionHostedLiveSessions: string;
         revisionLiveSessionsHint: string;
@@ -912,6 +914,22 @@ export type Copy = {
           trueLabel: string;
           falseLabel: string;
           scoreUnit: string;
+          activeSessionsTitle: string;
+          roleLabel: string;
+          roleHost: string;
+          roleParticipant: string;
+          roleBoth: string;
+          hostSessionsTitle: string;
+          participantSessionsTitle: string;
+          sharedRoleSessionsTitle: string;
+          noHostSessions: string;
+          noParticipantSessions: string;
+          noSessionsForRole: string;
+          yourScoreLabel: string;
+          connectedLabel: string;
+          disconnectedLabel: string;
+          refreshAction: string;
+          closedStatus: string;
         };
       };
       lookup: {
