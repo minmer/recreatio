@@ -273,99 +273,99 @@ export function CogitaRevisionSettingsPage({
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
-              <div className="cogita-library-pane">
-                <div className="cogita-library-controls">
-                  <div className="cogita-library-search cogita-revision-settings-form">
-                    <p className="cogita-user-kicker">{isCreateMode ? copy.cogita.workspace.revisionForm.createAction : copy.cogita.workspace.infoActions.edit}</p>
+              <div className="cogita-revision-settings-layout">
+                <section className="cogita-library-panel cogita-revision-settings-form">
+                  <div className="cogita-revision-settings-block">
                     <p className="cogita-user-kicker">{copy.cogita.library.revision.identitySettingsTitle}</p>
-                    <label className="cogita-field">
-                      <span>{copy.cogita.library.actions.collections}</span>
-                      <select value={selectedCollectionId} onChange={(event) => setSelectedCollectionId(event.target.value)}>
-                        <option value="">{copy.cogita.workspace.selectCollectionOption}</option>
-                        {availableCollections.map((collectionOption) => (
-                          <option key={collectionOption.collectionId} value={collectionOption.collectionId}>
-                            {collectionOption.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="cogita-field">
-                      <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
-                      <input
-                        value={revisionName}
-                        onChange={(event) => setRevisionName(event.target.value)}
-                        placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
-                      />
-                    </label>
-                    <label className="cogita-field">
-                      <span>{copy.cogita.library.revision.modeLabel}</span>
-                      <select value={mode} onChange={(event) => setMode(event.target.value)}>
-                        {revisionTypes.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {copy.cogita.library.revision[type.labelKey]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {commonSettingsFields.length > 0 ? (
-                      <>
-                        <div className="cogita-form-actions">
-                          <button type="button" className="ghost" onClick={() => setShowCommonSettings((prev) => !prev)}>
-                            {showCommonSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
-                            {copy.cogita.library.revision.commonSettingsTitle}
-                          </button>
-                        </div>
-                        {showCommonSettings ? (
-                          <div className="cogita-revision-settings-block">
-                            <p className="cogita-user-kicker">{copy.cogita.library.revision.commonSettingsTitle}</p>
-                            <div className="cogita-revision-settings-stack">
-                              {commonSettingsFields.map((field) => renderSettingsField(field))}
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {specificSettingsFields.length > 0 ? (
-                      <>
-                        <div className="cogita-form-actions">
-                          <button type="button" className="ghost" onClick={() => setShowSpecificSettings((prev) => !prev)}>
-                            {showSpecificSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
-                            {copy.cogita.library.revision.specificSettingsTitle}
-                          </button>
-                        </div>
-                        {showSpecificSettings ? (
-                          <div className="cogita-revision-settings-block">
-                            <div className="cogita-revision-settings-stack">
-                              {specificSettingsFields.map((field) => renderSettingsField(field))}
-                            </div>
-                            {revisionType.id === 'random' ? (
-                              <label className="cogita-field">
-                                <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={200}
-                                  value={limit}
-                                  onChange={(event) => setLimit(Number(event.target.value || 1))}
-                                />
-                              </label>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : null}
-                    <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleSaveRevision} disabled={saveStatus === 'saving'}>
-                        {saveStatus === 'saving'
-                          ? '...'
-                          : isCreateMode
-                            ? copy.cogita.workspace.revisionForm.createAction
-                            : copy.cogita.workspace.revisionForm.saveAction}
-                      </button>
+                    <div className="cogita-revision-settings-stack">
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.actions.collections}</span>
+                        <select value={selectedCollectionId} onChange={(event) => setSelectedCollectionId(event.target.value)}>
+                          <option value="">{copy.cogita.workspace.selectCollectionOption}</option>
+                          {availableCollections.map((collectionOption) => (
+                            <option key={collectionOption.collectionId} value={collectionOption.collectionId}>
+                              {collectionOption.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="cogita-field">
+                        <span>{copy.cogita.workspace.revisionForm.nameLabel}</span>
+                        <input
+                          value={revisionName}
+                          onChange={(event) => setRevisionName(event.target.value)}
+                          placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
+                        />
+                      </label>
+                      <label className="cogita-field">
+                        <span>{copy.cogita.library.revision.modeLabel}</span>
+                        <select value={mode} onChange={(event) => setMode(event.target.value)}>
+                          {revisionTypes.map((type) => (
+                            <option key={type.id} value={type.id}>
+                              {copy.cogita.library.revision[type.labelKey]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
-                    {saveStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.error}</p> : null}
                   </div>
+                </section>
+
+                <section className="cogita-library-panel cogita-revision-settings-form">
+                  <div className="cogita-form-actions">
+                    <button type="button" className="ghost" onClick={() => setShowCommonSettings((prev) => !prev)}>
+                      {showCommonSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
+                      {copy.cogita.library.revision.commonSettingsTitle}
+                    </button>
+                  </div>
+                  {showCommonSettings ? (
+                    <div className="cogita-revision-settings-block">
+                      <p className="cogita-user-kicker">{copy.cogita.library.revision.commonSettingsTitle}</p>
+                      <div className="cogita-revision-settings-stack">
+                        {commonSettingsFields.map((field) => renderSettingsField(field))}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="cogita-library-panel cogita-revision-settings-form">
+                  <div className="cogita-form-actions">
+                    <button type="button" className="ghost" onClick={() => setShowSpecificSettings((prev) => !prev)}>
+                      {showSpecificSettings ? copy.cogita.library.revision.hideSectionAction : copy.cogita.library.revision.showSectionAction}{' '}
+                      {copy.cogita.library.revision.specificSettingsTitle}
+                    </button>
+                  </div>
+                  {showSpecificSettings ? (
+                    <div className="cogita-revision-settings-block">
+                      <div className="cogita-revision-settings-stack">
+                        {specificSettingsFields.map((field) => renderSettingsField(field))}
+                      </div>
+                      {revisionType.id === 'random' ? (
+                        <label className="cogita-field">
+                          <span>{copy.cogita.library.revision.cardsPerSessionLabel}</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={limit}
+                            onChange={(event) => setLimit(Number(event.target.value || 1))}
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+
+                <div className="cogita-form-actions cogita-revision-settings-submit">
+                  <button type="button" className="cta" onClick={handleSaveRevision} disabled={saveStatus === 'saving'}>
+                    {saveStatus === 'saving'
+                      ? '...'
+                      : isCreateMode
+                        ? copy.cogita.workspace.revisionForm.createAction
+                        : copy.cogita.workspace.revisionForm.saveAction}
+                  </button>
                 </div>
+                {saveStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.error}</p> : null}
               </div>
 
               <div className="cogita-library-panel">
@@ -376,7 +376,6 @@ export function CogitaRevisionSettingsPage({
                     </div>
                   </div>
                   <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.revision.settingsImpactIntro}</p>
                     {settingsImpactLines.map((line) => (
                       <p key={line}>{line}</p>
                     ))}

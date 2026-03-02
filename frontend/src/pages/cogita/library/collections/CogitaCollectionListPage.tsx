@@ -92,7 +92,7 @@ export function CogitaCollectionListPage({
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
-              <div className="cogita-library-pane">
+              <div className="cogita-flat-search-header">
                 <div className="cogita-library-controls">
                   <div className="cogita-library-search">
                     <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
@@ -106,7 +106,9 @@ export function CogitaCollectionListPage({
                     </div>
                   </div>
                 </div>
+              </div>
 
+              <div className="cogita-library-panel">
                 <div className="cogita-card-count">
                   <span>{copy.cogita.library.collections.countLabel
                     .replace('{shown}', String(collections.length))
@@ -146,7 +148,6 @@ export function CogitaCollectionListPage({
                   </div>
                 ) : null}
               </div>
-
             </div>
           </div>
         </div>

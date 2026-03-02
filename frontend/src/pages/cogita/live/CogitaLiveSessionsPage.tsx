@@ -33,14 +33,12 @@ export function CogitaLiveSessionsPage(props: {
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
   const [attachedBySessionId, setAttachedBySessionId] = useState<Record<string, { sessionId: string; code: string; hostSecret: string }>>({});
 
-  type SessionRole = 'host' | 'participant' | 'both';
   type UnifiedLiveSession = {
     sessionId: string;
     title?: string | null;
     status: string;
     participantCount: number;
     updatedUtc: string;
-    role: SessionRole;
     hostItem?: CogitaLiveRevisionSessionListItem;
     participantItem?: CogitaLiveRevisionParticipantSessionListItem;
   };
@@ -86,7 +84,6 @@ export function CogitaLiveSessionsPage(props: {
         status: item.status,
         participantCount: item.participantCount,
         updatedUtc: item.updatedUtc,
-        role: 'host',
         hostItem: item
       });
     }
@@ -94,7 +91,6 @@ export function CogitaLiveSessionsPage(props: {
       const existing = byId.get(item.sessionId);
       if (existing) {
         existing.participantItem = item;
-        existing.role = 'both';
         if (!existing.title && item.title) existing.title = item.title;
         existing.status = item.status || existing.status;
         existing.participantCount = Math.max(existing.participantCount, item.participantCount);
@@ -108,7 +104,6 @@ export function CogitaLiveSessionsPage(props: {
           status: item.status,
           participantCount: item.participantCount,
           updatedUtc: item.updatedUtc,
-          role: 'participant',
           participantItem: item
         });
       }
@@ -116,10 +111,9 @@ export function CogitaLiveSessionsPage(props: {
     return Array.from(byId.values()).sort((a, b) => new Date(b.updatedUtc).getTime() - new Date(a.updatedUtc).getTime());
   }, [hostedItems, participatingItems]);
 
-  const sharedRoleSessions = useMemo(() => unifiedSessions.filter((session) => session.role === 'both'), [unifiedSessions]);
-  const hostOnlySessions = useMemo(() => unifiedSessions.filter((session) => session.role === 'host'), [unifiedSessions]);
-  const participantOnlySessions = useMemo(
-    () => unifiedSessions.filter((session) => session.role === 'participant'),
+  const hostSessions = useMemo(() => unifiedSessions.filter((session) => Boolean(session.hostItem)), [unifiedSessions]);
+  const participantSessions = useMemo(
+    () => unifiedSessions.filter((session) => Boolean(session.participantItem)),
     [unifiedSessions]
   );
 
@@ -157,16 +151,7 @@ export function CogitaLiveSessionsPage(props: {
     }
   };
 
-  const roleLabelByRole: Record<SessionRole, string> = useMemo(
-    () => ({
-      host: liveCopy.roleHost,
-      participant: liveCopy.roleParticipant,
-      both: liveCopy.roleBoth
-    }),
-    [liveCopy.roleBoth, liveCopy.roleHost, liveCopy.roleParticipant]
-  );
-
-  const renderSessionRow = (item: UnifiedLiveSession) => (
+  const renderSessionRow = (item: UnifiedLiveSession, role: 'host' | 'participant') => (
     <div className="cogita-share-row" key={item.sessionId}>
       <div>
         <strong>{item.title || item.sessionId}</strong>
@@ -174,7 +159,7 @@ export function CogitaLiveSessionsPage(props: {
           {statusLabelMap[item.status] ?? item.status} · {liveCopy.participantsTitle}: {item.participantCount}
         </div>
         <div className="cogita-share-meta">
-          {liveCopy.roleLabel}: {roleLabelByRole[item.role]}
+          {liveCopy.roleLabel}: {role === 'host' ? liveCopy.roleHost : liveCopy.roleParticipant}
         </div>
         {item.participantItem ? (
           <div className="cogita-share-meta">
@@ -183,7 +168,7 @@ export function CogitaLiveSessionsPage(props: {
           </div>
         ) : null}
       </div>
-      {item.hostItem ? (
+      {role === 'host' && item.hostItem ? (
         <div className="cogita-form-actions">
           <button type="button" className="ghost" onClick={() => attachAndOpen(item.hostItem, 'host')} disabled={busySessionId === item.sessionId}>
             {liveCopy.roleHost}
@@ -199,7 +184,7 @@ export function CogitaLiveSessionsPage(props: {
     </div>
   );
 
-  const renderSessionGroup = (title: string, rows: UnifiedLiveSession[], emptyLabel: string) => (
+  const renderSessionGroup = (title: string, rows: UnifiedLiveSession[], emptyLabel: string, role: 'host' | 'participant') => (
     <>
       <div className="cogita-detail-header" style={{ marginTop: '1rem' }}>
         <div>
@@ -207,7 +192,7 @@ export function CogitaLiveSessionsPage(props: {
         </div>
       </div>
       {rows.length === 0 ? <p className="cogita-help">{emptyLabel}</p> : null}
-      {rows.length > 0 ? <div className="cogita-share-list">{rows.map(renderSessionRow)}</div> : null}
+      {rows.length > 0 ? <div className="cogita-share-list">{rows.map((row) => renderSessionRow(row, role))}</div> : null}
     </>
   );
 
@@ -230,13 +215,14 @@ export function CogitaLiveSessionsPage(props: {
               </div>
               {status === 'loading' ? <p>{liveCopy.loading}</p> : null}
               {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
-              {status === 'ready' && unifiedSessions.length === 0 ? <p className="cogita-help">{liveCopy.noSessionsForRole}</p> : null}
+              {status === 'ready' && hostSessions.length === 0 && participantSessions.length === 0 ? (
+                <p className="cogita-help">{liveCopy.noSessionsForRole}</p>
+              ) : null}
               {status === 'ready'
                 ? (
                     <>
-                      {renderSessionGroup(liveCopy.sharedRoleSessionsTitle, sharedRoleSessions, liveCopy.noSessionsForRole)}
-                      {renderSessionGroup(liveCopy.hostSessionsTitle, hostOnlySessions, liveCopy.noHostSessions)}
-                      {renderSessionGroup(liveCopy.participantSessionsTitle, participantOnlySessions, liveCopy.noParticipantSessions)}
+                      {renderSessionGroup(liveCopy.hostSessionsTitle, hostSessions, liveCopy.noHostSessions, 'host')}
+                      {renderSessionGroup(liveCopy.participantSessionsTitle, participantSessions, liveCopy.noParticipantSessions, 'participant')}
                     </>
                   )
                 : null}

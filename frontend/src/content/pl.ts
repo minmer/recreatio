@@ -234,7 +234,7 @@ export const pl: Copy = {
         infoActionsHint: 'Akcje informacji',
         selectedInfoActionsHint: 'Akcje wybranej informacji',
         collectionActionsHint: 'Akcje kolekcji',
-        revisionParticipantSessionsHint: 'Sesje uczestnika',
+        revisionParticipantSessionsHint: 'Sesje live',
         revisionHostedLiveSessionsHint: 'Sesje live hosta',
         noRevisionHostedLiveSessions: 'Brak sesji hosta w tej powtórce.',
         revisionLiveSessionsHint: 'Sesje live uczestnika',

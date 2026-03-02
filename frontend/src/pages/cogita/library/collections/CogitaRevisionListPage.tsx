@@ -101,7 +101,7 @@ export function CogitaRevisionListPage({
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
-              <div className="cogita-library-pane">
+              <div className="cogita-flat-search-header">
                 <div className="cogita-library-controls">
                   <div className="cogita-library-search">
                     <p className="cogita-user-kicker">{copy.cogita.workspace.infoMode.search}</p>
@@ -126,7 +126,9 @@ export function CogitaRevisionListPage({
                     </label>
                   </div>
                 </div>
+              </div>
 
+              <div className="cogita-library-panel">
                 <div className="cogita-card-count">
                   <span>{`${filtered.length} / ${revisions.length}`}</span>
                   <span>{status === 'loading' ? copy.cogita.library.revision.loading : copy.cogita.library.collections.ready}</span>
@@ -161,7 +163,6 @@ export function CogitaRevisionListPage({
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         </div>

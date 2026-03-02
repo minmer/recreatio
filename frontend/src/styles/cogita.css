@@ -2957,6 +2957,15 @@
   gap: 0.95rem;
 }
 
+.cogita-revision-settings-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.cogita-revision-settings-submit {
+  margin-top: 0.25rem;
+}
+
 .cogita-form-error {
   margin: 0;
   color: rgba(255, 190, 170, 0.9);
@@ -3410,6 +3419,18 @@
 
 .cogita-flat-search-list .cogita-card-list[data-view='list'] {
   gap: 0;
+}
+
+.cogita-flat-search-list .cogita-flat-search-header {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cogita-flat-search-list .cogita-flat-search-header .cogita-library-controls {
+  gap: 0.7rem;
 }
 
 .cogita-flat-search-list .cogita-card-item {
