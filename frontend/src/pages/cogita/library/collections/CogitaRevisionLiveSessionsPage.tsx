@@ -326,17 +326,18 @@ export function CogitaRevisionLiveSessionsPage({
       (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
       (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
 
-    const sentences: string[] = [];
-    sentences.push(liveCopy.summaryPreset.replace('{preset}', presetLabelById(formPresetId)));
-    sentences.push(isAsyncSession ? liveCopy.summaryAsyncPreset : liveCopy.summarySyncPreset);
-    sentences.push(liveCopy.summaryBasePoints.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
+    const lines: string[] = [];
+    lines.push(liveCopy.summaryPreset.replace('{preset}', presetLabelById(formPresetId)));
+    lines.push(isAsyncSession ? liveCopy.summaryAsyncPreset : liveCopy.summarySyncPreset);
+
+    const scoringParts: string[] = [];
+    scoringParts.push(liveCopy.summaryBasePoints.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
     if (hasFirstBonus) {
-      sentences.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
+      scoringParts.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
     }
     if (hasSpeedBonus) {
-      sentences.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.speedBonus.maxPoints)));
-      sentences.push(bonusTimerInfo);
-      sentences.push(
+      scoringParts.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.speedBonus.maxPoints)));
+      scoringParts.push(
         liveCopy.summarySpeedCurve
           .replace('{halfSeconds}', String(halfSeconds))
           .replace('{halfBonus}', String(halfBonus))
@@ -344,36 +345,43 @@ export function CogitaRevisionLiveSessionsPage({
           .replace('{endBonus}', '0')
       );
     } else {
-      sentences.push(bonusTimerInfo);
-      sentences.push(liveCopy.summaryBonusSpeedDisabled);
+      scoringParts.push(liveCopy.summaryBonusSpeedDisabled);
     }
     if (hasStreakBonus) {
-      sentences.push(
+      scoringParts.push(
         liveCopy.summaryStreak
           .replace('{growth}', formLiveRules.scoring.streakGrowth)
           .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
           .replace('{limit}', String(formLiveRules.scoring.streakLimit))
       );
     } else {
-      sentences.push(liveCopy.summaryBonusStreakDisabled);
+      scoringParts.push(liveCopy.summaryBonusStreakDisabled);
     }
     if (!hasFirstBonus && !hasSpeedBonus && !hasStreakBonus) {
-      sentences.push(liveCopy.summaryBonusNone.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
+      scoringParts.push(liveCopy.summaryBonusNone.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
     }
-    sentences.push(
+    lines.push(scoringParts.join(' '));
+
+    const timerParts: string[] = [actionTimerInfo];
+    if (hasSpeedBonus) {
+      timerParts.push(bonusTimerInfo);
+    }
+    lines.push(timerParts.join(' '));
+
+    lines.push(
       liveCopy.summaryPointsTotalHint
         .replace('{min}', String(minPoints))
         .replace('{max}', String(maxPoints))
     );
-    sentences.push(liveCopy.summaryEvaluationFlow);
-    sentences.push(actionTimerInfo);
-    sentences.push(
+    lines.push(
       liveCopy.summaryActions
         .replace('{firstAction}', firstActionLabel)
         .replace('{allAction}', allAnsweredLabel)
         .replace('{expireAction}', expireLabel)
     );
-    return [sentences.join(' ')];
+    lines.push(liveCopy.summaryEvaluationFlow);
+
+    return lines.filter((line) => line.trim().length > 0);
   }, [formLiveRules, formPresetId, isAsyncSession, liveCopy]);
 
   const statusOptions = useMemo(() => {
