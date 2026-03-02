@@ -48,7 +48,7 @@ import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevi
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
 
-type RevisionView = 'detail' | 'graph' | 'settings' | 'run' | 'shared' | 'live' | 'new';
+type RevisionView = 'detail' | 'graph' | 'settings' | 'run' | 'live' | 'new';
 type LiveSessionView = 'list' | 'new' | 'detail' | 'edit';
 type CogitaTarget =
   | 'library_overview'
@@ -104,7 +104,7 @@ type NavigationLevel = {
 
 type InfoMode = 'search' | 'create' | 'selected';
 type CollectionMode = 'search' | 'create' | 'selected';
-type RevisionMode = 'search' | 'create' | 'shared' | 'selected';
+type RevisionMode = 'search' | 'create' | 'selected';
 type LiveSessionMode = 'search' | 'create' | 'selected';
 type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
@@ -134,7 +134,7 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   new_text: { requiresCollection: false, allowsRevision: false },
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
-const REVISION_SELECTION_VIEWS: RevisionView[] = ['settings', 'run', 'shared', 'live'];
+const REVISION_SELECTION_VIEWS: RevisionView[] = ['settings', 'run', 'live'];
 const SIDEBAR_NAV_LABEL_MAX = 30;
 const BREADCRUMB_NAV_LABEL_MAX = 42;
 
@@ -197,7 +197,7 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
       return { libraryId, target: 'all_revisions', revisionId, revisionView: 'run', filterCollectionId };
     }
     if (segments[5] === 'shared') {
-      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'shared', filterCollectionId };
+      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'settings', filterCollectionId };
     }
     if (segments[5] === 'live-sessions') {
       const liveSessionId = segments[6];
@@ -294,7 +294,6 @@ function buildCogitaPath(
       return view === 'new' || view === 'run' ? `/cogita/library/${libraryId}/revisions/${view}` : `/cogita/library/${libraryId}/revisions`;
     }
     if (view === 'run') return `/cogita/library/${libraryId}/revisions/${id}/run`;
-    if (view === 'shared') return `/cogita/library/${libraryId}/revisions/${id}/shared`;
     if (view === 'live') {
       if (liveSessionView === 'new') {
         return `/cogita/library/${libraryId}/revisions/${id}/live-sessions/new`;
@@ -342,7 +341,7 @@ function buildCogitaPath(
     return buildRevisionPath(revisionId, revisionView);
   }
   if (target === 'all_collections') {
-    if (revisionView === 'settings' || revisionView === 'run' || revisionView === 'shared' || revisionView === 'live' || revisionView === 'new') {
+    if (revisionView === 'settings' || revisionView === 'run' || revisionView === 'live' || revisionView === 'new') {
       return buildRevisionPath(revisionId, revisionView);
     }
     if (!collectionId) {
@@ -596,7 +595,6 @@ export function CogitaWorkspacePage({
   }, [pathState.infoId, selectedTarget]);
   const revisionMode = useMemo<RevisionMode>(() => {
     if (selectedRevisionView === 'new') return 'create';
-    if (!selectedRevisionId && displayRevisionView === 'shared') return 'shared';
     if (selectedRevisionId) return 'selected';
     return 'search';
   }, [displayRevisionView, selectedRevisionId, selectedRevisionView]);
@@ -711,7 +709,6 @@ export function CogitaWorkspacePage({
           Boolean(selectedRevisionId) ||
           displayRevisionView === 'settings' ||
           displayRevisionView === 'run' ||
-          displayRevisionView === 'shared' ||
           displayRevisionView === 'live')));
   const showRevisionLayer = isRevisionBranchActive;
   const showRevisionActionLayer = isRevisionBranchActive && Boolean(selectedRevisionId);
@@ -1042,7 +1039,7 @@ export function CogitaWorkspacePage({
         value:
           displayRevisionView === 'graph'
             ? 'edit'
-            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'shared' || displayRevisionView === 'live')
+            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'live')
             ? 'revisions'
             : (pathState.collectionView ?? 'infos') === 'overview'
             ? 'overview'
@@ -1050,7 +1047,7 @@ export function CogitaWorkspacePage({
         selectedLabel:
           displayRevisionView === 'graph'
             ? workspaceCopy.infoActions.edit
-            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'shared' || displayRevisionView === 'live')
+            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'live')
             ? workspaceCopy.targets.allRevisions
             : (pathState.collectionView ?? 'infos') === 'overview'
             ? workspaceCopy.infoActions.overview
@@ -1116,16 +1113,13 @@ export function CogitaWorkspacePage({
         selectedLabel:
           revisionMode === 'create'
             ? workspaceCopy.revisionForm.createAction
-            : revisionMode === 'shared'
-              ? workspaceCopy.targets.sharedRevisions
-              : revisionMode === 'selected'
+            : revisionMode === 'selected'
               ? (selectedRevision?.name ?? workspaceCopy.status.noRevisions)
               : workspaceCopy.infoMode.search,
         disabled: displayTarget === 'all_revisions' ? !hasLibrarySelection : !hasCollectionSelection,
         options: [
           { value: 'search', label: workspaceCopy.infoMode.search },
           { value: 'create', label: workspaceCopy.revisionForm.createAction },
-          { value: 'shared', label: workspaceCopy.targets.sharedRevisions },
           ...(selectedRevisionId
             ? [{ value: 'selected', label: selectedRevision?.name ?? workspaceCopy.status.noRevisions }]
             : [])
@@ -1141,7 +1135,7 @@ export function CogitaWorkspacePage({
               collectionId: nextCollectionId,
               revisionId: selectedRevisionId,
               revisionView:
-                displayRevisionView === 'run' || displayRevisionView === 'shared' || displayRevisionView === 'live'
+                displayRevisionView === 'run' || displayRevisionView === 'live'
                   ? displayRevisionView
                   : 'settings'
             });
@@ -1152,7 +1146,7 @@ export function CogitaWorkspacePage({
             target: nextTarget,
             collectionId: nextCollectionId,
             revisionId: undefined,
-            revisionView: value === 'create' ? 'new' : value === 'shared' ? 'shared' : 'settings'
+            revisionView: value === 'create' ? 'new' : 'settings'
           });
         }
       },
@@ -1163,24 +1157,19 @@ export function CogitaWorkspacePage({
         value:
           displayRevisionView === 'run'
             ? 'run'
-            : displayRevisionView === 'shared'
-              ? 'shared'
-              : displayRevisionView === 'live'
+            : displayRevisionView === 'live'
                 ? 'live'
               : 'settings',
         selectedLabel:
           displayRevisionView === 'run'
             ? workspaceCopy.revisions.run
-            : displayRevisionView === 'shared'
-              ? workspaceCopy.targets.sharedRevisions
-              : displayRevisionView === 'live'
+            : displayRevisionView === 'live'
                 ? workspaceCopy.revisions.live
               : workspaceCopy.infoActions.edit,
         disabled: !selectedRevisionId,
         options: [
           { value: 'settings', label: workspaceCopy.infoActions.edit },
           { value: 'run', label: workspaceCopy.revisions.run },
-          { value: 'shared', label: workspaceCopy.targets.sharedRevisions },
           { value: 'live', label: workspaceCopy.revisions.live }
         ],
         onSelect: (value: string) => {
@@ -1191,7 +1180,7 @@ export function CogitaWorkspacePage({
             target: isLibraryRevisionBranch ? 'all_revisions' : 'all_collections',
             collectionId: isLibraryRevisionBranch ? undefined : selectedCollectionId,
             revisionId: selectedRevisionId,
-            revisionView: value === 'run' ? 'run' : value === 'shared' ? 'shared' : value === 'live' ? 'live' : 'settings'
+            revisionView: value === 'run' ? 'run' : value === 'live' ? 'live' : 'settings'
           });
         }
       },
@@ -1330,7 +1319,6 @@ export function CogitaWorkspacePage({
       workspaceCopy.revisionForm.createAction,
       workspaceCopy.revisions.run,
       workspaceCopy.revisions.live,
-      workspaceCopy.targets.sharedRevisions,
       collectionMode,
       revisionMode,
       liveSessionMode
@@ -1509,12 +1497,9 @@ export function CogitaWorkspacePage({
                   if (option.value === 'create') {
                     return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'new', undefined, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
                   }
-                  if (option.value === 'shared') {
-                    return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, 'shared', undefined, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
-                  }
                   if (option.value === 'selected' && selectedRevisionId) {
                     const mode =
-                      displayRevisionView === 'run' || displayRevisionView === 'shared' || displayRevisionView === 'live'
+                      displayRevisionView === 'run' || displayRevisionView === 'live'
                         ? displayRevisionView
                         : 'settings';
                     return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, mode, selectedRevisionId, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
@@ -1527,7 +1512,7 @@ export function CogitaWorkspacePage({
                     selectedLibraryId,
                     isLibraryRevisionBranch ? 'all_revisions' : 'all_collections',
                     isLibraryRevisionBranch ? undefined : selectedCollectionId,
-                    option.value === 'run' ? 'run' : option.value === 'shared' ? 'shared' : option.value === 'live' ? 'live' : 'settings',
+                    option.value === 'run' ? 'run' : option.value === 'live' ? 'live' : 'settings',
                     selectedRevisionId,
                     pathState.liveSessionId,
                     pathState.liveSessionView ?? 'list'
@@ -1831,7 +1816,7 @@ export function CogitaWorkspacePage({
           />
         );
       }
-      if (!pathState.revisionId && (pathState.revisionView === 'settings' || pathState.revisionView === 'live' || pathState.revisionView === 'shared')) {
+      if (!pathState.revisionId && (pathState.revisionView === 'settings' || pathState.revisionView === 'live')) {
         return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
       return <CogitaRevisionSettingsPage {...baseProps} revisionId={pathState.revisionId} />;
