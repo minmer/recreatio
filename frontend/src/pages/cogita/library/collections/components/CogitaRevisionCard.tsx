@@ -354,14 +354,16 @@ export function CogitaRevisionCard({
             </div>
           </div>
           <div className="cogita-form-actions">
-            <button
-              type="button"
-              className="cta"
-              onClick={onCheckAnswer}
-              disabled={currentCard.checkType === 'translation-match' || checkDisabled}
-            >
-              {copy.cogita.library.revision.checkAnswer}
-            </button>
+            {!canAdvance ? (
+              <button
+                type="button"
+                className="cta"
+                onClick={onCheckAnswer}
+                disabled={currentCard.checkType === 'translation-match' || checkDisabled}
+              >
+                {copy.cogita.library.revision.checkAnswer}
+              </button>
+            ) : null}
             {!hideSkipAction ? (
               <button type="button" className="ghost" onClick={onSkip}>
                 {copy.cogita.library.revision.skip}
@@ -414,9 +416,11 @@ export function CogitaRevisionCard({
             </div>
           ) : null}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
-              {copy.cogita.library.revision.checkAnswer}
-            </button>
+            {!canAdvance ? (
+              <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
+                {copy.cogita.library.revision.checkAnswer}
+              </button>
+            ) : null}
             {!hideSkipAction ? (
               <button type="button" className="ghost" onClick={onSkip}>
                 {copy.cogita.library.revision.skip}
@@ -471,9 +475,11 @@ export function CogitaRevisionCard({
             </>
           )}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
-              {copy.cogita.library.revision.checkAnswer}
-            </button>
+            {!canAdvance ? (
+              <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
+                {copy.cogita.library.revision.checkAnswer}
+              </button>
+            ) : null}
             {!hideSkipAction ? (
               <button type="button" className="ghost" onClick={onSkip}>
                 {copy.cogita.library.revision.skip}
@@ -559,9 +565,11 @@ export function CogitaRevisionCard({
             </div>
           ) : null}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
-              {copy.cogita.library.revision.checkAnswer}
-            </button>
+            {!canAdvance ? (
+              <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
+                {copy.cogita.library.revision.checkAnswer}
+              </button>
+            ) : null}
             {!hideSkipAction ? (
               <button type="button" className="ghost" onClick={onSkip}>
                 {copy.cogita.library.revision.skip}
@@ -602,9 +610,11 @@ export function CogitaRevisionCard({
             <p className="cogita-quote-text">{quoteContext.after}</p>
           </div>
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
-              {copy.cogita.library.revision.checkAnswer}
-            </button>
+            {!canAdvance ? (
+              <button type="button" className="cta" onClick={onCheckAnswer} disabled={checkDisabled}>
+                {copy.cogita.library.revision.checkAnswer}
+              </button>
+            ) : null}
             {!hideSkipAction ? (
               <button type="button" className="ghost" onClick={onSkip}>
                 {copy.cogita.library.revision.skip}

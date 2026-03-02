@@ -288,6 +288,7 @@ export function CogitaRevisionLiveSessionsPage({
   };
 
   const settingsImpactLines = useMemo(() => {
+    const yesNoState = (value: boolean) => (value ? liveCopy.optionYes : liveCopy.optionNo);
     const firstActionLabel =
       formLiveRules.firstAnswerAction === 'start_timer'
         ? liveCopy.optionStartTimer
@@ -307,18 +308,23 @@ export function CogitaRevisionLiveSessionsPage({
           ? liveCopy.optionRevealScore
           : liveCopy.optionDoNothing;
 
-    const actionTimerInfo = formLiveRules.actionTimer.enabled
-      ? `${liveCopy.actionTimerLabel}: ${liveCopy.summaryTimerEnabled.replace('{seconds}', String(formLiveRules.actionTimer.seconds))}`
-      : `${liveCopy.actionTimerLabel}: ${liveCopy.summaryTimerDisabled}`;
-    const bonusTimerInfo = formLiveRules.bonusTimer.enabled
-      ? `${liveCopy.bonusTimerLabel}: ${liveCopy.summaryTimerEnabled.replace('{seconds}', String(formLiveRules.bonusTimer.seconds))} ${liveCopy.bonusTimerStartLabel}: ${formLiveRules.bonusTimer.startMode === 'round_start' ? liveCopy.bonusTimerStartRound : liveCopy.bonusTimerStartAfterFirst}.`
-      : `${liveCopy.bonusTimerLabel}: ${liveCopy.summaryTimerDisabled}`;
-    const halfSeconds = Math.max(1, Math.round(formLiveRules.bonusTimer.seconds / 2));
-    const halfRatio = Math.max(0, 1 - halfSeconds / Math.max(1, formLiveRules.bonusTimer.seconds));
-    const halfBonus = clampInt(growthRatio(formLiveRules.speedBonus.growth, halfRatio) * formLiveRules.speedBonus.maxPoints, 0, 500000);
+    const elapsedOne = Math.max(1, Math.round(formLiveRules.bonusTimer.seconds / 3));
+    const elapsedTwo = Math.max(elapsedOne + 1, Math.round((2 * formLiveRules.bonusTimer.seconds) / 3));
+    const ratioOne = Math.max(0, 1 - elapsedOne / Math.max(1, formLiveRules.bonusTimer.seconds));
+    const ratioTwo = Math.max(0, 1 - elapsedTwo / Math.max(1, formLiveRules.bonusTimer.seconds));
+    const bonusOne = clampInt(growthRatio(formLiveRules.speedBonus.growth, ratioOne) * formLiveRules.speedBonus.maxPoints, 0, 500000);
+    const bonusTwo = clampInt(growthRatio(formLiveRules.speedBonus.growth, ratioTwo) * formLiveRules.speedBonus.maxPoints, 0, 500000);
     const hasFirstBonus = formLiveRules.scoring.firstCorrectBonus > 0;
     const hasSpeedBonus = formLiveRules.speedBonus.enabled && formLiveRules.speedBonus.maxPoints > 0;
     const hasStreakBonus = formLiveRules.scoring.streakBaseBonus > 0;
+    const bonusNames: string[] = [];
+    if (hasFirstBonus) bonusNames.push(liveCopy.firstCorrectBonusLabel);
+    if (hasSpeedBonus) bonusNames.push(liveCopy.speedBonusMaxLabel);
+    if (hasStreakBonus) bonusNames.push(liveCopy.streakBaseBonusLabel);
+    const maxBonusReward =
+      (hasFirstBonus ? formLiveRules.scoring.firstCorrectBonus : 0) +
+      (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
+      (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
     const minPoints = formLiveRules.scoring.baseCorrect;
     const maxPoints =
       formLiveRules.scoring.baseCorrect +
@@ -327,54 +333,31 @@ export function CogitaRevisionLiveSessionsPage({
       (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
 
     const lines: string[] = [];
-    lines.push(liveCopy.summaryPreset.replace('{preset}', presetLabelById(formPresetId)));
-    lines.push(isAsyncSession ? liveCopy.summaryAsyncPreset : liveCopy.summarySyncPreset);
-
-    const scoringParts: string[] = [];
-    scoringParts.push(liveCopy.summaryBasePoints.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
-    if (hasFirstBonus) {
-      scoringParts.push(liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus)));
-    }
-    if (hasSpeedBonus) {
-      scoringParts.push(liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.speedBonus.maxPoints)));
-      scoringParts.push(
-        liveCopy.summarySpeedCurve
-          .replace('{halfSeconds}', String(halfSeconds))
-          .replace('{halfBonus}', String(halfBonus))
-          .replace('{endSeconds}', String(formLiveRules.bonusTimer.seconds))
-          .replace('{endBonus}', '0')
-      );
-    } else {
-      scoringParts.push(liveCopy.summaryBonusSpeedDisabled);
-    }
-    if (hasStreakBonus) {
-      scoringParts.push(
-        liveCopy.summaryStreak
-          .replace('{growth}', formLiveRules.scoring.streakGrowth)
-          .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
-          .replace('{limit}', String(formLiveRules.scoring.streakLimit))
-      );
-    } else {
-      scoringParts.push(liveCopy.summaryBonusStreakDisabled);
-    }
-    if (!hasFirstBonus && !hasSpeedBonus && !hasStreakBonus) {
-      scoringParts.push(liveCopy.summaryBonusNone.replace('{base}', String(formLiveRules.scoring.baseCorrect)));
-    }
-    lines.push(scoringParts.join(' '));
-
-    const timerParts: string[] = [actionTimerInfo];
-    if (hasSpeedBonus) {
-      timerParts.push(bonusTimerInfo);
-    }
-    lines.push(timerParts.join(' '));
-
+    lines.push(isAsyncSession ? liveCopy.summaryTypeLineAsync : liveCopy.summaryTypeLineSync);
     lines.push(
-      liveCopy.summaryPointsTotalHint
-        .replace('{min}', String(minPoints))
-        .replace('{max}', String(maxPoints))
+      bonusNames.length > 0
+        ? liveCopy.summaryBonusesActive
+            .replace('{bonuses}', bonusNames.join(', '))
+            .replace('{maxBonus}', String(maxBonusReward))
+        : liveCopy.summaryBonusesNone
+    );
+    lines.push(liveCopy.summaryPointsTotalHint.replace('{min}', String(minPoints)).replace('{max}', String(maxPoints)));
+    lines.push(
+      hasSpeedBonus && formLiveRules.bonusTimer.enabled
+        ? liveCopy.summaryBonusTimerDetail
+            .replace('{state}', yesNoState(formLiveRules.bonusTimer.enabled))
+            .replace('{start}', formLiveRules.bonusTimer.startMode === 'round_start' ? liveCopy.bonusTimerStartRound : liveCopy.bonusTimerStartAfterFirst)
+            .replace('{startBonus}', String(formLiveRules.speedBonus.maxPoints))
+            .replace('{midOneSeconds}', String(elapsedOne))
+            .replace('{midOneBonus}', String(bonusOne))
+            .replace('{midTwoSeconds}', String(elapsedTwo))
+            .replace('{midTwoBonus}', String(bonusTwo))
+            .replace('{endSeconds}', String(formLiveRules.bonusTimer.seconds))
+        : liveCopy.summaryBonusTimerDisabled
     );
     lines.push(
-      liveCopy.summaryActions
+      liveCopy.summaryActionFlowDetail
+        .replace('{timerState}', yesNoState(formLiveRules.actionTimer.enabled))
         .replace('{firstAction}', firstActionLabel)
         .replace('{allAction}', allAnsweredLabel)
         .replace('{expireAction}', expireLabel)
@@ -382,7 +365,7 @@ export function CogitaRevisionLiveSessionsPage({
     lines.push(liveCopy.summaryEvaluationFlow);
 
     return lines.filter((line) => line.trim().length > 0);
-  }, [formLiveRules, formPresetId, isAsyncSession, liveCopy]);
+  }, [formLiveRules, isAsyncSession, liveCopy]);
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();

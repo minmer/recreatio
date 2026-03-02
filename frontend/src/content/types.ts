@@ -934,6 +934,13 @@ export type Copy = {
           summaryPointsTotalHint: string;
           summaryStreak: string;
           summaryActions: string;
+          summaryTypeLineSync: string;
+          summaryTypeLineAsync: string;
+          summaryBonusesActive: string;
+          summaryBonusesNone: string;
+          summaryBonusTimerDetail: string;
+          summaryBonusTimerDisabled: string;
+          summaryActionFlowDetail: string;
           bonusUsageLabel: string;
           bonusUsageAll: string;
           bonusUsageNone: string;
