@@ -948,6 +948,8 @@ export type Copy = {
           summaryStreakDisabled: string;
           summaryAllAnsweredDetail: string;
           summaryActionFlowDetail: string;
+          summaryActionTimerOnlyDetail: string;
+          summaryActionTimerDisabledDetail: string;
           bonusUsageLabel: string;
           bonusUsageAll: string;
           bonusUsageNone: string;
