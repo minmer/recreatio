@@ -13,9 +13,14 @@ import { CogitaCheckcardSurface } from '../library/collections/components/Cogita
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
+import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
 
 function tokenStorageKey(code: string) {
   return `cogita.live.join.${code}`;
+}
+
+function participantMetaStorageKey(code: string) {
+  return `cogita.live.join.meta.${code}`;
 }
 
 export function CogitaLiveRevisionJoinPage(props: {
@@ -34,10 +39,22 @@ export function CogitaLiveRevisionJoinPage(props: {
   const { code } = props;
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;
+  const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : '✓');
   const [joinName, setJoinName] = useState('');
   const [participantToken, setParticipantToken] = useState<string | null>(() =>
     typeof localStorage === 'undefined' ? null : localStorage.getItem(tokenStorageKey(code))
   );
+  const [participantMeta, setParticipantMeta] = useState<{ participantId?: string; name?: string } | null>(() => {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(participantMetaStorageKey(code));
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as { participantId?: string; name?: string };
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
   const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
   const [status, setStatus] = useState<'idle' | 'joining' | 'ready' | 'error'>('idle');
   const [textAnswer, setTextAnswer] = useState('');
@@ -48,6 +65,9 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [matchingSelection, setMatchingSelection] = useState<Array<number | null>>([]);
   const [reloginRequestId, setReloginRequestId] = useState<string | null>(null);
   const [reloginPending, setReloginPending] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<'window' | 'fullscreen'>('fullscreen');
+  const [localViewMode, setLocalViewMode] = useState<'follow-host' | 'question' | 'score'>('follow-host');
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -59,13 +79,44 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? 'active'
         : 'lobby';
   const participantViewMode = state?.participantViewMode ?? 'question';
-  const showJoinPanel = participantViewMode !== 'fullscreen' || sessionStage === 'lobby' || !participantToken;
-  const showQuestionPanel = participantViewMode !== 'score';
-  const showScorePanel = participantViewMode !== 'question' || sessionStage === 'finished';
+  const effectiveViewMode =
+    localViewMode === 'follow-host'
+      ? (participantViewMode === 'score' ? 'score' : 'question')
+      : localViewMode;
+  const showJoinPanel = sessionStage === 'lobby' || !participantToken;
+  const showQuestionPanel = effectiveViewMode !== 'score';
+  const showScorePanel = effectiveViewMode !== 'question' || sessionStage === 'finished';
   const promptKey = useMemo(
-    () => `${state?.currentRoundIndex ?? 0}:${state?.revealVersion ?? 0}:${String(prompt?.cardKey ?? '')}`,
-    [prompt?.cardKey, state?.currentRoundIndex, state?.revealVersion]
+    () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
+    [prompt?.cardKey, state?.currentRoundIndex]
   );
+  const promptTimerEndMs = useMemo(() => {
+    const raw = typeof prompt?.timerEndsUtc === 'string' ? Date.parse(prompt.timerEndsUtc) : NaN;
+    return Number.isFinite(raw) ? raw : null;
+  }, [prompt?.timerEndsUtc]);
+  const promptTimerTotalSeconds = useMemo(() => {
+    const raw = Number(prompt?.timerSeconds ?? 0);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.max(1, Math.min(600, Math.round(raw)));
+  }, [prompt?.timerSeconds]);
+  const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
+  const timerExpired = promptTimerEndMs != null && timerRemainingMs === 0;
+  const timerProgress =
+    timerRemainingMs == null || promptTimerTotalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
+
+  useEffect(() => {
+    if (participantViewMode === 'fullscreen' && sessionStage !== 'lobby') {
+      setLayoutMode('fullscreen');
+    }
+  }, [participantViewMode, sessionStage]);
+
+  useEffect(() => {
+    if (sessionStage !== 'active' || promptTimerEndMs == null) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [promptTimerEndMs, sessionStage]);
 
   useEffect(() => {
     setTextAnswer('');
@@ -84,6 +135,14 @@ export function CogitaLiveRevisionJoinPage(props: {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
         setState(next);
+        if (next.participantId || next.participantName) {
+          const meta = {
+            participantId: next.participantId ?? undefined,
+            name: next.participantName ?? undefined
+          };
+          setParticipantMeta(meta);
+          localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
+        }
         if (participantToken) setStatus('ready');
       } catch {
         if (mounted && status !== 'joining') setStatus('error');
@@ -124,6 +183,9 @@ export function CogitaLiveRevisionJoinPage(props: {
       const joined = await joinCogitaLiveRevision({ code, name: joinName });
       setParticipantToken(joined.participantToken);
       localStorage.setItem(tokenStorageKey(code), joined.participantToken);
+      const meta = { participantId: joined.participantId, name: joined.name };
+      setParticipantMeta(meta);
+      localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
       setReloginPending(false);
       setReloginRequestId(null);
       setStatus('ready');
@@ -180,6 +242,7 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const submitAnswer = async () => {
     if (!participantToken || !prompt || typeof prompt.cardKey !== 'string') return;
+    if (timerExpired && promptTimerEndMs != null) return;
 
     let answer: unknown = null;
     switch (prompt.kind) {
@@ -218,15 +281,109 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
   };
 
+  const submittedAnswer = useMemo(() => {
+    if (!prompt) return null;
+    switch (prompt.kind) {
+      case 'selection':
+        return selectionAnswer;
+      case 'boolean':
+        return boolAnswer;
+      case 'ordering':
+        return orderingAnswer;
+      case 'matching':
+        return { paths: matchingRows };
+      case 'citation-fragment':
+      case 'text':
+      default:
+        return textAnswer;
+    }
+  }, [boolAnswer, matchingRows, orderingAnswer, prompt, selectionAnswer, textAnswer]);
+
+  const feedbackState = useMemo<'correct' | 'incorrect' | null>(() => {
+    if (!prompt || typeof revealExpected === 'undefined') return null;
+    if (!state?.answerSubmitted) return null;
+    const promptKind = String(prompt.kind ?? '');
+    if (promptKind === 'selection') {
+      return evaluateCheckcardAnswer({
+        prompt: { kind: 'selection', options: Array.isArray(prompt.options) ? prompt.options : [] },
+        expected: revealExpected,
+        answer: { selection: Array.isArray(submittedAnswer) ? submittedAnswer.map((value) => Number(value)).filter(Number.isFinite) : [] }
+      }).correct ? 'correct' : 'incorrect';
+    }
+    if (promptKind === 'boolean') {
+      return evaluateCheckcardAnswer({
+        prompt: { kind: 'boolean' },
+        expected: revealExpected,
+        answer: { booleanAnswer: submittedAnswer == null ? null : Boolean(submittedAnswer) }
+      }).correct ? 'correct' : 'incorrect';
+    }
+    if (promptKind === 'ordering') {
+      return evaluateCheckcardAnswer({
+        prompt: { kind: 'ordering', options: Array.isArray(prompt.options) ? prompt.options : [] },
+        expected: revealExpected,
+        answer: { ordering: Array.isArray(submittedAnswer) ? submittedAnswer.map(String) : [] }
+      }).correct ? 'correct' : 'incorrect';
+    }
+    if (promptKind === 'matching') {
+      const root = (submittedAnswer ?? {}) as { paths?: number[][] };
+      return evaluateCheckcardAnswer({
+        prompt: { kind: 'matching', columns: Array.isArray(prompt.columns) ? prompt.columns : [] },
+        expected: revealExpected,
+        answer: { matchingPaths: Array.isArray(root.paths) ? root.paths : [] }
+      }).correct ? 'correct' : 'incorrect';
+    }
+    return evaluateCheckcardAnswer({
+      prompt: {
+        kind: promptKind === 'citation-fragment' ? 'citation-fragment' : 'text',
+        inputType:
+          promptKind === 'text' && prompt.inputType === 'number'
+            ? 'number'
+            : promptKind === 'text' && prompt.inputType === 'date'
+              ? 'date'
+              : 'text'
+      },
+      expected: revealExpected,
+      answer: { text: String(submittedAnswer ?? '') }
+    }).correct ? 'correct' : 'incorrect';
+  }, [prompt, revealExpected, state?.answerSubmitted, submittedAnswer]);
+  const scoringByParticipant = useMemo(
+    () =>
+      reveal && typeof reveal === 'object'
+        ? ((reveal.roundScoring as Record<string, { points?: number; factors?: string[]; streak?: number }> | undefined) ?? null)
+        : null,
+    [reveal]
+  );
+  const selfParticipantId = state?.participantId ?? participantMeta?.participantId ?? null;
+  const selfRoundScoring = selfParticipantId && scoringByParticipant ? scoringByParticipant[selfParticipantId] : null;
+
   return (
     <CogitaShell {...props}>
-      <section className="cogita-library-dashboard">
+      <section className="cogita-library-dashboard cogita-live-layout-shell" data-layout={layoutMode}>
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
+            {(participantToken || sessionStage !== 'lobby') ? (
+              <div className="cogita-live-layout-controls cogita-live-layout-controls--global">
+                <label className="cogita-field">
+                  <span>{liveCopy.participantViewModeLabel}</span>
+                  <select value={localViewMode} onChange={(event) => setLocalViewMode(event.target.value as 'follow-host' | 'question' | 'score')}>
+                    <option value="follow-host">{liveCopy.participantViewFollowHost}</option>
+                    <option value="question">{liveCopy.participantViewQuestion}</option>
+                    <option value="score">{liveCopy.participantViewScore}</option>
+                  </select>
+                </label>
+                <label className="cogita-field">
+                  <span>{liveCopy.viewModeLabel}</span>
+                  <select value={layoutMode} onChange={(event) => setLayoutMode(event.target.value as 'window' | 'fullscreen')}>
+                    <option value="fullscreen">{liveCopy.viewModeFullscreen}</option>
+                    <option value="window">{liveCopy.viewModeWindow}</option>
+                  </select>
+                </label>
+              </div>
+            ) : null}
             <div
               className="cogita-library-grid cogita-live-session-layout"
               data-stage={sessionStage}
-              data-participant-view={participantViewMode}
+              data-participant-view={effectiveViewMode}
             >
               {showJoinPanel ? (
               <div className="cogita-library-panel">
@@ -248,7 +405,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <p className="cogita-help">{liveCopy.joinedWaiting}</p>
                 )}
                 {reloginPending ? (
-                  <p className="cogita-help">Relogin request sent. Wait for host approval and join again.</p>
+                  <p className="cogita-help">{liveCopy.reloginPendingMessage}</p>
                 ) : null}
                 {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 {sessionStage === 'lobby' ? (
@@ -271,16 +428,35 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className={`cogita-library-panel ${participantViewMode === 'fullscreen' ? 'cogita-live-fullscreen-panel' : ''}`}>
                 <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
+                {sessionStage === 'active' && prompt && prompt.timerEnabled && promptTimerEndMs != null ? (
+                  <div className="cogita-live-timer">
+                    <div className="cogita-live-timer-head">
+                      <span>{liveCopy.timerLabel}</span>
+                      <strong>{`${Math.max(0, Math.ceil((timerRemainingMs ?? 0) / 1000))}s`}</strong>
+                    </div>
+                    <div className="cogita-live-timer-track">
+                      <span style={{ width: `${Math.round(timerProgress * 100)}%` }} />
+                    </div>
+                  </div>
+                ) : null}
                 {prompt ? (
                   <>
                     <CogitaCheckcardSurface
                       className="cogita-live-card-container"
-                      feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
+                      feedbackToken={
+                        reveal
+                          ? feedbackState
+                            ? `${feedbackState}-${state?.revealVersion ?? 0}`
+                            : `idle-${state?.revealVersion ?? 0}`
+                          : 'idle'
+                      }
                     >
                       <CogitaLivePromptCard
                         prompt={prompt}
                         revealExpected={revealExpected}
-                        mode="interactive"
+                        revealedAnswer={state?.answerSubmitted ? submittedAnswer : undefined}
+                        surfaceState={feedbackState ?? undefined}
+                        mode={state?.answerSubmitted || !participantToken ? 'readonly' : 'interactive'}
                         labels={{
                           answerLabel: revisionCopy.answerLabel,
                           correctAnswerLabel: revisionCopy.correctAnswerLabel,
@@ -290,10 +466,10 @@ export function CogitaLiveRevisionJoinPage(props: {
                           correctFragmentLabel: liveCopy.correctFragmentLabel,
                           participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
                           unsupportedPromptType: liveCopy.unsupportedPromptType,
-                          waitingForReveal: 'Waiting for reveal.',
-                          selectedPaths: 'Selected paths',
-                          removePath: 'Remove',
-                          columnPrefix: 'Column'
+                          waitingForReveal: liveCopy.waitingForRevealLabel,
+                          selectedPaths: liveCopy.selectedPathsLabel,
+                          removePath: liveCopy.removePathAction,
+                          columnPrefix: liveCopy.columnPrefixLabel
                         }}
                         answers={{
                           text: textAnswer,
@@ -318,11 +494,28 @@ export function CogitaLiveRevisionJoinPage(props: {
                         type="button"
                         className="cta"
                         onClick={submitAnswer}
-                        disabled={!participantToken || !prompt.cardKey || state?.answerSubmitted}
+                        disabled={!participantToken || !prompt.cardKey || state?.answerSubmitted || timerExpired}
                       >
                         {state?.answerSubmitted ? liveCopy.submitted : liveCopy.submitAnswer}
                       </button>
                     </div>
+                    {timerExpired ? <p className="cogita-help">{liveCopy.timeExpired}</p> : null}
+                    {selfRoundScoring ? (
+                      <div className="cogita-live-round-gain">
+                        <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
+                        <p className="cogita-detail-title">{`+${Math.max(0, Number(selfRoundScoring.points ?? 0))} ${liveCopy.scoreUnit}`}</p>
+                        <div className="cogita-live-factor-badges">
+                          {(Array.isArray(selfRoundScoring.factors) ? selfRoundScoring.factors : []).map((factor) => (
+                            <span key={`self-factor:${factor}`} className="cogita-live-factor-badge">
+                              {factorIcon(factor)}
+                            </span>
+                          ))}
+                        </div>
+                        {Number(selfRoundScoring.streak ?? 0) > 1 ? (
+                          <p className="cogita-help">{`${liveCopy.streakLabel}: ${Math.round(Number(selfRoundScoring.streak ?? 0))}`}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
@@ -332,11 +525,28 @@ export function CogitaLiveRevisionJoinPage(props: {
               {sessionStage !== 'lobby' && showScorePanel ? (
                 <div className="cogita-library-panel cogita-live-scoreboard-panel">
                   <p className="cogita-user-kicker">{sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle}</p>
+                  <p className="cogita-help">{liveCopy.symbolsLegend}</p>
                   <div className="cogita-share-list">
                     {state?.scoreboard.map((row) => (
                       <div className="cogita-share-row" key={`score:${row.participantId}`}>
-                        <div><strong>{row.displayName}</strong></div>
-                        <div className="cogita-share-meta">{row.score} {liveCopy.scoreUnit}</div>
+                        <div>
+                          <strong>{row.displayName}</strong>
+                          {(scoringByParticipant?.[row.participantId]?.factors ?? []).length > 0 ? (
+                            <div className="cogita-live-factor-badges">
+                              {(scoringByParticipant?.[row.participantId]?.factors ?? []).map((factor) => (
+                                <span key={`score-factor:${row.participantId}:${factor}`} className="cogita-live-factor-badge">
+                                  {factorIcon(factor)}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="cogita-share-meta">
+                          {row.score} {liveCopy.scoreUnit}
+                          {scoringByParticipant?.[row.participantId]?.points
+                            ? ` (+${Math.max(0, Number(scoringByParticipant[row.participantId]?.points ?? 0))})`
+                            : ''}
+                        </div>
                       </div>
                     ))}
                     {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}

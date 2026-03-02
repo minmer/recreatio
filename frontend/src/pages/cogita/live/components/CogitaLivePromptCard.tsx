@@ -56,6 +56,8 @@ const defaultLabels: LivePromptLabels = {
 export function CogitaLivePromptCard({
   prompt,
   revealExpected,
+  revealedAnswer,
+  surfaceState,
   mode,
   labels,
   answers,
@@ -68,6 +70,8 @@ export function CogitaLivePromptCard({
 }: {
   prompt: LivePrompt | null;
   revealExpected?: unknown;
+  revealedAnswer?: unknown;
+  surfaceState?: 'idle' | 'correct' | 'incorrect';
   mode: 'interactive' | 'readonly';
   labels?: Partial<LivePromptLabels>;
   answers?: LivePromptAnswers;
@@ -86,6 +90,9 @@ export function CogitaLivePromptCard({
   const expectedSelection = Array.isArray(revealExpected)
     ? revealExpected.map((x) => Number(x)).filter(Number.isFinite)
     : [];
+  const selectedOnReveal = Array.isArray(revealedAnswer)
+    ? revealedAnswer.map((x) => Number(x)).filter(Number.isFinite)
+    : answers?.selection ?? [];
 
   const sharedInput = (
     inputType?: string,
@@ -113,12 +120,15 @@ export function CogitaLivePromptCard({
       .join('');
 
   const wrap = (content: ReactNode) => (
-    <div className="cogita-live-card-surface" data-state={isRevealed ? 'correct' : 'idle'}>
+    <div className="cogita-live-card-surface" data-state={surfaceState ?? (isRevealed ? 'correct' : 'idle')}>
       {content}
     </div>
   );
 
   if (kind === 'citation-fragment') {
+    const revealedText = typeof revealedAnswer === 'string' ? revealedAnswer : '';
+    const expectedText = String(revealExpected ?? '');
+    const isSame = revealedText.trim().toLocaleLowerCase() === expectedText.trim().toLocaleLowerCase();
     return wrap(
       <>
         <p>
@@ -126,30 +136,65 @@ export function CogitaLivePromptCard({
           <strong> [ ... ] </strong>
           <span style={{ opacity: 0.7 }}>{String(prompt.after ?? '')}</span>
         </p>
-        {sharedInput('text', isRevealed ? String(revealExpected ?? '') : answers?.text ?? '', onTextChange)}
+        {isRevealed ? (
+          <div className="cogita-share-list">
+            {typeof revealedAnswer !== 'undefined' ? (
+              <div className="cogita-share-row" data-state={isSame ? 'correct' : 'incorrect'}>
+                <span>{copy.answerLabel}</span>
+                <strong>{revealedText || '—'}</strong>
+              </div>
+            ) : null}
+            <div className="cogita-share-row" data-state="correct">
+              <span>{copy.correctAnswerLabel}</span>
+              <strong>{expectedText}</strong>
+            </div>
+          </div>
+        ) : (
+          sharedInput('text', answers?.text ?? '', onTextChange)
+        )}
       </>
     );
   }
 
   if (kind === 'text') {
+    const revealedText = typeof revealedAnswer === 'string' ? revealedAnswer : '';
+    const expectedText = String(revealExpected ?? '');
+    const isSame = revealedText.trim().toLocaleLowerCase() === expectedText.trim().toLocaleLowerCase();
     return wrap(
       <>
         <p>{String(prompt.prompt ?? '')}</p>
-        {sharedInput(String(prompt.inputType ?? 'text'), isRevealed ? String(revealExpected ?? '') : answers?.text ?? '', onTextChange)}
+        {isRevealed ? (
+          <div className="cogita-share-list">
+            {typeof revealedAnswer !== 'undefined' ? (
+              <div className="cogita-share-row" data-state={isSame ? 'correct' : 'incorrect'}>
+                <span>{copy.answerLabel}</span>
+                <strong>{revealedText || '—'}</strong>
+              </div>
+            ) : null}
+            <div className="cogita-share-row" data-state="correct">
+              <span>{copy.correctAnswerLabel}</span>
+              <strong>{expectedText}</strong>
+            </div>
+          </div>
+        ) : (
+          sharedInput(String(prompt.inputType ?? 'text'), answers?.text ?? '', onTextChange)
+        )}
       </>
     );
   }
 
   if (kind === 'boolean') {
     const expected = Boolean(revealExpected);
-    const selected = answers?.booleanAnswer;
+    const selected = isRevealed && typeof revealedAnswer === 'boolean'
+      ? revealedAnswer
+      : answers?.booleanAnswer;
     return wrap(
       <>
         <p>{String(prompt.prompt ?? '')}</p>
         <div className="cogita-form-actions">
           <button
             type="button"
-            className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''}`}
+            className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''} ${isRevealed && selected === true && !expected ? 'live-incorrect-answer' : ''}`}
             data-active={!isRevealed && selected === true ? 'true' : undefined}
             onClick={() => onBooleanChange?.(true)}
             disabled={mode === 'readonly' || isRevealed}
@@ -158,7 +203,7 @@ export function CogitaLivePromptCard({
           </button>
           <button
             type="button"
-            className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''}`}
+            className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''} ${isRevealed && selected === false && expected ? 'live-incorrect-answer' : ''}`}
             data-active={!isRevealed && selected === false ? 'true' : undefined}
             onClick={() => onBooleanChange?.(false)}
             disabled={mode === 'readonly' || isRevealed}
@@ -181,14 +226,22 @@ export function CogitaLivePromptCard({
           {options.map((option, index) => (
             <label
               className="cogita-share-row"
-              data-state={isRevealed && expectedSelection.includes(index) ? 'correct' : undefined}
+              data-state={
+                isRevealed
+                  ? expectedSelection.includes(index)
+                    ? 'correct'
+                    : selectedOnReveal.includes(index)
+                      ? 'incorrect'
+                      : undefined
+                  : undefined
+              }
               key={`${index}-${option}`}
             >
               <span>{option}</span>
               <input
-                type={multiple ? 'checkbox' : 'radio'}
+                type={isRevealed ? 'checkbox' : multiple ? 'checkbox' : 'radio'}
                 name="live-selection"
-                checked={isRevealed ? expectedSelection.includes(index) : selected.includes(index)}
+                checked={isRevealed ? expectedSelection.includes(index) || selectedOnReveal.includes(index) : selected.includes(index)}
                 onChange={() => onSelectionToggle?.(index)}
                 disabled={mode === 'readonly' || isRevealed}
               />
@@ -238,6 +291,10 @@ export function CogitaLivePromptCard({
   if (kind === 'matching') {
     const columns = Array.isArray(prompt.columns) ? prompt.columns : [];
     const revealPaths = (revealExpected as { paths?: number[][] } | undefined)?.paths ?? [];
+    const answerPaths = ((revealedAnswer as { paths?: number[][] } | undefined)?.paths ?? answers?.matchingRows ?? [])
+      .map((path) => (Array.isArray(path) ? path.map((value) => Number(value)).filter(Number.isFinite) : []))
+      .filter((path) => path.length > 0);
+    const revealKeySet = new Set(revealPaths.map((path) => path.join('|')));
     const width = Math.max(2, columns.length);
     const activeSelection = Array.from({ length: width }, (_, index) => answers?.matchingSelection[index] ?? null);
     return wrap(
@@ -274,13 +331,27 @@ export function CogitaLivePromptCard({
         <div style={{ display: 'grid', gap: '0.4rem', marginTop: '0.65rem' }}>
           <p className="cogita-user-kicker">{copy.selectedPaths}</p>
           {isRevealed ? (
-            <div className="cogita-share-list">
-              {revealPaths.map((path, pathIndex) => (
-                <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
-                  <span>{renderPathLabel(columns, path)}</span>
+            <>
+              {answerPaths.length > 0 ? (
+                <div className="cogita-share-list">
+                  {answerPaths.map((path, pathIndex) => {
+                    const key = path.join('|');
+                    return (
+                      <div key={`selected-path-${pathIndex}`} className="cogita-share-row" data-state={revealKeySet.has(key) ? 'correct' : 'incorrect'}>
+                        <span>{renderPathLabel(columns, path)}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              ) : null}
+              <div className="cogita-share-list">
+                {revealPaths.map((path, pathIndex) => (
+                  <div key={`path-${pathIndex}`} className="cogita-share-row" data-state="correct">
+                    <span>{renderPathLabel(columns, path)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (answers?.matchingRows?.length ?? 0) > 0 ? (
             <div className="cogita-share-list">
               {(answers?.matchingRows ?? []).map((path, pathIndex) => (

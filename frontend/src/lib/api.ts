@@ -868,6 +868,8 @@ export type CogitaLiveRevisionPublicState = {
   currentReveal?: unknown;
   scoreboard: CogitaLiveRevisionParticipantScore[];
   answerSubmitted: boolean;
+  participantId?: string | null;
+  participantName?: string | null;
 };
 
 export type CogitaPublicRevisionShare = {
@@ -1398,6 +1400,35 @@ export function approveCogitaLiveRevisionReloginRequest(payload: {
   return request<CogitaLiveRevisionSession>(
     `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/relogin-requests/${payload.requestId}/approve?${params.toString()}`,
     { method: 'POST', body: JSON.stringify({}) }
+  );
+}
+
+export function addCogitaLiveRevisionParticipant(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  name: string;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/participants?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ name: payload.name })
+    }
+  );
+}
+
+export function removeCogitaLiveRevisionParticipant(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  participantId: string;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/participants/${payload.participantId}?${params.toString()}`,
+    { method: 'DELETE' }
   );
 }
 

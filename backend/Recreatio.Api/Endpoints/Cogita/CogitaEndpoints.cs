@@ -5320,6 +5320,166 @@ public static class CogitaEndpoints
             return Results.Ok(response);
         });
 
+        group.MapPost("/libraries/{libraryId:guid}/live-sessions/{sessionId:guid}/host/participants", async (
+            Guid libraryId,
+            Guid sessionId,
+            string hostSecret,
+            CogitaLiveRevisionHostParticipantCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionToken))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionToken, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var liveSession = await dbContext.CogitaLiveRevisionSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionId && x.LibraryId == libraryId, ct);
+            if (liveSession is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!MatchesTokenHash(hostSecret, liveSession.HostSecretHash))
+            {
+                return Results.Forbid();
+            }
+
+            var name = NormalizeLiveParticipantName(request.Name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return Results.BadRequest(new { error = "Name is required." });
+            }
+
+            var exists = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                .AnyAsync(x => x.SessionId == liveSession.Id && x.DisplayName == name, ct);
+            if (exists)
+            {
+                return Results.Conflict(new { error = "Name already used in this live session." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var participantToken = GenerateAlphaNumericCode(24);
+            var participant = new CogitaLiveRevisionParticipant
+            {
+                Id = Guid.NewGuid(),
+                SessionId = liveSession.Id,
+                DisplayName = name,
+                UserId = null,
+                JoinTokenHash = HashToken(participantToken),
+                Score = 0,
+                IsConnected = false,
+                JoinedUtc = now,
+                UpdatedUtc = now
+            };
+
+            dbContext.CogitaLiveRevisionParticipants.Add(participant);
+            liveSession.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            return Results.Ok(response);
+        });
+
+        group.MapDelete("/libraries/{libraryId:guid}/live-sessions/{sessionId:guid}/host/participants/{participantId:guid}", async (
+            Guid libraryId,
+            Guid sessionId,
+            Guid participantId,
+            string hostSecret,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionToken))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionToken, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var liveSession = await dbContext.CogitaLiveRevisionSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionId && x.LibraryId == libraryId, ct);
+            if (liveSession is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!MatchesTokenHash(hostSecret, liveSession.HostSecretHash))
+            {
+                return Results.Forbid();
+            }
+
+            var participant = await dbContext.CogitaLiveRevisionParticipants
+                .FirstOrDefaultAsync(x => x.Id == participantId && x.SessionId == liveSession.Id, ct);
+            if (participant is null)
+            {
+                return Results.NotFound();
+            }
+
+            var answers = await dbContext.CogitaLiveRevisionAnswers
+                .Where(x => x.SessionId == liveSession.Id && x.ParticipantId == participantId)
+                .ToListAsync(ct);
+            var reloginRequests = await dbContext.CogitaLiveRevisionReloginRequests
+                .Where(x => x.SessionId == liveSession.Id && x.DisplayName == participant.DisplayName)
+                .ToListAsync(ct);
+
+            dbContext.CogitaLiveRevisionAnswers.RemoveRange(answers);
+            dbContext.CogitaLiveRevisionReloginRequests.RemoveRange(reloginRequests);
+            dbContext.CogitaLiveRevisionParticipants.Remove(participant);
+            liveSession.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            return Results.Ok(response);
+        });
+
         group.MapPost("/public/live-revision/{code}/join", async (
             string code,
             CogitaLiveRevisionJoinRequest request,
@@ -5498,12 +5658,16 @@ public static class CogitaEndpoints
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
 
             var answerSubmitted = false;
+            Guid? participantId = null;
+            string? participantName = null;
             if (!string.IsNullOrWhiteSpace(participantToken))
             {
                 var participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
                     .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
                 if (participant is not null)
                 {
+                    participantId = participant.Id;
+                    participantName = participant.DisplayName;
                     answerSubmitted = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .AnyAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex, ct);
                 }
@@ -5520,7 +5684,9 @@ public static class CogitaEndpoints
                 ParseJsonNullable(session.CurrentPromptJson),
                 ParseJsonNullable(session.CurrentRevealJson),
                 scoreboard,
-                answerSubmitted
+                answerSubmitted,
+                participantId,
+                participantName
             ));
         }).AllowAnonymous();
 

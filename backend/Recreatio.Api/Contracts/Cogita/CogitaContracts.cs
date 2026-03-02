@@ -483,7 +483,9 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     JsonElement? CurrentPrompt,
     JsonElement? CurrentReveal,
     List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
-    bool AnswerSubmitted
+    bool AnswerSubmitted,
+    Guid? ParticipantId,
+    string? ParticipantName
 );
 
 public sealed record CogitaLiveRevisionParticipantSessionListItemResponse(
@@ -516,6 +518,10 @@ public sealed record CogitaLiveRevisionAnswerSubmitRequest(
     int RoundIndex,
     string? CardKey,
     JsonElement? Answer
+);
+
+public sealed record CogitaLiveRevisionHostParticipantCreateRequest(
+    string Name
 );
 
 public sealed record CogitaLiveRevisionRevealScoreRequest(

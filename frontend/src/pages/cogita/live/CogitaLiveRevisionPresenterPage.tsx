@@ -24,22 +24,55 @@ export function CogitaLiveRevisionPresenterPage(props: {
   const liveCopy = props.copy.cogita.library.revision.live;
   const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [layoutMode, setLayoutMode] = useState<'window' | 'fullscreen'>('fullscreen');
+  const [localViewMode, setLocalViewMode] = useState<'follow-host' | 'question' | 'score'>('follow-host');
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
   const revealExpected = reveal?.expected;
   const participantViewMode = state?.participantViewMode ?? 'question';
+  const effectiveViewMode =
+    localViewMode === 'follow-host'
+      ? (participantViewMode === 'score' ? 'score' : 'question')
+      : localViewMode;
   const stage =
     state?.status === 'finished' || state?.status === 'closed'
       ? 'finished'
       : state?.status && state.status !== 'lobby'
         ? 'active'
         : 'lobby';
-  const showQuestionPanel = participantViewMode !== 'score';
-  const showScorePanel = participantViewMode !== 'question' || stage === 'finished';
+  const showQuestionPanel = effectiveViewMode !== 'score';
+  const showScorePanel = effectiveViewMode !== 'question' || stage === 'finished';
+  const promptTimerEndMs = useMemo(() => {
+    const raw = typeof prompt?.timerEndsUtc === 'string' ? Date.parse(prompt.timerEndsUtc) : NaN;
+    return Number.isFinite(raw) ? raw : null;
+  }, [prompt?.timerEndsUtc]);
+  const promptTimerTotalSeconds = useMemo(() => {
+    const raw = Number(prompt?.timerSeconds ?? 0);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.max(1, Math.min(600, Math.round(raw)));
+  }, [prompt?.timerSeconds]);
+  const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
+  const timerProgress =
+    timerRemainingMs == null || promptTimerTotalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
   const joinUrl = useMemo(
     () => (typeof window !== 'undefined' ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(code)}` : ''),
     [code]
   );
+
+  useEffect(() => {
+    if (participantViewMode === 'fullscreen' && stage !== 'lobby') {
+      setLayoutMode('fullscreen');
+    }
+  }, [participantViewMode, stage]);
+
+  useEffect(() => {
+    if (stage !== 'active' || promptTimerEndMs == null) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [promptTimerEndMs, stage]);
 
   useEffect(() => {
     let mounted = true;
@@ -64,10 +97,27 @@ export function CogitaLiveRevisionPresenterPage(props: {
 
   return (
     <CogitaShell {...props}>
-      <section className="cogita-library-dashboard">
+      <section className="cogita-library-dashboard cogita-live-layout-shell" data-layout={layoutMode}>
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
-            <div className="cogita-library-grid cogita-live-session-layout" data-stage={stage} data-participant-view={participantViewMode}>
+            <div className="cogita-live-layout-controls cogita-live-layout-controls--global">
+              <label className="cogita-field">
+                <span>{liveCopy.participantViewModeLabel}</span>
+                <select value={localViewMode} onChange={(event) => setLocalViewMode(event.target.value as 'follow-host' | 'question' | 'score')}>
+                  <option value="follow-host">{liveCopy.participantViewFollowHost}</option>
+                  <option value="question">{liveCopy.participantViewQuestion}</option>
+                  <option value="score">{liveCopy.participantViewScore}</option>
+                </select>
+              </label>
+              <label className="cogita-field">
+                <span>{liveCopy.viewModeLabel}</span>
+                <select value={layoutMode} onChange={(event) => setLayoutMode(event.target.value as 'window' | 'fullscreen')}>
+                  <option value="fullscreen">{liveCopy.viewModeFullscreen}</option>
+                  <option value="window">{liveCopy.viewModeWindow}</option>
+                </select>
+              </label>
+            </div>
+            <div className="cogita-library-grid cogita-live-session-layout" data-stage={stage} data-participant-view={effectiveViewMode}>
               {showQuestionPanel ? (
               <div className={`cogita-library-panel ${participantViewMode === 'fullscreen' ? 'cogita-live-fullscreen-panel' : ''}`}>
                 <p className="cogita-user-kicker">{liveCopy.hostKicker}</p>
@@ -84,30 +134,43 @@ export function CogitaLiveRevisionPresenterPage(props: {
                     </div>
                   </>
                 ) : (
-                  <CogitaCheckcardSurface
-                    className="cogita-live-card-container"
-                    feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
-                  >
-                    <CogitaLivePromptCard
-                      prompt={prompt}
-                      revealExpected={revealExpected}
-                      mode="readonly"
-                      labels={{
-                        answerLabel: props.copy.cogita.library.revision.answerLabel,
-                        correctAnswerLabel: props.copy.cogita.library.revision.correctAnswerLabel,
-                        trueLabel: liveCopy.trueLabel,
-                        falseLabel: liveCopy.falseLabel,
-                        fragmentLabel: liveCopy.fragmentLabel,
-                        correctFragmentLabel: liveCopy.correctFragmentLabel,
-                        participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
-                        unsupportedPromptType: liveCopy.unsupportedPromptType,
-                        waitingForReveal: 'Waiting for reveal.',
-                        selectedPaths: 'Selected paths',
-                        removePath: 'Remove',
-                        columnPrefix: 'Column'
-                      }}
-                    />
-                  </CogitaCheckcardSurface>
+                  <>
+                    {stage === 'active' && prompt && prompt.timerEnabled && promptTimerEndMs != null ? (
+                      <div className="cogita-live-timer">
+                        <div className="cogita-live-timer-head">
+                          <span>{liveCopy.timerLabel}</span>
+                          <strong>{`${Math.max(0, Math.ceil((timerRemainingMs ?? 0) / 1000))}s`}</strong>
+                        </div>
+                        <div className="cogita-live-timer-track">
+                          <span style={{ width: `${Math.round(timerProgress * 100)}%` }} />
+                        </div>
+                      </div>
+                    ) : null}
+                    <CogitaCheckcardSurface
+                      className="cogita-live-card-container"
+                      feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}
+                    >
+                      <CogitaLivePromptCard
+                        prompt={prompt}
+                        revealExpected={revealExpected}
+                        mode="readonly"
+                        labels={{
+                          answerLabel: props.copy.cogita.library.revision.answerLabel,
+                          correctAnswerLabel: props.copy.cogita.library.revision.correctAnswerLabel,
+                          trueLabel: liveCopy.trueLabel,
+                          falseLabel: liveCopy.falseLabel,
+                          fragmentLabel: liveCopy.fragmentLabel,
+                          correctFragmentLabel: liveCopy.correctFragmentLabel,
+                          participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                          unsupportedPromptType: liveCopy.unsupportedPromptType,
+                          waitingForReveal: liveCopy.waitingForRevealLabel,
+                          selectedPaths: liveCopy.selectedPathsLabel,
+                          removePath: liveCopy.removePathAction,
+                          columnPrefix: liveCopy.columnPrefixLabel
+                        }}
+                      />
+                    </CogitaCheckcardSurface>
+                  </>
                 )}
               </div>
               ) : null}
