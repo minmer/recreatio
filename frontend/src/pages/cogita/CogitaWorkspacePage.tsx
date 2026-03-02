@@ -43,6 +43,7 @@ import { CogitaRevisionListPage } from './library/collections/CogitaRevisionList
 import { CogitaRevisionSettingsPage } from './library/collections/CogitaRevisionSettingsPage';
 import { CogitaRevisionRunPage } from './library/collections/CogitaRevisionRunPage';
 import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevisionLiveSessionsPage';
+import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
 
@@ -185,6 +186,9 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     if (!revisionId) {
       return { libraryId, target: 'all_revisions', filterCollectionId };
     }
+    if (revisionId === 'live-sessions') {
+      return { libraryId, target: 'all_revisions', revisionView: 'live', liveSessionView: 'list', filterCollectionId };
+    }
     if (revisionId === 'new') {
       return { libraryId, target: 'all_revisions', revisionView: 'new', filterCollectionId };
     }
@@ -289,7 +293,9 @@ function buildCogitaPath(
 ): string {
   const buildRevisionPath = (id?: string, view?: RevisionView) => {
     if (!id) {
-      return view === 'new' || view === 'run' ? `/cogita/library/${libraryId}/revisions/${view}` : `/cogita/library/${libraryId}/revisions`;
+      if (view === 'new' || view === 'run') return `/cogita/library/${libraryId}/revisions/${view}`;
+      if (view === 'live') return `/cogita/library/${libraryId}/revisions/live-sessions`;
+      return `/cogita/library/${libraryId}/revisions`;
     }
     if (view === 'run') return `/cogita/library/${libraryId}/revisions/${id}/run`;
     if (view === 'live') {
@@ -1565,7 +1571,7 @@ export function CogitaWorkspacePage({
   );
   const revisionLiveSessionsSubmenu = useMemo(() => {
     if (!selectedLibraryId) return null;
-    const sessionsPath = `/cogita/live-sessions/${encodeURIComponent(selectedLibraryId)}`;
+    const sessionsPath = `/cogita/library/${encodeURIComponent(selectedLibraryId)}/revisions/live-sessions`;
     const isActive = normalizePath(location.pathname) === normalizePath(sessionsPath);
     return (
       <div className="cogita-sidebar-actions">
@@ -1700,7 +1706,10 @@ export function CogitaWorkspacePage({
           />
         );
       }
-      if (!pathState.revisionId && (pathState.revisionView === 'settings' || pathState.revisionView === 'live')) {
+      if (!pathState.revisionId && pathState.revisionView === 'live') {
+        return <CogitaLiveSessionsPage {...baseProps} libraryId={libraryId} />;
+      }
+      if (!pathState.revisionId && pathState.revisionView === 'settings') {
         return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
       return <CogitaRevisionSettingsPage {...baseProps} revisionId={pathState.revisionId} />;

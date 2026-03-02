@@ -88,7 +88,7 @@ export function CogitaCollectionListPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard" data-mode="list">
+      <section className="cogita-library-dashboard cogita-flat-search-list" data-mode="list">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">
@@ -147,19 +147,6 @@ export function CogitaCollectionListPage({
                 ) : null}
               </div>
 
-              <div className="cogita-library-panel">
-                <section className="cogita-library-detail">
-                  <div className="cogita-detail-header">
-                    <div>
-                      <p className="cogita-user-kicker">{copy.cogita.library.collections.listKicker}</p>
-                      <h3 className="cogita-detail-title">{copy.cogita.library.collections.detailFocusTitle}</h3>
-                    </div>
-                  </div>
-                  <div className="cogita-detail-body">
-                    <p>{copy.cogita.library.collections.detailFocusBody}</p>
-                  </div>
-                </section>
-              </div>
             </div>
           </div>
         </div>

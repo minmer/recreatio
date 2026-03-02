@@ -3408,6 +3408,32 @@
   background: rgba(15, 34, 58, 0.8);
 }
 
+.cogita-flat-search-list .cogita-card-list[data-view='list'] {
+  gap: 0;
+}
+
+.cogita-flat-search-list .cogita-card-item {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.cogita-flat-search-list .cogita-card-item + .cogita-card-item {
+  border-top: 1px solid rgba(120, 170, 220, 0.16);
+}
+
+.cogita-flat-search-list .cogita-card-select {
+  width: 100%;
+  padding: 0.8rem 0;
+  border-radius: 0;
+}
+
+.cogita-flat-search-list .cogita-card-select:hover {
+  background: rgba(12, 28, 48, 0.35);
+}
+
 .cogita-library-dashboard .cogita-detail-body {
   color: rgba(210, 225, 245, 0.8);
   display: grid;

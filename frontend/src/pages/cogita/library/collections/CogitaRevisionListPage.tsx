@@ -97,7 +97,7 @@ export function CogitaRevisionListPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard" data-mode="list">
+      <section className="cogita-library-dashboard cogita-flat-search-list" data-mode="list">
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-library-grid">

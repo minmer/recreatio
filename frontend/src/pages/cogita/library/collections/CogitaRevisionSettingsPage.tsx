@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   createCogitaRevision,
-  createCogitaRevisionShare,
   getCogitaCollections,
   getCogitaRevision,
-  getCogitaRevisionShares,
-  revokeCogitaRevisionShare,
   updateCogitaRevision,
-  type CogitaRevisionShare
 } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { getRevisionType, normalizeRevisionSettings, revisionTypes, settingsToQueryParams } from '../../../../cogita/revision/registry';
+import { getRevisionType, normalizeRevisionSettings, revisionTypes } from '../../../../cogita/revision/registry';
 import { useNavigate } from 'react-router-dom';
 
 export function CogitaRevisionSettingsPage({
@@ -45,7 +41,6 @@ export function CogitaRevisionSettingsPage({
   revisionId?: string;
 }) {
   const navigate = useNavigate();
-  const baseHref = `/#/cogita/library/${libraryId}`;
   const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');
   const [revisionName, setRevisionName] = useState('');
@@ -56,10 +51,6 @@ export function CogitaRevisionSettingsPage({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showCommonSettings, setShowCommonSettings] = useState(false);
   const [showSpecificSettings, setShowSpecificSettings] = useState(false);
-
-  const [activeShare, setActiveShare] = useState<CogitaRevisionShare | null>(null);
-  const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
-  const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const isCreateMode = !revisionId;
   const revisionType = useMemo(() => getRevisionType(mode), [mode]);
@@ -94,12 +85,52 @@ export function CogitaRevisionSettingsPage({
         .sort((a, b) => Number(b.key === 'considerDependencies') - Number(a.key === 'considerDependencies')),
     [commonSettingKeys, visibleSettingsFields]
   );
-  const settingsQuery = useMemo(() => settingsToQueryParams(revisionType, normalizedSettings).toString(), [revisionType, normalizedSettings]);
-  const shareBase = useMemo(() => {
-    if (typeof window === 'undefined') return '/#/cogita/public/revision';
-    return `${window.location.origin}/#/cogita/public/revision`;
-  }, []);
+  const selectedCollectionName = useMemo(
+    () => availableCollections.find((item) => item.collectionId === selectedCollectionId)?.name ?? copy.cogita.workspace.selectCollectionOption,
+    [availableCollections, copy.cogita.workspace.selectCollectionOption, selectedCollectionId]
+  );
+  const settingsImpactLines = useMemo(() => {
+    const revisionCopy = copy.cogita.library.revision;
+    const lines: string[] = [];
 
+    lines.push(revisionCopy.effectCollection.replace('{collection}', selectedCollectionName));
+
+    const triesValue = Number(normalizedSettings.tries ?? 0);
+    if (Number.isFinite(triesValue) && triesValue > 0) {
+      lines.push(revisionCopy.effectTries.replace('{value}', String(triesValue)));
+    }
+
+    const considerDependencies = String(normalizedSettings.considerDependencies ?? 'off') === 'on';
+    lines.push(considerDependencies ? revisionCopy.effectConsiderDependenciesOn : revisionCopy.effectConsiderDependenciesOff);
+
+    if (considerDependencies) {
+      const dependencyThreshold = Number(normalizedSettings.dependencyThreshold ?? 0);
+      if (Number.isFinite(dependencyThreshold) && dependencyThreshold > 0) {
+        lines.push(revisionCopy.effectDependencyThreshold.replace('{value}', String(dependencyThreshold)));
+      }
+    }
+
+    const minCorrectnessValue = Number(normalizedSettings.minCorrectness ?? 0);
+    if (Number.isFinite(minCorrectnessValue) && minCorrectnessValue > 0) {
+      lines.push(revisionCopy.effectMinCorrectness.replace('{value}', String(minCorrectnessValue)));
+    }
+
+    const stackSizeValue = Number(normalizedSettings.stackSize ?? 0);
+    if (Number.isFinite(stackSizeValue) && stackSizeValue > 0) {
+      lines.push(revisionCopy.effectStackSize.replace('{value}', String(stackSizeValue)));
+    }
+
+    const levelsValue = Number(normalizedSettings.levels ?? 0);
+    if (Number.isFinite(levelsValue) && levelsValue > 0) {
+      lines.push(revisionCopy.effectLevels.replace('{value}', String(levelsValue)));
+    }
+
+    if (revisionType.id === 'random') {
+      lines.push(revisionCopy.effectCardsPerSession.replace('{value}', String(limit)));
+    }
+
+    return lines;
+  }, [copy.cogita.library.revision, limit, normalizedSettings, revisionType.id, selectedCollectionName]);
   useEffect(() => {
     setSelectedCollectionId(collectionId ?? '');
   }, [collectionId]);
@@ -121,7 +152,6 @@ export function CogitaRevisionSettingsPage({
       setMode('random');
       setLimit(20);
       setRevisionSettings({});
-      setActiveShare(null);
       return;
     }
 
@@ -136,19 +166,7 @@ export function CogitaRevisionSettingsPage({
       .catch(() => {
         setRevisionName('');
       });
-
-    getCogitaRevisionShares({ libraryId })
-      .then((shares) => {
-        const current = shares.find((share) => share.revisionId === revisionId && !share.revokedUtc) ?? null;
-        setActiveShare(current);
-      })
-      .catch(() => setActiveShare(null));
   }, [libraryId, revisionId]);
-
-  const activeShareLink = useMemo(() => {
-    if (!activeShare?.shareCode) return null;
-    return `${shareBase}/${activeShare.shareCode}${settingsQuery ? `?${settingsQuery}` : ''}`;
-  }, [activeShare?.shareCode, settingsQuery, shareBase]);
 
   const handleSaveRevision = async () => {
     if (!selectedCollectionId) {
@@ -196,54 +214,6 @@ export function CogitaRevisionSettingsPage({
     }
   };
 
-  const handleCreateShare = async () => {
-    if (!revisionId) return;
-    setShareStatus('working');
-    setShareCopyStatus('idle');
-    try {
-      const response = await createCogitaRevisionShare({ libraryId, revisionId });
-      setActiveShare({
-        shareId: response.shareId,
-        revisionId: response.revisionId,
-        revisionName: response.revisionName,
-        collectionId: response.collectionId,
-        collectionName: response.collectionName,
-        shareCode: response.shareCode,
-        revisionType: response.revisionType ?? null,
-        revisionSettings: response.revisionSettings ?? null,
-        mode: response.mode,
-        check: response.check,
-        limit: response.limit,
-        createdUtc: response.createdUtc,
-        revokedUtc: null
-      });
-      setShareStatus('ready');
-    } catch {
-      setShareStatus('error');
-    }
-  };
-
-  const handleRevokeShare = async () => {
-    if (!activeShare) return;
-    try {
-      await revokeCogitaRevisionShare({ libraryId, shareId: activeShare.shareId });
-      setActiveShare(null);
-      setShareStatus('idle');
-      setShareCopyStatus('idle');
-    } catch {
-      setShareStatus('error');
-    }
-  };
-
-  const handleCopyShare = async () => {
-    if (!activeShareLink) return;
-    try {
-      await navigator.clipboard.writeText(activeShareLink);
-      setShareCopyStatus('copied');
-    } catch {
-      setShareCopyStatus('failed');
-    }
-  };
   const renderSettingsField = (field: (typeof revisionType.settingsFields)[number]) => {
     return (
       <label key={field.key} className="cogita-field">
@@ -399,77 +369,19 @@ export function CogitaRevisionSettingsPage({
               </div>
 
               <div className="cogita-library-panel">
-                {!isCreateMode && revisionId ? (
-                  <section className="cogita-library-detail">
-                    <div className="cogita-detail-header">
-                      <div>
-                        <p className="cogita-user-kicker">{copy.cogita.library.revision.shareKicker}</p>
-                        <h3 className="cogita-detail-title">{copy.cogita.library.revision.shareTitle}</h3>
-                      </div>
+                <section className="cogita-library-detail">
+                  <div className="cogita-detail-header">
+                    <div>
+                      <h3 className="cogita-detail-title">{copy.cogita.library.revision.settingsImpactTitle}</h3>
                     </div>
-                    <div className="cogita-detail-body">
-                      <p>{copy.cogita.library.revision.shareBody}</p>
-                      {activeShareLink ? (
-                        <div className="cogita-field">
-                          <span>{copy.cogita.library.revision.shareLinkLabel}</span>
-                          <input value={activeShareLink} readOnly />
-                        </div>
-                      ) : (
-                        <p>{copy.cogita.library.revision.shareListEmpty}</p>
-                      )}
-                      {shareStatus === 'error' ? <p className="cogita-help">{copy.cogita.library.revision.shareError}</p> : null}
-                      {shareCopyStatus === 'copied' ? (
-                        <p className="cogita-help">{copy.cogita.library.revision.shareCopied}</p>
-                      ) : shareCopyStatus === 'failed' ? (
-                        <p className="cogita-help">{copy.cogita.library.revision.shareCopyError}</p>
-                      ) : null}
-                    </div>
-                    <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleCreateShare} disabled={shareStatus === 'working'}>
-                        {shareStatus === 'working'
-                          ? copy.cogita.library.revision.shareWorking
-                          : activeShare
-                            ? copy.cogita.library.revision.shareAction
-                            : copy.cogita.library.revision.shareAction}
-                      </button>
-                      {activeShareLink ? (
-                        <button type="button" className="cta ghost" onClick={handleCopyShare}>
-                          {copy.cogita.library.revision.shareCopyAction}
-                        </button>
-                      ) : null}
-                      {activeShare ? (
-                        <button type="button" className="cta ghost" onClick={handleRevokeShare}>
-                          {copy.cogita.library.revision.shareRevokeAction}
-                        </button>
-                      ) : null}
-                    </div>
-                  </section>
-                ) : null}
-
-                {!isCreateMode && revisionId ? (
-                  <section className="cogita-library-detail">
-                    <div className="cogita-detail-header">
-                      <div>
-                        <p className="cogita-user-kicker">{copy.cogita.workspace.revisions.live}</p>
-                        <h3 className="cogita-detail-title">{copy.cogita.workspace.infoMode.search}</h3>
-                      </div>
-                    </div>
-                    <div className="cogita-detail-body">
-                      <p>{copy.cogita.library.revision.live.hostTitle}</p>
-                    </div>
-                    <div className="cogita-form-actions">
-                      <a className="cta ghost" href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions`}>
-                        {copy.cogita.workspace.revisions.live}
-                      </a>
-                      <a
-                        className="cta ghost"
-                        href={`/#/cogita/live-revision-host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}`}
-                      >
-                        {copy.cogita.library.revision.live.hostTitle}
-                      </a>
-                    </div>
-                  </section>
-                ) : null}
+                  </div>
+                  <div className="cogita-detail-body">
+                    <p>{copy.cogita.library.revision.settingsImpactIntro}</p>
+                    {settingsImpactLines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                  </div>
+                </section>
               </div>
             </div>
           </div>
