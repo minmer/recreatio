@@ -936,10 +936,17 @@ export type Copy = {
           summaryActions: string;
           summaryTypeLineSync: string;
           summaryTypeLineAsync: string;
+          summaryBasePointsDetailed: string;
+          summaryBonusItem: string;
+          summaryBonusesList: string;
+          summaryRangeLine: string;
           summaryBonusesActive: string;
           summaryBonusesNone: string;
           summaryBonusTimerDetail: string;
           summaryBonusTimerDisabled: string;
+          summaryStreakDetail: string;
+          summaryStreakDisabled: string;
+          summaryAllAnsweredDetail: string;
           summaryActionFlowDetail: string;
           bonusUsageLabel: string;
           bonusUsageAll: string;

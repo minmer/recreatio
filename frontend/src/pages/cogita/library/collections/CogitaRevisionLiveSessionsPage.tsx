@@ -317,14 +317,31 @@ export function CogitaRevisionLiveSessionsPage({
     const hasFirstBonus = formLiveRules.scoring.firstCorrectBonus > 0;
     const hasSpeedBonus = formLiveRules.speedBonus.enabled && formLiveRules.speedBonus.maxPoints > 0;
     const hasStreakBonus = formLiveRules.scoring.streakBaseBonus > 0;
-    const bonusNames: string[] = [];
-    if (hasFirstBonus) bonusNames.push(liveCopy.firstCorrectBonusLabel);
-    if (hasSpeedBonus) bonusNames.push(liveCopy.speedBonusMaxLabel);
-    if (hasStreakBonus) bonusNames.push(liveCopy.streakBaseBonusLabel);
-    const maxBonusReward =
-      (hasFirstBonus ? formLiveRules.scoring.firstCorrectBonus : 0) +
-      (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
-      (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
+    const bonusItems: string[] = [];
+    if (hasFirstBonus) {
+      bonusItems.push(
+        liveCopy.summaryBonusItem
+          .replace('{label}', liveCopy.firstCorrectBonusLabel)
+          .replace('{value}', String(formLiveRules.scoring.firstCorrectBonus))
+          .replace('{unit}', liveCopy.scoreUnit)
+      );
+    }
+    if (hasSpeedBonus) {
+      bonusItems.push(
+        liveCopy.summaryBonusItem
+          .replace('{label}', liveCopy.speedBonusMaxLabel)
+          .replace('{value}', String(formLiveRules.speedBonus.maxPoints))
+          .replace('{unit}', liveCopy.scoreUnit)
+      );
+    }
+    if (hasStreakBonus) {
+      bonusItems.push(
+        liveCopy.summaryBonusItem
+          .replace('{label}', liveCopy.streakBaseBonusLabel)
+          .replace('{value}', String(formLiveRules.scoring.streakBaseBonus))
+          .replace('{unit}', liveCopy.scoreUnit)
+      );
+    }
     const minPoints = formLiveRules.scoring.baseCorrect;
     const maxPoints =
       formLiveRules.scoring.baseCorrect +
@@ -332,17 +349,44 @@ export function CogitaRevisionLiveSessionsPage({
       (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
       (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
 
+    const streakProgressBonus = (streakCount: number) => {
+      const maxBonus = Math.max(0, formLiveRules.scoring.streakBaseBonus);
+      const extraCount = Math.max(0, streakCount - 1);
+      if (maxBonus === 0 || extraCount === 0) return 0;
+      const fullAfter = Math.max(1, formLiveRules.scoring.streakLimit);
+      const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
+      return clampInt(growthRatio(formLiveRules.scoring.streakGrowth, progress) * maxBonus, 0, 500000);
+    };
+    const streakOne = 2;
+    const streakTwo = Math.max(3, Math.round((formLiveRules.scoring.streakLimit + 2) / 2));
+    const streakThree = Math.max(streakTwo + 1, formLiveRules.scoring.streakLimit + 1);
+    const streakBonusOne = streakProgressBonus(streakOne);
+    const streakBonusTwo = streakProgressBonus(streakTwo);
+    const streakBonusThree = streakProgressBonus(streakThree);
+
     const lines: string[] = [];
-    lines.push(isAsyncSession ? liveCopy.summaryTypeLineAsync : liveCopy.summaryTypeLineSync);
-    lines.push(
-      bonusNames.length > 0
-        ? liveCopy.summaryBonusesActive
-            .replace('{bonuses}', bonusNames.join(', '))
-            .replace('{maxBonus}', String(maxBonusReward))
+    const paragraphOneParts: string[] = [];
+    paragraphOneParts.push(isAsyncSession ? liveCopy.summaryTypeLineAsync : liveCopy.summaryTypeLineSync);
+    paragraphOneParts.push(
+      liveCopy.summaryBasePointsDetailed
+        .replace('{base}', String(formLiveRules.scoring.baseCorrect))
+        .replace('{unit}', liveCopy.scoreUnit)
+    );
+    paragraphOneParts.push(
+      bonusItems.length > 0
+        ? liveCopy.summaryBonusesList.replace('{bonuses}', bonusItems.join(', '))
         : liveCopy.summaryBonusesNone
     );
-    lines.push(liveCopy.summaryPointsTotalHint.replace('{min}', String(minPoints)).replace('{max}', String(maxPoints)));
-    lines.push(
+    paragraphOneParts.push(
+      liveCopy.summaryRangeLine
+        .replace('{min}', String(minPoints))
+        .replace('{max}', String(maxPoints))
+        .replace('{unit}', liveCopy.scoreUnit)
+    );
+    lines.push(paragraphOneParts.join(' '));
+
+    const paragraphTwoParts: string[] = [];
+    paragraphTwoParts.push(
       hasSpeedBonus && formLiveRules.bonusTimer.enabled
         ? liveCopy.summaryBonusTimerDetail
             .replace('{state}', yesNoState(formLiveRules.bonusTimer.enabled))
@@ -355,14 +399,35 @@ export function CogitaRevisionLiveSessionsPage({
             .replace('{endSeconds}', String(formLiveRules.bonusTimer.seconds))
         : liveCopy.summaryBonusTimerDisabled
     );
-    lines.push(
+    paragraphTwoParts.push(
+      hasStreakBonus
+        ? liveCopy.summaryStreakDetail
+            .replace('{growth}', formLiveRules.scoring.streakGrowth)
+            .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
+            .replace('{unit}', liveCopy.scoreUnit)
+            .replace('{streakOne}', String(streakOne))
+            .replace('{bonusOne}', String(streakBonusOne))
+            .replace('{streakTwo}', String(streakTwo))
+            .replace('{bonusTwo}', String(streakBonusTwo))
+            .replace('{streakThree}', String(streakThree))
+            .replace('{bonusThree}', String(streakBonusThree))
+        : liveCopy.summaryStreakDisabled
+    );
+    lines.push(paragraphTwoParts.join(' '));
+
+    const paragraphThreeParts: string[] = [];
+    paragraphThreeParts.push(
+      liveCopy.summaryAllAnsweredDetail.replace('{allAction}', allAnsweredLabel)
+    );
+    paragraphThreeParts.push(
       liveCopy.summaryActionFlowDetail
         .replace('{timerState}', yesNoState(formLiveRules.actionTimer.enabled))
         .replace('{firstAction}', firstActionLabel)
         .replace('{allAction}', allAnsweredLabel)
         .replace('{expireAction}', expireLabel)
     );
-    lines.push(liveCopy.summaryEvaluationFlow);
+    paragraphThreeParts.push(liveCopy.summaryEvaluationFlow);
+    lines.push(paragraphThreeParts.join(' '));
 
     return lines.filter((line) => line.trim().length > 0);
   }, [formLiveRules, isAsyncSession, liveCopy]);
