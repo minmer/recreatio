@@ -233,6 +233,8 @@ export const en: Copy = {
         infoActionsHint: 'Info actions',
         selectedInfoActionsHint: 'Selected info actions',
         collectionActionsHint: 'Collection actions',
+        revisionHostedLiveSessionsHint: 'Hosted live sessions',
+        noRevisionHostedLiveSessions: 'No hosted sessions in this revision.',
         revisionLiveSessionsHint: 'Participating live sessions',
         noRevisionLiveSessions: 'No participating sessions.',
         accountSettings: 'Account settings',

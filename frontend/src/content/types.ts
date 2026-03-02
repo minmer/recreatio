@@ -189,6 +189,8 @@ export type Copy = {
         infoActionsHint: string;
         selectedInfoActionsHint: string;
         collectionActionsHint: string;
+        revisionHostedLiveSessionsHint: string;
+        noRevisionHostedLiveSessions: string;
         revisionLiveSessionsHint: string;
         noRevisionLiveSessions: string;
         accountSettings: string;
