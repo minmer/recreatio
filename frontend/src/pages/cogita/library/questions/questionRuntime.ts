@@ -18,10 +18,43 @@ export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
   return '';
 };
 
+const tryParseJsonObject = (raw: unknown): Record<string, unknown> | null => {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    if (typeof parsed === 'string') {
+      const nested = JSON.parse(parsed) as unknown;
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        return nested as Record<string, unknown>;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
 export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
-  if (!value || typeof value !== 'object') return null;
-  const data = value as Record<string, unknown>;
-  const root = data.definition && typeof data.definition === 'object' ? (data.definition as Record<string, unknown>) : data;
+  const data = tryParseJsonObject(value);
+  if (!data) return null;
+  let root: Record<string, unknown> = data;
+  const parsedDefinition = tryParseJsonObject(data.definition);
+  if (parsedDefinition) {
+    root = parsedDefinition;
+  } else if (Array.isArray(data.questionTypes) && data.questionTypes.length > 0) {
+    const first = tryParseJsonObject(data.questionTypes[0]);
+    if (first) {
+      root = first;
+    }
+  }
   const type = normalizeQuestionType(root.type);
   if (!type) return null;
 

@@ -21,8 +21,8 @@ import { CogitaCheckcardSurface } from '../library/collections/components/Cogita
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 import { selectNextCardIndexByMode } from '../../../cogita/revision/nextCardRoutine';
-import { parseQuestionDefinition, type ParsedQuestionDefinition } from '../library/questions/questionRuntime';
 import { getRevisionType, normalizeRevisionSettings } from '../../../cogita/revision/registry';
+import { buildRevisionQuestionRuntime } from '../library/collections/revisionShared';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
@@ -81,29 +81,6 @@ type RoundGain = {
   rankDelta: number;
 };
 
-const uniqSortedInts = (values: unknown[]) => Array.from(new Set(values.map((x) => Number(x)).filter(Number.isFinite))).sort((a, b) => a - b);
-
-function shuffleList<T>(items: T[]): T[] {
-  const next = [...items];
-  for (let i = next.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [next[i], next[j]] = [next[j], next[i]];
-  }
-  return next;
-}
-
-function shuffleWithIndexMap<T>(items: T[]) {
-  const indexed = items.map((value, oldIndex) => ({ value, oldIndex }));
-  for (let i = indexed.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
-  }
-  const values = indexed.map((entry) => entry.value);
-  const oldToNew = new Map<number, number>();
-  indexed.forEach((entry, newIndex) => oldToNew.set(entry.oldIndex, newIndex));
-  return { values, oldToNew };
-}
-
 function parseWordPair(label: string) {
   const parts = label.split('↔').map((x) => x.trim()).filter(Boolean);
   if (parts.length >= 2) return [parts[0], parts[1]] as const;
@@ -148,128 +125,102 @@ function buildRankMap(
 function buildQuestionRound(
   infoId: string,
   titleFallback: string,
-  definition: ParsedQuestionDefinition,
+  sourcePayload: unknown,
   roundIndex: number
 ): LiveRound | null {
-  const title = typeof definition.title === 'string' && definition.title.trim() ? definition.title.trim() : titleFallback;
-  const question = typeof definition.question === 'string' ? definition.question : titleFallback;
-  const type = definition.type;
-  if (!question) return null;
+  const runtime = buildRevisionQuestionRuntime(sourcePayload, titleFallback);
+  if (!runtime) return null;
+  const title = runtime.promptText || titleFallback;
 
-  if (type === 'selection') {
-    const options = Array.isArray(definition.options) ? definition.options.filter((x): x is string => typeof x === 'string') : [];
-    const expected = Array.isArray(definition.answer) ? uniqSortedInts(definition.answer as unknown[]) : [];
-    const multiple = expected.length !== 1;
-    const shuffled = shuffleWithIndexMap(options);
-    const remappedExpected = expected
-      .map((index) => shuffled.oldToNew.get(index))
-      .filter((index): index is number => Number.isInteger(index))
-      .sort((a, b) => a - b);
+  if (runtime.promptPayload.kind === 'selection') {
+    const options = runtime.promptPayload.options ?? [];
+    const expected = Array.isArray(runtime.expectedModel) ? runtime.expectedModel.map((x) => Number(x)).filter(Number.isFinite) : [];
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-selection`,
-      publicPrompt: { kind: 'selection', title, prompt: question, options: shuffled.values, multiple, cardLabel: 'question' },
-      reveal: { kind: 'selection', expected: remappedExpected, title },
+      publicPrompt: { kind: 'selection', title, prompt: runtime.promptText, options, multiple: runtime.promptPayload.multiple, cardLabel: 'question' },
+      reveal: { kind: 'selection', expected, title },
       grade: (answer) =>
         evaluateCheckcardAnswer({
-          prompt: { kind: 'selection', options: shuffled.values },
-          expected: remappedExpected,
-          answer: { selection: Array.isArray(answer) ? (answer as number[]) : [] }
+          prompt: runtime.promptModel,
+          expected: runtime.expectedModel,
+          answer: { selection: Array.isArray(answer) ? answer.map((entry) => Number(entry)).filter(Number.isFinite) : [] }
         }).correct
     };
   }
 
-  if (type === 'truefalse') {
-    const expected = Boolean(definition.answer);
+  if (runtime.promptPayload.kind === 'boolean') {
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-truefalse`,
-      publicPrompt: { kind: 'boolean', title, prompt: question, cardLabel: 'question' },
-      reveal: { kind: 'boolean', expected, title },
+      publicPrompt: { kind: 'boolean', title, prompt: runtime.promptText, cardLabel: 'question' },
+      reveal: { kind: 'boolean', expected: runtime.expectedModel, title },
       grade: (answer) =>
         evaluateCheckcardAnswer({
-          prompt: { kind: 'boolean' },
-          expected,
+          prompt: runtime.promptModel,
+          expected: runtime.expectedModel,
           answer: { booleanAnswer: answer == null ? null : Boolean(answer) }
         }).correct
     };
   }
 
-  if (type === 'text' || type === 'number' || type === 'date') {
-    const expected = String(definition.answer ?? '');
-    return {
-      roundIndex,
-      cardKey: `info:${infoId}:question-${type}`,
-      publicPrompt: {
-        kind: 'text',
-        title,
-        prompt: question,
-        inputType: type === 'number' ? 'number' : type === 'date' ? 'date' : 'text',
-        cardLabel: 'question'
-      },
-      reveal: { kind: 'text', expected, title },
-      grade: (answer) =>
-        evaluateCheckcardAnswer({
-          prompt: { kind: 'text', inputType: type === 'number' ? 'number' : type === 'date' ? 'date' : 'text' },
-          expected,
-          answer: { text: String(answer ?? '') }
-        }).correct
-    };
-  }
-
-  if (type === 'ordering') {
-    const options = Array.isArray(definition.options) ? definition.options.filter((x): x is string => typeof x === 'string') : [];
-    const shuffledOptions = shuffleList(options);
+  if (runtime.promptPayload.kind === 'ordering') {
+    const options = runtime.promptPayload.options ?? [];
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-ordering`,
-      publicPrompt: { kind: 'ordering', title, prompt: question, options: shuffledOptions, cardLabel: 'question' },
-      reveal: { kind: 'ordering', expected: options, title },
+      publicPrompt: { kind: 'ordering', title, prompt: runtime.promptText, options, cardLabel: 'question' },
+      reveal: { kind: 'ordering', expected: runtime.expectedModel, title },
       grade: (answer) =>
         evaluateCheckcardAnswer({
-          prompt: { kind: 'ordering', options },
-          expected: options,
+          prompt: runtime.promptModel,
+          expected: runtime.expectedModel,
           answer: { ordering: Array.isArray(answer) ? answer.map(String) : [] }
         }).correct
     };
   }
 
-  if (type === 'matching') {
-    const columns = Array.isArray(definition.columns)
-      ? definition.columns.map((col) => (Array.isArray(col) ? col.filter((x): x is string => typeof x === 'string') : []))
-      : [];
-    const shuffledColumns = columns.map((column) => shuffleWithIndexMap(column));
-    const answerObj = (definition.answer ?? {}) as Record<string, unknown>;
-    const expectedPathsRaw = Array.isArray(answerObj.paths)
-      ? answerObj.paths
-          .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter(Number.isFinite) : null))
-          .filter((row): row is number[] => Array.isArray(row))
-      : [];
-    const expectedPaths = expectedPathsRaw.map((path) =>
-      path.map((oldIndex, columnIndex) => shuffledColumns[columnIndex]?.oldToNew.get(oldIndex) ?? oldIndex)
-    );
+  if (runtime.promptPayload.kind === 'matching') {
+    const columns = runtime.promptPayload.columns ?? [];
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-matching`,
-      publicPrompt: { kind: 'matching', title, prompt: question, columns: shuffledColumns.map((entry) => entry.values), cardLabel: 'question' },
-      reveal: { kind: 'matching', expected: { paths: expectedPaths }, title },
-      grade: (answer) => {
-        const root = (answer ?? {}) as Record<string, unknown>;
-        const paths = Array.isArray(root.paths)
-          ? root.paths
-              .map((row) => (Array.isArray(row) ? row.map((x) => Number(x)).filter(Number.isFinite) : null))
-              .filter((row): row is number[] => Array.isArray(row))
-          : [];
-        return evaluateCheckcardAnswer({
-          prompt: { kind: 'matching', columns: shuffledColumns.map((entry) => entry.values) },
-          expected: { paths: expectedPaths },
-          answer: { matchingPaths: paths }
-        }).correct;
-      }
+      publicPrompt: { kind: 'matching', title, prompt: runtime.promptText, columns, cardLabel: 'question' },
+      reveal: { kind: 'matching', expected: runtime.expectedModel, title },
+      grade: (answer) =>
+        evaluateCheckcardAnswer({
+          prompt: runtime.promptModel,
+          expected: runtime.expectedModel,
+          answer: {
+            matchingPaths:
+              answer && typeof answer === 'object' && Array.isArray((answer as { paths?: unknown[] }).paths)
+                ? ((answer as { paths?: unknown[] }).paths as unknown[])
+                    .map((row) => (Array.isArray(row) ? row.map((entry) => Number(entry)).filter(Number.isFinite) : []))
+                    .filter((row) => row.length > 0)
+                : []
+          }
+        }).correct
     };
   }
 
-  return null;
+  return {
+    roundIndex,
+    cardKey: `info:${infoId}:question-text`,
+    publicPrompt: {
+      kind: 'text',
+      title,
+      prompt: runtime.promptText,
+      inputType: runtime.promptPayload.inputType ?? 'text',
+      cardLabel: 'question'
+    },
+    reveal: { kind: 'text', expected: runtime.expectedModel, title },
+    grade: (answer) =>
+      evaluateCheckcardAnswer({
+        prompt: runtime.promptModel,
+        expected: runtime.expectedModel,
+        answer: { text: String(answer ?? '') }
+      }).correct
+  };
 }
 
 async function buildLiveRounds(payload: {
@@ -411,9 +362,22 @@ async function buildLiveRounds(payload: {
 
     if (card.cardType !== 'info') continue;
     const detail = infoDetails.get(card.cardId);
-    if (!detail) continue;
+    const normalizedInfoType = String(detail?.infoType ?? card.infoType ?? '').toLowerCase();
+    const sourcePayload = detail?.payload ?? card.payload;
+    const normalizedCheckType = String(card.checkType ?? '').toLowerCase();
 
-    if (detail.infoType === 'word' && card.checkType === 'word-language') {
+    const directQuestionRound = buildQuestionRound(card.cardId, card.label, sourcePayload, rounds.length);
+    if (directQuestionRound) {
+      const round = directQuestionRound;
+      if (round) {
+        round.roundIndex = rounds.length;
+        rounds.push(round);
+        if (rounds.length % 5 === 0) notifyPreparedCount();
+      }
+      continue;
+    }
+
+    if ((normalizedInfoType === 'word' || normalizedCheckType === 'word-language') && normalizedCheckType === 'word-language') {
       const expected = parseLanguageDescription(card.description);
       if (!expected) continue;
       rounds.push({
@@ -432,7 +396,7 @@ async function buildLiveRounds(payload: {
       continue;
     }
 
-    if (detail.infoType === 'computed' && card.checkType === 'computed') {
+    if ((normalizedInfoType === 'computed' || normalizedCheckType === 'computed') && normalizedCheckType === 'computed') {
       const sample = computedSamples.get(card.cardId);
       if (!sample) continue;
       rounds.push({
@@ -451,8 +415,8 @@ async function buildLiveRounds(payload: {
       continue;
     }
 
-    if (detail.infoType === 'question') {
-      const def = parseQuestionDefinition(detail.payload);
+    if (normalizedInfoType === 'question' || normalizedCheckType.startsWith('question')) {
+      const def = parseQuestionDefinition(sourcePayload);
       const round = def ? buildQuestionRound(card.cardId, card.label, def, rounds.length) : null;
       if (round) {
         round.roundIndex = rounds.length;
@@ -462,9 +426,9 @@ async function buildLiveRounds(payload: {
       continue;
     }
 
-    if (detail.infoType === 'citation' && !citationProcessed.has(card.cardId)) {
+    if (normalizedInfoType === 'citation' && !citationProcessed.has(card.cardId)) {
       citationProcessed.add(card.cardId);
-      const root = detail.payload as Record<string, unknown>;
+      const root = (sourcePayload ?? {}) as Record<string, unknown>;
       const text = typeof root.text === 'string' ? root.text : '';
       const title = typeof root.title === 'string' && root.title.trim() ? root.title.trim() : card.label;
       if (!text.trim()) continue;
