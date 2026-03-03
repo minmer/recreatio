@@ -30,6 +30,12 @@ function participantMetaStorageKey(code: string) {
   return `cogita.live.join.meta.${code}`;
 }
 
+function participantResetLabel(language: 'pl' | 'en' | 'de') {
+  if (language === 'pl') return 'Wyczyść zapisane dane uczestnika';
+  if (language === 'de') return 'Gespeicherte Teilnehmerdaten löschen';
+  return 'Clear saved participant data';
+}
+
 export function CogitaLiveRevisionJoinPage(props: {
   copy: Copy;
   authLabel: string;
@@ -88,6 +94,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         : 'lobby';
   const showJoinPanel = sessionStage === 'lobby' || !participantToken;
   const isFirstLogin = !participantToken;
+  const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
   const sessionTitle = useMemo(() => {
     const rawTitle = (state as { title?: unknown } | null)?.title;
     if (typeof rawTitle === 'string' && rawTitle.trim()) return rawTitle.trim();
@@ -150,6 +157,14 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [showJoinPanel]);
 
   useEffect(() => {
+    if (!hasStoredTokenMismatch) return;
+    const fallbackName = participantMeta?.name?.trim() ?? '';
+    if (fallbackName) {
+      setJoinName((previous) => (previous.trim() ? previous : fallbackName));
+    }
+  }, [hasStoredTokenMismatch, participantMeta?.name]);
+
+  useEffect(() => {
     setTextAnswer('');
     setSelectionAnswer([]);
     setBoolAnswer(null);
@@ -199,6 +214,15 @@ export function CogitaLiveRevisionJoinPage(props: {
       setStatus('ready');
     } catch {
       setStatus('error');
+    }
+  };
+
+  const clearStoredParticipantData = () => {
+    setParticipantToken(null);
+    setParticipantMeta(null);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(tokenStorageKey(code));
+      localStorage.removeItem(participantMetaStorageKey(code));
     }
   };
 
@@ -477,7 +501,16 @@ export function CogitaLiveRevisionJoinPage(props: {
                     </div>
                   </>
                 ) : (
-                  <p className="cogita-help">{liveCopy.joinedWaiting}</p>
+                  <>
+                    <p className="cogita-help">
+                      {hasStoredTokenMismatch ? liveCopy.joinTitle : liveCopy.joinedWaiting}
+                    </p>
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta ghost" onClick={clearStoredParticipantData}>
+                        {participantResetLabel(props.language)}
+                      </button>
+                    </div>
+                  </>
                 )}
                 {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 {sessionStage === 'lobby' ? (

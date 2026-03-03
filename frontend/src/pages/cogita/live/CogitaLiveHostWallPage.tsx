@@ -571,7 +571,7 @@ export function CogitaLiveHostWallPage({
   const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
-  const canStartSession = Boolean(isLobbyStage && rounds.length > 0 && busy === 'none');
+  const canStartSession = Boolean(isLobbyStage && busy === 'none');
   const canStartTimer = Boolean(
     isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
   );
@@ -1162,11 +1162,33 @@ export function CogitaLiveHostWallPage({
   };
 
   const startSession = async () => {
-    if (!session || rounds.length === 0) return;
+    if (!session) return;
     if (!canStartSession) return;
     setBusy('next');
     try {
-      await publishRound(Math.max(0, Math.min(rounds.length - 1, session.currentRoundIndex)));
+      let localRounds = rounds;
+      if (localRounds.length === 0) {
+        try {
+          const rebuilt = await buildLiveRounds({
+            libraryId,
+            revisionId,
+            labels: {
+              selectMatchingPairPrompt: liveCopy.selectMatchingPairPrompt,
+              wordLanguagePromptPrefix: liveCopy.wordLanguagePromptPrefix
+            }
+          });
+          localRounds = rebuilt.rounds;
+          setRounds(rebuilt.rounds);
+          setRevisionMode(rebuilt.revisionMode || 'random');
+          setRoundLoadError(false);
+        } catch {
+          setRoundLoadError(true);
+          return;
+        }
+      }
+      if (localRounds.length === 0) return;
+      const targetRoundIndex = Math.max(0, Math.min(localRounds.length - 1, session.currentRoundIndex));
+      await publishRound(targetRoundIndex);
     } finally {
       setBusy('none');
     }
