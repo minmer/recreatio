@@ -519,6 +519,7 @@ export function CogitaLiveHostWallPage({
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
+  const [roundsStatus, setRoundsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [revisionMode, setRevisionMode] = useState('random');
@@ -532,6 +533,8 @@ export function CogitaLiveHostWallPage({
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
   const initialAttachKeyRef = useRef<string>('');
+  const roundsLoadPromiseRef = useRef<Promise<{ rounds: LiveRound[]; revisionMode: string } | null> | null>(null);
+  const startInFlightRef = useRef(false);
   const autoActionLockRef = useRef<string | null>(null);
   const streakByParticipantRef = useRef<Record<string, number>>({});
   const scoredRoundKeysRef = useRef<Set<string>>(new Set());
@@ -572,7 +575,7 @@ export function CogitaLiveHostWallPage({
   const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
-  const canStartSession = Boolean(session?.status === 'lobby');
+  const canStartSession = Boolean(session?.status === 'lobby' && busy === 'none' && roundsStatus !== 'loading');
   const canStartTimer = Boolean(
     isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
   );
@@ -727,9 +730,23 @@ export function CogitaLiveHostWallPage({
   }, [libraryId, sessionId, effectiveHostSecret]);
 
   useEffect(() => {
-    let canceled = false;
+    roundsLoadPromiseRef.current = null;
+    setRoundsStatus('idle');
     setRoundLoadError(false);
-    buildLiveRounds({
+    setRounds([]);
+    setRevisionMode('random');
+  }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
+
+  const ensureRoundsLoaded = async () => {
+    if (rounds.length > 0) return { rounds, revisionMode };
+    if (roundsLoadPromiseRef.current) {
+      const pending = await roundsLoadPromiseRef.current;
+      if (!pending) throw new Error('rounds-load-failed');
+      return pending;
+    }
+    setRoundsStatus('loading');
+    setRoundLoadError(false);
+    const op = buildLiveRounds({
       libraryId,
       revisionId,
       labels: {
@@ -738,17 +755,32 @@ export function CogitaLiveHostWallPage({
       }
     })
       .then((built) => {
-        if (canceled) return;
         setRounds(built.rounds);
         setRevisionMode(built.revisionMode || 'random');
+        setRoundsStatus('ready');
+        setRoundLoadError(false);
+        return built;
       })
       .catch(() => {
-        if (canceled) return;
+        setRounds([]);
+        setRevisionMode('random');
+        setRoundsStatus('error');
         setRoundLoadError(true);
+        return null;
+      })
+      .finally(() => {
+        roundsLoadPromiseRef.current = null;
       });
-    return () => {
-      canceled = true;
-    };
+    roundsLoadPromiseRef.current = op;
+    const result = await op;
+    if (!result) throw new Error('rounds-load-failed');
+    return result;
+  };
+
+  useEffect(() => {
+    void ensureRoundsLoaded().catch(() => {
+      // handled by ensureRoundsLoaded state updates
+    });
   }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
 
   useEffect(() => {
@@ -1178,28 +1210,25 @@ export function CogitaLiveHostWallPage({
 
   const startSession = async () => {
     if (!session || session.status !== 'lobby') return;
+    if (startInFlightRef.current) return;
+    startInFlightRef.current = true;
     setBusy('next');
     try {
-      let localRounds = rounds;
-      if (localRounds.length === 0) {
-        try {
-          const rebuilt = await buildLiveRounds({
-            libraryId,
-            revisionId,
-            labels: {
-              selectMatchingPairPrompt: liveCopy.selectMatchingPairPrompt,
-              wordLanguagePromptPrefix: liveCopy.wordLanguagePromptPrefix
-            }
-          });
-          localRounds = rebuilt.rounds;
-          setRounds(rebuilt.rounds);
-          setRevisionMode(rebuilt.revisionMode || 'random');
-          setRoundLoadError(false);
-        } catch {
-          setRoundLoadError(true);
-          return;
-        }
-      }
+      const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+        new Promise<T>((resolve, reject) => {
+          const id = window.setTimeout(() => reject(new Error('rounds-load-timeout')), ms);
+          promise
+            .then((value) => {
+              window.clearTimeout(id);
+              resolve(value);
+            })
+            .catch((error) => {
+              window.clearTimeout(id);
+              reject(error);
+            });
+        });
+      const prepared = await withTimeout(ensureRoundsLoaded(), 20000);
+      const localRounds = prepared.rounds;
       if (localRounds.length === 0) {
         setRoundLoadError(true);
         return;
@@ -1211,6 +1240,7 @@ export function CogitaLiveHostWallPage({
       setRoundLoadError(true);
       setStatus('error');
     } finally {
+      startInFlightRef.current = false;
       setBusy('none');
     }
   };
