@@ -71,6 +71,13 @@ type LiveRound = {
   grade: (answer: unknown) => boolean;
 };
 
+type RoundGain = {
+  points: number;
+  factors: string[];
+  streak: number;
+  rankDelta: number;
+};
+
 const uniqSortedInts = (values: unknown[]) => Array.from(new Set(values.map((x) => Number(x)).filter(Number.isFinite))).sort((a, b) => a - b);
 
 function shuffleList<T>(items: T[]): T[] {
@@ -105,6 +112,34 @@ function parseLanguageDescription(description?: string | null) {
   const idx = description.indexOf(':');
   if (idx >= 0) return description.slice(idx + 1).trim();
   return description.trim();
+}
+
+function growthRatio(mode: string, ratio: number) {
+  const clamped = Math.max(0, Math.min(1, ratio));
+  if (mode === 'exponential') return clamped * clamped;
+  if (mode === 'limited') return Math.min(1, clamped * 1.6);
+  return clamped;
+}
+
+function streakBonus(mode: string, base: number, streak: number, limit: number) {
+  const maxBonus = Math.max(0, base);
+  const extraCount = Math.max(0, streak - 1);
+  if (maxBonus === 0 || extraCount === 0) return 0;
+  const fullAfter = Math.max(1, limit);
+  const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
+  return clampInt(growthRatio(mode, progress) * maxBonus, 0, 100000);
+}
+
+function buildRankMap(
+  participants: Array<{ participantId: string; score: number; joinedUtc?: string }>
+) {
+  const ordered = [...participants].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return String(a.joinedUtc ?? '').localeCompare(String(b.joinedUtc ?? ''));
+  });
+  const map = new Map<string, number>();
+  ordered.forEach((entry, index) => map.set(entry.participantId, index + 1));
+  return map;
 }
 
 function buildQuestionRound(
@@ -461,9 +496,15 @@ export function CogitaLiveHostWallPage({
   const [roundLoadError, setRoundLoadError] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
+  const [usedRoundActions, setUsedRoundActions] = useState<
+    Record<string, { reveal?: boolean; score?: boolean; next?: boolean; startTimer?: boolean }>
+  >({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
+  const autoActionLockRef = useRef<string | null>(null);
+  const streakByParticipantRef = useRef<Record<string, number>>({});
+  const scoredRoundKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     setEffectiveHostSecret(hostSecret);
@@ -484,8 +525,53 @@ export function CogitaLiveHostWallPage({
     return (session?.currentRoundAnswers ?? []).filter((row) => row.roundIndex === currentRound && (!cardKey || String(row.cardKey ?? '') === cardKey));
   }, [rounds, session?.currentRoundAnswers, session?.currentRoundIndex]);
   const revealExpected = reveal?.expected ?? currentRound?.reveal.expected;
+  const currentRoundKey = useMemo(
+    () => (session && currentRound ? `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}` : ''),
+    [currentRound, session]
+  );
+  const hasRevealRoundScoring =
+    reveal && typeof reveal === 'object' && reveal.roundScoring && typeof reveal.roundScoring === 'object';
+  const isCurrentRoundScored = Boolean(
+    currentRoundKey &&
+      (scoredRoundKeysRef.current.has(currentRoundKey) ||
+        (session?.status === 'revealed' && hasRevealRoundScoring))
+  );
+  const roundActions = currentRoundKey ? usedRoundActions[currentRoundKey] ?? {} : {};
+  const isLobbyStage = session?.status === 'lobby';
+  const isRunningStage = session?.status === 'running';
+  const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
+  const actionTimerStarted =
+    typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
+  const canStartSession = Boolean(isLobbyStage && rounds.length > 0 && busy === 'none');
+  const canStartTimer = Boolean(
+    isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
+  );
+  const canCheckReveal = Boolean(
+    isRunningStage && !isCurrentRoundScored && !roundActions.reveal && !roundActions.score && busy === 'none'
+  );
+  const canScore = Boolean(!isLobbyStage && !isClosedOrFinished && !isCurrentRoundScored && !roundActions.score && busy === 'none');
+  const canNextQuestion = Boolean(!isLobbyStage && !isClosedOrFinished && !roundActions.next && busy === 'none');
   const answeredCount = roundAnswers.length;
   const participantCount = session?.participants.length ?? 0;
+
+  useEffect(() => {
+    const promptState =
+      session?.currentPrompt && typeof session.currentPrompt === 'object'
+        ? ((session.currentPrompt as Record<string, unknown>).streakState as Record<string, unknown> | undefined)
+        : undefined;
+    const revealState =
+      session?.currentReveal && typeof session.currentReveal === 'object'
+        ? ((session.currentReveal as Record<string, unknown>).streakState as Record<string, unknown> | undefined)
+        : undefined;
+    const source = promptState ?? revealState;
+    if (source && typeof source === 'object') {
+      const next: Record<string, number> = {};
+      Object.entries(source).forEach(([key, value]) => {
+        next[key] = clampInt(Number(value), 0, 100000);
+      });
+      streakByParticipantRef.current = next;
+    }
+  }, [session?.currentPrompt, session?.currentReveal, session?.sessionId]);
 
   const buildTimer = (config: {
     key: HostTimer['key'];
@@ -628,7 +714,19 @@ export function CogitaLiveHostWallPage({
 
   const projected = useMemo(() => {
     if (!prompt || !revealExpected) return [] as Array<{ participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean }>;
+    const promptState = prompt && typeof prompt === 'object' ? (prompt as Record<string, unknown>) : null;
+    const timerStartedMs = typeof promptState?.bonusTimerStartedUtc === 'string' ? Date.parse(promptState.bonusTimerStartedUtc) : NaN;
+    const timerEndsMs = typeof promptState?.bonusTimerEndsUtc === 'string' ? Date.parse(promptState.bonusTimerEndsUtc) : NaN;
     const firstAnsweredParticipantId = roundAnswers[0]?.participantId ?? null;
+    const firstCorrectParticipantId =
+      roundAnswers
+        .filter((row) =>
+          evaluateCheckcardAnswer({
+            prompt: prompt as unknown as Record<string, unknown>,
+            expected: revealExpected,
+            answer: normalizeAnswer(row.answer, prompt)
+          }).correct
+        )[0]?.participantId ?? null;
     const processed = roundAnswers
       .map((row) => {
         const participant = participantById.get(row.participantId);
@@ -643,18 +741,40 @@ export function CogitaLiveHostWallPage({
           !check && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
             ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
             : 0;
-        const base = check ? rules.scoring.baseCorrect : -(wrongPenalty + firstWrongPenalty);
+        let points = check ? clampInt(rules.scoring.baseCorrect, 0, 500000) : -(wrongPenalty + firstWrongPenalty);
+        if (check && firstCorrectParticipantId && row.participantId === firstCorrectParticipantId && rules.scoring.firstCorrectBonus > 0) {
+          points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
+        }
+        if (
+          check &&
+          rules.bonusTimer.enabled &&
+          rules.speedBonus.enabled &&
+          rules.speedBonus.maxPoints > 0 &&
+          Number.isFinite(timerStartedMs) &&
+          Number.isFinite(timerEndsMs)
+        ) {
+          const submittedMs = Date.parse(row.submittedUtc);
+          if (Number.isFinite(submittedMs) && submittedMs <= timerEndsMs) {
+            const ratio = Math.max(0, Math.min(1, (timerEndsMs - submittedMs) / Math.max(1, timerEndsMs - timerStartedMs)));
+            points += clampInt(growthRatio(rules.speedBonus.growth, ratio) * rules.speedBonus.maxPoints, 0, 500000);
+          }
+        }
+        if (check) {
+          const previousStreak = streakByParticipantRef.current[row.participantId] ?? 0;
+          const nextStreak = previousStreak + 1;
+          points += streakBonus(rules.scoring.streakGrowth, rules.scoring.streakBaseBonus, nextStreak, rules.scoring.streakLimit);
+        }
         const current = scoresById.get(row.participantId) ?? participant.score ?? 0;
         return {
           participant,
           current,
-          predicted: current + base,
+          predicted: current + points,
           correct: check
         };
       })
       .filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
     return processed.sort((a, b) => b.predicted - a.predicted);
-  }, [participantById, prompt, revealExpected, roundAnswers, rules.scoring.baseCorrect, rules.scoring.firstWrongPenalty, rules.scoring.wrongAnswerPenalty, scoresById]);
+  }, [participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
 
   const projectionByParticipant = useMemo(() => new Map(projected.map((x) => [x.participant.participantId, x])), [projected]);
   const correctnessByParticipant = useMemo(() => {
@@ -749,8 +869,8 @@ export function CogitaLiveHostWallPage({
     const bonusTimerEndsUtc = bonusTimerStartedUtc
       ? new Date(Date.parse(bonusTimerStartedUtc) + clampInt(rules.bonusTimer.seconds, 1, 600) * 1000).toISOString()
       : null;
-    const roundTimerEnabled = Boolean(rules.questionTimer?.enabled);
-    const roundTimerSeconds = clampInt(Number(rules.questionTimer?.seconds ?? 60), 3, 1200);
+    const roundTimerEnabled = Boolean(rules.roundTimer.enabled);
+    const roundTimerSeconds = clampInt(Number(rules.roundTimer.seconds ?? 60), 3, 1200);
     const roundTimerStartedUtc = roundTimerEnabled ? new Date().toISOString() : null;
     const roundTimerEndsUtc = roundTimerStartedUtc
       ? new Date(Date.parse(roundTimerStartedUtc) + roundTimerSeconds * 1000).toISOString()
@@ -784,6 +904,7 @@ export function CogitaLiveHostWallPage({
 
   const revealRound = async () => {
     if (!session || !currentRound) return;
+    if (!canCheckReveal) return;
     setBusy('reveal');
     try {
       await pushState({
@@ -793,6 +914,12 @@ export function CogitaLiveHostWallPage({
         currentPrompt: session.currentPrompt,
         currentReveal: { ...currentRound.reveal }
       });
+      if (currentRoundKey) {
+        setUsedRoundActions((previous) => ({
+          ...previous,
+          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), reveal: true }
+        }));
+      }
     } finally {
       setBusy('none');
     }
@@ -800,24 +927,97 @@ export function CogitaLiveHostWallPage({
 
   const scoreRound = async () => {
     if (!session || !currentRound) return;
+    if (!canScore) return;
+    const currentRevealState =
+      session.currentReveal && typeof session.currentReveal === 'object'
+        ? (session.currentReveal as Record<string, unknown>)
+        : null;
+    if (currentRevealState && currentRevealState.roundScoring && session.status === 'revealed') return;
     setBusy('score');
     try {
-      const firstAnsweredParticipantId = roundAnswers[0]?.participantId ?? null;
-      const answersByParticipant = new Map(roundAnswers.map((row) => [row.participantId, row]));
-      const payload = session.participants.map((participant) => {
+      const promptState =
+        session.currentPrompt && typeof session.currentPrompt === 'object'
+          ? (session.currentPrompt as Record<string, unknown>)
+          : null;
+      const timerStartedMs = typeof promptState?.bonusTimerStartedUtc === 'string' ? Date.parse(promptState.bonusTimerStartedUtc) : NaN;
+      const timerEndsMs = typeof promptState?.bonusTimerEndsUtc === 'string' ? Date.parse(promptState.bonusTimerEndsUtc) : NaN;
+      const answersForRound = [...roundAnswers].sort((a, b) => Date.parse(a.submittedUtc) - Date.parse(b.submittedUtc));
+      const answersByParticipant = new Map(answersForRound.map((row) => [row.participantId, row]));
+      const correctness = session.participants.map((participant) => {
         const row = answersByParticipant.get(participant.participantId);
-        const correct = row ? currentRound.grade(row.answer) : false;
-        const wrongPenalty = !correct ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
-        const firstWrongPenalty =
-          !correct && firstAnsweredParticipantId && participant.participantId === firstAnsweredParticipantId
-            ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
-            : 0;
         return {
           participantId: participant.participantId,
-          isCorrect: correct,
-          pointsAwarded: correct ? rules.scoring.baseCorrect : -(wrongPenalty + firstWrongPenalty)
+          isCorrect: row ? currentRound.grade(row.answer) : false,
+          submittedUtc: row?.submittedUtc ?? null
         };
       });
+      const isCorrectByParticipant = new Map(correctness.map((row) => [row.participantId, row.isCorrect]));
+      const firstCorrectParticipantId =
+        answersForRound.find((answer) => isCorrectByParticipant.get(answer.participantId) === true)?.participantId ?? null;
+      const firstAnsweredParticipantId = answersForRound[0]?.participantId ?? null;
+      const previousStreaks = streakByParticipantRef.current;
+      const nextStreaks: Record<string, number> = { ...previousStreaks };
+      const roundGain: Record<string, RoundGain> = {};
+
+      const payload = correctness.map((row) => {
+        const previousStreak = nextStreaks[row.participantId] ?? 0;
+        if (!row.isCorrect) {
+          nextStreaks[row.participantId] = 0;
+          const answered = Boolean(row.submittedUtc);
+          const wrongPenalty = answered ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
+          const firstWrongPenalty =
+            answered && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
+              ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
+              : 0;
+          const pointsAwarded = -(wrongPenalty + firstWrongPenalty);
+          const factors: string[] = [];
+          if (wrongPenalty > 0) factors.push('wrong');
+          if (firstWrongPenalty > 0) factors.push('first-wrong');
+          roundGain[row.participantId] = { points: pointsAwarded, factors, streak: 0, rankDelta: 0 };
+          return { participantId: row.participantId, isCorrect: false, pointsAwarded };
+        }
+
+        const factors: string[] = [];
+        let points = clampInt(rules.scoring.baseCorrect, 0, 500000);
+        if (points > 0) factors.push('base');
+        if (firstCorrectParticipantId && row.participantId === firstCorrectParticipantId && rules.scoring.firstCorrectBonus > 0) {
+          points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
+          factors.push('first');
+        }
+
+        if (
+          rules.bonusTimer.enabled &&
+          rules.speedBonus.enabled &&
+          rules.speedBonus.maxPoints > 0 &&
+          Number.isFinite(timerStartedMs) &&
+          Number.isFinite(timerEndsMs) &&
+          row.submittedUtc
+        ) {
+          const submittedMs = Date.parse(row.submittedUtc);
+          if (Number.isFinite(submittedMs) && submittedMs <= timerEndsMs) {
+            const ratio = Math.max(0, Math.min(1, (timerEndsMs - submittedMs) / Math.max(1, timerEndsMs - timerStartedMs)));
+            const speedBonus = clampInt(growthRatio(rules.speedBonus.growth, ratio) * rules.speedBonus.maxPoints, 0, 500000);
+            if (speedBonus > 0) {
+              points += speedBonus;
+              factors.push('speed');
+            }
+          }
+        }
+
+        const nextStreak = previousStreak + 1;
+        nextStreaks[row.participantId] = nextStreak;
+        const extraStreak = streakBonus(rules.scoring.streakGrowth, rules.scoring.streakBaseBonus, nextStreak, rules.scoring.streakLimit);
+        if (extraStreak > 0) {
+          points += extraStreak;
+          factors.push('streak');
+        }
+
+        const safePoints = clampInt(points, -500000, 500000);
+        roundGain[row.participantId] = { points: safePoints, factors, streak: nextStreak, rankDelta: 0 };
+        return { participantId: row.participantId, isCorrect: true, pointsAwarded: safePoints };
+      });
+
+      const beforeRank = buildRankMap(session.participants);
       const next = await withFreshHostSecret((secret) =>
         scoreCogitaLiveRevisionRound({
           libraryId,
@@ -826,7 +1026,40 @@ export function CogitaLiveHostWallPage({
           scores: payload
         })
       );
-      setSession(next);
+      const afterRank = buildRankMap(next.participants);
+      Object.keys(roundGain).forEach((participantId) => {
+        const before = beforeRank.get(participantId) ?? 0;
+        const after = afterRank.get(participantId) ?? before;
+        roundGain[participantId] = {
+          ...roundGain[participantId],
+          rankDelta: before > 0 && after > 0 ? before - after : 0
+        };
+      });
+      streakByParticipantRef.current = nextStreaks;
+      const afterReveal = await withFreshHostSecret((secret) =>
+        updateCogitaLiveRevisionHostState({
+          libraryId,
+          sessionId: next.sessionId,
+          hostSecret: secret,
+          status: 'revealed',
+          currentRoundIndex: next.currentRoundIndex,
+          revealVersion: next.revealVersion + 1,
+          currentPrompt: next.currentPrompt,
+          currentReveal: {
+            ...currentRound.reveal,
+            roundScoring: roundGain,
+            streakState: nextStreaks
+          }
+        })
+      );
+      setSession(afterReveal);
+      if (currentRoundKey) {
+        scoredRoundKeysRef.current.add(currentRoundKey);
+        setUsedRoundActions((previous) => ({
+          ...previous,
+          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), reveal: true, score: true }
+        }));
+      }
     } finally {
       setBusy('none');
     }
@@ -834,8 +1067,15 @@ export function CogitaLiveHostWallPage({
 
   const nextRound = async () => {
     if (!session) return;
+    if (!canNextQuestion) return;
     setBusy('next');
     try {
+      if (currentRoundKey) {
+        setUsedRoundActions((previous) => ({
+          ...previous,
+          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), next: true }
+        }));
+      }
       const nextIndex = session.currentRoundIndex + 1;
       if (nextIndex >= rounds.length) {
         await pushState({ status: 'finished', currentReveal: null });
@@ -849,6 +1089,7 @@ export function CogitaLiveHostWallPage({
 
   const startSession = async () => {
     if (!session || rounds.length === 0) return;
+    if (!canStartSession) return;
     setBusy('next');
     try {
       await publishRound(Math.max(0, Math.min(rounds.length - 1, session.currentRoundIndex)));
@@ -856,6 +1097,206 @@ export function CogitaLiveHostWallPage({
       setBusy('none');
     }
   };
+
+  const startActionTimerManual = async () => {
+    if (!session || session.status !== 'running') return;
+    if (!canStartTimer) return;
+    const promptState =
+      session.currentPrompt && typeof session.currentPrompt === 'object'
+        ? (session.currentPrompt as Record<string, unknown>)
+        : null;
+    if (!promptState) return;
+    if (!rules.actionTimer.enabled) return;
+    if (typeof promptState.actionTimerStartedUtc === 'string' && promptState.actionTimerStartedUtc.length > 0) return;
+    setBusy('reveal');
+    const timerStartedUtc = new Date().toISOString();
+    const seconds = clampInt(rules.actionTimer.seconds, 3, 600);
+    const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
+    try {
+      await pushState({
+        currentPrompt: {
+          ...promptState,
+          actionTimerEnabled: true,
+          actionTimerSeconds: seconds,
+          actionTimerStartedUtc: timerStartedUtc,
+          actionTimerEndsUtc: timerEndsUtc
+        }
+      });
+      if (currentRoundKey) {
+        setUsedRoundActions((previous) => ({
+          ...previous,
+          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), startTimer: true }
+        }));
+      }
+    } finally {
+      setBusy('none');
+    }
+  };
+
+  useEffect(() => {
+    if (!session || !currentRound) return;
+    if (session.status !== 'running') return;
+    if (session.sessionMode !== 'simultaneous') return;
+    const promptState =
+      session.currentPrompt && typeof session.currentPrompt === 'object'
+        ? (session.currentPrompt as Record<string, unknown>)
+        : null;
+    if (!promptState) return;
+
+    const connectedParticipants = session.participants.filter((participant) => participant.isConnected);
+    const effectiveParticipants = connectedParticipants.length > 0 ? connectedParticipants : session.participants;
+    const answeredRows = session.currentRoundAnswers
+      .filter(
+        (answer) =>
+          answer.roundIndex === session.currentRoundIndex &&
+          (answer.cardKey ?? '') === currentRound.cardKey
+      )
+      .sort((a, b) => Date.parse(a.submittedUtc) - Date.parse(b.submittedUtc));
+    const answeredParticipants = new Set(answeredRows.map((answer) => answer.participantId));
+    const firstAnswered = answeredRows.length > 0;
+    const allAnswered =
+      effectiveParticipants.length > 0 &&
+      effectiveParticipants.every((participant) => answeredParticipants.has(participant.participantId));
+
+    const actionTimerStarted = typeof promptState.actionTimerStartedUtc === 'string' && promptState.actionTimerStartedUtc.length > 0;
+    const actionTimerEndsMs = typeof promptState.actionTimerEndsUtc === 'string' ? Date.parse(promptState.actionTimerEndsUtc) : NaN;
+    const actionTimerExpired = actionTimerStarted && Number.isFinite(actionTimerEndsMs) && Date.now() >= actionTimerEndsMs;
+    const bonusTimerStarted = typeof promptState.bonusTimerStartedUtc === 'string' && promptState.bonusTimerStartedUtc.length > 0;
+
+    const roundTimerStarted = typeof promptState.roundTimerStartedUtc === 'string' && promptState.roundTimerStartedUtc.length > 0;
+    const roundTimerEndsMs = typeof promptState.roundTimerEndsUtc === 'string' ? Date.parse(promptState.roundTimerEndsUtc) : NaN;
+    const roundTimerExpired = roundTimerStarted && Number.isFinite(roundTimerEndsMs) && Date.now() >= roundTimerEndsMs;
+
+    const baseKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:${session.revealVersion}:${answeredRows.length}:${String(promptState.actionTimerStartedUtc ?? '')}:${String(promptState.actionTimerEndsUtc ?? '')}:${String(promptState.roundTimerStartedUtc ?? '')}:${String(promptState.roundTimerEndsUtc ?? '')}`;
+    const executeOnce = (suffix: string, action: () => Promise<void>) => {
+      const key = `${baseKey}:${suffix}`;
+      if (autoActionLockRef.current === key) return;
+      autoActionLockRef.current = key;
+      void action().catch(() => {
+        autoActionLockRef.current = null;
+      });
+    };
+
+    const startActionTimerNow = async () => {
+      const timerStartedUtc = new Date().toISOString();
+      const seconds = clampInt(rules.actionTimer.seconds, 3, 600);
+      const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
+      await pushState({
+        currentPrompt: {
+          ...promptState,
+          actionTimerEnabled: true,
+          actionTimerSeconds: seconds,
+          actionTimerStartedUtc: timerStartedUtc,
+          actionTimerEndsUtc: timerEndsUtc
+        }
+      });
+    };
+
+    const startBonusTimerNow = async () => {
+      const timerStartedUtc = new Date().toISOString();
+      const seconds = clampInt(rules.bonusTimer.seconds, 1, 600);
+      const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
+      await pushState({
+        currentPrompt: {
+          ...promptState,
+          bonusTimerEnabled: true,
+          bonusTimerSeconds: seconds,
+          bonusTimerStartedUtc: timerStartedUtc,
+          bonusTimerEndsUtc: timerEndsUtc
+        }
+      });
+    };
+
+    const revealAndScore = async () => {
+      await scoreRound();
+    };
+
+    const revealScoreAndNext = async () => {
+      await revealAndScore();
+      await nextRound();
+    };
+
+    if (rules.bonusTimer.enabled && rules.bonusTimer.startMode === 'first_answer' && firstAnswered && !bonusTimerStarted) {
+      executeOnce('first-start-bonus-timer', startBonusTimerNow);
+      return;
+    }
+    if (rules.firstAnswerAction === 'start_timer' && rules.actionTimer.enabled && firstAnswered && !actionTimerStarted) {
+      executeOnce('first-start-timer', startActionTimerNow);
+      return;
+    }
+    if (rules.firstAnswerAction === 'reveal' && firstAnswered) {
+      executeOnce('first-reveal', revealAndScore);
+      return;
+    }
+    if (rules.firstAnswerAction === 'next' && firstAnswered) {
+      executeOnce('first-next', revealScoreAndNext);
+      return;
+    }
+
+    if (allAnswered) {
+      if (rules.allAnsweredAction === 'reveal') {
+        executeOnce('all-reveal', revealAndScore);
+        return;
+      }
+      if (rules.allAnsweredAction === 'next') {
+        executeOnce('all-next', revealScoreAndNext);
+        return;
+      }
+    }
+
+    if (actionTimerExpired) {
+      if (rules.actionTimer.onExpire === 'reveal') {
+        executeOnce('action-expire-reveal', revealAndScore);
+        return;
+      }
+      if (rules.actionTimer.onExpire === 'next') {
+        executeOnce('action-expire-next', revealScoreAndNext);
+        return;
+      }
+    }
+
+    if (roundTimerExpired) {
+      if (rules.roundTimer.onExpire === 'reveal') {
+        executeOnce('round-expire-reveal', revealAndScore);
+        return;
+      }
+      if (rules.roundTimer.onExpire === 'next') {
+        executeOnce('round-expire-next', revealScoreAndNext);
+      }
+    }
+  }, [currentRound, rules, session]);
+
+  useEffect(() => {
+    autoActionLockRef.current = null;
+  }, [session?.currentRoundIndex, session?.revealVersion, session?.status, session?.sessionId]);
+
+  useEffect(() => {
+    if (!currentRoundKey) return;
+    if (hasRevealRoundScoring && session?.status === 'revealed') {
+      scoredRoundKeysRef.current.add(currentRoundKey);
+    }
+  }, [currentRoundKey, hasRevealRoundScoring, session?.status]);
+
+  useEffect(() => {
+    if (!currentRoundKey) return;
+    setUsedRoundActions((previous) => {
+      const current = previous[currentRoundKey] ?? {};
+      const next = {
+        ...current,
+        reveal: current.reveal || session?.status === 'revealed' || Boolean(reveal),
+        score: current.score || isCurrentRoundScored,
+        startTimer: current.startTimer || actionTimerStarted
+      };
+      if (
+        current.reveal === next.reveal &&
+        current.score === next.score &&
+        current.startTimer === next.startTimer
+      ) {
+        return previous;
+      }
+      return { ...previous, [currentRoundKey]: next };
+    });
+  }, [actionTimerStarted, currentRoundKey, isCurrentRoundScored, reveal, session?.status]);
 
   return (
     <CogitaLiveWallLayout
@@ -880,18 +1321,25 @@ export function CogitaLiveHostWallPage({
           ))}
           <div className="cogita-form-actions">
             {session?.status === 'lobby' ? (
-              <button type="button" className="cta" onClick={() => void startSession()} disabled={busy !== 'none' || rounds.length === 0}>
+              <button type="button" className="cta" onClick={() => void startSession()} disabled={!canStartSession}>
                 {liveCopy.publishCurrentRound}
               </button>
             ) : (
               <>
-                <button type="button" className="cta" onClick={() => void revealRound()} disabled={busy !== 'none'}>
+                {rules.actionTimer.enabled &&
+                session?.status === 'running' &&
+                !(typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0) ? (
+                  <button type="button" className="cta ghost" onClick={() => void startActionTimerManual()} disabled={!canStartTimer}>
+                    {liveCopy.startTimerAction}
+                  </button>
+                ) : null}
+                <button type="button" className="cta" onClick={() => void revealRound()} disabled={!canCheckReveal}>
                   {liveCopy.checkAndReveal}
                 </button>
-                <button type="button" className="ghost" onClick={() => void scoreRound()} disabled={busy !== 'none'}>
+                <button type="button" className="cta ghost" onClick={() => void scoreRound()} disabled={!canScore}>
                   {liveCopy.optionRevealScore}
                 </button>
-                <button type="button" className="ghost" onClick={() => void nextRound()} disabled={busy !== 'none'}>
+                <button type="button" className="cta ghost" onClick={() => void nextRound()} disabled={!canNextQuestion}>
                   {liveCopy.nextQuestionAction}
                 </button>
               </>

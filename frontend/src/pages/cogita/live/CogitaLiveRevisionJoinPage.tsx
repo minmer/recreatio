@@ -102,27 +102,51 @@ export function CogitaLiveRevisionJoinPage(props: {
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
   );
-  const promptTimerEndMs = useMemo(() => {
-    const raw = typeof prompt?.actionTimerEndsUtc === 'string' ? Date.parse(prompt.actionTimerEndsUtc) : NaN;
-    return Number.isFinite(raw) ? raw : null;
-  }, [prompt?.actionTimerEndsUtc]);
-  const promptTimerTotalSeconds = useMemo(() => {
-    const raw = Number(prompt?.actionTimerSeconds ?? 0);
-    if (!Number.isFinite(raw) || raw <= 0) return 0;
-    return Math.max(1, Math.min(600, Math.round(raw)));
-  }, [prompt?.actionTimerSeconds]);
-  const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
-  const timerExpired = promptTimerEndMs != null && timerRemainingMs === 0;
+  const effectiveQuestionTimer = useMemo(() => {
+    if (state?.status !== 'running') return null;
+    if (reveal) return null;
+    const timers: Array<{ endsMs: number; totalSeconds: number }> = [];
+    if (prompt?.roundTimerEnabled && typeof prompt.roundTimerEndsUtc === 'string') {
+      const endsMs = Date.parse(prompt.roundTimerEndsUtc);
+      const rawSeconds = Number(prompt.roundTimerSeconds ?? 0);
+      const totalSeconds = Number.isFinite(rawSeconds) && rawSeconds > 0 ? Math.max(1, Math.min(1200, Math.round(rawSeconds))) : 0;
+      if (Number.isFinite(endsMs) && totalSeconds > 0) {
+        timers.push({ endsMs, totalSeconds });
+      }
+    }
+    if (prompt?.actionTimerEnabled && typeof prompt.actionTimerEndsUtc === 'string') {
+      const endsMs = Date.parse(prompt.actionTimerEndsUtc);
+      const rawSeconds = Number(prompt.actionTimerSeconds ?? 0);
+      const totalSeconds = Number.isFinite(rawSeconds) && rawSeconds > 0 ? Math.max(1, Math.min(600, Math.round(rawSeconds))) : 0;
+      if (Number.isFinite(endsMs) && totalSeconds > 0) {
+        timers.push({ endsMs, totalSeconds });
+      }
+    }
+    if (timers.length === 0) return null;
+    return timers.sort((a, b) => a.endsMs - b.endsMs)[0];
+  }, [
+    reveal,
+    prompt?.actionTimerEnabled,
+    prompt?.actionTimerEndsUtc,
+    prompt?.actionTimerSeconds,
+    prompt?.roundTimerEnabled,
+    prompt?.roundTimerEndsUtc,
+    prompt?.roundTimerSeconds,
+    state?.status
+  ]);
+  const timerRemainingMs =
+    effectiveQuestionTimer == null ? null : Math.max(0, effectiveQuestionTimer.endsMs - nowTick);
+  const timerExpired = effectiveQuestionTimer != null && timerRemainingMs === 0;
   const timerProgress =
-    timerRemainingMs == null || promptTimerTotalSeconds <= 0
+    timerRemainingMs == null || effectiveQuestionTimer == null || effectiveQuestionTimer.totalSeconds <= 0
       ? 0
-      : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
+      : Math.max(0, Math.min(1, timerRemainingMs / (effectiveQuestionTimer.totalSeconds * 1000)));
 
   useEffect(() => {
-    if (sessionStage !== 'active' || promptTimerEndMs == null) return;
+    if (sessionStage !== 'active' || effectiveQuestionTimer == null) return;
     const id = window.setInterval(() => setNowTick(Date.now()), 100);
     return () => window.clearInterval(id);
-  }, [promptTimerEndMs, sessionStage]);
+  }, [effectiveQuestionTimer, sessionStage]);
 
   useEffect(() => {
     if (showJoinPanel) {
@@ -254,7 +278,7 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const submitAnswer = async () => {
     if (!participantToken || !prompt || typeof prompt.cardKey !== 'string') return;
-    if (timerExpired && promptTimerEndMs != null) return;
+    if (timerExpired && effectiveQuestionTimer != null) return;
 
     let answer: unknown = null;
     switch (prompt.kind) {
@@ -405,7 +429,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (factors.has('speed')) {
       rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: speedValue });
     }
-    return { total, rows };
+    const bonusTotal = rows
+      .filter((row) => row.key === 'first' || row.key === 'speed' || row.key === 'streak')
+      .reduce((sum, row) => sum + Math.max(0, row.points), 0);
+    const penaltyTotal = rows
+      .filter((row) => row.key === 'wrong' || row.key === 'first-wrong')
+      .reduce((sum, row) => sum + Math.abs(Math.min(0, row.points)), 0);
+    return { total, rows, bonusTotal, penaltyTotal };
   }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
@@ -535,7 +565,7 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className="cogita-library-panel cogita-live-fullscreen-panel">
                 <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
-                {sessionStage === 'active' && prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
+                {sessionStage === 'active' && prompt && effectiveQuestionTimer != null ? (
                   <div className="cogita-live-timer">
                     <div className="cogita-live-timer-head">
                       <span>{liveCopy.timerLabel}</span>
@@ -597,22 +627,17 @@ export function CogitaLiveRevisionJoinPage(props: {
                         }
                       />
                     </CogitaCheckcardSurface>
-                    <div className="cogita-form-actions">
-                      <button
-                        type="button"
-                        className="cta"
-                        onClick={submitAnswer}
-                        disabled={!participantToken || !prompt.cardKey || state?.answerSubmitted || timerExpired}
-                      >
-                        {state?.answerSubmitted ? liveCopy.submitted : liveCopy.submitAnswer}
-                      </button>
-                    </div>
-                    {timerExpired ? <p className="cogita-help">{liveCopy.timeExpired}</p> : null}
-                    {selfRoundBreakdown ? (
+                    {selfRoundBreakdown && reveal ? (
                       <div className="cogita-live-round-gain">
                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
                         <p className="cogita-detail-title">{`${formatPoints(selfRoundBreakdown.total)} ${liveCopy.scoreUnit}`}</p>
-                        <p className="cogita-help">{liveCopy.roundGainDetailsTitle}</p>
+                        <p className="cogita-help">
+                          {`${liveCopy.factorBaseLabel}: ${formatPoints(
+                            selfRoundBreakdown.rows.find((row) => row.key === 'base')?.points ?? 0
+                          )} · ${liveCopy.factorFirstLabel}/${liveCopy.factorSpeedLabel}/${liveCopy.factorStreakLabel}: ${formatPoints(
+                            selfRoundBreakdown.bonusTotal
+                          )} · ${liveCopy.factorWrongLabel}/${liveCopy.factorFirstWrongLabel}: -${selfRoundBreakdown.penaltyTotal}`}
+                        </p>
                         <div className="cogita-live-round-gain-list">
                           {selfRoundBreakdown.rows.map((row) => (
                             <div className="cogita-live-round-gain-row" key={`gain:${row.key}`}>
@@ -633,6 +658,17 @@ export function CogitaLiveRevisionJoinPage(props: {
                         ) : null}
                       </div>
                     ) : null}
+                    <div className="cogita-form-actions">
+                      <button
+                        type="button"
+                        className="cta"
+                        onClick={submitAnswer}
+                        disabled={!participantToken || !prompt.cardKey || state?.answerSubmitted || timerExpired}
+                      >
+                        {state?.answerSubmitted ? liveCopy.submitted : liveCopy.submitAnswer}
+                      </button>
+                    </div>
+                    {timerExpired ? <p className="cogita-help">{liveCopy.timeExpired}</p> : null}
                   </>
                 ) : (
                   <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
