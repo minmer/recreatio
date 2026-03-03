@@ -432,7 +432,16 @@ export function CogitaRevisionCard({
               labels={{
                 answerLabel: copy.cogita.library.revision.answerLabel,
                 correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
-                participantAnswerPlaceholder: copy.cogita.library.revision.answerPlaceholder
+                trueLabel: copy.cogita.library.revision.live.trueLabel,
+                falseLabel: copy.cogita.library.revision.live.falseLabel,
+                fragmentLabel: copy.cogita.library.revision.live.fragmentLabel,
+                correctFragmentLabel: copy.cogita.library.revision.live.correctFragmentLabel,
+                participantAnswerPlaceholder: copy.cogita.library.revision.answerPlaceholder,
+                unsupportedPromptType: copy.cogita.library.revision.live.unsupportedPromptType,
+                waitingForReveal: copy.cogita.library.revision.live.waitingForRevealLabel,
+                selectedPaths: copy.cogita.library.revision.live.selectedPathsLabel,
+                removePath: copy.cogita.library.revision.live.removePathAction,
+                columnPrefix: copy.cogita.library.revision.live.columnPrefixLabel
               }}
               answers={questionAnswers}
               onTextChange={onQuestionTextChange}

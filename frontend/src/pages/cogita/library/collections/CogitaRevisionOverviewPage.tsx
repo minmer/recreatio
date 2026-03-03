@@ -62,6 +62,27 @@ export function CogitaRevisionOverviewPage({
     return `${window.location.origin}/#/cogita/public/revision/${activeShare.shareCode}`;
   }, [activeShare?.shareCode]);
 
+  const revisionRunHref = useMemo(() => {
+    const base = `/#/cogita/library/${encodeURIComponent(libraryId)}/revisions/${encodeURIComponent(revisionId)}/run`;
+    if (!revision) return base;
+    const params = new URLSearchParams();
+    const mode = String(revision.revisionType ?? revision.mode ?? 'random').trim().toLowerCase();
+    params.set('mode', mode || 'random');
+    params.set('check', String(revision.check ?? 'exact'));
+    params.set('limit', String(Math.max(1, Number(revision.limit ?? 20))));
+    if (revision.revisionSettings && typeof revision.revisionSettings === 'object') {
+      Object.entries(revision.revisionSettings as Record<string, unknown>).forEach(([key, value]) => {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          params.set(key, String(value));
+        } else if (typeof value === 'string') {
+          params.set(key, value);
+        }
+      });
+    }
+    const query = params.toString();
+    return query ? `${base}?${query}` : base;
+  }, [libraryId, revision, revisionId]);
+
   const handleCreateShare = async () => {
     setShareStatus('working');
     setShareCopyStatus('idle');
@@ -136,7 +157,7 @@ export function CogitaRevisionOverviewPage({
                     </div>
                   </div>
                   <div className="cogita-form-actions">
-                    <a className="cta" href={`/#/cogita/library/${encodeURIComponent(libraryId)}/revisions/${encodeURIComponent(revisionId)}/run`}>
+                    <a className="cta" href={revisionRunHref}>
                       {copy.cogita.library.revision.start}
                     </a>
                   </div>

@@ -101,12 +101,26 @@ export function CogitaRevisionRunPage({
   const location = useLocation();
   const baseHref = `/#/cogita/library/${libraryId}`;
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const limit = Math.max(1, Number(params.get('limit') ?? 20));
-  const mode = params.get('mode') ?? 'random';
+  const [resolvedRevisionOptions, setResolvedRevisionOptions] = useState<{
+    mode: string;
+    limit: number;
+    settings: Record<string, number | string>;
+  } | null>(null);
+  const hasExplicitMode = params.has('mode');
+  const hasExplicitLimit = params.has('limit');
+  const mode = hasExplicitMode ? params.get('mode') ?? 'random' : resolvedRevisionOptions?.mode ?? 'random';
+  const limitSource = hasExplicitLimit ? params.get('limit') : String(resolvedRevisionOptions?.limit ?? 20);
+  const limit = Math.max(1, Number(limitSource ?? 20));
   const revisionType = useMemo(() => getRevisionType(mode), [mode]);
+  const hasExplicitRevisionSettings = revisionType.settingsFields.some((field) => params.has(field.key));
   const revisionSettings = useMemo(
-    () => normalizeRevisionSettings(revisionType, parseRevisionSettingsFromParams(revisionType, params)),
-    [revisionType, params]
+    () => normalizeRevisionSettings(
+      revisionType,
+      hasExplicitRevisionSettings
+        ? parseRevisionSettingsFromParams(revisionType, params)
+        : resolvedRevisionOptions?.settings ?? parseRevisionSettingsFromParams(revisionType, params)
+    ),
+    [hasExplicitRevisionSettings, params, resolvedRevisionOptions?.settings, revisionType]
   );
   const check = params.get('check') ?? 'exact';
   const reviewer = params.get('reviewer');
@@ -196,11 +210,25 @@ export function CogitaRevisionRunPage({
   useEffect(() => {
     if (!revisionId || collectionId) {
       setResolvedRevisionCollectionId(null);
+      setResolvedRevisionOptions(null);
       return;
     }
     getCogitaRevision({ libraryId, revisionId })
-      .then((revision) => setResolvedRevisionCollectionId(revision.collectionId))
-      .catch(() => setResolvedRevisionCollectionId(null));
+      .then((revision) => {
+        setResolvedRevisionCollectionId(revision.collectionId);
+        setResolvedRevisionOptions({
+          mode: String(revision.revisionType ?? revision.mode ?? 'random').toLowerCase(),
+          limit: Math.max(1, Number(revision.limit ?? 20)),
+          settings:
+            revision.revisionSettings && typeof revision.revisionSettings === 'object'
+              ? (revision.revisionSettings as Record<string, number | string>)
+              : {}
+        });
+      })
+      .catch(() => {
+        setResolvedRevisionCollectionId(null);
+        setResolvedRevisionOptions(null);
+      });
   }, [collectionId, libraryId, revisionId]);
 
   const currentCard = queue[currentIndex] ?? null;
