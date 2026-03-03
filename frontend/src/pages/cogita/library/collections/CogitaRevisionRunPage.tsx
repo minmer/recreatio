@@ -28,6 +28,7 @@ import { CogitaCheckcardSurface } from './components/CogitaCheckcardSurface';
 import { CogitaCardKnownessPanel } from './components/CogitaCardKnownessPanel';
 import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
+import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../../cogita/revision/cardLoader';
 import {
   getAllOutcomes,
   getOutcomesForItem,
@@ -730,32 +731,26 @@ export function CogitaRevisionRunPage({
         }
 
         const gathered: CogitaCardSearchResult[] = [];
-        let cursor: string | null | undefined = null;
-        let targetTotal: number | null = null;
-        do {
-          const bundle = await getCogitaCollectionCards({
-            libraryId,
-              collectionId: effectiveCollectionId!,
-            limit: 300,
-            cursor
-          });
-          gathered.push(...bundle.items);
-          if ((revisionType.id === 'levels' || revisionType.id === 'temporal' || revisionType.id === 'random-once') && bundle.total) {
-            targetTotal = bundle.total;
-          }
-          setLoadProgress((prev) => ({
-            current: gathered.length,
-            total: prev.total || bundle.total || revisionType.getFetchLimit(limit, revisionSettings)
-          }));
-          cursor = bundle.nextCursor ?? null;
-          if (targetTotal !== null && gathered.length >= targetTotal) break;
-          if (revisionType.id !== 'levels' && revisionType.id !== 'temporal' && revisionType.id !== 'random-once') {
-            if (gathered.length >= revisionType.getFetchLimit(limit, revisionSettings)) break;
-          }
-        } while (cursor);
+        gathered.push(
+          ...(
+            await collectCardsWithSharedLoader({
+              fetchPage: ({ limit: pageLimit, cursor }) =>
+                getCogitaCollectionCards({
+                  libraryId,
+                  collectionId: effectiveCollectionId!,
+                  limit: pageLimit,
+                  cursor
+                }),
+              mode: revisionType.id,
+              fetchLimit: revisionType.getFetchLimit(limit, revisionSettings),
+              pageSize: 300,
+              onProgress: ({ current, total }) => setLoadProgress({ current, total })
+            })
+          )
+        );
 
         if (!mounted) return;
-        const preparedCards = expandQuoteDirectionCards(gathered);
+        const preparedCards = normalizeLoadedCards(gathered);
         let initialLevels: Record<string, number> | undefined;
         if (revisionType.id === 'levels') {
           const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));

@@ -3,7 +3,6 @@ import {
   ApiError,
   attachCogitaLiveRevisionSession,
   getCogitaCollectionCards,
-  type CogitaCardSearchResult,
   getCogitaComputedSample,
   getCogitaInfoDetail,
   getCogitaLiveRevisionSession,
@@ -23,6 +22,7 @@ import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogi
 import { selectNextCardIndexByMode } from '../../../cogita/revision/nextCardRoutine';
 import { getRevisionType, normalizeRevisionSettings } from '../../../cogita/revision/registry';
 import { buildRevisionQuestionRuntime } from '../library/collections/revisionShared';
+import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../cogita/revision/cardLoader';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
@@ -240,22 +240,21 @@ async function buildLiveRounds(payload: {
     (revision.revisionSettings as Record<string, number | string> | null | undefined) ?? null
   );
   const fetchLimit = revisionType.getFetchLimit(revisionLimit, revisionSettings);
-  const gatheredCards: CogitaCardSearchResult[] = [];
-  let cursor: string | null | undefined = null;
-  do {
-    const bundle = await getCogitaCollectionCards({
-      libraryId: payload.libraryId,
-      collectionId: revision.collectionId,
-      limit: 300,
-      cursor
-    });
-    gatheredCards.push(...bundle.items);
-    cursor = bundle.nextCursor ?? null;
-    if (!cursor) break;
-    if (Number.isFinite(fetchLimit) && fetchLimit > 0 && gatheredCards.length >= fetchLimit) break;
-  } while (cursor);
-  const prepared = revisionType.prepare(gatheredCards, revisionLimit, revisionSettings);
-  const cards = prepared.queue.length > 0 ? prepared.queue : gatheredCards;
+  const gatheredCards = await collectCardsWithSharedLoader({
+    fetchPage: ({ limit, cursor }) =>
+      getCogitaCollectionCards({
+        libraryId: payload.libraryId,
+        collectionId: revision.collectionId,
+        limit,
+        cursor
+      }),
+    mode: revisionType.id,
+    fetchLimit,
+    pageSize: 300
+  });
+  const normalizedCards = normalizeLoadedCards(gatheredCards);
+  const prepared = revisionType.prepare(normalizedCards, revisionLimit, revisionSettings);
+  const cards = prepared.queue.length > 0 ? prepared.queue : normalizedCards;
   const infoIds = Array.from(new Set(cards.filter((c) => c.cardType === 'info').map((c) => c.cardId)));
 
   const infoDetails = new Map<string, { infoType: string; payload: unknown }>();
