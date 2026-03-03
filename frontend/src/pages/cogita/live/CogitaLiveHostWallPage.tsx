@@ -572,7 +572,7 @@ export function CogitaLiveHostWallPage({
   const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
-  const canStartSession = Boolean(isLobbyStage && busy === 'none');
+  const canStartSession = Boolean(session?.status === 'lobby');
   const canStartTimer = Boolean(
     isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
   );
@@ -1177,8 +1177,7 @@ export function CogitaLiveHostWallPage({
   };
 
   const startSession = async () => {
-    if (!session) return;
-    if (!canStartSession) return;
+    if (!session || session.status !== 'lobby') return;
     setBusy('next');
     try {
       let localRounds = rounds;
@@ -1201,7 +1200,10 @@ export function CogitaLiveHostWallPage({
           return;
         }
       }
-      if (localRounds.length === 0) return;
+      if (localRounds.length === 0) {
+        setRoundLoadError(true);
+        return;
+      }
       const targetRoundIndex = Math.max(0, Math.min(localRounds.length - 1, session.currentRoundIndex));
       await publishRound(targetRoundIndex);
     } finally {
