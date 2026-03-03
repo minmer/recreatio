@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ApiError,
+  attachCogitaLiveRevisionSession,
   getCogitaCollectionCards,
   getCogitaComputedSample,
   getCogitaInfoDetail,
@@ -454,12 +456,18 @@ export function CogitaLiveHostWallPage({
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
+  const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [roundLoadError, setRoundLoadError] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
+  const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
+
+  useEffect(() => {
+    setEffectiveHostSecret(hostSecret);
+  }, [hostSecret]);
   const currentRound = session ? rounds[session.currentRoundIndex] ?? null : null;
   const prompt =
     ((session?.currentPrompt as LivePrompt | undefined) ??
@@ -526,9 +534,55 @@ export function CogitaLiveHostWallPage({
     return next;
   }, [liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
 
+  const syncHostSecretInUrl = (nextSecret: string) => {
+    if (typeof window === 'undefined' || !nextSecret) return;
+    const current = new URL(window.location.href);
+    if (current.searchParams.get('hostSecret') === nextSecret) return;
+    current.searchParams.set('hostSecret', nextSecret);
+    window.history.replaceState(null, '', `${current.pathname}${current.search}${current.hash}`);
+  };
+
+  const reattachHostSession = async (): Promise<string | null> => {
+    if (reattachPromiseRef.current) return reattachPromiseRef.current;
+    const op = (async () => {
+      try {
+        const attached = await attachCogitaLiveRevisionSession({ libraryId, sessionId });
+        const nextSecret = attached.hostSecret ?? '';
+        if (!nextSecret) return null;
+        setEffectiveHostSecret(nextSecret);
+        setSession(attached);
+        setStatus('ready');
+        syncHostSecretInUrl(nextSecret);
+        return nextSecret;
+      } catch {
+        return null;
+      } finally {
+        reattachPromiseRef.current = null;
+      }
+    })();
+    reattachPromiseRef.current = op;
+    return op;
+  };
+
+  const withFreshHostSecret = async <T,>(operation: (secret: string) => Promise<T>): Promise<T> => {
+    try {
+      return await operation(effectiveHostSecret);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) {
+        const refreshed = await reattachHostSession();
+        if (refreshed) {
+          return operation(refreshed);
+        }
+      }
+      throw error;
+    }
+  };
+
   const pollSession = async () => {
     try {
-      const next = await getCogitaLiveRevisionSession({ libraryId, sessionId, hostSecret });
+      const next = await withFreshHostSecret((secret) =>
+        getCogitaLiveRevisionSession({ libraryId, sessionId, hostSecret: secret })
+      );
       setSession(next);
       setStatus('ready');
     } catch {
@@ -540,7 +594,7 @@ export function CogitaLiveHostWallPage({
     void pollSession();
     const id = window.setInterval(pollSession, 1200);
     return () => window.clearInterval(id);
-  }, [libraryId, sessionId, hostSecret]);
+  }, [libraryId, sessionId, effectiveHostSecret]);
 
   useEffect(() => {
     let canceled = false;
@@ -662,16 +716,18 @@ export function CogitaLiveHostWallPage({
     if (!session) return;
     const hasPrompt = Object.prototype.hasOwnProperty.call(next, 'currentPrompt');
     const hasReveal = Object.prototype.hasOwnProperty.call(next, 'currentReveal');
-    const updated = await updateCogitaLiveRevisionHostState({
-      libraryId,
-      sessionId: session.sessionId,
-      hostSecret,
-      status: next.status ?? session.status,
-      currentRoundIndex: next.currentRoundIndex ?? session.currentRoundIndex,
-      revealVersion: next.revealVersion ?? session.revealVersion,
-      currentPrompt: hasPrompt ? (next.currentPrompt ?? null) : (session.currentPrompt ?? null),
-      currentReveal: hasReveal ? (next.currentReveal ?? null) : (session.currentReveal ?? null)
-    });
+    const updated = await withFreshHostSecret((secret) =>
+      updateCogitaLiveRevisionHostState({
+        libraryId,
+        sessionId: session.sessionId,
+        hostSecret: secret,
+        status: next.status ?? session.status,
+        currentRoundIndex: next.currentRoundIndex ?? session.currentRoundIndex,
+        revealVersion: next.revealVersion ?? session.revealVersion,
+        currentPrompt: hasPrompt ? (next.currentPrompt ?? null) : (session.currentPrompt ?? null),
+        currentReveal: hasReveal ? (next.currentReveal ?? null) : (session.currentReveal ?? null)
+      })
+    );
     setSession(updated);
   };
 
@@ -762,12 +818,14 @@ export function CogitaLiveHostWallPage({
           pointsAwarded: correct ? rules.scoring.baseCorrect : -(wrongPenalty + firstWrongPenalty)
         };
       });
-      const next = await scoreCogitaLiveRevisionRound({
-        libraryId,
-        sessionId: session.sessionId,
-        hostSecret,
-        scores: payload
-      });
+      const next = await withFreshHostSecret((secret) =>
+        scoreCogitaLiveRevisionRound({
+          libraryId,
+          sessionId: session.sessionId,
+          hostSecret: secret,
+          scores: payload
+        })
+      );
       setSession(next);
     } finally {
       setBusy('none');
