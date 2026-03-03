@@ -503,15 +503,14 @@ export function CogitaLiveHostWallPage({
   const [roundLoadError, setRoundLoadError] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
-  const [usedRoundActions, setUsedRoundActions] = useState<
-    Record<string, { reveal?: boolean; score?: boolean; next?: boolean; startTimer?: boolean }>
-  >({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
   const initialAttachKeyRef = useRef<string>('');
   const roundsLoadPromiseRef = useRef<Promise<{ rounds: LiveRound[]; revisionMode: string } | null> | null>(null);
   const startInFlightRef = useRef(false);
+  const mutationInFlightRef = useRef(false);
+  const sessionRef = useRef<CogitaLiveRevisionSession | null>(null);
   const autoActionLockRef = useRef<string | null>(null);
   const streakByParticipantRef = useRef<Record<string, number>>({});
   const scoredRoundKeysRef = useRef<Set<string>>(new Set());
@@ -519,6 +518,9 @@ export function CogitaLiveHostWallPage({
   useEffect(() => {
     setEffectiveHostSecret(hostSecret);
   }, [hostSecret]);
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
   const currentRound = session ? rounds[session.currentRoundIndex] ?? null : null;
   const prompt =
     ((session?.currentPrompt as LivePrompt | undefined) ??
@@ -561,40 +563,36 @@ export function CogitaLiveHostWallPage({
     if (session.status === 'revealed' || Boolean(reveal)) return 'revealed' as const;
     return 'question' as const;
   }, [hasPublishedRound, isCurrentRoundScored, isLobbyStage, reveal, session]);
-  const roundActions = currentRoundKey ? usedRoundActions[currentRoundKey] ?? {} : {};
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
+  const mutationInFlight = mutationInFlightRef.current || busy !== 'none';
   const canStartSession = Boolean(
     session?.status === 'lobby' &&
       !hasPublishedRound &&
-      busy === 'none' &&
+      !mutationInFlight &&
       roundsStatus === 'ready' &&
       rounds.length > 0
   );
   const canStartTimer = Boolean(
-    isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
+    isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !mutationInFlight
   );
   const canCheckReveal = Boolean(
     isRunningStage &&
       (roundPhase === 'question' || roundPhase === 'revealed') &&
       !isCurrentRoundScored &&
-      !roundActions.reveal &&
-      !roundActions.score &&
-      busy === 'none'
+      !mutationInFlight
   );
   const canScore = Boolean(
     isRunningStage &&
       (roundPhase === 'question' || roundPhase === 'revealed') &&
       !isCurrentRoundScored &&
-      !roundActions.score &&
-      busy === 'none'
+      !mutationInFlight
   );
   const canNextQuestion = Boolean(
     isRunningStage &&
       hasPublishedRound &&
       (roundPhase === 'question' || roundPhase === 'revealed' || roundPhase === 'scored') &&
-      !roundActions.next &&
-      busy === 'none'
+      !mutationInFlight
   );
   const answeredCount = roundAnswers.length;
   const participantCount = session?.participants.length ?? 0;
@@ -939,22 +937,35 @@ export function CogitaLiveHostWallPage({
     currentPrompt?: unknown | null;
     currentReveal?: unknown | null;
   }) => {
-    if (!session) return;
+    const currentSession = sessionRef.current;
+    if (!currentSession) return;
     const hasPrompt = Object.prototype.hasOwnProperty.call(next, 'currentPrompt');
     const hasReveal = Object.prototype.hasOwnProperty.call(next, 'currentReveal');
     const updated = await withFreshHostSecret((secret) =>
       updateCogitaLiveRevisionHostState({
         libraryId,
-        sessionId: session.sessionId,
+        sessionId: currentSession.sessionId,
         hostSecret: secret,
-        status: next.status ?? session.status,
-        currentRoundIndex: next.currentRoundIndex ?? session.currentRoundIndex,
-        revealVersion: next.revealVersion ?? session.revealVersion,
-        currentPrompt: hasPrompt ? (next.currentPrompt ?? null) : (session.currentPrompt ?? null),
-        currentReveal: hasReveal ? (next.currentReveal ?? null) : (session.currentReveal ?? null)
+        status: next.status ?? currentSession.status,
+        currentRoundIndex: next.currentRoundIndex ?? currentSession.currentRoundIndex,
+        revealVersion: next.revealVersion ?? currentSession.revealVersion,
+        currentPrompt: hasPrompt ? (next.currentPrompt ?? null) : (currentSession.currentPrompt ?? null),
+        currentReveal: hasReveal ? (next.currentReveal ?? null) : (currentSession.currentReveal ?? null)
       })
     );
     setSession(updated);
+  };
+
+  const runHostMutation = async (kind: 'reveal' | 'score' | 'next', action: () => Promise<void>) => {
+    if (mutationInFlightRef.current) return;
+    mutationInFlightRef.current = true;
+    setBusy(kind);
+    try {
+      await action();
+    } finally {
+      mutationInFlightRef.current = false;
+      setBusy('none');
+    }
   };
 
   const publishRound = async (
@@ -1021,8 +1032,7 @@ export function CogitaLiveHostWallPage({
         ? (session.currentReveal as Record<string, unknown>)
         : null;
     if (currentRevealState && currentRevealState.roundScoring && session.status === 'revealed') return;
-    setBusy('score');
-    try {
+    await runHostMutation('score', async () => {
       const promptState =
         session.currentPrompt && typeof session.currentPrompt === 'object'
           ? (session.currentPrompt as Record<string, unknown>)
@@ -1158,14 +1168,8 @@ export function CogitaLiveHostWallPage({
       setSession(afterReveal);
       if (currentRoundKey) {
         scoredRoundKeysRef.current.add(currentRoundKey);
-        setUsedRoundActions((previous) => ({
-          ...previous,
-          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), reveal: true, score: true }
-        }));
       }
-    } finally {
-      setBusy('none');
-    }
+    });
   };
 
   const ensureRoundScored = async () => {
@@ -1185,14 +1189,7 @@ export function CogitaLiveHostWallPage({
   const nextRound = async () => {
     if (!session) return;
     if (!canNextQuestion) return;
-    setBusy('next');
-    try {
-      if (currentRoundKey) {
-        setUsedRoundActions((previous) => ({
-          ...previous,
-          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), next: true }
-        }));
-      }
+    await runHostMutation('next', async () => {
       const promptState =
         session.currentPrompt && typeof session.currentPrompt === 'object'
           ? (session.currentPrompt as Record<string, unknown>)
@@ -1223,17 +1220,14 @@ export function CogitaLiveHostWallPage({
           askedCardKeys
         });
       }
-    } finally {
-      setBusy('none');
-    }
+    });
   };
 
   const startSession = async () => {
     if (!session || session.status !== 'lobby' || hasPublishedRound) return;
     if (startInFlightRef.current) return;
     startInFlightRef.current = true;
-    setBusy('next');
-    try {
+    await runHostMutation('next', async () => {
       const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
         new Promise<T>((resolve, reject) => {
           const id = window.setTimeout(() => reject(new Error('rounds-load-timeout')), ms);
@@ -1256,13 +1250,12 @@ export function CogitaLiveHostWallPage({
       const targetRoundIndex = Math.max(0, Math.min(localRounds.length - 1, session.currentRoundIndex));
       await publishRound(targetRoundIndex);
       setStatus('ready');
-    } catch {
+    }).catch(() => {
       setRoundLoadError(true);
       setStatus('error');
-    } finally {
+    }).finally(() => {
       startInFlightRef.current = false;
-      setBusy('none');
-    }
+    });
   };
 
   const startActionTimerManual = async () => {
@@ -1275,11 +1268,10 @@ export function CogitaLiveHostWallPage({
     if (!promptState) return;
     if (!rules.actionTimer.enabled) return;
     if (typeof promptState.actionTimerStartedUtc === 'string' && promptState.actionTimerStartedUtc.length > 0) return;
-    setBusy('reveal');
     const timerStartedUtc = new Date().toISOString();
     const seconds = clampInt(rules.actionTimer.seconds, 3, 600);
     const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
-    try {
+    await runHostMutation('reveal', async () => {
       await pushState({
         currentPrompt: {
           ...promptState,
@@ -1289,15 +1281,7 @@ export function CogitaLiveHostWallPage({
           actionTimerEndsUtc: timerEndsUtc
         }
       });
-      if (currentRoundKey) {
-        setUsedRoundActions((previous) => ({
-          ...previous,
-          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), startTimer: true }
-        }));
-      }
-    } finally {
-      setBusy('none');
-    }
+    });
   };
 
   useEffect(() => {
@@ -1348,14 +1332,16 @@ export function CogitaLiveHostWallPage({
       const timerStartedUtc = new Date().toISOString();
       const seconds = clampInt(rules.actionTimer.seconds, 3, 600);
       const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
-      await pushState({
-        currentPrompt: {
-          ...promptState,
-          actionTimerEnabled: true,
-          actionTimerSeconds: seconds,
-          actionTimerStartedUtc: timerStartedUtc,
-          actionTimerEndsUtc: timerEndsUtc
-        }
+      await runHostMutation('reveal', async () => {
+        await pushState({
+          currentPrompt: {
+            ...promptState,
+            actionTimerEnabled: true,
+            actionTimerSeconds: seconds,
+            actionTimerStartedUtc: timerStartedUtc,
+            actionTimerEndsUtc: timerEndsUtc
+          }
+        });
       });
     };
 
@@ -1363,14 +1349,16 @@ export function CogitaLiveHostWallPage({
       const timerStartedUtc = new Date().toISOString();
       const seconds = clampInt(rules.bonusTimer.seconds, 1, 600);
       const timerEndsUtc = new Date(Date.parse(timerStartedUtc) + seconds * 1000).toISOString();
-      await pushState({
-        currentPrompt: {
-          ...promptState,
-          bonusTimerEnabled: true,
-          bonusTimerSeconds: seconds,
-          bonusTimerStartedUtc: timerStartedUtc,
-          bonusTimerEndsUtc: timerEndsUtc
-        }
+      await runHostMutation('reveal', async () => {
+        await pushState({
+          currentPrompt: {
+            ...promptState,
+            bonusTimerEnabled: true,
+            bonusTimerSeconds: seconds,
+            bonusTimerStartedUtc: timerStartedUtc,
+            bonusTimerEndsUtc: timerEndsUtc
+          }
+        });
       });
     };
 
@@ -1442,27 +1430,6 @@ export function CogitaLiveHostWallPage({
       scoredRoundKeysRef.current.add(currentRoundKey);
     }
   }, [currentRoundKey, hasRevealRoundScoring, session?.status]);
-
-  useEffect(() => {
-    if (!currentRoundKey) return;
-    setUsedRoundActions((previous) => {
-      const current = previous[currentRoundKey] ?? {};
-      const next = {
-        ...current,
-        reveal: current.reveal || session?.status === 'revealed' || Boolean(reveal),
-        score: current.score || isCurrentRoundScored,
-        startTimer: current.startTimer || actionTimerStarted
-      };
-      if (
-        current.reveal === next.reveal &&
-        current.score === next.score &&
-        current.startTimer === next.startTimer
-      ) {
-        return previous;
-      }
-      return { ...previous, [currentRoundKey]: next };
-    });
-  }, [actionTimerStarted, currentRoundKey, isCurrentRoundScored, reveal, session?.status]);
 
   return (
     <CogitaLiveWallLayout

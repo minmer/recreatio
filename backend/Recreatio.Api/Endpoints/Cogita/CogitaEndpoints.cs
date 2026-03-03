@@ -5097,10 +5097,24 @@ public static class CogitaEndpoints
                 return Results.BadRequest(new { error = "Invalid status." });
             }
 
+            var requestedRoundIndex = Math.Max(0, request.CurrentRoundIndex);
+            var requestedRevealVersion = Math.Max(0, request.RevealVersion);
+            var isStaleTransition =
+                requestedRoundIndex < session.CurrentRoundIndex ||
+                (requestedRoundIndex == session.CurrentRoundIndex && requestedRevealVersion < session.RevealVersion) ||
+                (requestedRoundIndex == session.CurrentRoundIndex &&
+                 requestedRevealVersion == session.RevealVersion &&
+                 GetLiveSessionStatusRank(status) < GetLiveSessionStatusRank(session.Status));
+            if (isStaleTransition)
+            {
+                var staleResponse = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
+                return Results.Ok(staleResponse);
+            }
+
             var now = DateTimeOffset.UtcNow;
             session.Status = status;
-            session.CurrentRoundIndex = Math.Max(0, request.CurrentRoundIndex);
-            session.RevealVersion = Math.Max(0, request.RevealVersion);
+            session.CurrentRoundIndex = requestedRoundIndex;
+            session.RevealVersion = requestedRevealVersion;
             session.CurrentPromptJson = request.CurrentPrompt.HasValue ? request.CurrentPrompt.Value.GetRawText() : null;
             session.CurrentRevealJson = request.CurrentReveal.HasValue ? request.CurrentReveal.Value.GetRawText() : null;
             session.UpdatedUtc = now;
@@ -5316,6 +5330,23 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
+            if (liveSession.Status == "revealed" && !string.IsNullOrWhiteSpace(liveSession.CurrentRevealJson))
+            {
+                try
+                {
+                    var revealNode = JsonNode.Parse(liveSession.CurrentRevealJson) as JsonObject;
+                    if (revealNode?["roundScoring"] is JsonObject)
+                    {
+                        var alreadyScoredResponse = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
+                        return Results.Ok(alreadyScoredResponse);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Ignore malformed reveal payload and continue scoring path.
+                }
+            }
+
             var scoreItems = (request.Scores ?? new List<CogitaLiveRevisionParticipantScoreDeltaRequest>())
                 .Where(x => x.ParticipantId != Guid.Empty)
                 .GroupBy(x => x.ParticipantId)
@@ -5338,6 +5369,12 @@ public static class CogitaEndpoints
             var answers = await dbContext.CogitaLiveRevisionAnswers
                 .Where(x => x.SessionId == sessionId && x.RoundIndex == roundIndex && participantIds.Contains(x.ParticipantId))
                 .ToListAsync(ct);
+            var alreadyScoredRound = answers.Any(x => x.IsCorrect.HasValue || x.PointsAwarded != 0);
+            if (alreadyScoredRound)
+            {
+                var alreadyScoredResponse = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
+                return Results.Ok(alreadyScoredResponse);
+            }
             var answersByParticipant = answers
                 .GroupBy(x => x.ParticipantId)
                 .ToDictionary(
@@ -5385,20 +5422,31 @@ public static class CogitaEndpoints
                 revealNode["knownessAveragePercent"] = knownessAveragePercent;
                 revealNode["knownessCorrectCount"] = knownessCorrectCount;
                 revealNode["knownessSampleSize"] = knownessSampleSize;
+                revealNode["roundScored"] = true;
+                revealNode["roundScoredRoundIndex"] = roundIndex;
 
                 var cardKey = promptNode?["cardKey"]?.GetValue<string>();
                 if (!string.IsNullOrWhiteSpace(cardKey))
                 {
-                    var knownessByCardKey = revealNode["knownessByCardKey"] as JsonObject
-                        ?? promptNode?["knownessByCardKey"] as JsonObject
-                        ?? new JsonObject();
+                    var knownessByCardKey = new JsonObject();
+                    var sourceKnownessByCardKey = revealNode["knownessByCardKey"] as JsonObject
+                        ?? promptNode?["knownessByCardKey"] as JsonObject;
+                    if (sourceKnownessByCardKey is not null)
+                    {
+                        foreach (var pair in sourceKnownessByCardKey)
+                        {
+                            knownessByCardKey[pair.Key] = pair.Value is null
+                                ? null
+                                : JsonNode.Parse(pair.Value.ToJsonString());
+                        }
+                    }
                     knownessByCardKey[cardKey] = knownessAveragePercent;
                     revealNode["knownessByCardKey"] = knownessByCardKey;
                 }
 
                 liveSession.CurrentRevealJson = revealNode.ToJsonString();
             }
-            catch (JsonException)
+            catch (Exception)
             {
                 // Keep score processing resilient even if prompt/reveal payload is malformed.
             }
@@ -13862,6 +13910,19 @@ public static class CogitaEndpoints
         {
             return null;
         }
+    }
+
+    private static int GetLiveSessionStatusRank(string? status)
+    {
+        return status?.Trim().ToLowerInvariant() switch
+        {
+            "lobby" => 0,
+            "running" => 1,
+            "revealed" => 2,
+            "finished" => 3,
+            "closed" => 4,
+            _ => 0
+        };
     }
 
     private static async Task<List<CogitaLiveRevisionParticipantResponse>> BuildLiveRevisionParticipantsAsync(
