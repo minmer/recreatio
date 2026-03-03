@@ -855,6 +855,7 @@ export type Copy = {
           publishCurrentRound: string;
           checkAndReveal: string;
           nextQuestionAction: string;
+          stopNextQuestionTimerAction: string;
           loading: string;
           unsupportedPromptType: string;
           addPathAction: string;
@@ -913,6 +914,12 @@ export type Copy = {
           timerEnabledLabel: string;
           timerSecondsLabel: string;
           onTimerExpiredLabel: string;
+          nextQuestionBehaviorLabel: string;
+          nextQuestionModeLabel: string;
+          nextQuestionModeManual: string;
+          nextQuestionModeTimer: string;
+          nextQuestionTimerSecondsLabel: string;
+          nextQuestionTimerLabel: string;
           bonusTimerLabel: string;
           bonusTimerEnabledLabel: string;
           bonusTimerSecondsLabel: string;
@@ -977,6 +984,8 @@ export type Copy = {
           summaryAllAnsweredDetail: string;
           summaryRoundTimerDetail: string;
           summaryRoundTimerDisabled: string;
+          summaryNextQuestionManual: string;
+          summaryNextQuestionTimer: string;
           summaryActionFlowDetail: string;
           summaryActionTimerOnlyDetail: string;
           summaryActionTimerDisabledDetail: string;

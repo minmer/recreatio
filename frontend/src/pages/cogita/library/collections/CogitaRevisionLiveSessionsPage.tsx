@@ -25,6 +25,7 @@ import {
   type FirstAnswerAction,
   type LiveRules,
   type LivePresetId,
+  type NextQuestionMode,
   type TimerExpireAction
 } from '../../live/liveSessionRules';
 
@@ -356,6 +357,11 @@ export function CogitaRevisionLiveSessionsPage({
             .replace('{seconds}', String(formLiveRules.roundTimer.seconds))
             .replace('{expireAction}', roundExpireLabel)
         : liveCopy.summaryRoundTimerDisabled
+    );
+    paragraphThreeParts.push(
+      formLiveRules.nextQuestion.mode === 'timer'
+        ? liveCopy.summaryNextQuestionTimer.replace('{seconds}', String(formLiveRules.nextQuestion.seconds))
+        : liveCopy.summaryNextQuestionManual
     );
     paragraphThreeParts.push(
       liveCopy.summaryAllAnsweredDetail.replace('{allAction}', allAnsweredLabel)
@@ -823,6 +829,52 @@ export function CogitaRevisionLiveSessionsPage({
                                         </select>
                                       </label>
                                     </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {!isAsyncSession ? (
+                              <div className="cogita-library-panel" style={{ margin: 0 }}>
+                                <p className="cogita-user-kicker">{liveCopy.nextQuestionBehaviorLabel}</p>
+                                <div className="cogita-live-rules-grid">
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.nextQuestionModeLabel}</span>
+                                    <select
+                                      value={formLiveRules.nextQuestion.mode}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          nextQuestion: {
+                                            ...previous.nextQuestion,
+                                            mode: event.target.value as NextQuestionMode
+                                          }
+                                        }))
+                                      }
+                                    >
+                                      <option value="manual">{liveCopy.nextQuestionModeManual}</option>
+                                      <option value="timer">{liveCopy.nextQuestionModeTimer}</option>
+                                    </select>
+                                  </label>
+                                  {formLiveRules.nextQuestion.mode === 'timer' ? (
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.nextQuestionTimerSecondsLabel}</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={120}
+                                        value={formLiveRules.nextQuestion.seconds}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            nextQuestion: {
+                                              ...previous.nextQuestion,
+                                              seconds: clampInt(Number(event.target.value), 1, 120)
+                                            }
+                                          }))
+                                        }
+                                      />
+                                    </label>
                                   ) : null}
                                 </div>
                               </div>

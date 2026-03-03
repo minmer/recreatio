@@ -2,6 +2,7 @@ export type BonusGrowthMode = 'linear' | 'exponential' | 'limited';
 export type FirstAnswerAction = 'none' | 'start_timer' | 'reveal' | 'next';
 export type AllAnsweredAction = 'none' | 'reveal' | 'next';
 export type TimerExpireAction = 'none' | 'reveal' | 'next';
+export type NextQuestionMode = 'manual' | 'timer';
 
 export type LiveRules = {
   firstAnswerAction: FirstAnswerAction;
@@ -15,6 +16,10 @@ export type LiveRules = {
     enabled: boolean;
     seconds: number;
     onExpire: TimerExpireAction;
+  };
+  nextQuestion: {
+    mode: NextQuestionMode;
+    seconds: number;
   };
   bonusTimer: {
     enabled: boolean;
@@ -49,6 +54,10 @@ export const DEFAULT_LIVE_RULES: LiveRules = {
     enabled: true,
     seconds: 10,
     onExpire: 'reveal'
+  },
+  nextQuestion: {
+    mode: 'manual',
+    seconds: 6
   },
   bonusTimer: {
     enabled: true,
@@ -100,6 +109,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'reveal',
       roundTimer: { enabled: true, seconds: 60, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 10, onExpire: 'reveal' },
+      nextQuestion: { mode: 'manual', seconds: 6 },
       bonusTimer: { enabled: true, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 500, growth: 'exponential' },
       scoring: { baseCorrect: 1000, firstCorrectBonus: 500, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
@@ -115,6 +125,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'none',
       roundTimer: { enabled: false, seconds: 20, onExpire: 'none' },
       actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
+      nextQuestion: { mode: 'manual', seconds: 5 },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1500, firstCorrectBonus: 0, wrongAnswerPenalty: 1000, firstWrongPenalty: 500, streakBaseBonus: 0, streakGrowth: 'linear', streakLimit: 5 }
@@ -130,6 +141,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'next',
       roundTimer: { enabled: true, seconds: 12, onExpire: 'next' },
       actionTimer: { enabled: true, seconds: 8, onExpire: 'next' },
+      nextQuestion: { mode: 'manual', seconds: 4 },
       bonusTimer: { enabled: true, seconds: 8, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 700, growth: 'exponential' },
       scoring: { baseCorrect: 900, firstCorrectBonus: 600, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4 }
@@ -145,6 +157,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'reveal',
       roundTimer: { enabled: true, seconds: 35, onExpire: 'reveal' },
       actionTimer: { enabled: false, seconds: 20, onExpire: 'none' },
+      nextQuestion: { mode: 'manual', seconds: 8 },
       bonusTimer: { enabled: false, seconds: 20, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1200, firstCorrectBonus: 200, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6 }
@@ -160,6 +173,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'reveal',
       roundTimer: { enabled: true, seconds: 14, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 12, onExpire: 'reveal' },
+      nextQuestion: { mode: 'manual', seconds: 5 },
       bonusTimer: { enabled: true, seconds: 12, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 300, growth: 'linear' },
       scoring: { baseCorrect: 800, firstCorrectBonus: 300, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6 }
@@ -175,6 +189,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'reveal',
       roundTimer: { enabled: true, seconds: 20, onExpire: 'reveal' },
       actionTimer: { enabled: false, seconds: 15, onExpire: 'reveal' },
+      nextQuestion: { mode: 'timer', seconds: 5 },
       bonusTimer: { enabled: true, seconds: 15, startMode: 'round_start' },
       speedBonus: { enabled: true, maxPoints: 250, growth: 'linear' },
       scoring: { baseCorrect: 1100, firstCorrectBonus: 250, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7 }
@@ -190,6 +205,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'none',
       roundTimer: { enabled: false, seconds: 30, onExpire: 'none' },
       actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
+      nextQuestion: { mode: 'manual', seconds: 6 },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1000, firstCorrectBonus: 0, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
@@ -254,6 +270,10 @@ export function parseLiveRules(settings: unknown): LiveRules {
     liveRulesRoot.bonusTimer && typeof liveRulesRoot.bonusTimer === 'object'
       ? (liveRulesRoot.bonusTimer as Record<string, unknown>)
       : {};
+  const nextQuestionRoot =
+    liveRulesRoot.nextQuestion && typeof liveRulesRoot.nextQuestion === 'object'
+      ? (liveRulesRoot.nextQuestion as Record<string, unknown>)
+      : {};
   const speedBonusRoot =
     liveRulesRoot.speedBonus && typeof liveRulesRoot.speedBonus === 'object'
       ? (liveRulesRoot.speedBonus as Record<string, unknown>)
@@ -280,6 +300,8 @@ export function parseLiveRules(settings: unknown): LiveRules {
       ? roundTimerRoot.onExpire
       : 'reveal';
   const parsedSpeedEnabled = speedBonusRoot.enabled == null ? DEFAULT_LIVE_RULES.speedBonus.enabled : Boolean(speedBonusRoot.enabled);
+  const nextQuestionMode: NextQuestionMode =
+    nextQuestionRoot.mode === 'timer' ? 'timer' : 'manual';
 
   return {
     firstAnswerAction,
@@ -298,6 +320,10 @@ export function parseLiveRules(settings: unknown): LiveRules {
           : false,
       seconds: clampInt(Number(actionTimerRoot.seconds ?? DEFAULT_LIVE_RULES.actionTimer.seconds), 3, 600),
       onExpire: onExpire === 'none' ? 'reveal' : onExpire,
+    },
+    nextQuestion: {
+      mode: nextQuestionMode,
+      seconds: clampInt(Number(nextQuestionRoot.seconds ?? DEFAULT_LIVE_RULES.nextQuestion.seconds), 1, 120)
     },
     bonusTimer: {
       enabled: parsedSpeedEnabled && (bonusTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.bonusTimer.enabled : Boolean(bonusTimerRoot.enabled)),

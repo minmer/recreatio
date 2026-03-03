@@ -53,7 +53,7 @@ function formatAnswer(answer: unknown) {
 }
 
 type HostTimer = {
-  key: 'action' | 'bonus' | 'round';
+  key: 'action' | 'bonus' | 'round' | 'next';
   label: string;
   totalSeconds: number;
   remainingMs: number;
@@ -594,6 +594,14 @@ export function CogitaLiveHostWallPage({
       (roundPhase === 'question' || roundPhase === 'revealed' || roundPhase === 'scored') &&
       !mutationInFlight
   );
+  const canStopAutoNextTimer = Boolean(
+    isRunningStage &&
+      roundPhase === 'scored' &&
+      promptRoot?.nextQuestionMode === 'timer' &&
+      typeof promptRoot?.autoNextEndsUtc === 'string' &&
+      promptRoot.autoNextEndsUtc.length > 0 &&
+      !mutationInFlight
+  );
   const answeredCount = roundAnswers.length;
   const participantCount = session?.participants.length ?? 0;
 
@@ -657,11 +665,21 @@ export function CogitaLiveHostWallPage({
       endsUtc: promptRoot.bonusTimerEndsUtc,
       totalSeconds: promptRoot.bonusTimerSeconds
     });
+    const nextQuestionTimer = buildTimer({
+      key: 'next',
+      label: liveCopy.nextQuestionTimerLabel,
+      enabled:
+        promptRoot.nextQuestionMode === 'timer' &&
+        typeof promptRoot.autoNextCancelledUtc !== 'string',
+      endsUtc: promptRoot.autoNextEndsUtc,
+      totalSeconds: promptRoot.nextQuestionSeconds
+    });
     if (actionTimer) next.push(actionTimer);
     if (roundTimer) next.push(roundTimer);
     if (bonusTimer) next.push(bonusTimer);
+    if (nextQuestionTimer) next.push(nextQuestionTimer);
     return next;
-  }, [liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
+  }, [liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.nextQuestionTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
 
   const syncHostSecretInUrl = (nextSecret: string) => {
     if (typeof window === 'undefined' || !nextSecret) return;
@@ -1009,6 +1027,11 @@ export function CogitaLiveHostWallPage({
         actionTimerSeconds: clampInt(rules.actionTimer.seconds, 3, 600),
         actionTimerStartedUtc,
         actionTimerEndsUtc,
+        nextQuestionMode: rules.nextQuestion.mode,
+        nextQuestionSeconds: clampInt(rules.nextQuestion.seconds, 1, 120),
+        autoNextStartedUtc: null,
+        autoNextEndsUtc: null,
+        autoNextCancelledUtc: null,
         bonusTimerEnabled: rules.bonusTimer.enabled,
         bonusTimerSeconds: clampInt(rules.bonusTimer.seconds, 1, 600),
         bonusTimerStartMode: rules.bonusTimer.startMode,
@@ -1135,6 +1158,17 @@ export function CogitaLiveHostWallPage({
           scores: payload
         })
       );
+      const sourcePrompt =
+        next.currentPrompt && typeof next.currentPrompt === 'object'
+          ? (next.currentPrompt as Record<string, unknown>)
+          : (promptState ?? {});
+      const nextQuestionMode = sourcePrompt.nextQuestionMode === 'timer' ? 'timer' : 'manual';
+      const nextQuestionSeconds = clampInt(Number(sourcePrompt.nextQuestionSeconds ?? rules.nextQuestion.seconds), 1, 120);
+      const autoNextStartedUtc = nextQuestionMode === 'timer' ? new Date().toISOString() : null;
+      const autoNextEndsUtc =
+        autoNextStartedUtc != null
+          ? new Date(Date.parse(autoNextStartedUtc) + nextQuestionSeconds * 1000).toISOString()
+          : null;
       const afterRank = buildRankMap(next.participants);
       Object.keys(roundGain).forEach((participantId) => {
         const before = beforeRank.get(participantId) ?? 0;
@@ -1153,7 +1187,14 @@ export function CogitaLiveHostWallPage({
           status: 'revealed',
           currentRoundIndex: next.currentRoundIndex,
           revealVersion: next.revealVersion + 1,
-          currentPrompt: next.currentPrompt,
+          currentPrompt: {
+            ...sourcePrompt,
+            nextQuestionMode,
+            nextQuestionSeconds,
+            autoNextStartedUtc,
+            autoNextEndsUtc,
+            autoNextCancelledUtc: null
+          },
           currentReveal: {
             ...currentRound.reveal,
             roundScoring: roundGain,
@@ -1284,6 +1325,26 @@ export function CogitaLiveHostWallPage({
     });
   };
 
+  const stopAutoNextTimer = async () => {
+    if (!session || !isRunningStage || !hasPublishedRound) return;
+    if (!canStopAutoNextTimer) return;
+    const promptState =
+      session.currentPrompt && typeof session.currentPrompt === 'object'
+        ? (session.currentPrompt as Record<string, unknown>)
+        : null;
+    if (!promptState) return;
+    await runHostMutation('next', async () => {
+      await pushState({
+        currentPrompt: {
+          ...promptState,
+          autoNextStartedUtc: null,
+          autoNextEndsUtc: null,
+          autoNextCancelledUtc: new Date().toISOString()
+        }
+      });
+    });
+  };
+
   useEffect(() => {
     if (!session || !currentRound) return;
     if (!hasPublishedRound) return;
@@ -1317,8 +1378,16 @@ export function CogitaLiveHostWallPage({
     const roundTimerStarted = typeof promptState.roundTimerStartedUtc === 'string' && promptState.roundTimerStartedUtc.length > 0;
     const roundTimerEndsMs = typeof promptState.roundTimerEndsUtc === 'string' ? Date.parse(promptState.roundTimerEndsUtc) : NaN;
     const roundTimerExpired = roundTimerStarted && Number.isFinite(roundTimerEndsMs) && Date.now() >= roundTimerEndsMs;
+    const autoNextCancelled = typeof promptState.autoNextCancelledUtc === 'string' && promptState.autoNextCancelledUtc.length > 0;
+    const autoNextEndsMs = typeof promptState.autoNextEndsUtc === 'string' ? Date.parse(promptState.autoNextEndsUtc) : NaN;
+    const autoNextExpired =
+      promptState.nextQuestionMode === 'timer' &&
+      !autoNextCancelled &&
+      isCurrentRoundScored &&
+      Number.isFinite(autoNextEndsMs) &&
+      Date.now() >= autoNextEndsMs;
 
-    const baseKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:${session.revealVersion}:${answeredRows.length}:${String(promptState.actionTimerStartedUtc ?? '')}:${String(promptState.actionTimerEndsUtc ?? '')}:${String(promptState.roundTimerStartedUtc ?? '')}:${String(promptState.roundTimerEndsUtc ?? '')}`;
+    const baseKey = `${session.sessionId}:${session.currentRoundIndex}:${currentRound.cardKey}:${session.revealVersion}:${answeredRows.length}:${String(promptState.actionTimerStartedUtc ?? '')}:${String(promptState.actionTimerEndsUtc ?? '')}:${String(promptState.roundTimerStartedUtc ?? '')}:${String(promptState.roundTimerEndsUtc ?? '')}:${String(promptState.autoNextEndsUtc ?? '')}:${String(promptState.autoNextCancelledUtc ?? '')}`;
     const executeOnce = (suffix: string, action: () => Promise<void>) => {
       const key = `${baseKey}:${suffix}`;
       if (autoActionLockRef.current === key) return;
@@ -1418,6 +1487,12 @@ export function CogitaLiveHostWallPage({
         executeOnce('round-expire-next', revealScoreAndNext);
       }
     }
+
+    if (autoNextExpired) {
+      executeOnce('auto-next-expire', async () => {
+        await nextRound();
+      });
+    }
   }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored]);
 
   useEffect(() => {
@@ -1475,6 +1550,11 @@ export function CogitaLiveHostWallPage({
                 <button type="button" className="cta ghost" onClick={() => void transitionRound('next')} disabled={!canNextQuestion}>
                   {liveCopy.nextQuestionAction}
                 </button>
+                {canStopAutoNextTimer ? (
+                  <button type="button" className="cta ghost" onClick={() => void stopAutoNextTimer()}>
+                    {liveCopy.stopNextQuestionTimerAction}
+                  </button>
+                ) : null}
               </>
             )}
           </div>
