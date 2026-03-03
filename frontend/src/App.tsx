@@ -20,14 +20,8 @@ const CogitaRevisionShareRunPage = lazy(() =>
     default: module.CogitaRevisionShareRunPage
   }))
 );
-const CogitaLiveRevisionHostPage = lazy(() =>
-  import('./pages/cogita/live/CogitaLiveRevisionHostPage').then((module) => ({ default: module.CogitaLiveRevisionHostPage }))
-);
 const CogitaLiveRevisionJoinPage = lazy(() =>
   import('./pages/cogita/live/CogitaLiveRevisionJoinPage').then((module) => ({ default: module.CogitaLiveRevisionJoinPage }))
-);
-const CogitaLiveRevisionPresenterPage = lazy(() =>
-  import('./pages/cogita/live/CogitaLiveRevisionPresenterPage').then((module) => ({ default: module.CogitaLiveRevisionPresenterPage }))
 );
 const CogitaLiveLoginWallPage = lazy(() =>
   import('./pages/cogita/live/CogitaLiveLoginWallPage').then((module) => ({ default: module.CogitaLiveLoginWallPage }))
@@ -81,8 +75,6 @@ export default function App() {
   const isCogitaPath = pathname.startsWith('/cogita');
   const isCogitaSharePath = pathname.startsWith('/cogita/public/revision');
   const isCogitaLiveJoinPath = pathname.startsWith('/cogita/public/live-revision/');
-  const isCogitaLivePresenterPath = pathname.startsWith('/cogita/public/live-revision-screen/');
-  const isCogitaLiveHostPath = pathname.startsWith('/cogita/live-revision-host/');
   const isCogitaLiveWallLoginPath = pathname.startsWith('/cogita/live-wall/login/');
   const isCogitaLiveWallPublicPath = pathname.startsWith('/cogita/live-wall/public/');
   const isCogitaLiveWallHostPath = pathname.startsWith('/cogita/live-wall/host/');
@@ -90,10 +82,6 @@ export default function App() {
   const shareSegments = pathname.split('/').filter(Boolean);
   const shareId = isCogitaSharePath ? shareSegments[3] : undefined;
   const liveJoinCode = isCogitaLiveJoinPath ? pathname.split('/')[4] : undefined;
-  const livePresenterCode = isCogitaLivePresenterPath ? pathname.split('/')[4] : undefined;
-  const liveHostSegments = isCogitaLiveHostPath ? pathname.split('/').filter(Boolean) : [];
-  const liveHostLibraryId = isCogitaLiveHostPath ? liveHostSegments[2] : undefined;
-  const liveHostRevisionId = isCogitaLiveHostPath ? liveHostSegments[3] : undefined;
   const liveWallLoginCode = isCogitaLiveWallLoginPath ? pathname.split('/')[4] : undefined;
   const liveWallPublicCode = isCogitaLiveWallPublicPath ? pathname.split('/')[4] : undefined;
   const liveWallHostSegments = isCogitaLiveWallHostPath ? pathname.split('/').filter(Boolean) : [];
@@ -485,22 +473,6 @@ export default function App() {
             />
           )}
         </Suspense>
-      ) : isCogitaLivePresenterPath && livePresenterCode ? (
-        <Suspense fallback={lazyFallback}>
-          <CogitaLiveRevisionPresenterPage
-            copy={t}
-            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
-            showProfileMenu={isAuthenticated}
-            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-            onToggleSecureMode={handleToggleMode}
-            onLogout={handleLogout}
-            secureMode={secureMode}
-            onNavigate={navigateRoute}
-            language={language}
-            onLanguageChange={setLanguage}
-            code={decodeURIComponent(livePresenterCode)}
-          />
-        </Suspense>
       ) : isCogitaLiveJoinPath && liveJoinCode ? (
         <Suspense fallback={lazyFallback}>
           <CogitaLiveRevisionJoinPage
@@ -532,39 +504,6 @@ export default function App() {
               language={language}
               onLanguageChange={setLanguage}
               libraryId={decodeURIComponent(liveSessionsLibraryId)}
-            />
-          ) : (
-            <CogitaPage
-              copy={t}
-              onAuthAction={() => openLoginCard('cogita')}
-              authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
-              showProfileMenu={isAuthenticated}
-              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-              onToggleSecureMode={handleToggleMode}
-              onLogout={handleLogout}
-              secureMode={secureMode}
-              onNavigate={navigateRoute}
-              language={language}
-              onLanguageChange={setLanguage}
-            />
-          )}
-        </Suspense>
-      ) : isCogitaLiveHostPath && liveHostLibraryId && liveHostRevisionId ? (
-        <Suspense fallback={lazyFallback}>
-          {isAuthenticated ? (
-            <CogitaLiveRevisionHostPage
-              copy={t}
-              authLabel={t.nav.account}
-              showProfileMenu
-              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
-              onToggleSecureMode={handleToggleMode}
-              onLogout={handleLogout}
-              secureMode={secureMode}
-              onNavigate={navigateRoute}
-              language={language}
-              onLanguageChange={setLanguage}
-              libraryId={decodeURIComponent(liveHostLibraryId)}
-              revisionId={decodeURIComponent(liveHostRevisionId)}
             />
           ) : (
             <CogitaPage

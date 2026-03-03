@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ApiError,
   createCogitaLiveRevisionReloginRequest,
@@ -77,6 +77,9 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [reloginPending, setReloginPending] = useState(false);
   const [showScoreOverlay, setShowScoreOverlay] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
+  const prevScoresRef = useRef<Map<string, number>>(new Map());
+  const prevRanksRef = useRef<Map<string, number>>(new Map());
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -406,6 +409,41 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
 
+  useEffect(() => {
+    const rows = state?.scoreboard ?? [];
+    if (rows.length === 0) {
+      prevScoresRef.current = new Map();
+      prevRanksRef.current = new Map();
+      setScoreFxByParticipant({});
+      return;
+    }
+    const currentScores = new Map<string, number>();
+    const currentRanks = new Map<string, number>();
+    rows.forEach((row, index) => {
+      currentScores.set(row.participantId, row.score);
+      currentRanks.set(row.participantId, index);
+    });
+    const prevScores = prevScoresRef.current;
+    const prevRanks = prevRanksRef.current;
+    const nextFx: Record<string, { delta: number; rankShift: number; token: number }> = {};
+    rows.forEach((row, index) => {
+      const previousScore = prevScores.get(row.participantId);
+      const previousRank = prevRanks.get(row.participantId);
+      if (typeof previousScore !== 'number' || typeof previousRank !== 'number') return;
+      const delta = row.score - previousScore;
+      const rankShift = previousRank - index;
+      if (delta !== 0 || rankShift !== 0) {
+        nextFx[row.participantId] = { delta, rankShift, token: Date.now() + index };
+      }
+    });
+    if (Object.keys(nextFx).length > 0) {
+      setScoreFxByParticipant(nextFx);
+      window.setTimeout(() => setScoreFxByParticipant({}), 1400);
+    }
+    prevScoresRef.current = currentScores;
+    prevRanksRef.current = currentRanks;
+  }, [state?.revealVersion, state?.scoreboard]);
+
   return (
     <CogitaShell {...props}>
       <section className="cogita-library-dashboard cogita-live-layout-shell" data-layout="fullscreen">
@@ -460,12 +498,33 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <>
                     <p className="cogita-user-kicker">{liveCopy.scoreboardTitle}</p>
                     <div className="cogita-share-list">
-                      {state?.scoreboard.map((row) => (
-                        <div className="cogita-share-row" key={row.participantId}>
-                          <div><strong>{row.displayName}</strong></div>
-                          <div className="cogita-share-meta">{row.score} {liveCopy.scoreUnit}</div>
-                        </div>
-                      ))}
+                      {state?.scoreboard.map((row) => {
+                        const scoreFx = scoreFxByParticipant[row.participantId];
+                        const rowScoring = scoringByParticipant?.[row.participantId];
+                        const factors = Array.isArray(rowScoring?.factors) ? rowScoring.factors.map(String) : [];
+                        const isIncorrect = factors.includes('wrong') || factors.includes('first-wrong');
+                        const isCorrect = !isIncorrect && factors.some((factor) => factor === 'base' || factor === 'first' || factor === 'speed' || factor === 'streak');
+                        const rankState = scoreFx?.rankShift ? (scoreFx.rankShift > 0 ? 'up' : 'down') : undefined;
+                        const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
+                        return (
+                          <div className="cogita-share-row" key={row.participantId} data-flash={flashState} data-rank-change={rankState}>
+                            <div><strong>{row.displayName}</strong></div>
+                            <div className="cogita-share-meta">
+                              {row.score} {liveCopy.scoreUnit}
+                              {scoreFx?.delta ? (
+                                <span key={`delta:lobby:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
+                                  {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
+                                </span>
+                              ) : null}
+                              {rankState ? (
+                                <span key={`rank:lobby:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
+                                  {rankState === 'up' ? ' ↑' : ' ↓'}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                       {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                     </div>
                   </>
@@ -599,28 +658,47 @@ export function CogitaLiveRevisionJoinPage(props: {
                   </div>
                   <p className="cogita-help">{liveCopy.symbolsLegend}</p>
                   <div className="cogita-share-list">
-                    {state?.scoreboard.map((row) => (
-                      <div className="cogita-share-row" key={`score:${row.participantId}`}>
-                        <div>
-                          <strong>{row.displayName}</strong>
-                          {(scoringByParticipant?.[row.participantId]?.factors ?? []).length > 0 ? (
-                            <div className="cogita-live-factor-badges">
-                              {(scoringByParticipant?.[row.participantId]?.factors ?? []).map((factor) => (
-                                <span key={`score-factor:${row.participantId}:${factor}`} className="cogita-live-factor-badge">
-                                  {factorIcon(factor)}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
+                    {state?.scoreboard.map((row) => {
+                      const scoreFx = scoreFxByParticipant[row.participantId];
+                      const rowScoring = scoringByParticipant?.[row.participantId];
+                      const factors = Array.isArray(rowScoring?.factors) ? rowScoring.factors.map(String) : [];
+                      const isIncorrect = factors.includes('wrong') || factors.includes('first-wrong');
+                      const isCorrect = !isIncorrect && factors.some((factor) => factor === 'base' || factor === 'first' || factor === 'speed' || factor === 'streak');
+                      const rankState = scoreFx?.rankShift ? (scoreFx.rankShift > 0 ? 'up' : 'down') : undefined;
+                      const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
+                      return (
+                        <div className="cogita-share-row" key={`score:${row.participantId}`} data-flash={flashState} data-rank-change={rankState}>
+                          <div>
+                            <strong>{row.displayName}</strong>
+                            {(rowScoring?.factors ?? []).length > 0 ? (
+                              <div className="cogita-live-factor-badges">
+                                {(rowScoring?.factors ?? []).map((factor) => (
+                                  <span key={`score-factor:${row.participantId}:${factor}`} className="cogita-live-factor-badge">
+                                    {factorIcon(factor)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="cogita-share-meta">
+                            {row.score} {liveCopy.scoreUnit}
+                            {rowScoring?.points
+                              ? ` (${formatPoints(Math.round(Number(rowScoring?.points ?? 0)))})`
+                              : ''}
+                            {scoreFx?.delta ? (
+                              <span key={`delta:overlay:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
+                                {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
+                              </span>
+                            ) : null}
+                            {rankState ? (
+                              <span key={`rank:overlay:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
+                                {rankState === 'up' ? ' ↑' : ' ↓'}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="cogita-share-meta">
-                          {row.score} {liveCopy.scoreUnit}
-                          {scoringByParticipant?.[row.participantId]?.points
-                            ? ` (${formatPoints(Math.round(Number(scoringByParticipant[row.participantId]?.points ?? 0)))})`
-                            : ''}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                   </div>
                 </div>
