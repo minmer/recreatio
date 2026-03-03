@@ -1445,6 +1445,18 @@ export function closeCogitaLiveRevisionSession(payload: {
   );
 }
 
+export function resetCogitaLiveRevisionSession(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaLiveRevisionSession>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/reset?${params.toString()}`,
+    { method: 'POST', body: JSON.stringify({}) }
+  );
+}
+
 export function joinCogitaLiveRevision(payload: { code: string; name: string }) {
   return request<CogitaLiveRevisionJoinResponse>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/join`,

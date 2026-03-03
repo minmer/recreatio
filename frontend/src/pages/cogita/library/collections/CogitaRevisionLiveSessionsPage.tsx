@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   attachCogitaLiveRevisionSession,
-  closeCogitaLiveRevisionSession,
+  resetCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
@@ -444,26 +444,14 @@ export function CogitaRevisionLiveSessionsPage({
     setBusyAction('reset');
     setMessage(null);
     try {
-      await closeCogitaLiveRevisionSession({
+      await resetCogitaLiveRevisionSession({
         libraryId,
         sessionId: attachedSession.sessionId,
         hostSecret: attachedSession.hostSecret
       });
-
-      const nextRules = parseLiveRules(attachedSession.sessionSettings);
-      const created = await createCogitaLiveRevisionSession({
-        libraryId,
-        revisionId,
-        title: (selectedItem?.title ?? revisionName)?.trim() || null,
-        sessionMode: (attachedSession.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as 'simultaneous' | 'asynchronous',
-        hostViewMode: FIXED_HOST_VIEW_MODE,
-        participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(nextRules)
-      });
-
       await loadSessions();
       setAttachedSession(null);
-      onOpenSession?.(created.sessionId);
+      onOpenSession?.(attachedSession.sessionId);
     } catch {
       setMessage(copy.cogita.library.revision.shareError);
     } finally {
