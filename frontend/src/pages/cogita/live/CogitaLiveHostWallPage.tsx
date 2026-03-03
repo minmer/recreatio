@@ -604,6 +604,22 @@ export function CogitaLiveHostWallPage({
   );
   const answeredCount = roundAnswers.length;
   const participantCount = session?.participants.length ?? 0;
+  const cardsLeftCount = useMemo(() => {
+    if (rounds.length === 0) return 0;
+    if (!hasPublishedRound) return rounds.length;
+    const askedRaw = Array.isArray(promptRoot?.askedCardKeys) ? (promptRoot.askedCardKeys as unknown[]) : [];
+    const askedSet = new Set(askedRaw.map((key) => String(key)).filter((key) => key.length > 0));
+    if (askedSet.size === 0 && currentRound?.cardKey) {
+      askedSet.add(currentRound.cardKey);
+    }
+    return Math.max(0, rounds.length - askedSet.size);
+  }, [currentRound?.cardKey, hasPublishedRound, promptRoot?.askedCardKeys, rounds.length]);
+  const cardsLeftLabel =
+    language === 'pl'
+      ? `Pozostało kart: ${cardsLeftCount}`
+      : language === 'de'
+        ? `Verbleibende Karten: ${cardsLeftCount}`
+        : `Cards left: ${cardsLeftCount}`;
 
   useEffect(() => {
     const promptState =
@@ -1493,7 +1509,7 @@ export function CogitaLiveHostWallPage({
         await nextRound();
       });
     }
-  }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored]);
+  }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored, nowTick]);
 
   useEffect(() => {
     autoActionLockRef.current = null;
@@ -1516,6 +1532,7 @@ export function CogitaLiveHostWallPage({
             <span>{liveCopy.currentRoundTitle}</span>
             <strong>{`${answeredCount}/${participantCount}`}</strong>
           </div>
+          <p className="cogita-help">{cardsLeftLabel}</p>
           {timers.map((timer) => (
             <div className="cogita-live-timer" key={`host-timer:${timer.key}`}>
               <div className="cogita-live-timer-head">

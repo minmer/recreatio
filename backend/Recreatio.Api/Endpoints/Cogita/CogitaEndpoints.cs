@@ -5036,7 +5036,7 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, hostSecret, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5132,7 +5132,7 @@ public static class CogitaEndpoints
             }
 
             await dbContext.SaveChangesAsync(ct);
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, hostSecret, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5275,7 +5275,7 @@ public static class CogitaEndpoints
 
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, hostSecret, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 

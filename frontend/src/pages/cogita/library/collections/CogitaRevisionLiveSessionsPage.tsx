@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  ApiError,
   attachCogitaLiveRevisionSession,
   resetCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
@@ -446,15 +447,37 @@ export function CogitaRevisionLiveSessionsPage({
   };
 
   const resetSession = async () => {
-    if (!attachedSession?.sessionId || !attachedSession?.hostSecret) return;
+    if (!attachedSession?.sessionId) return;
     setBusyAction('reset');
     setMessage(null);
     try {
-      await resetCogitaLiveRevisionSession({
-        libraryId,
-        sessionId: attachedSession.sessionId,
-        hostSecret: attachedSession.hostSecret
-      });
+      const runReset = async (secret: string) =>
+        resetCogitaLiveRevisionSession({
+          libraryId,
+          sessionId: attachedSession.sessionId,
+          hostSecret: secret
+        });
+
+      let secret = attachedSession.hostSecret;
+      if (!secret) {
+        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
+        secret = refreshed.hostSecret;
+      }
+
+      if (!secret) {
+        throw new Error('missing-host-secret');
+      }
+
+      try {
+        await runReset(secret);
+      } catch (error) {
+        const staleSecret = error instanceof ApiError && error.status === 403;
+        if (!staleSecret) throw error;
+        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
+        if (!refreshed.hostSecret) throw error;
+        await runReset(refreshed.hostSecret);
+      }
+
       await loadSessions();
       setAttachedSession(null);
       onOpenSession?.(attachedSession.sessionId);
