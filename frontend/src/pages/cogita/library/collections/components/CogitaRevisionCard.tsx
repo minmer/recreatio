@@ -3,6 +3,7 @@ import type { KeyboardEvent, MutableRefObject } from 'react';
 import type { Copy } from '../../../../../content/types';
 import type { CogitaCardSearchResult, CogitaInfoSearchResult } from '../../../../../lib/api';
 import { LatexBlock } from '../../../../../components/LatexText';
+import { anchorMaskValueToRgb } from '../../../../../cogita/revision/compare';
 import { CogitaLivePromptCard } from '../../../live/components/CogitaLivePromptCard';
 import type { RevisionQuestionAnswers, RevisionQuestionPrompt } from '../revisionShared';
 
@@ -272,16 +273,8 @@ export function CogitaRevisionCard({
     return chars.map((char, index) => {
       const value = maskValues[index] ?? avg;
       const normalized = Math.max(0, Math.min(255, Math.round(value)));
-      let r = 255;
-      let g = 0;
-      if (normalized <= 127) {
-        g = Math.round((normalized / 127) * 255);
-      } else {
-        g = 255;
-        r = Math.round(255 * (1 - (normalized - 127) / 128));
-      }
       return (
-        <span key={`mask-${index}`} style={{ color: `rgb(${r}, ${g}, 0)` }}>
+        <span key={`mask-${index}`} style={{ color: anchorMaskValueToRgb(normalized) }}>
           {char}
         </span>
       );

@@ -1942,6 +1942,32 @@
   grid-column: 1 / -1;
 }
 
+.cogita-live-session-layout[data-participant-view='login'] {
+  min-height: calc(100vh - 8.5rem);
+  align-content: center;
+}
+
+.cogita-live-session-layout[data-participant-view='login'] > .cogita-library-panel {
+  grid-column: 1 / -1;
+}
+
+.cogita-live-join-only-panel {
+  max-width: 760px;
+  width: 100%;
+  justify-self: center;
+  display: grid;
+  gap: 1rem;
+}
+
+.cogita-live-join-only-title {
+  text-align: center;
+}
+
+.cogita-live-join-only-card {
+  display: grid;
+  gap: 0.7rem;
+}
+
 .cogita-live-session-layout .cogita-library-panel > .cogita-form-actions {
   margin-top: 0.9rem;
   display: flex;

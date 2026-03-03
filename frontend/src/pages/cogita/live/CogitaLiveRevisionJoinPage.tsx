@@ -89,6 +89,12 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? 'active'
         : 'lobby';
   const showJoinPanel = sessionStage === 'lobby' || !participantToken;
+  const isFirstLogin = !participantToken;
+  const sessionTitle = useMemo(() => {
+    const rawTitle = (state as { title?: unknown } | null)?.title;
+    if (typeof rawTitle === 'string' && rawTitle.trim()) return rawTitle.trim();
+    return code;
+  }, [code, state]);
   const promptKey = useMemo(
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
@@ -408,9 +414,26 @@ export function CogitaLiveRevisionJoinPage(props: {
             <div
               className="cogita-library-grid cogita-live-session-layout"
               data-stage={sessionStage}
-              data-participant-view="question"
+              data-participant-view={isFirstLogin ? 'login' : 'question'}
             >
-              {showJoinPanel ? (
+              {isFirstLogin ? (
+              <div className="cogita-library-panel cogita-live-join-only-panel">
+                <h2 className="cogita-detail-title cogita-live-join-only-title">{sessionTitle}</h2>
+                <div className="cogita-live-join-only-card">
+                  <label className="cogita-field">
+                    <span>{liveCopy.participantNameLabel}</span>
+                    <input value={joinName} onChange={(event) => setJoinName(event.target.value)} />
+                  </label>
+                  <div className="cogita-form-actions">
+                    <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                      {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
+                    </button>
+                  </div>
+                  {reloginPending ? <p className="cogita-help">{liveCopy.reloginPendingMessage}</p> : null}
+                  {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
+                </div>
+              </div>
+              ) : showJoinPanel ? (
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
                 <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
@@ -449,6 +472,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : null}
               </div>
               ) : null}
+              {!isFirstLogin ? (
               <div className="cogita-library-panel cogita-live-fullscreen-panel">
                 <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                 <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
@@ -555,6 +579,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
                 )}
               </div>
+              ) : null}
             </div>
             {!showJoinPanel && sessionStage !== 'lobby' ? (
               <div className="cogita-live-score-overlay-toggle">

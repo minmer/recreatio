@@ -1130,11 +1130,6 @@ export function CogitaRevisionLiveSessionsPage({
                           </div>
                         </div>
 
-                        <div className="cogita-form-actions">
-                          <button type="button" className="ghost" onClick={() => onRequestEdit?.(attachedSession.sessionId)}>
-                            {copy.cogita.workspace.infoActions.edit}
-                          </button>
-                        </div>
                       </>
                     ) : null}
                   </section>

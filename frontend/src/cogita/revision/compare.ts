@@ -259,6 +259,13 @@ export const normalizeIgnoringSpacingAndPunctuation = (value: string) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, '');
 
+export const anchorMaskValueToRgb = (rawValue: number) => {
+  const value = Math.max(0, Math.min(255, Math.round(rawValue)));
+  // HSL hue 0..120 gives red -> orange -> yellow -> green.
+  const hue = Math.round((value / 255) * 120);
+  return `hsl(${hue} 100% 50%)`;
+};
+
 export const compareStringsIgnoringSpacingAndPunctuation = (
   expected: string,
   answer: string,

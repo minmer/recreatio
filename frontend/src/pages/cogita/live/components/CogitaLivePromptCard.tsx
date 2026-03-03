@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { anchorMaskValueToRgb } from '../../../../cogita/revision/compare';
 
 export type LivePrompt = Record<string, unknown> & {
   kind?: string;
@@ -135,16 +136,8 @@ export function CogitaLivePromptCard({
     const avg = Math.round(maskValues.reduce((sum, value) => sum + value, 0) / maskValues.length);
     return chars.map((char, index) => {
       const value = Math.max(0, Math.min(255, Math.round(maskValues[index] ?? avg)));
-      let red = 255;
-      let green = 0;
-      if (value <= 127) {
-        green = Math.round((value / 127) * 255);
-      } else {
-        green = 255;
-        red = Math.round(255 * (1 - (value - 127) / 128));
-      }
       return (
-        <span key={`mask:${index}`} style={{ color: `rgb(${red}, ${green}, 0)` }}>
+        <span key={`mask:${index}`} style={{ color: anchorMaskValueToRgb(value) }}>
           {char}
         </span>
       );
