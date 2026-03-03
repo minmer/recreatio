@@ -550,6 +550,15 @@ export function CogitaLiveHostWallPage({
       (scoredRoundKeysRef.current.has(currentRoundKey) ||
         (session?.status === 'revealed' && hasRevealRoundScoring))
   );
+  const roundPhase = useMemo(() => {
+    if (!session) return 'lobby' as const;
+    if (session.status === 'closed' || session.status === 'finished') return 'closed' as const;
+    if (isLobbyStage) return 'lobby' as const;
+    if (!hasPublishedRound) return 'lobby' as const;
+    if (isCurrentRoundScored) return 'scored' as const;
+    if (session.status === 'revealed' || Boolean(reveal)) return 'revealed' as const;
+    return 'question' as const;
+  }, [hasPublishedRound, isCurrentRoundScored, isLobbyStage, reveal, session]);
   const roundActions = currentRoundKey ? usedRoundActions[currentRoundKey] ?? {} : {};
   const isLobbyStage = session?.status === 'lobby' && !hasPublishedRound;
   const isRunningStage = !isLobbyStage && session?.status !== 'closed' && session?.status !== 'finished';
@@ -567,10 +576,27 @@ export function CogitaLiveHostWallPage({
     isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
   );
   const canCheckReveal = Boolean(
-    isRunningStage && hasPublishedRound && !isCurrentRoundScored && !roundActions.reveal && !roundActions.score && busy === 'none'
+    isRunningStage &&
+      (roundPhase === 'question' || roundPhase === 'revealed') &&
+      !isCurrentRoundScored &&
+      !roundActions.reveal &&
+      !roundActions.score &&
+      busy === 'none'
   );
-  const canScore = Boolean(isRunningStage && hasPublishedRound && !isCurrentRoundScored && !roundActions.score && busy === 'none');
-  const canNextQuestion = Boolean(isRunningStage && hasPublishedRound && !roundActions.next && busy === 'none');
+  const canScore = Boolean(
+    isRunningStage &&
+      (roundPhase === 'question' || roundPhase === 'revealed') &&
+      !isCurrentRoundScored &&
+      !roundActions.score &&
+      busy === 'none'
+  );
+  const canNextQuestion = Boolean(
+    isRunningStage &&
+      hasPublishedRound &&
+      (roundPhase === 'question' || roundPhase === 'revealed' || roundPhase === 'scored') &&
+      !roundActions.next &&
+      busy === 'none'
+  );
   const answeredCount = roundAnswers.length;
   const participantCount = session?.participants.length ?? 0;
 
@@ -988,29 +1014,6 @@ export function CogitaLiveHostWallPage({
     });
   };
 
-  const revealRound = async () => {
-    if (!session || !currentRound) return;
-    if (!canCheckReveal) return;
-    setBusy('reveal');
-    try {
-      await pushState({
-        status: 'revealed',
-        currentRoundIndex: session.currentRoundIndex,
-        revealVersion: session.revealVersion + 1,
-        currentPrompt: session.currentPrompt,
-        currentReveal: { ...currentRound.reveal }
-      });
-      if (currentRoundKey) {
-        setUsedRoundActions((previous) => ({
-          ...previous,
-          [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), reveal: true }
-        }));
-      }
-    } finally {
-      setBusy('none');
-    }
-  };
-
   const scoreRound = async () => {
     if (!session || !currentRound) return;
     if (!canScore) return;
@@ -1164,6 +1167,20 @@ export function CogitaLiveHostWallPage({
     } finally {
       setBusy('none');
     }
+  };
+
+  const ensureRoundScored = async () => {
+    if (roundPhase === 'scored' || isCurrentRoundScored) return;
+    await scoreRound();
+  };
+
+  const transitionRound = async (action: 'reveal' | 'next') => {
+    if (action === 'reveal') {
+      await ensureRoundScored();
+      return;
+    }
+    await ensureRoundScored();
+    await nextRound();
   };
 
   const nextRound = async () => {
@@ -1359,12 +1376,11 @@ export function CogitaLiveHostWallPage({
     };
 
     const revealAndScore = async () => {
-      await scoreRound();
+      await transitionRound('reveal');
     };
 
     const revealScoreAndNext = async () => {
-      await revealAndScore();
-      await nextRound();
+      await transitionRound('next');
     };
 
     if (rules.bonusTimer.enabled && rules.bonusTimer.startMode === 'first_answer' && firstAnswered && !bonusTimerStarted) {
@@ -1415,7 +1431,7 @@ export function CogitaLiveHostWallPage({
         executeOnce('round-expire-next', revealScoreAndNext);
       }
     }
-  }, [currentRound, hasPublishedRound, rules, session]);
+  }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored]);
 
   useEffect(() => {
     autoActionLockRef.current = null;
@@ -1484,13 +1500,13 @@ export function CogitaLiveHostWallPage({
                     {liveCopy.startTimerAction}
                   </button>
                 ) : null}
-                <button type="button" className="cta" onClick={() => void revealRound()} disabled={!canCheckReveal}>
+                <button type="button" className="cta" onClick={() => void transitionRound('reveal')} disabled={!canCheckReveal}>
                   {liveCopy.checkAndReveal}
                 </button>
                 <button type="button" className="cta ghost" onClick={() => void scoreRound()} disabled={!canScore}>
                   {liveCopy.optionRevealScore}
                 </button>
-                <button type="button" className="cta ghost" onClick={() => void nextRound()} disabled={!canNextQuestion}>
+                <button type="button" className="cta ghost" onClick={() => void transitionRound('next')} disabled={!canNextQuestion}>
                   {liveCopy.nextQuestionAction}
                 </button>
               </>
