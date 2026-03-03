@@ -6,6 +6,11 @@ export type TimerExpireAction = 'none' | 'reveal' | 'next';
 export type LiveRules = {
   firstAnswerAction: FirstAnswerAction;
   allAnsweredAction: AllAnsweredAction;
+  roundTimer: {
+    enabled: boolean;
+    seconds: number;
+    onExpire: TimerExpireAction;
+  };
   actionTimer: {
     enabled: boolean;
     seconds: number;
@@ -33,6 +38,11 @@ export type LiveRules = {
 export const DEFAULT_LIVE_RULES: LiveRules = {
   firstAnswerAction: 'start_timer',
   allAnsweredAction: 'reveal',
+  roundTimer: {
+    enabled: false,
+    seconds: 30,
+    onExpire: 'reveal'
+  },
   actionTimer: {
     enabled: true,
     seconds: 10,
@@ -83,6 +93,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'reveal',
+      roundTimer: { enabled: false, seconds: 30, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 10, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 500, growth: 'exponential' },
@@ -97,6 +108,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'next',
+      roundTimer: { enabled: true, seconds: 12, onExpire: 'next' },
       actionTimer: { enabled: true, seconds: 8, onExpire: 'next' },
       bonusTimer: { enabled: true, seconds: 8, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 700, growth: 'exponential' },
@@ -111,6 +123,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'reveal',
+      roundTimer: { enabled: true, seconds: 35, onExpire: 'reveal' },
       actionTimer: { enabled: false, seconds: 20, onExpire: 'none' },
       bonusTimer: { enabled: false, seconds: 20, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
@@ -125,6 +138,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'reveal',
+      roundTimer: { enabled: true, seconds: 14, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 12, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 12, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 300, growth: 'linear' },
@@ -139,6 +153,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'reveal',
+      roundTimer: { enabled: true, seconds: 20, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 15, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 15, startMode: 'round_start' },
       speedBonus: { enabled: true, maxPoints: 250, growth: 'linear' },
@@ -153,6 +168,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'none',
       allAnsweredAction: 'none',
+      roundTimer: { enabled: false, seconds: 30, onExpire: 'none' },
       actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
@@ -210,6 +226,10 @@ export function parseLiveRules(settings: unknown): LiveRules {
     liveRulesRoot.actionTimer && typeof liveRulesRoot.actionTimer === 'object'
       ? (liveRulesRoot.actionTimer as Record<string, unknown>)
       : {};
+  const roundTimerRoot =
+    liveRulesRoot.roundTimer && typeof liveRulesRoot.roundTimer === 'object'
+      ? (liveRulesRoot.roundTimer as Record<string, unknown>)
+      : {};
   const bonusTimerRoot =
     liveRulesRoot.bonusTimer && typeof liveRulesRoot.bonusTimer === 'object'
       ? (liveRulesRoot.bonusTimer as Record<string, unknown>)
@@ -235,10 +255,19 @@ export function parseLiveRules(settings: unknown): LiveRules {
     actionTimerRoot.onExpire === 'none' || actionTimerRoot.onExpire === 'next'
       ? actionTimerRoot.onExpire
       : 'reveal';
+  const roundOnExpire: TimerExpireAction =
+    roundTimerRoot.onExpire === 'none' || roundTimerRoot.onExpire === 'next'
+      ? roundTimerRoot.onExpire
+      : 'reveal';
 
   return {
     firstAnswerAction,
     allAnsweredAction,
+    roundTimer: {
+      enabled: roundTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.roundTimer.enabled : Boolean(roundTimerRoot.enabled),
+      seconds: clampInt(Number(roundTimerRoot.seconds ?? DEFAULT_LIVE_RULES.roundTimer.seconds), 3, 600),
+      onExpire: roundOnExpire
+    },
     actionTimer: {
       enabled: actionTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.actionTimer.enabled : Boolean(actionTimerRoot.enabled),
       seconds: clampInt(Number(actionTimerRoot.seconds ?? DEFAULT_LIVE_RULES.actionTimer.seconds), 3, 600),

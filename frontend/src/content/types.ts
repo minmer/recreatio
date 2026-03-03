@@ -895,6 +895,10 @@ export type Copy = {
           streakLabel: string;
           onFirstAnswerLabel: string;
           onAllAnsweredLabel: string;
+          roundTimerLabel: string;
+          roundTimerEnabledLabel: string;
+          roundTimerSecondsLabel: string;
+          roundTimerExpireLabel: string;
           actionTimerLabel: string;
           timerEnabledLabel: string;
           timerSecondsLabel: string;
@@ -954,6 +958,8 @@ export type Copy = {
           summaryStreakDetail: string;
           summaryStreakDisabled: string;
           summaryAllAnsweredDetail: string;
+          summaryRoundTimerDetail: string;
+          summaryRoundTimerDisabled: string;
           summaryActionFlowDetail: string;
           summaryActionTimerOnlyDetail: string;
           summaryActionTimerDisabledDetail: string;

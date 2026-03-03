@@ -268,6 +268,8 @@ export function CogitaRevisionLiveSessionsPage({
   };
 
   const settingsImpactLines = useMemo(() => {
+    const growthLabel = (mode: BonusGrowthMode) =>
+      mode === 'exponential' ? liveCopy.optionExponential : mode === 'limited' ? liveCopy.optionLimited : liveCopy.optionLinear;
     const firstActionLabel =
       formLiveRules.firstAnswerAction === 'start_timer'
         ? liveCopy.optionStartTimer
@@ -284,6 +286,12 @@ export function CogitaRevisionLiveSessionsPage({
       formLiveRules.actionTimer.onExpire === 'next'
         ? liveCopy.optionRevealNext
         : formLiveRules.actionTimer.onExpire === 'reveal'
+          ? liveCopy.optionRevealScore
+          : liveCopy.optionDoNothing;
+    const roundExpireLabel =
+      formLiveRules.roundTimer.onExpire === 'next'
+        ? liveCopy.optionRevealNext
+        : formLiveRules.roundTimer.onExpire === 'reveal'
           ? liveCopy.optionRevealScore
           : liveCopy.optionDoNothing;
 
@@ -341,7 +349,7 @@ export function CogitaRevisionLiveSessionsPage({
       if (hasStreakBonus) {
         activeBonusSentences.push(
           liveCopy.summaryStreak
-            .replace('{growth}', formLiveRules.scoring.streakGrowth)
+            .replace('{growth}', growthLabel(formLiveRules.scoring.streakGrowth))
             .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
             .replace('{limit}', String(formLiveRules.scoring.streakLimit))
         );
@@ -374,7 +382,7 @@ export function CogitaRevisionLiveSessionsPage({
     paragraphTwoParts.push(
       hasStreakBonus
         ? liveCopy.summaryStreakDetail
-            .replace('{growth}', formLiveRules.scoring.streakGrowth)
+            .replace('{growth}', growthLabel(formLiveRules.scoring.streakGrowth))
             .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
             .replace('{unit}', liveCopy.scoreUnit)
             .replace('{streakOne}', String(streakOne))
@@ -388,6 +396,13 @@ export function CogitaRevisionLiveSessionsPage({
     lines.push(paragraphTwoParts.join(' '));
 
     const paragraphThreeParts: string[] = [];
+    paragraphThreeParts.push(
+      formLiveRules.roundTimer.enabled
+        ? liveCopy.summaryRoundTimerDetail
+            .replace('{seconds}', String(formLiveRules.roundTimer.seconds))
+            .replace('{expireAction}', roundExpireLabel)
+        : liveCopy.summaryRoundTimerDisabled
+    );
     paragraphThreeParts.push(
       liveCopy.summaryAllAnsweredDetail.replace('{allAction}', allAnsweredLabel)
     );
@@ -639,262 +654,354 @@ export function CogitaRevisionLiveSessionsPage({
                           </button>
                         </div>
                         {showSpecialSettings ? (
-                    <div className="cogita-live-rules-grid">
-                      {!isAsyncSession ? (
-                      <>
-                      <label className="cogita-field">
-                        <span>{liveCopy.onFirstAnswerLabel}</span>
-                        <select
-                          value={formLiveRules.firstAnswerAction}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              firstAnswerAction: event.target.value as FirstAnswerAction
-                            }))
-                          }
-                        >
-                          <option value="none">{liveCopy.optionDoNothing}</option>
-                          <option value="start_timer">{liveCopy.optionStartTimer}</option>
-                          <option value="reveal">{liveCopy.optionRevealScore}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.onAllAnsweredLabel}</span>
-                        <select
-                          value={formLiveRules.allAnsweredAction}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              allAnsweredAction: event.target.value as AllAnsweredAction
-                            }))
-                          }
-                        >
-                          <option value="none">{liveCopy.optionDoNothing}</option>
-                          <option value="reveal">{liveCopy.optionRevealScore}</option>
-                          <option value="next">{liveCopy.optionRevealNext}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerEnabledLabel}`}</span>
-                        <select
-                          value={formLiveRules.actionTimer.enabled ? 'yes' : 'no'}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, enabled: event.target.value === 'yes' }
-                            }))
-                          }
-                        >
-                          <option value="yes">{liveCopy.optionYes}</option>
-                          <option value="no">{liveCopy.optionNo}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerSecondsLabel}`}</span>
-                        <input
-                          type="number"
-                          min={3}
-                          max={600}
-                          value={formLiveRules.actionTimer.seconds}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.onTimerExpiredLabel}`}</span>
-                        <select
-                          value={formLiveRules.actionTimer.onExpire}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
-                            }))
-                          }
-                        >
-                          <option value="none">{liveCopy.optionDoNothing}</option>
-                          <option value="reveal">{liveCopy.optionRevealScore}</option>
-                          <option value="next">{liveCopy.optionRevealNext}</option>
-                        </select>
-                      </label>
-                      </>
-                      ) : null}
-                      <label className="cogita-field">
-                        <span>{liveCopy.basePointsLabel}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={500000}
-                          value={formLiveRules.scoring.baseCorrect}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, baseCorrect: clampInt(Number(event.target.value), 0, 500000) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.firstCorrectBonusLabel}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={500000}
-                          value={formLiveRules.scoring.firstCorrectBonus}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
-                            }))
-                          }
-                        />
-                      </label>
-                      {!isAsyncSession ? (
-                      <>
-                      <label className="cogita-field">
-                        <span>{liveCopy.bonusTimerEnabledLabel}</span>
-                        <select
-                          value={formLiveRules.bonusTimer.enabled ? 'yes' : 'no'}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              bonusTimer: { ...previous.bonusTimer, enabled: event.target.value === 'yes' }
-                            }))
-                          }
-                        >
-                          <option value="yes">{liveCopy.optionYes}</option>
-                          <option value="no">{liveCopy.optionNo}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.bonusTimerSecondsLabel}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={600}
-                          value={formLiveRules.bonusTimer.seconds}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              bonusTimer: { ...previous.bonusTimer, seconds: clampInt(Number(event.target.value), 1, 600) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.bonusTimerStartLabel}</span>
-                        <select
-                          value={formLiveRules.bonusTimer.startMode}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              bonusTimer: { ...previous.bonusTimer, startMode: event.target.value === 'round_start' ? 'round_start' : 'first_answer' }
-                            }))
-                          }
-                        >
-                          <option value="first_answer">{liveCopy.bonusTimerStartAfterFirst}</option>
-                          <option value="round_start">{liveCopy.bonusTimerStartRound}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.speedBonusEnabledLabel}</span>
-                        <select
-                          value={formLiveRules.speedBonus.enabled ? 'yes' : 'no'}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              speedBonus: { ...previous.speedBonus, enabled: event.target.value === 'yes' }
-                            }))
-                          }
-                        >
-                          <option value="yes">{liveCopy.optionYes}</option>
-                          <option value="no">{liveCopy.optionNo}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.speedBonusMaxLabel}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={500000}
-                          value={formLiveRules.speedBonus.maxPoints}
-                          disabled={!formLiveRules.speedBonus.enabled}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.speedGrowthLabel}</span>
-                        <select
-                          value={formLiveRules.speedBonus.growth}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode }
-                            }))
-                          }
-                        >
-                          <option value="linear">{liveCopy.optionLinear}</option>
-                          <option value="exponential">{liveCopy.optionExponential}</option>
-                          <option value="limited">{liveCopy.optionLimited}</option>
-                        </select>
-                      </label>
-                      </>
-                      ) : null}
-                      <label className="cogita-field">
-                        <span>{liveCopy.streakBaseBonusLabel}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={500000}
-                          value={formLiveRules.scoring.streakBaseBonus}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 500000) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.streakGrowthLabel}</span>
-                        <select
-                          value={formLiveRules.scoring.streakGrowth}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, streakGrowth: event.target.value as BonusGrowthMode }
-                            }))
-                          }
-                        >
-                          <option value="linear">{liveCopy.optionLinear}</option>
-                          <option value="exponential">{liveCopy.optionExponential}</option>
-                          <option value="limited">{liveCopy.optionLimited}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.streakLimitLabel}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={200}
-                          value={formLiveRules.scoring.streakLimit}
-                          onChange={(event) =>
-                            setFormLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, streakLimit: clampInt(Number(event.target.value), 1, 200) }
-                            }))
-                          }
-                        />
-                      </label>
-                    </div>
+                          <div style={{ display: 'grid', gap: '0.75rem' }}>
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{copy.cogita.library.revision.commonSettingsTitle}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.basePointsLabel}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500000}
+                                    value={formLiveRules.scoring.baseCorrect}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: { ...previous.scoring, baseCorrect: clampInt(Number(event.target.value), 0, 500000) }
+                                      }))
+                                    }
+                                  />
+                                </label>
+                                <label className="cogita-field">
+                                  <span>{liveCopy.firstCorrectBonusLabel}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500000}
+                                    value={formLiveRules.scoring.firstCorrectBonus}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
+                                      }))
+                                    }
+                                  />
+                                </label>
+                              </div>
+                            </div>
+
+                            {!isAsyncSession ? (
+                              <div className="cogita-library-panel" style={{ margin: 0 }}>
+                                <p className="cogita-user-kicker">{liveCopy.roundTimerLabel}</p>
+                                <div className="cogita-live-rules-grid">
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.roundTimerEnabledLabel}</span>
+                                    <select
+                                      value={formLiveRules.roundTimer.enabled ? 'yes' : 'no'}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          roundTimer: { ...previous.roundTimer, enabled: event.target.value === 'yes' }
+                                        }))
+                                      }
+                                    >
+                                      <option value="yes">{liveCopy.optionYes}</option>
+                                      <option value="no">{liveCopy.optionNo}</option>
+                                    </select>
+                                  </label>
+                                  {formLiveRules.roundTimer.enabled ? (
+                                    <>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.roundTimerSecondsLabel}</span>
+                                        <input
+                                          type="number"
+                                          min={3}
+                                          max={600}
+                                          value={formLiveRules.roundTimer.seconds}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              roundTimer: { ...previous.roundTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.roundTimerExpireLabel}</span>
+                                        <select
+                                          value={formLiveRules.roundTimer.onExpire}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              roundTimer: { ...previous.roundTimer, onExpire: event.target.value as TimerExpireAction }
+                                            }))
+                                          }
+                                        >
+                                          <option value="none">{liveCopy.optionDoNothing}</option>
+                                          <option value="reveal">{liveCopy.optionRevealScore}</option>
+                                          <option value="next">{liveCopy.optionRevealNext}</option>
+                                        </select>
+                                      </label>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {!isAsyncSession ? (
+                              <div className="cogita-library-panel" style={{ margin: 0 }}>
+                                <p className="cogita-user-kicker">{liveCopy.actionTimerLabel}</p>
+                                <div className="cogita-live-rules-grid">
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.onFirstAnswerLabel}</span>
+                                    <select
+                                      value={formLiveRules.firstAnswerAction}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          firstAnswerAction: event.target.value as FirstAnswerAction
+                                        }))
+                                      }
+                                    >
+                                      <option value="none">{liveCopy.optionDoNothing}</option>
+                                      <option value="start_timer">{liveCopy.optionStartTimer}</option>
+                                      <option value="reveal">{liveCopy.optionRevealScore}</option>
+                                    </select>
+                                  </label>
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.onAllAnsweredLabel}</span>
+                                    <select
+                                      value={formLiveRules.allAnsweredAction}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          allAnsweredAction: event.target.value as AllAnsweredAction
+                                        }))
+                                      }
+                                    >
+                                      <option value="none">{liveCopy.optionDoNothing}</option>
+                                      <option value="reveal">{liveCopy.optionRevealScore}</option>
+                                      <option value="next">{liveCopy.optionRevealNext}</option>
+                                    </select>
+                                  </label>
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.timerEnabledLabel}</span>
+                                    <select
+                                      value={formLiveRules.actionTimer.enabled ? 'yes' : 'no'}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          actionTimer: { ...previous.actionTimer, enabled: event.target.value === 'yes' }
+                                        }))
+                                      }
+                                    >
+                                      <option value="yes">{liveCopy.optionYes}</option>
+                                      <option value="no">{liveCopy.optionNo}</option>
+                                    </select>
+                                  </label>
+                                  {formLiveRules.actionTimer.enabled ? (
+                                    <>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.timerSecondsLabel}</span>
+                                        <input
+                                          type="number"
+                                          min={3}
+                                          max={600}
+                                          value={formLiveRules.actionTimer.seconds}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.onTimerExpiredLabel}</span>
+                                        <select
+                                          value={formLiveRules.actionTimer.onExpire}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
+                                            }))
+                                          }
+                                        >
+                                          <option value="none">{liveCopy.optionDoNothing}</option>
+                                          <option value="reveal">{liveCopy.optionRevealScore}</option>
+                                          <option value="next">{liveCopy.optionRevealNext}</option>
+                                        </select>
+                                      </label>
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {!isAsyncSession ? (
+                              <div className="cogita-library-panel" style={{ margin: 0 }}>
+                                <p className="cogita-user-kicker">{liveCopy.bonusTimerLabel}</p>
+                                <div className="cogita-live-rules-grid">
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.speedBonusEnabledLabel}</span>
+                                    <select
+                                      value={formLiveRules.speedBonus.enabled ? 'yes' : 'no'}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          speedBonus: { ...previous.speedBonus, enabled: event.target.value === 'yes' }
+                                        }))
+                                      }
+                                    >
+                                      <option value="yes">{liveCopy.optionYes}</option>
+                                      <option value="no">{liveCopy.optionNo}</option>
+                                    </select>
+                                  </label>
+                                  {formLiveRules.speedBonus.enabled ? (
+                                    <>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.speedBonusMaxLabel}</span>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={500000}
+                                          value={formLiveRules.speedBonus.maxPoints}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) }
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.speedGrowthLabel}</span>
+                                        <select
+                                          value={formLiveRules.speedBonus.growth}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode }
+                                            }))
+                                          }
+                                        >
+                                          <option value="linear">{liveCopy.optionLinear}</option>
+                                          <option value="exponential">{liveCopy.optionExponential}</option>
+                                          <option value="limited">{liveCopy.optionLimited}</option>
+                                        </select>
+                                      </label>
+                                      <label className="cogita-field">
+                                        <span>{liveCopy.bonusTimerEnabledLabel}</span>
+                                        <select
+                                          value={formLiveRules.bonusTimer.enabled ? 'yes' : 'no'}
+                                          onChange={(event) =>
+                                            setFormLiveRules((previous) => ({
+                                              ...previous,
+                                              bonusTimer: { ...previous.bonusTimer, enabled: event.target.value === 'yes' }
+                                            }))
+                                          }
+                                        >
+                                          <option value="yes">{liveCopy.optionYes}</option>
+                                          <option value="no">{liveCopy.optionNo}</option>
+                                        </select>
+                                      </label>
+                                      {formLiveRules.bonusTimer.enabled ? (
+                                        <>
+                                          <label className="cogita-field">
+                                            <span>{liveCopy.bonusTimerSecondsLabel}</span>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={600}
+                                              value={formLiveRules.bonusTimer.seconds}
+                                              onChange={(event) =>
+                                                setFormLiveRules((previous) => ({
+                                                  ...previous,
+                                                  bonusTimer: { ...previous.bonusTimer, seconds: clampInt(Number(event.target.value), 1, 600) }
+                                                }))
+                                              }
+                                            />
+                                          </label>
+                                          <label className="cogita-field">
+                                            <span>{liveCopy.bonusTimerStartLabel}</span>
+                                            <select
+                                              value={formLiveRules.bonusTimer.startMode}
+                                              onChange={(event) =>
+                                                setFormLiveRules((previous) => ({
+                                                  ...previous,
+                                                  bonusTimer: { ...previous.bonusTimer, startMode: event.target.value === 'round_start' ? 'round_start' : 'first_answer' }
+                                                }))
+                                              }
+                                            >
+                                              <option value="first_answer">{liveCopy.bonusTimerStartAfterFirst}</option>
+                                              <option value="round_start">{liveCopy.bonusTimerStartRound}</option>
+                                            </select>
+                                          </label>
+                                        </>
+                                      ) : null}
+                                    </>
+                                  ) : null}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{liveCopy.streakLabel}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.streakBaseBonusLabel}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500000}
+                                    value={formLiveRules.scoring.streakBaseBonus}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 500000) }
+                                      }))
+                                    }
+                                  />
+                                </label>
+                                {formLiveRules.scoring.streakBaseBonus > 0 ? (
+                                  <>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.streakGrowthLabel}</span>
+                                      <select
+                                        value={formLiveRules.scoring.streakGrowth}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            scoring: { ...previous.scoring, streakGrowth: event.target.value as BonusGrowthMode }
+                                          }))
+                                        }
+                                      >
+                                        <option value="linear">{liveCopy.optionLinear}</option>
+                                        <option value="exponential">{liveCopy.optionExponential}</option>
+                                        <option value="limited">{liveCopy.optionLimited}</option>
+                                      </select>
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.streakLimitLabel}</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={200}
+                                        value={formLiveRules.scoring.streakLimit}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            scoring: { ...previous.scoring, streakLimit: clampInt(Number(event.target.value), 1, 200) }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
                         ) : null}
                       </div>
                       <div className="cogita-library-panel" style={{ margin: 0 }}>
