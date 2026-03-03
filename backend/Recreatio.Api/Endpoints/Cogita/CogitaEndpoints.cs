@@ -1280,6 +1280,173 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
         });
 
+        group.MapDelete("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var info = await dbContext.CogitaInfos
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var blockers = new List<string>();
+            var usedByCollections = await dbContext.CogitaCollectionItems.AsNoTracking()
+                .AnyAsync(x => x.ItemType == "info" && x.ItemId == infoId, ct);
+            if (usedByCollections)
+            {
+                blockers.Add("collection-items");
+            }
+
+            var usedByConnections = await dbContext.CogitaConnectionItems.AsNoTracking()
+                .AnyAsync(x => x.InfoId == infoId, ct);
+            if (usedByConnections)
+            {
+                blockers.Add("connections");
+            }
+
+            var usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct)
+                || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct);
+            if (usedAsLinkTarget)
+            {
+                blockers.Add("info-links");
+            }
+
+            var usedByWordLanguage = await dbContext.CogitaWordLanguages.AsNoTracking()
+                .AnyAsync(x => x.LanguageInfoId == infoId || x.WordInfoId == infoId, ct);
+            if (usedByWordLanguage)
+            {
+                blockers.Add("word-language");
+            }
+
+            if (info.InfoType == "collection")
+            {
+                var hasRevisions = await dbContext.CogitaRevisions.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == infoId, ct);
+                if (hasRevisions)
+                {
+                    blockers.Add("revisions");
+                }
+
+                var hasLiveSessions = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == infoId, ct);
+                if (hasLiveSessions)
+                {
+                    blockers.Add("live-sessions");
+                }
+
+                var hasCollectionDependencies = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                    .AnyAsync(x => x.ParentCollectionInfoId == infoId || x.ChildCollectionInfoId == infoId, ct);
+                if (hasCollectionDependencies)
+                {
+                    blockers.Add("collection-dependencies");
+                }
+            }
+
+            if (blockers.Count > 0)
+            {
+                return Results.Conflict(new
+                {
+                    error = $"Cannot delete info. Remove references first ({string.Join(", ", blockers)})."
+                });
+            }
+
+            var ownSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                .ToListAsync(ct);
+            var ownMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                .ToListAsync(ct);
+            if (ownSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(ownSingles);
+            }
+            if (ownMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(ownMultis);
+            }
+
+            var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                .ToListAsync(ct);
+            if (searchIndexRows.Count > 0)
+            {
+                dbContext.CogitaInfoSearchIndexes.RemoveRange(searchIndexRows);
+            }
+
+            var itemDependencies = await dbContext.CogitaItemDependencies
+                .Where(x => x.LibraryId == libraryId &&
+                            ((x.ParentItemType == "info" && x.ParentItemId == infoId) ||
+                             (x.ChildItemType == "info" && x.ChildItemId == infoId) ||
+                             (x.ParentItemType == "collection" && x.ParentItemId == infoId) ||
+                             (x.ChildItemType == "collection" && x.ChildItemId == infoId)))
+                .ToListAsync(ct);
+            if (itemDependencies.Count > 0)
+            {
+                dbContext.CogitaItemDependencies.RemoveRange(itemDependencies);
+            }
+
+            var reviewOutcomes = await dbContext.CogitaReviewOutcomes
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == infoId)
+                .ToListAsync(ct);
+            if (reviewOutcomes.Count > 0)
+            {
+                dbContext.CogitaReviewOutcomes.RemoveRange(reviewOutcomes);
+            }
+            var reviewEvents = await dbContext.CogitaReviewEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == infoId)
+                .ToListAsync(ct);
+            if (reviewEvents.Count > 0)
+            {
+                dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
+            }
+
+            if (!RemoveInfoPayload(info.InfoType, info.Id, dbContext))
+            {
+                return Results.NotFound();
+            }
+
+            dbContext.CogitaInfos.Remove(info);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/cards", async (
             Guid libraryId,
             string? type,
@@ -2318,6 +2485,176 @@ public static class CogitaEndpoints
                 info.CreatedUtc));
         });
 
+        group.MapDelete("/libraries/{libraryId:guid}/collections/{collectionId:guid}", async (
+            Guid libraryId,
+            Guid collectionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var info = await dbContext.CogitaInfos
+                .FirstOrDefaultAsync(x => x.Id == collectionId && x.LibraryId == libraryId && x.InfoType == "collection", ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var blockers = new List<string>();
+            var hasRevisions = await dbContext.CogitaRevisions.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == collectionId, ct);
+            if (hasRevisions)
+            {
+                blockers.Add("revisions");
+            }
+
+            var hasLiveSessions = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == collectionId, ct);
+            if (hasLiveSessions)
+            {
+                blockers.Add("live-sessions");
+            }
+
+            var hasParentDeps = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                .AnyAsync(x => x.ParentCollectionInfoId == collectionId || x.ChildCollectionInfoId == collectionId, ct);
+            if (hasParentDeps)
+            {
+                blockers.Add("collection-dependencies");
+            }
+
+            var usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId, ct)
+                || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId, ct);
+            if (usedAsLinkTarget)
+            {
+                blockers.Add("info-links");
+            }
+
+            if (blockers.Count > 0)
+            {
+                return Results.Conflict(new
+                {
+                    error = $"Cannot delete collection. Remove references first ({string.Join(", ", blockers)})."
+                });
+            }
+
+            var collectionItems = await dbContext.CogitaCollectionItems
+                .Where(x => x.CollectionInfoId == collectionId)
+                .ToListAsync(ct);
+            if (collectionItems.Count > 0)
+            {
+                dbContext.CogitaCollectionItems.RemoveRange(collectionItems);
+            }
+
+            var graph = await dbContext.CogitaCollectionGraphs
+                .FirstOrDefaultAsync(x => x.CollectionInfoId == collectionId, ct);
+            if (graph is not null)
+            {
+                var nodes = await dbContext.CogitaCollectionGraphNodes
+                    .Where(x => x.GraphId == graph.Id)
+                    .ToListAsync(ct);
+                var edges = await dbContext.CogitaCollectionGraphEdges
+                    .Where(x => x.GraphId == graph.Id)
+                    .ToListAsync(ct);
+                if (edges.Count > 0)
+                {
+                    dbContext.CogitaCollectionGraphEdges.RemoveRange(edges);
+                }
+                if (nodes.Count > 0)
+                {
+                    dbContext.CogitaCollectionGraphNodes.RemoveRange(nodes);
+                }
+                dbContext.CogitaCollectionGraphs.Remove(graph);
+            }
+
+            var ownSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+                .ToListAsync(ct);
+            var ownMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+                .ToListAsync(ct);
+            if (ownSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(ownSingles);
+            }
+            if (ownMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(ownMultis);
+            }
+
+            var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
+                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+                .ToListAsync(ct);
+            if (searchIndexRows.Count > 0)
+            {
+                dbContext.CogitaInfoSearchIndexes.RemoveRange(searchIndexRows);
+            }
+
+            var itemDependencies = await dbContext.CogitaItemDependencies
+                .Where(x => x.LibraryId == libraryId &&
+                            ((x.ParentItemType == "collection" && x.ParentItemId == collectionId) ||
+                             (x.ChildItemType == "collection" && x.ChildItemId == collectionId)))
+                .ToListAsync(ct);
+            if (itemDependencies.Count > 0)
+            {
+                dbContext.CogitaItemDependencies.RemoveRange(itemDependencies);
+            }
+
+            var reviewOutcomes = await dbContext.CogitaReviewOutcomes
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "collection" && x.ItemId == collectionId)
+                .ToListAsync(ct);
+            if (reviewOutcomes.Count > 0)
+            {
+                dbContext.CogitaReviewOutcomes.RemoveRange(reviewOutcomes);
+            }
+            var reviewEvents = await dbContext.CogitaReviewEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "collection" && x.ItemId == collectionId)
+                .ToListAsync(ct);
+            if (reviewEvents.Count > 0)
+            {
+                dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
+            }
+
+            if (!RemoveInfoPayload("collection", collectionId, dbContext))
+            {
+                return Results.NotFound();
+            }
+
+            dbContext.CogitaInfos.Remove(info);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/revisions", async (
             Guid libraryId,
             HttpContext context,
@@ -2645,6 +2982,76 @@ public static class CogitaEndpoints
                 entity.CreatedUtc,
                 entity.UpdatedUtc
             ));
+        });
+
+        group.MapDelete("/libraries/{libraryId:guid}/revisions/{revisionId:guid}", async (
+            Guid libraryId,
+            Guid revisionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var revision = await dbContext.CogitaRevisions
+                .FirstOrDefaultAsync(x => x.Id == revisionId && x.LibraryId == libraryId, ct);
+            if (revision is null)
+            {
+                return Results.NotFound();
+            }
+
+            var blockers = new List<string>();
+            var hasLiveSessions = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.RevisionId == revisionId, ct);
+            if (hasLiveSessions)
+            {
+                blockers.Add("live-sessions");
+            }
+            var hasShares = await dbContext.CogitaRevisionShares.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.RevisionId == revisionId, ct);
+            if (hasShares)
+            {
+                blockers.Add("revision-shares");
+            }
+
+            if (blockers.Count > 0)
+            {
+                return Results.Conflict(new
+                {
+                    error = $"Cannot delete revision. Remove references first ({string.Join(", ", blockers)})."
+                });
+            }
+
+            dbContext.CogitaRevisions.Remove(revision);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
         });
 
         group.MapGet("/libraries/{libraryId:guid}/collections/{collectionId:guid}/revisions", async (
@@ -3121,6 +3528,83 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaCollectionDependencyResponse(request.ParentCollectionId, request.ChildCollectionId));
         });
 
+        group.MapDelete("/libraries/{libraryId:guid}/collections/{collectionId:guid}/dependencies/{parentCollectionId:guid}/{childCollectionId:guid}", async (
+            Guid libraryId,
+            Guid collectionId,
+            Guid parentCollectionId,
+            Guid childCollectionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            if (collectionId != parentCollectionId && collectionId != childCollectionId)
+            {
+                return Results.BadRequest(new { error = "CollectionId must match parent or child." });
+            }
+
+            var collectionIds = new[] { parentCollectionId, childCollectionId };
+            var collectionsInLibrary = await dbContext.CogitaInfos.AsNoTracking()
+                .CountAsync(x => x.LibraryId == libraryId && x.InfoType == "collection" && collectionIds.Contains(x.Id), ct);
+            if (collectionsInLibrary != 2)
+            {
+                return Results.NotFound();
+            }
+
+            var relation = await dbContext.CogitaCollectionDependencies
+                .FirstOrDefaultAsync(x => x.ParentCollectionInfoId == parentCollectionId && x.ChildCollectionInfoId == childCollectionId, ct);
+            if (relation is null)
+            {
+                return Results.NotFound();
+            }
+
+            dbContext.CogitaCollectionDependencies.Remove(relation);
+
+            var dependencyRows = await dbContext.CogitaItemDependencies
+                .Where(x => x.LibraryId == libraryId &&
+                            x.GraphId == null &&
+                            x.ParentItemType == "collection" &&
+                            x.ParentItemId == parentCollectionId &&
+                            x.ChildItemType == "collection" &&
+                            x.ChildItemId == childCollectionId)
+                .ToListAsync(ct);
+            if (dependencyRows.Count > 0)
+            {
+                dbContext.CogitaItemDependencies.RemoveRange(dependencyRows);
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/dependencies/items", async (
             Guid libraryId,
             HttpContext context,
@@ -3140,8 +3624,10 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
+            var activeGraphId = await ResolveActiveDependencyGraphIdAsync(libraryId, dbContext, ct);
             var deps = await dbContext.CogitaItemDependencies.AsNoTracking()
-                .Where(x => x.LibraryId == libraryId)
+                .Where(x => x.LibraryId == libraryId &&
+                            (x.GraphId == null || (activeGraphId.HasValue && x.GraphId == activeGraphId.Value)))
                 .ToListAsync(ct);
             var response = deps
                 .Select(x => new CogitaItemDependencyResponse(
@@ -4923,6 +5409,80 @@ public static class CogitaEndpoints
             return Results.Ok(response);
         });
 
+        group.MapDelete("/libraries/{libraryId:guid}/live-sessions/{sessionId:guid}", async (
+            Guid libraryId,
+            Guid sessionId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionToken))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionToken, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var liveSession = await dbContext.CogitaLiveRevisionSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionId && x.LibraryId == libraryId, ct);
+            if (liveSession is null)
+            {
+                return Results.NotFound();
+            }
+
+            var participants = await dbContext.CogitaLiveRevisionParticipants
+                .Where(x => x.SessionId == liveSession.Id)
+                .ToListAsync(ct);
+            var participantIds = participants.Select(x => x.Id).ToList();
+            var answers = participantIds.Count == 0
+                ? new List<CogitaLiveRevisionAnswer>()
+                : await dbContext.CogitaLiveRevisionAnswers
+                    .Where(x => x.SessionId == liveSession.Id && participantIds.Contains(x.ParticipantId))
+                    .ToListAsync(ct);
+            var reloginRequests = await dbContext.CogitaLiveRevisionReloginRequests
+                .Where(x => x.SessionId == liveSession.Id)
+                .ToListAsync(ct);
+
+            if (answers.Count > 0)
+            {
+                dbContext.CogitaLiveRevisionAnswers.RemoveRange(answers);
+            }
+            if (reloginRequests.Count > 0)
+            {
+                dbContext.CogitaLiveRevisionReloginRequests.RemoveRange(reloginRequests);
+            }
+            if (participants.Count > 0)
+            {
+                dbContext.CogitaLiveRevisionParticipants.RemoveRange(participants);
+            }
+
+            dbContext.CogitaLiveRevisionSessions.Remove(liveSession);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapPost("/libraries/{libraryId:guid}/live-sessions/{sessionId:guid}/host/attach", async (
             Guid libraryId,
             Guid sessionId,
@@ -6218,8 +6778,10 @@ public static class CogitaEndpoints
             }
 
             var (share, _, _) = shareContext.Value;
+            var activeGraphId = await ResolveActiveDependencyGraphIdAsync(share.LibraryId, dbContext, ct);
             var deps = await dbContext.CogitaItemDependencies.AsNoTracking()
-                .Where(x => x.LibraryId == share.LibraryId)
+                .Where(x => x.LibraryId == share.LibraryId &&
+                            (x.GraphId == null || (activeGraphId.HasValue && x.GraphId == activeGraphId.Value)))
                 .ToListAsync(ct);
             var response = deps
                 .Select(x => new CogitaItemDependencyResponse(
@@ -6809,8 +7371,318 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaCollectionGraphPreviewResponse(result.Total, result.ConnectionCount, result.InfoCount));
         });
 
+        group.MapGet("/libraries/{libraryId:guid}/dependency-graphs", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var graphs = await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId)
+                .OrderByDescending(x => x.IsActive)
+                .ThenByDescending(x => x.UpdatedUtc)
+                .ToListAsync(ct);
+            if (graphs.Count == 0)
+            {
+                return Results.Ok(new CogitaDependencyGraphListResponse(new List<CogitaDependencyGraphSummaryResponse>()));
+            }
+
+            var graphIds = graphs.Select(x => x.Id).ToList();
+            var nodeCounts = await dbContext.CogitaDependencyGraphNodes.AsNoTracking()
+                .Where(x => graphIds.Contains(x.GraphId))
+                .GroupBy(x => x.GraphId)
+                .Select(g => new { GraphId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.GraphId, x => x.Count, ct);
+
+            var response = graphs.Select(graph => new CogitaDependencyGraphSummaryResponse(
+                graph.Id,
+                string.IsNullOrWhiteSpace(graph.Name) ? "Dependency graph" : graph.Name,
+                graph.IsActive,
+                graph.UpdatedUtc,
+                nodeCounts.TryGetValue(graph.Id, out var count) ? count : 0)).ToList();
+            return Results.Ok(new CogitaDependencyGraphListResponse(response));
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/dependency-graphs", async (
+            Guid libraryId,
+            CogitaDependencyGraphCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            (Guid DataKeyId, byte[] DataKey) keyResult;
+            try
+            {
+                keyResult = await ResolveDataKeyAsync(
+                    library.RoleId,
+                    request.DataKeyId,
+                    "dependency-graph",
+                    readKey,
+                    ownerKey,
+                    userId,
+                    keyRingService,
+                    roleCryptoService,
+                    ledgerService,
+                    dbContext,
+                    ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.BadRequest(new { error = "DataKeyId is invalid." });
+            }
+
+            var shouldActivate = !await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.IsActive, ct);
+            if (shouldActivate)
+            {
+                var existing = await dbContext.CogitaDependencyGraphs
+                    .Where(x => x.LibraryId == libraryId && x.IsActive)
+                    .ToListAsync(ct);
+                foreach (var graph in existing)
+                {
+                    graph.IsActive = false;
+                }
+            }
+
+            var graphName = string.IsNullOrWhiteSpace(request.Name) ? "Dependency graph" : request.Name.Trim();
+            if (graphName.Length > 200)
+            {
+                graphName = graphName[..200];
+            }
+            var graphId = Guid.NewGuid();
+            var graph = new CogitaDependencyGraph
+            {
+                Id = graphId,
+                LibraryId = libraryId,
+                Name = graphName,
+                IsActive = shouldActivate,
+                DataKeyId = keyResult.DataKeyId,
+                EncryptedBlob = encryptionService.Encrypt(
+                    keyResult.DataKey,
+                    JsonSerializer.SerializeToUtf8Bytes(new { version = 1 }),
+                    libraryId.ToByteArray()),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.CogitaDependencyGraphs.Add(graph);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaDependencyGraphSummaryResponse(
+                graph.Id,
+                graph.Name,
+                graph.IsActive,
+                graph.UpdatedUtc,
+                0));
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/dependency-graphs/{graphId:guid}/activate", async (
+            Guid libraryId,
+            Guid graphId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var graphs = await dbContext.CogitaDependencyGraphs
+                .Where(x => x.LibraryId == libraryId)
+                .ToListAsync(ct);
+            var target = graphs.FirstOrDefault(x => x.Id == graphId);
+            if (target is null)
+            {
+                return Results.NotFound();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            foreach (var graph in graphs)
+            {
+                graph.IsActive = graph.Id == graphId;
+                if (graph.Id == graphId)
+                {
+                    graph.UpdatedUtc = now;
+                }
+            }
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
+        });
+
+        group.MapDelete("/libraries/{libraryId:guid}/dependency-graphs/{graphId:guid}", async (
+            Guid libraryId,
+            Guid graphId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var graph = await dbContext.CogitaDependencyGraphs
+                .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == graphId, ct);
+            if (graph is null)
+            {
+                return Results.NotFound();
+            }
+
+            var nodes = await dbContext.CogitaDependencyGraphNodes
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+            var edges = await dbContext.CogitaDependencyGraphEdges
+                .Where(x => x.GraphId == graph.Id)
+                .ToListAsync(ct);
+            var dependencies = await dbContext.CogitaItemDependencies
+                .Where(x => x.LibraryId == libraryId && x.GraphId == graph.Id)
+                .ToListAsync(ct);
+
+            if (dependencies.Count > 0)
+            {
+                dbContext.CogitaItemDependencies.RemoveRange(dependencies);
+            }
+            if (edges.Count > 0)
+            {
+                dbContext.CogitaDependencyGraphEdges.RemoveRange(edges);
+            }
+            if (nodes.Count > 0)
+            {
+                dbContext.CogitaDependencyGraphNodes.RemoveRange(nodes);
+            }
+
+            dbContext.CogitaDependencyGraphs.Remove(graph);
+
+            if (graph.IsActive)
+            {
+                var fallback = await dbContext.CogitaDependencyGraphs
+                    .Where(x => x.LibraryId == libraryId && x.Id != graph.Id)
+                    .OrderByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
+                if (fallback is not null)
+                {
+                    fallback.IsActive = true;
+                    fallback.UpdatedUtc = DateTimeOffset.UtcNow;
+                }
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
+        });
+
         group.MapGet("/libraries/{libraryId:guid}/dependency-graph", async (
             Guid libraryId,
+            Guid? graphId,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -6845,8 +7717,14 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var graph = await dbContext.CogitaDependencyGraphs.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+            var graph = graphId.HasValue
+                ? await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == graphId.Value, ct)
+                : await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId)
+                    .OrderByDescending(x => x.IsActive)
+                    .ThenByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
 
             if (graph is null)
             {
@@ -6899,6 +7777,7 @@ public static class CogitaEndpoints
 
         group.MapPut("/libraries/{libraryId:guid}/dependency-graph", async (
             Guid libraryId,
+            Guid? graphId,
             CogitaDependencyGraphRequest request,
             HttpContext context,
             RecreatioDbContext dbContext,
@@ -6936,7 +7815,23 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var graph = await dbContext.CogitaDependencyGraphs.FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+            CogitaDependencyGraph? graph;
+            if (graphId.HasValue)
+            {
+                graph = await dbContext.CogitaDependencyGraphs.FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == graphId.Value, ct);
+                if (graph is null)
+                {
+                    return Results.NotFound();
+                }
+            }
+            else
+            {
+                graph = await dbContext.CogitaDependencyGraphs
+                    .Where(x => x.LibraryId == libraryId)
+                    .OrderByDescending(x => x.IsActive)
+                    .ThenByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
+            }
             var now = DateTimeOffset.UtcNow;
             byte[] dataKey;
             Guid dataKeyId;
@@ -6961,12 +7856,21 @@ public static class CogitaEndpoints
                 {
                     Id = Guid.NewGuid(),
                     LibraryId = libraryId,
+                    Name = "Dependency graph",
+                    IsActive = true,
                     DataKeyId = dataKeyId,
                     EncryptedBlob = encryptionService.Encrypt(dataKey, JsonSerializer.SerializeToUtf8Bytes(new { version = 1 }), libraryId.ToByteArray()),
                     CreatedUtc = now,
                     UpdatedUtc = now
                 };
                 dbContext.CogitaDependencyGraphs.Add(graph);
+                var currentlyActive = await dbContext.CogitaDependencyGraphs
+                    .Where(x => x.LibraryId == libraryId && x.IsActive)
+                    .ToListAsync(ct);
+                foreach (var active in currentlyActive)
+                {
+                    active.IsActive = false;
+                }
             }
             else
             {
@@ -7109,6 +8013,7 @@ public static class CogitaEndpoints
                 {
                     Id = Guid.NewGuid(),
                     LibraryId = libraryId,
+                    GraphId = graph.Id,
                     ParentItemType = parentType,
                     ParentItemId = fromId,
                     ParentCheckType = parentCheckType,
@@ -7132,7 +8037,7 @@ public static class CogitaEndpoints
             }
 
             var existingDeps = await dbContext.CogitaItemDependencies
-                .Where(x => x.LibraryId == libraryId)
+                .Where(x => x.LibraryId == libraryId && x.GraphId == graph.Id)
                 .ToListAsync(ct);
             dbContext.CogitaItemDependencies.RemoveRange(existingDeps);
             if (dependencies.Count > 0)
@@ -7147,6 +8052,7 @@ public static class CogitaEndpoints
 
         group.MapPost("/libraries/{libraryId:guid}/dependency-graph/preview", async (
             Guid libraryId,
+            Guid? graphId,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -7181,8 +8087,14 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var graph = await dbContext.CogitaDependencyGraphs.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.LibraryId == libraryId, ct);
+            var graph = graphId.HasValue
+                ? await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == graphId.Value, ct)
+                : await dbContext.CogitaDependencyGraphs.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId)
+                    .OrderByDescending(x => x.IsActive)
+                    .ThenByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
             if (graph is null)
             {
                 return Results.Ok(new CogitaDependencyGraphPreviewResponse(0, new List<Guid>()));
@@ -10221,8 +11133,10 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        var activeGraphId = await ResolveActiveDependencyGraphIdAsync(libraryId, dbContext, ct);
         var stored = await dbContext.CogitaItemDependencies.AsNoTracking()
             .Where(x => x.LibraryId == libraryId &&
+                (x.GraphId == null || (activeGraphId.HasValue && x.GraphId == activeGraphId.Value)) &&
                 ((x.ParentItemType == "info" && x.ParentItemId == info.Id) ||
                  (x.ChildItemType == "info" && x.ChildItemId == info.Id)))
             .ToListAsync(ct);
@@ -11160,6 +12074,170 @@ public static class CogitaEndpoints
         }
     }
 
+    private static bool RemoveInfoPayload(
+        string infoType,
+        Guid infoId,
+        RecreatioDbContext dbContext)
+    {
+        if (CogitaTypeRegistry.ComputedBackedInfoTypes.Contains(infoType))
+        {
+            var computedRow = dbContext.CogitaComputedInfos.FirstOrDefault(x => x.InfoId == infoId);
+            if (computedRow is null)
+            {
+                return false;
+            }
+
+            dbContext.CogitaComputedInfos.Remove(computedRow);
+            return true;
+        }
+
+        switch (infoType)
+        {
+            case "question":
+                {
+                    var row = dbContext.CogitaQuestions.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaQuestions.Remove(row);
+                    return true;
+                }
+            case "language":
+                {
+                    var row = dbContext.CogitaLanguages.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaLanguages.Remove(row);
+                    return true;
+                }
+            case "word":
+                {
+                    var row = dbContext.CogitaWords.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaWords.Remove(row);
+                    return true;
+                }
+            case "sentence":
+                {
+                    var row = dbContext.CogitaSentences.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaSentences.Remove(row);
+                    return true;
+                }
+            case "topic":
+                {
+                    var row = dbContext.CogitaTopics.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaTopics.Remove(row);
+                    return true;
+                }
+            case "collection":
+                {
+                    var row = dbContext.CogitaCollections.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaCollections.Remove(row);
+                    return true;
+                }
+            case "person":
+                {
+                    var row = dbContext.CogitaPersons.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaPersons.Remove(row);
+                    return true;
+                }
+            case "institution":
+                {
+                    var row = dbContext.CogitaInstitutions.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaInstitutions.Remove(row);
+                    return true;
+                }
+            case "collective":
+                {
+                    var row = dbContext.CogitaCollectives.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaCollectives.Remove(row);
+                    return true;
+                }
+            case "orcid":
+                {
+                    var row = dbContext.CogitaOrcids.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaOrcids.Remove(row);
+                    return true;
+                }
+            case "address":
+                {
+                    var row = dbContext.CogitaAddresses.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaAddresses.Remove(row);
+                    return true;
+                }
+            case "email":
+                {
+                    var row = dbContext.CogitaEmails.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaEmails.Remove(row);
+                    return true;
+                }
+            case "phone":
+                {
+                    var row = dbContext.CogitaPhones.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaPhones.Remove(row);
+                    return true;
+                }
+            case "media":
+                {
+                    var row = dbContext.CogitaMedia.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaMedia.Remove(row);
+                    return true;
+                }
+            case "work":
+                {
+                    var row = dbContext.CogitaWorks.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaWorks.Remove(row);
+                    return true;
+                }
+            case "geo":
+                {
+                    var row = dbContext.CogitaGeoFeatures.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaGeoFeatures.Remove(row);
+                    return true;
+                }
+            case "music_piece":
+                {
+                    var row = dbContext.CogitaMusicPieces.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaMusicPieces.Remove(row);
+                    return true;
+                }
+            case "music_fragment":
+                {
+                    var row = dbContext.CogitaMusicFragments.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaMusicFragments.Remove(row);
+                    return true;
+                }
+            case "source":
+                {
+                    var row = dbContext.CogitaSources.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaSources.Remove(row);
+                    return true;
+                }
+            case "citation":
+                {
+                    var row = dbContext.CogitaQuotes.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaQuotes.Remove(row);
+                    return true;
+                }
+            default:
+                return false;
+        }
+    }
+
     private static string NormalizeLabel(string? label)
     {
         if (string.IsNullOrWhiteSpace(label))
@@ -11381,6 +12459,20 @@ public static class CogitaEndpoints
             .Replace('=', ' ')
             .Replace('\n', ' ')
             .Replace('\r', ' ');
+    }
+
+    private static async Task<Guid?> ResolveActiveDependencyGraphIdAsync(
+        Guid libraryId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var graph = await dbContext.CogitaDependencyGraphs.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId)
+            .OrderByDescending(x => x.IsActive)
+            .ThenByDescending(x => x.UpdatedUtc)
+            .Select(x => new { x.Id })
+            .FirstOrDefaultAsync(ct);
+        return graph?.Id;
     }
 
     private static byte[] BuildDependencyLinkHash(

@@ -664,6 +664,18 @@ export type CogitaDependencyGraph = {
   edges: CogitaDependencyGraphEdge[];
 };
 
+export type CogitaDependencyGraphSummary = {
+  graphId: string;
+  name: string;
+  isActive: boolean;
+  updatedUtc: string;
+  nodeCount: number;
+};
+
+export type CogitaDependencyGraphList = {
+  items: CogitaDependencyGraphSummary[];
+};
+
 export type CogitaDependencyGraphPreview = {
   totalCollections: number;
   collectionIds: string[];
@@ -1125,6 +1137,13 @@ export function updateCogitaRevision(payload: {
   );
 }
 
+export function deleteCogitaRevision(payload: { libraryId: string; revisionId: string }) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/revisions/${payload.revisionId}`,
+    { method: 'DELETE' }
+  );
+}
+
 export function getCogitaCollectionDependencies(libraryId: string, collectionId: string) {
   return request<CogitaCollectionDependencies>(
     `/cogita/libraries/${libraryId}/collections/${collectionId}/dependencies`,
@@ -1143,6 +1162,18 @@ export function createCogitaCollectionDependency(
       method: 'POST',
       body: JSON.stringify(payload)
     }
+  );
+}
+
+export function deleteCogitaCollectionDependency(payload: {
+  libraryId: string;
+  collectionId: string;
+  parentCollectionId: string;
+  childCollectionId: string;
+}) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}/dependencies/${payload.parentCollectionId}/${payload.childCollectionId}`,
+    { method: 'DELETE' }
   );
 }
 
@@ -1346,6 +1377,13 @@ export function getCogitaLiveRevisionSession(payload: { libraryId: string; sessi
   return request<CogitaLiveRevisionSession>(
     `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}?${params.toString()}`,
     { method: 'GET' }
+  );
+}
+
+export function deleteCogitaLiveRevisionSession(payload: { libraryId: string; sessionId: string }) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}`,
+    { method: 'DELETE' }
   );
 }
 
@@ -1553,20 +1591,58 @@ export function getCogitaPublicComputedSample(payload: { shareId: string; infoId
   );
 }
 
-export function getCogitaDependencyGraph(payload: { libraryId: string }) {
-  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph`, {
+export function getCogitaDependencyGraphs(payload: { libraryId: string }) {
+  return request<CogitaDependencyGraphList>(`/cogita/libraries/${payload.libraryId}/dependency-graphs`, {
+    method: 'GET'
+  });
+}
+
+export function createCogitaDependencyGraph(payload: {
+  libraryId: string;
+  name?: string | null;
+  dataKeyId?: string | null;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaDependencyGraphSummary>(`/cogita/libraries/${payload.libraryId}/dependency-graphs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name ?? null,
+      dataKeyId: payload.dataKeyId ?? null,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function activateCogitaDependencyGraph(payload: { libraryId: string; graphId: string }) {
+  return request<void>(`/cogita/libraries/${payload.libraryId}/dependency-graphs/${payload.graphId}/activate`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function deleteCogitaDependencyGraph(payload: { libraryId: string; graphId: string }) {
+  return request<{ deleted: boolean }>(`/cogita/libraries/${payload.libraryId}/dependency-graphs/${payload.graphId}`, {
+    method: 'DELETE'
+  });
+}
+
+export function getCogitaDependencyGraph(payload: { libraryId: string; graphId?: string | null }) {
+  const query = payload.graphId ? `?graphId=${encodeURIComponent(payload.graphId)}` : '';
+  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph${query}`, {
     method: 'GET'
   });
 }
 
 export function saveCogitaDependencyGraph(payload: {
   libraryId: string;
+  graphId?: string | null;
   nodes: Array<{ nodeId?: string | null; nodeType: string; payload: unknown }>;
   edges: Array<{ edgeId?: string | null; fromNodeId: string; toNodeId: string }>;
   dataKeyId?: string | null;
   signatureBase64?: string | null;
 }) {
-  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph`, {
+  const query = payload.graphId ? `?graphId=${encodeURIComponent(payload.graphId)}` : '';
+  return request<CogitaDependencyGraph>(`/cogita/libraries/${payload.libraryId}/dependency-graph${query}`, {
     method: 'PUT',
     body: JSON.stringify({
       nodes: payload.nodes,
@@ -1577,8 +1653,9 @@ export function saveCogitaDependencyGraph(payload: {
   });
 }
 
-export function previewCogitaDependencyGraph(payload: { libraryId: string }) {
-  return request<CogitaDependencyGraphPreview>(`/cogita/libraries/${payload.libraryId}/dependency-graph/preview`, {
+export function previewCogitaDependencyGraph(payload: { libraryId: string; graphId?: string | null }) {
+  const query = payload.graphId ? `?graphId=${encodeURIComponent(payload.graphId)}` : '';
+  return request<CogitaDependencyGraphPreview>(`/cogita/libraries/${payload.libraryId}/dependency-graph/preview${query}`, {
     method: 'POST',
     body: JSON.stringify({})
   });
@@ -1728,6 +1805,13 @@ export function updateCogitaInfo(payload: {
   );
 }
 
+export function deleteCogitaInfo(payload: { libraryId: string; infoId: string }) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/infos/${payload.infoId}`,
+    { method: 'DELETE' }
+  );
+}
+
 export function createCogitaConnection(payload: {
   libraryId: string;
   connectionType: string;
@@ -1801,6 +1885,13 @@ export function updateCogitaCollection(payload: {
       notes: payload.notes ?? null
     })
   });
+}
+
+export function deleteCogitaCollection(payload: { libraryId: string; collectionId: string }) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/collections/${payload.collectionId}`,
+    { method: 'DELETE' }
+  );
 }
 
 export function createCogitaMockData(libraryId: string) {

@@ -1052,6 +1052,8 @@ CREATE TABLE dbo.CogitaDependencyGraphs
 (
     Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDependencyGraphs PRIMARY KEY,
     LibraryId UNIQUEIDENTIFIER NOT NULL,
+    Name NVARCHAR(200) NOT NULL CONSTRAINT DF_CogitaDependencyGraphs_Name DEFAULT (N'Dependency graph'),
+    IsActive BIT NOT NULL CONSTRAINT DF_CogitaDependencyGraphs_IsActive DEFAULT (0),
     DataKeyId UNIQUEIDENTIFIER NOT NULL,
     EncryptedBlob VARBINARY(8000) NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
@@ -1060,7 +1062,31 @@ CREATE TABLE dbo.CogitaDependencyGraphs
 );
 GO
 
-CREATE UNIQUE INDEX UX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs(LibraryId);
+CREATE INDEX IX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs(LibraryId, IsActive, UpdatedUtc DESC);
+GO
+
+IF COL_LENGTH('dbo.CogitaDependencyGraphs', 'Name') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaDependencyGraphs ADD Name NVARCHAR(200) NOT NULL CONSTRAINT DF_CogitaDependencyGraphs_Name_Migrate DEFAULT (N'Dependency graph');
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaDependencyGraphs', 'IsActive') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaDependencyGraphs ADD IsActive BIT NOT NULL CONSTRAINT DF_CogitaDependencyGraphs_IsActive_Migrate DEFAULT (0);
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaDependencyGraphs_Library' AND object_id = OBJECT_ID('dbo.CogitaDependencyGraphs'))
+BEGIN
+    DROP INDEX UX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaDependencyGraphs_Library' AND object_id = OBJECT_ID('dbo.CogitaDependencyGraphs'))
+BEGIN
+    CREATE INDEX IX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs(LibraryId, IsActive, UpdatedUtc DESC);
+END
 GO
 
 CREATE TABLE dbo.CogitaDependencyGraphNodes
@@ -1174,6 +1200,7 @@ BEGIN
     (
         Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         LibraryId UNIQUEIDENTIFIER NOT NULL,
+        GraphId UNIQUEIDENTIFIER NULL,
         ParentItemType NVARCHAR(32) NOT NULL,
         ParentItemId UNIQUEIDENTIFIER NOT NULL,
         ParentCheckType NVARCHAR(64) NULL,
@@ -1184,8 +1211,26 @@ BEGIN
         ChildDirection NVARCHAR(128) NULL,
         LinkHash BINARY(32) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
-        CONSTRAINT FK_CogitaItemDependencies_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+        CONSTRAINT FK_CogitaItemDependencies_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaItemDependencies_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaDependencyGraphs(Id)
     );
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaItemDependencies', 'GraphId') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies ADD GraphId UNIQUEIDENTIFIER NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.foreign_keys
+    WHERE name = 'FK_CogitaItemDependencies_Graph'
+      AND parent_object_id = OBJECT_ID('dbo.CogitaItemDependencies')
+)
+BEGIN
+    ALTER TABLE dbo.CogitaItemDependencies
+    ADD CONSTRAINT FK_CogitaItemDependencies_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaDependencyGraphs(Id);
 END
 GO
 
@@ -1282,7 +1327,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaItemDependencies_Link' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaItemDependencies_Link
-        ON dbo.CogitaItemDependencies(LibraryId, LinkHash);
+        ON dbo.CogitaItemDependencies(LibraryId, GraphId, LinkHash);
 END
 GO
 
@@ -1295,7 +1340,7 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaItemDependencies_Child' AND object_id = OBJECT_ID('dbo.CogitaItemDependencies'))
 BEGIN
     CREATE INDEX IX_CogitaItemDependencies_Child
-        ON dbo.CogitaItemDependencies(LibraryId, ChildItemType, ChildItemId, ChildCheckType, ChildDirection);
+        ON dbo.CogitaItemDependencies(LibraryId, GraphId, ChildItemType, ChildItemId, ChildCheckType, ChildDirection);
 END
 GO
 

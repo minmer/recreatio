@@ -924,6 +924,8 @@ export function CogitaWorkspacePage({
         selectedLabel:
           selectedTarget === 'new_card' && pathState.infoId
             ? workspaceCopy.infoActions.edit
+            : selectedTarget === 'dependencies'
+            ? workspaceCopy.targets.dependencies
             : pathState.infoView === 'cards'
             ? workspaceCopy.infoActions.seeCards
             : pathState.infoView === 'collections'
@@ -934,10 +936,16 @@ export function CogitaWorkspacePage({
           { value: 'overview', label: workspaceCopy.infoActions.overview },
           { value: 'edit', label: workspaceCopy.infoActions.edit },
           { value: 'cards', label: workspaceCopy.infoActions.seeCards },
-          { value: 'collections', label: 'Kolekcje' }
+          { value: 'collections', label: 'Kolekcje' },
+          { value: 'dependencies', label: workspaceCopy.targets.dependencies }
         ],
         onSelect: (value: string) => {
           if (!pathState.infoId) return;
+          if (value === 'dependencies') {
+            const query = new URLSearchParams({ infoIds: pathState.infoId });
+            navigate(`/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`);
+            return;
+          }
           if (value === 'edit') {
             applyNavigationSelection({
               libraryId: selectedLibraryId,
@@ -1306,6 +1314,7 @@ export function CogitaWorkspacePage({
       workspaceCopy.path.noLibrarySelected,
       workspaceCopy.targets.allCards,
       workspaceCopy.targets.allRevisions,
+      workspaceCopy.targets.dependencies,
       workspaceCopy.infoMode.search,
       workspaceCopy.revisionForm.createAction,
       workspaceCopy.revisions.live,
@@ -1423,6 +1432,10 @@ export function CogitaWorkspacePage({
                   );
                 }
                 if (level.key === 'info_selected_action' && pathState.infoId) {
+                  if (option.value === 'dependencies') {
+                    const query = new URLSearchParams({ infoIds: pathState.infoId });
+                    return `/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`;
+                  }
                   if (option.value === 'edit') {
                     return buildCogitaPath(
                       selectedLibraryId,

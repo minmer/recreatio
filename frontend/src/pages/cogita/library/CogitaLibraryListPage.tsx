@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  deleteCogitaInfo,
   getCogitaApproachSpecifications,
   getCogitaCollectionGraph,
   getCogitaInfoCheckcardDependencies,
@@ -134,6 +135,7 @@ export function CogitaLibraryListPage({
   const [infoCollectionsStatus, setInfoCollectionsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [collectionScopeInfoIds, setCollectionScopeInfoIds] = useState<Set<string> | null>(null);
   const [collectionScopeReady, setCollectionScopeReady] = useState(true);
+  const [infoDeleteStatus, setInfoDeleteStatus] = useState<string | null>(null);
 
   const infoTypeOptions = useMemo(() => getInfoTypeOptions(copy), [copy]);
   const sortOptions = useMemo(
@@ -357,6 +359,7 @@ export function CogitaLibraryListPage({
       setSelectedInfoDetail(null);
       setSelectedInfoReviewSummary(null);
       setOverviewStatus('idle');
+      setInfoDeleteStatus(null);
       return;
     }
     let cancelled = false;
@@ -581,6 +584,25 @@ export function CogitaLibraryListPage({
     navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(selectedInfoIdFromRoute)}/edit`, { replace: true });
   };
 
+  const deleteSelectedInfo = async () => {
+    if (!selectedInfoIdFromRoute) return;
+    if (!window.confirm('Delete this information? This cannot be undone.')) return;
+    setInfoDeleteStatus(null);
+    try {
+      await deleteCogitaInfo({ libraryId, infoId: selectedInfoIdFromRoute });
+      setSelectionStack((prev) => {
+        if (!prev[selectedInfoIdFromRoute]) return prev;
+        const next = { ...prev };
+        delete next[selectedInfoIdFromRoute];
+        return next;
+      });
+      setRawResults((prev) => prev.filter((item) => item.infoId !== selectedInfoIdFromRoute));
+      navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+    } catch {
+      setInfoDeleteStatus('Failed to delete information. Remove links and collection/connection usage first.');
+    }
+  };
+
   const startRevisionFromSelectedInfos = () => {
     const seedId = saveInfoSelectionRevisionSeed(
       libraryId,
@@ -650,8 +672,12 @@ export function CogitaLibraryListPage({
                       <button type="button" className="cta" onClick={editSelectedInfo} disabled={!selectedInfoIdFromRoute || overviewStatus !== 'ready'}>
                         {listCopy.editInfo}
                       </button>
+                      <button type="button" className="ghost" onClick={() => void deleteSelectedInfo()} disabled={!selectedInfoIdFromRoute || overviewStatus !== 'ready'}>
+                        Delete
+                      </button>
                     </div>
                   </div>
+                  {infoDeleteStatus ? <p className="cogita-form-error">{infoDeleteStatus}</p> : null}
 
                   {overviewStatus === 'loading' ? (
                     <div className="cogita-card-empty">
@@ -931,6 +957,19 @@ export function CogitaLibraryListPage({
                     title={!singleSelectedId ? listCopy.openSelectedDisabled : undefined}
                   >
                     {listCopy.openSelected}
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
+                      if (!ids.length) return;
+                      const query = new URLSearchParams({ infoIds: ids.join(',') });
+                      navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
+                    }}
+                    disabled={selectedItems.length === 0}
+                  >
+                    Open In Dependencies
                   </button>
                 </div>
               </div>

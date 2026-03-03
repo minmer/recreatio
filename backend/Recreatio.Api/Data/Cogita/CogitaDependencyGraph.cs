@@ -4,6 +4,8 @@ public sealed class CogitaDependencyGraph
 {
     public Guid Id { get; set; }
     public Guid LibraryId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
     public Guid DataKeyId { get; set; }
     public byte[] EncryptedBlob { get; set; } = Array.Empty<byte>();
     public DateTimeOffset CreatedUtc { get; set; }

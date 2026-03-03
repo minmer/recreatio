@@ -431,6 +431,9 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()
             .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaDependencyGraph>()
+            .Property(x => x.Name)
+            .HasMaxLength(200);
 
         modelBuilder.Entity<Data.Cogita.CogitaDependencyGraphNode>()
             .HasOne<Data.Cogita.CogitaDependencyGraph>()
@@ -511,9 +514,13 @@ public sealed class RecreatioDbContext : DbContext
             .HasMaxLength(32)
             .HasColumnType("binary(32)");
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
-            .HasIndex(x => new { x.LibraryId, x.LinkHash })
+            .HasOne<Data.Cogita.CogitaDependencyGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+        modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
+            .HasIndex(x => new { x.LibraryId, x.GraphId, x.LinkHash })
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
-            .HasIndex(x => new { x.LibraryId, x.ChildItemType, x.ChildItemId, x.ChildCheckType, x.ChildDirection });
+            .HasIndex(x => new { x.LibraryId, x.GraphId, x.ChildItemType, x.ChildItemId, x.ChildCheckType, x.ChildDirection });
     }
 }

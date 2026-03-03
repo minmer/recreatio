@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
+import { deleteCogitaCollection, getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
+import { useNavigate } from 'react-router-dom';
 import { getCardKey } from '../../../../cogita/revision/cards';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
@@ -32,11 +33,13 @@ export function CogitaCollectionDetailPage({
   libraryId: string;
   collectionId: string;
 }) {
+  const navigate = useNavigate();
   const baseHref = `/#/cogita/library/${libraryId}`;
   const [totalCount, setTotalCount] = useState(0);
   const [cards, setCards] = useState<CogitaCardSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
   const cardCountLabel = useMemo(
     () =>
       copy.cogita.library.list.cardCount
@@ -80,6 +83,17 @@ export function CogitaCollectionDetailPage({
       setStatus('ready');
     } catch {
       setStatus('ready');
+    }
+  };
+
+  const handleDeleteCollection = async () => {
+    if (!window.confirm('Delete this collection? This cannot be undone.')) return;
+    setDeleteStatus(null);
+    try {
+      await deleteCogitaCollection({ libraryId, collectionId });
+      navigate(`/cogita/library/${libraryId}/collections`, { replace: true });
+    } catch {
+      setDeleteStatus('Failed to delete collection. Remove linked revisions, live sessions, and dependencies first.');
     }
   };
 
@@ -154,7 +168,11 @@ export function CogitaCollectionDetailPage({
                     <a className="cta" href={`${baseHref}/revisions`}>
                       {copy.cogita.library.actions.startRevision}
                     </a>
+                    <button type="button" className="ghost" onClick={() => void handleDeleteCollection()}>
+                      Delete
+                    </button>
                   </div>
+                  {deleteStatus ? <p className="cogita-form-error">{deleteStatus}</p> : null}
                 </section>
               </div>
             </div>

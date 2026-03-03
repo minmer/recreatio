@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { useNavigate } from 'react-router-dom';
 import {
   ApiError,
   attachCogitaLiveRevisionSession,
   resetCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
+  deleteCogitaLiveRevisionSession,
   getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
   updateCogitaLiveRevisionSession,
@@ -71,6 +73,7 @@ export function CogitaRevisionLiveSessionsPage({
   onRequestEdit?: (sessionId: string) => void;
   onRequestOverview?: (sessionId: string) => void;
 }) {
+  const navigate = useNavigate();
   const FIXED_HOST_VIEW_MODE = 'panel' as const;
   const FIXED_PARTICIPANT_VIEW_MODE = 'question' as const;
   const [revisionName, setRevisionName] = useState('');
@@ -86,7 +89,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [attachedSession, setAttachedSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [reloginParticipantId, setReloginParticipantId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset'>('none');
+  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset' | 'delete'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
   const baseHref = `/#/cogita/library/${libraryId}`;
@@ -483,6 +486,25 @@ export function CogitaRevisionLiveSessionsPage({
       onOpenSession?.(attachedSession.sessionId);
     } catch {
       setMessage(copy.cogita.library.revision.shareError);
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const deleteSession = async () => {
+    if (!attachedSession?.sessionId) return;
+    if (!window.confirm('Delete this live session? This cannot be undone.')) return;
+    setBusyAction('delete');
+    setMessage(null);
+    try {
+      await deleteCogitaLiveRevisionSession({
+        libraryId,
+        sessionId: attachedSession.sessionId
+      });
+      await loadSessions();
+      navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(revisionId)}/live-sessions`, { replace: true });
+    } catch {
+      setMessage('Failed to delete live session.');
     } finally {
       setBusyAction('none');
     }
@@ -1230,6 +1252,14 @@ export function CogitaRevisionLiveSessionsPage({
                               disabled={busyAction === 'reset'}
                             >
                               {copy.cogita.library.revision.live.resetSessionAction}
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => void deleteSession()}
+                              disabled={busyAction === 'delete'}
+                            >
+                              Delete
                             </button>
                           </div>
                         </div>

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   createCogitaRevisionShare,
+  deleteCogitaRevision,
   getCogitaRevision,
   getCogitaRevisionShares,
   revokeCogitaRevisionShare,
   type CogitaRevision,
   type CogitaRevisionShare
 } from '../../../../lib/api';
+import { useNavigate } from 'react-router-dom';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
@@ -38,10 +40,12 @@ export function CogitaRevisionOverviewPage({
   libraryId: string;
   revisionId: string;
 }) {
+  const navigate = useNavigate();
   const [revision, setRevision] = useState<CogitaRevision | null>(null);
   const [activeShare, setActiveShare] = useState<CogitaRevisionShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
 
   useEffect(() => {
     getCogitaRevision({ libraryId, revisionId })
@@ -131,6 +135,17 @@ export function CogitaRevisionOverviewPage({
     }
   };
 
+  const handleDeleteRevision = async () => {
+    if (!window.confirm('Delete this revision? This cannot be undone.')) return;
+    setDeleteStatus(null);
+    try {
+      await deleteCogitaRevision({ libraryId, revisionId });
+      navigate(`/cogita/library/${libraryId}/revisions`, { replace: true });
+    } catch {
+      setDeleteStatus('Failed to delete revision. Remove live sessions and shares first.');
+    }
+  };
+
   return (
     <CogitaShell
       copy={copy}
@@ -160,7 +175,11 @@ export function CogitaRevisionOverviewPage({
                     <a className="cta" href={revisionRunHref}>
                       {copy.cogita.library.revision.start}
                     </a>
+                    <button type="button" className="ghost" onClick={() => void handleDeleteRevision()}>
+                      Delete
+                    </button>
                   </div>
+                  {deleteStatus ? <p className="cogita-form-error">{deleteStatus}</p> : null}
                 </section>
               </div>
 

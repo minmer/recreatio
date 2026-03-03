@@ -608,6 +608,24 @@ public sealed record CogitaDependencyGraphRequest(
     string? SignatureBase64
 );
 
+public sealed record CogitaDependencyGraphCreateRequest(
+    string? Name,
+    Guid? DataKeyId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaDependencyGraphSummaryResponse(
+    Guid GraphId,
+    string Name,
+    bool IsActive,
+    DateTimeOffset UpdatedUtc,
+    int NodeCount
+);
+
+public sealed record CogitaDependencyGraphListResponse(
+    List<CogitaDependencyGraphSummaryResponse> Items
+);
+
 public sealed record CogitaDependencyGraphNodeResponse(
     Guid NodeId,
     string NodeType,

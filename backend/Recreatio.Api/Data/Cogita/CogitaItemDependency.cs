@@ -8,6 +8,7 @@ public sealed class CogitaItemDependency
     public Guid Id { get; set; }
 
     public Guid LibraryId { get; set; }
+    public Guid? GraphId { get; set; }
 
     [MaxLength(32)]
     public string ParentItemType { get; set; } = string.Empty;
