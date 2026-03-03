@@ -168,6 +168,15 @@ export default function App() {
     localStorage.setItem('recreatio.lang', language);
   }, [language]);
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = language;
+    const meta = document.getElementById('app-content-language');
+    if (meta) {
+      meta.setAttribute('content', language);
+    }
+  }, [language]);
+
   const resetStatus = () => setStatus({ type: 'idle' });
 
   const openLoginCard = (context: RouteKey) => {

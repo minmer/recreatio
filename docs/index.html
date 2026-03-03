@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="pl">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/logo/favicon.ico" />
@@ -11,9 +11,23 @@
     <meta name="msapplication-config" content="/logo/browserconfig.xml" />
     <meta name="theme-color" content="#ffffff" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta id="app-content-language" http-equiv="Content-Language" content="pl" />
     <title>REcreatio</title>
     <meta name="description" content="REcreatio secure access portal" />
-    <script type="module" crossorigin src="/assets/index-CgJ9iKzf.js"></script>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('recreatio.lang');
+          var lang = stored === 'en' || stored === 'de' || stored === 'pl' ? stored : 'pl';
+          document.documentElement.lang = lang;
+          var meta = document.getElementById('app-content-language');
+          if (meta) meta.setAttribute('content', lang);
+        } catch (_) {
+          document.documentElement.lang = 'pl';
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-BcHMYWSj.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-CAC2WLor.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-cogita-ui-DTaQ_FiW.js">
     <link rel="modulepreload" crossorigin href="/assets/recreatio-core-CA3tdayl.js">

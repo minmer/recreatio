@@ -12,6 +12,7 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
 import { clampInt, parseLiveRules } from './liveSessionRules';
+import { useScreenWakeLock } from './useScreenWakeLock';
 
 function readJoinNameFromHash() {
   if (typeof window === 'undefined') return '';
@@ -49,6 +50,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   code: string;
 }) {
+  useScreenWakeLock(true);
+
   const { code } = props;
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;

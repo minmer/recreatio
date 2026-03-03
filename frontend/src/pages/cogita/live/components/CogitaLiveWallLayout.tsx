@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import '../../../../styles/cogita.css';
+import { useScreenWakeLock } from '../useScreenWakeLock';
 
 export function CogitaLiveWallLayout({
   title,
@@ -14,6 +15,8 @@ export function CogitaLiveWallLayout({
   right: ReactNode;
   actions?: ReactNode;
 }) {
+  useScreenWakeLock(true);
+
   return (
     <section className="cogita-live-wall">
       <header className="cogita-live-wall-header">
