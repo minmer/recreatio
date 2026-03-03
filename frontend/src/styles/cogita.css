@@ -2146,6 +2146,23 @@
   min-height: 0;
 }
 
+.cogita-live-session-overview-panel {
+  margin: 0.8rem 0;
+}
+
+.cogita-live-relogin-qr {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cogita-live-relogin-qr-code {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #fff;
+}
+
 .cogita-details-grid-head {
   background: rgba(22, 44, 70, 0.52);
   color: rgba(201, 221, 246, 0.9);

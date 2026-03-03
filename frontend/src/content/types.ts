@@ -871,6 +871,13 @@ export type Copy = {
           answerStatusIncorrect: string;
           hostUrlLabel: string;
           presenterUrlLabel: string;
+          detailLaunchTitle: string;
+          openLoginWallAction: string;
+          openHostWallAction: string;
+          openScreenWallAction: string;
+          reloginQrAction: string;
+          reloginQrHelp: string;
+          participantPointsLabel: string;
           newSessionAction: string;
           refreshLinksAction: string;
           closeSessionAction: string;

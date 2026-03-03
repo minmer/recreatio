@@ -15,6 +15,15 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
 
+function readJoinNameFromHash() {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash ?? '';
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex < 0) return '';
+  const params = new URLSearchParams(hash.slice(queryIndex + 1));
+  return params.get('name')?.trim() ?? '';
+}
+
 function tokenStorageKey(code: string) {
   return `cogita.live.join.${code}`;
 }
@@ -40,7 +49,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;
   const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : '✓');
-  const [joinName, setJoinName] = useState('');
+  const [joinName, setJoinName] = useState(() => readJoinNameFromHash());
   const [participantToken, setParticipantToken] = useState<string | null>(() =>
     typeof localStorage === 'undefined' ? null : localStorage.getItem(tokenStorageKey(code))
   );

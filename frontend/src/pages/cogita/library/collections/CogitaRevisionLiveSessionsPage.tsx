@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   attachCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
@@ -81,6 +82,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [showSpecialSettings, setShowSpecialSettings] = useState(false);
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [attachedSession, setAttachedSession] = useState<CogitaLiveRevisionSession | null>(null);
+  const [reloginParticipantId, setReloginParticipantId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
@@ -220,6 +222,7 @@ export function CogitaRevisionLiveSessionsPage({
       .then((session) => {
         if (canceled) return;
         setAttachedSession(session);
+        setReloginParticipantId(null);
         setFormTitle(selectedItem?.title ?? revisionName);
         setFormSessionMode((session.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as 'simultaneous' | 'asynchronous');
         setFormLiveRules(parseLiveRules(session.sessionSettings));
@@ -229,6 +232,7 @@ export function CogitaRevisionLiveSessionsPage({
       .catch(() => {
         if (canceled) return;
         setAttachedSession(null);
+        setReloginParticipantId(null);
         setDetailStatus('error');
       });
 
@@ -477,6 +481,32 @@ export function CogitaRevisionLiveSessionsPage({
   const hostUrl =
     attachedSession?.sessionId && attachedSession?.hostSecret && typeof window !== 'undefined'
       ? `${window.location.origin}/#/cogita/live-revision-host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}?sessionId=${encodeURIComponent(attachedSession.sessionId)}&hostSecret=${encodeURIComponent(attachedSession.hostSecret)}&code=${encodeURIComponent(attachedSession.code)}`
+      : '';
+  const participantScoreById = useMemo(() => {
+    const map = new Map<string, number>();
+    (attachedSession?.scoreboard ?? []).forEach((row) => map.set(row.participantId, row.score));
+    return map;
+  }, [attachedSession?.scoreboard]);
+  const detailParticipants = useMemo(
+    () =>
+      (attachedSession?.participants ?? [])
+        .map((participant) => ({
+          ...participant,
+          score: participantScoreById.get(participant.participantId) ?? participant.score ?? 0
+        }))
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.displayName.localeCompare(b.displayName);
+        }),
+    [attachedSession?.participants, participantScoreById]
+  );
+  const reloginParticipant = useMemo(
+    () => detailParticipants.find((participant) => participant.participantId === reloginParticipantId) ?? null,
+    [detailParticipants, reloginParticipantId]
+  );
+  const reloginUrl =
+    reloginParticipant && joinUrl
+      ? `${joinUrl}?name=${encodeURIComponent(reloginParticipant.displayName)}`
       : '';
 
   return (
@@ -910,39 +940,123 @@ export function CogitaRevisionLiveSessionsPage({
                     {detailStatus === 'error' ? <p className="cogita-form-error">{copy.cogita.library.revision.shareError}</p> : null}
                     {detailStatus === 'ready' && attachedSession ? (
                       <>
-                        <div className="cogita-info-tree">
-                          <div className="cogita-info-tree-row">
-                            <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.statusLabel}</div>
-                            <div className="cogita-info-tree-value">{selectedItem?.status ?? attachedSession.status}</div>
-                          </div>
-                          <div className="cogita-info-tree-row">
-                            <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.participantsTitle}</div>
-                            <div className="cogita-info-tree-value">{attachedSession.participants.length}</div>
-                          </div>
-                          <div className="cogita-info-tree-row">
-                            <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.joinCodeLabel}</div>
-                            <div className="cogita-info-tree-value">{attachedSession.code}</div>
+                        <div className="cogita-library-panel cogita-live-session-overview-panel">
+                          <div className="cogita-info-tree">
+                            <div className="cogita-info-tree-row">
+                              <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.sessionModeLabel}</div>
+                              <div className="cogita-info-tree-value">
+                                {attachedSession.sessionMode === 'asynchronous'
+                                  ? copy.cogita.library.revision.live.modeAsynchronous
+                                  : copy.cogita.library.revision.live.modeSimultaneous}
+                              </div>
+                            </div>
+                            <div className="cogita-info-tree-row">
+                              <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.statusLabel}</div>
+                              <div className="cogita-info-tree-value">{selectedItem?.status ?? attachedSession.status}</div>
+                            </div>
+                            <div className="cogita-info-tree-row">
+                              <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.participantsTitle}</div>
+                              <div className="cogita-info-tree-value">{attachedSession.participants.length}</div>
+                            </div>
+                            <div className="cogita-info-tree-row">
+                              <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.joinCodeLabel}</div>
+                              <div className="cogita-info-tree-value">{attachedSession.code}</div>
+                            </div>
                           </div>
                         </div>
+
+                        <div className="cogita-library-panel cogita-live-session-overview-panel">
+                          <div className="cogita-detail-header">
+                            <div>
+                              <p className="cogita-user-kicker">{copy.cogita.library.revision.live.participantsTitle}</p>
+                            </div>
+                          </div>
+                          <div className="cogita-share-list">
+                            {detailParticipants.length ? (
+                              detailParticipants.map((participant) => (
+                                <div key={participant.participantId} className="cogita-share-row">
+                                  <div>
+                                    <strong>{participant.displayName}</strong>
+                                    <div className="cogita-share-meta">
+                                      {copy.cogita.library.revision.live.participantPointsLabel}: {participant.score} {copy.cogita.library.revision.live.scoreUnit}
+                                    </div>
+                                    <div className="cogita-share-meta">
+                                      {participant.isConnected
+                                        ? copy.cogita.library.revision.live.connectedLabel
+                                        : copy.cogita.library.revision.live.disconnectedLabel}
+                                    </div>
+                                  </div>
+                                  <div className="cogita-share-actions">
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() =>
+                                        setReloginParticipantId((previous) =>
+                                          previous === participant.participantId ? null : participant.participantId
+                                        )
+                                      }
+                                    >
+                                      {copy.cogita.library.revision.live.reloginQrAction}
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p>{copy.cogita.library.revision.live.noParticipants}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {reloginParticipant && reloginUrl ? (
+                          <div className="cogita-library-panel cogita-live-session-overview-panel">
+                            <div className="cogita-detail-header">
+                              <div>
+                                <p className="cogita-user-kicker">{copy.cogita.library.revision.live.reloginQrAction}</p>
+                                <h3 className="cogita-detail-title">{reloginParticipant.displayName}</h3>
+                              </div>
+                            </div>
+                            <div className="cogita-live-relogin-qr">
+                              <div className="cogita-live-relogin-qr-code">
+                                <QRCodeSVG value={reloginUrl} size={180} marginSize={2} />
+                              </div>
+                              <div className="cogita-field">
+                                <span>{copy.cogita.library.revision.live.joinUrlLabel}</span>
+                                <input readOnly value={reloginUrl} />
+                              </div>
+                              <p className="cogita-help">{copy.cogita.library.revision.live.reloginQrHelp}</p>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="cogita-library-panel cogita-live-session-overview-panel">
+                          <div className="cogita-detail-header">
+                            <div>
+                              <p className="cogita-user-kicker">{copy.cogita.library.revision.live.detailLaunchTitle}</p>
+                            </div>
+                          </div>
+                          <div className="cogita-form-actions">
+                            {joinUrl ? (
+                              <a className="ghost" href={`${joinUrl}?layout=fullscreen`} target="_blank" rel="noreferrer">
+                                {copy.cogita.library.revision.live.openLoginWallAction}
+                              </a>
+                            ) : null}
+                            {hostUrl ? (
+                              <a className="ghost" href={`${hostUrl}&layout=fullscreen`} target="_blank" rel="noreferrer">
+                                {copy.cogita.library.revision.live.openHostWallAction}
+                              </a>
+                            ) : null}
+                            {presenterUrl ? (
+                              <a className="ghost" href={`${presenterUrl}?layout=fullscreen`} target="_blank" rel="noreferrer">
+                                {copy.cogita.library.revision.live.openScreenWallAction}
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+
                         <div className="cogita-form-actions">
                           <button type="button" className="ghost" onClick={() => onRequestEdit?.(attachedSession.sessionId)}>
                             {copy.cogita.workspace.infoActions.edit}
                           </button>
-                          {hostUrl ? (
-                            <a className="ghost" href={hostUrl}>
-                              Host
-                            </a>
-                          ) : null}
-                          {presenterUrl ? (
-                            <a className="ghost" href={presenterUrl} target="_blank" rel="noreferrer">
-                              Screen
-                            </a>
-                          ) : null}
-                          {joinUrl ? (
-                            <a className="ghost" href={joinUrl} target="_blank" rel="noreferrer">
-                              Login
-                            </a>
-                          ) : null}
                         </div>
                       </>
                     ) : null}
@@ -950,7 +1064,7 @@ export function CogitaRevisionLiveSessionsPage({
                 ) : null}
               </div>
 
-              {mode === 'search' || mode === 'detail' ? (
+              {mode === 'search' ? (
                 <div className="cogita-library-panel">
                   <section className="cogita-library-detail">
                     <div className="cogita-detail-header">
