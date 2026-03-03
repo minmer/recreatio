@@ -3245,6 +3245,28 @@
   cursor: not-allowed;
 }
 
+.portal-page.cogita .cta[disabled],
+.cogita-user .cta[disabled],
+.cogita-library .cta[disabled],
+.cogita-library-dashboard .cta[disabled] {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(172, 196, 222, 0.92);
+  background: rgba(22, 44, 70, 0.9);
+  border: 1px solid rgba(98, 138, 182, 0.4);
+  box-shadow: none;
+}
+
+.portal-page.cogita .cta.ghost[disabled],
+.cogita-user .cta.ghost[disabled],
+.cogita-library .cta.ghost[disabled],
+.cogita-library-dashboard .cta.ghost[disabled] {
+  opacity: 1;
+  color: rgba(176, 206, 236, 0.95);
+  background: rgba(10, 26, 46, 0.72);
+  border: 1px solid rgba(120, 170, 220, 0.4);
+}
+
 .cogita-revision-settings-form .cogita-form-actions {
   margin-top: 0.85rem;
   margin-bottom: 0.85rem;
