@@ -683,7 +683,11 @@ export function CogitaLiveHostWallPage({
     try {
       return await operation(effectiveHostSecret);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 403) {
+      const statusCode =
+        typeof error === 'object' && error !== null && 'status' in error
+          ? Number((error as { status?: unknown }).status)
+          : NaN;
+      if (statusCode === 403 || (error instanceof ApiError && error.status === 403)) {
         const refreshed = await reattachHostSession();
         if (refreshed) {
           return operation(refreshed);
