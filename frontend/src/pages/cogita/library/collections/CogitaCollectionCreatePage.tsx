@@ -105,6 +105,7 @@ export function CogitaCollectionCreatePage({
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving'>('idle');
   const draftAppliedRef = useRef<string | null>(null);
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -266,12 +267,14 @@ export function CogitaCollectionCreatePage({
   };
 
   const handleCreate = async () => {
+    if (saveStatus === 'saving') return;
     setStatusMessage(null);
     if (!name.trim()) {
       setStatusMessage(copy.cogita.library.collections.saveRequiredName);
       return;
     }
 
+    setSaveStatus('saving');
     try {
       const graphPayload = {
         nodes: nodes.map((node) => ({
@@ -323,6 +326,8 @@ export function CogitaCollectionCreatePage({
       }
     } catch {
       setStatusMessage(activeCollectionId ? copy.cogita.library.graph.saveFail : copy.cogita.library.collections.saveFail);
+    } finally {
+      setSaveStatus('idle');
     }
   };
 
@@ -361,6 +366,11 @@ export function CogitaCollectionCreatePage({
                     placeholder={copy.cogita.library.collections.notesPlaceholder}
                   />
                 </label>
+                <div className="cogita-form-actions">
+                  <button type="button" className="cta" onClick={() => void handleCreate()} disabled={saveStatus === 'saving'}>
+                    {activeCollectionId ? copy.cogita.library.actions.saveCollection : copy.cogita.library.actions.createCollection}
+                  </button>
+                </div>
                 {statusMessage ? <p className="cogita-help">{statusMessage}</p> : null}
 
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.palette}</p>
