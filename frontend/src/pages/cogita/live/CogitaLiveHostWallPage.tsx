@@ -531,6 +531,7 @@ export function CogitaLiveHostWallPage({
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
+  const initialAttachKeyRef = useRef<string>('');
   const autoActionLockRef = useRef<string | null>(null);
   const streakByParticipantRef = useRef<Record<string, number>>({});
   const scoredRoundKeysRef = useRef<Set<string>>(new Set());
@@ -710,7 +711,17 @@ export function CogitaLiveHostWallPage({
   };
 
   useEffect(() => {
-    void pollSession();
+    const attachKey = `${libraryId}:${sessionId}`;
+    if (initialAttachKeyRef.current !== attachKey) {
+      initialAttachKeyRef.current = attachKey;
+      void reattachHostSession().then((secret) => {
+        if (!secret) {
+          void pollSession();
+        }
+      });
+    } else {
+      void pollSession();
+    }
     const id = window.setInterval(pollSession, 1200);
     return () => window.clearInterval(id);
   }, [libraryId, sessionId, effectiveHostSecret]);
