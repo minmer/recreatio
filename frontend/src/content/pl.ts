@@ -1179,6 +1179,7 @@ export const pl: Copy = {
           reloginQrHelp: 'Zeskanuj kod na nowym urządzeniu i dołącz tą samą nazwą uczestnika.',
           participantPointsLabel: 'Punkty',
           newSessionAction: 'Nowa sesja',
+          resetSessionAction: 'Resetuj sesję',
           refreshLinksAction: 'Odśwież linki',
           closeSessionAction: 'Zamknij sesję',
           startTimerAction: 'Start timera',

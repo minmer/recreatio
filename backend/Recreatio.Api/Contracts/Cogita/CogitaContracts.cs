@@ -475,6 +475,7 @@ public sealed record CogitaLiveRevisionReloginRequestCreateResponse(
 public sealed record CogitaLiveRevisionPublicStateResponse(
     Guid SessionId,
     string SessionMode,
+    string? Title,
     string? ParticipantViewMode,
     JsonElement? SessionSettings,
     string Status,

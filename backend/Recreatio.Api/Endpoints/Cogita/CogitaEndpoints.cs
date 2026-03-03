@@ -5676,6 +5676,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaLiveRevisionPublicStateResponse(
                 session.Id,
                 meta.SessionMode,
+                meta.Title,
                 meta.ParticipantViewMode,
                 meta.SessionSettings,
                 session.Status,

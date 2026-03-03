@@ -879,6 +879,7 @@ export type Copy = {
           reloginQrHelp: string;
           participantPointsLabel: string;
           newSessionAction: string;
+          resetSessionAction: string;
           refreshLinksAction: string;
           closeSessionAction: string;
           startTimerAction: string;

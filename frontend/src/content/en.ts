@@ -1179,6 +1179,7 @@ export const en: Copy = {
           reloginQrHelp: 'Scan on the new device and join again with the same participant name.',
           participantPointsLabel: 'Points',
           newSessionAction: 'New session',
+          resetSessionAction: 'Reset session',
           refreshLinksAction: 'Refresh links',
           closeSessionAction: 'Close session',
           startTimerAction: 'Start timer',

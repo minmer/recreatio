@@ -93,8 +93,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const sessionTitle = useMemo(() => {
     const rawTitle = (state as { title?: unknown } | null)?.title;
     if (typeof rawTitle === 'string' && rawTitle.trim()) return rawTitle.trim();
-    return code;
-  }, [code, state]);
+    return liveCopy.joinTitle;
+  }, [liveCopy.joinTitle, state]);
   const promptKey = useMemo(
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]

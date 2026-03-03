@@ -1179,6 +1179,7 @@ export const de: Copy = {
           reloginQrHelp: 'Auf dem neuen Gerät scannen und mit demselben Teilnehmendennamen erneut beitreten.',
           participantPointsLabel: 'Punkte',
           newSessionAction: 'Neue Sitzung',
+          resetSessionAction: 'Sitzung zurücksetzen',
           refreshLinksAction: 'Links aktualisieren',
           closeSessionAction: 'Sitzung schließen',
           startTimerAction: 'Timer starten',

@@ -859,6 +859,7 @@ export type CogitaLiveRevisionReloginRequestCreateResponse = {
 export type CogitaLiveRevisionPublicState = {
   sessionId: string;
   sessionMode: string;
+  title?: string | null;
   participantViewMode?: string | null;
   sessionSettings?: Record<string, unknown> | null;
   status: string;

@@ -689,6 +689,36 @@ export function CogitaLiveRevisionHostPage(props: {
           return;
         }
 
+        if (typeof localStorage !== 'undefined') {
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw) as { sessionId?: string; hostSecret?: string; code?: string };
+              if (parsed.sessionId && parsed.hostSecret) {
+                const attached = await getCogitaLiveRevisionSession({
+                  libraryId,
+                  sessionId: parsed.sessionId,
+                  hostSecret: parsed.hostSecret
+                });
+                if (canceled) return;
+                const merged = mergeHostSecrets(attached, null, {
+                  hostSecret: parsed.hostSecret,
+                  code: parsed.code
+                });
+                setSession(merged);
+                localStorage.setItem(
+                  storageKey,
+                  JSON.stringify({ sessionId: merged.sessionId, hostSecret: merged.hostSecret, code: merged.code })
+                );
+                setStatus('ready');
+                return;
+              }
+            } catch {
+              // ignore invalid local session cache and create a fresh one below
+            }
+          }
+        }
+
         const created = await createCogitaLiveRevisionSession({
           libraryId,
           revisionId,
@@ -1600,6 +1630,49 @@ export function CogitaLiveRevisionHostPage(props: {
                       </button>
                     </div>
                     <p className="cogita-help">{formatLive(liveCopy.roundsLabel, { count: rounds.length })}</p>
+                    {sessionStage === 'lobby' ? (
+                      <>
+                        <p className="cogita-user-kicker">{liveCopy.participantsTitle}</p>
+                        <div className="cogita-live-participant-add">
+                          <input
+                            value={newParticipantName}
+                            onChange={(event) => setNewParticipantName(event.target.value)}
+                            placeholder={liveCopy.addParticipantPlaceholder}
+                          />
+                          <button
+                            type="button"
+                            className="cta ghost"
+                            onClick={handleAddParticipant}
+                            disabled={!newParticipantName.trim() || participantBusy === 'add'}
+                          >
+                            {liveCopy.addParticipantAction}
+                          </button>
+                        </div>
+                        <div className="cogita-share-list">
+                          {session?.participants.map((participant) => (
+                            <div className="cogita-share-row" key={participant.participantId}>
+                              <div>
+                                <strong>{participant.displayName}</strong>
+                                <div className="cogita-share-meta">
+                                  {participant.isConnected
+                                    ? liveCopy.connectedLabel
+                                    : liveCopy.disconnectedLabel}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => handleRemoveParticipant(participant.participantId)}
+                                disabled={participantBusy === participant.participantId}
+                              >
+                                {liveCopy.removeParticipantAction}
+                              </button>
+                            </div>
+                          ))}
+                          {session && session.participants.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
+                        </div>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -1687,7 +1760,7 @@ export function CogitaLiveRevisionHostPage(props: {
                     </button>
                   </div>
                 ) : null}
-                {sessionStage !== 'finished' ? (
+                {sessionStage !== 'finished' && sessionStage !== 'lobby' ? (
                   <>
                     <p className="cogita-user-kicker">{liveCopy.participantsTitle}</p>
                     <div className="cogita-live-participant-add">

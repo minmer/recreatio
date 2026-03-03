@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   attachCogitaLiveRevisionSession,
+  closeCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
@@ -83,7 +84,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [attachedSession, setAttachedSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [reloginParticipantId, setReloginParticipantId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save'>('none');
+  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
   const baseHref = `/#/cogita/library/${libraryId}`;
@@ -431,6 +432,38 @@ export function CogitaRevisionLiveSessionsPage({
       if (mode === 'edit') {
         onRequestOverview?.(sessionId);
       }
+    } catch {
+      setMessage(copy.cogita.library.revision.shareError);
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const resetSession = async () => {
+    if (!attachedSession?.sessionId || !attachedSession?.hostSecret) return;
+    setBusyAction('reset');
+    setMessage(null);
+    try {
+      await closeCogitaLiveRevisionSession({
+        libraryId,
+        sessionId: attachedSession.sessionId,
+        hostSecret: attachedSession.hostSecret
+      });
+
+      const nextRules = parseLiveRules(attachedSession.sessionSettings);
+      const created = await createCogitaLiveRevisionSession({
+        libraryId,
+        revisionId,
+        title: (selectedItem?.title ?? revisionName)?.trim() || null,
+        sessionMode: (attachedSession.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as 'simultaneous' | 'asynchronous',
+        hostViewMode: FIXED_HOST_VIEW_MODE,
+        participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
+        sessionSettings: withLiveRulesSettings(nextRules)
+      });
+
+      await loadSessions();
+      setAttachedSession(null);
+      onOpenSession?.(created.sessionId);
     } catch {
       setMessage(copy.cogita.library.revision.shareError);
     } finally {
@@ -1127,6 +1160,14 @@ export function CogitaRevisionLiveSessionsPage({
                                 {copy.cogita.library.revision.live.openScreenWallAction}
                               </a>
                             ) : null}
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => void resetSession()}
+                              disabled={busyAction === 'reset'}
+                            >
+                              {copy.cogita.library.revision.live.resetSessionAction}
+                            </button>
                           </div>
                         </div>
 
