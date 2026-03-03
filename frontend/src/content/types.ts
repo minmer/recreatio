@@ -911,14 +911,18 @@ export type Copy = {
           bonusTimerStartRound: string;
           basePointsLabel: string;
           firstCorrectBonusLabel: string;
+          wrongAnswerPenaltyLabel: string;
+          firstWrongPenaltyLabel: string;
           speedBonusEnabledLabel: string;
           speedBonusMaxLabel: string;
           speedGrowthLabel: string;
           streakBaseBonusLabel: string;
+          streakBonusEnabledLabel: string;
           streakGrowthLabel: string;
           streakLimitLabel: string;
           presetLabel: string;
           presetBalancedDuel: string;
+          presetFirstStrike: string;
           presetSprintRace: string;
           presetAccuracyFocus: string;
           presetStreakMaster: string;
@@ -939,6 +943,9 @@ export type Copy = {
           summaryBonusFirst: string;
           summaryBonusSpeed: string;
           summaryBonusStreak: string;
+          summaryWrongPenalty: string;
+          summaryFirstWrongPenalty: string;
+          summaryNoWrongPenalty: string;
           summaryBonusSpeedDisabled: string;
           summaryBonusStreakDisabled: string;
           summaryEvaluationFlow: string;

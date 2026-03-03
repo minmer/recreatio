@@ -1,0 +1,131 @@
+import { useEffect, useMemo, useState } from 'react';
+import { getCogitaLiveRevisionPublicState, type CogitaLiveRevisionPublicState } from '../../../lib/api';
+import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
+import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
+import type { Copy } from '../../../content/types';
+import type { RouteKey } from '../../../types/navigation';
+import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
+
+export function CogitaLivePublicWallPage({
+  copy,
+  code
+}: {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  code: string;
+}) {
+  const liveCopy = copy.cogita.library.revision.live;
+  const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
+  const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
+  const promptTimerEndMs = useMemo(() => {
+    const raw = typeof prompt?.actionTimerEndsUtc === 'string' ? Date.parse(prompt.actionTimerEndsUtc) : NaN;
+    return Number.isFinite(raw) ? raw : null;
+  }, [prompt?.actionTimerEndsUtc]);
+  const promptTimerTotalSeconds = useMemo(() => {
+    const raw = Number(prompt?.actionTimerSeconds ?? 0);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return Math.max(1, Math.min(600, Math.round(raw)));
+  }, [prompt?.actionTimerSeconds]);
+  const timerRemainingMs = promptTimerEndMs == null ? null : Math.max(0, promptTimerEndMs - nowTick);
+  const timerProgress =
+    timerRemainingMs == null || promptTimerTotalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
+
+  useEffect(() => {
+    if (promptTimerEndMs == null) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [promptTimerEndMs]);
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = async () => {
+      try {
+        const next = await getCogitaLiveRevisionPublicState({ code });
+        if (!mounted) return;
+        setState(next);
+        setStatus('ready');
+      } catch {
+        if (!mounted) return;
+        setStatus('error');
+      }
+    };
+    void poll();
+    const id = window.setInterval(poll, 1200);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, [code]);
+
+  return (
+    <CogitaLiveWallLayout
+      title={liveCopy.hostTitle}
+      subtitle={liveCopy.hostKicker}
+      left={
+        <div className="cogita-live-wall-stack">
+          {prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
+            <div className="cogita-live-timer">
+              <div className="cogita-live-timer-head">
+                <span>{liveCopy.timerLabel}</span>
+                <strong>{`${Math.max(0, Math.ceil((timerRemainingMs ?? 0) / 1000))}s`}</strong>
+              </div>
+              <div className="cogita-live-timer-track">
+                <span style={{ width: `${Math.round(timerProgress * 100)}%` }} />
+              </div>
+            </div>
+          ) : null}
+          <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}>
+            <CogitaLivePromptCard
+              prompt={prompt}
+              revealExpected={reveal?.expected}
+              mode="readonly"
+              labels={{
+                answerLabel: copy.cogita.library.revision.answerLabel,
+                correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
+                trueLabel: liveCopy.trueLabel,
+                falseLabel: liveCopy.falseLabel,
+                fragmentLabel: liveCopy.fragmentLabel,
+                correctFragmentLabel: liveCopy.correctFragmentLabel,
+                participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                unsupportedPromptType: liveCopy.unsupportedPromptType,
+                waitingForReveal: liveCopy.waitingForRevealLabel,
+                selectedPaths: liveCopy.selectedPathsLabel,
+                removePath: liveCopy.removePathAction,
+                columnPrefix: liveCopy.columnPrefixLabel
+              }}
+            />
+          </CogitaCheckcardSurface>
+        </div>
+      }
+      right={
+        <div className="cogita-live-wall-stack">
+          <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
+          <div className="cogita-share-list">
+            {(state?.scoreboard ?? []).map((row) => (
+              <div className="cogita-share-row" key={row.participantId}>
+                <div><strong>{row.displayName}</strong></div>
+                <div className="cogita-share-meta">{`${row.score} ${liveCopy.scoreUnit}`}</div>
+              </div>
+            ))}
+            {status === 'error' ? <p>{liveCopy.connectionError}</p> : null}
+            {status === 'ready' && (state?.scoreboard.length ?? 0) === 0 ? <p>{liveCopy.noParticipants}</p> : null}
+          </div>
+        </div>
+      }
+    />
+  );
+}
+

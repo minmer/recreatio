@@ -2163,6 +2163,72 @@
   background: #fff;
 }
 
+.cogita-live-wall {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #041224;
+  color: rgba(236, 246, 255, 0.95);
+  overflow: hidden;
+}
+
+.cogita-live-wall-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cogita-live-wall-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cogita-live-wall-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.cogita-live-wall-panel {
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.24);
+  background: rgba(8, 20, 36, 0.78);
+  padding: 0.75rem;
+  overflow: hidden;
+}
+
+.cogita-live-wall-stack {
+  display: grid;
+  gap: 0.65rem;
+  height: 100%;
+  min-height: 0;
+  align-content: start;
+}
+
+.cogita-live-wall-qr {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (orientation: portrait) {
+  .cogita-live-wall-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 .cogita-details-grid-head {
   background: rgba(22, 44, 70, 0.52);
   color: rgba(201, 221, 246, 0.9);

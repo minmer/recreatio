@@ -1,5 +1,5 @@
 export type BonusGrowthMode = 'linear' | 'exponential' | 'limited';
-export type FirstAnswerAction = 'none' | 'start_timer' | 'reveal';
+export type FirstAnswerAction = 'none' | 'start_timer' | 'reveal' | 'next';
 export type AllAnsweredAction = 'none' | 'reveal' | 'next';
 export type TimerExpireAction = 'none' | 'reveal' | 'next';
 
@@ -29,6 +29,8 @@ export type LiveRules = {
   scoring: {
     baseCorrect: number;
     firstCorrectBonus: number;
+    wrongAnswerPenalty: number;
+    firstWrongPenalty: number;
     streakBaseBonus: number;
     streakGrowth: BonusGrowthMode;
     streakLimit: number;
@@ -39,8 +41,8 @@ export const DEFAULT_LIVE_RULES: LiveRules = {
   firstAnswerAction: 'start_timer',
   allAnsweredAction: 'reveal',
   roundTimer: {
-    enabled: false,
-    seconds: 30,
+    enabled: true,
+    seconds: 60,
     onExpire: 'reveal'
   },
   actionTimer: {
@@ -61,6 +63,8 @@ export const DEFAULT_LIVE_RULES: LiveRules = {
   scoring: {
     baseCorrect: 1000,
     firstCorrectBonus: 500,
+    wrongAnswerPenalty: 0,
+    firstWrongPenalty: 0,
     streakBaseBonus: 1000,
     streakGrowth: 'limited',
     streakLimit: 5
@@ -69,6 +73,7 @@ export const DEFAULT_LIVE_RULES: LiveRules = {
 
 export type LivePresetId =
   | 'balanced_duel'
+  | 'first_strike'
   | 'sprint_race'
   | 'accuracy_focus'
   | 'streak_master'
@@ -93,11 +98,26 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
     rules: {
       firstAnswerAction: 'start_timer',
       allAnsweredAction: 'reveal',
-      roundTimer: { enabled: false, seconds: 30, onExpire: 'reveal' },
+      roundTimer: { enabled: true, seconds: 60, onExpire: 'reveal' },
       actionTimer: { enabled: true, seconds: 10, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 500, growth: 'exponential' },
-      scoring: { baseCorrect: 1000, firstCorrectBonus: 500, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
+      scoring: { baseCorrect: 1000, firstCorrectBonus: 500, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
+    }
+  },
+  {
+    id: 'first_strike',
+    sessionMode: 'simultaneous',
+    hostViewMode: 'question',
+    participantViewMode: 'fullscreen',
+    rules: {
+      firstAnswerAction: 'next',
+      allAnsweredAction: 'none',
+      roundTimer: { enabled: false, seconds: 20, onExpire: 'none' },
+      actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
+      bonusTimer: { enabled: false, seconds: 10, startMode: 'first_answer' },
+      speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
+      scoring: { baseCorrect: 1500, firstCorrectBonus: 0, wrongAnswerPenalty: 1000, firstWrongPenalty: 500, streakBaseBonus: 0, streakGrowth: 'linear', streakLimit: 5 }
     }
   },
   {
@@ -112,7 +132,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       actionTimer: { enabled: true, seconds: 8, onExpire: 'next' },
       bonusTimer: { enabled: true, seconds: 8, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 700, growth: 'exponential' },
-      scoring: { baseCorrect: 900, firstCorrectBonus: 600, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4 }
+      scoring: { baseCorrect: 900, firstCorrectBonus: 600, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4 }
     }
   },
   {
@@ -127,7 +147,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       actionTimer: { enabled: false, seconds: 20, onExpire: 'none' },
       bonusTimer: { enabled: false, seconds: 20, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
-      scoring: { baseCorrect: 1200, firstCorrectBonus: 200, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6 }
+      scoring: { baseCorrect: 1200, firstCorrectBonus: 200, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6 }
     }
   },
   {
@@ -142,7 +162,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       actionTimer: { enabled: true, seconds: 12, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 12, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 300, growth: 'linear' },
-      scoring: { baseCorrect: 800, firstCorrectBonus: 300, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6 }
+      scoring: { baseCorrect: 800, firstCorrectBonus: 300, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6 }
     }
   },
   {
@@ -154,10 +174,10 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       firstAnswerAction: 'none',
       allAnsweredAction: 'reveal',
       roundTimer: { enabled: true, seconds: 20, onExpire: 'reveal' },
-      actionTimer: { enabled: true, seconds: 15, onExpire: 'reveal' },
+      actionTimer: { enabled: false, seconds: 15, onExpire: 'reveal' },
       bonusTimer: { enabled: true, seconds: 15, startMode: 'round_start' },
       speedBonus: { enabled: true, maxPoints: 250, growth: 'linear' },
-      scoring: { baseCorrect: 1100, firstCorrectBonus: 250, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7 }
+      scoring: { baseCorrect: 1100, firstCorrectBonus: 250, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7 }
     }
   },
   {
@@ -172,7 +192,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
-      scoring: { baseCorrect: 1000, firstCorrectBonus: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
+      scoring: { baseCorrect: 1000, firstCorrectBonus: 0, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
     }
   }
 ];
@@ -244,7 +264,7 @@ export function parseLiveRules(settings: unknown): LiveRules {
       : {};
 
   const firstAnswerAction: FirstAnswerAction =
-    liveRulesRoot.firstAnswerAction === 'reveal' || liveRulesRoot.firstAnswerAction === 'none'
+    liveRulesRoot.firstAnswerAction === 'reveal' || liveRulesRoot.firstAnswerAction === 'none' || liveRulesRoot.firstAnswerAction === 'next'
       ? liveRulesRoot.firstAnswerAction
       : 'start_timer';
   const allAnsweredAction: AllAnsweredAction =
@@ -259,6 +279,7 @@ export function parseLiveRules(settings: unknown): LiveRules {
     roundTimerRoot.onExpire === 'none' || roundTimerRoot.onExpire === 'next'
       ? roundTimerRoot.onExpire
       : 'reveal';
+  const parsedSpeedEnabled = speedBonusRoot.enabled == null ? DEFAULT_LIVE_RULES.speedBonus.enabled : Boolean(speedBonusRoot.enabled);
 
   return {
     firstAnswerAction,
@@ -266,26 +287,33 @@ export function parseLiveRules(settings: unknown): LiveRules {
     roundTimer: {
       enabled: roundTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.roundTimer.enabled : Boolean(roundTimerRoot.enabled),
       seconds: clampInt(Number(roundTimerRoot.seconds ?? DEFAULT_LIVE_RULES.roundTimer.seconds), 3, 600),
-      onExpire: roundOnExpire
+      onExpire: roundOnExpire === 'none' ? 'reveal' : roundOnExpire
     },
     actionTimer: {
-      enabled: actionTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.actionTimer.enabled : Boolean(actionTimerRoot.enabled),
+      enabled:
+        firstAnswerAction === 'start_timer'
+          ? actionTimerRoot.enabled == null
+            ? DEFAULT_LIVE_RULES.actionTimer.enabled
+            : Boolean(actionTimerRoot.enabled)
+          : false,
       seconds: clampInt(Number(actionTimerRoot.seconds ?? DEFAULT_LIVE_RULES.actionTimer.seconds), 3, 600),
-      onExpire,
+      onExpire: onExpire === 'none' ? 'reveal' : onExpire,
     },
     bonusTimer: {
-      enabled: bonusTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.bonusTimer.enabled : Boolean(bonusTimerRoot.enabled),
+      enabled: parsedSpeedEnabled && (bonusTimerRoot.enabled == null ? DEFAULT_LIVE_RULES.bonusTimer.enabled : Boolean(bonusTimerRoot.enabled)),
       seconds: clampInt(Number(bonusTimerRoot.seconds ?? DEFAULT_LIVE_RULES.bonusTimer.seconds), 1, 600),
       startMode: bonusTimerRoot.startMode === 'round_start' ? 'round_start' : 'first_answer'
     },
     speedBonus: {
-      enabled: speedBonusRoot.enabled == null ? DEFAULT_LIVE_RULES.speedBonus.enabled : Boolean(speedBonusRoot.enabled),
+      enabled: parsedSpeedEnabled,
       maxPoints: clampInt(Number(speedBonusRoot.maxPoints ?? DEFAULT_LIVE_RULES.speedBonus.maxPoints), 0, 500000),
       growth: normalizeGrowthMode(speedBonusRoot.growth)
     },
     scoring: {
       baseCorrect: clampInt(Number(scoringRoot.baseCorrect ?? DEFAULT_LIVE_RULES.scoring.baseCorrect), 0, 500000),
       firstCorrectBonus: clampInt(Number(scoringRoot.firstCorrectBonus ?? DEFAULT_LIVE_RULES.scoring.firstCorrectBonus), 0, 500000),
+      wrongAnswerPenalty: clampInt(Number(scoringRoot.wrongAnswerPenalty ?? DEFAULT_LIVE_RULES.scoring.wrongAnswerPenalty), 0, 500000),
+      firstWrongPenalty: clampInt(Number(scoringRoot.firstWrongPenalty ?? DEFAULT_LIVE_RULES.scoring.firstWrongPenalty), 0, 500000),
       streakBaseBonus: clampInt(Number(scoringRoot.streakBaseBonus ?? DEFAULT_LIVE_RULES.scoring.streakBaseBonus), 0, 500000),
       streakGrowth: normalizeGrowthMode(scoringRoot.streakGrowth),
       streakLimit: clampInt(Number(scoringRoot.streakLimit ?? DEFAULT_LIVE_RULES.scoring.streakLimit), 1, 200)

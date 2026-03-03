@@ -543,7 +543,19 @@ export function CogitaLiveRevisionHostPage(props: {
     finished: liveCopy.statusFinished,
     closed: 'Closed'
   };
-  const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : '✓');
+  const factorIcon = (factor: string) =>
+    factor === 'first'
+      ? '⚡'
+      : factor === 'streak'
+        ? '🔥'
+        : factor === 'speed'
+          ? '⏱'
+          : factor === 'wrong'
+            ? '✖'
+            : factor === 'first-wrong'
+              ? '⚠'
+              : '✓';
+  const formatPointsDelta = (value: number) => (value > 0 ? `+${value}` : String(value));
 
   const mergeHostSecrets = (
     next: CogitaLiveRevisionSession,
@@ -812,6 +824,13 @@ export function CogitaLiveRevisionHostPage(props: {
       });
       return;
     }
+    if (liveRules.firstAnswerAction === 'next' && firstAnswered) {
+      executeOnce('first-next', async () => {
+        await handleReveal({ includeRoundScoringInReveal: false });
+        await handleNext();
+      });
+      return;
+    }
 
     if (allAnswered) {
       if (liveRules.allAnsweredAction === 'reveal') {
@@ -822,7 +841,7 @@ export function CogitaLiveRevisionHostPage(props: {
       }
       if (liveRules.allAnsweredAction === 'next') {
         executeOnce('all-next', async () => {
-          await handleReveal();
+          await handleReveal({ includeRoundScoringInReveal: false });
           await handleNext();
         });
         return;
@@ -838,7 +857,7 @@ export function CogitaLiveRevisionHostPage(props: {
       }
       if (liveRules.actionTimer.onExpire === 'next') {
         executeOnce('timer-next', async () => {
-          await handleReveal();
+          await handleReveal({ includeRoundScoringInReveal: false });
           await handleNext();
         });
       }
@@ -999,8 +1018,9 @@ export function CogitaLiveRevisionHostPage(props: {
     await publishRound(session?.currentRoundIndex ?? 0);
   };
 
-  const handleReveal = async () => {
+  const handleReveal = async (options?: { includeRoundScoringInReveal?: boolean }) => {
     if (!session || !currentRound) return;
+    const includeRoundScoringInReveal = options?.includeRoundScoringInReveal ?? true;
     const timerStartedMs = typeof publishedPrompt?.bonusTimerStartedUtc === 'string' ? Date.parse(publishedPrompt.bonusTimerStartedUtc) : NaN;
     const timerEndsMs = typeof publishedPrompt?.bonusTimerEndsUtc === 'string' ? Date.parse(publishedPrompt.bonusTimerEndsUtc) : NaN;
     const answerByParticipant = new Map(
@@ -1035,6 +1055,7 @@ export function CogitaLiveRevisionHostPage(props: {
 
     const firstCorrectParticipantId =
       answerOrder.find((answer) => isCorrectByParticipant.get(answer.participantId) === true)?.participantId ?? null;
+    const firstAnsweredParticipantId = answerOrder[0]?.participantId ?? null;
 
     const nextStreaks: Record<string, number> = { ...previousStreaks };
     const roundGain: Record<string, RoundGain> = {};
@@ -1042,8 +1063,18 @@ export function CogitaLiveRevisionHostPage(props: {
       const previousStreak = nextStreaks[row.participantId] ?? 0;
       if (!row.isCorrect) {
         nextStreaks[row.participantId] = 0;
-        roundGain[row.participantId] = { points: 0, factors: [], streak: 0, rankDelta: 0 };
-        return { participantId: row.participantId, isCorrect: false, pointsAwarded: 0 };
+        const answered = Boolean(row.submittedUtc);
+        const wrongPenalty = answered ? clampInt(liveRules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
+        const firstWrongPenalty =
+          answered && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
+            ? clampInt(liveRules.scoring.firstWrongPenalty, 0, 500000)
+            : 0;
+        const pointsAwarded = -(wrongPenalty + firstWrongPenalty);
+        const factors: string[] = [];
+        if (wrongPenalty > 0) factors.push('wrong');
+        if (firstWrongPenalty > 0) factors.push('first-wrong');
+        roundGain[row.participantId] = { points: pointsAwarded, factors, streak: 0, rankDelta: 0 };
+        return { participantId: row.participantId, isCorrect: false, pointsAwarded };
       }
 
       const factors: string[] = [];
@@ -1090,7 +1121,7 @@ export function CogitaLiveRevisionHostPage(props: {
         factors.push('streak');
       }
 
-      const safePoints = clampInt(points, 0, 100000);
+      const safePoints = clampInt(points, -500000, 500000);
       roundGain[row.participantId] = { points: safePoints, factors, streak: nextStreak, rankDelta: 0 };
       return { participantId: row.participantId, isCorrect: true, pointsAwarded: safePoints };
     });
@@ -1116,11 +1147,15 @@ export function CogitaLiveRevisionHostPage(props: {
     await pushState({
       status: 'revealed',
       revealVersion: afterScore.revealVersion + 1,
-      currentReveal: {
-        ...currentRound.reveal,
-        roundScoring: roundGain,
-        streakState: nextStreaks
-      }
+      currentReveal: includeRoundScoringInReveal
+        ? {
+            ...currentRound.reveal,
+            roundScoring: roundGain,
+            streakState: nextStreaks
+          }
+        : {
+            ...currentRound.reveal
+          }
     });
   };
 
@@ -1317,12 +1352,23 @@ export function CogitaLiveRevisionHostPage(props: {
                         <select
                           value={liveRules.firstAnswerAction}
                           onChange={(event) =>
-                            applyLiveRules((previous) => ({ ...previous, firstAnswerAction: event.target.value as FirstAnswerAction }))
+                            applyLiveRules((previous) => {
+                              const nextFirstAction = event.target.value as FirstAnswerAction;
+                              return {
+                                ...previous,
+                                firstAnswerAction: nextFirstAction,
+                                actionTimer: {
+                                  ...previous.actionTimer,
+                                  enabled: nextFirstAction === 'start_timer'
+                                }
+                              };
+                            })
                           }
                         >
                           <option value="none">{liveCopy.optionDoNothing}</option>
                           <option value="start_timer">{liveCopy.optionStartTimer}</option>
                           <option value="reveal">{liveCopy.optionRevealScore}</option>
+                          <option value="next">{liveCopy.optionRevealNext}</option>
                         </select>
                       </label>
                       <label className="cogita-field">
@@ -1338,52 +1384,40 @@ export function CogitaLiveRevisionHostPage(props: {
                           <option value="next">{liveCopy.optionRevealNext}</option>
                         </select>
                       </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerEnabledLabel}`}</span>
-                        <select
-                          value={liveRules.actionTimer.enabled ? 'yes' : 'no'}
-                          onChange={(event) =>
-                            applyLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, enabled: event.target.value === 'yes' }
-                            }))
-                          }
-                        >
-                          <option value="yes">{liveCopy.optionYes}</option>
-                          <option value="no">{liveCopy.optionNo}</option>
-                        </select>
-                      </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerSecondsLabel}`}</span>
-                        <input
-                          type="number"
-                          min={3}
-                          max={600}
-                          value={liveRules.actionTimer.seconds}
-                          onChange={(event) =>
-                            applyLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.onTimerExpiredLabel}`}</span>
-                        <select
-                          value={liveRules.actionTimer.onExpire}
-                          onChange={(event) =>
-                            applyLiveRules((previous) => ({
-                              ...previous,
-                              actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
-                            }))
-                          }
-                        >
-                          <option value="none">{liveCopy.optionDoNothing}</option>
-                          <option value="reveal">{liveCopy.optionRevealScore}</option>
-                          <option value="next">{liveCopy.optionRevealNext}</option>
-                        </select>
-                      </label>
+                      {liveRules.firstAnswerAction === 'start_timer' ? (
+                        <>
+                          <label className="cogita-field">
+                            <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.timerSecondsLabel}`}</span>
+                            <input
+                              type="number"
+                              min={3}
+                              max={600}
+                              value={liveRules.actionTimer.seconds}
+                              onChange={(event) =>
+                                applyLiveRules((previous) => ({
+                                  ...previous,
+                                  actionTimer: { ...previous.actionTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="cogita-field">
+                            <span>{`${liveCopy.actionTimerLabel} · ${liveCopy.onTimerExpiredLabel}`}</span>
+                            <select
+                              value={liveRules.actionTimer.onExpire}
+                              onChange={(event) =>
+                                applyLiveRules((previous) => ({
+                                  ...previous,
+                                  actionTimer: { ...previous.actionTimer, onExpire: event.target.value as TimerExpireAction }
+                                }))
+                              }
+                            >
+                              <option value="reveal">{liveCopy.optionRevealScore}</option>
+                              <option value="next">{liveCopy.optionRevealNext}</option>
+                            </select>
+                          </label>
+                        </>
+                      ) : null}
                       <label className="cogita-field">
                         <span>{liveCopy.basePointsLabel}</span>
                         <input
@@ -1410,6 +1444,36 @@ export function CogitaLiveRevisionHostPage(props: {
                             applyLiveRules((previous) => ({
                               ...previous,
                               scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="cogita-field">
+                        <span>{liveCopy.wrongAnswerPenaltyLabel}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={500000}
+                          value={liveRules.scoring.wrongAnswerPenalty}
+                          onChange={(event) =>
+                            applyLiveRules((previous) => ({
+                              ...previous,
+                              scoring: { ...previous.scoring, wrongAnswerPenalty: clampInt(Number(event.target.value), 0, 500000) }
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="cogita-field">
+                        <span>{liveCopy.firstWrongPenaltyLabel}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={500000}
+                          value={liveRules.scoring.firstWrongPenalty}
+                          onChange={(event) =>
+                            applyLiveRules((previous) => ({
+                              ...previous,
+                              scoring: { ...previous.scoring, firstWrongPenalty: clampInt(Number(event.target.value), 0, 500000) }
                             }))
                           }
                         />
@@ -1446,51 +1510,73 @@ export function CogitaLiveRevisionHostPage(props: {
                         </select>
                       </label>
                       <label className="cogita-field">
-                        <span>{liveCopy.streakBaseBonusLabel}</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={500000}
-                          value={liveRules.scoring.streakBaseBonus}
-                          onChange={(event) =>
-                            applyLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 500000) }
-                            }))
-                          }
-                        />
-                      </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.streakGrowthLabel}</span>
+                        <span>{liveCopy.streakBonusEnabledLabel}</span>
                         <select
-                          value={liveRules.scoring.streakGrowth}
+                          value={liveRules.scoring.streakBaseBonus > 0 ? 'yes' : 'no'}
                           onChange={(event) =>
                             applyLiveRules((previous) => ({
                               ...previous,
-                              scoring: { ...previous.scoring, streakGrowth: event.target.value as BonusGrowthMode }
+                              scoring: {
+                                ...previous.scoring,
+                                streakBaseBonus: event.target.value === 'yes' ? (previous.scoring.streakBaseBonus > 0 ? previous.scoring.streakBaseBonus : 1000) : 0
+                              }
                             }))
                           }
                         >
-                          <option value="linear">{liveCopy.optionLinear}</option>
-                          <option value="exponential">{liveCopy.optionExponential}</option>
-                          <option value="limited">{liveCopy.optionLimited}</option>
+                          <option value="yes">{liveCopy.optionYes}</option>
+                          <option value="no">{liveCopy.optionNo}</option>
                         </select>
                       </label>
-                      <label className="cogita-field">
-                        <span>{liveCopy.streakLimitLabel}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={200}
-                          value={liveRules.scoring.streakLimit}
-                          onChange={(event) =>
-                            applyLiveRules((previous) => ({
-                              ...previous,
-                              scoring: { ...previous.scoring, streakLimit: clampInt(Number(event.target.value), 1, 200) }
-                            }))
-                          }
-                        />
-                      </label>
+                      {liveRules.scoring.streakBaseBonus > 0 ? (
+                        <>
+                          <label className="cogita-field">
+                            <span>{liveCopy.streakBaseBonusLabel}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={500000}
+                              value={liveRules.scoring.streakBaseBonus}
+                              onChange={(event) =>
+                                applyLiveRules((previous) => ({
+                                  ...previous,
+                                  scoring: { ...previous.scoring, streakBaseBonus: clampInt(Number(event.target.value), 0, 500000) }
+                                }))
+                              }
+                            />
+                          </label>
+                          <label className="cogita-field">
+                            <span>{liveCopy.streakGrowthLabel}</span>
+                            <select
+                              value={liveRules.scoring.streakGrowth}
+                              onChange={(event) =>
+                                applyLiveRules((previous) => ({
+                                  ...previous,
+                                  scoring: { ...previous.scoring, streakGrowth: event.target.value as BonusGrowthMode }
+                                }))
+                              }
+                            >
+                              <option value="linear">{liveCopy.optionLinear}</option>
+                              <option value="exponential">{liveCopy.optionExponential}</option>
+                              <option value="limited">{liveCopy.optionLimited}</option>
+                            </select>
+                          </label>
+                          <label className="cogita-field">
+                            <span>{liveCopy.streakLimitLabel}</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={200}
+                              value={liveRules.scoring.streakLimit}
+                              onChange={(event) =>
+                                applyLiveRules((previous) => ({
+                                  ...previous,
+                                  scoring: { ...previous.scoring, streakLimit: clampInt(Number(event.target.value), 1, 200) }
+                                }))
+                              }
+                            />
+                          </label>
+                        </>
+                      ) : null}
                     </div>
                     <div className="cogita-field"><span>{liveCopy.joinCodeLabel}</span><input readOnly value={session.code} /></div>
                     <div className="cogita-field"><span>{liveCopy.joinUrlLabel}</span><input readOnly value={joinUrl} /></div>
@@ -1632,7 +1718,7 @@ export function CogitaLiveRevisionHostPage(props: {
                                 {answer ? liveCopy.answerStatusAnswered : liveCopy.answerStatusWaiting}
                                 {answer?.isCorrect === true ? ` · ${liveCopy.answerStatusCorrect}` : ''}
                                 {answer?.isCorrect === false ? ` · ${liveCopy.answerStatusIncorrect}` : ''}
-                                {gain && gain.points > 0 ? ` · +${gain.points} ${liveCopy.scoreUnit}` : ''}
+                                {gain && gain.points !== 0 ? ` · ${formatPointsDelta(gain.points)} ${liveCopy.scoreUnit}` : ''}
                                 {gain && gain.streak > 1 ? ` · ${liveCopy.streakLabel.toLowerCase()} ${gain.streak}` : ''}
                               </div>
                               {symbols.length > 0 ? (
@@ -1708,7 +1794,7 @@ export function CogitaLiveRevisionHostPage(props: {
                           </div>
                           <div className="cogita-share-meta">
                             {row.score} {liveCopy.scoreUnit}
-                            {gain && gain.points > 0 ? ` (+${gain.points})` : ''}
+                            {gain && gain.points !== 0 ? ` (${formatPointsDelta(gain.points)})` : ''}
                             {rankDelta > 0 ? ` ↑${rankDelta}` : rankDelta < 0 ? ` ↓${Math.abs(rankDelta)}` : ''}
                           </div>
                         </div>
