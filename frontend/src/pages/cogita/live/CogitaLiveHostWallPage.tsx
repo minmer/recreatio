@@ -29,6 +29,25 @@ function normalizeAnswer(answer: unknown, prompt: LivePrompt | null) {
   return { text: String(answer ?? '') };
 }
 
+function formatAnswer(answer: unknown) {
+  if (answer == null) return '-';
+  if (typeof answer === 'string') return answer;
+  if (typeof answer === 'number' || typeof answer === 'boolean') return String(answer);
+  try {
+    return JSON.stringify(answer);
+  } catch {
+    return String(answer);
+  }
+}
+
+type HostTimer = {
+  key: 'action' | 'bonus' | 'round';
+  label: string;
+  totalSeconds: number;
+  remainingMs: number;
+  progress: number;
+};
+
 export function CogitaLiveHostWallPage({
   copy,
   libraryId,
@@ -55,7 +74,9 @@ export function CogitaLiveHostWallPage({
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const prompt = (session?.currentPrompt as LivePrompt | undefined) ?? null;
+  const promptRoot = (prompt && typeof prompt === 'object' ? (prompt as Record<string, unknown>) : null);
   const reveal = (session?.currentReveal as Record<string, unknown> | undefined) ?? null;
   const rules = useMemo(() => parseLiveRules(session?.sessionSettings), [session?.sessionSettings]);
   const participantById = useMemo(() => new Map((session?.participants ?? []).map((p) => [p.participantId, p])), [session?.participants]);
@@ -66,6 +87,55 @@ export function CogitaLiveHostWallPage({
     return (session?.currentRoundAnswers ?? []).filter((row) => row.roundIndex === currentRound && (!cardKey || String(row.cardKey ?? '') === cardKey));
   }, [prompt?.cardKey, session?.currentRoundAnswers, session?.currentRoundIndex]);
   const revealExpected = reveal?.expected;
+  const answeredCount = roundAnswers.length;
+  const participantCount = session?.participants.length ?? 0;
+
+  const buildTimer = (config: {
+    key: HostTimer['key'];
+    label: string;
+    enabled: unknown;
+    endsUtc: unknown;
+    totalSeconds: unknown;
+  }): HostTimer | null => {
+    if (!Boolean(config.enabled)) return null;
+    const endsMs = typeof config.endsUtc === 'string' ? Date.parse(config.endsUtc) : NaN;
+    const total = Number(config.totalSeconds);
+    if (!Number.isFinite(endsMs) || !Number.isFinite(total) || total <= 0) return null;
+    const safeTotal = Math.max(1, Math.min(600, Math.round(total)));
+    const remainingMs = Math.max(0, endsMs - nowTick);
+    const progress = Math.max(0, Math.min(1, remainingMs / (safeTotal * 1000)));
+    return { key: config.key, label: config.label, totalSeconds: safeTotal, remainingMs, progress };
+  };
+
+  const timers = useMemo(() => {
+    if (!promptRoot) return [] as HostTimer[];
+    const next: HostTimer[] = [];
+    const actionTimer = buildTimer({
+      key: 'action',
+      label: liveCopy.actionTimerLabel,
+      enabled: promptRoot.actionTimerEnabled,
+      endsUtc: promptRoot.actionTimerEndsUtc,
+      totalSeconds: promptRoot.actionTimerSeconds
+    });
+    const roundTimer = buildTimer({
+      key: 'round',
+      label: liveCopy.roundTimerLabel,
+      enabled: promptRoot.roundTimerEnabled,
+      endsUtc: promptRoot.roundTimerEndsUtc,
+      totalSeconds: promptRoot.roundTimerSeconds
+    });
+    const bonusTimer = buildTimer({
+      key: 'bonus',
+      label: liveCopy.bonusTimerLabel,
+      enabled: promptRoot.bonusTimerEnabled,
+      endsUtc: promptRoot.bonusTimerEndsUtc,
+      totalSeconds: promptRoot.bonusTimerSeconds
+    });
+    if (actionTimer) next.push(actionTimer);
+    if (roundTimer) next.push(roundTimer);
+    if (bonusTimer) next.push(bonusTimer);
+    return next;
+  }, [liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
 
   const pollSession = async () => {
     try {
@@ -83,33 +153,43 @@ export function CogitaLiveHostWallPage({
     return () => window.clearInterval(id);
   }, [libraryId, sessionId, hostSecret]);
 
+  useEffect(() => {
+    if (timers.length === 0) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [timers.length]);
+
   const projected = useMemo(() => {
     if (!prompt || !revealExpected) return [] as Array<{ participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean }>;
     const firstAnsweredParticipantId = roundAnswers[0]?.participantId ?? null;
-    const processed = roundAnswers.map((row) => {
-      const participant = participantById.get(row.participantId);
-      if (!participant) return null;
-      const check = evaluateCheckcardAnswer({
-        prompt: prompt as unknown as Record<string, unknown>,
-        expected: revealExpected,
-        answer: normalizeAnswer(row.answer, prompt)
-      }).correct;
-      const wrongPenalty = !check ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
-      const firstWrongPenalty =
-        !check && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
-          ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
-          : 0;
-      const base = check ? rules.scoring.baseCorrect : -(wrongPenalty + firstWrongPenalty);
-      const current = scoresById.get(row.participantId) ?? participant.score ?? 0;
-      return {
-        participant,
-        current,
-        predicted: current + base,
-        correct: check
-      };
-    }).filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
+    const processed = roundAnswers
+      .map((row) => {
+        const participant = participantById.get(row.participantId);
+        if (!participant) return null;
+        const check = evaluateCheckcardAnswer({
+          prompt: prompt as unknown as Record<string, unknown>,
+          expected: revealExpected,
+          answer: normalizeAnswer(row.answer, prompt)
+        }).correct;
+        const wrongPenalty = !check ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
+        const firstWrongPenalty =
+          !check && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
+            ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
+            : 0;
+        const base = check ? rules.scoring.baseCorrect : -(wrongPenalty + firstWrongPenalty);
+        const current = scoresById.get(row.participantId) ?? participant.score ?? 0;
+        return {
+          participant,
+          current,
+          predicted: current + base,
+          correct: check
+        };
+      })
+      .filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
     return processed.sort((a, b) => b.predicted - a.predicted);
   }, [participantById, prompt, revealExpected, roundAnswers, rules.scoring.baseCorrect, rules.scoring.firstWrongPenalty, rules.scoring.wrongAnswerPenalty, scoresById]);
+
+  const projectionByParticipant = useMemo(() => new Map(projected.map((x) => [x.participant.participantId, x])), [projected]);
 
   const revealRound = async () => {
     if (!session) return;
@@ -189,15 +269,34 @@ export function CogitaLiveHostWallPage({
     <CogitaLiveWallLayout
       title={liveCopy.hostTitle}
       subtitle={liveCopy.hostKicker}
-      actions={
-        <div className="cogita-form-actions">
-          <button type="button" className="cta" onClick={() => void revealRound()} disabled={busy !== 'none'}>{liveCopy.checkAndReveal}</button>
-          <button type="button" className="ghost" onClick={() => void scoreRound()} disabled={busy !== 'none'}>{liveCopy.optionRevealScore}</button>
-          <button type="button" className="ghost" onClick={() => void nextRound()} disabled={busy !== 'none'}>{liveCopy.nextQuestionAction}</button>
-        </div>
-      }
       left={
         <div className="cogita-live-wall-stack">
+          <div className="cogita-live-timer-head">
+            <span>{liveCopy.currentRoundTitle}</span>
+            <strong>{`${answeredCount}/${participantCount}`}</strong>
+          </div>
+          {timers.map((timer) => (
+            <div className="cogita-live-timer" key={`host-timer:${timer.key}`}>
+              <div className="cogita-live-timer-head">
+                <span>{timer.label}</span>
+                <strong>{`${Math.max(0, Math.ceil(timer.remainingMs / 1000))}s`}</strong>
+              </div>
+              <div className="cogita-live-timer-track">
+                <span style={{ width: `${Math.round(timer.progress * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+          <div className="cogita-form-actions">
+            <button type="button" className="cta" onClick={() => void revealRound()} disabled={busy !== 'none'}>
+              {liveCopy.checkAndReveal}
+            </button>
+            <button type="button" className="ghost" onClick={() => void scoreRound()} disabled={busy !== 'none'}>
+              {liveCopy.optionRevealScore}
+            </button>
+            <button type="button" className="ghost" onClick={() => void nextRound()} disabled={busy !== 'none'}>
+              {liveCopy.nextQuestionAction}
+            </button>
+          </div>
           <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
             <CogitaLivePromptCard
               prompt={prompt}
@@ -248,30 +347,21 @@ export function CogitaLiveHostWallPage({
           <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
           <div className="cogita-share-list">
             {(session?.scoreboard ?? []).map((row) => {
-              const pred = projected.find((entry) => entry.participant.participantId === row.participantId);
+              const pred = projectionByParticipant.get(row.participantId);
               return (
-                <div className="cogita-share-row" key={row.participantId} data-state={pred?.correct ? 'correct' : undefined}>
+                <div className="cogita-share-row" key={row.participantId} data-state={pred?.correct ? 'correct' : pred ? 'incorrect' : undefined}>
                   <div>
                     <strong>{row.displayName}</strong>
-                    {pred ? <div className="cogita-share-meta">{`→ ${pred.predicted} ${liveCopy.scoreUnit}`}</div> : null}
+                    <div className="cogita-share-meta">{`${row.score} ${liveCopy.scoreUnit}`}</div>
                   </div>
-                  <div className="cogita-share-meta">{`${row.score} ${liveCopy.scoreUnit}`}</div>
+                  <div className="cogita-share-meta">{`→ ${(pred?.predicted ?? row.score)} ${liveCopy.scoreUnit}`}</div>
                 </div>
               );
             })}
+            {status === 'ready' && (session?.scoreboard.length ?? 0) === 0 ? <p>{liveCopy.noParticipants}</p> : null}
           </div>
         </div>
       }
     />
   );
 }
-  const formatAnswer = (answer: unknown) => {
-    if (answer == null) return '—';
-    if (typeof answer === 'string') return answer;
-    if (typeof answer === 'number' || typeof answer === 'boolean') return String(answer);
-    try {
-      return JSON.stringify(answer);
-    } catch {
-      return String(answer);
-    }
-  };

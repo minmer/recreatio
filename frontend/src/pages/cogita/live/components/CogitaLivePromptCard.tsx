@@ -57,6 +57,7 @@ export function CogitaLivePromptCard({
   prompt,
   revealExpected,
   revealedAnswer,
+  answerMask,
   surfaceState,
   mode,
   labels,
@@ -71,6 +72,7 @@ export function CogitaLivePromptCard({
   prompt: LivePrompt | null;
   revealExpected?: unknown;
   revealedAnswer?: unknown;
+  answerMask?: Uint8Array | null;
   surfaceState?: 'idle' | 'correct' | 'incorrect';
   mode: 'interactive' | 'readonly';
   labels?: Partial<LivePromptLabels>;
@@ -125,6 +127,30 @@ export function CogitaLivePromptCard({
     </div>
   );
 
+  const renderMaskedExpected = (expectedText: string) => {
+    if (!expectedText) return expectedText;
+    if (!answerMask || answerMask.length === 0) return expectedText;
+    const chars = expectedText.split('');
+    const maskValues = Array.from(answerMask);
+    const avg = Math.round(maskValues.reduce((sum, value) => sum + value, 0) / maskValues.length);
+    return chars.map((char, index) => {
+      const value = Math.max(0, Math.min(255, Math.round(maskValues[index] ?? avg)));
+      let red = 255;
+      let green = 0;
+      if (value <= 127) {
+        green = Math.round((value / 127) * 255);
+      } else {
+        green = 255;
+        red = Math.round(255 * (1 - (value - 127) / 128));
+      }
+      return (
+        <span key={`mask:${index}`} style={{ color: `rgb(${red}, ${green}, 0)` }}>
+          {char}
+        </span>
+      );
+    });
+  };
+
   if (kind === 'citation-fragment') {
     const revealedText = typeof revealedAnswer === 'string' ? revealedAnswer : '';
     const expectedText = String(revealExpected ?? '');
@@ -146,7 +172,7 @@ export function CogitaLivePromptCard({
             ) : null}
             <div className="cogita-share-row" data-state="correct">
               <span>{copy.correctAnswerLabel}</span>
-              <strong>{expectedText}</strong>
+              <strong>{renderMaskedExpected(expectedText)}</strong>
             </div>
           </div>
         ) : (
@@ -173,7 +199,7 @@ export function CogitaLivePromptCard({
             ) : null}
             <div className="cogita-share-row" data-state="correct">
               <span>{copy.correctAnswerLabel}</span>
-              <strong>{expectedText}</strong>
+              <strong>{renderMaskedExpected(expectedText)}</strong>
             </div>
           </div>
         ) : (

@@ -55,7 +55,7 @@ export function CogitaLiveLoginWallPage({
       title={liveCopy.joinTitle}
       subtitle={liveCopy.joinKicker}
       left={
-        <div className="cogita-live-wall-stack">
+        <div className="cogita-live-wall-stack cogita-live-wall-stack--qr">
           <div className="cogita-field">
             <span>{liveCopy.joinCodeLabel}</span>
             <input readOnly value={code} />
@@ -65,7 +65,7 @@ export function CogitaLiveLoginWallPage({
             <input readOnly value={joinUrl} />
           </div>
           <div className="cogita-live-wall-qr">
-            <QRCodeSVG value={joinUrl} size={260} marginSize={2} />
+            <QRCodeSVG value={joinUrl} size={1024} marginSize={2} className="cogita-live-wall-qr-code" />
           </div>
         </div>
       }
@@ -89,4 +89,3 @@ export function CogitaLiveLoginWallPage({
     />
   );
 }
-

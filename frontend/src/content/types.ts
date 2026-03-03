@@ -892,6 +892,15 @@ export type Copy = {
           reloginPendingMessage: string;
           symbolsLegend: string;
           roundGainTitle: string;
+          roundGainDetailsTitle: string;
+          showScoreOverlayAction: string;
+          hideScoreOverlayAction: string;
+          factorBaseLabel: string;
+          factorFirstLabel: string;
+          factorSpeedLabel: string;
+          factorStreakLabel: string;
+          factorWrongLabel: string;
+          factorFirstWrongLabel: string;
           streakLabel: string;
           onFirstAnswerLabel: string;
           onAllAnsweredLabel: string;

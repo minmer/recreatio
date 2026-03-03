@@ -434,6 +434,7 @@ export function CogitaRevisionCard({
             <CogitaLivePromptCard
               prompt={questionPrompt}
               revealExpected={questionRevealExpected}
+              answerMask={answerMask}
               mode="interactive"
               labels={{
                 answerLabel: copy.cogita.library.revision.answerLabel,
