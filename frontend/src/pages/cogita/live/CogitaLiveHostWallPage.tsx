@@ -1206,6 +1206,10 @@ export function CogitaLiveHostWallPage({
       }
       const targetRoundIndex = Math.max(0, Math.min(localRounds.length - 1, session.currentRoundIndex));
       await publishRound(targetRoundIndex);
+      setStatus('ready');
+    } catch {
+      setRoundLoadError(true);
+      setStatus('error');
     } finally {
       setBusy('none');
     }
