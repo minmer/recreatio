@@ -10,6 +10,7 @@ import {
   getCogitaComputedSample,
   getCogitaInfoDetail,
   getCogitaLiveRevisionSession,
+  getCogitaLiveRevisionSessionsByRevision,
   getCogitaRevision,
   removeCogitaLiveRevisionParticipant,
   scoreCogitaLiveRevisionRound,
@@ -717,6 +718,24 @@ export function CogitaLiveRevisionHostPage(props: {
               // ignore invalid local session cache and create a fresh one below
             }
           }
+        }
+
+        const existingSessions = await getCogitaLiveRevisionSessionsByRevision({ libraryId, revisionId });
+        const reusable = [...existingSessions]
+          .filter((item) => item.status !== 'closed')
+          .sort((a, b) => Date.parse(b.updatedUtc) - Date.parse(a.updatedUtc))[0];
+        if (reusable?.sessionId) {
+          const attached = await attachCogitaLiveRevisionSession({ libraryId, sessionId: reusable.sessionId });
+          if (canceled) return;
+          setSession(attached);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(
+              storageKey,
+              JSON.stringify({ sessionId: attached.sessionId, hostSecret: attached.hostSecret, code: attached.code })
+            );
+          }
+          setStatus('ready');
+          return;
         }
 
         const created = await createCogitaLiveRevisionSession({

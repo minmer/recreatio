@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts.Cogita;
 using Recreatio.Api.Crypto;
@@ -4496,6 +4497,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -4543,6 +4545,7 @@ public static class CogitaEndpoints
             var now = DateTimeOffset.UtcNow;
             var code = GenerateAlphaNumericCode(8);
             var hostSecret = GenerateAlphaNumericCode(24);
+            var encryptedPublicCode = EncryptLiveSessionPublicCode(code, dataProtectionProvider);
             var entity = new CogitaLiveRevisionSession
             {
                 Id = Guid.NewGuid(),
@@ -4563,7 +4566,8 @@ public static class CogitaEndpoints
                     request.SessionMode,
                     request.HostViewMode,
                     request.ParticipantViewMode,
-                    request.SessionSettings.HasValue ? request.SessionSettings.Value.GetRawText() : null),
+                    request.SessionSettings.HasValue ? request.SessionSettings.Value.GetRawText() : null,
+                    encryptedPublicCode),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -4575,6 +4579,7 @@ public static class CogitaEndpoints
                 entity,
                 code,
                 hostSecret,
+                dataProtectionProvider,
                 dbContext,
                 ct);
             return Results.Ok(response);
@@ -4643,7 +4648,8 @@ public static class CogitaEndpoints
                 request.SessionMode ?? currentMeta.SessionMode,
                 request.HostViewMode ?? currentMeta.HostViewMode,
                 request.ParticipantViewMode ?? currentMeta.ParticipantViewMode,
-                settingsJson);
+                settingsJson,
+                currentMeta.EncryptedPublicCode);
             session.UpdatedUtc = DateTimeOffset.UtcNow;
 
             await dbContext.SaveChangesAsync(ct);
@@ -4923,6 +4929,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -4960,14 +4967,22 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            var code = GenerateAlphaNumericCode(8);
             var hostSecret = GenerateAlphaNumericCode(24);
-            session.PublicCodeHash = HashToken(code);
+            var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+            var code = TryDecryptLiveSessionPublicCode(meta.EncryptedPublicCode, dataProtectionProvider);
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                code = GenerateAlphaNumericCode(8);
+                session.PublicCodeHash = HashToken(code);
+                session.SessionMetaJson = UpsertLiveSessionMetaEncryptedPublicCode(
+                    session.SessionMetaJson,
+                    EncryptLiveSessionPublicCode(code, dataProtectionProvider));
+            }
             session.HostSecretHash = HashToken(hostSecret);
             session.UpdatedUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, code, hostSecret, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, code, hostSecret, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -4978,6 +4993,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5020,7 +5036,7 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5032,6 +5048,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5101,7 +5118,7 @@ public static class CogitaEndpoints
             }
 
             await dbContext.SaveChangesAsync(ct);
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5112,6 +5129,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5160,7 +5178,7 @@ public static class CogitaEndpoints
             session.FinishedUtc ??= now;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5172,6 +5190,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5248,7 +5267,7 @@ public static class CogitaEndpoints
             liveSession.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5260,6 +5279,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5316,7 +5336,7 @@ public static class CogitaEndpoints
             liveSession.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5328,6 +5348,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5402,7 +5423,7 @@ public static class CogitaEndpoints
             liveSession.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -5414,6 +5435,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -5476,7 +5498,7 @@ public static class CogitaEndpoints
             liveSession.UpdatedUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(ct);
 
-            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dbContext, ct);
+            var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
             return Results.Ok(response);
         });
 
@@ -13526,7 +13548,8 @@ public static class CogitaEndpoints
         string? sessionMode,
         string? hostViewMode,
         string? participantViewMode,
-        string? sessionSettingsJson)
+        string? sessionSettingsJson,
+        string? encryptedPublicCode)
     {
         var cleanTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
         var cleanSessionMode = NormalizeLiveSessionMode(sessionMode);
@@ -13554,15 +13577,16 @@ public static class CogitaEndpoints
             sessionMode = cleanSessionMode,
             hostViewMode = cleanHostViewMode,
             participantViewMode = cleanParticipantViewMode,
-            sessionSettings
+            sessionSettings,
+            encryptedPublicCode = string.IsNullOrWhiteSpace(encryptedPublicCode) ? null : encryptedPublicCode
         });
     }
 
-    private static (string? Title, string SessionMode, string? HostViewMode, string? ParticipantViewMode, JsonElement? SessionSettings) ParseLiveSessionMeta(string? sessionMetaJson)
+    private static (string? Title, string SessionMode, string? HostViewMode, string? ParticipantViewMode, JsonElement? SessionSettings, string? EncryptedPublicCode) ParseLiveSessionMeta(string? sessionMetaJson)
     {
         if (string.IsNullOrWhiteSpace(sessionMetaJson))
         {
-            return (null, "simultaneous", "panel", "question", null);
+            return (null, "simultaneous", "panel", "question", null, null);
         }
 
         try
@@ -13570,7 +13594,7 @@ public static class CogitaEndpoints
             using var doc = JsonDocument.Parse(sessionMetaJson);
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
             {
-                return (null, "simultaneous", "panel", "question", null);
+                return (null, "simultaneous", "panel", "question", null, null);
             }
 
             string? title = null;
@@ -13604,12 +13628,72 @@ public static class CogitaEndpoints
                 sessionSettings = sessionSettingsElement.Clone();
             }
 
-            return (title, sessionMode, hostViewMode, participantViewMode, sessionSettings);
+            string? encryptedPublicCode = null;
+            if (doc.RootElement.TryGetProperty("encryptedPublicCode", out var encryptedPublicCodeElement) &&
+                encryptedPublicCodeElement.ValueKind == JsonValueKind.String)
+            {
+                var parsed = encryptedPublicCodeElement.GetString();
+                encryptedPublicCode = string.IsNullOrWhiteSpace(parsed) ? null : parsed.Trim();
+            }
+
+            return (title, sessionMode, hostViewMode, participantViewMode, sessionSettings, encryptedPublicCode);
         }
         catch (JsonException)
         {
-            return (null, "simultaneous", "panel", "question", null);
+            return (null, "simultaneous", "panel", "question", null, null);
         }
+    }
+
+    private static string EncryptLiveSessionPublicCode(string code, IDataProtectionProvider dataProtectionProvider)
+    {
+        var protector = dataProtectionProvider.CreateProtector("Cogita.LiveSession.PublicCode.v1");
+        return protector.Protect(code);
+    }
+
+    private static string? TryDecryptLiveSessionPublicCode(string? encryptedPublicCode, IDataProtectionProvider dataProtectionProvider)
+    {
+        if (string.IsNullOrWhiteSpace(encryptedPublicCode))
+        {
+            return null;
+        }
+
+        try
+        {
+            var protector = dataProtectionProvider.CreateProtector("Cogita.LiveSession.PublicCode.v1");
+            var code = protector.Unprotect(encryptedPublicCode);
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return null;
+            }
+
+            return code.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string UpsertLiveSessionMetaEncryptedPublicCode(string? sessionMetaJson, string encryptedPublicCode)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(sessionMetaJson))
+            {
+                var node = JsonNode.Parse(sessionMetaJson);
+                if (node is JsonObject obj)
+                {
+                    obj["encryptedPublicCode"] = encryptedPublicCode;
+                    return obj.ToJsonString();
+                }
+            }
+        }
+        catch
+        {
+            // ignore malformed meta and create minimal object below
+        }
+
+        return JsonSerializer.Serialize(new { encryptedPublicCode });
     }
 
     private static string NormalizeLiveSessionMode(string? raw)
@@ -13709,10 +13793,12 @@ public static class CogitaEndpoints
         CogitaLiveRevisionSession session,
         string? code,
         string? hostSecret,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
         var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+        var resolvedCode = code ?? TryDecryptLiveSessionPublicCode(meta.EncryptedPublicCode, dataProtectionProvider) ?? string.Empty;
         var participants = await BuildLiveRevisionParticipantsAsync(session.Id, dbContext, ct);
         var scoreboard = participants
             .OrderByDescending(x => x.Score)
@@ -13735,7 +13821,7 @@ public static class CogitaEndpoints
 
         return new CogitaLiveRevisionSessionResponse(
             session.Id,
-            code ?? string.Empty,
+            resolvedCode,
             hostSecret ?? string.Empty,
             session.LibraryId,
             session.RevisionId,
