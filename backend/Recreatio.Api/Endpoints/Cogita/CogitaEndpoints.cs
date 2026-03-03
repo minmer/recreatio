@@ -5316,7 +5316,19 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
-            var participantIds = request.Scores.Select(x => x.ParticipantId).Distinct().ToList();
+            var scoreItems = (request.Scores ?? new List<CogitaLiveRevisionParticipantScoreDeltaRequest>())
+                .Where(x => x.ParticipantId != Guid.Empty)
+                .GroupBy(x => x.ParticipantId)
+                .Select(group => group.Last())
+                .ToList();
+
+            if (scoreItems.Count == 0)
+            {
+                var emptyResponse = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
+                return Results.Ok(emptyResponse);
+            }
+
+            var participantIds = scoreItems.Select(x => x.ParticipantId).Distinct().ToList();
             var participants = await dbContext.CogitaLiveRevisionParticipants
                 .Where(x => x.SessionId == sessionId && participantIds.Contains(x.Id))
                 .ToListAsync(ct);
@@ -5326,10 +5338,17 @@ public static class CogitaEndpoints
             var answers = await dbContext.CogitaLiveRevisionAnswers
                 .Where(x => x.SessionId == sessionId && x.RoundIndex == roundIndex && participantIds.Contains(x.ParticipantId))
                 .ToListAsync(ct);
-            var answersByParticipant = answers.ToDictionary(x => x.ParticipantId);
+            var answersByParticipant = answers
+                .GroupBy(x => x.ParticipantId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(x => x.SubmittedUtc)
+                        .ThenByDescending(x => x.UpdatedUtc)
+                        .First());
 
             var now = DateTimeOffset.UtcNow;
-            foreach (var delta in request.Scores)
+            foreach (var delta in scoreItems)
             {
                 if (!participantById.TryGetValue(delta.ParticipantId, out var participant))
                 {
@@ -5347,8 +5366,8 @@ public static class CogitaEndpoints
                 }
             }
 
-            var knownessSampleSize = request.Scores.Count;
-            var knownessCorrectCount = request.Scores.Count(x => x.IsCorrect == true);
+            var knownessSampleSize = scoreItems.Count;
+            var knownessCorrectCount = scoreItems.Count(x => x.IsCorrect == true);
             var knownessAveragePercent = knownessSampleSize > 0
                 ? Math.Round((double)knownessCorrectCount / knownessSampleSize * 100d, 2)
                 : 0d;
