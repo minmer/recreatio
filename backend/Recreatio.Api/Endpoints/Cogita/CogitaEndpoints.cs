@@ -5264,6 +5264,43 @@ public static class CogitaEndpoints
                 }
             }
 
+            var knownessSampleSize = request.Scores.Count;
+            var knownessCorrectCount = request.Scores.Count(x => x.IsCorrect == true);
+            var knownessAveragePercent = knownessSampleSize > 0
+                ? Math.Round((double)knownessCorrectCount / knownessSampleSize * 100d, 2)
+                : 0d;
+
+            try
+            {
+                var promptNode = !string.IsNullOrWhiteSpace(liveSession.CurrentPromptJson)
+                    ? JsonNode.Parse(liveSession.CurrentPromptJson) as JsonObject
+                    : null;
+                var revealNode = !string.IsNullOrWhiteSpace(liveSession.CurrentRevealJson)
+                    ? JsonNode.Parse(liveSession.CurrentRevealJson) as JsonObject
+                    : new JsonObject();
+
+                revealNode ??= new JsonObject();
+                revealNode["knownessAveragePercent"] = knownessAveragePercent;
+                revealNode["knownessCorrectCount"] = knownessCorrectCount;
+                revealNode["knownessSampleSize"] = knownessSampleSize;
+
+                var cardKey = promptNode?["cardKey"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(cardKey))
+                {
+                    var knownessByCardKey = revealNode["knownessByCardKey"] as JsonObject
+                        ?? promptNode?["knownessByCardKey"] as JsonObject
+                        ?? new JsonObject();
+                    knownessByCardKey[cardKey] = knownessAveragePercent;
+                    revealNode["knownessByCardKey"] = knownessByCardKey;
+                }
+
+                liveSession.CurrentRevealJson = revealNode.ToJsonString();
+            }
+            catch (JsonException)
+            {
+                // Keep score processing resilient even if prompt/reveal payload is malformed.
+            }
+
             liveSession.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
@@ -5530,23 +5567,12 @@ public static class CogitaEndpoints
                 .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.DisplayName == name, ct);
             if (existingParticipant is not null)
             {
-                var approvedRequest = await dbContext.CogitaLiveRevisionReloginRequests
-                    .Where(x => x.SessionId == session.Id && x.DisplayName == name && x.Status == "approved")
-                    .OrderByDescending(x => x.RequestedUtc)
-                    .FirstOrDefaultAsync(ct);
-                if (approvedRequest is null)
-                {
-                    return Results.Conflict(new { error = "Name already used in this live session.", requiresReloginApproval = true });
-                }
-
                 var nowApproved = DateTimeOffset.UtcNow;
                 var reloginParticipantToken = GenerateAlphaNumericCode(24);
                 existingParticipant.JoinTokenHash = HashToken(reloginParticipantToken);
                 existingParticipant.IsConnected = true;
                 existingParticipant.UserId = EndpointHelpers.TryGetUserId(context, out var reloginUserId) ? reloginUserId : existingParticipant.UserId;
                 existingParticipant.UpdatedUtc = nowApproved;
-                approvedRequest.Status = "used";
-                approvedRequest.UpdatedUtc = nowApproved;
                 session.UpdatedUtc = nowApproved;
                 await dbContext.SaveChangesAsync(ct);
 

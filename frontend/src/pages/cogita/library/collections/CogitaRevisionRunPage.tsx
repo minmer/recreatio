@@ -49,6 +49,7 @@ import {
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { loadCogitaGlobalSettings } from '../../../../cogita/globalSettings';
+import { getNextCardSelection } from '../../../../cogita/revision/nextCard';
 import { loadInfoSelectionRevisionSeed } from '../../../../cogita/revision/scope';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
@@ -255,8 +256,13 @@ export function CogitaRevisionRunPage({
   };
 
   const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask, { treatSimilarCharsAsSame: true }) >= minCorrectness;
-  const buildKnownessMaps = async () => {
+  const getScopedOutcomes = async () => {
     const outcomes = await getAllOutcomes();
+    if (!reviewer) return outcomes;
+    return outcomes.filter((outcome) => (outcome.personRoleId ?? null) === reviewer);
+  };
+  const buildKnownessMaps = async () => {
+    const outcomes = await getScopedOutcomes();
     const itemGroups = new Map<string, typeof outcomes>();
     const cardGroups = new Map<string, typeof outcomes>();
     const fragmentGroups = new Map<string, typeof outcomes>();
@@ -522,9 +528,9 @@ export function CogitaRevisionRunPage({
     );
     setQueue(nextState.queue);
     setRevisionMeta(nextState.meta);
-    const next = nextState.queue[currentIndex + 1];
-    if (next) {
-      void resolveCard(next, currentIndex + 1);
+    const selection = getNextCardSelection(nextState.queue, currentIndex);
+    if (selection.nextCard) {
+      void resolveCard(selection.nextCard, selection.nextIndex);
     }
   };
 
@@ -753,7 +759,7 @@ export function CogitaRevisionRunPage({
         let initialLevels: Record<string, number> | undefined;
         if (revisionType.id === 'levels') {
           const levelsCount = Math.max(1, Number(revisionSettings.levels ?? 1));
-          const outcomes = await getAllOutcomes();
+          const outcomes = await getScopedOutcomes();
           const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
             const key = getOutcomeKey(outcome.itemType, outcome.itemId, outcome.checkType, outcome.direction);
             if (!acc[key]) acc[key] = [];
@@ -773,7 +779,7 @@ export function CogitaRevisionRunPage({
         let temporalUnknown: Set<string> | null = null;
         let temporalOutcomes: Record<string, ReturnType<typeof buildTemporalEntries>> | null = null;
         if (revisionType.id === 'temporal') {
-          const outcomes = await getAllOutcomes();
+          const outcomes = await getScopedOutcomes();
           const cardIds = new Set(preparedCards.map((card) => getCardKey(card)));
           const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
             const key = getOutcomeKey(outcome.itemType, outcome.itemId, outcome.checkType, outcome.direction);
@@ -1097,7 +1103,7 @@ export function CogitaRevisionRunPage({
     }
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
     if (currentCard.cardType === 'info' && currentCard.infoType === 'citation') {
-      getAllOutcomes()
+      getScopedOutcomes()
         .then((outcomes) => {
           const filtered = outcomes.filter(
             (entry) =>
@@ -1115,7 +1121,7 @@ export function CogitaRevisionRunPage({
       return;
     }
     getOutcomesForItem(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction)
-      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+      .then((outcomes) => setKnownessFromOutcomes(reviewer ? outcomes.filter((entry) => (entry.personRoleId ?? null) === reviewer) : outcomes))
       .catch(() => {
         setReviewSummary(null);
         setReviewOutcomes([]);
@@ -1129,7 +1135,7 @@ export function CogitaRevisionRunPage({
     direction?: string | null
   ) => {
     if (itemType === 'info' && checkType === 'quote-fragment') {
-      void getAllOutcomes()
+      void getScopedOutcomes()
         .then((outcomes) => {
           const filtered = outcomes.filter(
             (entry) =>
@@ -1147,7 +1153,7 @@ export function CogitaRevisionRunPage({
       return;
     }
     void getOutcomesForItem(itemType, itemId, checkType, direction)
-      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+      .then((outcomes) => setKnownessFromOutcomes(reviewer ? outcomes.filter((entry) => (entry.personRoleId ?? null) === reviewer) : outcomes))
       .catch(() => {
         setReviewSummary(null);
         setReviewOutcomes([]);
@@ -1287,7 +1293,7 @@ export function CogitaRevisionRunPage({
     setCanAdvance(false);
     setAnswerMask(null);
     setAttempts(0);
-    setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+    setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
   };
 
   const submitReview = (options: {
@@ -1689,9 +1695,9 @@ export function CogitaRevisionRunPage({
   };
 
   const preloadNextCard = () => {
-    const next = queue[currentIndex + 1];
-    if (!next) return;
-    void resolveCard(next, currentIndex + 1);
+    const selection = getNextCardSelection(queue, currentIndex);
+    if (!selection.nextCard) return;
+    void resolveCard(selection.nextCard, selection.nextIndex);
   };
 
   const handleCheckAnswer = () => {
@@ -2061,7 +2067,7 @@ export function CogitaRevisionRunPage({
       setCanAdvance(false);
       setAnswerMask(null);
       setAttempts(0);
-      setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+      setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
       return;
     }
     advanceCard();

@@ -28,7 +28,6 @@ import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
 import {
   getAllOutcomes,
-  getOutcomesForItem,
   recordOutcome,
   type RevisionOutcomePayload
 } from '../../../../cogita/revision/outcomes';
@@ -46,6 +45,7 @@ import {
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { loadCogitaGlobalSettings } from '../../../../cogita/globalSettings';
+import { getNextCardSelection } from '../../../../cogita/revision/nextCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 import {
@@ -232,9 +232,15 @@ export function CogitaRevisionShareRunPage({
   };
 
   const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask, { treatSimilarCharsAsSame: true }) >= minCorrectness;
+  const getSharedScopeOutcomes = async () => {
+    if (reviewOutcomes.length > 0) {
+      return reviewOutcomes;
+    }
+    return getAllOutcomes();
+  };
 
   const buildKnownessMaps = async () => {
-    const outcomes = await getAllOutcomes();
+    const outcomes = await getSharedScopeOutcomes();
     const itemGroups = new Map<string, typeof outcomes>();
     const cardGroups = new Map<string, typeof outcomes>();
     outcomes.forEach((entry) => {
@@ -463,9 +469,9 @@ export function CogitaRevisionShareRunPage({
     );
     setQueue(nextState.queue);
     setRevisionMeta(nextState.meta);
-    const next = nextState.queue[currentIndex + 1];
-    if (next) {
-      void resolveCard(next, currentIndex + 1);
+    const selection = getNextCardSelection(nextState.queue, currentIndex);
+    if (selection.nextCard) {
+      void resolveCard(selection.nextCard, selection.nextIndex);
     }
   };
 
@@ -551,7 +557,7 @@ export function CogitaRevisionShareRunPage({
         let temporalUnknown: Set<string> | null = null;
         let temporalOutcomes: Record<string, ReturnType<typeof buildTemporalEntries>> | null = null;
         if (revisionType.id === 'temporal') {
-          const outcomes = await getAllOutcomes();
+          const outcomes = await getSharedScopeOutcomes();
           const cardIds = new Set(preparedCards.map((card) => getCardKey(card)));
           const grouped = outcomes.reduce<Record<string, typeof outcomes>>((acc, outcome) => {
             const key = getOutcomeKey(outcome.itemType, outcome.itemId, outcome.checkType, outcome.direction);
@@ -739,7 +745,7 @@ export function CogitaRevisionShareRunPage({
     quoteTreeRef.current = tree;
     setPrompt(title);
     let mounted = true;
-    getAllOutcomes()
+    getSharedScopeOutcomes()
       .then((outcomes) => {
         if (!mounted) return;
         const fragmentGroups = new Map<string, typeof outcomes>();
@@ -930,7 +936,7 @@ export function CogitaRevisionShareRunPage({
     }
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
     if (currentCard.cardType === 'info' && currentCard.infoType === 'citation') {
-      getAllOutcomes()
+      getSharedScopeOutcomes()
         .then((outcomes) => {
           const filtered = outcomes.filter(
             (entry) =>
@@ -947,8 +953,18 @@ export function CogitaRevisionShareRunPage({
         });
       return;
     }
-    getOutcomesForItem(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction)
-      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+    getSharedScopeOutcomes()
+      .then((outcomes) =>
+        setKnownessFromOutcomes(
+          outcomes.filter(
+            (entry) =>
+              entry.itemType === itemType &&
+              entry.itemId === currentCard.cardId &&
+              (entry.checkType ?? null) === (currentCard.checkType ?? null) &&
+              (entry.direction ?? null) === (currentCard.direction ?? null)
+          )
+        )
+      )
       .catch(() => {
         setReviewSummary(null);
         setReviewOutcomes([]);
@@ -962,7 +978,7 @@ export function CogitaRevisionShareRunPage({
     direction?: string | null
   ) => {
     if (itemType === 'info' && checkType === 'quote-fragment') {
-      void getAllOutcomes()
+      void getSharedScopeOutcomes()
         .then((outcomes) => {
           const filtered = outcomes.filter(
             (entry) =>
@@ -979,8 +995,18 @@ export function CogitaRevisionShareRunPage({
         });
       return;
     }
-    void getOutcomesForItem(itemType, itemId, checkType, direction)
-      .then((outcomes) => setKnownessFromOutcomes(outcomes))
+    void getSharedScopeOutcomes()
+      .then((outcomes) =>
+        setKnownessFromOutcomes(
+          outcomes.filter(
+            (entry) =>
+              entry.itemType === itemType &&
+              entry.itemId === itemId &&
+              (entry.checkType ?? null) === (checkType ?? null) &&
+              (entry.direction ?? null) === (direction ?? null)
+          )
+        )
+      )
       .catch(() => {
         setReviewSummary(null);
         setReviewOutcomes([]);
@@ -1120,7 +1146,7 @@ export function CogitaRevisionShareRunPage({
     setCanAdvance(false);
     setAnswerMask(null);
     setAttempts(0);
-    setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+    setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
   };
 
   const submitReview = (options: {
@@ -1519,9 +1545,9 @@ export function CogitaRevisionShareRunPage({
   };
 
   const preloadNextCard = () => {
-    const next = queue[currentIndex + 1];
-    if (!next) return;
-    void resolveCard(next, currentIndex + 1);
+    const selection = getNextCardSelection(queue, currentIndex);
+    if (!selection.nextCard) return;
+    void resolveCard(selection.nextCard, selection.nextIndex);
   };
 
   const handleCheckAnswer = () => {
@@ -1906,7 +1932,7 @@ export function CogitaRevisionShareRunPage({
       setCanAdvance(false);
       setAnswerMask(null);
       setAttempts(0);
-      setCurrentIndex((prev) => Math.min(prev + 1, queue.length));
+      setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
       return;
     }
     advanceCard();

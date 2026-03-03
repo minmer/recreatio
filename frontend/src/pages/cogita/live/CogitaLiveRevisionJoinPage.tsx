@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ApiError,
-  createCogitaLiveRevisionReloginRequest,
   getCogitaLiveRevisionPublicState,
-  getCogitaLiveRevisionReloginRequest,
   joinCogitaLiveRevision,
   submitCogitaLiveRevisionAnswer,
   type CogitaLiveRevisionPublicState
@@ -73,8 +70,6 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [orderingAnswer, setOrderingAnswer] = useState<string[]>([]);
   const [matchingRows, setMatchingRows] = useState<number[][]>([]);
   const [matchingSelection, setMatchingSelection] = useState<Array<number | null>>([]);
-  const [reloginRequestId, setReloginRequestId] = useState<string | null>(null);
-  const [reloginPending, setReloginPending] = useState(false);
   const [showScoreOverlay, setShowScoreOverlay] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
@@ -192,27 +187,6 @@ export function CogitaLiveRevisionJoinPage(props: {
     };
   }, [code, participantToken, status]);
 
-  useEffect(() => {
-    if (!reloginRequestId || !reloginPending || participantToken) return;
-    let canceled = false;
-    const id = window.setInterval(async () => {
-      try {
-        const request = await getCogitaLiveRevisionReloginRequest({ code, requestId: reloginRequestId });
-        if (canceled) return;
-        if (request.status === 'approved') {
-          setReloginPending(false);
-          setStatus('idle');
-        }
-      } catch {
-        // keep polling until approved
-      }
-    }, 1200);
-    return () => {
-      canceled = true;
-      window.clearInterval(id);
-    };
-  }, [code, participantToken, reloginPending, reloginRequestId]);
-
   const handleJoin = async () => {
     setStatus('joining');
     try {
@@ -222,22 +196,8 @@ export function CogitaLiveRevisionJoinPage(props: {
       const meta = { participantId: joined.participantId, name: joined.name };
       setParticipantMeta(meta);
       localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
-      setReloginPending(false);
-      setReloginRequestId(null);
       setStatus('ready');
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        try {
-          const relogin = await createCogitaLiveRevisionReloginRequest({ code, name: joinName });
-          setReloginRequestId(relogin.requestId);
-          setReloginPending(true);
-          setStatus('ready');
-          return;
-        } catch {
-          setStatus('error');
-          return;
-        }
-      }
+    } catch {
       setStatus('error');
     }
   };
@@ -497,7 +457,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                       {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
                     </button>
                   </div>
-                  {reloginPending ? <p className="cogita-help">{liveCopy.reloginPendingMessage}</p> : null}
                   {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 </div>
               </div>
@@ -520,9 +479,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : (
                   <p className="cogita-help">{liveCopy.joinedWaiting}</p>
                 )}
-                {reloginPending ? (
-                  <p className="cogita-help">{liveCopy.reloginPendingMessage}</p>
-                ) : null}
                 {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 {sessionStage === 'lobby' ? (
                   <>

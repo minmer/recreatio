@@ -3,6 +3,7 @@ import {
   ApiError,
   attachCogitaLiveRevisionSession,
   getCogitaCollectionCards,
+  type CogitaCardSearchResult,
   getCogitaComputedSample,
   getCogitaInfoDetail,
   getCogitaLiveRevisionSession,
@@ -19,7 +20,9 @@ import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime'
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
+import { selectNextCardIndexByMode } from '../../../cogita/revision/nextCardRoutine';
 import { parseQuestionDefinition, type ParsedQuestionDefinition } from '../library/questions/questionRuntime';
+import { getRevisionType, normalizeRevisionSettings } from '../../../cogita/revision/registry';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
@@ -276,10 +279,31 @@ async function buildLiveRounds(payload: {
     selectMatchingPairPrompt?: string;
     wordLanguagePromptPrefix?: string;
   };
-}): Promise<LiveRound[]> {
+}): Promise<{ rounds: LiveRound[]; revisionMode: string }> {
   const revision = await getCogitaRevision({ libraryId: payload.libraryId, revisionId: payload.revisionId });
-  const cardBundle = await getCogitaCollectionCards({ libraryId: payload.libraryId, collectionId: revision.collectionId, limit: 1000 });
-  const cards = cardBundle.items;
+  const revisionType = getRevisionType(revision.revisionType ?? revision.mode);
+  const revisionLimit = Math.max(1, Number(revision.limit ?? 20));
+  const revisionSettings = normalizeRevisionSettings(
+    revisionType,
+    (revision.revisionSettings as Record<string, number | string> | null | undefined) ?? null
+  );
+  const fetchLimit = revisionType.getFetchLimit(revisionLimit, revisionSettings);
+  const gatheredCards: CogitaCardSearchResult[] = [];
+  let cursor: string | null | undefined = null;
+  do {
+    const bundle = await getCogitaCollectionCards({
+      libraryId: payload.libraryId,
+      collectionId: revision.collectionId,
+      limit: 300,
+      cursor
+    });
+    gatheredCards.push(...bundle.items);
+    cursor = bundle.nextCursor ?? null;
+    if (!cursor) break;
+    if (Number.isFinite(fetchLimit) && fetchLimit > 0 && gatheredCards.length >= fetchLimit) break;
+  } while (cursor);
+  const prepared = revisionType.prepare(gatheredCards, revisionLimit, revisionSettings);
+  const cards = prepared.queue.length > 0 ? prepared.queue : gatheredCards;
   const infoIds = Array.from(new Set(cards.filter((c) => c.cardType === 'info').map((c) => c.cardId)));
 
   const infoDetails = new Map<string, { infoType: string; payload: unknown }>();
@@ -462,7 +486,11 @@ async function buildLiveRounds(payload: {
     }
   }
 
-  return rounds.map((round, index) => ({ ...round, roundIndex: index }));
+  const preparedRounds = rounds.map((round, index) => ({ ...round, roundIndex: index }));
+  return {
+    rounds: preparedRounds,
+    revisionMode: String(revision.revisionType ?? revision.mode ?? 'random').toLowerCase()
+  };
 }
 
 export function CogitaLiveHostWallPage({
@@ -493,6 +521,7 @@ export function CogitaLiveHostWallPage({
   const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
   const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
   const [rounds, setRounds] = useState<LiveRound[]>([]);
+  const [revisionMode, setRevisionMode] = useState('random');
   const [roundLoadError, setRoundLoadError] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
@@ -695,7 +724,8 @@ export function CogitaLiveHostWallPage({
     })
       .then((built) => {
         if (canceled) return;
-        setRounds(built);
+        setRounds(built.rounds);
+        setRevisionMode(built.revisionMode || 'random');
       })
       .catch(() => {
         if (canceled) return;
@@ -851,7 +881,10 @@ export function CogitaLiveHostWallPage({
     setSession(updated);
   };
 
-  const publishRound = async (index: number) => {
+  const publishRound = async (
+    index: number,
+    options?: { knownessByCardKey?: Record<string, number>; askedCardKeys?: string[] }
+  ) => {
     const round = rounds[index];
     if (!round || !session) return;
     const activeParticipants = session.participants.filter((participant) => participant.isConnected);
@@ -897,7 +930,9 @@ export function CogitaLiveHostWallPage({
         roundTimerEnabled,
         roundTimerSeconds,
         roundTimerStartedUtc,
-        roundTimerEndsUtc
+        roundTimerEndsUtc,
+        knownessByCardKey: options?.knownessByCardKey ?? {},
+        askedCardKeys: options?.askedCardKeys ?? [round.cardKey]
       }
     });
   };
@@ -951,7 +986,18 @@ export function CogitaLiveHostWallPage({
           submittedUtc: row?.submittedUtc ?? null
         };
       });
+      const knownessSampleSize = Math.max(0, correctness.length);
+      const knownessCorrectCount = correctness.reduce((sum, row) => sum + (row.isCorrect ? 1 : 0), 0);
+      const knownessAveragePercent =
+        knownessSampleSize > 0
+          ? Math.round((knownessCorrectCount / knownessSampleSize) * 10000) / 100
+          : 0;
       const isCorrectByParticipant = new Map(correctness.map((row) => [row.participantId, row.isCorrect]));
+      const knownessByCardKeyRaw =
+        promptState && typeof promptState.knownessByCardKey === 'object' && promptState.knownessByCardKey
+          ? (promptState.knownessByCardKey as Record<string, number>)
+          : {};
+      const knownessByCardKey = { ...knownessByCardKeyRaw, [currentRound.cardKey]: knownessAveragePercent };
       const firstCorrectParticipantId =
         answersForRound.find((answer) => isCorrectByParticipant.get(answer.participantId) === true)?.participantId ?? null;
       const firstAnsweredParticipantId = answersForRound[0]?.participantId ?? null;
@@ -1048,7 +1094,11 @@ export function CogitaLiveHostWallPage({
           currentReveal: {
             ...currentRound.reveal,
             roundScoring: roundGain,
-            streakState: nextStreaks
+            streakState: nextStreaks,
+            knownessAveragePercent,
+            knownessCorrectCount,
+            knownessSampleSize,
+            knownessByCardKey
           }
         })
       );
@@ -1076,11 +1126,35 @@ export function CogitaLiveHostWallPage({
           [currentRoundKey]: { ...(previous[currentRoundKey] ?? {}), next: true }
         }));
       }
-      const nextIndex = session.currentRoundIndex + 1;
-      if (nextIndex >= rounds.length) {
+      const promptState =
+        session.currentPrompt && typeof session.currentPrompt === 'object'
+          ? (session.currentPrompt as Record<string, unknown>)
+          : null;
+      const revealState =
+        session.currentReveal && typeof session.currentReveal === 'object'
+          ? (session.currentReveal as Record<string, unknown>)
+          : null;
+      const knownessByCardKey =
+        (revealState?.knownessByCardKey as Record<string, number> | undefined) ??
+        (promptState?.knownessByCardKey as Record<string, number> | undefined) ??
+        {};
+      const askedCardKeysRaw =
+        Array.isArray(promptState?.askedCardKeys) ? (promptState?.askedCardKeys as unknown[]) : [];
+      const askedCardKeys = askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? []);
+      const nextIndex = selectNextCardIndexByMode({
+        mode: revisionMode,
+        currentIndex: session.currentRoundIndex,
+        cardKeys: rounds.map((round) => round.cardKey),
+        askedCardKeys,
+        knownessByCardKey
+      });
+      if (nextIndex == null) {
         await pushState({ status: 'finished', currentReveal: null });
       } else {
-        await publishRound(nextIndex);
+        await publishRound(nextIndex, {
+          knownessByCardKey,
+          askedCardKeys
+        });
       }
     } finally {
       setBusy('none');

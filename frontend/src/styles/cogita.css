@@ -2421,6 +2421,28 @@
   align-content: start;
 }
 
+.cogita-live-wall .cta {
+  background: rgba(126, 200, 255, 0.92);
+  color: #071424;
+  border: 1px solid rgba(126, 200, 255, 0.36);
+}
+
+.cogita-live-wall .cta.ghost {
+  background: rgba(10, 26, 46, 0.74);
+  color: rgba(226, 240, 255, 0.95);
+  border: 1px solid rgba(120, 170, 220, 0.42);
+}
+
+.cogita-live-wall .cta[disabled],
+.cogita-live-wall .cta.ghost[disabled] {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(178, 204, 230, 0.95);
+  background: rgba(18, 38, 61, 0.86);
+  border: 1px solid rgba(106, 146, 188, 0.45);
+  box-shadow: none;
+}
+
 .cogita-live-wall-stack--qr {
   grid-template-rows: auto auto minmax(0, 1fr);
 }
