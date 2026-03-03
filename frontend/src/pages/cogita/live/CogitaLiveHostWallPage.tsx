@@ -550,6 +550,8 @@ export function CogitaLiveHostWallPage({
       (scoredRoundKeysRef.current.has(currentRoundKey) ||
         (session?.status === 'revealed' && hasRevealRoundScoring))
   );
+  const isLobbyStage = session?.status === 'lobby' && !hasPublishedRound;
+  const isRunningStage = !isLobbyStage && session?.status !== 'closed' && session?.status !== 'finished';
   const roundPhase = useMemo(() => {
     if (!session) return 'lobby' as const;
     if (session.status === 'closed' || session.status === 'finished') return 'closed' as const;
@@ -560,9 +562,6 @@ export function CogitaLiveHostWallPage({
     return 'question' as const;
   }, [hasPublishedRound, isCurrentRoundScored, isLobbyStage, reveal, session]);
   const roundActions = currentRoundKey ? usedRoundActions[currentRoundKey] ?? {} : {};
-  const isLobbyStage = session?.status === 'lobby' && !hasPublishedRound;
-  const isRunningStage = !isLobbyStage && session?.status !== 'closed' && session?.status !== 'finished';
-  const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
   const canStartSession = Boolean(
