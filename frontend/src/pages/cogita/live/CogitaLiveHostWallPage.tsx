@@ -265,6 +265,26 @@ export function CogitaLiveHostWallPage({
     }
   };
 
+  const startSession = async () => {
+    if (!session) return;
+    setBusy('next');
+    try {
+      const next = await updateCogitaLiveRevisionHostState({
+        libraryId,
+        sessionId: session.sessionId,
+        hostSecret,
+        status: 'running',
+        currentRoundIndex: session.currentRoundIndex,
+        revealVersion: session.revealVersion + 1,
+        currentPrompt: session.currentPrompt,
+        currentReveal: session.currentReveal
+      });
+      setSession(next);
+    } finally {
+      setBusy('none');
+    }
+  };
+
   return (
     <CogitaLiveWallLayout
       title={liveCopy.hostTitle}
@@ -287,15 +307,23 @@ export function CogitaLiveHostWallPage({
             </div>
           ))}
           <div className="cogita-form-actions">
-            <button type="button" className="cta" onClick={() => void revealRound()} disabled={busy !== 'none'}>
-              {liveCopy.checkAndReveal}
-            </button>
-            <button type="button" className="ghost" onClick={() => void scoreRound()} disabled={busy !== 'none'}>
-              {liveCopy.optionRevealScore}
-            </button>
-            <button type="button" className="ghost" onClick={() => void nextRound()} disabled={busy !== 'none'}>
-              {liveCopy.nextQuestionAction}
-            </button>
+            {session?.status === 'lobby' ? (
+              <button type="button" className="cta" onClick={() => void startSession()} disabled={busy !== 'none'}>
+                {liveCopy.publishCurrentRound}
+              </button>
+            ) : (
+              <>
+                <button type="button" className="cta" onClick={() => void revealRound()} disabled={busy !== 'none'}>
+                  {liveCopy.checkAndReveal}
+                </button>
+                <button type="button" className="ghost" onClick={() => void scoreRound()} disabled={busy !== 'none'}>
+                  {liveCopy.optionRevealScore}
+                </button>
+                <button type="button" className="ghost" onClick={() => void nextRound()} disabled={busy !== 'none'}>
+                  {liveCopy.nextQuestionAction}
+                </button>
+              </>
+            )}
           </div>
           <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
             <CogitaLivePromptCard
