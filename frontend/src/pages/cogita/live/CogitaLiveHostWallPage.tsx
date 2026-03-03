@@ -279,6 +279,7 @@ async function buildLiveRounds(payload: {
     selectMatchingPairPrompt?: string;
     wordLanguagePromptPrefix?: string;
   };
+  onPreparedCount?: (count: number) => void;
 }): Promise<{ rounds: LiveRound[]; revisionMode: string }> {
   const revision = await getCogitaRevision({ libraryId: payload.libraryId, revisionId: payload.revisionId });
   const revisionType = getRevisionType(revision.revisionType ?? revision.mode);
@@ -339,6 +340,9 @@ async function buildLiveRounds(payload: {
   };
 
   const rounds: LiveRound[] = [];
+  const notifyPreparedCount = () => {
+    payload.onPreparedCount?.(rounds.length);
+  };
   const citationProcessed = new Set<string>();
   for (const card of cards) {
     if (card.cardType === 'vocab') {
@@ -358,6 +362,7 @@ async function buildLiveRounds(payload: {
               answer: { text: String(answer ?? '') }
             }).correct
         });
+        if (rounds.length % 5 === 0) notifyPreparedCount();
       } else if (card.checkType === 'translation' && card.direction === 'b-to-a') {
         const [a, b] = pair;
         rounds.push({
@@ -372,6 +377,7 @@ async function buildLiveRounds(payload: {
               answer: { text: String(answer ?? '') }
             }).correct
         });
+        if (rounds.length % 5 === 0) notifyPreparedCount();
       } else if (card.checkType === 'translation-match') {
         const options = Array.from(new Set([card.label, ...vocabLabels.filter((x) => x !== card.label).slice(0, 3)]));
         const correctIndex = options.findIndex((x) => x === card.label);
@@ -398,6 +404,7 @@ async function buildLiveRounds(payload: {
               }
             }).correct
         });
+        if (rounds.length % 5 === 0) notifyPreparedCount();
       }
       continue;
     }
@@ -421,6 +428,7 @@ async function buildLiveRounds(payload: {
             answer: { text: String(answer ?? '') }
           }).correct
       });
+      if (rounds.length % 5 === 0) notifyPreparedCount();
       continue;
     }
 
@@ -439,6 +447,7 @@ async function buildLiveRounds(payload: {
             answer: { text: String(answer ?? '') }
           }).correct
       });
+      if (rounds.length % 5 === 0) notifyPreparedCount();
       continue;
     }
 
@@ -448,6 +457,7 @@ async function buildLiveRounds(payload: {
       if (round) {
         round.roundIndex = rounds.length;
         rounds.push(round);
+        if (rounds.length % 5 === 0) notifyPreparedCount();
       }
       continue;
     }
@@ -482,11 +492,13 @@ async function buildLiveRounds(payload: {
               answer: { text: String(answer ?? '') }
             }).correct
         });
+        if (rounds.length % 5 === 0) notifyPreparedCount();
       }
     }
   }
 
   const preparedRounds = rounds.map((round, index) => ({ ...round, roundIndex: index }));
+  notifyPreparedCount();
   return {
     rounds: preparedRounds,
     revisionMode: String(revision.revisionType ?? revision.mode ?? 'random').toLowerCase()
@@ -498,7 +510,8 @@ export function CogitaLiveHostWallPage({
   libraryId,
   revisionId,
   sessionId,
-  hostSecret
+  hostSecret,
+  language
 }: {
   copy: Copy;
   authLabel: string;
@@ -520,6 +533,7 @@ export function CogitaLiveHostWallPage({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
   const [roundsStatus, setRoundsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [preparedCount, setPreparedCount] = useState(0);
   const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
   const [rounds, setRounds] = useState<LiveRound[]>([]);
   const [revisionMode, setRevisionMode] = useState('random');
@@ -575,7 +589,12 @@ export function CogitaLiveHostWallPage({
   const isClosedOrFinished = session?.status === 'closed' || session?.status === 'finished';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
-  const canStartSession = Boolean(session?.status === 'lobby' && busy === 'none' && roundsStatus !== 'loading');
+  const canStartSession = Boolean(
+    session?.status === 'lobby' &&
+      busy === 'none' &&
+      roundsStatus === 'ready' &&
+      rounds.length > 0
+  );
   const canStartTimer = Boolean(
     isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !roundActions.startTimer && busy === 'none'
   );
@@ -733,6 +752,7 @@ export function CogitaLiveHostWallPage({
     roundsLoadPromiseRef.current = null;
     setRoundsStatus('idle');
     setRoundLoadError(false);
+    setPreparedCount(0);
     setRounds([]);
     setRevisionMode('random');
   }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
@@ -746,19 +766,22 @@ export function CogitaLiveHostWallPage({
     }
     setRoundsStatus('loading');
     setRoundLoadError(false);
+    setPreparedCount(0);
     const op = buildLiveRounds({
       libraryId,
       revisionId,
       labels: {
         selectMatchingPairPrompt: liveCopy.selectMatchingPairPrompt,
         wordLanguagePromptPrefix: liveCopy.wordLanguagePromptPrefix
-      }
+      },
+      onPreparedCount: (count) => setPreparedCount(count)
     })
       .then((built) => {
         setRounds(built.rounds);
         setRevisionMode(built.revisionMode || 'random');
         setRoundsStatus('ready');
         setRoundLoadError(false);
+        setPreparedCount(built.rounds.length);
         return built;
       })
       .catch(() => {
@@ -782,6 +805,19 @@ export function CogitaLiveHostWallPage({
       // handled by ensureRoundsLoaded state updates
     });
   }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
+
+  const preparingLabel =
+    language === 'pl'
+      ? `Przygotowywanie kart: ${preparedCount}`
+      : language === 'de'
+        ? `Karten werden vorbereitet: ${preparedCount}`
+        : `Preparing cards: ${preparedCount}`;
+  const preparedLabel =
+    language === 'pl'
+      ? `Przygotowane karty: ${Math.max(preparedCount, rounds.length)}`
+      : language === 'de'
+        ? `Vorbereitete Karten: ${Math.max(preparedCount, rounds.length)}`
+        : `Prepared cards: ${Math.max(preparedCount, rounds.length)}`;
 
   useEffect(() => {
     if (timers.length === 0) return;
@@ -1492,6 +1528,8 @@ export function CogitaLiveHostWallPage({
               </>
             )}
           </div>
+          {roundsStatus === 'loading' ? <p className="cogita-help">{preparingLabel}</p> : null}
+          {roundsStatus === 'ready' && rounds.length > 0 ? <p className="cogita-help">{preparedLabel}</p> : null}
           {roundLoadError ? <p className="cogita-help">{liveCopy.loadRoundsError}</p> : null}
           {!roundLoadError && rounds.length === 0 ? <p className="cogita-help">{liveCopy.waitingForPublishedRound}</p> : null}
           <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
