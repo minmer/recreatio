@@ -7542,6 +7542,71 @@ public static class CogitaEndpoints
                 0));
         });
 
+        group.MapPut("/libraries/{libraryId:guid}/dependency-graphs/{graphId:guid}", async (
+            Guid libraryId,
+            Guid graphId,
+            CogitaDependencyGraphUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var graph = await dbContext.CogitaDependencyGraphs
+                .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.Id == graphId, ct);
+            if (graph is null)
+            {
+                return Results.NotFound();
+            }
+
+            var graphName = string.IsNullOrWhiteSpace(request.Name) ? "Dependency graph" : request.Name.Trim();
+            if (graphName.Length > 200)
+            {
+                graphName = graphName[..200];
+            }
+
+            graph.Name = graphName;
+            graph.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            var nodeCount = await dbContext.CogitaDependencyGraphNodes.AsNoTracking()
+                .CountAsync(x => x.GraphId == graph.Id, ct);
+
+            return Results.Ok(new CogitaDependencyGraphSummaryResponse(
+                graph.Id,
+                graph.Name,
+                graph.IsActive,
+                graph.UpdatedUtc,
+                nodeCount));
+        });
+
         group.MapPost("/libraries/{libraryId:guid}/dependency-graphs/{graphId:guid}/activate", async (
             Guid libraryId,
             Guid graphId,

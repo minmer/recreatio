@@ -26,7 +26,6 @@ import type { CogitaInfoType, CogitaLibraryMode } from './types';
 import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { saveInfoSelectionRevisionSeed } from '../../../cogita/revision/scope';
 import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
@@ -603,16 +602,6 @@ export function CogitaLibraryListPage({
     }
   };
 
-  const startRevisionFromSelectedInfos = () => {
-    const seedId = saveInfoSelectionRevisionSeed(
-      libraryId,
-      selectedItems.map((item) => item.infoId)
-    );
-    if (!seedId) return;
-    navigate(
-      `/cogita/library/${libraryId}/revisions/run?scope=info-selection&seed=${encodeURIComponent(seedId)}`
-    );
-  };
   const startCollectionFromSelectedInfos = () => {
     const seedId = saveCollectionDraftFromInfos(
       libraryId,
@@ -1073,11 +1062,8 @@ export function CogitaLibraryListPage({
                     ))}
                   </div>
                   <div className="cogita-form-actions">
-                    <button type="button" className="cta" onClick={startRevisionFromSelectedInfos} disabled={selectedItems.length === 0}>
-                      Start revision
-                    </button>
-                    <button type="button" className="ghost" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
-                      Create collection from selection
+                    <button type="button" className="cta" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
+                      {listCopy.openInCollection}
                     </button>
                     <button
                       type="button"
@@ -1085,12 +1071,12 @@ export function CogitaLibraryListPage({
                       onClick={() => {
                         const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
                         if (!ids.length) return;
-                        const query = new URLSearchParams({ infoIds: ids.join(','), dependencyView: 'edit' });
+                        const query = new URLSearchParams({ infoIds: ids.join(','), dependencyView: 'create' });
                         navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
                       }}
                       disabled={selectedItems.length === 0}
                     >
-                      Open In Dependencies
+                      {listCopy.openInDependencies}
                     </button>
                   </div>
                 </section>

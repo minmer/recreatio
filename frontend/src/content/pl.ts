@@ -724,6 +724,8 @@ export const pl: Copy = {
         viewGrid: 'Siatka',
         selectedStackTitle: 'Stos wyboru',
         selectedStackHint: 'Wybrane informacje pozostają po zmianie wyszukiwania.',
+        openInCollection: 'Otwórz w Kolekcji',
+        openInDependencies: 'Otwórz w Zależnościach',
         removeFromStack: 'Usuń ze stosu',
         detailColumnName: 'Nazwa',
         detailColumnType: 'Typ',

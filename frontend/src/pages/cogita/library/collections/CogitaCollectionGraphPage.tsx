@@ -5,7 +5,13 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { CogitaShell } from '../../CogitaShell';
 import { InfoSearchSelect } from '../components/InfoSearchSelect';
-import { getCogitaCollection, getCogitaCollectionGraph, previewCogitaCollectionGraph, saveCogitaCollectionGraph } from '../../../../lib/api';
+import {
+  getCogitaCollection,
+  getCogitaCollectionGraph,
+  previewCogitaCollectionGraph,
+  saveCogitaCollectionGraph,
+  updateCogitaCollection
+} from '../../../../lib/api';
 
 type GraphNodeParams = {
   infoType?: string;
@@ -88,6 +94,7 @@ export function CogitaCollectionGraphPage({
   collectionId: string;
 }) {
   const [collectionName, setCollectionName] = useState('');
+  const [collectionNotes, setCollectionNotes] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -97,8 +104,14 @@ export function CogitaCollectionGraphPage({
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)
-      .then((detail) => setCollectionName(detail.name))
-      .catch(() => setCollectionName(copy.cogita.library.collections.defaultName));
+      .then((detail) => {
+        setCollectionName(detail.name);
+        setCollectionNotes(detail.notes ?? null);
+      })
+      .catch(() => {
+        setCollectionName(copy.cogita.library.collections.defaultName);
+        setCollectionNotes(null);
+      });
   }, [libraryId, collectionId, copy]);
 
   useEffect(() => {
@@ -205,6 +218,28 @@ export function CogitaCollectionGraphPage({
     }
   };
 
+  const handleRenameCollection = async () => {
+    setStatus(null);
+    const nextName = collectionName.trim();
+    if (!nextName) {
+      setStatus(copy.cogita.library.collections.saveRequiredName);
+      return;
+    }
+    try {
+      const detail = await updateCogitaCollection({
+        libraryId,
+        collectionId,
+        name: nextName,
+        notes: collectionNotes ?? null
+      });
+      setCollectionName(detail.name);
+      setCollectionNotes(detail.notes ?? null);
+      setStatus(copy.cogita.library.collections.saveSuccess);
+    } catch {
+      setStatus(copy.cogita.library.collections.saveFail);
+    }
+  };
+
   const updateNodeParams = (next: GraphNodeParams) => {
     if (!selectedNode) return;
     setNodes((prev) =>
@@ -241,12 +276,6 @@ export function CogitaCollectionGraphPage({
             <a className="cta ghost" href={`${baseHref}/collections/${collectionId}`}>
               {copy.cogita.library.actions.collectionDetail}
             </a>
-            <button type="button" className="cta ghost" onClick={handlePreview}>
-              {copy.cogita.library.graph.preview}
-            </button>
-            <button type="button" className="cta" onClick={handleSave}>
-              {copy.cogita.library.graph.save}
-            </button>
           </div>
         </header>
 
@@ -255,6 +284,15 @@ export function CogitaCollectionGraphPage({
             <div className="cogita-collection-graph">
               <div className="cogita-graph-palette">
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.palette}</p>
+                <label className="cogita-field">
+                  <span>{copy.cogita.library.collections.nameLabel}</span>
+                  <input value={collectionName} onChange={(event) => setCollectionName(event.target.value)} />
+                </label>
+                <div className="cogita-form-actions">
+                  <button type="button" className="cta ghost" onClick={() => void handleRenameCollection()}>
+                    {copy.cogita.library.actions.saveCollection}
+                  </button>
+                </div>
                 <div className="cogita-graph-palette-grid">
                   {NODE_CATALOG.map((node) => (
                     <button key={node.type} type="button" className="ghost" onClick={() => handleAddNode(node.type)}>
@@ -286,6 +324,14 @@ export function CogitaCollectionGraphPage({
                   <Background color="rgba(120,160,200,0.2)" />
                   <Controls />
                 </ReactFlow>
+                <div className="cogita-form-actions" style={{ marginTop: 12 }}>
+                  <button type="button" className="cta ghost" onClick={handlePreview}>
+                    {copy.cogita.library.graph.preview}
+                  </button>
+                  <button type="button" className="cta" onClick={handleSave}>
+                    {copy.cogita.library.graph.save}
+                  </button>
+                </div>
               </div>
 
               <div className="cogita-graph-panel">

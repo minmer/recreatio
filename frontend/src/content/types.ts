@@ -424,6 +424,8 @@ export type Copy = {
         viewGrid: string;
         selectedStackTitle: string;
         selectedStackHint: string;
+        openInCollection: string;
+        openInDependencies: string;
         removeFromStack: string;
         detailColumnName: string;
         detailColumnType: string;

@@ -724,6 +724,8 @@ export const en: Copy = {
         viewGrid: 'Grid',
         selectedStackTitle: 'Selection stack',
         selectedStackHint: 'Selected infos remain when search conditions change.',
+        openInCollection: 'Open in Collection',
+        openInDependencies: 'Open in Dependencies',
         removeFromStack: 'Remove from stack',
         detailColumnName: 'Name',
         detailColumnType: 'Type',

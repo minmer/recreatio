@@ -175,13 +175,7 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
           : dependencyViewRaw === 'search'
             ? 'search'
             : undefined;
-  const dependencyView: DependencyView | undefined = dependencyGraphId
-    ? dependencyViewBase === 'edit' || dependencyViewBase === 'overview'
-      ? dependencyViewBase
-      : 'overview'
-    : dependencyViewBase === 'create' || dependencyViewBase === 'search'
-      ? dependencyViewBase
-      : 'search';
+  const dependencyView: DependencyView | undefined = dependencyViewBase ?? (dependencyGraphId ? 'overview' : 'search');
 
   if (!segments[3]) {
     return { libraryId, target: 'library_overview' };
@@ -770,7 +764,8 @@ export function CogitaWorkspacePage({
       let resolvedInfoView = next.infoView ?? pathState.infoView ?? 'overview';
       let resolvedCollectionView = next.collectionView ?? pathState.collectionView ?? 'infos';
       let resolvedFilterCollectionId = next.filterCollectionId ?? pathState.filterCollectionId;
-      let resolvedDependencyGraphId = next.dependencyGraphId ?? pathState.dependencyGraphId;
+      const hasExplicitDependencyGraphId = Object.prototype.hasOwnProperty.call(next, 'dependencyGraphId');
+      let resolvedDependencyGraphId = hasExplicitDependencyGraphId ? next.dependencyGraphId : pathState.dependencyGraphId;
       let resolvedDependencyView = next.dependencyView ?? pathState.dependencyView ?? 'search';
 
       if (!hasLibrary) {
@@ -828,11 +823,7 @@ export function CogitaWorkspacePage({
       }
 
       if (resolvedTarget === 'dependencies') {
-        if (resolvedDependencyGraphId) {
-          if (resolvedDependencyView === 'search' || resolvedDependencyView === 'create') {
-            resolvedDependencyView = 'overview';
-          }
-        } else if (resolvedDependencyView === 'overview' || resolvedDependencyView === 'edit') {
+        if (!resolvedDependencyGraphId && (resolvedDependencyView === 'overview' || resolvedDependencyView === 'edit')) {
           resolvedDependencyView = 'search';
         }
       }
@@ -1107,7 +1098,7 @@ export function CogitaWorkspacePage({
         onSelect: (value: string) => {
           if (!pathState.infoId) return;
           if (value === 'dependencies') {
-            const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'edit' });
+            const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'create' });
             navigate(`/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`);
             return;
           }
@@ -1614,7 +1605,7 @@ export function CogitaWorkspacePage({
                 }
                 if (level.key === 'info_selected_action' && pathState.infoId) {
                   if (option.value === 'dependencies') {
-                    const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'edit' });
+                    const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'create' });
                     return `/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`;
                   }
                   if (option.value === 'edit') {

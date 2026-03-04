@@ -1620,6 +1620,15 @@ export function activateCogitaDependencyGraph(payload: { libraryId: string; grap
   });
 }
 
+export function updateCogitaDependencyGraph(payload: { libraryId: string; graphId: string; name?: string | null }) {
+  return request<CogitaDependencyGraphSummary>(`/cogita/libraries/${payload.libraryId}/dependency-graphs/${payload.graphId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: payload.name ?? null
+    })
+  });
+}
+
 export function deleteCogitaDependencyGraph(payload: { libraryId: string; graphId: string }) {
   return request<{ deleted: boolean }>(`/cogita/libraries/${payload.libraryId}/dependency-graphs/${payload.graphId}`, {
     method: 'DELETE'

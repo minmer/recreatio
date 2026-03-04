@@ -614,6 +614,10 @@ public sealed record CogitaDependencyGraphCreateRequest(
     string? SignatureBase64
 );
 
+public sealed record CogitaDependencyGraphUpdateRequest(
+    string? Name
+);
+
 public sealed record CogitaDependencyGraphSummaryResponse(
     Guid GraphId,
     string Name,

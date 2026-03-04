@@ -14,6 +14,7 @@ import {
   getCogitaDependencyGraphs,
   previewCogitaDependencyGraph,
   saveCogitaDependencyGraph,
+  updateCogitaDependencyGraph,
   type CogitaDependencyGraphPreview,
   type CogitaDependencyGraphSummary,
   getCogitaInfoDetail,
@@ -83,8 +84,10 @@ export function CogitaDependencyGraphPage({
   const [graphSearch, setGraphSearch] = useState('');
   const [graphStatusFilter, setGraphStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [graphNameDraft, setGraphNameDraft] = useState('');
+  const [graphRenameDraft, setGraphRenameDraft] = useState('');
   const [graphLoadTick, setGraphLoadTick] = useState(0);
   const [lastImportedKey, setLastImportedKey] = useState('');
+  const [lastCreatePrefillKey, setLastCreatePrefillKey] = useState('');
   const [overviewItems, setOverviewItems] = useState<Array<{ infoId: string; label: string; infoType: string | null }>>([]);
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
@@ -130,6 +133,14 @@ export function CogitaDependencyGraphPage({
   const toggleSelectedGraph = useCallback((graphId: string) => {
     setSelectedGraphId((current) => (current === graphId ? null : graphId));
   }, []);
+
+  useEffect(() => {
+    if (!selectedGraph) {
+      setGraphRenameDraft('');
+      return;
+    }
+    setGraphRenameDraft(selectedGraph.name ?? '');
+  }, [selectedGraph]);
 
   useEffect(() => {
     void loadGraphs().catch(() => {
@@ -239,6 +250,56 @@ export function CogitaDependencyGraphPage({
       mounted = false;
     };
   }, [libraryId, mode, preview, selectedGraphId]);
+
+  useEffect(() => {
+    if (mode !== 'create' || selectedGraphId || requestedInfoIds.length === 0) {
+      return;
+    }
+    const prefillKey = `create|${requestedInfoIds.join(',')}`;
+    if (lastCreatePrefillKey === prefillKey) {
+      return;
+    }
+    let mounted = true;
+    Promise.all(
+      requestedInfoIds.map(async (infoId) => {
+        try {
+          const detail = await getCogitaInfoDetail({ libraryId, infoId });
+          const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
+          const label = payload.title || payload.label || payload.name || infoId;
+          return { infoId, infoType: detail.infoType ?? null, label };
+        } catch {
+          return { infoId, infoType: null as string | null, label: infoId };
+        }
+      })
+    ).then((items) => {
+      if (!mounted) return;
+      const prefilledNodes: GraphNode[] = items.map((item, index) => ({
+        id: crypto.randomUUID(),
+        type: 'default',
+        position: { x: 180 + (index % 5) * 140, y: 120 + Math.floor(index / 5) * 110 },
+        data: {
+          label: item.label,
+          nodeType: item.infoType === 'collection' ? 'collection' : 'info',
+          itemType: item.infoType === 'collection' ? 'collection' : 'info',
+          itemId: item.infoId,
+          infoType: item.infoType
+        }
+      }));
+      setNodes(prefilledNodes);
+      setEdges([]);
+      setSelectedNodeId(null);
+      setLastCreatePrefillKey(prefillKey);
+      setStatus(`Prepared ${prefilledNodes.length} selected infos for a new dependency graph.`);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [lastCreatePrefillKey, libraryId, mode, requestedInfoIds, selectedGraphId, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (mode === 'create' && !selectedGraphId && requestedInfoIds.length > 0) return;
+    setLastCreatePrefillKey('');
+  }, [mode, requestedInfoIds.length, selectedGraphId]);
 
   useEffect(() => {
     if (!isEditMode) {
@@ -379,6 +440,18 @@ export function CogitaDependencyGraphPage({
       setStatus('Dependency graph created.');
     } catch {
       setStatus('Failed to create dependency graph.');
+    }
+  };
+
+  const handleRenameGraph = async () => {
+    if (!selectedGraphId) return;
+    setStatus(null);
+    try {
+      await updateCogitaDependencyGraph({ libraryId, graphId: selectedGraphId, name: graphRenameDraft.trim() || null });
+      await loadGraphs();
+      setStatus('Dependency graph renamed.');
+    } catch {
+      setStatus('Failed to rename dependency graph.');
     }
   };
 
@@ -667,9 +740,6 @@ export function CogitaDependencyGraphPage({
             <a className="cta ghost" href={baseHref}>
               {copy.cogita.library.actions.libraryOverview}
             </a>
-                  <button type="button" className="cta" onClick={handleSave} disabled={!isEditMode}>
-                    {copy.cogita.library.graph.save}
-                  </button>
           </div>
         </header>
 
@@ -714,6 +784,23 @@ export function CogitaDependencyGraphPage({
                   />
                   <button type="button" className="cta ghost" onClick={() => void handleCreateGraph()} disabled={!isEditMode}>
                     Create graph
+                  </button>
+                </div>
+                <div className="cogita-form-actions" style={{ marginTop: 8 }}>
+                  <input
+                    type="text"
+                    value={graphRenameDraft}
+                    onChange={(event) => setGraphRenameDraft(event.target.value)}
+                    placeholder="Selected dependency name"
+                    disabled={!selectedGraphId || !isEditMode}
+                  />
+                  <button
+                    type="button"
+                    className="cta ghost"
+                    onClick={() => void handleRenameGraph()}
+                    disabled={!selectedGraphId || !isEditMode}
+                  >
+                    Rename
                   </button>
                   <button
                     type="button"
@@ -763,6 +850,13 @@ export function CogitaDependencyGraphPage({
                   <Background gap={18} size={1} />
                   <Controls />
                 </ReactFlow>
+                {isEditMode ? (
+                  <div className="cogita-form-actions" style={{ marginTop: 12 }}>
+                    <button type="button" className="cta" onClick={handleSave}>
+                      {copy.cogita.library.graph.save}
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div className="cogita-graph-panel">
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.inspector}</p>

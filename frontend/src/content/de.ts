@@ -724,6 +724,8 @@ export const de: Copy = {
         viewGrid: 'Raster',
         selectedStackTitle: 'Auswahlstapel',
         selectedStackHint: 'Ausgewählte Infos bleiben bei Suchänderungen erhalten.',
+        openInCollection: 'In Sammlung öffnen',
+        openInDependencies: 'In Abhängigkeiten öffnen',
         removeFromStack: 'Aus Stapel entfernen',
         detailColumnName: 'Name',
         detailColumnType: 'Typ',
