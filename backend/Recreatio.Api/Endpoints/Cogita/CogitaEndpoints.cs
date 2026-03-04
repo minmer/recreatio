@@ -2550,15 +2550,6 @@ public static class CogitaEndpoints
                 blockers.Add("collection-dependencies");
             }
 
-            var usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
-                .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId, ct)
-                || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
-                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId, ct);
-            if (usedAsLinkTarget)
-            {
-                blockers.Add("info-links");
-            }
-
             if (blockers.Count > 0)
             {
                 return Results.Conflict(new
@@ -2602,6 +2593,12 @@ public static class CogitaEndpoints
             var ownMultis = await dbContext.CogitaInfoLinkMultis
                 .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
                 .ToListAsync(ct);
+            var incomingSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+                .ToListAsync(ct);
+            var incomingMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+                .ToListAsync(ct);
             if (ownSingles.Count > 0)
             {
                 dbContext.CogitaInfoLinkSingles.RemoveRange(ownSingles);
@@ -2609,6 +2606,14 @@ public static class CogitaEndpoints
             if (ownMultis.Count > 0)
             {
                 dbContext.CogitaInfoLinkMultis.RemoveRange(ownMultis);
+            }
+            if (incomingSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(incomingSingles);
+            }
+            if (incomingMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(incomingMultis);
             }
 
             var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
@@ -7500,9 +7505,9 @@ public static class CogitaEndpoints
                 var existing = await dbContext.CogitaDependencyGraphs
                     .Where(x => x.LibraryId == libraryId && x.IsActive)
                     .ToListAsync(ct);
-                foreach (var graph in existing)
+                foreach (var activeGraph in existing)
                 {
-                    graph.IsActive = false;
+                    activeGraph.IsActive = false;
                 }
             }
 

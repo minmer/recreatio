@@ -958,19 +958,6 @@ export function CogitaLibraryListPage({
                   >
                     {listCopy.openSelected}
                   </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
-                      if (!ids.length) return;
-                      const query = new URLSearchParams({ infoIds: ids.join(',') });
-                      navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
-                    }}
-                    disabled={selectedItems.length === 0}
-                  >
-                    Open In Dependencies
-                  </button>
                 </div>
               </div>
 
@@ -1091,6 +1078,19 @@ export function CogitaLibraryListPage({
                     </button>
                     <button type="button" className="ghost" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
                       Create collection from selection
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
+                        if (!ids.length) return;
+                        const query = new URLSearchParams({ infoIds: ids.join(','), dependencyView: 'edit' });
+                        navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
+                      }}
+                      disabled={selectedItems.length === 0}
+                    >
+                      Open In Dependencies
                     </button>
                   </div>
                 </section>

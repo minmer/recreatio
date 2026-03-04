@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { deleteCogitaCollection, getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
+import { ApiError, deleteCogitaCollection, getCogitaCollection, getCogitaCollectionCards, type CogitaCardSearchResult } from '../../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { getCardKey } from '../../../../cogita/revision/cards';
 import { CogitaShell } from '../../CogitaShell';
@@ -92,8 +92,18 @@ export function CogitaCollectionDetailPage({
     try {
       await deleteCogitaCollection({ libraryId, collectionId });
       navigate(`/cogita/library/${libraryId}/collections`, { replace: true });
-    } catch {
-      setDeleteStatus('Failed to delete collection. Remove linked revisions, live sessions, and dependencies first.');
+    } catch (error) {
+      if (error instanceof ApiError && error.message) {
+        try {
+          const parsed = JSON.parse(error.message) as { error?: string };
+          setDeleteStatus(parsed.error ?? 'Failed to delete collection.');
+          return;
+        } catch {
+          setDeleteStatus(error.message);
+          return;
+        }
+      }
+      setDeleteStatus('Failed to delete collection.');
     }
   };
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState, type Connection, type Edge } from 'reactflow';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -49,7 +49,8 @@ export function CogitaDependencyGraphPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId
+  libraryId,
+  mode = 'overview'
 }: {
   copy: Copy;
   authLabel: string;
@@ -62,9 +63,12 @@ export function CogitaDependencyGraphPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
+  mode?: 'search' | 'create' | 'overview' | 'edit';
 }) {
   const baseHref = `/#/cogita/library/${libraryId}`;
+  const navigate = useNavigate();
   const location = useLocation();
+  const isEditMode = mode === 'edit' || mode === 'create';
 
   const [nodes, setNodes, onNodesChange] = useNodesState<GraphNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([]);
@@ -89,6 +93,10 @@ export function CogitaDependencyGraphPage({
       .map((item) => item.trim())
       .filter((item, index, list) => item.length > 0 && list.indexOf(item) === index);
   }, [location.search]);
+  const routeGraphId = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('graphId');
+    return value && value.trim().length > 0 ? value.trim() : null;
+  }, [location.search]);
 
   const filteredGraphs = useMemo(() => {
     const query = graphSearch.trim().toLowerCase();
@@ -100,11 +108,12 @@ export function CogitaDependencyGraphPage({
     const response = await getCogitaDependencyGraphs({ libraryId });
     setGraphs(response.items ?? []);
     setSelectedGraphId((current) => {
+      if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
       if (current && response.items.some((item) => item.graphId === current)) return current;
       const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
       return preferred?.graphId ?? null;
     });
-  }, [libraryId]);
+  }, [libraryId, routeGraphId]);
 
   useEffect(() => {
     void loadGraphs().catch(() => {
@@ -112,6 +121,26 @@ export function CogitaDependencyGraphPage({
       setSelectedGraphId(null);
     });
   }, [loadGraphs]);
+
+  useEffect(() => {
+    if (!libraryId) return;
+    const params = new URLSearchParams(location.search);
+    if (selectedGraphId) {
+      params.set('graphId', selectedGraphId);
+    } else {
+      params.delete('graphId');
+    }
+    const normalizedMode = mode === 'create' ? 'create' : mode === 'edit' ? 'edit' : mode === 'overview' ? 'overview' : 'search';
+    if (normalizedMode === 'search') {
+      params.delete('dependencyView');
+    } else {
+      params.set('dependencyView', normalizedMode);
+    }
+    const next = params.toString();
+    const current = new URLSearchParams(location.search).toString();
+    if (next === current) return;
+    navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+  }, [isEditMode, libraryId, location.search, navigate, selectedGraphId]);
 
   useEffect(() => {
     if (!selectedGraphId) {
@@ -165,6 +194,9 @@ export function CogitaDependencyGraphPage({
   }, [libraryId, nodes, edges, selectedGraphId]);
 
   useEffect(() => {
+    if (!isEditMode) {
+      return;
+    }
     if (!selectedGraphId || requestedInfoIds.length === 0) {
       return;
     }
@@ -216,7 +248,7 @@ export function CogitaDependencyGraphPage({
     return () => {
       mounted = false;
     };
-  }, [graphLoadTick, lastImportedKey, libraryId, requestedInfoIds, selectedGraphId, setNodes]);
+  }, [graphLoadTick, isEditMode, lastImportedKey, libraryId, requestedInfoIds, selectedGraphId, setNodes]);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((prev) => addEdge(connection, prev));
@@ -418,9 +450,9 @@ export function CogitaDependencyGraphPage({
             <a className="cta ghost" href={baseHref}>
               {copy.cogita.library.actions.libraryOverview}
             </a>
-            <button type="button" className="cta" onClick={handleSave}>
-              {copy.cogita.library.graph.save}
-            </button>
+                  <button type="button" className="cta" onClick={handleSave} disabled={!isEditMode}>
+                    {copy.cogita.library.graph.save}
+                  </button>
           </div>
         </header>
 
@@ -458,14 +490,14 @@ export function CogitaDependencyGraphPage({
                     onChange={(event) => setGraphNameDraft(event.target.value)}
                     placeholder="New dependency graph name"
                   />
-                  <button type="button" className="cta ghost" onClick={() => void handleCreateGraph()}>
+                  <button type="button" className="cta ghost" onClick={() => void handleCreateGraph()} disabled={!isEditMode}>
                     Create graph
                   </button>
                   <button
                     type="button"
                     className="cta ghost"
                     onClick={() => selectedGraphId && void handleActivateGraph(selectedGraphId)}
-                    disabled={!selectedGraphId}
+                    disabled={!selectedGraphId || !isEditMode}
                   >
                     Set active
                   </button>
@@ -473,17 +505,17 @@ export function CogitaDependencyGraphPage({
                     type="button"
                     className="cta ghost"
                     onClick={() => void handleDeleteGraph()}
-                    disabled={!selectedGraphId}
+                    disabled={!selectedGraphId || !isEditMode}
                   >
                     Delete
                   </button>
                 </div>
                 <hr />
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.palette}</p>
-                <button type="button" className="cta ghost" onClick={addCollectionNode}>
+                <button type="button" className="cta ghost" onClick={addCollectionNode} disabled={!isEditMode}>
                   {copy.cogita.library.collections.create}
                 </button>
-                <button type="button" className="cta ghost" onClick={addInfoNode}>
+                <button type="button" className="cta ghost" onClick={addInfoNode} disabled={!isEditMode}>
                   {copy.cogita.library.actions.addInfo}
                 </button>
                 {preview ? (
@@ -499,9 +531,12 @@ export function CogitaDependencyGraphPage({
                   edges={edges}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
-                  onConnect={onConnect}
+                  onConnect={isEditMode ? onConnect : undefined}
                   onNodeClick={(_, node) => setSelectedNodeId(node.id)}
                   fitView
+                  nodesDraggable={isEditMode}
+                  nodesConnectable={isEditMode}
+                  elementsSelectable
                 >
                   <Background gap={18} size={1} />
                   <Controls />
@@ -526,7 +561,7 @@ export function CogitaDependencyGraphPage({
                               } as never)
                             : null
                         }
-                        onChange={updateSelectedCollection}
+                        onChange={isEditMode ? updateSelectedCollection : () => {}}
                         searchFailedText={copy.cogita.library.lookup.searchFailed}
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.collection)}
@@ -548,7 +583,7 @@ export function CogitaDependencyGraphPage({
                               } as never)
                             : null
                         }
-                        onChange={updateSelectedInfo}
+                        onChange={isEditMode ? updateSelectedInfo : () => {}}
                         searchFailedText={copy.cogita.library.lookup.searchFailed}
                         createFailedText={copy.cogita.library.lookup.createFailed}
                         createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.any)}
