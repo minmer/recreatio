@@ -123,12 +123,13 @@ export function CogitaDependencyGraphPage({
     setGraphs(response.items ?? []);
     setSelectedGraphId((current) => {
       if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
+      if (mode === 'create' || mode === 'search') return null;
       if (current && response.items.some((item) => item.graphId === current)) return current;
       if (!current && !routeGraphId) return null;
       const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
       return preferred?.graphId ?? null;
     });
-  }, [libraryId, routeGraphId]);
+  }, [libraryId, mode, routeGraphId]);
 
   const toggleSelectedGraph = useCallback((graphId: string) => {
     setSelectedGraphId((current) => (current === graphId ? null : graphId));
@@ -152,12 +153,13 @@ export function CogitaDependencyGraphPage({
   useEffect(() => {
     if (!libraryId) return;
     const params = new URLSearchParams(location.search);
-    if (selectedGraphId) {
+    const normalizedMode = mode === 'create' ? 'create' : mode === 'edit' ? 'edit' : mode === 'overview' ? 'overview' : 'search';
+    const keepGraphInRoute = normalizedMode === 'overview' || normalizedMode === 'edit';
+    if (keepGraphInRoute && selectedGraphId) {
       params.set('graphId', selectedGraphId);
     } else {
       params.delete('graphId');
     }
-    const normalizedMode = mode === 'create' ? 'create' : mode === 'edit' ? 'edit' : mode === 'overview' ? 'overview' : 'search';
     if (normalizedMode === 'search') {
       params.delete('dependencyView');
     } else {
@@ -167,7 +169,7 @@ export function CogitaDependencyGraphPage({
     const current = new URLSearchParams(location.search).toString();
     if (next === current) return;
     navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
-  }, [isEditMode, libraryId, location.search, navigate, selectedGraphId]);
+  }, [libraryId, location.search, mode, navigate, selectedGraphId]);
 
   useEffect(() => {
     if (!selectedGraphId) {
@@ -685,6 +687,31 @@ export function CogitaDependencyGraphPage({
                   <span>{selectedGraph?.isActive ? 'Active' : 'Inactive'}</span>
                   <span>{copy.cogita.library.collections.ready}</span>
                 </div>
+                <div className="cogita-form-actions" style={{ marginTop: 12 }}>
+                  <input
+                    type="text"
+                    value={graphRenameDraft}
+                    onChange={(event) => setGraphRenameDraft(event.target.value)}
+                    placeholder="Dependency name"
+                    disabled={!selectedGraphId}
+                  />
+                  <button
+                    type="button"
+                    className="cta ghost"
+                    onClick={() => void handleRenameGraph()}
+                    disabled={!selectedGraphId}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    className="cta ghost"
+                    onClick={() => void handleDeleteGraph()}
+                    disabled={!selectedGraphId}
+                  >
+                    Delete
+                  </button>
+                </div>
                 <div className="cogita-graph-summary">
                   <p>{`Nodes: ${selectedGraph?.nodeCount ?? nodes.length}`}</p>
                   <p>{`Linked infos: ${preview?.totalCollections ?? overviewItems.length}`}</p>
@@ -748,12 +775,6 @@ export function CogitaDependencyGraphPage({
             <div className="cogita-collection-graph">
               <div className="cogita-graph-panel">
                 <p className="cogita-user-kicker">Dependency Graphs</p>
-                <input
-                  type="text"
-                  value={graphSearch}
-                  onChange={(event) => setGraphSearch(event.target.value)}
-                  placeholder="Search graph by name or id"
-                />
                 {selectedGraphId ? (
                   <button type="button" className="cta ghost" onClick={() => setSelectedGraphId(null)}>
                     Deselect graph
@@ -787,21 +808,6 @@ export function CogitaDependencyGraphPage({
                   </button>
                 </div>
                 <div className="cogita-form-actions" style={{ marginTop: 8 }}>
-                  <input
-                    type="text"
-                    value={graphRenameDraft}
-                    onChange={(event) => setGraphRenameDraft(event.target.value)}
-                    placeholder="Selected dependency name"
-                    disabled={!selectedGraphId || !isEditMode}
-                  />
-                  <button
-                    type="button"
-                    className="cta ghost"
-                    onClick={() => void handleRenameGraph()}
-                    disabled={!selectedGraphId || !isEditMode}
-                  >
-                    Rename
-                  </button>
                   <button
                     type="button"
                     className="cta ghost"
@@ -809,14 +815,6 @@ export function CogitaDependencyGraphPage({
                     disabled={!selectedGraphId || !isEditMode}
                   >
                     Set active
-                  </button>
-                  <button
-                    type="button"
-                    className="cta ghost"
-                    onClick={() => void handleDeleteGraph()}
-                    disabled={!selectedGraphId || !isEditMode}
-                  >
-                    Delete
                   </button>
                 </div>
                 <hr />

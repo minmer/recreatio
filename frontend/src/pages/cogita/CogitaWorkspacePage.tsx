@@ -625,8 +625,9 @@ export function CogitaWorkspacePage({
     return 'search';
   }, [displayRevisionView, pathState.liveSessionId, pathState.liveSessionView]);
   const dependencyMode = useMemo<DependencyMode>(() => {
-    if (pathState.dependencyGraphId) return 'selected';
     if (pathState.dependencyView === 'create') return 'create';
+    if (pathState.dependencyView === 'search') return 'search';
+    if (pathState.dependencyGraphId) return 'selected';
     return 'search';
   }, [pathState.dependencyGraphId, pathState.dependencyView]);
   const selectedInfoOption = useMemo(
@@ -823,6 +824,9 @@ export function CogitaWorkspacePage({
       }
 
       if (resolvedTarget === 'dependencies') {
+        if (resolvedDependencyView === 'search' || resolvedDependencyView === 'create') {
+          resolvedDependencyGraphId = undefined;
+        }
         if (!resolvedDependencyGraphId && (resolvedDependencyView === 'overview' || resolvedDependencyView === 'edit')) {
           resolvedDependencyView = 'search';
         }
