@@ -939,7 +939,7 @@ export function CogitaWorkspacePage({
         value: dependencyMode,
         selectedLabel:
           dependencyMode === 'selected'
-            ? (selectedDependencyGraph?.name ?? pathState.dependencyGraphId ?? workspaceCopy.targets.dependencies)
+            ? (selectedDependencyGraph?.name ?? workspaceCopy.targets.dependencies)
             : dependencyMode === 'create'
               ? workspaceCopy.infoMode.create
             : workspaceCopy.infoMode.search,
@@ -948,7 +948,7 @@ export function CogitaWorkspacePage({
           { value: 'search', label: workspaceCopy.infoMode.search },
           { value: 'create', label: workspaceCopy.infoMode.create },
           ...(pathState.dependencyGraphId
-            ? [{ value: 'selected', label: selectedDependencyGraph?.name ?? pathState.dependencyGraphId }]
+            ? [{ value: 'selected', label: selectedDependencyGraph?.name ?? workspaceCopy.targets.dependencies }]
             : [])
         ],
         onSelect: (value: string) => {
@@ -2613,8 +2613,8 @@ export function CogitaWorkspacePage({
                 {renderSidebarActions(sidebarDependencyModeLevel, 'sidebar')}
                 {sidebarDependencySelectedActionLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note" title={selectedDependencyGraph?.name ?? pathState.dependencyGraphId ?? ''}>
-                      {shortenNavLabel(selectedDependencyGraph?.name ?? pathState.dependencyGraphId ?? '', SIDEBAR_NAV_LABEL_MAX)}
+                    <p className="cogita-sidebar-note" title={selectedDependencyGraph?.name ?? workspaceCopy.targets.dependencies}>
+                      {shortenNavLabel(selectedDependencyGraph?.name ?? workspaceCopy.targets.dependencies, SIDEBAR_NAV_LABEL_MAX)}
                     </p>
                     {renderSidebarActions(sidebarDependencySelectedActionLevel, 'sidebar')}
                   </div>
