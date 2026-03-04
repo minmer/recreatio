@@ -133,13 +133,19 @@ export function CogitaDependencyGraphPage({
     setGraphs(response.items ?? []);
     setSelectedGraphId((current) => {
       if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
-      if (mode === 'create' || mode === 'search') return null;
+      if (mode === 'create' && requestedInfoIds.length > 0) return null;
       if (current && response.items.some((item) => item.graphId === current)) return current;
-      if (!current && !routeGraphId) return null;
+      if (mode === 'create' || mode === 'search') return null;
       const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
       return preferred?.graphId ?? null;
     });
-  }, [libraryId, mode, routeGraphId]);
+  }, [libraryId, mode, requestedInfoIds.length, routeGraphId]);
+
+  useEffect(() => {
+    if (mode === 'create' && requestedInfoIds.length > 0 && selectedGraphId) {
+      setSelectedGraphId(null);
+    }
+  }, [mode, requestedInfoIds.length, selectedGraphId]);
 
   const toggleSelectedGraph = useCallback((graphId: string) => {
     setSelectedGraphId((current) => (current === graphId ? null : graphId));
