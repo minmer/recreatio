@@ -87,7 +87,6 @@ export function CogitaDependencyGraphPage({
   const [graphRenameDraft, setGraphRenameDraft] = useState('');
   const [graphLoadTick, setGraphLoadTick] = useState(0);
   const [lastImportedKey, setLastImportedKey] = useState('');
-  const [lastCreatePrefillKey, setLastCreatePrefillKey] = useState('');
   const [overviewItems, setOverviewItems] = useState<Array<{ infoId: string; label: string; infoType: string | null }>>([]);
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
@@ -259,10 +258,6 @@ export function CogitaDependencyGraphPage({
     if (mode !== 'create' || selectedGraphId || requestedInfoIds.length === 0) {
       return;
     }
-    const prefillKey = `create|${requestedInfoIds.join(',')}`;
-    if (lastCreatePrefillKey === prefillKey) {
-      return;
-    }
     let mounted = true;
     Promise.all(
       requestedInfoIds.map(async (infoId) => {
@@ -292,18 +287,12 @@ export function CogitaDependencyGraphPage({
       setNodes(prefilledNodes);
       setEdges([]);
       setSelectedNodeId(null);
-      setLastCreatePrefillKey(prefillKey);
       setStatus(`Prepared ${prefilledNodes.length} selected infos for a new dependency graph.`);
     });
     return () => {
       mounted = false;
     };
-  }, [lastCreatePrefillKey, libraryId, mode, requestedInfoIds, selectedGraphId, setEdges, setNodes]);
-
-  useEffect(() => {
-    if (mode === 'create' && !selectedGraphId && requestedInfoIds.length > 0) return;
-    setLastCreatePrefillKey('');
-  }, [mode, requestedInfoIds.length, selectedGraphId]);
+  }, [libraryId, mode, requestedInfoIds, selectedGraphId, setEdges, setNodes]);
 
   useEffect(() => {
     if (!isEditMode) {
