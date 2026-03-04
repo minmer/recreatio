@@ -108,17 +108,30 @@ export function CogitaDependencyGraphPage({
     return value && value.trim().length > 0 ? value.trim() : null;
   }, [location.search]);
   const transfer = useMemo(() => (transferToken ? loadWorkspaceTransfer(transferToken) : null), [transferToken, location.search]);
-  const transferPrefillIds = useMemo(() => {
+  const transferPrefillInfos = useMemo(() => {
     if (!transfer || transfer.kind !== 'dependency_create_prefill') return [];
     if (transfer.libraryId !== libraryId) return [];
-    return Array.from(new Set(transfer.infoIds.map((id) => id.trim()).filter(Boolean)));
+    const unique = new Map<string, { infoId: string; label?: string | null; infoType?: string | null }>();
+    const infos = Array.isArray(transfer.infos) ? transfer.infos : [];
+    infos.forEach((entry) => {
+      const infoId = (entry.infoId ?? '').trim();
+      if (!infoId) return;
+      if (!unique.has(infoId)) {
+        unique.set(infoId, {
+          infoId,
+          label: entry.label ?? null,
+          infoType: entry.infoType ?? null
+        });
+      }
+    });
+    return Array.from(unique.values());
   }, [libraryId, transfer]);
-  const requestedInfoIds = useMemo(() => {
-    if (transferPrefillIds.length > 0) {
-      return transferPrefillIds;
+  const requestedInfos = useMemo(() => {
+    if (transferPrefillInfos.length > 0) {
+      return transferPrefillInfos;
     }
     return [];
-  }, [transferPrefillIds]);
+  }, [transferPrefillInfos]);
   const routeGraphId = useMemo(() => {
     const value = new URLSearchParams(location.search).get('graphId');
     return value && value.trim().length > 0 ? value.trim() : null;
@@ -139,19 +152,19 @@ export function CogitaDependencyGraphPage({
     setGraphs(response.items ?? []);
     setSelectedGraphId((current) => {
       if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
-      if (mode === 'create' && requestedInfoIds.length > 0) return null;
+      if (mode === 'create' && requestedInfos.length > 0) return null;
       if (current && response.items.some((item) => item.graphId === current)) return current;
       if (mode === 'create' || mode === 'search') return null;
       const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
       return preferred?.graphId ?? null;
     });
-  }, [libraryId, mode, requestedInfoIds.length, routeGraphId]);
+  }, [libraryId, mode, requestedInfos.length, routeGraphId]);
 
   useEffect(() => {
-    if (mode === 'create' && requestedInfoIds.length > 0 && selectedGraphId) {
+    if (mode === 'create' && requestedInfos.length > 0 && selectedGraphId) {
       setSelectedGraphId(null);
     }
-  }, [mode, requestedInfoIds.length, selectedGraphId]);
+  }, [mode, requestedInfos.length, selectedGraphId]);
 
   const toggleSelectedGraph = useCallback((graphId: string) => {
     setHasLocalDraft(false);
@@ -282,7 +295,7 @@ export function CogitaDependencyGraphPage({
   }, [libraryId, mode, preview, selectedGraphId]);
 
   useEffect(() => {
-    if (mode !== 'create' || selectedGraphId || requestedInfoIds.length === 0) {
+    if (mode !== 'create' || selectedGraphId || requestedInfos.length === 0) {
       return;
     }
     const sourceKey = transferToken ? `transfer:${transferToken}` : '';
@@ -290,14 +303,15 @@ export function CogitaDependencyGraphPage({
     if (lastCreateSourceKey === sourceKey) return;
     let mounted = true;
     Promise.all(
-      requestedInfoIds.map(async (infoId) => {
+      requestedInfos.map(async (item) => {
+        const infoId = item.infoId;
         try {
           const detail = await getCogitaInfoDetail({ libraryId, infoId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
-          const label = payload.title || payload.label || payload.name || infoId;
+          const label = item.label || payload.title || payload.label || payload.name || infoId;
           return { infoId, infoType: detail.infoType ?? null, label };
         } catch {
-          return { infoId, infoType: null as string | null, label: infoId };
+          return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
         }
       })
     ).then((items) => {
@@ -331,7 +345,7 @@ export function CogitaDependencyGraphPage({
     return () => {
       mounted = false;
     };
-  }, [lastCreateSourceKey, libraryId, location.search, mode, navigate, requestedInfoIds, selectedGraphId, setEdges, setNodes, transferToken]);
+  }, [lastCreateSourceKey, libraryId, location.search, mode, navigate, requestedInfos, selectedGraphId, setEdges, setNodes, transferToken]);
 
   useEffect(() => {
     if (!transferToken || !transfer || transfer.kind !== 'dependency_node_pick') return;
@@ -374,24 +388,25 @@ export function CogitaDependencyGraphPage({
     if (!isEditMode) {
       return;
     }
-    if (!selectedGraphId || requestedInfoIds.length === 0) {
+    if (!selectedGraphId || requestedInfos.length === 0) {
       return;
     }
-    const importKey = `${selectedGraphId}|${requestedInfoIds.join(',')}`;
+    const importKey = `${selectedGraphId}|${requestedInfos.map((item) => item.infoId).join(',')}`;
     if (lastImportedKey === importKey) {
       return;
     }
 
     let mounted = true;
     Promise.all(
-      requestedInfoIds.map(async (infoId) => {
+      requestedInfos.map(async (item) => {
+        const infoId = item.infoId;
         try {
           const detail = await getCogitaInfoDetail({ libraryId, infoId });
           const payload = (detail.payload ?? {}) as { title?: string; label?: string; name?: string };
-          const label = payload.title || payload.label || payload.name || infoId;
+          const label = item.label || payload.title || payload.label || payload.name || infoId;
           return { infoId, infoType: detail.infoType ?? null, label };
         } catch {
-          return { infoId, infoType: null as string | null, label: infoId };
+          return { infoId, infoType: item.infoType ?? null, label: item.label || infoId };
         }
       })
     ).then((items) => {
@@ -425,7 +440,7 @@ export function CogitaDependencyGraphPage({
     return () => {
       mounted = false;
     };
-  }, [graphLoadTick, isEditMode, lastImportedKey, libraryId, requestedInfoIds, selectedGraphId, setNodes]);
+  }, [graphLoadTick, isEditMode, lastImportedKey, libraryId, requestedInfos, selectedGraphId, setNodes]);
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((prev) => addEdge(connection, prev));

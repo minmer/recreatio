@@ -1127,7 +1127,13 @@ export function CogitaWorkspacePage({
             const token = createWorkspaceTransfer({
               kind: 'dependency_create_prefill',
               libraryId: selectedLibraryId ?? '',
-              infoIds: [pathState.infoId]
+              infos: [
+                {
+                  infoId: pathState.infoId,
+                  label: selectedInfoOption?.label ?? selectedInfoLabel ?? pathState.infoId,
+                  infoType: selectedInfoOption?.infoType ?? null
+                }
+              ]
             });
             if (!token) return;
             const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });

@@ -2,7 +2,11 @@ export type WorkspaceTransfer =
   | {
       kind: 'dependency_create_prefill';
       libraryId: string;
-      infoIds: string[];
+      infos: Array<{
+        infoId: string;
+        label?: string | null;
+        infoType?: string | null;
+      }>;
       createdAt: string;
     }
   | {

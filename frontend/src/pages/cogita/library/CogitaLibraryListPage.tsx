@@ -1080,7 +1080,13 @@ export function CogitaLibraryListPage({
                         const token = createWorkspaceTransfer({
                           kind: 'dependency_create_prefill',
                           libraryId,
-                          infoIds: ids
+                          infos: selectedItems
+                            .filter((item) => Boolean(item.infoId))
+                            .map((item) => ({
+                              infoId: item.infoId,
+                              label: item.label,
+                              infoType: item.infoType ?? null
+                            }))
                         });
                         if (!token) return;
                         const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });
