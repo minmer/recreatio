@@ -868,7 +868,7 @@ export function CogitaDependencyGraphPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard cogita-dependency-editor" data-mode="detail">
+      <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
             <p className="cogita-user-kicker">{copy.cogita.library.graph.kicker}</p>
