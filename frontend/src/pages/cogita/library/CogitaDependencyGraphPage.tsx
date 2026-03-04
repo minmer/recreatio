@@ -21,7 +21,12 @@ import {
   type CogitaInfoSearchResult
 } from '../../../lib/api';
 import { buildQuoteFragmentTree } from '../../../cogita/revision/quote';
-import { loadDependencySelectionSeed } from '../../../cogita/dependency/selection';
+import {
+  createWorkspaceTransfer,
+  loadWorkspaceTransfer,
+  removeWorkspaceTransfer,
+  updateWorkspaceTransfer
+} from '../../../cogita/workspace/transfer';
 
 type GraphNode = {
   id: string;
@@ -89,6 +94,8 @@ export function CogitaDependencyGraphPage({
   const [graphLoadTick, setGraphLoadTick] = useState(0);
   const [lastImportedKey, setLastImportedKey] = useState('');
   const [overviewItems, setOverviewItems] = useState<Array<{ infoId: string; label: string; infoType: string | null }>>([]);
+  const [lastCreateSourceKey, setLastCreateSourceKey] = useState('');
+  const [hasLocalDraft, setHasLocalDraft] = useState(false);
 
   const selectedNode = useMemo(() => nodes.find((node) => node.id === selectedNodeId) ?? null, [nodes, selectedNodeId]);
   const selectedGraph = useMemo(
@@ -96,23 +103,22 @@ export function CogitaDependencyGraphPage({
     [graphs, selectedGraphId]
   );
 
-  const dependencySeedId = useMemo(() => {
-    const value = new URLSearchParams(location.search).get('dependencySeed');
+  const transferToken = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('transfer');
     return value && value.trim().length > 0 ? value.trim() : null;
   }, [location.search]);
+  const transfer = useMemo(() => (transferToken ? loadWorkspaceTransfer(transferToken) : null), [transferToken, location.search]);
+  const transferPrefillIds = useMemo(() => {
+    if (!transfer || transfer.kind !== 'dependency_create_prefill') return [];
+    if (transfer.libraryId !== libraryId) return [];
+    return Array.from(new Set(transfer.infoIds.map((id) => id.trim()).filter(Boolean)));
+  }, [libraryId, transfer]);
   const requestedInfoIds = useMemo(() => {
-    if (dependencySeedId) {
-      const seed = loadDependencySelectionSeed(libraryId, dependencySeedId);
-      if (seed?.infoIds?.length) {
-        return Array.from(new Set(seed.infoIds.map((id) => id.trim()).filter(Boolean)));
-      }
+    if (transferPrefillIds.length > 0) {
+      return transferPrefillIds;
     }
-    const value = new URLSearchParams(location.search).get('infoIds') ?? '';
-    return value
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item, index, list) => item.length > 0 && list.indexOf(item) === index);
-  }, [dependencySeedId, libraryId, location.search]);
+    return [];
+  }, [transferPrefillIds]);
   const routeGraphId = useMemo(() => {
     const value = new URLSearchParams(location.search).get('graphId');
     return value && value.trim().length > 0 ? value.trim() : null;
@@ -148,6 +154,7 @@ export function CogitaDependencyGraphPage({
   }, [mode, requestedInfoIds.length, selectedGraphId]);
 
   const toggleSelectedGraph = useCallback((graphId: string) => {
+    setHasLocalDraft(false);
     setSelectedGraphId((current) => (current === graphId ? null : graphId));
   }, []);
 
@@ -196,6 +203,9 @@ export function CogitaDependencyGraphPage({
       }
       return;
     }
+    if (hasLocalDraft) {
+      return;
+    }
     let mounted = true;
     getCogitaDependencyGraph({ libraryId, graphId: selectedGraphId })
       .then((graph) => {
@@ -228,7 +238,7 @@ export function CogitaDependencyGraphPage({
     return () => {
       mounted = false;
     };
-  }, [libraryId, mode, selectedGraphId, setEdges, setNodes]);
+  }, [hasLocalDraft, libraryId, mode, selectedGraphId, setEdges, setNodes]);
 
   useEffect(() => {
     if (!selectedGraphId) {
@@ -275,6 +285,9 @@ export function CogitaDependencyGraphPage({
     if (mode !== 'create' || selectedGraphId || requestedInfoIds.length === 0) {
       return;
     }
+    const sourceKey = transferToken ? `transfer:${transferToken}` : '';
+    if (!sourceKey) return;
+    if (lastCreateSourceKey === sourceKey) return;
     let mounted = true;
     Promise.all(
       requestedInfoIds.map(async (infoId) => {
@@ -304,12 +317,58 @@ export function CogitaDependencyGraphPage({
       setNodes(prefilledNodes);
       setEdges([]);
       setSelectedNodeId(null);
+      setHasLocalDraft(true);
+      setLastCreateSourceKey(sourceKey);
       setStatus(`Prepared ${prefilledNodes.length} selected infos for a new dependency graph.`);
+      if (transferToken) {
+        removeWorkspaceTransfer(transferToken);
+        const params = new URLSearchParams(location.search);
+        params.delete('transfer');
+        const next = params.toString();
+        navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+      }
     });
     return () => {
       mounted = false;
     };
-  }, [libraryId, mode, requestedInfoIds, selectedGraphId, setEdges, setNodes]);
+  }, [lastCreateSourceKey, libraryId, location.search, mode, navigate, requestedInfoIds, selectedGraphId, setEdges, setNodes, transferToken]);
+
+  useEffect(() => {
+    if (!transferToken || !transfer || transfer.kind !== 'dependency_node_pick') return;
+    if (transfer.libraryId !== libraryId) return;
+    if (!hasLocalDraft) {
+      setNodes(transfer.draft.nodes.map((node) => ({ ...node })));
+      setEdges(transfer.draft.edges.map((edge) => ({ ...edge })));
+      setSelectedGraphId(transfer.selectedGraphId ?? null);
+      setSelectedNodeId(transfer.targetNodeId);
+      setHasLocalDraft(true);
+    }
+    if (!transfer.resolvedSelection) return;
+    setNodes((prev) =>
+      prev.map((node) => {
+        if (node.id !== transfer.targetNodeId) return node;
+        const isCollectionTarget = transfer.targetNodeType === 'collection';
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            itemId: transfer.resolvedSelection?.infoId ?? null,
+            label: transfer.resolvedSelection?.label ?? node.data.label,
+            itemType: isCollectionTarget ? 'collection' : 'info',
+            infoType: isCollectionTarget ? 'collection' : (transfer.resolvedSelection?.infoType ?? null),
+            nodeType: isCollectionTarget ? 'collection' : 'info'
+          }
+        };
+      })
+    );
+    setSelectedNodeId(transfer.targetNodeId);
+    setStatus('Selected info was assigned to this node.');
+    removeWorkspaceTransfer(transferToken);
+    const params = new URLSearchParams(location.search);
+    params.delete('transfer');
+    const next = params.toString();
+    navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+  }, [hasLocalDraft, libraryId, location.search, navigate, setEdges, setNodes, transfer, transferToken]);
 
   useEffect(() => {
     if (!isEditMode) {
@@ -487,6 +546,31 @@ export function CogitaDependencyGraphPage({
     } catch {
       setStatus('Failed to delete dependency graph.');
     }
+  };
+
+  const openNodeSelection = () => {
+    if (!selectedNode) return;
+    const token = createWorkspaceTransfer({
+      kind: 'dependency_node_pick',
+      libraryId,
+      returnPath: '',
+      targetNodeId: selectedNode.id,
+      targetNodeType: selectedNode.data.nodeType === 'collection' ? 'collection' : 'info',
+      selectedGraphId,
+      draft: {
+        nodes: nodes.map((node) => ({ ...node })),
+        edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target }))
+      }
+    });
+    if (!token) return;
+    const returnParams = new URLSearchParams(location.search);
+    returnParams.set('transfer', token);
+    const returnPath = `/cogita/library/${libraryId}/dependencies${returnParams.toString() ? `?${returnParams.toString()}` : ''}`;
+    updateWorkspaceTransfer(token, (current) => {
+      if (current.kind !== 'dependency_node_pick') return current;
+      return { ...current, returnPath };
+    });
+    navigate(`/cogita/library/${libraryId}/infos?transfer=${encodeURIComponent(token)}`, { replace: true });
   };
 
   const updateSelectedCollection = (value: CogitaInfoSearchResult | null) => {
@@ -810,17 +894,6 @@ export function CogitaDependencyGraphPage({
                   })}
                 </div>
                 <div className="cogita-form-actions" style={{ marginTop: 8 }}>
-                  <input
-                    type="text"
-                    value={graphNameDraft}
-                    onChange={(event) => setGraphNameDraft(event.target.value)}
-                    placeholder="New dependency graph name"
-                  />
-                  <button type="button" className="cta ghost" onClick={() => void handleCreateGraph()} disabled={!isEditMode}>
-                    Create graph
-                  </button>
-                </div>
-                <div className="cogita-form-actions" style={{ marginTop: 8 }}>
                   <button
                     type="button"
                     className="cta ghost"
@@ -863,6 +936,15 @@ export function CogitaDependencyGraphPage({
                 </ReactFlow>
                 {isEditMode ? (
                   <div className="cogita-form-actions" style={{ marginTop: 12 }}>
+                    <input
+                      type="text"
+                      value={graphNameDraft}
+                      onChange={(event) => setGraphNameDraft(event.target.value)}
+                      placeholder="New dependency graph name"
+                    />
+                    <button type="button" className="cta ghost" onClick={() => void handleCreateGraph()}>
+                      Create graph
+                    </button>
                     <button type="button" className="cta" onClick={handleSave}>
                       {copy.cogita.library.graph.save}
                     </button>
@@ -873,6 +955,13 @@ export function CogitaDependencyGraphPage({
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.inspector}</p>
                 {selectedNode ? (
                   <div className="cogita-graph-inspector">
+                    {isEditMode ? (
+                      <div className="cogita-form-actions" style={{ marginBottom: 10 }}>
+                        <button type="button" className="cta ghost" onClick={openNodeSelection}>
+                          Open selection
+                        </button>
+                      </div>
+                    ) : null}
                     {selectedNode.data.nodeType === 'collection' ? (
                       <InfoSearchSelect
                         libraryId={libraryId}

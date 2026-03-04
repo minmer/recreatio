@@ -27,7 +27,7 @@ import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
-import { saveDependencySelectionSeed } from '../../../cogita/dependency/selection';
+import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../cogita/workspace/transfer';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -87,6 +87,11 @@ export function CogitaLibraryListPage({
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const transferToken = useMemo(() => (new URLSearchParams(location.search).get('transfer') ?? '').trim(), [location.search]);
+  const activeTransfer = useMemo(
+    () => (transferToken ? loadWorkspaceTransfer(transferToken) : null),
+    [transferToken]
+  );
   const listCopy = copy.cogita.library.list;
   const collectionScopeCopy = useMemo(() => {
     if (language === 'de') {
@@ -1072,15 +1077,45 @@ export function CogitaLibraryListPage({
                       onClick={() => {
                         const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
                         if (!ids.length) return;
-                        const seedId = saveDependencySelectionSeed(libraryId, ids);
-                        if (!seedId) return;
-                        const query = new URLSearchParams({ dependencySeed: seedId, dependencyView: 'create' });
+                        const token = createWorkspaceTransfer({
+                          kind: 'dependency_create_prefill',
+                          libraryId,
+                          infoIds: ids
+                        });
+                        if (!token) return;
+                        const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });
                         navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
                       }}
                       disabled={selectedItems.length === 0}
                     >
                       {listCopy.openInDependencies}
                     </button>
+                    {activeTransfer?.kind === 'dependency_node_pick' && activeTransfer.libraryId === libraryId ? (
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => {
+                          if (!selectedItems.length) return;
+                          const picked = selectedItems[0];
+                          const updated = updateWorkspaceTransfer(transferToken, (current) => {
+                            if (current.kind !== 'dependency_node_pick') return current;
+                            return {
+                              ...current,
+                              resolvedSelection: {
+                                infoId: picked.infoId,
+                                label: picked.label,
+                                infoType: picked.infoType ?? null
+                              }
+                            };
+                          });
+                          if (!updated || updated.kind !== 'dependency_node_pick') return;
+                          navigate(updated.returnPath, { replace: true });
+                        }}
+                        disabled={selectedItems.length === 0}
+                      >
+                        Use selection for node
+                      </button>
+                    ) : null}
                   </div>
                 </section>
               ) : null}

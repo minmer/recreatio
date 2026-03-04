@@ -49,7 +49,7 @@ import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevi
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
-import { saveDependencySelectionSeed } from '../../cogita/dependency/selection';
+import { createWorkspaceTransfer } from '../../cogita/workspace/transfer';
 
 type RevisionView = 'detail' | 'graph' | 'settings' | 'run' | 'live' | 'new';
 type LiveSessionView = 'list' | 'new' | 'detail' | 'edit';
@@ -1103,9 +1103,13 @@ export function CogitaWorkspacePage({
         onSelect: (value: string) => {
           if (!pathState.infoId) return;
           if (value === 'dependencies') {
-            const seedId = saveDependencySelectionSeed(selectedLibraryId ?? '', [pathState.infoId]);
-            if (!seedId) return;
-            const query = new URLSearchParams({ dependencySeed: seedId, dependencyView: 'create' });
+            const token = createWorkspaceTransfer({
+              kind: 'dependency_create_prefill',
+              libraryId: selectedLibraryId ?? '',
+              infoIds: [pathState.infoId]
+            });
+            if (!token) return;
+            const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });
             navigate(`/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`);
             return;
           }
@@ -1612,7 +1616,7 @@ export function CogitaWorkspacePage({
                 }
                 if (level.key === 'info_selected_action' && pathState.infoId) {
                   if (option.value === 'dependencies') {
-                    const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'create' });
+                    const query = new URLSearchParams({ dependencyView: 'create' });
                     return `/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`;
                   }
                   if (option.value === 'edit') {
