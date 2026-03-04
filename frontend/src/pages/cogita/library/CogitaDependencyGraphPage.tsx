@@ -173,9 +173,11 @@ export function CogitaDependencyGraphPage({
 
   useEffect(() => {
     if (!selectedGraphId) {
-      setNodes([]);
-      setEdges([]);
-      setSelectedNodeId(null);
+      if (mode !== 'create') {
+        setNodes([]);
+        setEdges([]);
+        setSelectedNodeId(null);
+      }
       return;
     }
     let mounted = true;
@@ -210,7 +212,7 @@ export function CogitaDependencyGraphPage({
     return () => {
       mounted = false;
     };
-  }, [libraryId, selectedGraphId, setEdges, setNodes]);
+  }, [libraryId, mode, selectedGraphId, setEdges, setNodes]);
 
   useEffect(() => {
     if (!selectedGraphId) {
@@ -606,7 +608,12 @@ export function CogitaDependencyGraphPage({
                           key={graph.graphId}
                           type="button"
                           className={`cogita-card-item ${selectedGraphId === graph.graphId ? 'active' : ''}`}
-                          onClick={() => toggleSelectedGraph(graph.graphId)}
+                          onClick={() =>
+                            navigate(
+                              `/cogita/library/${libraryId}/dependencies?graphId=${encodeURIComponent(graph.graphId)}&dependencyView=overview`,
+                              { replace: true }
+                            )
+                          }
                         >
                           <div className="cogita-card-select">
                             <div className="cogita-card-type">{graph.isActive ? 'active' : 'inactive'}</div>
