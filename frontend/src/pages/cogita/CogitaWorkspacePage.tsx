@@ -89,6 +89,7 @@ type ParsedCogitaPath = {
   collectionView?: 'overview' | 'infos';
   dependencyGraphId?: string;
   dependencyView?: DependencyView;
+  dependencyTransferToken?: string;
 };
 
 type NavigationOption = {
@@ -165,6 +166,7 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
   const searchParams = new URLSearchParams(search);
   const filterCollectionId = (searchParams.get('filterCollectionId') ?? '').trim() || undefined;
   const dependencyGraphId = (searchParams.get('graphId') ?? '').trim() || undefined;
+  const dependencyTransferToken = (searchParams.get('transfer') ?? '').trim() || undefined;
   const dependencyViewRaw = (searchParams.get('dependencyView') ?? '').trim().toLowerCase();
   const dependencyViewBase: DependencyView | undefined =
     dependencyViewRaw === 'edit'
@@ -258,7 +260,13 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
   }
 
   if (segments[3] === 'dependencies') {
-    return { libraryId, target: 'dependencies', dependencyGraphId, dependencyView: dependencyView ?? 'search' };
+    return {
+      libraryId,
+      target: 'dependencies',
+      dependencyGraphId,
+      dependencyView: dependencyView ?? 'search',
+      dependencyTransferToken
+    };
   }
 
   if (segments[3] === 'transfer') {
@@ -315,7 +323,8 @@ function buildCogitaPath(
   collectionView: 'overview' | 'infos' = 'infos',
   filterCollectionId?: string,
   dependencyGraphId?: string,
-  dependencyView: DependencyView = 'search'
+  dependencyView: DependencyView = 'search',
+  dependencyTransferToken?: string
 ): string {
   const buildRevisionPath = (id?: string, view?: RevisionView) => {
     if (!id) {
@@ -408,6 +417,7 @@ function buildCogitaPath(
     if (filterCollectionId) params.set('filterCollectionId', filterCollectionId);
     if (dependencyGraphId) params.set('graphId', dependencyGraphId);
     if (dependencyView !== 'search') params.set('dependencyView', dependencyView);
+    if (dependencyTransferToken) params.set('transfer', dependencyTransferToken);
     const qs = params.toString();
     return `/cogita/library/${libraryId}/dependencies${qs ? `?${qs}` : ''}`;
   }
@@ -754,6 +764,7 @@ export function CogitaWorkspacePage({
       filterCollectionId?: string;
       dependencyGraphId?: string;
       dependencyView?: DependencyView;
+      dependencyTransferToken?: string;
     }) => {
       const hasLibrary = Boolean(next.libraryId);
       let resolvedTarget = next.target;
@@ -769,6 +780,7 @@ export function CogitaWorkspacePage({
       const hasExplicitDependencyGraphId = Object.prototype.hasOwnProperty.call(next, 'dependencyGraphId');
       let resolvedDependencyGraphId = hasExplicitDependencyGraphId ? next.dependencyGraphId : pathState.dependencyGraphId;
       let resolvedDependencyView = next.dependencyView ?? pathState.dependencyView ?? 'search';
+      let resolvedDependencyTransferToken = next.dependencyTransferToken ?? pathState.dependencyTransferToken;
 
       if (!hasLibrary) {
         resolvedTarget = 'library_overview';
@@ -783,6 +795,7 @@ export function CogitaWorkspacePage({
         resolvedFilterCollectionId = undefined;
         resolvedDependencyGraphId = undefined;
         resolvedDependencyView = 'search';
+        resolvedDependencyTransferToken = undefined;
       } else if (TARGET_CAPABILITIES[resolvedTarget].requiresCollection && !resolvedCollectionId) {
         resolvedTarget = resolvedTarget === 'all_revisions' ? 'all_revisions' : 'all_collections';
         resolvedRevisionId = undefined;
@@ -792,6 +805,7 @@ export function CogitaWorkspacePage({
         resolvedFilterCollectionId = undefined;
         resolvedDependencyGraphId = undefined;
         resolvedDependencyView = 'search';
+        resolvedDependencyTransferToken = undefined;
       } else if (resolvedTarget !== 'all_collections' && resolvedTarget !== 'all_revisions') {
         resolvedCollectionId = undefined;
         resolvedRevisionId = undefined;
@@ -808,6 +822,7 @@ export function CogitaWorkspacePage({
         if (resolvedTarget !== 'dependencies') {
           resolvedDependencyGraphId = undefined;
           resolvedDependencyView = 'search';
+          resolvedDependencyTransferToken = undefined;
         }
       } else if (!TARGET_CAPABILITIES[resolvedTarget].allowsRevision) {
         resolvedRevision = 'detail';
@@ -822,11 +837,15 @@ export function CogitaWorkspacePage({
       if (resolvedTarget !== 'dependencies') {
         resolvedDependencyGraphId = undefined;
         resolvedDependencyView = 'search';
+        resolvedDependencyTransferToken = undefined;
       }
 
       if (resolvedTarget === 'dependencies') {
         if (resolvedDependencyView === 'search' || resolvedDependencyView === 'create') {
           resolvedDependencyGraphId = undefined;
+        }
+        if (resolvedDependencyView !== 'create') {
+          resolvedDependencyTransferToken = undefined;
         }
         if (!resolvedDependencyGraphId && (resolvedDependencyView === 'overview' || resolvedDependencyView === 'edit')) {
           resolvedDependencyView = 'search';
@@ -864,7 +883,8 @@ export function CogitaWorkspacePage({
           resolvedCollectionView,
           resolvedFilterCollectionId,
           resolvedDependencyGraphId,
-          resolvedDependencyView
+          resolvedDependencyView,
+          resolvedDependencyTransferToken
         )
       );
       const currentFullPath = normalizePath(`${location.pathname}${location.search ?? ''}`);
@@ -878,6 +898,7 @@ export function CogitaWorkspacePage({
       navigate,
       pathState.collectionView,
       pathState.dependencyGraphId,
+      pathState.dependencyTransferToken,
       pathState.dependencyView,
       pathState.filterCollectionId,
       pathState.infoView,
@@ -1580,7 +1601,8 @@ export function CogitaWorkspacePage({
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
                     nextTarget === 'dependencies' ? pathState.dependencyGraphId : undefined,
-                    nextTarget === 'dependencies' ? (pathState.dependencyView ?? 'search') : 'search'
+                    nextTarget === 'dependencies' ? (pathState.dependencyView ?? 'search') : 'search',
+                    nextTarget === 'dependencies' ? pathState.dependencyTransferToken : undefined
                   );
                 }
                 if (level.key === 'info_mode') {
@@ -1658,7 +1680,8 @@ export function CogitaWorkspacePage({
                       pathState.collectionView ?? 'infos',
                       pathState.filterCollectionId,
                       pathState.dependencyGraphId,
-                      pathState.dependencyView ?? 'overview'
+                      pathState.dependencyView ?? 'overview',
+                      pathState.dependencyTransferToken
                     );
                   }
                   if (option.value === 'create') {
@@ -1675,7 +1698,8 @@ export function CogitaWorkspacePage({
                       pathState.collectionView ?? 'infos',
                       pathState.filterCollectionId,
                       undefined,
-                      'create'
+                      'create',
+                      pathState.dependencyTransferToken
                     );
                   }
                   return buildCogitaPath(
@@ -1691,7 +1715,8 @@ export function CogitaWorkspacePage({
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
                     undefined,
-                    'search'
+                    'search',
+                    undefined
                   );
                 }
                 if (level.key === 'dependency_selected_action' && pathState.dependencyGraphId) {
@@ -1708,7 +1733,8 @@ export function CogitaWorkspacePage({
                     pathState.collectionView ?? 'infos',
                     pathState.filterCollectionId,
                     pathState.dependencyGraphId,
-                    option.value === 'edit' ? 'edit' : 'overview'
+                    option.value === 'edit' ? 'edit' : 'overview',
+                    undefined
                   );
                 }
                 if (level.key === 'collection_mode') {
@@ -1830,6 +1856,7 @@ export function CogitaWorkspacePage({
       location.pathname,
       pathState.collectionView,
       pathState.dependencyGraphId,
+      pathState.dependencyTransferToken,
       pathState.dependencyView,
       pathState.filterCollectionId,
       pathState.infoId,
@@ -2377,7 +2404,8 @@ export function CogitaWorkspacePage({
         pathState.collectionView ?? 'infos',
         pathState.filterCollectionId,
         pathState.dependencyGraphId,
-        pathState.dependencyView ?? 'search'
+        pathState.dependencyView ?? 'search',
+        pathState.dependencyTransferToken
       )
     );
     if (currentPath === nextPath) {
@@ -2399,6 +2427,7 @@ export function CogitaWorkspacePage({
     pathState.infoView,
     pathState.collectionView,
     pathState.dependencyGraphId,
+    pathState.dependencyTransferToken,
     pathState.dependencyView,
     pathState.filterCollectionId,
     pathState.liveSessionId,
