@@ -21,6 +21,7 @@ import {
   type CogitaInfoSearchResult
 } from '../../../lib/api';
 import { buildQuoteFragmentTree } from '../../../cogita/revision/quote';
+import { loadDependencySelectionSeed } from '../../../cogita/dependency/selection';
 
 type GraphNode = {
   id: string;
@@ -95,13 +96,23 @@ export function CogitaDependencyGraphPage({
     [graphs, selectedGraphId]
   );
 
+  const dependencySeedId = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('dependencySeed');
+    return value && value.trim().length > 0 ? value.trim() : null;
+  }, [location.search]);
   const requestedInfoIds = useMemo(() => {
+    if (dependencySeedId) {
+      const seed = loadDependencySelectionSeed(libraryId, dependencySeedId);
+      if (seed?.infoIds?.length) {
+        return Array.from(new Set(seed.infoIds.map((id) => id.trim()).filter(Boolean)));
+      }
+    }
     const value = new URLSearchParams(location.search).get('infoIds') ?? '';
     return value
       .split(',')
       .map((item) => item.trim())
       .filter((item, index, list) => item.length > 0 && list.indexOf(item) === index);
-  }, [location.search]);
+  }, [dependencySeedId, libraryId, location.search]);
   const routeGraphId = useMemo(() => {
     const value = new URLSearchParams(location.search).get('graphId');
     return value && value.trim().length > 0 ? value.trim() : null;

@@ -27,6 +27,7 @@ import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
 import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
+import { saveDependencySelectionSeed } from '../../../cogita/dependency/selection';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -1071,7 +1072,9 @@ export function CogitaLibraryListPage({
                       onClick={() => {
                         const ids = selectedItems.map((item) => item.infoId).filter(Boolean);
                         if (!ids.length) return;
-                        const query = new URLSearchParams({ infoIds: ids.join(','), dependencyView: 'create' });
+                        const seedId = saveDependencySelectionSeed(libraryId, ids);
+                        if (!seedId) return;
+                        const query = new URLSearchParams({ dependencySeed: seedId, dependencyView: 'create' });
                         navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
                       }}
                       disabled={selectedItems.length === 0}

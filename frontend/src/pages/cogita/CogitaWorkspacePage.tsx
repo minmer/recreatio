@@ -49,6 +49,7 @@ import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevi
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
+import { saveDependencySelectionSeed } from '../../cogita/dependency/selection';
 
 type RevisionView = 'detail' | 'graph' | 'settings' | 'run' | 'live' | 'new';
 type LiveSessionView = 'list' | 'new' | 'detail' | 'edit';
@@ -1102,7 +1103,9 @@ export function CogitaWorkspacePage({
         onSelect: (value: string) => {
           if (!pathState.infoId) return;
           if (value === 'dependencies') {
-            const query = new URLSearchParams({ infoIds: pathState.infoId, dependencyView: 'create' });
+            const seedId = saveDependencySelectionSeed(selectedLibraryId ?? '', [pathState.infoId]);
+            if (!seedId) return;
+            const query = new URLSearchParams({ dependencySeed: seedId, dependencyView: 'create' });
             navigate(`/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`);
             return;
           }
