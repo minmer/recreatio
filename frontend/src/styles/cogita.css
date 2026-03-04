@@ -1223,6 +1223,17 @@
   gap: 0.8rem;
 }
 
+.cogita-dependency-editor .react-flow__node {
+  overflow: visible;
+}
+
+.cogita-dependency-editor .react-flow__node-default {
+  min-width: 160px;
+  min-height: 56px;
+  resize: both;
+  overflow: auto;
+}
+
 .katex {
   color: #e9f3ff;
 }
