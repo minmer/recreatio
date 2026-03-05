@@ -35,7 +35,17 @@ const CHART_COLORS = [
   '#d4f47d'
 ];
 
-function FireworksOverlay({ active, zone = 'full' }: { active: boolean; zone?: 'full' | 'right' }) {
+function FireworksOverlay({
+  active,
+  zone = 'full',
+  focusX,
+  focusY
+}: {
+  active: boolean;
+  zone?: 'full' | 'right';
+  focusX?: number;
+  focusY?: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -102,18 +112,23 @@ function FireworksOverlay({ active, zone = 'full' }: { active: boolean; zone?: '
       if (!running) return;
       if (time - lastBurstAt > 420) {
         lastBurstAt = time;
-        const burstX =
-          zone === 'right'
-            ? width * (0.56 + Math.random() * 0.4)
-            : width * (0.18 + Math.random() * 0.64);
-        const burstY = height * (0.12 + Math.random() * 0.45);
+        const centerX =
+          typeof focusX === 'number'
+            ? width * Math.max(0.05, Math.min(0.95, focusX))
+            : zone === 'right'
+              ? width * (0.56 + Math.random() * 0.4)
+              : width * (0.18 + Math.random() * 0.64);
+        const centerY =
+          typeof focusY === 'number'
+            ? height * Math.max(0.05, Math.min(0.95, focusY))
+            : height * (0.12 + Math.random() * 0.45);
+        const burstX = centerX + (Math.random() - 0.5) * width * 0.16;
+        const burstY = centerY + (Math.random() - 0.5) * height * 0.12;
         addBurst(burstX, burstY);
         if (Math.random() > 0.66) {
-          const secondX =
-            zone === 'right'
-              ? width * (0.58 + Math.random() * 0.38)
-              : width * (0.15 + Math.random() * 0.7);
-          addBurst(secondX, height * (0.15 + Math.random() * 0.4));
+          const secondX = centerX + (Math.random() - 0.5) * width * 0.2;
+          const secondY = centerY + (Math.random() - 0.5) * height * 0.16;
+          addBurst(secondX, secondY);
         }
       }
 
@@ -171,7 +186,7 @@ function FireworksOverlay({ active, zone = 'full' }: { active: boolean; zone?: '
       window.cancelAnimationFrame(animationId);
       context.clearRect(0, 0, width, height);
     };
-  }, [active, zone]);
+  }, [active, zone, focusX, focusY]);
 
   if (!active) return null;
   return <canvas ref={canvasRef} className="cogita-live-fireworks" aria-hidden="true" />;
@@ -231,7 +246,11 @@ export function CogitaLivePublicWallPage({
         .slice(0, 3),
     [state?.scoreboard]
   );
-  const topPodiumScore = Math.max(1, ...podiumRows.map((row) => row.score));
+  const podiumDisplayRows = useMemo(() => {
+    if (podiumRows.length <= 1) return podiumRows;
+    if (podiumRows.length === 2) return [podiumRows[1], podiumRows[0]];
+    return [podiumRows[1], podiumRows[0], podiumRows[2]];
+  }, [podiumRows]);
   const participantColorById = useMemo(() => {
     const mapping = new Map<string, string>();
     (state?.scoreboard ?? []).forEach((row, index) => {
@@ -496,10 +515,11 @@ export function CogitaLivePublicWallPage({
               <div className="cogita-live-podium-wrap">
                 <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
                 <div className="cogita-live-podium" role="presentation">
-                  {podiumRows.map((row, index) => {
-                    const order = index + 1;
-                    const color = participantColorById.get(row.participantId) ?? CHART_COLORS[index % CHART_COLORS.length];
-                    const height = Math.max(24, Math.round((row.score / topPodiumScore) * 100));
+                  {podiumDisplayRows.map((row) => {
+                    const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
+                    const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
+                    const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
+                    const height = heightByRank[order] ?? 52;
                     return (
                       <div key={`podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
                         <div className="cogita-live-podium-name" title={row.displayName}>
@@ -552,7 +572,7 @@ export function CogitaLivePublicWallPage({
           </div>
         }
       />
-      <FireworksOverlay active={status === 'ready' && isSessionFinished} zone="right" />
+      <FireworksOverlay active={status === 'ready' && isSessionFinished} zone="right" focusX={0.75} focusY={0.24} />
     </>
   );
 }
