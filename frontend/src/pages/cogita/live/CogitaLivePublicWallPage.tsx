@@ -35,7 +35,7 @@ const CHART_COLORS = [
   '#d4f47d'
 ];
 
-function FireworksOverlay({ active }: { active: boolean }) {
+function FireworksOverlay({ active, zone = 'full' }: { active: boolean; zone?: 'full' | 'right' }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -102,11 +102,18 @@ function FireworksOverlay({ active }: { active: boolean }) {
       if (!running) return;
       if (time - lastBurstAt > 420) {
         lastBurstAt = time;
-        const burstX = width * (0.18 + Math.random() * 0.64);
+        const burstX =
+          zone === 'right'
+            ? width * (0.56 + Math.random() * 0.4)
+            : width * (0.18 + Math.random() * 0.64);
         const burstY = height * (0.12 + Math.random() * 0.45);
         addBurst(burstX, burstY);
         if (Math.random() > 0.66) {
-          addBurst(width * (0.15 + Math.random() * 0.7), height * (0.15 + Math.random() * 0.4));
+          const secondX =
+            zone === 'right'
+              ? width * (0.58 + Math.random() * 0.38)
+              : width * (0.15 + Math.random() * 0.7);
+          addBurst(secondX, height * (0.15 + Math.random() * 0.4));
         }
       }
 
@@ -164,7 +171,7 @@ function FireworksOverlay({ active }: { active: boolean }) {
       window.cancelAnimationFrame(animationId);
       context.clearRect(0, 0, width, height);
     };
-  }, [active]);
+  }, [active, zone]);
 
   if (!active) return null;
   return <canvas ref={canvasRef} className="cogita-live-fireworks" aria-hidden="true" />;
@@ -191,7 +198,6 @@ export function CogitaLivePublicWallPage({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
-  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryPoint[]>([]);
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
@@ -218,6 +224,14 @@ export function CogitaLivePublicWallPage({
     [reveal]
   );
   const isSessionFinished = state?.status === 'finished' || state?.status === 'closed';
+  const podiumRows = useMemo(
+    () =>
+      [...(state?.scoreboard ?? [])]
+        .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
+        .slice(0, 3),
+    [state?.scoreboard]
+  );
+  const topPodiumScore = Math.max(1, ...podiumRows.map((row) => row.score));
   const participantColorById = useMemo(() => {
     const mapping = new Map<string, string>();
     (state?.scoreboard ?? []).forEach((row, index) => {
@@ -225,19 +239,72 @@ export function CogitaLivePublicWallPage({
     });
     return mapping;
   }, [state?.scoreboard]);
+  const scoreHistory = useMemo<ScoreHistoryPoint[]>(() => {
+    const rows = state?.scoreboard ?? [];
+    const fromServer = (state?.scoreHistory ?? [])
+      .map((point) => {
+        const scores: Record<string, number> = {};
+        (point.scoreboard ?? []).forEach((entry) => {
+          scores[entry.participantId] = Number(entry.score ?? 0);
+        });
+        return {
+          timestamp: Date.parse(point.recordedUtc ?? '') || Date.now(),
+          scores
+        };
+      })
+      .filter((point) => Object.keys(point.scores).length > 0);
+
+    const currentScores: Record<string, number> = {};
+    rows.forEach((row) => {
+      currentScores[row.participantId] = row.score;
+    });
+    if (Object.keys(currentScores).length === 0) {
+      return fromServer;
+    }
+    if (fromServer.length === 0) {
+      return [{ timestamp: Date.now(), scores: currentScores }];
+    }
+    const last = fromServer[fromServer.length - 1];
+    const sameLength = Object.keys(last.scores).length === Object.keys(currentScores).length;
+    const unchanged = sameLength && rows.every((row) => Number(last.scores[row.participantId] ?? 0) === row.score);
+    if (unchanged) return fromServer;
+    return [...fromServer, { timestamp: Date.now(), scores: currentScores }];
+  }, [state?.scoreHistory, state?.scoreboard]);
   const chartLines = useMemo(() => {
     const rows = state?.scoreboard ?? [];
-    if (rows.length === 0 || scoreHistory.length < 2) return [] as Array<{ participantId: string; name: string; color: string; path: string; lastScore: number }>;
+    if (rows.length === 0 || scoreHistory.length < 2) {
+      return [] as Array<{
+        participantId: string;
+        name: string;
+        color: string;
+        path: string;
+        lastScore: number;
+        endX: number;
+        endY: number;
+      }>;
+    }
     const chartWidth = 100;
     const chartHeight = 100;
-    const maxScore = Math.max(1, ...rows.map((row) => row.score), ...scoreHistory.flatMap((point) => Object.values(point.scores)));
+    const chartPadding = { left: 4, right: 2, top: 4, bottom: 6 };
+    const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
+    const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom;
+    const values = scoreHistory.flatMap((point) => Object.values(point.scores).map((value) => Number(value ?? 0)));
+    const minData = values.length > 0 ? Math.min(...values) : 0;
+    const maxData = values.length > 0 ? Math.max(...values) : 0;
+    const rawSpan = maxData - minData;
+    const safeSpan = rawSpan <= 0 ? Math.max(1, Math.abs(maxData) * 0.1 + 1) : rawSpan;
+    const pad = Math.max(1, safeSpan * 0.08);
+    const minScore = minData - pad;
+    const maxScore = maxData + pad;
+    const scoreSpan = Math.max(1, maxScore - minScore);
     const length = Math.max(1, scoreHistory.length - 1);
     return rows.map((row) => {
       let path = '';
       scoreHistory.forEach((point, index) => {
-        const x = (index / length) * chartWidth;
+        const x = chartPadding.left + (index / length) * plotWidth;
         const score = Number(point.scores[row.participantId] ?? 0);
-        const y = chartHeight - (score / maxScore) * chartHeight;
+        const ratio = (score - minScore) / scoreSpan;
+        const y = chartPadding.top + (1 - ratio) * plotHeight;
         path += index === 0 ? `M ${x.toFixed(3)} ${y.toFixed(3)}` : ` L ${x.toFixed(3)} ${y.toFixed(3)}`;
       });
       return {
@@ -245,34 +312,14 @@ export function CogitaLivePublicWallPage({
         name: row.displayName,
         color: participantColorById.get(row.participantId) ?? '#78d7ff',
         path,
-        lastScore: row.score
+        lastScore: row.score,
+        endX: chartPadding.left + plotWidth,
+        endY:
+          chartPadding.top +
+          (1 - (Number(scoreHistory[scoreHistory.length - 1]?.scores[row.participantId] ?? 0) - minScore) / scoreSpan) * plotHeight
       };
     });
   }, [participantColorById, scoreHistory, state?.scoreboard]);
-
-  useEffect(() => {
-    const rows = state?.scoreboard ?? [];
-    if (rows.length === 0) return;
-    setScoreHistory((previous) => {
-      const nextScores: Record<string, number> = {};
-      rows.forEach((row) => {
-        nextScores[row.participantId] = row.score;
-      });
-      const last = previous[previous.length - 1];
-      if (last) {
-        const sameLength = Object.keys(last.scores).length === Object.keys(nextScores).length;
-        const unchanged =
-          sameLength &&
-          rows.every((row) => Number(last.scores[row.participantId] ?? 0) === row.score);
-        if (unchanged) return previous;
-      }
-      const nextHistory = [...previous, { timestamp: Date.now(), scores: nextScores }];
-      if (nextHistory.length > 180) {
-        return nextHistory.slice(nextHistory.length - 180);
-      }
-      return nextHistory;
-    });
-  }, [state?.scoreboard, state?.revealVersion, state?.status]);
 
   useEffect(() => {
     if (promptTimerEndMs == null) return;
@@ -348,7 +395,7 @@ export function CogitaLivePublicWallPage({
                 <p className="cogita-user-kicker">{liveCopy.finalScoreTitle}</p>
                 {chartLines.length > 0 ? (
                   <>
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="cogita-live-history-chart-svg" aria-label="Score history chart">
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" className="cogita-live-history-chart-svg" aria-label="Score history chart">
                       <defs>
                         <linearGradient id="cogita-live-history-grid" x1="0%" y1="0%" x2="0%" y2="100%">
                           <stop offset="0%" stopColor="rgba(120, 215, 255, 0.22)" />
@@ -363,15 +410,26 @@ export function CogitaLivePublicWallPage({
                         <line key={`grid-x-${x}`} x1={x} y1="0" x2={x} y2="100" stroke="rgba(160,205,245,0.12)" strokeWidth="0.35" />
                       ))}
                       {chartLines.map((line) => (
-                        <path
-                          key={`history:${line.participantId}`}
-                          d={line.path}
-                          fill="none"
-                          stroke={line.color}
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <g key={`history:${line.participantId}`}>
+                          <path
+                            d={line.path}
+                            fill="none"
+                            stroke={line.color}
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <circle cx={line.endX} cy={line.endY} r="1.3" fill={line.color} stroke="rgba(3,14,28,0.95)" strokeWidth="0.5" />
+                          <text
+                            x={Math.max(2, line.endX - 1.8)}
+                            y={Math.max(5, line.endY - 2.1)}
+                            textAnchor="end"
+                            className="cogita-live-history-line-label"
+                            style={{ fill: line.color }}
+                          >
+                            {line.name}
+                          </text>
+                        </g>
                       ))}
                     </svg>
                     <div className="cogita-live-history-legend">
@@ -429,6 +487,29 @@ export function CogitaLivePublicWallPage({
         right={
           <div className="cogita-live-wall-stack">
             <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
+            {isSessionFinished && podiumRows.length > 0 ? (
+              <div className="cogita-live-podium-wrap">
+                <p className="cogita-user-kicker">{(liveCopy as unknown as { podiumTitle?: string }).podiumTitle ?? 'Podium'}</p>
+                <div className="cogita-live-podium" role="presentation">
+                  {podiumRows.map((row, index) => {
+                    const order = index + 1;
+                    const color = participantColorById.get(row.participantId) ?? CHART_COLORS[index % CHART_COLORS.length];
+                    const height = Math.max(24, Math.round((row.score / topPodiumScore) * 100));
+                    return (
+                      <div key={`podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
+                        <div className="cogita-live-podium-name" title={row.displayName}>
+                          {row.displayName}
+                        </div>
+                        <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
+                          <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
+                          <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
             <div className="cogita-share-list">
               {(state?.scoreboard ?? []).map((row) => {
                 const scoreFx = scoreFxByParticipant[row.participantId];
@@ -440,7 +521,10 @@ export function CogitaLivePublicWallPage({
                 const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
                 return (
                   <div className="cogita-share-row" key={row.participantId} data-flash={flashState} data-rank-change={rankState}>
-                    <div><strong>{row.displayName}</strong></div>
+                    <div className="cogita-live-score-name">
+                      <span className="cogita-live-history-legend-color" style={{ backgroundColor: participantColorById.get(row.participantId) ?? '#78d7ff' }} />
+                      <strong>{row.displayName}</strong>
+                    </div>
                     <div className="cogita-share-meta">
                       {`${row.score} ${liveCopy.scoreUnit}`}
                       {scoreFx?.delta ? (
@@ -463,7 +547,7 @@ export function CogitaLivePublicWallPage({
           </div>
         }
       />
-      <FireworksOverlay active={status === 'ready' && isSessionFinished} />
+      <FireworksOverlay active={status === 'ready' && isSessionFinished} zone="right" />
     </>
   );
 }

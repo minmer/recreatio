@@ -880,6 +880,22 @@ export type CogitaLiveRevisionPublicState = {
   currentPrompt?: unknown;
   currentReveal?: unknown;
   scoreboard: CogitaLiveRevisionParticipantScore[];
+  scoreHistory: Array<{
+    roundIndex: number;
+    recordedUtc: string;
+    scoreboard: CogitaLiveRevisionParticipantScore[];
+  }>;
+  correctnessHistory: Array<{
+    roundIndex: number;
+    recordedUtc: string;
+    entries: Array<{
+      participantId: string;
+      displayName: string;
+      isCorrect?: boolean | null;
+      pointsAwarded: number;
+      submittedUtc: string;
+    }>;
+  }>;
   answerSubmitted: boolean;
   participantId?: string | null;
   participantName?: string | null;

@@ -484,9 +484,31 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     JsonElement? CurrentPrompt,
     JsonElement? CurrentReveal,
     List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard,
+    List<CogitaLiveRevisionScoreHistoryPointResponse> ScoreHistory,
+    List<CogitaLiveRevisionCorrectnessHistoryPointResponse> CorrectnessHistory,
     bool AnswerSubmitted,
     Guid? ParticipantId,
     string? ParticipantName
+);
+
+public sealed record CogitaLiveRevisionScoreHistoryPointResponse(
+    int RoundIndex,
+    DateTimeOffset RecordedUtc,
+    List<CogitaLiveRevisionParticipantScoreResponse> Scoreboard
+);
+
+public sealed record CogitaLiveRevisionCorrectnessEntryResponse(
+    Guid ParticipantId,
+    string DisplayName,
+    bool? IsCorrect,
+    int PointsAwarded,
+    DateTimeOffset SubmittedUtc
+);
+
+public sealed record CogitaLiveRevisionCorrectnessHistoryPointResponse(
+    int RoundIndex,
+    DateTimeOffset RecordedUtc,
+    List<CogitaLiveRevisionCorrectnessEntryResponse> Entries
 );
 
 public sealed record CogitaLiveRevisionParticipantSessionListItemResponse(

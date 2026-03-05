@@ -2504,6 +2504,107 @@
   box-shadow: 0 0 10px currentColor;
 }
 
+.cogita-live-history-line-label {
+  font-size: 3.4px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: rgba(3, 14, 28, 0.95);
+  stroke-width: 1.1px;
+  stroke-linejoin: round;
+}
+
+.cogita-live-score-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.cogita-live-podium-wrap {
+  border: 1px solid rgba(120, 185, 235, 0.3);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(8, 23, 40, 0.92) 0%, rgba(8, 20, 36, 0.82) 100%);
+  padding: 0.7rem 0.75rem 0.85rem;
+  box-shadow: inset 0 0 0 1px rgba(120, 185, 235, 0.08), 0 0 24px rgba(120, 185, 235, 0.2);
+}
+
+.cogita-live-podium {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.6rem;
+  min-height: 180px;
+}
+
+.cogita-live-podium-slot {
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  gap: 0.45rem;
+  min-height: 160px;
+}
+
+.cogita-live-podium-name {
+  font-size: 0.84rem;
+  color: rgba(232, 244, 255, 0.95);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cogita-live-podium-pillar {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 12px 12px 8px 8px;
+  border: 1px solid rgba(140, 195, 240, 0.45);
+  background: linear-gradient(180deg, rgba(25, 52, 82, 0.82) 0%, rgba(17, 36, 58, 0.9) 100%);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.3rem;
+  color: rgba(238, 247, 255, 0.97);
+  animation: cogita-podium-rise 720ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.cogita-live-podium-slot[data-rank="1"] .cogita-live-podium-pillar {
+  animation-delay: 90ms;
+}
+.cogita-live-podium-slot[data-rank="2"] .cogita-live-podium-pillar {
+  animation-delay: 200ms;
+}
+.cogita-live-podium-slot[data-rank="3"] .cogita-live-podium-pillar {
+  animation-delay: 310ms;
+}
+
+.cogita-live-podium-medal {
+  min-width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  color: #031221;
+  font-weight: 800;
+  display: inline-grid;
+  place-items: center;
+  box-shadow: 0 0 16px rgba(140, 205, 255, 0.45);
+  animation: cogita-podium-pulse 2.1s ease-in-out infinite;
+}
+
+@keyframes cogita-podium-rise {
+  from {
+    transform: translateY(16px) scaleY(0.65);
+    opacity: 0.2;
+  }
+  to {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes cogita-podium-pulse {
+  0%, 100% { filter: saturate(1); }
+  50% { filter: saturate(1.35) brightness(1.12); }
+}
+
 .cogita-live-fireworks {
   position: fixed;
   inset: 0;

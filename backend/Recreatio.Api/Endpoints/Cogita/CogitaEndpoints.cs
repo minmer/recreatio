@@ -6418,6 +6418,8 @@ public static class CogitaEndpoints
             }
 
             var scoreboard = await BuildLiveRevisionScoreboardAsync(session.Id, dbContext, ct);
+            var scoreHistory = await BuildLiveRevisionScoreHistoryAsync(session.Id, dbContext, ct);
+            var correctnessHistory = await BuildLiveRevisionCorrectnessHistoryAsync(session.Id, dbContext, ct);
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
 
             var answerSubmitted = false;
@@ -6448,6 +6450,8 @@ public static class CogitaEndpoints
                 ParseJsonNullable(session.CurrentPromptJson),
                 ParseJsonNullable(session.CurrentRevealJson),
                 scoreboard,
+                scoreHistory,
+                correctnessHistory,
                 answerSubmitted,
                 participantId,
                 participantName
@@ -15120,6 +15124,107 @@ public static class CogitaEndpoints
             x.Id,
             x.DisplayName,
             x.Score)).ToList();
+    }
+
+    private static async Task<List<CogitaLiveRevisionScoreHistoryPointResponse>> BuildLiveRevisionScoreHistoryAsync(
+        Guid sessionId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+            .Where(x => x.SessionId == sessionId)
+            .OrderBy(x => x.JoinedUtc)
+            .Select(x => new { x.Id, x.DisplayName })
+            .ToListAsync(ct);
+        if (participants.Count == 0)
+        {
+            return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
+        }
+
+        var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+            .Where(x => x.SessionId == sessionId && (x.IsCorrect != null || x.PointsAwarded != 0))
+            .OrderBy(x => x.RoundIndex)
+            .ThenBy(x => x.SubmittedUtc)
+            .ToListAsync(ct);
+        if (answers.Count == 0)
+        {
+            return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
+        }
+
+        var scoreByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
+        var snapshots = new List<CogitaLiveRevisionScoreHistoryPointResponse>();
+        foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
+        {
+            foreach (var answer in roundGroup)
+            {
+                if (!scoreByParticipant.ContainsKey(answer.ParticipantId))
+                {
+                    continue;
+                }
+                scoreByParticipant[answer.ParticipantId] += answer.PointsAwarded;
+            }
+
+            var roundScores = participants
+                .Select(x => new CogitaLiveRevisionParticipantScoreResponse(
+                    x.Id,
+                    x.DisplayName,
+                    scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
+                .ToList();
+
+            var recordedUtc = roundGroup.Max(x => x.UpdatedUtc > x.SubmittedUtc ? x.UpdatedUtc : x.SubmittedUtc);
+            snapshots.Add(new CogitaLiveRevisionScoreHistoryPointResponse(
+                roundGroup.Key,
+                recordedUtc,
+                roundScores));
+        }
+
+        return snapshots;
+    }
+
+    private static async Task<List<CogitaLiveRevisionCorrectnessHistoryPointResponse>> BuildLiveRevisionCorrectnessHistoryAsync(
+        Guid sessionId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+            .Where(x => x.SessionId == sessionId)
+            .Select(x => new { x.Id, x.DisplayName })
+            .ToListAsync(ct);
+        if (participants.Count == 0)
+        {
+            return new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
+        }
+
+        var participantNameById = participants.ToDictionary(x => x.Id, x => x.DisplayName);
+        var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+            .Where(x => x.SessionId == sessionId)
+            .OrderBy(x => x.RoundIndex)
+            .ThenBy(x => x.SubmittedUtc)
+            .ToListAsync(ct);
+        if (answers.Count == 0)
+        {
+            return new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
+        }
+
+        var snapshots = new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
+        foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
+        {
+            var entries = roundGroup
+                .Select(answer => new CogitaLiveRevisionCorrectnessEntryResponse(
+                    answer.ParticipantId,
+                    participantNameById.TryGetValue(answer.ParticipantId, out var participantName) ? participantName : "Participant",
+                    answer.IsCorrect,
+                    answer.PointsAwarded,
+                    answer.SubmittedUtc))
+                .ToList();
+
+            snapshots.Add(new CogitaLiveRevisionCorrectnessHistoryPointResponse(
+                roundGroup.Key,
+                roundGroup.Max(x => x.UpdatedUtc > x.SubmittedUtc ? x.UpdatedUtc : x.SubmittedUtc),
+                entries));
+        }
+
+        return snapshots;
     }
 
     private static async Task<List<CogitaLiveRevisionReloginRequestResponse>> BuildLiveRevisionPendingReloginRequestsAsync(
