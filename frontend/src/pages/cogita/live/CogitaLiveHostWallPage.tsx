@@ -494,7 +494,7 @@ export function CogitaLiveHostWallPage({
   const liveCopy = copy.cogita.library.revision.live;
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next'>('none');
+  const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next' | 'finish'>('none');
   const [roundsStatus, setRoundsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [preparedCount, setPreparedCount] = useState(0);
   const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
@@ -592,6 +592,13 @@ export function CogitaLiveHostWallPage({
     isRunningStage &&
       hasPublishedRound &&
       (roundPhase === 'question' || roundPhase === 'revealed' || roundPhase === 'scored') &&
+      !mutationInFlight
+  );
+  const canEndGame = Boolean(
+    session &&
+      session.status !== 'finished' &&
+      session.status !== 'closed' &&
+      !isLobbyStage &&
       !mutationInFlight
   );
   const canStopAutoNextTimer = Boolean(
@@ -990,7 +997,7 @@ export function CogitaLiveHostWallPage({
     setSession(updated);
   };
 
-  const runHostMutation = async (kind: 'reveal' | 'score' | 'next', action: () => Promise<void>) => {
+  const runHostMutation = async (kind: 'reveal' | 'score' | 'next' | 'finish', action: () => Promise<void>) => {
     if (mutationInFlightRef.current) return;
     mutationInFlightRef.current = true;
     setBusy(kind);
@@ -1361,6 +1368,16 @@ export function CogitaLiveHostWallPage({
     });
   };
 
+  const endGameEarly = async () => {
+    if (!session) return;
+    if (!canEndGame) return;
+    await runHostMutation('finish', async () => {
+      await pushState({
+        status: 'finished'
+      });
+    });
+  };
+
   useEffect(() => {
     if (!session || !currentRound) return;
     if (!hasPublishedRound) return;
@@ -1566,6 +1583,9 @@ export function CogitaLiveHostWallPage({
                 </button>
                 <button type="button" className="cta ghost" onClick={() => void transitionRound('next')} disabled={!canNextQuestion}>
                   {liveCopy.nextQuestionAction}
+                </button>
+                <button type="button" className="cta ghost" onClick={() => void endGameEarly()} disabled={!canEndGame}>
+                  {liveCopy.closeSessionAction}
                 </button>
                 {canStopAutoNextTimer ? (
                   <button type="button" className="cta ghost" onClick={() => void stopAutoNextTimer()}>

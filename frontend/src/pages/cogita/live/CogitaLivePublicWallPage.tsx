@@ -6,6 +6,170 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
 
+type ScoreHistoryPoint = {
+  timestamp: number;
+  scores: Record<string, number>;
+};
+
+type FireworkParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  hue: number;
+  alpha: number;
+  trail: Array<{ x: number; y: number }>;
+};
+
+const CHART_COLORS = [
+  '#78d7ff',
+  '#8ef0b8',
+  '#f8c36c',
+  '#f78ab4',
+  '#b79dff',
+  '#6cf0f0',
+  '#ff8f7a',
+  '#d4f47d'
+];
+
+function FireworksOverlay({ active }: { active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    let width = 0;
+    let height = 0;
+    let animationId = 0;
+    let running = true;
+    let particles: FireworkParticle[] = [];
+    let lastBurstAt = 0;
+
+    const resize = () => {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const addBurst = (x: number, y: number) => {
+      const hue = Math.floor(Math.random() * 360);
+      const count = 60 + Math.floor(Math.random() * 50);
+      for (let i = 0; i < count; i += 1) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.12;
+        const speed = 1.2 + Math.random() * 4.8;
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 48 + Math.random() * 38,
+          maxLife: 48 + Math.random() * 38,
+          size: 1.3 + Math.random() * 2.6,
+          hue: (hue + Math.random() * 50 - 25 + 360) % 360,
+          alpha: 1,
+          trail: []
+        });
+      }
+      for (let i = 0; i < 24; i += 1) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 2.4,
+          vy: (Math.random() - 0.7) * 2.2,
+          life: 24 + Math.random() * 18,
+          maxLife: 24 + Math.random() * 18,
+          size: 0.8 + Math.random() * 1.6,
+          hue: (hue + Math.random() * 80 - 40 + 360) % 360,
+          alpha: 0.85,
+          trail: []
+        });
+      }
+    };
+
+    const frame = (time: number) => {
+      if (!running) return;
+      if (time - lastBurstAt > 420) {
+        lastBurstAt = time;
+        const burstX = width * (0.18 + Math.random() * 0.64);
+        const burstY = height * (0.12 + Math.random() * 0.45);
+        addBurst(burstX, burstY);
+        if (Math.random() > 0.66) {
+          addBurst(width * (0.15 + Math.random() * 0.7), height * (0.15 + Math.random() * 0.4));
+        }
+      }
+
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = 'rgba(3, 10, 18, 0.18)';
+      context.fillRect(0, 0, width, height);
+
+      const nextParticles: FireworkParticle[] = [];
+      for (const particle of particles) {
+        const drag = 0.986;
+        const gravity = 0.05;
+        particle.vx *= drag;
+        particle.vy = particle.vy * drag + gravity;
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        particle.life -= 1;
+        particle.alpha = Math.max(0, particle.life / particle.maxLife);
+        particle.trail.push({ x: particle.x, y: particle.y });
+        if (particle.trail.length > 7) {
+          particle.trail.shift();
+        }
+
+        if (particle.life > 0 && particle.y <= height + 40) {
+          nextParticles.push(particle);
+        }
+
+        if (particle.trail.length > 1) {
+          context.beginPath();
+          for (let i = 0; i < particle.trail.length; i += 1) {
+            const point = particle.trail[i];
+            if (i === 0) context.moveTo(point.x, point.y);
+            else context.lineTo(point.x, point.y);
+          }
+          context.strokeStyle = `hsla(${particle.hue} 100% 72% / ${Math.max(0, particle.alpha * 0.35)})`;
+          context.lineWidth = Math.max(0.8, particle.size * 0.75);
+          context.stroke();
+        }
+
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        context.fillStyle = `hsla(${particle.hue} 100% 68% / ${Math.max(0, particle.alpha)})`;
+        context.fill();
+      }
+      particles = nextParticles;
+      animationId = window.requestAnimationFrame(frame);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    animationId = window.requestAnimationFrame(frame);
+
+    return () => {
+      running = false;
+      window.removeEventListener('resize', resize);
+      window.cancelAnimationFrame(animationId);
+      context.clearRect(0, 0, width, height);
+    };
+  }, [active]);
+
+  if (!active) return null;
+  return <canvas ref={canvasRef} className="cogita-live-fireworks" aria-hidden="true" />;
+}
+
 export function CogitaLivePublicWallPage({
   copy,
   code
@@ -27,6 +191,7 @@ export function CogitaLivePublicWallPage({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
+  const [scoreHistory, setScoreHistory] = useState<ScoreHistoryPoint[]>([]);
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
@@ -52,6 +217,62 @@ export function CogitaLivePublicWallPage({
         : null,
     [reveal]
   );
+  const isSessionFinished = state?.status === 'finished' || state?.status === 'closed';
+  const participantColorById = useMemo(() => {
+    const mapping = new Map<string, string>();
+    (state?.scoreboard ?? []).forEach((row, index) => {
+      mapping.set(row.participantId, CHART_COLORS[index % CHART_COLORS.length]);
+    });
+    return mapping;
+  }, [state?.scoreboard]);
+  const chartLines = useMemo(() => {
+    const rows = state?.scoreboard ?? [];
+    if (rows.length === 0 || scoreHistory.length < 2) return [] as Array<{ participantId: string; name: string; color: string; path: string; lastScore: number }>;
+    const chartWidth = 100;
+    const chartHeight = 100;
+    const maxScore = Math.max(1, ...rows.map((row) => row.score), ...scoreHistory.flatMap((point) => Object.values(point.scores)));
+    const length = Math.max(1, scoreHistory.length - 1);
+    return rows.map((row) => {
+      let path = '';
+      scoreHistory.forEach((point, index) => {
+        const x = (index / length) * chartWidth;
+        const score = Number(point.scores[row.participantId] ?? 0);
+        const y = chartHeight - (score / maxScore) * chartHeight;
+        path += index === 0 ? `M ${x.toFixed(3)} ${y.toFixed(3)}` : ` L ${x.toFixed(3)} ${y.toFixed(3)}`;
+      });
+      return {
+        participantId: row.participantId,
+        name: row.displayName,
+        color: participantColorById.get(row.participantId) ?? '#78d7ff',
+        path,
+        lastScore: row.score
+      };
+    });
+  }, [participantColorById, scoreHistory, state?.scoreboard]);
+
+  useEffect(() => {
+    const rows = state?.scoreboard ?? [];
+    if (rows.length === 0) return;
+    setScoreHistory((previous) => {
+      const nextScores: Record<string, number> = {};
+      rows.forEach((row) => {
+        nextScores[row.participantId] = row.score;
+      });
+      const last = previous[previous.length - 1];
+      if (last) {
+        const sameLength = Object.keys(last.scores).length === Object.keys(nextScores).length;
+        const unchanged =
+          sameLength &&
+          rows.every((row) => Number(last.scores[row.participantId] ?? 0) === row.score);
+        if (unchanged) return previous;
+      }
+      const nextHistory = [...previous, { timestamp: Date.now(), scores: nextScores }];
+      if (nextHistory.length > 180) {
+        return nextHistory.slice(nextHistory.length - 180);
+      }
+      return nextHistory;
+    });
+  }, [state?.scoreboard, state?.revealVersion, state?.status]);
 
   useEffect(() => {
     if (promptTimerEndMs == null) return;
@@ -116,81 +337,133 @@ export function CogitaLivePublicWallPage({
   }, [state?.revealVersion, state?.scoreboard]);
 
   return (
-    <CogitaLiveWallLayout
-      title={liveCopy.hostTitle}
-      subtitle={liveCopy.hostKicker}
-      left={
-        <div className="cogita-live-wall-stack">
-          {prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
-            <div className="cogita-live-timer">
-              <div className="cogita-live-timer-head">
-                <span>{liveCopy.timerLabel}</span>
-                <strong>{`${Math.max(0, Math.ceil((timerRemainingMs ?? 0) / 1000))}s`}</strong>
+    <>
+      <CogitaLiveWallLayout
+        title={liveCopy.hostTitle}
+        subtitle={liveCopy.hostKicker}
+        left={
+          <div className="cogita-live-wall-stack">
+            {isSessionFinished ? (
+              <div className="cogita-live-history-chart">
+                <p className="cogita-user-kicker">{liveCopy.finalScoreTitle}</p>
+                {chartLines.length > 0 ? (
+                  <>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="cogita-live-history-chart-svg" aria-label="Score history chart">
+                      <defs>
+                        <linearGradient id="cogita-live-history-grid" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="rgba(120, 215, 255, 0.22)" />
+                          <stop offset="100%" stopColor="rgba(120, 215, 255, 0.06)" />
+                        </linearGradient>
+                      </defs>
+                      <rect x="0" y="0" width="100" height="100" fill="url(#cogita-live-history-grid)" />
+                      {[20, 40, 60, 80].map((y) => (
+                        <line key={`grid-y-${y}`} x1="0" y1={y} x2="100" y2={y} stroke="rgba(160,205,245,0.16)" strokeWidth="0.35" />
+                      ))}
+                      {[20, 40, 60, 80].map((x) => (
+                        <line key={`grid-x-${x}`} x1={x} y1="0" x2={x} y2="100" stroke="rgba(160,205,245,0.12)" strokeWidth="0.35" />
+                      ))}
+                      {chartLines.map((line) => (
+                        <path
+                          key={`history:${line.participantId}`}
+                          d={line.path}
+                          fill="none"
+                          stroke={line.color}
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      ))}
+                    </svg>
+                    <div className="cogita-live-history-legend">
+                      {chartLines.map((line) => (
+                        <div key={`legend:${line.participantId}`} className="cogita-live-history-legend-item">
+                          <span className="cogita-live-history-legend-color" style={{ backgroundColor: line.color }} />
+                          <strong>{line.name}</strong>
+                          <span>{`${line.lastScore} ${liveCopy.scoreUnit}`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p>{liveCopy.noParticipants}</p>
+                )}
               </div>
-              <div className="cogita-live-timer-track">
-                <span style={{ width: `${Math.round(timerProgress * 100)}%` }} />
-              </div>
-            </div>
-          ) : null}
-          <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}>
-            <CogitaLivePromptCard
-              prompt={prompt}
-              revealExpected={reveal?.expected}
-              mode="readonly"
-              labels={{
-                answerLabel: copy.cogita.library.revision.answerLabel,
-                correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
-                trueLabel: liveCopy.trueLabel,
-                falseLabel: liveCopy.falseLabel,
-                fragmentLabel: liveCopy.fragmentLabel,
-                correctFragmentLabel: liveCopy.correctFragmentLabel,
-                participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
-                unsupportedPromptType: liveCopy.unsupportedPromptType,
-                waitingForReveal: liveCopy.waitingForRevealLabel,
-                selectedPaths: liveCopy.selectedPathsLabel,
-                removePath: liveCopy.removePathAction,
-                columnPrefix: liveCopy.columnPrefixLabel
-              }}
-            />
-          </CogitaCheckcardSurface>
-        </div>
-      }
-      right={
-        <div className="cogita-live-wall-stack">
-          <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
-          <div className="cogita-share-list">
-            {(state?.scoreboard ?? []).map((row) => {
-              const scoreFx = scoreFxByParticipant[row.participantId];
-              const scoring = scoringByParticipant?.[row.participantId];
-              const factors = Array.isArray(scoring?.factors) ? scoring?.factors.map(String) : [];
-              const isIncorrect = factors.includes('wrong') || factors.includes('first-wrong');
-              const isCorrect = !isIncorrect && factors.some((factor) => factor === 'base' || factor === 'first' || factor === 'speed' || factor === 'streak');
-              const rankState = scoreFx?.rankShift ? (scoreFx.rankShift > 0 ? 'up' : 'down') : undefined;
-              const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
-              return (
-                <div className="cogita-share-row" key={row.participantId} data-flash={flashState} data-rank-change={rankState}>
-                  <div><strong>{row.displayName}</strong></div>
-                  <div className="cogita-share-meta">
-                    {`${row.score} ${liveCopy.scoreUnit}`}
-                    {scoreFx?.delta ? (
-                      <span key={`delta:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
-                        {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
-                      </span>
-                    ) : null}
-                    {rankState ? (
-                      <span key={`rank:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
-                        {rankState === 'up' ? ' ↑' : ' ↓'}
-                      </span>
-                    ) : null}
+            ) : (
+              <>
+                {prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
+                  <div className="cogita-live-timer">
+                    <div className="cogita-live-timer-head">
+                      <span>{liveCopy.timerLabel}</span>
+                      <strong>{`${Math.max(0, Math.ceil((timerRemainingMs ?? 0) / 1000))}s`}</strong>
+                    </div>
+                    <div className="cogita-live-timer-track">
+                      <span style={{ width: `${Math.round(timerProgress * 100)}%` }} />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            {status === 'error' ? <p>{liveCopy.connectionError}</p> : null}
-            {status === 'ready' && (state?.scoreboard.length ?? 0) === 0 ? <p>{liveCopy.noParticipants}</p> : null}
+                ) : null}
+                <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${state?.revealVersion ?? 0}` : 'idle'}>
+                  <CogitaLivePromptCard
+                    prompt={prompt}
+                    revealExpected={reveal?.expected}
+                    mode="readonly"
+                    labels={{
+                      answerLabel: copy.cogita.library.revision.answerLabel,
+                      correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
+                      trueLabel: liveCopy.trueLabel,
+                      falseLabel: liveCopy.falseLabel,
+                      fragmentLabel: liveCopy.fragmentLabel,
+                      correctFragmentLabel: liveCopy.correctFragmentLabel,
+                      participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                      unsupportedPromptType: liveCopy.unsupportedPromptType,
+                      waitingForReveal: liveCopy.waitingForRevealLabel,
+                      selectedPaths: liveCopy.selectedPathsLabel,
+                      removePath: liveCopy.removePathAction,
+                      columnPrefix: liveCopy.columnPrefixLabel
+                    }}
+                  />
+                </CogitaCheckcardSurface>
+              </>
+            )}
           </div>
-        </div>
-      }
-    />
+        }
+        right={
+          <div className="cogita-live-wall-stack">
+            <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
+            <div className="cogita-share-list">
+              {(state?.scoreboard ?? []).map((row) => {
+                const scoreFx = scoreFxByParticipant[row.participantId];
+                const scoring = scoringByParticipant?.[row.participantId];
+                const factors = Array.isArray(scoring?.factors) ? scoring?.factors.map(String) : [];
+                const isIncorrect = factors.includes('wrong') || factors.includes('first-wrong');
+                const isCorrect = !isIncorrect && factors.some((factor) => factor === 'base' || factor === 'first' || factor === 'speed' || factor === 'streak');
+                const rankState = scoreFx?.rankShift ? (scoreFx.rankShift > 0 ? 'up' : 'down') : undefined;
+                const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
+                return (
+                  <div className="cogita-share-row" key={row.participantId} data-flash={flashState} data-rank-change={rankState}>
+                    <div><strong>{row.displayName}</strong></div>
+                    <div className="cogita-share-meta">
+                      {`${row.score} ${liveCopy.scoreUnit}`}
+                      {scoreFx?.delta ? (
+                        <span key={`delta:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
+                          {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
+                        </span>
+                      ) : null}
+                      {rankState ? (
+                        <span key={`rank:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
+                          {rankState === 'up' ? ' ↑' : ' ↓'}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {status === 'error' ? <p>{liveCopy.connectionError}</p> : null}
+              {status === 'ready' && (state?.scoreboard.length ?? 0) === 0 ? <p>{liveCopy.noParticipants}</p> : null}
+            </div>
+          </div>
+        }
+      />
+      <FireworksOverlay active={status === 'ready' && isSessionFinished} />
+    </>
   );
 }
