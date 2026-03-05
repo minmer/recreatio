@@ -22,6 +22,7 @@ type FireworkParticle = {
   hue: number;
   alpha: number;
   trail: Array<{ x: number; y: number }>;
+  color: string;
 };
 
 const CHART_COLORS = [
@@ -35,17 +36,9 @@ const CHART_COLORS = [
   '#d4f47d'
 ];
 
-function FireworksOverlay({
-  active,
-  zone = 'full',
-  focusX,
-  focusY
-}: {
-  active: boolean;
-  zone?: 'full' | 'right';
-  focusX?: number;
-  focusY?: number;
-}) {
+const CELEBRATION_COLORS = ['#78d7ff', '#6cf0f0', '#8ef0b8', '#f6d28a', '#9ac8ff'];
+
+function PodiumFireworksLayer({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -60,12 +53,25 @@ function FireworksOverlay({
     let animationId = 0;
     let running = true;
     let particles: FireworkParticle[] = [];
-    let lastBurstAt = 0;
+    let lastCenterBurstAt = 0;
+    let lastSideBurstAt = 0;
+    const hexToRgba = (hex: string, alpha: number) => {
+      const sanitized = hex.replace('#', '');
+      const full = sanitized.length === 3
+        ? `${sanitized[0]}${sanitized[0]}${sanitized[1]}${sanitized[1]}${sanitized[2]}${sanitized[2]}`
+        : sanitized;
+      const r = parseInt(full.slice(0, 2), 16);
+      const g = parseInt(full.slice(2, 4), 16);
+      const b = parseInt(full.slice(4, 6), 16);
+      const safeAlpha = Math.max(0, Math.min(1, alpha));
+      return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
+    };
 
     const resize = () => {
       const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-      width = window.innerWidth;
-      height = window.innerHeight;
+      const bounds = canvas.parentElement?.getBoundingClientRect();
+      width = Math.max(1, Math.round(bounds?.width ?? 0));
+      height = Math.max(1, Math.round(bounds?.height ?? 0));
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
@@ -73,12 +79,12 @@ function FireworksOverlay({
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const addBurst = (x: number, y: number) => {
-      const hue = Math.floor(Math.random() * 360);
-      const count = 60 + Math.floor(Math.random() * 50);
+    const addBurst = (x: number, y: number, size: 'large' | 'small') => {
+      const count = size === 'large' ? 110 + Math.floor(Math.random() * 40) : 48 + Math.floor(Math.random() * 26);
       for (let i = 0; i < count; i += 1) {
         const angle = (Math.PI * 2 * i) / count + Math.random() * 0.12;
-        const speed = 1.2 + Math.random() * 4.8;
+        const speed = (size === 'large' ? 2.2 : 1.2) + Math.random() * (size === 'large' ? 5.4 : 3.2);
+        const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
         particles.push({
           x,
           y,
@@ -86,54 +92,49 @@ function FireworksOverlay({
           vy: Math.sin(angle) * speed,
           life: 48 + Math.random() * 38,
           maxLife: 48 + Math.random() * 38,
-          size: 1.3 + Math.random() * 2.6,
-          hue: (hue + Math.random() * 50 - 25 + 360) % 360,
+          size: (size === 'large' ? 1.6 : 1.1) + Math.random() * (size === 'large' ? 2.8 : 1.7),
+          hue: 0,
           alpha: 1,
-          trail: []
+          trail: [],
+          color
         });
       }
-      for (let i = 0; i < 24; i += 1) {
+      for (let i = 0; i < (size === 'large' ? 34 : 16); i += 1) {
+        const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
         particles.push({
           x,
           y,
-          vx: (Math.random() - 0.5) * 2.4,
-          vy: (Math.random() - 0.7) * 2.2,
-          life: 24 + Math.random() * 18,
-          maxLife: 24 + Math.random() * 18,
+          vx: (Math.random() - 0.5) * (size === 'large' ? 2.8 : 1.9),
+          vy: (Math.random() - 0.7) * (size === 'large' ? 2.5 : 1.7),
+          life: (size === 'large' ? 30 : 20) + Math.random() * 14,
+          maxLife: (size === 'large' ? 30 : 20) + Math.random() * 14,
           size: 0.8 + Math.random() * 1.6,
-          hue: (hue + Math.random() * 80 - 40 + 360) % 360,
+          hue: 0,
           alpha: 0.85,
-          trail: []
+          trail: [],
+          color
         });
       }
     };
 
     const frame = (time: number) => {
       if (!running) return;
-      if (time - lastBurstAt > 420) {
-        lastBurstAt = time;
-        const centerX =
-          typeof focusX === 'number'
-            ? width * Math.max(0.05, Math.min(0.95, focusX))
-            : zone === 'right'
-              ? width * (0.56 + Math.random() * 0.4)
-              : width * (0.18 + Math.random() * 0.64);
-        const centerY =
-          typeof focusY === 'number'
-            ? height * Math.max(0.05, Math.min(0.95, focusY))
-            : height * (0.12 + Math.random() * 0.45);
-        const burstX = centerX + (Math.random() - 0.5) * width * 0.16;
-        const burstY = centerY + (Math.random() - 0.5) * height * 0.12;
-        addBurst(burstX, burstY);
-        if (Math.random() > 0.66) {
-          const secondX = centerX + (Math.random() - 0.5) * width * 0.2;
-          const secondY = centerY + (Math.random() - 0.5) * height * 0.16;
-          addBurst(secondX, secondY);
-        }
+      if (time - lastCenterBurstAt > 620) {
+        lastCenterBurstAt = time;
+        addBurst(width * (0.5 + (Math.random() - 0.5) * 0.08), height * (0.24 + (Math.random() - 0.5) * 0.08), 'large');
+      }
+      if (time - lastSideBurstAt > 980) {
+        lastSideBurstAt = time;
+        addBurst(width * (0.24 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
+        addBurst(width * (0.76 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
       }
 
       context.clearRect(0, 0, width, height);
-      context.fillStyle = 'rgba(3, 10, 18, 0.18)';
+      const hazeTop = context.createRadialGradient(width * 0.5, height * 0.1, 0, width * 0.5, height * 0.1, width * 0.72);
+      hazeTop.addColorStop(0, 'rgba(94, 214, 255, 0.16)');
+      hazeTop.addColorStop(0.52, 'rgba(84, 236, 220, 0.08)');
+      hazeTop.addColorStop(1, 'rgba(12, 26, 44, 0)');
+      context.fillStyle = hazeTop;
       context.fillRect(0, 0, width, height);
 
       const nextParticles: FireworkParticle[] = [];
@@ -162,14 +163,14 @@ function FireworksOverlay({
             if (i === 0) context.moveTo(point.x, point.y);
             else context.lineTo(point.x, point.y);
           }
-          context.strokeStyle = `hsla(${particle.hue} 100% 72% / ${Math.max(0, particle.alpha * 0.35)})`;
+          context.strokeStyle = hexToRgba(particle.color, Math.max(0, particle.alpha * 0.4));
           context.lineWidth = Math.max(0.8, particle.size * 0.75);
           context.stroke();
         }
 
         context.beginPath();
         context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-        context.fillStyle = `hsla(${particle.hue} 100% 68% / ${Math.max(0, particle.alpha)})`;
+        context.fillStyle = hexToRgba(particle.color, Math.max(0, particle.alpha));
         context.fill();
       }
       particles = nextParticles;
@@ -186,10 +187,10 @@ function FireworksOverlay({
       window.cancelAnimationFrame(animationId);
       context.clearRect(0, 0, width, height);
     };
-  }, [active, zone, focusX, focusY]);
+  }, [active]);
 
   if (!active) return null;
-  return <canvas ref={canvasRef} className="cogita-live-fireworks" aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="cogita-live-podium-fireworks" aria-hidden="true" />;
 }
 
 export function CogitaLivePublicWallPage({
@@ -514,6 +515,9 @@ export function CogitaLivePublicWallPage({
             <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
             {isSessionFinished && podiumRows.length > 0 ? (
               <div className="cogita-live-podium-wrap">
+                <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
+                  <PodiumFireworksLayer active={status === 'ready' && isSessionFinished} />
+                </div>
                 <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
                 <div className="cogita-live-podium" role="presentation">
                   {podiumDisplayRows.map((row) => {
@@ -573,7 +577,6 @@ export function CogitaLivePublicWallPage({
           </div>
         }
       />
-      <FireworksOverlay active={status === 'ready' && isSessionFinished} zone="right" focusX={0.75} focusY={0.24} />
     </>
   );
 }
