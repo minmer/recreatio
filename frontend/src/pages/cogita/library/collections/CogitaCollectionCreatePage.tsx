@@ -391,11 +391,11 @@ export function CogitaCollectionCreatePage({
                   <Background color="rgba(120,160,200,0.2)" />
                   <Controls />
                 </ReactFlow>
-                <div className="cogita-form-actions" style={{ marginTop: 12 }}>
-                  <button type="button" className="cta" onClick={() => void handleCreate()} disabled={saveStatus === 'saving'}>
-                    {activeCollectionId ? copy.cogita.library.actions.saveCollection : copy.cogita.library.actions.createCollection}
-                  </button>
-                </div>
+              </div>
+              <div className="cogita-form-actions" style={{ marginTop: 12 }}>
+                <button type="button" className="cta" onClick={() => void handleCreate()} disabled={saveStatus === 'saving'}>
+                  {activeCollectionId ? copy.cogita.library.actions.saveCollection : copy.cogita.library.actions.createCollection}
+                </button>
               </div>
 
               <div className="cogita-graph-panel">
