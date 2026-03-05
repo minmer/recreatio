@@ -869,19 +869,6 @@ export function CogitaDependencyGraphPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-library-dashboard" data-mode="detail">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <p className="cogita-user-kicker">{copy.cogita.library.graph.kicker}</p>
-            <h1 className="cogita-library-title">{copy.cogita.library.navLabel}</h1>
-            <p className="cogita-library-subtitle">{copy.cogita.library.graph.subtitle}</p>
-          </div>
-          <div className="cogita-library-actions">
-            <a className="cta ghost" href={baseHref}>
-              {copy.cogita.library.actions.libraryOverview}
-            </a>
-          </div>
-        </header>
-
         <div className="cogita-library-layout">
           <div className="cogita-library-content">
             <div className="cogita-collection-graph">
@@ -909,6 +896,11 @@ export function CogitaDependencyGraphPage({
                   })}
                 </div>
                 <div className="cogita-form-actions" style={{ marginTop: 8 }}>
+                  {mode === 'create' ? (
+                    <button type="button" className="cta" onClick={() => void handleCreateGraph()}>
+                      Create dependency
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="cta ghost"
