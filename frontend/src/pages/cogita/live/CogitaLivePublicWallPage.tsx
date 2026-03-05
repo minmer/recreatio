@@ -395,7 +395,12 @@ export function CogitaLivePublicWallPage({
                 <p className="cogita-user-kicker">{liveCopy.finalScoreTitle}</p>
                 {chartLines.length > 0 ? (
                   <>
-                    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" className="cogita-live-history-chart-svg" aria-label="Score history chart">
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="xMidYMid meet"
+                      className="cogita-live-history-chart-svg"
+                      aria-label={liveCopy.scoreHistoryChartAria}
+                    >
                       <defs>
                         <linearGradient id="cogita-live-history-grid" x1="0%" y1="0%" x2="0%" y2="100%">
                           <stop offset="0%" stopColor="rgba(120, 215, 255, 0.22)" />
@@ -489,7 +494,7 @@ export function CogitaLivePublicWallPage({
             <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
             {isSessionFinished && podiumRows.length > 0 ? (
               <div className="cogita-live-podium-wrap">
-                <p className="cogita-user-kicker">{(liveCopy as unknown as { podiumTitle?: string }).podiumTitle ?? 'Podium'}</p>
+                <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
                 <div className="cogita-live-podium" role="presentation">
                   {podiumRows.map((row, index) => {
                     const order = index + 1;

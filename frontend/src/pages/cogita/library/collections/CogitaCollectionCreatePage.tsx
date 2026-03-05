@@ -34,17 +34,17 @@ type GraphNodeData = {
   params: GraphNodeParams;
 };
 
-const NODE_CATALOG = [
-  { type: 'source.translation', label: 'Translation source' },
-  { type: 'source.info.all', label: 'All infos' },
-  { type: 'source.info', label: 'Info source' },
-  { type: 'source.connection', label: 'Connection source' },
-  { type: 'filter.tag', label: 'Tag filter' },
-  { type: 'filter.language', label: 'Language filter' },
-  { type: 'logic.and', label: 'AND' },
-  { type: 'logic.or', label: 'OR' },
-  { type: 'output.collection', label: 'Collection output' }
-];
+const NODE_TYPES = [
+  'source.translation',
+  'source.info.all',
+  'source.info',
+  'source.connection',
+  'filter.tag',
+  'filter.language',
+  'logic.and',
+  'logic.or',
+  'output.collection'
+] as const;
 
 const DEFAULT_NODE_PARAMS: Record<string, GraphNodeParams> = {
   'filter.tag': { scope: 'any' },
@@ -53,20 +53,99 @@ const DEFAULT_NODE_PARAMS: Record<string, GraphNodeParams> = {
   'source.connection': { connectionType: 'translation' }
 };
 
-const CONNECTION_TYPES = [
-  { value: 'translation', label: 'Translation' },
-  { value: 'word-language', label: 'Word ↔ Language' },
-  { value: 'language-sentence', label: 'Language ↔ Sentence' },
-  { value: 'word-topic', label: 'Word ↔ Topic' }
-];
+const CONNECTION_TYPES = ['translation', 'word-language', 'language-sentence', 'word-topic'] as const;
 
-const INFO_TYPES = [
-  { value: 'word', label: 'Word' },
-  { value: 'sentence', label: 'Sentence' },
-  { value: 'language', label: 'Language' },
-  { value: 'topic', label: 'Topic' },
-  { value: 'computed', label: 'Computed' }
-];
+const INFO_TYPES = ['word', 'sentence', 'language', 'topic', 'computed'] as const;
+
+const COLLECTION_GRAPH_I18N = {
+  en: {
+    nodeLabels: {
+      'source.translation': 'Translation source',
+      'source.info.all': 'All infos',
+      'source.info': 'Info source',
+      'source.connection': 'Connection source',
+      'filter.tag': 'Tag filter',
+      'filter.language': 'Language filter',
+      'logic.and': 'AND',
+      'logic.or': 'OR',
+      'output.collection': 'Collection output'
+    },
+    connectionLabels: {
+      translation: 'Translation',
+      'word-language': 'Word ↔ Language',
+      'language-sentence': 'Language ↔ Sentence',
+      'word-topic': 'Word ↔ Topic'
+    },
+    infoTypeLabels: {
+      word: 'Word',
+      sentence: 'Sentence',
+      language: 'Language',
+      topic: 'Topic',
+      computed: 'Computed'
+    },
+    selectedInfoNode: 'Selected info',
+    selectedInfosNode: 'Selected infos',
+    draftLoaded: 'Draft loaded from {count} selected infos. Set name and save to create collection.'
+  },
+  pl: {
+    nodeLabels: {
+      'source.translation': 'Źródło tłumaczenia',
+      'source.info.all': 'Wszystkie informacje',
+      'source.info': 'Źródło informacji',
+      'source.connection': 'Źródło połączenia',
+      'filter.tag': 'Filtr tagu',
+      'filter.language': 'Filtr języka',
+      'logic.and': 'ORAZ',
+      'logic.or': 'LUB',
+      'output.collection': 'Wyjście kolekcji'
+    },
+    connectionLabels: {
+      translation: 'Tłumaczenie',
+      'word-language': 'Słowo ↔ Język',
+      'language-sentence': 'Język ↔ Zdanie',
+      'word-topic': 'Słowo ↔ Temat'
+    },
+    infoTypeLabels: {
+      word: 'Słowo',
+      sentence: 'Zdanie',
+      language: 'Język',
+      topic: 'Temat',
+      computed: 'Obliczeniowa'
+    },
+    selectedInfoNode: 'Wybrana informacja',
+    selectedInfosNode: 'Wybrane informacje',
+    draftLoaded: 'Załadowano szkic z {count} wybranych informacji. Ustaw nazwę i zapisz kolekcję.'
+  },
+  de: {
+    nodeLabels: {
+      'source.translation': 'Übersetzungsquelle',
+      'source.info.all': 'Alle Infos',
+      'source.info': 'Info-Quelle',
+      'source.connection': 'Verbindungsquelle',
+      'filter.tag': 'Tag-Filter',
+      'filter.language': 'Sprachfilter',
+      'logic.and': 'UND',
+      'logic.or': 'ODER',
+      'output.collection': 'Sammlungsausgabe'
+    },
+    connectionLabels: {
+      translation: 'Übersetzung',
+      'word-language': 'Wort ↔ Sprache',
+      'language-sentence': 'Sprache ↔ Satz',
+      'word-topic': 'Wort ↔ Thema'
+    },
+    infoTypeLabels: {
+      word: 'Wort',
+      sentence: 'Satz',
+      language: 'Sprache',
+      topic: 'Thema',
+      computed: 'Berechnet'
+    },
+    selectedInfoNode: 'Ausgewählte Info',
+    selectedInfosNode: 'Ausgewählte Infos',
+    draftLoaded: 'Entwurf mit {count} ausgewählten Infos geladen. Name setzen und Sammlung speichern.'
+  }
+} as const;
 
 export function CogitaCollectionCreatePage({
   copy,
@@ -98,6 +177,19 @@ export function CogitaCollectionCreatePage({
   onCreated: (collectionId: string) => void;
 }) {
   const location = useLocation();
+  const graphCopy = COLLECTION_GRAPH_I18N[language];
+  const nodeCatalog = useMemo(
+    () => NODE_TYPES.map((type) => ({ type, label: graphCopy.nodeLabels[type] })),
+    [graphCopy]
+  );
+  const connectionTypeOptions = useMemo(
+    () => CONNECTION_TYPES.map((value) => ({ value, label: graphCopy.connectionLabels[value] })),
+    [graphCopy]
+  );
+  const infoTypeOptions = useMemo(
+    () => INFO_TYPES.map((value) => ({ value, label: graphCopy.infoTypeLabels[value] })),
+    [graphCopy]
+  );
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(collectionId ?? null);
   const [name, setName] = useState('');
   const [notes, setNotes] = useState('');
@@ -141,7 +233,7 @@ export function CogitaCollectionCreatePage({
               position: payload.position ?? { x: 120, y: 120 },
               data: {
                 nodeType: node.nodeType,
-                label: NODE_CATALOG.find((entry) => entry.type === node.nodeType)?.label ?? node.nodeType,
+                label: nodeCatalog.find((entry) => entry.type === node.nodeType)?.label ?? node.nodeType,
                 params: payload.params ?? {}
               }
             };
@@ -164,7 +256,7 @@ export function CogitaCollectionCreatePage({
     return () => {
       cancelled = true;
     };
-  }, [collectionId, copy.cogita.library.collections.saveFail, libraryId, setEdges, setNodes]);
+  }, [collectionId, copy.cogita.library.collections.saveFail, libraryId, nodeCatalog, setEdges, setNodes]);
 
   useEffect(() => {
     if (collectionId) return;
@@ -185,7 +277,7 @@ export function CogitaCollectionCreatePage({
       position: { x: 80, y: 80 + index * 100 },
       data: {
         nodeType: 'source.info',
-        label: 'Selected info',
+        label: graphCopy.selectedInfoNode,
         params: { infoId, infoType: 'any' }
       } satisfies GraphNodeData
     }));
@@ -197,7 +289,7 @@ export function CogitaCollectionCreatePage({
           position: { x: 360, y: 120 + Math.max(0, (draft.infoIds.length - 1) * 50) },
           data: {
             nodeType: 'logic.or',
-            label: 'Selected infos',
+            label: graphCopy.selectedInfosNode,
             params: {}
           } satisfies GraphNodeData
         }]
@@ -209,7 +301,7 @@ export function CogitaCollectionCreatePage({
       position: { x: 660, y: 140 + Math.max(0, (draft.infoIds.length - 1) * 35) },
       data: {
         nodeType: 'output.collection',
-        label: 'Collection output',
+        label: graphCopy.nodeLabels['output.collection'],
         params: {}
       } satisfies GraphNodeData
     };
@@ -230,13 +322,13 @@ export function CogitaCollectionCreatePage({
     setNodes([...sourceNodes, ...logicNode, outputNode]);
     setEdges(nextEdges);
     setSelectedNodeId(outputId);
-    setStatusMessage(`Draft loaded from ${draft.infoIds.length} selected infos. Set name and save to create collection.`);
+    setStatusMessage(graphCopy.draftLoaded.replace('{count}', String(draft.infoIds.length)));
     draftAppliedRef.current = draftSeed;
-  }, [collectionId, libraryId, location.search, setEdges, setNodes]);
+  }, [collectionId, graphCopy, libraryId, location.search, setEdges, setNodes]);
 
   const handleAddNode = (type: string) => {
     const id = crypto.randomUUID();
-    const label = NODE_CATALOG.find((entry) => entry.type === type)?.label ?? type;
+    const label = nodeCatalog.find((entry) => entry.type === type)?.label ?? type;
     const params = { ...DEFAULT_NODE_PARAMS[type] };
     setNodes((prev) => [
       ...prev,
@@ -370,7 +462,7 @@ export function CogitaCollectionCreatePage({
 
                 <p className="cogita-user-kicker">{copy.cogita.library.graph.palette}</p>
                 <div className="cogita-graph-palette-grid">
-                  {NODE_CATALOG.map((node) => (
+                  {nodeCatalog.map((node) => (
                     <button key={node.type} type="button" className="ghost" onClick={() => handleAddNode(node.type)}>
                       {node.label}
                     </button>
@@ -492,7 +584,7 @@ export function CogitaCollectionCreatePage({
                             value={selectedNode.data.params.infoType ?? 'word'}
                             onChange={(event) => updateNodeParams({ ...selectedNode.data.params, infoType: event.target.value })}
                           >
-                            {INFO_TYPES.map((item) => (
+                            {infoTypeOptions.map((item) => (
                               <option key={item.value} value={item.value}>
                                 {item.label}
                               </option>
@@ -538,7 +630,7 @@ export function CogitaCollectionCreatePage({
                               updateNodeParams({ ...selectedNode.data.params, connectionType: event.target.value })
                             }
                           >
-                            {CONNECTION_TYPES.map((item) => (
+                            {connectionTypeOptions.map((item) => (
                               <option key={item.value} value={item.value}>
                                 {item.label}
                               </option>

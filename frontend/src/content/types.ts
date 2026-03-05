@@ -672,6 +672,8 @@ export type Copy = {
         noCards: string;
         detailFocusTitle: string;
         detailFocusBody: string;
+        deleteConfirm: string;
+        deleteFail: string;
         createKicker: string;
         createSubtitle: string;
         collectionInfoTitle: string;
@@ -840,6 +842,7 @@ export type Copy = {
           scoreboardTitle: string;
           pointsTitle: string;
           finalScoreTitle: string;
+          podiumTitle: string;
           currentRoundTitle: string;
           questionTitle: string;
           waitingForHostQuestion: string;
@@ -852,6 +855,7 @@ export type Copy = {
           joiningAction: string;
           joinedWaiting: string;
           connectionError: string;
+          scoreHistoryChartAria: string;
           submitAnswer: string;
           submitted: string;
           publishCurrentRound: string;

@@ -15212,7 +15212,9 @@ public static class CogitaEndpoints
             var entries = roundGroup
                 .Select(answer => new CogitaLiveRevisionCorrectnessEntryResponse(
                     answer.ParticipantId,
-                    participantNameById.TryGetValue(answer.ParticipantId, out var participantName) ? participantName : "Participant",
+                    participantNameById.TryGetValue(answer.ParticipantId, out var participantName)
+                        ? participantName
+                        : answer.ParticipantId.ToString("N")[..8],
                     answer.IsCorrect,
                     answer.PointsAwarded,
                     answer.SubmittedUtc))

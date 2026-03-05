@@ -87,7 +87,7 @@ export function CogitaCollectionDetailPage({
   };
 
   const handleDeleteCollection = async () => {
-    if (!window.confirm('Delete this collection? This cannot be undone.')) return;
+    if (!window.confirm(copy.cogita.library.collections.deleteConfirm)) return;
     setDeleteStatus(null);
     try {
       await deleteCogitaCollection({ libraryId, collectionId });
@@ -96,14 +96,14 @@ export function CogitaCollectionDetailPage({
       if (error instanceof ApiError && error.message) {
         try {
           const parsed = JSON.parse(error.message) as { error?: string };
-          setDeleteStatus(parsed.error ?? 'Failed to delete collection.');
+          setDeleteStatus(parsed.error ?? copy.cogita.library.collections.deleteFail);
           return;
         } catch {
           setDeleteStatus(error.message);
           return;
         }
       }
-      setDeleteStatus('Failed to delete collection.');
+      setDeleteStatus(copy.cogita.library.collections.deleteFail);
     }
   };
 
