@@ -436,6 +436,7 @@ export function CogitaLivePublicWallPage({
                       {chartLines.map((line) => (
                         <g key={`history:${line.participantId}`}>
                           <path
+                            className="cogita-live-history-line"
                             d={line.path}
                             fill="none"
                             stroke={line.color}

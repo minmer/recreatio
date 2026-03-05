@@ -2514,6 +2514,13 @@
   stroke-linejoin: round;
 }
 
+.cogita-live-history-line {
+  filter:
+    drop-shadow(0 0 1.4px rgba(2, 6, 12, 0.96))
+    drop-shadow(0 0 3.2px rgba(2, 6, 12, 0.88))
+    drop-shadow(0 0 6px rgba(2, 6, 12, 0.7));
+}
+
 .cogita-live-score-name {
   display: inline-flex;
   align-items: center;
