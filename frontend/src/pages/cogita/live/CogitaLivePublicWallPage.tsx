@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getCogitaLiveRevisionPublicState, type CogitaLiveRevisionPublicState } from '../../../lib/api';
+import {
+  getCogitaLiveRevisionPublicState,
+  type CogitaLiveRevisionPublicState,
+  type CogitaStatisticsParticipantSummary,
+  type CogitaStatisticsResponse,
+  type CogitaStatisticsTimelinePoint
+} from '../../../lib/api';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
+import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
-
-type ScoreHistoryPoint = {
-  timestamp: number;
-  scores: Record<string, number>;
-};
 
 type FireworkParticle = {
   x: number;
@@ -37,6 +39,163 @@ const CHART_COLORS = [
 ];
 
 const CELEBRATION_COLORS = ['#78d7ff', '#6cf0f0', '#8ef0b8', '#f6d28a', '#9ac8ff'];
+
+function parseUtcToMillis(value?: string | null) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState | null): CogitaStatisticsResponse | null {
+  if (!state) return null;
+
+  const scoreboard = [...(state.scoreboard ?? [])];
+  const scoreHistory = [...(state.scoreHistory ?? [])].sort((left, right) => {
+    if ((left.roundIndex ?? 0) !== (right.roundIndex ?? 0)) {
+      return (left.roundIndex ?? 0) - (right.roundIndex ?? 0);
+    }
+    return parseUtcToMillis(left.recordedUtc) - parseUtcToMillis(right.recordedUtc);
+  });
+  const correctnessHistory = [...(state.correctnessHistory ?? [])].sort((left, right) => {
+    if ((left.roundIndex ?? 0) !== (right.roundIndex ?? 0)) {
+      return (left.roundIndex ?? 0) - (right.roundIndex ?? 0);
+    }
+    return parseUtcToMillis(left.recordedUtc) - parseUtcToMillis(right.recordedUtc);
+  });
+
+  const scoreByRoundAndParticipant = new Map<string, number>();
+  scoreHistory.forEach((round) => {
+    (round.scoreboard ?? []).forEach((entry) => {
+      const key = `${round.roundIndex}::${entry.participantId}`;
+      scoreByRoundAndParticipant.set(key, Number(entry.score ?? 0));
+    });
+  });
+
+  const participantMeta = new Map<
+    string,
+    {
+      label: string;
+      eventCount: number;
+      answerCount: number;
+      correctCount: number;
+      runningPoints: number;
+      knownessScore: number;
+      lastActivityUtc?: string | null;
+    }
+  >();
+  scoreboard.forEach((row) => {
+    participantMeta.set(row.participantId, {
+      label: row.displayName,
+      eventCount: 0,
+      answerCount: 0,
+      correctCount: 0,
+      runningPoints: 0,
+      knownessScore: 0,
+      lastActivityUtc: null
+    });
+  });
+
+  const timeline: CogitaStatisticsTimelinePoint[] = [];
+  let timelineIndex = 0;
+  correctnessHistory.forEach((round) => {
+    const entries = [...(round.entries ?? [])].sort((left, right) => parseUtcToMillis(left.submittedUtc) - parseUtcToMillis(right.submittedUtc));
+    entries.forEach((entry) => {
+      const participantId = String(entry.participantId ?? '').trim();
+      if (!participantId) return;
+      const existing = participantMeta.get(participantId);
+      const meta =
+        existing ??
+        {
+          label: entry.displayName || participantId,
+          eventCount: 0,
+          answerCount: 0,
+          correctCount: 0,
+          runningPoints: 0,
+          knownessScore: 0,
+          lastActivityUtc: null
+        };
+
+      meta.eventCount += 1;
+      const correctness = typeof entry.isCorrect === 'boolean' ? (entry.isCorrect ? 1 : 0) : null;
+      if (correctness !== null) {
+        meta.answerCount += 1;
+        if (correctness > 0) meta.correctCount += 1;
+      }
+
+      const pointsAwarded = Number.isFinite(entry.pointsAwarded) ? Number(entry.pointsAwarded) : 0;
+      const runningFromScoreHistory = scoreByRoundAndParticipant.get(`${round.roundIndex}::${participantId}`);
+      if (typeof runningFromScoreHistory === 'number' && Number.isFinite(runningFromScoreHistory)) {
+        meta.runningPoints = runningFromScoreHistory;
+      } else {
+        meta.runningPoints += pointsAwarded;
+      }
+      meta.knownessScore = meta.answerCount > 0 ? (meta.correctCount / meta.answerCount) * 100 : 0;
+      meta.lastActivityUtc = entry.submittedUtc ?? round.recordedUtc ?? meta.lastActivityUtc ?? null;
+      meta.label = entry.displayName || meta.label || participantId;
+      participantMeta.set(participantId, {
+        ...meta
+      });
+
+      timeline.push({
+        index: ++timelineIndex,
+        recordedUtc: entry.submittedUtc ?? round.recordedUtc ?? new Date().toISOString(),
+        participantKey: participantId,
+        participantKind: 'participant',
+        participantId,
+        label: meta.label || participantId,
+        eventType: 'answer',
+        roundIndex: round.roundIndex ?? null,
+        isCorrect: correctness === null ? null : correctness > 0,
+        correctness,
+        pointsAwarded,
+        durationMs: null,
+        runningPoints: meta.runningPoints,
+        knownessScore: meta.knownessScore
+      });
+    });
+  });
+
+  const scoreboardByParticipant = new Map<string, number>();
+  scoreboard.forEach((row) => {
+    scoreboardByParticipant.set(row.participantId, Number(row.score ?? 0));
+  });
+
+  const participants: CogitaStatisticsParticipantSummary[] = Array.from(participantMeta.entries())
+    .map(([participantKey, meta]) => {
+      const totalPoints = scoreboardByParticipant.has(participantKey) ? Number(scoreboardByParticipant.get(participantKey) ?? 0) : meta.runningPoints;
+      return {
+        participantKey,
+        participantKind: 'participant',
+        personRoleId: null,
+        participantId: participantKey,
+        label: meta.label || participantKey,
+        eventCount: meta.eventCount,
+        answerCount: meta.answerCount,
+        correctCount: meta.correctCount,
+        averageCorrectness: meta.answerCount > 0 ? (meta.correctCount / meta.answerCount) * 100 : 0,
+        totalPoints,
+        lastActivityUtc: meta.lastActivityUtc ?? null,
+        knownessScore: meta.knownessScore
+      };
+    })
+    .sort((left, right) => right.totalPoints - left.totalPoints || left.label.localeCompare(right.label));
+
+  const totalAnswers = participants.reduce((sum, participant) => sum + participant.answerCount, 0);
+  const totalCorrectAnswers = participants.reduce((sum, participant) => sum + participant.correctCount, 0);
+  const totalPoints = participants.reduce((sum, participant) => sum + participant.totalPoints, 0);
+
+  return {
+    scopeType: 'live-session',
+    scopeId: state.sessionId,
+    totalEvents: timeline.length,
+    totalAnswers,
+    totalCorrectAnswers,
+    averageCorrectness: totalAnswers > 0 ? (totalCorrectAnswers / totalAnswers) * 100 : 0,
+    totalPoints,
+    participants,
+    timeline
+  };
+}
 
 function PodiumFireworksLayer({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -290,87 +449,7 @@ export function CogitaLivePublicWallPage({
     });
     return mapping;
   }, [state?.scoreboard]);
-  const scoreHistory = useMemo<ScoreHistoryPoint[]>(() => {
-    const rows = state?.scoreboard ?? [];
-    const fromServer = (state?.scoreHistory ?? [])
-      .map((point) => {
-        const scores: Record<string, number> = {};
-        (point.scoreboard ?? []).forEach((entry) => {
-          scores[entry.participantId] = Number(entry.score ?? 0);
-        });
-        return {
-          timestamp: Date.parse(point.recordedUtc ?? '') || Date.now(),
-          scores
-        };
-      })
-      .filter((point) => Object.keys(point.scores).length > 0);
-
-    const currentScores: Record<string, number> = {};
-    rows.forEach((row) => {
-      currentScores[row.participantId] = row.score;
-    });
-    if (Object.keys(currentScores).length === 0) {
-      return fromServer;
-    }
-    if (fromServer.length === 0) {
-      return [{ timestamp: Date.now(), scores: currentScores }];
-    }
-    const last = fromServer[fromServer.length - 1];
-    const sameLength = Object.keys(last.scores).length === Object.keys(currentScores).length;
-    const unchanged = sameLength && rows.every((row) => Number(last.scores[row.participantId] ?? 0) === row.score);
-    if (unchanged) return fromServer;
-    return [...fromServer, { timestamp: Date.now(), scores: currentScores }];
-  }, [state?.scoreHistory, state?.scoreboard]);
-  const chartLines = useMemo(() => {
-    const rows = state?.scoreboard ?? [];
-    if (rows.length === 0 || scoreHistory.length < 2) {
-      return [] as Array<{
-        participantId: string;
-        name: string;
-        color: string;
-        path: string;
-        lastScore: number;
-        endX: number;
-        endY: number;
-      }>;
-    }
-    const chartWidth = 100;
-    const chartHeight = 100;
-    const chartPadding = { left: 4, right: 2, top: 4, bottom: 6 };
-    const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
-    const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom;
-    const values = scoreHistory.flatMap((point) => Object.values(point.scores).map((value) => Number(value ?? 0)));
-    const minData = values.length > 0 ? Math.min(...values) : 0;
-    const maxData = values.length > 0 ? Math.max(...values) : 0;
-    const rawSpan = maxData - minData;
-    const safeSpan = rawSpan <= 0 ? Math.max(1, Math.abs(maxData) * 0.1 + 1) : rawSpan;
-    const pad = Math.max(1, safeSpan * 0.08);
-    const minScore = minData - pad;
-    const maxScore = maxData + pad;
-    const scoreSpan = Math.max(1, maxScore - minScore);
-    const length = Math.max(1, scoreHistory.length - 1);
-    return rows.map((row) => {
-      let path = '';
-      scoreHistory.forEach((point, index) => {
-        const x = chartPadding.left + (index / length) * plotWidth;
-        const score = Number(point.scores[row.participantId] ?? 0);
-        const ratio = (score - minScore) / scoreSpan;
-        const y = chartPadding.top + (1 - ratio) * plotHeight;
-        path += index === 0 ? `M ${x.toFixed(3)} ${y.toFixed(3)}` : ` L ${x.toFixed(3)} ${y.toFixed(3)}`;
-      });
-      return {
-        participantId: row.participantId,
-        name: row.displayName,
-        color: participantColorById.get(row.participantId) ?? '#78d7ff',
-        path,
-        lastScore: row.score,
-        endX: chartPadding.left + plotWidth,
-        endY:
-          chartPadding.top +
-          (1 - (Number(scoreHistory[scoreHistory.length - 1]?.scores[row.participantId] ?? 0) - minScore) / scoreSpan) * plotHeight
-      };
-    });
-  }, [participantColorById, scoreHistory, state?.scoreboard]);
+  const liveStatisticsData = useMemo(() => buildLiveStatisticsResponse(state), [state]);
 
   useEffect(() => {
     if (promptTimerEndMs == null) return;
@@ -442,67 +521,15 @@ export function CogitaLivePublicWallPage({
         left={
           <div className="cogita-live-wall-stack">
             {isSessionFinished ? (
-              <div className="cogita-live-history-chart">
-                <p className="cogita-user-kicker">{liveCopy.finalScoreTitle}</p>
-                {chartLines.length > 0 ? (
-                  <>
-                    <svg
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="xMidYMid meet"
-                      className="cogita-live-history-chart-svg"
-                      aria-label={liveCopy.scoreHistoryChartAria}
-                    >
-                      <defs>
-                        <linearGradient id="cogita-live-history-grid" x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor="rgba(120, 215, 255, 0.22)" />
-                          <stop offset="100%" stopColor="rgba(120, 215, 255, 0.06)" />
-                        </linearGradient>
-                      </defs>
-                      <rect x="0" y="0" width="100" height="100" fill="url(#cogita-live-history-grid)" />
-                      {[20, 40, 60, 80].map((y) => (
-                        <line key={`grid-y-${y}`} x1="0" y1={y} x2="100" y2={y} stroke="rgba(160,205,245,0.16)" strokeWidth="0.35" />
-                      ))}
-                      {[20, 40, 60, 80].map((x) => (
-                        <line key={`grid-x-${x}`} x1={x} y1="0" x2={x} y2="100" stroke="rgba(160,205,245,0.12)" strokeWidth="0.35" />
-                      ))}
-                      {chartLines.map((line) => (
-                        <g key={`history:${line.participantId}`}>
-                          <path
-                            className="cogita-live-history-line"
-                            d={line.path}
-                            fill="none"
-                            stroke={line.color}
-                            strokeWidth="1.6"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <circle cx={line.endX} cy={line.endY} r="1.3" fill={line.color} stroke="rgba(3,14,28,0.95)" strokeWidth="0.5" />
-                          <text
-                            x={Math.max(2, line.endX - 1.8)}
-                            y={Math.max(5, line.endY - 2.1)}
-                            textAnchor="end"
-                            className="cogita-live-history-line-label"
-                            style={{ fill: line.color }}
-                          >
-                            {line.name}
-                          </text>
-                        </g>
-                      ))}
-                    </svg>
-                    <div className="cogita-live-history-legend">
-                      {chartLines.map((line) => (
-                        <div key={`legend:${line.participantId}`} className="cogita-live-history-legend-item">
-                          <span className="cogita-live-history-legend-color" style={{ backgroundColor: line.color }} />
-                          <strong>{line.name}</strong>
-                          <span>{`${line.lastScore} ${liveCopy.scoreUnit}`}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p>{liveCopy.noParticipants}</p>
-                )}
-              </div>
+              <CogitaStatisticsPanel
+                libraryId={`live:${state?.sessionId ?? code}`}
+                scopeType="live-session"
+                scopeId={state?.sessionId ?? code}
+                title={liveCopy.finalScoreTitle}
+                data={liveStatisticsData}
+                loading={status === 'loading'}
+                error={status === 'error'}
+              />
             ) : (
               <>
                 {showPromptTimer ? (

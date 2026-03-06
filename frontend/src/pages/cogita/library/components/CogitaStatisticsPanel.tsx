@@ -838,7 +838,10 @@ export function CogitaStatisticsPanel({
   scopeId,
   selectedPersonRoleId,
   persistentOnly = false,
-  title = 'Statistics'
+  title = 'Statistics',
+  data,
+  loading,
+  error
 }: {
   libraryId: string;
   scopeType: 'library' | 'info' | 'connection' | 'collection' | 'revision' | 'live-session';
@@ -846,12 +849,27 @@ export function CogitaStatisticsPanel({
   selectedPersonRoleId?: string | null;
   persistentOnly?: boolean;
   title?: string;
+  data?: CogitaStatisticsResponse | null;
+  loading?: boolean;
+  error?: boolean;
 }) {
   const [state, setState] = useState<CogitaStatisticsResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [slideIndex, setSlideIndex] = useState(0);
+  const usesExternalData = data !== undefined;
+
+  const resolvedStatus: 'loading' | 'ready' | 'error' = usesExternalData
+    ? loading
+      ? 'loading'
+      : error
+      ? 'error'
+      : 'ready'
+    : status;
+
+  const resolvedState = usesExternalData ? data ?? null : state;
 
   useEffect(() => {
+    if (usesExternalData) return;
     let cancelled = false;
     setStatus('loading');
     getCogitaStatistics({
@@ -875,12 +893,12 @@ export function CogitaStatisticsPanel({
     return () => {
       cancelled = true;
     };
-  }, [libraryId, scopeId, scopeType, selectedPersonRoleId, persistentOnly]);
+  }, [libraryId, scopeId, scopeType, selectedPersonRoleId, persistentOnly, usesExternalData]);
 
   const statisticsContext = useMemo(() => {
-    if (!state) return null;
-    return makeStatisticsContext(state);
-  }, [state]);
+    if (!resolvedState) return null;
+    return makeStatisticsContext(resolvedState);
+  }, [resolvedState]);
 
   const modules = useMemo(() => {
     if (!statisticsContext) return [] as StatisticsModule[];
@@ -904,24 +922,24 @@ export function CogitaStatisticsPanel({
         <div>
           <p className="cogita-user-kicker">{title}</p>
           <h3 className="cogita-detail-title">
-            {status === 'loading'
+            {resolvedStatus === 'loading'
               ? 'Loading...'
-              : status === 'error'
+              : resolvedStatus === 'error'
               ? 'Statistics unavailable'
-              : `${state?.totalAnswers ?? 0} checked answers`}
+              : `${resolvedState?.totalAnswers ?? 0} checked answers`}
           </h3>
         </div>
       </div>
 
-      {status === 'ready' && state && statisticsContext ? (
+      {resolvedStatus === 'ready' && resolvedState && statisticsContext ? (
         <>
           <div className="cogita-statistics-summary">
             <div className="cogita-statistics-chip">
-              <strong>{formatFloat(state.averageCorrectness, 1)}%</strong>
+              <strong>{formatFloat(resolvedState.averageCorrectness, 1)}%</strong>
               <span>Average correctness</span>
             </div>
             <div className="cogita-statistics-chip">
-              <strong>{formatCount(state.totalPoints)}</strong>
+              <strong>{formatCount(resolvedState.totalPoints)}</strong>
               <span>Total points</span>
             </div>
             <div className="cogita-statistics-chip">
@@ -994,7 +1012,7 @@ export function CogitaStatisticsPanel({
             <p className="cogita-library-hint">No statistics are currently available for this scope.</p>
           )}
         </>
-      ) : status === 'error' ? (
+      ) : resolvedStatus === 'error' ? (
         <p className="cogita-library-hint">Failed to load statistics.</p>
       ) : null}
     </section>
