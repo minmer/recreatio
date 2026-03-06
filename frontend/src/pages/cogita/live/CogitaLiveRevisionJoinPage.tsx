@@ -1077,13 +1077,22 @@ export function CogitaLiveRevisionJoinPage(props: {
                       <div className="cogita-live-round-gain">
                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
                         <p className="cogita-detail-title">{`${formatPoints(selfRoundBreakdown.total)} ${liveCopy.scoreUnit}`}</p>
-                        <p className="cogita-help">
-                          {`${liveCopy.factorBaseLabel}: ${formatPoints(
-                            selfRoundBreakdown.rows.find((row) => row.key === 'base')?.points ?? 0
-                          )} · ${liveCopy.factorFirstLabel}/${liveCopy.factorSpeedLabel}/${liveCopy.factorStreakLabel}: ${formatPoints(
-                            selfRoundBreakdown.bonusTotal
-                          )} · ${liveCopy.factorWrongLabel}/${liveCopy.factorFirstWrongLabel}: -${selfRoundBreakdown.penaltyTotal}`}
-                        </p>
+                        <div className="cogita-live-round-gain-list">
+                          <div className="cogita-live-round-gain-row">
+                            <span>{liveCopy.factorBaseLabel}</span>
+                            <strong>
+                              {`${formatPoints(selfRoundBreakdown.rows.find((row) => row.key === 'base')?.points ?? 0)} ${liveCopy.scoreUnit}`}
+                            </strong>
+                          </div>
+                          <div className="cogita-live-round-gain-row">
+                            <span>{`${liveCopy.factorFirstLabel} + ${liveCopy.factorSpeedLabel} + ${liveCopy.factorStreakLabel}`}</span>
+                            <strong>{`${formatPoints(selfRoundBreakdown.bonusTotal)} ${liveCopy.scoreUnit}`}</strong>
+                          </div>
+                          <div className="cogita-live-round-gain-row">
+                            <span>{`${liveCopy.factorWrongLabel} + ${liveCopy.factorFirstWrongLabel}`}</span>
+                            <strong>{`${formatPoints(-selfRoundBreakdown.penaltyTotal)} ${liveCopy.scoreUnit}`}</strong>
+                          </div>
+                        </div>
                         <div className="cogita-live-round-gain-list">
                           {selfRoundBreakdown.rows.map((row) => (
                             <div className="cogita-live-round-gain-row" key={`gain:${row.key}`}>
