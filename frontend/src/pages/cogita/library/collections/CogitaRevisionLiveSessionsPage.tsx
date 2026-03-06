@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ApiError,
   attachCogitaLiveRevisionSession,
+  removeCogitaLiveRevisionParticipant,
   resetCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   deleteCogitaLiveRevisionSession,
@@ -89,7 +90,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [attachedSession, setAttachedSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [reloginParticipantId, setReloginParticipantId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset' | 'delete'>('none');
+  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset' | 'delete' | 'remove'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
   const baseHref = `/#/cogita/library/${libraryId}`;
@@ -505,6 +506,60 @@ export function CogitaRevisionLiveSessionsPage({
       navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(revisionId)}/live-sessions`, { replace: true });
     } catch {
       setMessage('Failed to delete live session.');
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const removeParticipant = async (participantId: string) => {
+    if (!attachedSession?.sessionId) return;
+    const participant = attachedSession.participants.find((item) => item.participantId === participantId);
+    if (!participant) return;
+    const confirmMessage =
+      language === 'pl'
+        ? `Usunąć uczestnika „${participant.displayName}” z tej sesji?`
+        : language === 'de'
+          ? `Teilnehmende Person „${participant.displayName}“ aus dieser Sitzung entfernen?`
+          : `Remove participant "${participant.displayName}" from this session?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setBusyAction('remove');
+    setMessage(null);
+    try {
+      const runRemove = async (secret: string) =>
+        removeCogitaLiveRevisionParticipant({
+          libraryId,
+          sessionId: attachedSession.sessionId,
+          hostSecret: secret,
+          participantId
+        });
+
+      let secret = attachedSession.hostSecret;
+      if (!secret) {
+        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
+        secret = refreshed.hostSecret;
+      }
+
+      if (!secret) {
+        throw new Error('missing-host-secret');
+      }
+
+      let nextSession: CogitaLiveRevisionSession;
+      try {
+        nextSession = await runRemove(secret);
+      } catch (error) {
+        const staleSecret = error instanceof ApiError && error.status === 403;
+        if (!staleSecret) throw error;
+        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
+        if (!refreshed.hostSecret) throw error;
+        nextSession = await runRemove(refreshed.hostSecret);
+      }
+
+      await loadSessions();
+      setAttachedSession(nextSession);
+      setReloginParticipantId((previous) => (previous === participantId ? null : previous));
+    } catch {
+      setMessage(copy.cogita.library.revision.shareError);
     } finally {
       setBusyAction('none');
     }
@@ -1181,7 +1236,7 @@ export function CogitaRevisionLiveSessionsPage({
                                         : copy.cogita.library.revision.live.disconnectedLabel}
                                     </div>
                                   </div>
-                                  <div className="cogita-share-actions">
+                                  <div className="cogita-share-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                     <button
                                       type="button"
                                       className="ghost"
@@ -1192,6 +1247,14 @@ export function CogitaRevisionLiveSessionsPage({
                                       }
                                     >
                                       {copy.cogita.library.revision.live.reloginQrAction}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => void removeParticipant(participant.participantId)}
+                                      disabled={busyAction !== 'none'}
+                                    >
+                                      {copy.cogita.library.revision.live.removeParticipantAction}
                                     </button>
                                   </div>
                                 </div>

@@ -6,6 +6,7 @@ import {
   getCogitaComputedSample,
   getCogitaInfoDetail,
   getCogitaLiveRevisionSession,
+  removeCogitaLiveRevisionParticipant,
   getCogitaRevision,
   scoreCogitaLiveRevisionRound,
   updateCogitaLiveRevisionHostState,
@@ -494,7 +495,7 @@ export function CogitaLiveHostWallPage({
   const liveCopy = copy.cogita.library.revision.live;
   const [session, setSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next' | 'finish'>('none');
+  const [busy, setBusy] = useState<'none' | 'reveal' | 'score' | 'next' | 'finish' | 'remove'>('none');
   const [roundsStatus, setRoundsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [preparedCount, setPreparedCount] = useState(0);
   const [effectiveHostSecret, setEffectiveHostSecret] = useState(hostSecret);
@@ -563,6 +564,7 @@ export function CogitaLiveHostWallPage({
     if (session.status === 'revealed' || Boolean(reveal)) return 'revealed' as const;
     return 'question' as const;
   }, [hasPublishedRound, isCurrentRoundScored, isLobbyStage, reveal, session]);
+  const hidePreRevealTimers = roundPhase === 'revealed' || roundPhase === 'scored';
   const actionTimerStarted =
     typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0;
   const mutationInFlight = mutationInFlightRef.current || busy !== 'none';
@@ -670,21 +672,21 @@ export function CogitaLiveHostWallPage({
     const actionTimer = buildTimer({
       key: 'action',
       label: liveCopy.actionTimerLabel,
-      enabled: promptRoot.actionTimerEnabled,
+      enabled: !hidePreRevealTimers && promptRoot.actionTimerEnabled,
       endsUtc: promptRoot.actionTimerEndsUtc,
       totalSeconds: promptRoot.actionTimerSeconds
     });
     const roundTimer = buildTimer({
       key: 'round',
       label: liveCopy.roundTimerLabel,
-      enabled: promptRoot.roundTimerEnabled,
+      enabled: !hidePreRevealTimers && promptRoot.roundTimerEnabled,
       endsUtc: promptRoot.roundTimerEndsUtc,
       totalSeconds: promptRoot.roundTimerSeconds
     });
     const bonusTimer = buildTimer({
       key: 'bonus',
       label: liveCopy.bonusTimerLabel,
-      enabled: promptRoot.bonusTimerEnabled,
+      enabled: !hidePreRevealTimers && promptRoot.bonusTimerEnabled,
       endsUtc: promptRoot.bonusTimerEndsUtc,
       totalSeconds: promptRoot.bonusTimerSeconds
     });
@@ -702,7 +704,7 @@ export function CogitaLiveHostWallPage({
     if (bonusTimer) next.push(bonusTimer);
     if (nextQuestionTimer) next.push(nextQuestionTimer);
     return next;
-  }, [liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.nextQuestionTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
+  }, [hidePreRevealTimers, liveCopy.actionTimerLabel, liveCopy.bonusTimerLabel, liveCopy.nextQuestionTimerLabel, liveCopy.roundTimerLabel, nowTick, promptRoot]);
 
   const syncHostSecretInUrl = (nextSecret: string) => {
     if (typeof window === 'undefined' || !nextSecret) return;
@@ -858,6 +860,7 @@ export function CogitaLiveHostWallPage({
   }, [timers.length]);
 
   const projected = useMemo(() => {
+    if (isCurrentRoundScored) return [] as Array<{ participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean }>;
     if (!prompt || !revealExpected) return [] as Array<{ participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean }>;
     const promptState = prompt && typeof prompt === 'object' ? (prompt as Record<string, unknown>) : null;
     const timerStartedMs = typeof promptState?.bonusTimerStartedUtc === 'string' ? Date.parse(promptState.bonusTimerStartedUtc) : NaN;
@@ -919,9 +922,15 @@ export function CogitaLiveHostWallPage({
       })
       .filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
     return processed.sort((a, b) => b.predicted - a.predicted);
-  }, [participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
+  }, [isCurrentRoundScored, participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
 
   const projectionByParticipant = useMemo(() => new Map(projected.map((x) => [x.participant.participantId, x])), [projected]);
+  const latestAnswerByParticipant = useMemo(() => {
+    const map = new Map<string, CogitaLiveRevisionAnswer>();
+    const sorted = [...roundAnswers].sort((a, b) => Date.parse(a.submittedUtc) - Date.parse(b.submittedUtc));
+    sorted.forEach((row) => map.set(row.participantId, row));
+    return map;
+  }, [roundAnswers]);
   const correctnessByParticipant = useMemo(() => {
     const map = new Map<string, boolean>();
     if (!prompt || typeof revealExpected === 'undefined') return map;
@@ -997,7 +1006,7 @@ export function CogitaLiveHostWallPage({
     setSession(updated);
   };
 
-  const runHostMutation = async (kind: 'reveal' | 'score' | 'next' | 'finish', action: () => Promise<void>) => {
+  const runHostMutation = async (kind: 'reveal' | 'score' | 'next' | 'finish' | 'remove', action: () => Promise<void>) => {
     if (mutationInFlightRef.current) return;
     mutationInFlightRef.current = true;
     setBusy(kind);
@@ -1378,6 +1387,31 @@ export function CogitaLiveHostWallPage({
     });
   };
 
+  const removeParticipant = async (participantId: string) => {
+    if (!session) return;
+    const participant = session.participants.find((item) => item.participantId === participantId);
+    if (!participant) return;
+    const confirmMessage =
+      language === 'pl'
+        ? `Usunąć uczestnika „${participant.displayName}” z tej sesji?`
+        : language === 'de'
+          ? `Teilnehmende Person „${participant.displayName}“ aus dieser Sitzung entfernen?`
+          : `Remove participant "${participant.displayName}" from this session?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    await runHostMutation('remove', async () => {
+      const next = await withFreshHostSecret((secret) =>
+        removeCogitaLiveRevisionParticipant({
+          libraryId,
+          sessionId: session.sessionId,
+          hostSecret: secret,
+          participantId
+        })
+      );
+      setSession(next);
+    });
+  };
+
   useEffect(() => {
     if (!session || !currentRound) return;
     if (!hasPublishedRound) return;
@@ -1472,58 +1506,61 @@ export function CogitaLiveHostWallPage({
       await transitionRound('next');
     };
 
-    if (rules.bonusTimer.enabled && rules.bonusTimer.startMode === 'first_answer' && firstAnswered && !bonusTimerStarted) {
-      executeOnce('first-start-bonus-timer', startBonusTimerNow);
-      return;
-    }
-    if (rules.firstAnswerAction === 'start_timer' && rules.actionTimer.enabled && firstAnswered && !actionTimerStarted) {
-      executeOnce('first-start-timer', startActionTimerNow);
-      return;
-    }
-    if (rules.firstAnswerAction === 'reveal' && firstAnswered) {
-      executeOnce('first-reveal', revealAndScore);
-      return;
-    }
-    if (rules.firstAnswerAction === 'next' && firstAnswered) {
-      executeOnce('first-next', revealScoreAndNext);
-      return;
-    }
+    if (!isCurrentRoundScored) {
+      if (rules.bonusTimer.enabled && rules.bonusTimer.startMode === 'first_answer' && firstAnswered && !bonusTimerStarted) {
+        executeOnce('first-start-bonus-timer', startBonusTimerNow);
+        return;
+      }
+      if (rules.firstAnswerAction === 'start_timer' && rules.actionTimer.enabled && firstAnswered && !actionTimerStarted) {
+        executeOnce('first-start-timer', startActionTimerNow);
+        return;
+      }
+      if (rules.firstAnswerAction === 'reveal' && firstAnswered) {
+        executeOnce('first-reveal', revealAndScore);
+        return;
+      }
+      if (rules.firstAnswerAction === 'next' && firstAnswered) {
+        executeOnce('first-next', revealScoreAndNext);
+        return;
+      }
 
-    if (allAnswered) {
-      if (rules.allAnsweredAction === 'reveal') {
-        executeOnce('all-reveal', revealAndScore);
-        return;
+      if (allAnswered) {
+        if (rules.allAnsweredAction === 'reveal') {
+          executeOnce('all-reveal', revealAndScore);
+          return;
+        }
+        if (rules.allAnsweredAction === 'next') {
+          executeOnce('all-next', revealScoreAndNext);
+          return;
+        }
       }
-      if (rules.allAnsweredAction === 'next') {
-        executeOnce('all-next', revealScoreAndNext);
-        return;
-      }
-    }
 
-    if (actionTimerExpired) {
-      if (rules.actionTimer.onExpire === 'reveal') {
-        executeOnce('action-expire-reveal', revealAndScore);
-        return;
+      if (actionTimerExpired) {
+        if (rules.actionTimer.onExpire === 'reveal') {
+          executeOnce('action-expire-reveal', revealAndScore);
+          return;
+        }
+        if (rules.actionTimer.onExpire === 'next') {
+          executeOnce('action-expire-next', revealScoreAndNext);
+          return;
+        }
       }
-      if (rules.actionTimer.onExpire === 'next') {
-        executeOnce('action-expire-next', revealScoreAndNext);
-        return;
-      }
-    }
 
-    if (roundTimerExpired) {
-      if (rules.roundTimer.onExpire === 'reveal') {
-        executeOnce('round-expire-reveal', revealAndScore);
-        return;
-      }
-      if (rules.roundTimer.onExpire === 'next') {
-        executeOnce('round-expire-next', revealScoreAndNext);
+      if (roundTimerExpired) {
+        if (rules.roundTimer.onExpire === 'reveal') {
+          executeOnce('round-expire-reveal', revealAndScore);
+          return;
+        }
+        if (rules.roundTimer.onExpire === 'next') {
+          executeOnce('round-expire-next', revealScoreAndNext);
+          return;
+        }
       }
     }
 
     if (autoNextExpired) {
       executeOnce('auto-next-expire', async () => {
-        await nextRound();
+        await transitionRound('next');
       });
     }
   }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored, nowTick]);
@@ -1651,6 +1688,7 @@ export function CogitaLiveHostWallPage({
             {(session?.scoreboard ?? []).map((row) => {
               const pred = projectionByParticipant.get(row.participantId);
               const correctness = correctnessByParticipant.get(row.participantId);
+              const latestAnswer = latestAnswerByParticipant.get(row.participantId);
               const scoreFx = scoreFxByParticipant[row.participantId];
               const rankState = scoreFx?.rankShift
                 ? scoreFx.rankShift > 0
@@ -1669,19 +1707,32 @@ export function CogitaLiveHostWallPage({
                   <div>
                     <strong>{row.displayName}</strong>
                     <div className="cogita-share-meta">{`${row.score} ${liveCopy.scoreUnit}`}</div>
+                    {latestAnswer ? (
+                      <div className="cogita-share-meta">{`${copy.cogita.library.revision.answerLabel}: ${formatAnswer(latestAnswer.answer)}`}</div>
+                    ) : null}
                   </div>
-                  <div className="cogita-share-meta">
-                    {`→ ${(pred?.predicted ?? row.score)} ${liveCopy.scoreUnit}`}
-                    {scoreFx?.delta ? (
-                      <span key={`delta:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
-                        {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
-                      </span>
-                    ) : null}
-                    {rankState ? (
-                      <span key={`rank:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
-                        {rankState === 'up' ? ' ↑' : ' ↓'}
-                      </span>
-                    ) : null}
+                  <div className="cogita-share-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <div className="cogita-share-meta">
+                      {pred ? `→ ${pred.predicted} ${liveCopy.scoreUnit}` : null}
+                      {scoreFx?.delta ? (
+                        <span key={`delta:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
+                          {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
+                        </span>
+                      ) : null}
+                      {rankState ? (
+                        <span key={`rank:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
+                          {rankState === 'up' ? ' ↑' : ' ↓'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => void removeParticipant(row.participantId)}
+                      disabled={mutationInFlight}
+                    >
+                      {liveCopy.removeParticipantAction}
+                    </button>
                   </div>
                 </div>
               );

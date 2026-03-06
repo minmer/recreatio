@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography.X509Certificates;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Options;
@@ -31,8 +32,21 @@ public static class ServiceCollectionExtensions
                 configuration.GetConnectionString("DefaultConnection"),
                 sqlOptions => sqlOptions.UseCompatibilityLevel(120)));
 
-        services.AddDataProtection()
+        var dataProtectionBuilder = services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(environment.ContentRootPath, "dataprotection-keys")));
+        var dataProtectionCertPath = configuration.GetValue<string?>("DataProtection:CertificatePath");
+        var dataProtectionCertPassword = configuration.GetValue<string?>("DataProtection:CertificatePassword");
+        var dataProtectionCertThumbprint = configuration.GetValue<string?>("DataProtection:CertificateThumbprint");
+        var dataProtectionCert = TryLoadDataProtectionCertificate(dataProtectionCertPath, dataProtectionCertPassword, dataProtectionCertThumbprint);
+        if (dataProtectionCert is not null)
+        {
+            dataProtectionBuilder.ProtectKeysWithCertificate(dataProtectionCert);
+        }
+        else if (!environment.IsDevelopment())
+        {
+            throw new InvalidOperationException(
+                "DataProtection certificate is required outside development. Configure DataProtection:CertificatePath/CertificatePassword or DataProtection:CertificateThumbprint.");
+        }
 
         services.AddRecreatioCors();
         services.AddRecreatioRateLimiting(environment);
@@ -40,6 +54,61 @@ public static class ServiceCollectionExtensions
         services.AddRecreatioServices();
 
         return services;
+    }
+
+    private static X509Certificate2? TryLoadDataProtectionCertificate(
+        string? certPath,
+        string? certPassword,
+        string? certThumbprint)
+    {
+        if (!string.IsNullOrWhiteSpace(certPath))
+        {
+            try
+            {
+                var path = certPath.Trim();
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                return string.IsNullOrEmpty(certPassword)
+                    ? new X509Certificate2(path)
+                    : new X509Certificate2(path, certPassword);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(certThumbprint))
+        {
+            var thumbprint = certThumbprint.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+            if (thumbprint.Length == 0)
+            {
+                return null;
+            }
+
+            foreach (var storeLocation in new[] { StoreLocation.LocalMachine, StoreLocation.CurrentUser })
+            {
+                try
+                {
+                    using var store = new X509Store(StoreName.My, storeLocation);
+                    store.Open(OpenFlags.ReadOnly);
+                    var matches = store.Certificates.Find(X509FindType.FindByThumbprint, thumbprint, validOnly: false);
+                    if (matches.Count > 0)
+                    {
+                        return matches[0];
+                    }
+                }
+                catch
+                {
+                    // ignored
+                }
+            }
+        }
+
+        return null;
     }
 
     public static IServiceCollection AddRecreatioCors(this IServiceCollection services)

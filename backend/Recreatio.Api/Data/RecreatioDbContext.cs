@@ -35,6 +35,9 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Parish.ParishOffering> ParishOfferings => Set<Data.Parish.ParishOffering>();
     public DbSet<Data.Parish.ParishMass> ParishMasses => Set<Data.Parish.ParishMass>();
     public DbSet<Data.Parish.ParishMassRule> ParishMassRules => Set<Data.Parish.ParishMassRule>();
+    public DbSet<Data.Parish.ParishConfirmationCandidate> ParishConfirmationCandidates => Set<Data.Parish.ParishConfirmationCandidate>();
+    public DbSet<Data.Parish.ParishConfirmationPhoneVerification> ParishConfirmationPhoneVerifications =>
+        Set<Data.Parish.ParishConfirmationPhoneVerification>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -75,6 +78,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaEntitySearchDocument> CogitaEntitySearchDocuments => Set<Data.Cogita.CogitaEntitySearchDocument>();
     public DbSet<Data.Cogita.CogitaReviewEvent> CogitaReviewEvents => Set<Data.Cogita.CogitaReviewEvent>();
     public DbSet<Data.Cogita.CogitaReviewOutcome> CogitaReviewOutcomes => Set<Data.Cogita.CogitaReviewOutcome>();
+    public DbSet<Data.Cogita.CogitaStatisticEvent> CogitaStatisticEvents => Set<Data.Cogita.CogitaStatisticEvent>();
     public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
     public DbSet<Data.Cogita.CogitaLiveRevisionSession> CogitaLiveRevisionSessions => Set<Data.Cogita.CogitaLiveRevisionSession>();
@@ -125,6 +129,17 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Parish.ParishMassRule>()
             .HasIndex(x => new { x.ParishId, x.Name });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationCandidate>()
+            .HasIndex(x => new { x.ParishId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationPhoneVerification>()
+            .HasIndex(x => x.VerificationToken)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationPhoneVerification>()
+            .HasIndex(x => new { x.CandidateId, x.PhoneIndex })
+            .IsUnique();
 
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.KeyEntryId);
@@ -250,6 +265,8 @@ public sealed class RecreatioDbContext : DbContext
             .Property(x => x.DisplayName)
             .HasMaxLength(120);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .HasIndex(x => new { x.SessionId, x.DisplayNameHash });
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
             .HasIndex(x => new { x.SessionId, x.DisplayName });
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
             .HasIndex(x => x.JoinTokenHash)
@@ -265,6 +282,8 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
             .Property(x => x.Status)
             .HasMaxLength(24);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
+            .HasIndex(x => new { x.SessionId, x.DisplayNameHash, x.Status });
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
             .HasIndex(x => new { x.SessionId, x.DisplayName, x.Status });
 
@@ -453,11 +472,47 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
             .HasIndex(x => new { x.PersonRoleId, x.ClientId, x.ClientSequence })
             .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.ScopeType)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.SourceType)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.EventType)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.ParticipantLabel)
+            .HasMaxLength(120);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.ItemType)
+            .HasMaxLength(32);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.CheckType)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.Direction)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .Property(x => x.CardKey)
+            .HasMaxLength(256);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .HasIndex(x => new { x.LibraryId, x.ScopeType, x.ScopeId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .HasIndex(x => new { x.PersonRoleId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .HasIndex(x => new { x.ParticipantId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
+            .HasIndex(x => new { x.SessionId, x.RoundIndex, x.CreatedUtc });
         modelBuilder.Entity<Data.Cogita.CogitaReviewOutcome>()
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()
             .HasForeignKey(x => x.LibraryId);
         modelBuilder.Entity<Data.Cogita.CogitaReviewEvent>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaStatisticEvent>()
             .HasOne<Data.Cogita.CogitaLibrary>()
             .WithMany()
             .HasForeignKey(x => x.LibraryId);

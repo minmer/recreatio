@@ -41,6 +41,8 @@ const CELEBRATION_COLORS = ['#78d7ff', '#6cf0f0', '#8ef0b8', '#f6d28a', '#9ac8ff
 function PodiumFireworksLayer({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const TOTAL_MS = 6000;
+  const SPAWN_MS = 3000;
 
   useEffect(() => {
     if (!active) {
@@ -48,9 +50,9 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
       return;
     }
     setIsVisible(true);
-    const id = window.setTimeout(() => setIsVisible(false), 6000);
+    const id = window.setTimeout(() => setIsVisible(false), TOTAL_MS);
     return () => window.clearTimeout(id);
-  }, [active]);
+  }, [active, TOTAL_MS]);
 
   useEffect(() => {
     if (!isVisible) return;
@@ -96,13 +98,14 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
         const angle = (Math.PI * 2 * i) / count + Math.random() * 0.12;
         const speed = (size === 'large' ? 2.2 : 1.2) + Math.random() * (size === 'large' ? 5.4 : 3.2);
         const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
+        const life = (size === 'large' ? 120 : 96) + Math.random() * (size === 'large' ? 90 : 70);
         particles.push({
           x,
           y,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
-          life: 48 + Math.random() * 38,
-          maxLife: 48 + Math.random() * 38,
+          life,
+          maxLife: life,
           size: (size === 'large' ? 1.6 : 1.1) + Math.random() * (size === 'large' ? 2.8 : 1.7),
           hue: 0,
           alpha: 1,
@@ -112,13 +115,14 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
       }
       for (let i = 0; i < (size === 'large' ? 34 : 16); i += 1) {
         const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
+        const life = (size === 'large' ? 90 : 72) + Math.random() * (size === 'large' ? 55 : 44);
         particles.push({
           x,
           y,
           vx: (Math.random() - 0.5) * (size === 'large' ? 2.8 : 1.9),
           vy: (Math.random() - 0.7) * (size === 'large' ? 2.5 : 1.7),
-          life: (size === 'large' ? 30 : 20) + Math.random() * 14,
-          maxLife: (size === 'large' ? 30 : 20) + Math.random() * 14,
+          life,
+          maxLife: life,
           size: 0.8 + Math.random() * 1.6,
           hue: 0,
           alpha: 0.85,
@@ -130,16 +134,19 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
 
     const frame = (time: number) => {
       if (!running) return;
-      if (time - effectStartAt >= 6000) {
+      const elapsedMs = time - effectStartAt;
+      if (elapsedMs >= TOTAL_MS) {
         running = false;
         context.clearRect(0, 0, width, height);
         return;
       }
-      if (time - lastCenterBurstAt > 620) {
+      const canSpawn = elapsedMs < SPAWN_MS;
+      const fadeRatio = elapsedMs <= SPAWN_MS ? 1 : Math.max(0, 1 - (elapsedMs - SPAWN_MS) / (TOTAL_MS - SPAWN_MS));
+      if (canSpawn && time - lastCenterBurstAt > 620) {
         lastCenterBurstAt = time;
         addBurst(width * (0.5 + (Math.random() - 0.5) * 0.08), height * (0.24 + (Math.random() - 0.5) * 0.08), 'large');
       }
-      if (time - lastSideBurstAt > 980) {
+      if (canSpawn && time - lastSideBurstAt > 980) {
         lastSideBurstAt = time;
         addBurst(width * (0.24 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
         addBurst(width * (0.76 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
@@ -147,8 +154,8 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
 
       context.clearRect(0, 0, width, height);
       const hazeTop = context.createRadialGradient(width * 0.5, height * 0.1, 0, width * 0.5, height * 0.1, width * 0.72);
-      hazeTop.addColorStop(0, 'rgba(94, 214, 255, 0.16)');
-      hazeTop.addColorStop(0.52, 'rgba(84, 236, 220, 0.08)');
+      hazeTop.addColorStop(0, `rgba(94, 214, 255, ${0.16 * fadeRatio})`);
+      hazeTop.addColorStop(0.52, `rgba(84, 236, 220, ${0.08 * fadeRatio})`);
       hazeTop.addColorStop(1, 'rgba(12, 26, 44, 0)');
       context.fillStyle = hazeTop;
       context.fillRect(0, 0, width, height);
@@ -162,7 +169,7 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
         particle.x += particle.vx;
         particle.y += particle.vy;
         particle.life -= 1;
-        particle.alpha = Math.max(0, particle.life / particle.maxLife);
+        particle.alpha = Math.max(0, (particle.life / particle.maxLife) * fadeRatio);
         particle.trail.push({ x: particle.x, y: particle.y });
         if (particle.trail.length > 7) {
           particle.trail.shift();
@@ -249,6 +256,13 @@ export function CogitaLivePublicWallPage({
     timerRemainingMs == null || promptTimerTotalSeconds <= 0
       ? 0
       : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
+  const showPromptTimer = Boolean(
+    prompt &&
+      prompt.actionTimerEnabled &&
+      promptTimerEndMs != null &&
+      state?.status === 'running' &&
+      !reveal
+  );
   const scoringByParticipant = useMemo(
     () =>
       reveal && typeof reveal === 'object'
@@ -491,7 +505,7 @@ export function CogitaLivePublicWallPage({
               </div>
             ) : (
               <>
-                {prompt && prompt.actionTimerEnabled && promptTimerEndMs != null ? (
+                {showPromptTimer ? (
                   <div className="cogita-live-timer">
                     <div className="cogita-live-timer-head">
                       <span>{liveCopy.timerLabel}</span>

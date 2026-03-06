@@ -22,8 +22,19 @@ public sealed class ParishLayoutItem
     public Dictionary<string, string>? Props { get; init; }
 }
 
+public sealed record ParishSacramentSection(
+    string Title,
+    string Body);
+
+public sealed record ParishSacramentParishPage(
+    string Title,
+    string Lead,
+    string? Notice,
+    IReadOnlyList<ParishSacramentSection> Sections);
+
 public sealed record ParishHomepageConfig(
-    IReadOnlyList<ParishLayoutItem> Modules);
+    IReadOnlyList<ParishLayoutItem> Modules,
+    Dictionary<string, ParishSacramentParishPage>? SacramentParishPages = null);
 
 public sealed record ParishCreateRequest(
     string Name,
@@ -161,3 +172,31 @@ public sealed record ParishOfferingCreateRequest(
 public sealed record ParishSiteConfigUpdateRequest(
     ParishHomepageConfig Homepage,
     bool IsPublished);
+
+public sealed record ParishConfirmationCandidateCreateRequest(
+    string Name,
+    string Surname,
+    IReadOnlyList<string> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    bool AcceptedRodo);
+
+public sealed record ParishConfirmationPhoneVerifyRequest(
+    string Token);
+
+public sealed record ParishConfirmationPhoneResponse(
+    int Index,
+    string Number,
+    bool IsVerified,
+    DateTimeOffset? VerifiedUtc,
+    string VerificationToken);
+
+public sealed record ParishConfirmationCandidateResponse(
+    Guid Id,
+    string Name,
+    string Surname,
+    IReadOnlyList<ParishConfirmationPhoneResponse> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    bool AcceptedRodo,
+    DateTimeOffset CreatedUtc);

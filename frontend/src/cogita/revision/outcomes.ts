@@ -13,6 +13,7 @@ export type RevisionOutcomePayload = {
   maskBase64?: string | null;
   payloadBase64?: string | null;
   payloadHashBase64?: string | null;
+  durationMs?: number | null;
   clientId: string;
   clientSequence: number;
   personRoleId?: string | null;
@@ -139,6 +140,7 @@ export const getOutcomesForItem = async (
             maskBase64: row.maskBase64,
             payloadBase64: row.payloadBase64,
             payloadHashBase64: row.payloadHashBase64,
+            durationMs: typeof row.durationMs === 'number' ? row.durationMs : null,
             clientId: row.clientId,
             clientSequence: row.clientSequence,
             personRoleId: row.personRoleId ?? null
@@ -171,6 +173,7 @@ export const getAllOutcomes = async () => {
           maskBase64: row.maskBase64,
           payloadBase64: row.payloadBase64,
           payloadHashBase64: row.payloadHashBase64,
+          durationMs: typeof row.durationMs === 'number' ? row.durationMs : null,
           clientId: row.clientId,
           clientSequence: row.clientSequence,
           personRoleId: row.personRoleId ?? null
@@ -250,6 +253,7 @@ export const syncPendingOutcomes = async (libraryId: string, personRoleId?: stri
       correct: outcome.correct,
       clientId: outcome.clientId,
       clientSequence: outcome.clientSequence,
+      durationMs: typeof outcome.durationMs === 'number' ? outcome.durationMs : null,
       maskBase64: outcome.maskBase64 ?? null,
       payloadHashBase64: outcome.payloadHashBase64 ?? null,
       payloadBase64: outcome.payloadBase64 ?? null,

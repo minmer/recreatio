@@ -9,6 +9,7 @@ import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+import { CogitaStatisticsPanel } from './components/CogitaStatisticsPanel';
 
 type MetricKey = 'infos' | 'collections' | 'revisions' | 'storyboards' | 'texts';
 
@@ -61,7 +62,8 @@ export function CogitaLibraryOverviewPage({
   onNavigate,
   language,
   onLanguageChange,
-  libraryId
+  libraryId,
+  selectedReviewerRoleId
 }: {
   copy: Copy;
   authLabel: string;
@@ -74,6 +76,7 @@ export function CogitaLibraryOverviewPage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
+  selectedReviewerRoleId?: string | null;
 }) {
   const { libraryName, stats } = useCogitaLibraryMeta(libraryId);
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>('infos');
@@ -225,6 +228,14 @@ export function CogitaLibraryOverviewPage({
                 </div>
               )}
             </section>
+
+            <CogitaStatisticsPanel
+              libraryId={libraryId}
+              scopeType="library"
+              selectedPersonRoleId={selectedReviewerRoleId ?? null}
+              persistentOnly={!!selectedReviewerRoleId}
+              title={copy.cogita.library.overview.statsCardTitle}
+            />
           </div>
         </div>
       </section>

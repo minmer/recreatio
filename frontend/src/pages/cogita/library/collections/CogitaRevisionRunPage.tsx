@@ -26,6 +26,7 @@ import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor'
 import { CogitaRevisionCard } from './components/CogitaRevisionCard';
 import { CogitaCheckcardSurface } from './components/CogitaCheckcardSurface';
 import { CogitaCardKnownessPanel } from './components/CogitaCardKnownessPanel';
+import { CogitaStatisticsPanel } from '../components/CogitaStatisticsPanel';
 import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
 import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../../cogita/revision/cardLoader';
@@ -206,6 +207,7 @@ export function CogitaRevisionRunPage({
   const quoteTreeRef = useRef<QuoteFragmentTree | null>(null);
   const quoteKnownRef = useRef<Set<string>>(new Set());
   const quoteKnownessRef = useRef<Record<string, number>>({});
+  const answerStartedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (!revisionId || collectionId) {
@@ -232,6 +234,9 @@ export function CogitaRevisionRunPage({
   }, [collectionId, libraryId, revisionId]);
 
   const currentCard = queue[currentIndex] ?? null;
+  const currentCardToken = currentCard
+    ? `${currentCard.cardId}:${currentCard.checkType ?? ''}:${currentCard.direction ?? ''}:${currentIndex}`
+    : `none:${currentIndex}`;
   const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
   const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
   const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
@@ -285,6 +290,12 @@ export function CogitaRevisionRunPage({
   };
 
   const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask, { treatSimilarCharsAsSame: true }) >= minCorrectness;
+  useEffect(() => {
+    answerStartedAtRef.current = Date.now();
+  }, [currentCardToken]);
+
+  const getCurrentAnswerDurationMs = () => Math.max(0, Math.round(Date.now() - answerStartedAtRef.current));
+
   const getScopedOutcomes = async () => {
     const outcomes = await getAllOutcomes();
     if (!reviewer) return outcomes;
@@ -1361,6 +1372,7 @@ export function CogitaRevisionRunPage({
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
     const checkType = options.overrideCheckType ?? currentCard.checkType ?? null;
     const direction = options.overrideDirection ?? currentCard.direction ?? null;
+    const durationMs = getCurrentAnswerDurationMs();
     void recordOutcome({
       itemType,
       itemId: currentCard.cardId,
@@ -1369,6 +1381,7 @@ export function CogitaRevisionRunPage({
       revisionType: revisionType.id,
       evalType: options.evalType,
       correct: options.correct,
+      durationMs,
       maskBase64: mask.length ? toBase64(mask) : null,
       payloadBase64: toBase64(payloadBytes),
       personRoleId: reviewer ?? null
@@ -1778,6 +1791,7 @@ export function CogitaRevisionRunPage({
       }
       applyOutcomeToSession(allCorrect, correctness);
       const itemType = 'connection';
+      const durationMs = getCurrentAnswerDurationMs();
       Promise.all(
         matchState.pairs.map((pair) => {
           const selected = matchState.selection[pair.leftId] ?? null;
@@ -1797,6 +1811,7 @@ export function CogitaRevisionRunPage({
             revisionType: revisionType.id,
             evalType: 'translation-match',
             correct: selected === pair.rightId,
+            durationMs,
             maskBase64: null,
             payloadBase64: toBase64(payloadBytes),
             personRoleId: reviewer ?? null
@@ -2117,6 +2132,19 @@ export function CogitaRevisionRunPage({
   };
 
   const revealPolicy = copy.cogita.library.revision.revealModeAfterIncorrect;
+  const revisionStatsScope = useMemo(() => {
+    const modeId = revisionType.id;
+    if ((modeId === 'levels' || modeId === 'temporal') && revisionId) {
+      return { scopeType: 'revision' as const, scopeId: revisionId, title: 'Revision statistics' };
+    }
+    if (isCollectionScope && effectiveCollectionId) {
+      return { scopeType: 'collection' as const, scopeId: effectiveCollectionId, title: 'Collection statistics' };
+    }
+    if (revisionScope === 'info' && scopedInfoId) {
+      return { scopeType: 'info' as const, scopeId: scopedInfoId, title: 'Info statistics' };
+    }
+    return { scopeType: 'library' as const, scopeId: null, title: 'Library statistics' };
+  }, [effectiveCollectionId, isCollectionScope, revisionId, revisionScope, revisionType.id, scopedInfoId]);
   const hasExpectedAnswer =
     computedExpected.length > 0 ||
     !!expectedAnswer ||
@@ -2233,6 +2261,14 @@ export function CogitaRevisionRunPage({
                     <CogitaCardKnownessPanel outcomes={reviewOutcomes} />
                   </div>
                 </section>
+                <CogitaStatisticsPanel
+                  libraryId={libraryId}
+                  scopeType={revisionStatsScope.scopeType}
+                  scopeId={revisionStatsScope.scopeId}
+                  selectedPersonRoleId={reviewer ?? null}
+                  persistentOnly={!!reviewer}
+                  title={revisionStatsScope.title}
+                />
               </div>
 
               <div className="cogita-library-panel">

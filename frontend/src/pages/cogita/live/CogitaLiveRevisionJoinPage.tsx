@@ -216,7 +216,13 @@ export function CogitaLiveRevisionJoinPage(props: {
       localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
       setStatus('ready');
     } catch {
-      setStatus('error');
+      try {
+        const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+        setState(refreshed);
+        setStatus('ready');
+      } catch {
+        setStatus('error');
+      }
     }
   };
 
@@ -300,7 +306,13 @@ export function CogitaLiveRevisionJoinPage(props: {
       setState(refreshed);
       setStatus('ready');
     } catch {
-      setStatus('error');
+      try {
+        const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+        setState(refreshed);
+        setStatus('ready');
+      } catch {
+        setStatus('error');
+      }
     }
   };
 

@@ -8,6 +8,7 @@ import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from './collections/components/CogitaCheckcardSurface';
 import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
 import { getInfoTypeLabel } from './libraryOptions';
+import { CogitaStatisticsPanel } from './components/CogitaStatisticsPanel';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
@@ -130,6 +131,7 @@ export function CogitaInfoCheckcardsPage({
   const [questionState, setQuestionState] = useState<RevisionQuestionAnswers>(() => emptyQuestionAnswers());
   const answerInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const computedInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const answerStartedAtRef = useRef<number>(Date.now());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -277,6 +279,7 @@ export function CogitaInfoCheckcardsPage({
   );
 
   useEffect(() => {
+    answerStartedAtRef.current = Date.now();
     setAnswer('');
     setFeedback(null);
     setFlashTick(0);
@@ -356,6 +359,7 @@ export function CogitaInfoCheckcardsPage({
   const saveKnownness = async (correct: boolean) => {
     if (!selectedCard) return;
     if (!selectedReviewerRoleId) return;
+    const durationMs = Math.max(0, Math.round(Date.now() - answerStartedAtRef.current));
     try {
       await createCogitaReviewOutcome({
         libraryId,
@@ -369,6 +373,7 @@ export function CogitaInfoCheckcardsPage({
           correct,
           clientId: 'cogita-info-checkcards',
           clientSequence,
+          durationMs,
           personRoleId: selectedReviewerRoleId
         }
       });
@@ -717,6 +722,14 @@ export function CogitaInfoCheckcardsPage({
                         );
                       })}
                     </div>
+                    <CogitaStatisticsPanel
+                      libraryId={libraryId}
+                      scopeType="info"
+                      scopeId={infoId}
+                      selectedPersonRoleId={selectedReviewerRoleId}
+                      persistentOnly={!!selectedReviewerRoleId}
+                      title="Info statistics"
+                    />
                   </aside>
                 </div>
               )}

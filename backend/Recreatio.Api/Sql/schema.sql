@@ -55,6 +55,7 @@ IF OBJECT_ID(N'dbo.CogitaLibraries', N'U') IS NOT NULL DROP TABLE dbo.CogitaLibr
 IF OBJECT_ID(N'dbo.CogitaInfoSearchIndexes', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoSearchIndexes;
 IF OBJECT_ID(N'dbo.CogitaEntitySearchDocuments', N'U') IS NOT NULL DROP TABLE dbo.CogitaEntitySearchDocuments;
 IF OBJECT_ID(N'dbo.CogitaReviewOutcomes', N'U') IS NOT NULL DROP TABLE dbo.CogitaReviewOutcomes;
+IF OBJECT_ID(N'dbo.CogitaStatisticEvents', N'U') IS NOT NULL DROP TABLE dbo.CogitaStatisticEvents;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionAnswers', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionAnswers;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionParticipants;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionReloginRequests', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionReloginRequests;
@@ -66,6 +67,8 @@ IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingD
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
 IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
+IF OBJECT_ID(N'dbo.ParishConfirmationPhoneVerifications', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationPhoneVerifications;
+IF OBJECT_ID(N'dbo.ParishConfirmationCandidates', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationCandidates;
 IF OBJECT_ID(N'dbo.ParishOfferings', N'U') IS NOT NULL DROP TABLE dbo.ParishOfferings;
 IF OBJECT_ID(N'dbo.ParishIntentions', N'U') IS NOT NULL DROP TABLE dbo.ParishIntentions;
 IF OBJECT_ID(N'dbo.ParishMasses', N'U') IS NOT NULL DROP TABLE dbo.ParishMasses;
@@ -237,6 +240,41 @@ CREATE TABLE dbo.ParishOfferings
     CONSTRAINT FK_ParishOfferings_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
     CONSTRAINT FK_ParishOfferings_Intention FOREIGN KEY (IntentionId) REFERENCES dbo.ParishIntentions(Id)
 );
+GO
+
+CREATE TABLE dbo.ParishConfirmationCandidates
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    PayloadEnc VARBINARY(MAX) NOT NULL,
+    AcceptedRodo BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishConfirmationCandidates_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE INDEX IX_ParishConfirmationCandidates_ParishCreated ON dbo.ParishConfirmationCandidates(ParishId, CreatedUtc);
+GO
+
+CREATE TABLE dbo.ParishConfirmationPhoneVerifications
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    CandidateId UNIQUEIDENTIFIER NOT NULL,
+    PhoneIndex INT NOT NULL,
+    VerificationToken NVARCHAR(128) NOT NULL,
+    VerifiedUtc DATETIMEOFFSET NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishConfirmationPhoneVerifications_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT FK_ParishConfirmationPhoneVerifications_Candidate FOREIGN KEY (CandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id)
+);
+GO
+
+CREATE UNIQUE INDEX UX_ParishConfirmationPhoneVerifications_Token ON dbo.ParishConfirmationPhoneVerifications(VerificationToken);
+GO
+
+CREATE UNIQUE INDEX UX_ParishConfirmationPhoneVerifications_CandidatePhone ON dbo.ParishConfirmationPhoneVerifications(CandidateId, PhoneIndex);
 GO
 
 CREATE TABLE dbo.ParishMasses
@@ -1172,6 +1210,7 @@ BEGIN
         Correct BIT NOT NULL,
         ClientId NVARCHAR(64) NOT NULL,
         ClientSequence BIGINT NOT NULL,
+        DurationMs INT NULL,
         PayloadHash VARBINARY(64) NULL,
         DataKeyId UNIQUEIDENTIFIER NOT NULL,
         EncryptedBlob VARBINARY(MAX) NOT NULL,
@@ -1179,6 +1218,12 @@ BEGIN
         CONSTRAINT FK_CogitaReviewOutcomes_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
         CONSTRAINT FK_CogitaReviewOutcomes_Role FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id)
     );
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaReviewOutcomes', 'DurationMs') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaReviewOutcomes ADD DurationMs INT NULL;
 END
 GO
 
@@ -1191,6 +1236,62 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaReviewOutcomes_Client' AND object_id = OBJECT_ID('dbo.CogitaReviewOutcomes'))
 BEGIN
     CREATE UNIQUE INDEX UX_CogitaReviewOutcomes_Client ON dbo.CogitaReviewOutcomes(PersonRoleId, ClientId, ClientSequence);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaStatisticEvents' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaStatisticEvents
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        ScopeType NVARCHAR(32) NOT NULL,
+        ScopeId UNIQUEIDENTIFIER NULL,
+        SourceType NVARCHAR(32) NOT NULL,
+        SessionId UNIQUEIDENTIFIER NULL,
+        PersonRoleId UNIQUEIDENTIFIER NULL,
+        ParticipantId UNIQUEIDENTIFIER NULL,
+        ParticipantLabel NVARCHAR(120) NULL,
+        ItemType NVARCHAR(32) NULL,
+        ItemId UNIQUEIDENTIFIER NULL,
+        CheckType NVARCHAR(64) NULL,
+        Direction NVARCHAR(64) NULL,
+        EventType NVARCHAR(64) NOT NULL,
+        RoundIndex INT NULL,
+        CardKey NVARCHAR(256) NULL,
+        IsCorrect BIT NULL,
+        Correctness FLOAT NULL,
+        PointsAwarded INT NULL,
+        DurationMs INT NULL,
+        IsPersistent BIT NOT NULL CONSTRAINT DF_CogitaStatisticEvents_IsPersistent DEFAULT (0),
+        PayloadJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaStatisticEvents_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStatisticEvents_ScopeTime' AND object_id = OBJECT_ID('dbo.CogitaStatisticEvents'))
+BEGIN
+    CREATE INDEX IX_CogitaStatisticEvents_ScopeTime ON dbo.CogitaStatisticEvents(LibraryId, ScopeType, ScopeId, CreatedUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStatisticEvents_PersonTime' AND object_id = OBJECT_ID('dbo.CogitaStatisticEvents'))
+BEGIN
+    CREATE INDEX IX_CogitaStatisticEvents_PersonTime ON dbo.CogitaStatisticEvents(PersonRoleId, CreatedUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStatisticEvents_ParticipantTime' AND object_id = OBJECT_ID('dbo.CogitaStatisticEvents'))
+BEGIN
+    CREATE INDEX IX_CogitaStatisticEvents_ParticipantTime ON dbo.CogitaStatisticEvents(ParticipantId, CreatedUtc DESC);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStatisticEvents_SessionRound' AND object_id = OBJECT_ID('dbo.CogitaStatisticEvents'))
+BEGIN
+    CREATE INDEX IX_CogitaStatisticEvents_SessionRound ON dbo.CogitaStatisticEvents(SessionId, RoundIndex, CreatedUtc DESC);
 END
 GO
 
@@ -1494,6 +1595,8 @@ BEGIN
         Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         SessionId UNIQUEIDENTIFIER NOT NULL,
         DisplayName NVARCHAR(120) NOT NULL,
+        DisplayNameHash VARBINARY(64) NULL,
+        DisplayNameCipher NVARCHAR(MAX) NULL,
         UserId UNIQUEIDENTIFIER NULL,
         JoinTokenHash VARBINARY(64) NOT NULL,
         Score INT NOT NULL CONSTRAINT DF_CogitaLiveRevisionParticipants_Score DEFAULT (0),
@@ -1505,9 +1608,27 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaLiveRevisionParticipants', 'DisplayNameHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionParticipants ADD DisplayNameHash VARBINARY(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaLiveRevisionParticipants', 'DisplayNameCipher') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionParticipants ADD DisplayNameCipher NVARCHAR(MAX) NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionName' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionName ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayName);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionNameHash' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionNameHash ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayNameHash);
 END
 GO
 
@@ -1556,6 +1677,8 @@ BEGIN
         Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         SessionId UNIQUEIDENTIFIER NOT NULL,
         DisplayName NVARCHAR(120) NOT NULL,
+        DisplayNameHash VARBINARY(64) NULL,
+        DisplayNameCipher NVARCHAR(MAX) NULL,
         Status NVARCHAR(24) NOT NULL CONSTRAINT DF_CogitaLiveRevisionReloginRequests_Status DEFAULT (N'pending'),
         RequestedUtc DATETIMEOFFSET NOT NULL,
         UpdatedUtc DATETIMEOFFSET NOT NULL,
@@ -1565,8 +1688,38 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaLiveRevisionReloginRequests', 'DisplayNameHash') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionReloginRequests ADD DisplayNameHash VARBINARY(64) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaLiveRevisionReloginRequests', 'DisplayNameCipher') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionReloginRequests ADD DisplayNameCipher NVARCHAR(MAX) NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayName, Status);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameHashStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameHashStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayNameHash, Status);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaStatisticEvents', N'U') IS NOT NULL
+    AND OBJECT_ID(N'dbo.CogitaLiveRevisionParticipants', N'U') IS NOT NULL
+BEGIN
+    UPDATE se
+    SET se.SessionId = p.SessionId
+    FROM dbo.CogitaStatisticEvents se
+    INNER JOIN dbo.CogitaLiveRevisionParticipants p ON p.Id = se.ParticipantId
+    WHERE se.SourceType = N'live-session-person'
+      AND se.SessionId IS NULL;
 END
 GO

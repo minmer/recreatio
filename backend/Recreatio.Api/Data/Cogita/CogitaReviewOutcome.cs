@@ -14,6 +14,7 @@ public sealed class CogitaReviewOutcome
     public bool Correct { get; set; }
     public string ClientId { get; set; } = string.Empty;
     public long ClientSequence { get; set; }
+    public int? DurationMs { get; set; }
     public byte[]? PayloadHash { get; set; }
     public Guid DataKeyId { get; set; }
     public byte[] EncryptedBlob { get; set; } = Array.Empty<byte>();

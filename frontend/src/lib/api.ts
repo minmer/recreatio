@@ -716,6 +716,51 @@ export type CogitaReviewSummary = {
   score: number;
 };
 
+export type CogitaStatisticsParticipantSummary = {
+  participantKey: string;
+  participantKind: 'person' | 'participant' | 'system' | string;
+  personRoleId?: string | null;
+  participantId?: string | null;
+  label: string;
+  eventCount: number;
+  answerCount: number;
+  correctCount: number;
+  averageCorrectness: number;
+  totalPoints: number;
+  lastActivityUtc?: string | null;
+  knownessScore: number;
+};
+
+export type CogitaStatisticsTimelinePoint = {
+  index: number;
+  recordedUtc: string;
+  participantKey: string;
+  participantKind: 'person' | 'participant' | 'system' | string;
+  personRoleId?: string | null;
+  participantId?: string | null;
+  label: string;
+  eventType: string;
+  roundIndex?: number | null;
+  isCorrect?: boolean | null;
+  correctness?: number | null;
+  pointsAwarded?: number | null;
+  durationMs?: number | null;
+  runningPoints: number;
+  knownessScore: number;
+};
+
+export type CogitaStatisticsResponse = {
+  scopeType: string;
+  scopeId?: string | null;
+  totalEvents: number;
+  totalAnswers: number;
+  totalCorrectAnswers: number;
+  averageCorrectness: number;
+  totalPoints: number;
+  participants: CogitaStatisticsParticipantSummary[];
+  timeline: CogitaStatisticsTimelinePoint[];
+};
+
 export type CogitaReviewOutcomeRequest = {
   itemType: string;
   itemId: string;
@@ -726,6 +771,7 @@ export type CogitaReviewOutcomeRequest = {
   correct: boolean;
   clientId: string;
   clientSequence: number;
+  durationMs?: number | null;
   maskBase64?: string | null;
   payloadHashBase64?: string | null;
   payloadBase64?: string | null;
@@ -1275,6 +1321,35 @@ export function getCogitaReviewSummary(payload: {
   const qs = params.toString();
   return request<CogitaReviewSummary>(
     `/cogita/libraries/${payload.libraryId}/reviews/${payload.itemType}/${payload.itemId}/summary${qs ? `?${qs}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function getCogitaStatistics(payload: {
+  libraryId: string;
+  scopeType?: 'library' | 'info' | 'connection' | 'collection' | 'revision' | 'live-session';
+  scopeId?: string | null;
+  personRoleId?: string | null;
+  participantId?: string | null;
+  persistentOnly?: boolean;
+  limit?: number;
+  fromUtc?: string | null;
+  toUtc?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (payload.scopeType) params.set('scopeType', payload.scopeType);
+  if (payload.scopeId) params.set('scopeId', payload.scopeId);
+  if (payload.personRoleId) params.set('personRoleId', payload.personRoleId);
+  if (payload.participantId) params.set('participantId', payload.participantId);
+  if (payload.persistentOnly === true) params.set('persistentOnly', 'true');
+  if (typeof payload.limit === 'number' && Number.isFinite(payload.limit)) params.set('limit', String(payload.limit));
+  if (payload.fromUtc) params.set('fromUtc', payload.fromUtc);
+  if (payload.toUtc) params.set('toUtc', payload.toUtc);
+  const qs = params.toString();
+  return request<CogitaStatisticsResponse>(
+    `/cogita/libraries/${payload.libraryId}/statistics${qs ? `?${qs}` : ''}`,
     {
       method: 'GET'
     }
@@ -2154,8 +2229,21 @@ export type ParishLayoutItem = {
   props?: Record<string, string>;
 };
 
+export type ParishSacramentSection = {
+  title: string;
+  body: string;
+};
+
+export type ParishSacramentParishPage = {
+  title: string;
+  lead: string;
+  notice?: string | null;
+  sections: ParishSacramentSection[];
+};
+
 export type ParishHomepageConfig = {
   modules: ParishLayoutItem[];
+  sacramentParishPages?: Record<string, ParishSacramentParishPage> | null;
 };
 
 export type ParishSummary = {
@@ -2192,6 +2280,25 @@ export type ParishPublicMass = {
   afterService?: string | null;
   intentionsJson?: string | null;
   donationSummary?: string | null;
+};
+
+export type ParishConfirmationPhone = {
+  index: number;
+  number: string;
+  isVerified: boolean;
+  verifiedUtc?: string | null;
+  verificationToken: string;
+};
+
+export type ParishConfirmationCandidate = {
+  id: string;
+  name: string;
+  surname: string;
+  phoneNumbers: ParishConfirmationPhone[];
+  address: string;
+  schoolShort: string;
+  acceptedRodo: boolean;
+  createdUtc: string;
 };
 
 export type ParishMassRuleNode = {
@@ -2265,6 +2372,43 @@ export function getParishPublicMasses(slug: string, params?: { from?: string; to
   if (params?.to) query.set('to', params.to);
   const suffix = query.toString() ? `?${query.toString()}` : '';
   return request<ParishPublicMass[]>(`/parish/${slug}/public/masses${suffix}`, {
+    method: 'GET'
+  });
+}
+
+export function createParishConfirmationCandidate(
+  slug: string,
+  payload: {
+    name: string;
+    surname: string;
+    phoneNumbers: string[];
+    address: string;
+    schoolShort: string;
+    acceptedRodo: boolean;
+  }
+) {
+  return request<{ id: string }>(`/parish/${slug}/public/confirmation-candidates`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      surname: payload.surname,
+      phoneNumbers: payload.phoneNumbers,
+      address: payload.address,
+      schoolShort: payload.schoolShort,
+      acceptedRodo: payload.acceptedRodo
+    })
+  });
+}
+
+export function verifyParishConfirmationPhone(slug: string, token: string) {
+  return request<{ status: string; verifiedUtc?: string | null }>(`/parish/${slug}/public/confirmation-phone-verify`, {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function listParishConfirmationCandidates(parishId: string) {
+  return request<ParishConfirmationCandidate[]>(`/parish/${parishId}/confirmation-candidates`, {
     method: 'GET'
   });
 }

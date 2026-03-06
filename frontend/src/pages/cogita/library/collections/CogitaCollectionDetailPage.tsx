@@ -3,6 +3,7 @@ import { ApiError, deleteCogitaCollection, getCogitaCollection, getCogitaCollect
 import { useNavigate } from 'react-router-dom';
 import { getCardKey } from '../../../../cogita/revision/cards';
 import { CogitaShell } from '../../CogitaShell';
+import { CogitaStatisticsPanel } from '../components/CogitaStatisticsPanel';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 
@@ -184,6 +185,12 @@ export function CogitaCollectionDetailPage({
                   </div>
                   {deleteStatus ? <p className="cogita-form-error">{deleteStatus}</p> : null}
                 </section>
+                <CogitaStatisticsPanel
+                  libraryId={libraryId}
+                  scopeType="collection"
+                  scopeId={collectionId}
+                  title="Collection statistics"
+                />
               </div>
             </div>
           </div>

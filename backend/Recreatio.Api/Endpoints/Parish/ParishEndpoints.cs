@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
 using Recreatio.Api.Crypto;
@@ -20,64 +21,109 @@ public static class ParishEndpoints
     private const string RoleKindParishOffice = "parish-office";
     private const string RoleKindParishFinance = "parish-finance";
     private const string RoleKindParishPublic = "parish-public";
+    private const int ConfirmationPhoneLimit = 6;
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
+
+    private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
+    {
+        return new ParishSacramentSection(
+            (section?.Title ?? string.Empty).Trim(),
+            (section?.Body ?? string.Empty).Trim());
+    }
+
+    private static ParishSacramentParishPage NormalizeSacramentParishPage(ParishSacramentParishPage? page)
+    {
+        var sections = (page?.Sections ?? Array.Empty<ParishSacramentSection>())
+            .Select(NormalizeSacramentSection)
+            .Where(section => !string.IsNullOrWhiteSpace(section.Title) || !string.IsNullOrWhiteSpace(section.Body))
+            .ToList();
+        var notice = string.IsNullOrWhiteSpace(page?.Notice) ? null : page?.Notice?.Trim();
+
+        return new ParishSacramentParishPage(
+            (page?.Title ?? string.Empty).Trim(),
+            (page?.Lead ?? string.Empty).Trim(),
+            notice,
+            sections);
+    }
+
+    private static Dictionary<string, ParishSacramentParishPage>? NormalizeSacramentParishPages(
+        Dictionary<string, ParishSacramentParishPage>? pages)
+    {
+        if (pages is null || pages.Count == 0)
+        {
+            return null;
+        }
+
+        var normalized = new Dictionary<string, ParishSacramentParishPage>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (rawKey, value) in pages)
+        {
+            var key = (rawKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            normalized[key] = NormalizeSacramentParishPage(value);
+        }
+
+        return normalized.Count == 0 ? null : normalized;
+    }
 
     private static ParishHomepageConfig NormalizeHomepage(ParishHomepageConfig homepage)
     {
-        if (homepage.Modules.Count == 0)
-        {
-            return homepage;
-        }
-
-        var modules = homepage.Modules.Select(module =>
-        {
-            var layouts = module.Layouts ?? new Dictionary<string, ParishLayoutFrame>(StringComparer.OrdinalIgnoreCase);
-
-            if (layouts.Count == 0 && module.Position is not null && module.Size is not null)
+        var modules = homepage.Modules.Count == 0
+            ? Array.Empty<ParishLayoutItem>()
+            : homepage.Modules.Select(module =>
             {
-                var frame = new ParishLayoutFrame(module.Position, module.Size);
-                foreach (var breakpoint in Breakpoints)
-                {
-                    layouts[breakpoint] = frame;
-                }
-            }
+                var layouts = module.Layouts ?? new Dictionary<string, ParishLayoutFrame>(StringComparer.OrdinalIgnoreCase);
 
-            if (layouts.Count == 0)
-            {
-                var fallbackFrame = new ParishLayoutFrame(
-                    new ParishLayoutPosition(1, 1),
-                    new ParishLayoutSize(2, 1));
-                foreach (var breakpoint in Breakpoints)
+                if (layouts.Count == 0 && module.Position is not null && module.Size is not null)
                 {
-                    layouts[breakpoint] = fallbackFrame;
-                }
-            }
-            else
-            {
-                var fallback = layouts.Values.First();
-                foreach (var breakpoint in Breakpoints)
-                {
-                    if (!layouts.ContainsKey(breakpoint))
+                    var frame = new ParishLayoutFrame(module.Position, module.Size);
+                    foreach (var breakpoint in Breakpoints)
                     {
-                        layouts[breakpoint] = fallback;
+                        layouts[breakpoint] = frame;
                     }
                 }
-            }
 
-            layouts = new Dictionary<string, ParishLayoutFrame>(layouts, StringComparer.OrdinalIgnoreCase);
+                if (layouts.Count == 0)
+                {
+                    var fallbackFrame = new ParishLayoutFrame(
+                        new ParishLayoutPosition(1, 1),
+                        new ParishLayoutSize(2, 1));
+                    foreach (var breakpoint in Breakpoints)
+                    {
+                        layouts[breakpoint] = fallbackFrame;
+                    }
+                }
+                else
+                {
+                    var fallback = layouts.Values.First();
+                    foreach (var breakpoint in Breakpoints)
+                    {
+                        if (!layouts.ContainsKey(breakpoint))
+                        {
+                            layouts[breakpoint] = fallback;
+                        }
+                    }
+                }
 
-            return new ParishLayoutItem
-            {
-                Id = module.Id,
-                Type = module.Type,
-                Layouts = layouts,
-                Position = layouts["desktop"].Position,
-                Size = layouts["desktop"].Size,
-                Props = module.Props
-            };
-        }).ToList();
+                layouts = new Dictionary<string, ParishLayoutFrame>(layouts, StringComparer.OrdinalIgnoreCase);
 
-        return new ParishHomepageConfig(modules);
+                return new ParishLayoutItem
+                {
+                    Id = module.Id,
+                    Type = module.Type,
+                    Layouts = layouts,
+                    Position = layouts["desktop"].Position,
+                    Size = layouts["desktop"].Size,
+                    Props = module.Props
+                };
+            }).ToList();
+
+        return new ParishHomepageConfig(
+            modules,
+            NormalizeSacramentParishPages(homepage.SacramentParishPages));
     }
 
     public static void MapParishEndpoints(this WebApplication app)
@@ -199,6 +245,139 @@ public static class ParishEndpoints
                 .ToListAsync(ct);
 
             return Results.Ok(masses);
+        });
+
+        group.MapPost("/{slug}/public/confirmation-candidates", async (
+            string slug,
+            ParishConfirmationCandidateCreateRequest request,
+            RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 120);
+            var surname = NormalizeConfirmationText(request.Surname, 120);
+            var address = NormalizeConfirmationText(request.Address, 260);
+            var schoolShort = NormalizeConfirmationText(request.SchoolShort, 140);
+            var phoneNumbers = NormalizeConfirmationPhones(request.PhoneNumbers);
+
+            if (name is null || surname is null || address is null || schoolShort is null)
+            {
+                return Results.BadRequest(new { error = "Name, surname, address and school are required." });
+            }
+
+            if (!request.AcceptedRodo)
+            {
+                return Results.BadRequest(new { error = "RODO consent is required." });
+            }
+
+            if (phoneNumbers.Count == 0)
+            {
+                return Results.BadRequest(new { error = "At least one phone number is required." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var candidateId = Guid.NewGuid();
+            var payload = new ParishConfirmationPayload(name, surname, phoneNumbers, address, schoolShort, true);
+            var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
+            var payloadEnc = protector.Protect(payloadJson);
+
+            var candidate = new ParishConfirmationCandidate
+            {
+                Id = candidateId,
+                ParishId = parish.Id,
+                PayloadEnc = payloadEnc,
+                AcceptedRodo = true,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+
+            var verifications = phoneNumbers.Select((_, index) => new ParishConfirmationPhoneVerification
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parish.Id,
+                CandidateId = candidateId,
+                PhoneIndex = index,
+                VerificationToken = CreatePhoneVerificationToken(),
+                VerifiedUtc = null,
+                CreatedUtc = now
+            }).ToList();
+
+            dbContext.ParishConfirmationCandidates.Add(candidate);
+            dbContext.ParishConfirmationPhoneVerifications.AddRange(verifications);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationCandidateCreated",
+                "public",
+                JsonSerializer.Serialize(new { candidate.Id, PhoneCount = phoneNumbers.Count }),
+                ct);
+
+            return Results.Ok(new { id = candidateId });
+        });
+
+        group.MapPost("/{slug}/public/confirmation-phone-verify", async (
+            string slug,
+            ParishConfirmationPhoneVerifyRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = request.Token?.Trim();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return Results.BadRequest(new { error = "Verification token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var verification = await dbContext.ParishConfirmationPhoneVerifications
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.VerificationToken == token, ct);
+            if (verification is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            if (verification.VerifiedUtc is not null)
+            {
+                return Results.Ok(new { status = "already-verified", verifiedUtc = verification.VerifiedUtc });
+            }
+
+            verification.VerifiedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationPhoneVerified",
+                "public",
+                JsonSerializer.Serialize(new { verification.CandidateId, verification.PhoneIndex }),
+                ct);
+
+            return Results.Ok(new { status = "verified", verifiedUtc = verification.VerifiedUtc });
         });
 
         group.MapPost("", async (
@@ -427,7 +606,6 @@ public static class ParishEndpoints
                 ledgerService,
                 dbContext,
                 ct);
-
             await GrantParishDataKeyAsync(intentionInternal, new[] { adminRole, priestRole, officeRole }, now, encryptionService, dbContext, ct);
             await GrantParishDataKeyAsync(intentionPublic, new[] { adminRole, priestRole, officeRole, publicRole }, now, encryptionService, dbContext, ct);
             await GrantParishDataKeyAsync(offering, new[] { adminRole, financeRole, priestRole }, now, encryptionService, dbContext, ct);
@@ -556,6 +734,91 @@ public static class ParishEndpoints
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-candidates", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidates = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+            var candidateIds = candidates.Select(x => x.Id).ToList();
+            var verifications = candidateIds.Count == 0
+                ? new List<ParishConfirmationPhoneVerification>()
+                : await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                    .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
+                    .ToListAsync(ct);
+            var verificationsByCandidate = verifications
+                .GroupBy(x => x.CandidateId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderBy(x => x.PhoneIndex).ToList());
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+            var responses = new List<ParishConfirmationCandidateResponse>();
+            foreach (var candidate in candidates)
+            {
+                var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+                if (payload is null)
+                {
+                    continue;
+                }
+
+                var candidateVerificationRows = verificationsByCandidate.GetValueOrDefault(candidate.Id) ?? new List<ParishConfirmationPhoneVerification>();
+                var verificationByIndex = candidateVerificationRows
+                    .GroupBy(x => x.PhoneIndex)
+                    .ToDictionary(group => group.Key, group => group.First());
+
+                var phones = payload.PhoneNumbers
+                    .Select((number, index) =>
+                    {
+                        var row = verificationByIndex.GetValueOrDefault(index);
+                        return new ParishConfirmationPhoneResponse(
+                            index,
+                            number,
+                            row?.VerifiedUtc is not null,
+                            row?.VerifiedUtc,
+                            row?.VerificationToken ?? string.Empty);
+                    })
+                    .ToList();
+
+                responses.Add(new ParishConfirmationCandidateResponse(
+                    candidate.Id,
+                    payload.Name,
+                    payload.Surname,
+                    phones,
+                    payload.Address,
+                    payload.SchoolShort,
+                    payload.AcceptedRodo,
+                    candidate.CreatedUtc));
+            }
+
+            return Results.Ok(responses);
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/intentions", async (
@@ -1581,6 +1844,85 @@ public static class ParishEndpoints
         return null;
     }
 
+    private static string? NormalizeConfirmationText(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maxLength)
+        {
+            normalized = normalized[..maxLength];
+        }
+
+        return normalized;
+    }
+
+    private static List<string> NormalizeConfirmationPhones(IReadOnlyList<string>? phoneNumbers)
+    {
+        if (phoneNumbers is null || phoneNumbers.Count == 0)
+        {
+            return new List<string>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<string>();
+        foreach (var raw in phoneNumbers)
+        {
+            var normalized = NormalizeConfirmationText(raw, 40);
+            if (normalized is null)
+            {
+                continue;
+            }
+
+            if (!seen.Add(normalized))
+            {
+                continue;
+            }
+
+            result.Add(normalized);
+            if (result.Count >= ConfirmationPhoneLimit)
+            {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private static IDataProtector CreateParishConfirmationProtector(IDataProtectionProvider dataProtectionProvider, Guid parishId)
+    {
+        return dataProtectionProvider.CreateProtector("parish", "confirmation-candidate", parishId.ToString("N"));
+    }
+
+    private static ParishConfirmationPayload? TryUnprotectConfirmationPayload(byte[] payloadEnc, IDataProtector protector)
+    {
+        try
+        {
+            var json = protector.Unprotect(payloadEnc);
+            return JsonSerializer.Deserialize<ParishConfirmationPayload>(json);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string CreatePhoneVerificationToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(18);
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
     private static bool HasParishMassWriteAccess(RoleKeyRing keyRing, Parish parish)
     {
         return keyRing.ReadKeys.ContainsKey(parish.AdminRoleId)
@@ -1591,4 +1933,12 @@ public static class ParishEndpoints
     private sealed record RoleBundle(Guid RoleId, byte[] ReadKey, byte[] WriteKey, byte[] OwnerKey);
 
     private sealed record DataKeyBundle(Guid DataItemId, Guid DataKeyId, byte[] DataKey);
+
+    private sealed record ParishConfirmationPayload(
+        string Name,
+        string Surname,
+        IReadOnlyList<string> PhoneNumbers,
+        string Address,
+        string SchoolShort,
+        bool AcceptedRodo);
 }

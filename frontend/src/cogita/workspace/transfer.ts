@@ -39,6 +39,9 @@ export type WorkspaceTransfer =
       createdAt: string;
     };
 
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type WorkspaceTransferPayload = DistributiveOmit<WorkspaceTransfer, 'createdAt'>;
+
 const STORAGE_PREFIX = 'cogita.workspace.transfer:';
 
 function storageKey(token: string) {
@@ -51,7 +54,7 @@ function createToken() {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function createWorkspaceTransfer(payload: Omit<WorkspaceTransfer, 'createdAt'>) {
+export function createWorkspaceTransfer(payload: WorkspaceTransferPayload) {
   if (typeof window === 'undefined') return null;
   const token = createToken();
   const transfer: WorkspaceTransfer = {

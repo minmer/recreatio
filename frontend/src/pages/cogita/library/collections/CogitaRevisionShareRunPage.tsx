@@ -155,6 +155,7 @@ export function CogitaRevisionShareRunPage({
   const quoteTreeRef = useRef<QuoteFragmentTree | null>(null);
   const quoteKnownRef = useRef<Set<string>>(new Set());
   const quoteKnownessRef = useRef<Record<string, number>>({});
+  const answerStartedAtRef = useRef<number>(Date.now());
   const [itemDependencies, setItemDependencies] = useState<CogitaItemDependency[]>([]);
   const [eligibleKeys, setEligibleKeys] = useState<Set<string>>(new Set());
   const [dependencyBlocked, setDependencyBlocked] = useState(false);
@@ -179,6 +180,9 @@ export function CogitaRevisionShareRunPage({
 
   const canRenderCards = shareStatus === 'ready';
   const currentCard = canRenderCards ? queue[currentIndex] ?? null : null;
+  const currentCardToken = currentCard
+    ? `${currentCard.cardId}:${currentCard.checkType ?? ''}:${currentCard.direction ?? ''}:${currentIndex}`
+    : `none:${currentIndex}`;
   const isMatchMode = currentCard?.checkType === 'translation-match' && matchState;
   const computedSampleCache = useRef(new Map<string, { sample: CogitaComputedSample; answerTemplate: string | null }>());
   const computedSamplePromises = useRef(new Map<string, Promise<{ sample: CogitaComputedSample | null; answerTemplate: string | null }>>());
@@ -232,6 +236,12 @@ export function CogitaRevisionShareRunPage({
   };
 
   const isMaskCorrect = (mask: Uint8Array) => maskAveragePercent(mask, { treatSimilarCharsAsSame: true }) >= minCorrectness;
+  useEffect(() => {
+    answerStartedAtRef.current = Date.now();
+  }, [currentCardToken]);
+
+  const getCurrentAnswerDurationMs = () => Math.max(0, Math.round(Date.now() - answerStartedAtRef.current));
+
   const getSharedScopeOutcomes = async () => {
     if (reviewOutcomes.length > 0) {
       return reviewOutcomes;
@@ -1179,6 +1189,7 @@ export function CogitaRevisionShareRunPage({
     const itemType = currentCard.cardType === 'info' ? 'info' : 'connection';
     const checkType = options.overrideCheckType ?? currentCard.checkType ?? null;
     const direction = options.overrideDirection ?? currentCard.direction ?? null;
+    const durationMs = getCurrentAnswerDurationMs();
     void recordOutcome({
       itemType,
       itemId: currentCard.cardId,
@@ -1187,6 +1198,7 @@ export function CogitaRevisionShareRunPage({
       revisionType: revisionType.id,
       evalType: options.evalType,
       correct: options.correct,
+      durationMs,
       maskBase64: mask.length ? toBase64(mask) : null,
       payloadBase64: toBase64(payloadBytes)
     })
@@ -1594,6 +1606,7 @@ export function CogitaRevisionShareRunPage({
       }
       applyOutcomeToSession(allCorrect, correctness);
       const itemType = 'connection';
+      const durationMs = getCurrentAnswerDurationMs();
       Promise.all(
         matchState.pairs.map((pair) => {
           const selected = matchState.selection[pair.leftId] ?? null;
@@ -1613,6 +1626,7 @@ export function CogitaRevisionShareRunPage({
             revisionType: revisionType.id,
             evalType: 'translation-match',
             correct: selected === pair.rightId,
+            durationMs,
             maskBase64: null,
             payloadBase64: toBase64(payloadBytes)
           });

@@ -286,6 +286,7 @@ public sealed record CogitaReviewOutcomeRequest(
     bool Correct,
     string ClientId,
     long ClientSequence,
+    int? DurationMs,
     string? MaskBase64,
     string? PayloadHashBase64,
     string? PayloadBase64,
@@ -308,6 +309,51 @@ public sealed record CogitaReviewSummaryResponse(
     int CorrectReviews,
     DateTimeOffset? LastReviewedUtc,
     double Score
+);
+
+public sealed record CogitaStatisticsParticipantSummaryResponse(
+    string ParticipantKey,
+    string ParticipantKind,
+    Guid? PersonRoleId,
+    Guid? ParticipantId,
+    string Label,
+    int EventCount,
+    int AnswerCount,
+    int CorrectCount,
+    double AverageCorrectness,
+    int TotalPoints,
+    DateTimeOffset? LastActivityUtc,
+    double KnownessScore
+);
+
+public sealed record CogitaStatisticsTimelinePointResponse(
+    int Index,
+    DateTimeOffset RecordedUtc,
+    string ParticipantKey,
+    string ParticipantKind,
+    Guid? PersonRoleId,
+    Guid? ParticipantId,
+    string Label,
+    string EventType,
+    int? RoundIndex,
+    bool? IsCorrect,
+    double? Correctness,
+    int? PointsAwarded,
+    int? DurationMs,
+    int RunningPoints,
+    double KnownessScore
+);
+
+public sealed record CogitaStatisticsResponse(
+    string ScopeType,
+    Guid? ScopeId,
+    int TotalEvents,
+    int TotalAnswers,
+    int TotalCorrectAnswers,
+    double AverageCorrectness,
+    int TotalPoints,
+    List<CogitaStatisticsParticipantSummaryResponse> Participants,
+    List<CogitaStatisticsTimelinePointResponse> Timeline
 );
 
 public sealed record CogitaReviewerResponse(

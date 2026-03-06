@@ -128,6 +128,26 @@ export function CogitaLivePromptCard({
     </div>
   );
 
+  const parseBooleanValue = (value: unknown): boolean | null => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') {
+      if (value === 1) return true;
+      if (value === 0) return false;
+      return null;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+      return null;
+    }
+    if (value && typeof value === 'object') {
+      const root = value as Record<string, unknown>;
+      return parseBooleanValue(root.booleanAnswer) ?? parseBooleanValue(root.expected) ?? parseBooleanValue(root.value);
+    }
+    return null;
+  };
+
   const renderMaskedExpected = (expectedText: string) => {
     if (!expectedText) return expectedText;
     if (!answerMask || answerMask.length === 0) return expectedText;
@@ -203,10 +223,10 @@ export function CogitaLivePromptCard({
   }
 
   if (kind === 'boolean') {
-    const expected = Boolean(revealExpected);
-    const selected = isRevealed && typeof revealedAnswer === 'boolean'
-      ? revealedAnswer
-      : answers?.booleanAnswer;
+    const expected = parseBooleanValue(revealExpected) ?? false;
+    const selected = isRevealed
+      ? parseBooleanValue(revealedAnswer)
+      : (typeof answers?.booleanAnswer === 'boolean' ? answers.booleanAnswer : null);
     return wrap(
       <>
         <p>{String(prompt.prompt ?? '')}</p>
@@ -230,6 +250,20 @@ export function CogitaLivePromptCard({
             {copy.falseLabel}
           </button>
         </div>
+        {isRevealed ? (
+          <div className="cogita-share-list">
+            {selected != null ? (
+              <div className="cogita-share-row" data-state={selected === expected ? 'correct' : 'incorrect'}>
+                <span>{copy.answerLabel}</span>
+                <strong>{selected ? copy.trueLabel : copy.falseLabel}</strong>
+              </div>
+            ) : null}
+            <div className="cogita-share-row" data-state="correct">
+              <span>{copy.correctAnswerLabel}</span>
+              <strong>{expected ? copy.trueLabel : copy.falseLabel}</strong>
+            </div>
+          </div>
+        ) : null}
       </>
     );
   }

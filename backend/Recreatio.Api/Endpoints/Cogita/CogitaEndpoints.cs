@@ -1435,6 +1435,13 @@ public static class CogitaEndpoints
             {
                 dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
             }
+            var statisticEvents = await dbContext.CogitaStatisticEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == infoId)
+                .ToListAsync(ct);
+            if (statisticEvents.Count > 0)
+            {
+                dbContext.CogitaStatisticEvents.RemoveRange(statisticEvents);
+            }
 
             if (!RemoveInfoPayload(info.InfoType, info.Id, dbContext))
             {
@@ -2647,6 +2654,13 @@ public static class CogitaEndpoints
             if (reviewEvents.Count > 0)
             {
                 dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
+            }
+            var statisticEvents = await dbContext.CogitaStatisticEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "collection" && x.ItemId == collectionId)
+                .ToListAsync(ct);
+            if (statisticEvents.Count > 0)
+            {
+                dbContext.CogitaStatisticEvents.RemoveRange(statisticEvents);
             }
 
             if (!RemoveInfoPayload("collection", collectionId, dbContext))
@@ -3958,42 +3972,12 @@ public static class CogitaEndpoints
 
             var total = outcomes.Count;
             var correct = outcomes.Count(x => x.Correct);
-            var recent = outcomes
-                .OrderBy(x => x.CreatedUtc)
-                .TakeLast(5)
+            var temporalEntries = outcomes
+                .Select(x => new TemporalKnownessEntry(x.Correct ? 1d : 0d, x.CreatedUtc))
                 .ToList();
-            var avgCorrectness = recent.Count == 0 ? 0 : recent.Average(x => x.Correct ? 1.0 : 0.0);
-            var now = DateTimeOffset.UtcNow;
-            const double tauMinutes = 5.0;
-            const double scale = 2.0;
-            const double correctBonus = 0.15;
-            double timeScore = 0;
-            double bonus = 0;
-            for (var i = 0; i < recent.Count; i++)
-            {
-                var start = recent[i].CreatedUtc;
-                var end = i == recent.Count - 1 ? now : recent[i + 1].CreatedUtc;
-                var deltaMinutes = Math.Max(0, (end - start).TotalMinutes);
-                var timeFactor = 1 - Math.Exp(-deltaMinutes / tauMinutes);
-                timeScore += timeFactor;
-                if (recent[i].Correct)
-                {
-                    bonus += correctBonus;
-                }
-            }
-            var knowness = avgCorrectness * timeScore * scale + bonus;
-            var lastReviewed = recent.Count > 0 ? recent[^1].CreatedUtc : (DateTimeOffset?)null;
-            var minutesSinceLast = lastReviewed.HasValue ? Math.Max(0, (now - lastReviewed.Value).TotalMinutes) : 0;
-            const double decayTauMinutes = 60.0;
-            var decay = 1.0 / (1.0 + Math.Log(1.0 + (minutesSinceLast / decayTauMinutes)));
-            knowness *= decay;
-            const double shortBoostTauMinutes = 2.0;
-            const double shortBoostAmount = 5.44;
-            if (recent.Count == 1 && recent[0].Correct)
-            {
-                knowness += shortBoostAmount * Math.Exp(-minutesSinceLast / shortBoostTauMinutes);
-            }
-            var score = Math.Round(Math.Clamp(knowness * 100, 0, 100), 2);
+            var knownessSummary = ComputeKnownessSummary(temporalEntries, DateTimeOffset.UtcNow);
+            var score = knownessSummary.Score;
+            var lastReviewed = knownessSummary.LastReviewedUtc;
 
             return Results.Ok(new CogitaReviewSummaryResponse(
                 normalizedType,
@@ -4002,6 +3986,317 @@ public static class CogitaEndpoints
                 correct,
                 lastReviewed,
                 score
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/statistics", async (
+            Guid libraryId,
+            string? scopeType,
+            Guid? scopeId,
+            Guid? personRoleId,
+            Guid? participantId,
+            bool? persistentOnly,
+            int? limit,
+            DateTimeOffset? fromUtc,
+            DateTimeOffset? toUtc,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var normalizedScopeType = string.IsNullOrWhiteSpace(scopeType)
+                ? "library"
+                : scopeType.Trim().ToLowerInvariant();
+            if (normalizedScopeType is not ("library" or "info" or "connection" or "collection" or "revision" or "live-session"))
+            {
+                return Results.BadRequest(new { error = "Invalid scopeType." });
+            }
+            if (normalizedScopeType != "library" && scopeId is null)
+            {
+                return Results.BadRequest(new { error = "scopeId is required for this scopeType." });
+            }
+
+            var maxLimit = Math.Clamp(limit ?? 1200, 50, 5000);
+            var readableRoleIds = keyRing.ReadKeys.Keys.ToHashSet();
+            if (personRoleId.HasValue &&
+                personRoleId.Value != Guid.Empty &&
+                !readableRoleIds.Contains(personRoleId.Value))
+            {
+                return Results.Forbid();
+            }
+
+            var query = dbContext.CogitaStatisticEvents.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId);
+            query = query.Where(x => !x.PersonRoleId.HasValue || readableRoleIds.Contains(x.PersonRoleId.Value));
+
+            if (normalizedScopeType != "live-session")
+            {
+                query = query.Where(x => x.IsPersistent);
+            }
+            if (persistentOnly == true)
+            {
+                query = query.Where(x => x.IsPersistent);
+            }
+            if (personRoleId.HasValue && personRoleId.Value != Guid.Empty)
+            {
+                query = query.Where(x => x.PersonRoleId == personRoleId.Value);
+            }
+            if (participantId.HasValue && participantId.Value != Guid.Empty)
+            {
+                query = query.Where(x => x.ParticipantId == participantId.Value);
+            }
+            if (fromUtc.HasValue)
+            {
+                query = query.Where(x => x.CreatedUtc >= fromUtc.Value);
+            }
+            if (toUtc.HasValue)
+            {
+                query = query.Where(x => x.CreatedUtc <= toUtc.Value);
+            }
+
+            if (normalizedScopeType == "info" || normalizedScopeType == "connection")
+            {
+                var targetId = scopeId!.Value;
+                var exists = normalizedScopeType == "info"
+                    ? await dbContext.CogitaInfos.AsNoTracking().AnyAsync(x => x.LibraryId == libraryId && x.Id == targetId, ct)
+                    : await dbContext.CogitaConnections.AsNoTracking().AnyAsync(x => x.LibraryId == libraryId && x.Id == targetId, ct);
+                if (!exists)
+                {
+                    return Results.NotFound();
+                }
+                query = query.Where(x => x.ItemType == normalizedScopeType && x.ItemId == targetId);
+            }
+            else if (normalizedScopeType == "live-session")
+            {
+                var targetSessionId = scopeId!.Value;
+                var sessionExists = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                    .AnyAsync(x => x.Id == targetSessionId && x.LibraryId == libraryId, ct);
+                if (!sessionExists)
+                {
+                    return Results.NotFound();
+                }
+                var canManageSession = keyRing.WriteKeys.ContainsKey(library.RoleId);
+                var isSessionParticipant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                    .AnyAsync(x => x.SessionId == targetSessionId && x.UserId == userId, ct);
+                if (!canManageSession && !isSessionParticipant)
+                {
+                    return Results.Forbid();
+                }
+                query = query.Where(x => x.SessionId == targetSessionId);
+            }
+            else if (normalizedScopeType == "collection")
+            {
+                var collectionId = scopeId!.Value;
+                var collectionExists = await dbContext.CogitaInfos.AsNoTracking()
+                    .AnyAsync(x => x.Id == collectionId && x.LibraryId == libraryId && x.InfoType == "collection", ct);
+                if (!collectionExists)
+                {
+                    return Results.NotFound();
+                }
+
+                var items = await dbContext.CogitaCollectionItems.AsNoTracking()
+                    .Where(x => x.CollectionInfoId == collectionId)
+                    .Select(x => new { x.ItemType, x.ItemId })
+                    .ToListAsync(ct);
+                var infoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
+                var connectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
+                var sessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && x.CollectionId == collectionId)
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+                query = query.Where(x =>
+                    (x.ItemType == "info" && x.ItemId.HasValue && infoIds.Contains(x.ItemId.Value)) ||
+                    (x.ItemType == "connection" && x.ItemId.HasValue && connectionIds.Contains(x.ItemId.Value)) ||
+                    (x.SessionId.HasValue && sessionIds.Contains(x.SessionId.Value)));
+            }
+            else if (normalizedScopeType == "revision")
+            {
+                var revisionId = scopeId!.Value;
+                var revision = await dbContext.CogitaRevisions.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == revisionId && x.LibraryId == libraryId, ct);
+                if (revision is null)
+                {
+                    return Results.NotFound();
+                }
+
+                var items = await dbContext.CogitaCollectionItems.AsNoTracking()
+                    .Where(x => x.CollectionInfoId == revision.CollectionId)
+                    .Select(x => new { x.ItemType, x.ItemId })
+                    .ToListAsync(ct);
+                var infoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
+                var connectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
+                var sessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && x.RevisionId == revisionId)
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+                query = query.Where(x =>
+                    (x.ItemType == "info" && x.ItemId.HasValue && infoIds.Contains(x.ItemId.Value)) ||
+                    (x.ItemType == "connection" && x.ItemId.HasValue && connectionIds.Contains(x.ItemId.Value)) ||
+                    (x.SessionId.HasValue && sessionIds.Contains(x.SessionId.Value)));
+            }
+
+            var events = await query
+                .OrderByDescending(x => x.CreatedUtc)
+                .Take(maxLimit)
+                .ToListAsync(ct);
+            events = events
+                .OrderBy(x => x.CreatedUtc)
+                .ThenBy(x => x.Id)
+                .ToList();
+
+            if (events.Count == 0)
+            {
+                return Results.Ok(new CogitaStatisticsResponse(
+                    normalizedScopeType,
+                    scopeId,
+                    0,
+                    0,
+                    0,
+                    0d,
+                    0,
+                    new List<CogitaStatisticsParticipantSummaryResponse>(),
+                    new List<CogitaStatisticsTimelinePointResponse>()));
+            }
+
+            var participantStates = new Dictionary<string, StatisticsParticipantState>(StringComparer.Ordinal);
+            var timeline = new List<CogitaStatisticsTimelinePointResponse>(events.Count);
+            var nowUtc = DateTimeOffset.UtcNow;
+            var index = 0;
+            foreach (var statisticEvent in events)
+            {
+                index += 1;
+                var participantRef = ResolveStatisticsParticipantRef(statisticEvent);
+                if (!participantStates.TryGetValue(participantRef.Key, out var state))
+                {
+                    state = new StatisticsParticipantState(participantRef);
+                    participantStates[participantRef.Key] = state;
+                }
+
+                state.EventCount += 1;
+                state.LastActivityUtc = statisticEvent.CreatedUtc;
+                if (statisticEvent.PointsAwarded.HasValue)
+                {
+                    state.TotalPoints += statisticEvent.PointsAwarded.Value;
+                }
+
+                double? eventCorrectness = null;
+                if (statisticEvent.Correctness.HasValue)
+                {
+                    eventCorrectness = Math.Clamp(statisticEvent.Correctness.Value, 0d, 1d);
+                }
+                else if (statisticEvent.IsCorrect.HasValue)
+                {
+                    eventCorrectness = statisticEvent.IsCorrect.Value ? 1d : 0d;
+                }
+
+                if (eventCorrectness.HasValue)
+                {
+                    state.AnswerCount += 1;
+                    state.CorrectnessSum += eventCorrectness.Value;
+                    if (eventCorrectness.Value >= 0.5d)
+                    {
+                        state.CorrectCount += 1;
+                    }
+                    state.KnownessEntries.Add(new TemporalKnownessEntry(eventCorrectness.Value, statisticEvent.CreatedUtc));
+                }
+
+                var knowness = state.KnownessEntries.Count == 0
+                    ? 0d
+                    : ComputeKnownessSummary(state.KnownessEntries, statisticEvent.CreatedUtc).Score;
+
+                timeline.Add(new CogitaStatisticsTimelinePointResponse(
+                    index,
+                    statisticEvent.CreatedUtc,
+                    participantRef.Key,
+                    participantRef.Kind,
+                    participantRef.PersonRoleId,
+                    participantRef.ParticipantId,
+                    participantRef.Label,
+                    statisticEvent.EventType,
+                    statisticEvent.RoundIndex,
+                    statisticEvent.IsCorrect,
+                    eventCorrectness,
+                    statisticEvent.PointsAwarded,
+                    statisticEvent.DurationMs,
+                    state.TotalPoints,
+                    knowness
+                ));
+            }
+
+            var participants = participantStates.Values
+                .Where(x => x.Participant.Kind != "system")
+                .Select(x =>
+                {
+                    var knowness = x.KnownessEntries.Count == 0
+                        ? 0d
+                        : ComputeKnownessSummary(x.KnownessEntries, nowUtc).Score;
+                    var avgCorrectness = x.AnswerCount == 0 ? 0d : Math.Round(x.CorrectnessSum / x.AnswerCount * 100d, 2);
+                    return new CogitaStatisticsParticipantSummaryResponse(
+                        x.Participant.Key,
+                        x.Participant.Kind,
+                        x.Participant.PersonRoleId,
+                        x.Participant.ParticipantId,
+                        x.Participant.Label,
+                        x.EventCount,
+                        x.AnswerCount,
+                        x.CorrectCount,
+                        avgCorrectness,
+                        x.TotalPoints,
+                        x.LastActivityUtc,
+                        knowness
+                    );
+                })
+                .OrderByDescending(x => x.KnownessScore)
+                .ThenByDescending(x => x.TotalPoints)
+                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var answerEvents = timeline.Where(x => x.Correctness.HasValue).ToList();
+            var totalAnswers = answerEvents.Count;
+            var totalCorrectAnswers = answerEvents.Count(x => (x.Correctness ?? 0d) >= 0.5d);
+            var averageCorrectness = totalAnswers == 0
+                ? 0d
+                : Math.Round(answerEvents.Average(x => (x.Correctness ?? 0d) * 100d), 2);
+            var totalPoints = participantStates.Values.Sum(x => x.TotalPoints);
+
+            return Results.Ok(new CogitaStatisticsResponse(
+                normalizedScopeType,
+                scopeId,
+                events.Count,
+                totalAnswers,
+                totalCorrectAnswers,
+                averageCorrectness,
+                totalPoints,
+                participants,
+                timeline
             ));
         });
 
@@ -4097,6 +4392,7 @@ public static class CogitaEndpoints
                     request.RevisionType,
                     request.EvalType,
                     request.Correct,
+                    request.DurationMs,
                     request.MaskBase64,
                     request.PayloadHashBase64
                 });
@@ -4158,6 +4454,9 @@ public static class CogitaEndpoints
 
             var outcomeId = Guid.NewGuid();
             var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, outcomeId.ToByteArray());
+            var normalizedDurationMs = request.DurationMs.HasValue
+                ? Math.Max(0, request.DurationMs.Value)
+                : (int?)null;
 
             dbContext.CogitaReviewOutcomes.Add(new CogitaReviewOutcome
             {
@@ -4173,6 +4472,7 @@ public static class CogitaEndpoints
                 Correct = request.Correct,
                 ClientId = request.ClientId?.Trim() ?? string.Empty,
                 ClientSequence = request.ClientSequence,
+                DurationMs = normalizedDurationMs,
                 PayloadHash = payloadHash,
                 DataKeyId = dataKeyId,
                 EncryptedBlob = encrypted,
@@ -4186,6 +4486,33 @@ public static class CogitaEndpoints
                 EntryId = outcomeId,
                 EntryType = "cogita-review-outcome",
                 EntrySubtype = request.RevisionType ?? string.Empty,
+                CreatedUtc = DateTimeOffset.UtcNow
+            });
+
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                ScopeType = itemType,
+                ScopeId = request.ItemId,
+                SourceType = "review",
+                SessionId = null,
+                PersonRoleId = reviewerRoleId,
+                ParticipantId = null,
+                ParticipantLabel = null,
+                ItemType = itemType,
+                ItemId = request.ItemId,
+                CheckType = request.CheckType?.Trim().ToLowerInvariant(),
+                Direction = string.IsNullOrWhiteSpace(request.Direction) ? null : request.Direction.Trim().ToLowerInvariant(),
+                EventType = "review_outcome_saved",
+                RoundIndex = null,
+                CardKey = null,
+                IsCorrect = request.Correct,
+                Correctness = ResolveCorrectnessValue(request.MaskBase64, request.Correct),
+                PointsAwarded = null,
+                DurationMs = normalizedDurationMs,
+                IsPersistent = true,
+                PayloadJson = null,
                 CreatedUtc = DateTimeOffset.UtcNow
             });
 
@@ -4402,6 +4729,7 @@ public static class CogitaEndpoints
                         outcome.RevisionType,
                         outcome.EvalType,
                         outcome.Correct,
+                        outcome.DurationMs,
                         outcome.MaskBase64,
                         outcome.PayloadHashBase64
                     });
@@ -4423,7 +4751,11 @@ public static class CogitaEndpoints
                 var outcomeId = Guid.NewGuid();
                 var encrypted = encryptionService.Encrypt(dataKey, payloadBytes, outcomeId.ToByteArray());
                 var normalizedType = outcome.ItemType.Trim().ToLowerInvariant();
+                var normalizedDurationMs = outcome.DurationMs.HasValue
+                    ? Math.Max(0, outcome.DurationMs.Value)
+                    : (int?)null;
 
+                var createdUtc = DateTimeOffset.UtcNow;
                 dbContext.CogitaReviewOutcomes.Add(new CogitaReviewOutcome
                 {
                     Id = outcomeId,
@@ -4438,10 +4770,11 @@ public static class CogitaEndpoints
                     Correct = outcome.Correct,
                     ClientId = outcome.ClientId.Trim(),
                     ClientSequence = outcome.ClientSequence,
+                    DurationMs = normalizedDurationMs,
                     PayloadHash = payloadHash,
                     DataKeyId = dataKeyId,
                     EncryptedBlob = encrypted,
-                    CreatedUtc = DateTimeOffset.UtcNow
+                    CreatedUtc = createdUtc
                 });
 
                 dbContext.KeyEntryBindings.Add(new KeyEntryBinding
@@ -4451,7 +4784,34 @@ public static class CogitaEndpoints
                     EntryId = outcomeId,
                     EntryType = "cogita-review-outcome",
                     EntrySubtype = outcome.RevisionType ?? string.Empty,
-                    CreatedUtc = DateTimeOffset.UtcNow
+                    CreatedUtc = createdUtc
+                });
+
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ScopeType = normalizedType,
+                    ScopeId = outcome.ItemId,
+                    SourceType = "review",
+                    SessionId = null,
+                    PersonRoleId = reviewerRoleId,
+                    ParticipantId = null,
+                    ParticipantLabel = null,
+                    ItemType = normalizedType,
+                    ItemId = outcome.ItemId,
+                    CheckType = outcome.CheckType?.Trim().ToLowerInvariant(),
+                    Direction = string.IsNullOrWhiteSpace(outcome.Direction) ? null : outcome.Direction.Trim().ToLowerInvariant(),
+                    EventType = "review_outcome_saved",
+                    RoundIndex = null,
+                    CardKey = null,
+                    IsCorrect = outcome.Correct,
+                    Correctness = ResolveCorrectnessValue(outcome.MaskBase64, outcome.Correct),
+                    PointsAwarded = null,
+                    DurationMs = normalizedDurationMs,
+                    IsPersistent = true,
+                    PayloadJson = null,
+                    CreatedUtc = createdUtc
                 });
 
                 stored += 1;
@@ -5064,6 +5424,27 @@ public static class CogitaEndpoints
             };
 
             dbContext.CogitaLiveRevisionSessions.Add(entity);
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                ScopeType = "live-session",
+                ScopeId = entity.Id,
+                SourceType = "live-session",
+                SessionId = entity.Id,
+                ItemType = null,
+                ItemId = null,
+                EventType = "live_session_created",
+                IsPersistent = false,
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    revisionId = revision.Id,
+                    collectionId = targetCollectionId,
+                    request.SessionMode,
+                    request.Title
+                }),
+                CreatedUtc = now
+            });
             await dbContext.SaveChangesAsync(ct);
 
             var response = await BuildLiveRevisionHostSessionResponseAsync(
@@ -5469,6 +5850,9 @@ public static class CogitaEndpoints
             var reloginRequests = await dbContext.CogitaLiveRevisionReloginRequests
                 .Where(x => x.SessionId == liveSession.Id)
                 .ToListAsync(ct);
+            var statisticsEvents = await dbContext.CogitaStatisticEvents
+                .Where(x => x.SessionId == liveSession.Id)
+                .ToListAsync(ct);
 
             if (answers.Count > 0)
             {
@@ -5481,6 +5865,10 @@ public static class CogitaEndpoints
             if (participants.Count > 0)
             {
                 dbContext.CogitaLiveRevisionParticipants.RemoveRange(participants);
+            }
+            if (statisticsEvents.Count > 0)
+            {
+                dbContext.CogitaStatisticEvents.RemoveRange(statisticsEvents);
             }
 
             dbContext.CogitaLiveRevisionSessions.Remove(liveSession);
@@ -5677,6 +6065,11 @@ public static class CogitaEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
+            var previousStatus = session.Status;
+            var previousRoundIndex = session.CurrentRoundIndex;
+            var previousRevealVersion = session.RevealVersion;
+            var previousPromptJson = session.CurrentPromptJson;
+            var previousRevealJson = session.CurrentRevealJson;
             session.Status = status;
             session.CurrentRoundIndex = requestedRoundIndex;
             session.RevealVersion = requestedRevealVersion;
@@ -5694,6 +6087,79 @@ public static class CogitaEndpoints
             if (status == "closed")
             {
                 session.FinishedUtc ??= now;
+            }
+
+            if (!string.Equals(previousStatus, status, StringComparison.Ordinal))
+            {
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ScopeType = "live-session",
+                    ScopeId = session.Id,
+                    SourceType = "live-session",
+                    SessionId = session.Id,
+                    EventType = "live_session_status_changed",
+                    RoundIndex = requestedRoundIndex,
+                    IsPersistent = false,
+                    PayloadJson = JsonSerializer.Serialize(new
+                    {
+                        from = previousStatus,
+                        to = status,
+                        previousRoundIndex,
+                        previousRevealVersion
+                    }),
+                    CreatedUtc = now
+                });
+            }
+
+            var isNewRoundPrompt = requestedRoundIndex > previousRoundIndex ||
+                                   (requestedRoundIndex == previousRoundIndex && string.IsNullOrWhiteSpace(previousPromptJson));
+            if (isNewRoundPrompt &&
+                !string.Equals(previousPromptJson, session.CurrentPromptJson, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(session.CurrentPromptJson))
+            {
+                var (itemType, itemId, checkType, direction, cardKey) = ResolveCardIdentityFromPromptJson(session.CurrentPromptJson);
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ScopeType = "live-session",
+                    ScopeId = session.Id,
+                    SourceType = "live-session",
+                    SessionId = session.Id,
+                    ItemType = itemType,
+                    ItemId = itemId,
+                    CheckType = checkType,
+                    Direction = direction,
+                    EventType = "live_round_published",
+                    RoundIndex = requestedRoundIndex,
+                    CardKey = cardKey,
+                    IsPersistent = false,
+                    PayloadJson = null,
+                    CreatedUtc = now
+                });
+            }
+
+            var isNewReveal = requestedRevealVersion > previousRevealVersion;
+            if (isNewReveal &&
+                !string.Equals(previousRevealJson, session.CurrentRevealJson, StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(session.CurrentRevealJson))
+            {
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ScopeType = "live-session",
+                    ScopeId = session.Id,
+                    SourceType = "live-session",
+                    SessionId = session.Id,
+                    EventType = "live_round_revealed",
+                    RoundIndex = requestedRoundIndex,
+                    IsPersistent = false,
+                    PayloadJson = null,
+                    CreatedUtc = now
+                });
             }
 
             await dbContext.SaveChangesAsync(ct);
@@ -5755,6 +6221,18 @@ public static class CogitaEndpoints
             session.Status = "closed";
             session.UpdatedUtc = now;
             session.FinishedUtc ??= now;
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                ScopeType = "live-session",
+                ScopeId = session.Id,
+                SourceType = "live-session",
+                SessionId = session.Id,
+                EventType = "live_session_closed",
+                IsPersistent = false,
+                CreatedUtc = now
+            });
             await dbContext.SaveChangesAsync(ct);
 
             var response = await BuildLiveRevisionHostSessionResponseAsync(session, null, null, dataProtectionProvider, dbContext, ct);
@@ -5823,10 +6301,14 @@ public static class CogitaEndpoints
             var reloginRequests = await dbContext.CogitaLiveRevisionReloginRequests
                 .Where(x => x.SessionId == session.Id)
                 .ToListAsync(ct);
+            var statisticsEvents = await dbContext.CogitaStatisticEvents
+                .Where(x => x.SessionId == session.Id)
+                .ToListAsync(ct);
 
             dbContext.CogitaLiveRevisionAnswers.RemoveRange(answers);
             dbContext.CogitaLiveRevisionReloginRequests.RemoveRange(reloginRequests);
             dbContext.CogitaLiveRevisionParticipants.RemoveRange(participants);
+            dbContext.CogitaStatisticEvents.RemoveRange(statisticsEvents);
 
             var now = DateTimeOffset.UtcNow;
             session.Status = "lobby";
@@ -5929,6 +6411,17 @@ public static class CogitaEndpoints
                 .Where(x => x.SessionId == sessionId && participantIds.Contains(x.Id))
                 .ToListAsync(ct);
             var participantById = participants.ToDictionary(x => x.Id);
+            var userIds = participants
+                .Where(x => x.UserId.HasValue && x.UserId.Value != Guid.Empty)
+                .Select(x => x.UserId!.Value)
+                .Distinct()
+                .ToList();
+            var personRoleByUser = userIds.Count == 0
+                ? new Dictionary<Guid, Guid>()
+                : await dbContext.UserAccounts.AsNoTracking()
+                    .Where(x => userIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.MasterRoleId })
+                    .ToDictionaryAsync(x => x.Id, x => x.MasterRoleId, ct);
 
             var roundIndex = liveSession.CurrentRoundIndex;
             var answers = await dbContext.CogitaLiveRevisionAnswers
@@ -5965,6 +6458,68 @@ public static class CogitaEndpoints
                     answer.IsCorrect = delta.IsCorrect;
                     answer.PointsAwarded = delta.PointsAwarded;
                     answer.UpdatedUtc = now;
+
+                    var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
+                    dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                    {
+                        Id = Guid.NewGuid(),
+                        LibraryId = liveSession.LibraryId,
+                        ScopeType = "live-session",
+                        ScopeId = liveSession.Id,
+                        SourceType = "live-session",
+                        SessionId = liveSession.Id,
+                        PersonRoleId = null,
+                        ParticipantId = participant.Id,
+                        ParticipantLabel = null,
+                        ItemType = itemType,
+                        ItemId = itemId,
+                        CheckType = checkType,
+                        Direction = direction,
+                        EventType = "live_answer_scored",
+                        RoundIndex = roundIndex,
+                        CardKey = answer.CardKey,
+                        IsCorrect = delta.IsCorrect,
+                        Correctness = delta.IsCorrect.HasValue ? (delta.IsCorrect.Value ? 1d : 0d) : null,
+                        PointsAwarded = delta.PointsAwarded,
+                        DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
+                        IsPersistent = false,
+                        PayloadJson = null,
+                        CreatedUtc = now
+                    });
+
+                    if (participant.UserId.HasValue &&
+                        participant.UserId.Value != Guid.Empty &&
+                        personRoleByUser.TryGetValue(participant.UserId.Value, out var personRoleId) &&
+                        !string.IsNullOrWhiteSpace(itemType) &&
+                        itemId.HasValue)
+                    {
+                        dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                        {
+                            Id = Guid.NewGuid(),
+                            LibraryId = liveSession.LibraryId,
+                            ScopeType = itemType!,
+                            ScopeId = itemId.Value,
+                            SourceType = "live-session-person",
+                            SessionId = liveSession.Id,
+                            PersonRoleId = personRoleId,
+                            ParticipantId = participant.Id,
+                            ParticipantLabel = null,
+                            ItemType = itemType,
+                            ItemId = itemId,
+                            CheckType = checkType,
+                            Direction = direction,
+                            EventType = "live_answer_scored_personal",
+                            RoundIndex = roundIndex,
+                            CardKey = answer.CardKey,
+                            IsCorrect = delta.IsCorrect,
+                            Correctness = delta.IsCorrect.HasValue ? (delta.IsCorrect.Value ? 1d : 0d) : null,
+                            PointsAwarded = delta.PointsAwarded,
+                            DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
+                            IsPersistent = true,
+                            PayloadJson = null,
+                            CreatedUtc = now
+                        });
+                    }
                 }
             }
 
@@ -6017,6 +6572,28 @@ public static class CogitaEndpoints
             }
 
             liveSession.UpdatedUtc = now;
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = liveSession.LibraryId,
+                ScopeType = "live-session",
+                ScopeId = liveSession.Id,
+                SourceType = "live-session",
+                SessionId = liveSession.Id,
+                EventType = "live_round_scored",
+                RoundIndex = roundIndex,
+                IsCorrect = null,
+                Correctness = knownessSampleSize > 0 ? knownessCorrectCount / (double)knownessSampleSize : null,
+                PointsAwarded = scoreItems.Sum(x => x.PointsAwarded),
+                IsPersistent = false,
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    knownessSampleSize,
+                    knownessCorrectCount,
+                    knownessAveragePercent
+                }),
+                CreatedUtc = now
+            });
             await dbContext.SaveChangesAsync(ct);
 
             var response = await BuildLiveRevisionHostSessionResponseAsync(liveSession, null, null, dataProtectionProvider, dbContext, ct);
@@ -6148,9 +6725,13 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var nameHash = HashToken(name);
 
-            var exists = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
-                .AnyAsync(x => x.SessionId == liveSession.Id && x.DisplayName == name, ct);
+            var exists = (await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                    .Where(x => x.SessionId == liveSession.Id)
+                    .Select(x => new { x.DisplayName, x.DisplayNameHash })
+                    .ToListAsync(ct))
+                .Any(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
             if (exists)
             {
                 return Results.Conflict(new { error = "Name already used in this live session." });
@@ -6162,7 +6743,9 @@ public static class CogitaEndpoints
             {
                 Id = Guid.NewGuid(),
                 SessionId = liveSession.Id,
-                DisplayName = name,
+                DisplayName = "[encrypted]",
+                DisplayNameHash = nameHash,
+                DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, liveSession.Id, "participant-name"),
                 UserId = null,
                 JoinTokenHash = HashToken(participantToken),
                 Score = 0,
@@ -6172,6 +6755,20 @@ public static class CogitaEndpoints
             };
 
             dbContext.CogitaLiveRevisionParticipants.Add(participant);
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = liveSession.LibraryId,
+                ScopeType = "live-session",
+                ScopeId = liveSession.Id,
+                SourceType = "live-session",
+                SessionId = liveSession.Id,
+                ParticipantId = participant.Id,
+                ParticipantLabel = null,
+                EventType = "live_participant_created_by_host",
+                IsPersistent = false,
+                CreatedUtc = now
+            });
             liveSession.UpdatedUtc = now;
             await dbContext.SaveChangesAsync(ct);
 
@@ -6240,12 +6837,23 @@ public static class CogitaEndpoints
             var answers = await dbContext.CogitaLiveRevisionAnswers
                 .Where(x => x.SessionId == liveSession.Id && x.ParticipantId == participantId)
                 .ToListAsync(ct);
-            var reloginRequests = await dbContext.CogitaLiveRevisionReloginRequests
-                .Where(x => x.SessionId == liveSession.Id && x.DisplayName == participant.DisplayName)
+            var reloginRequestCandidates = await dbContext.CogitaLiveRevisionReloginRequests
+                .Where(x => x.SessionId == liveSession.Id)
+                .ToListAsync(ct);
+            var reloginRequests = reloginRequestCandidates
+                .Where(x => MatchesStoredLiveName(
+                    x.DisplayName,
+                    x.DisplayNameHash,
+                    participant.DisplayName,
+                    participant.DisplayNameHash))
+                .ToList();
+            var participantStatistics = await dbContext.CogitaStatisticEvents
+                .Where(x => x.SessionId == liveSession.Id && x.ParticipantId == participantId)
                 .ToListAsync(ct);
 
             dbContext.CogitaLiveRevisionAnswers.RemoveRange(answers);
             dbContext.CogitaLiveRevisionReloginRequests.RemoveRange(reloginRequests);
+            dbContext.CogitaStatisticEvents.RemoveRange(participantStatistics);
             dbContext.CogitaLiveRevisionParticipants.Remove(participant);
             liveSession.UpdatedUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(ct);
@@ -6258,6 +6866,7 @@ public static class CogitaEndpoints
             string code,
             CogitaLiveRevisionJoinRequest request,
             HttpContext context,
+            IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -6277,9 +6886,12 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var nameHash = HashToken(name);
 
-            var existingParticipant = await dbContext.CogitaLiveRevisionParticipants
-                .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.DisplayName == name, ct);
+            var existingParticipant = (await dbContext.CogitaLiveRevisionParticipants
+                    .Where(x => x.SessionId == session.Id)
+                    .ToListAsync(ct))
+                .FirstOrDefault(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
             if (existingParticipant is not null)
             {
                 var nowApproved = DateTimeOffset.UtcNow;
@@ -6288,10 +6900,27 @@ public static class CogitaEndpoints
                 existingParticipant.IsConnected = true;
                 existingParticipant.UserId = EndpointHelpers.TryGetUserId(context, out var reloginUserId) ? reloginUserId : existingParticipant.UserId;
                 existingParticipant.UpdatedUtc = nowApproved;
+                existingParticipant.DisplayNameHash = nameHash;
+                existingParticipant.DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "participant-name");
+                existingParticipant.DisplayName = "[encrypted]";
                 session.UpdatedUtc = nowApproved;
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = session.LibraryId,
+                    ScopeType = "live-session",
+                    ScopeId = session.Id,
+                    SourceType = "live-session",
+                    SessionId = session.Id,
+                    ParticipantId = existingParticipant.Id,
+                    ParticipantLabel = null,
+                    EventType = "live_participant_rejoined",
+                    IsPersistent = false,
+                    CreatedUtc = nowApproved
+                });
                 await dbContext.SaveChangesAsync(ct);
 
-                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, reloginParticipantToken, existingParticipant.DisplayName));
+                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, reloginParticipantToken, name));
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -6300,7 +6929,9 @@ public static class CogitaEndpoints
             {
                 Id = Guid.NewGuid(),
                 SessionId = session.Id,
-                DisplayName = name,
+                DisplayName = "[encrypted]",
+                DisplayNameHash = nameHash,
+                DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "participant-name"),
                 UserId = EndpointHelpers.TryGetUserId(context, out var userId) ? userId : null,
                 JoinTokenHash = HashToken(participantToken),
                 Score = 0,
@@ -6309,14 +6940,29 @@ public static class CogitaEndpoints
                 UpdatedUtc = now
             };
             dbContext.CogitaLiveRevisionParticipants.Add(participant);
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = session.LibraryId,
+                ScopeType = "live-session",
+                ScopeId = session.Id,
+                SourceType = "live-session",
+                SessionId = session.Id,
+                ParticipantId = participant.Id,
+                ParticipantLabel = null,
+                EventType = "live_participant_joined",
+                IsPersistent = false,
+                CreatedUtc = now
+            });
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, participant.Id, participantToken, participant.DisplayName));
+            return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, participant.Id, participantToken, name));
         }).AllowAnonymous();
 
         group.MapPost("/public/live-revision/{code}/relogin-request", async (
             string code,
             CogitaLiveRevisionReloginRequestCreateRequest request,
+            IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -6336,18 +6982,23 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var nameHash = HashToken(name);
 
-            var participantExists = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
-                .AnyAsync(x => x.SessionId == session.Id && x.DisplayName == name, ct);
+            var participantExists = (await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id)
+                    .Select(x => new { x.DisplayName, x.DisplayNameHash })
+                    .ToListAsync(ct))
+                .Any(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
             if (!participantExists)
             {
                 return Results.NotFound(new { error = "Participant not found." });
             }
 
-            var reloginRequest = await dbContext.CogitaLiveRevisionReloginRequests
-                .Where(x => x.SessionId == session.Id && x.DisplayName == name && (x.Status == "pending" || x.Status == "approved"))
-                .OrderByDescending(x => x.RequestedUtc)
-                .FirstOrDefaultAsync(ct);
+            var reloginRequest = (await dbContext.CogitaLiveRevisionReloginRequests
+                    .Where(x => x.SessionId == session.Id && (x.Status == "pending" || x.Status == "approved"))
+                    .OrderByDescending(x => x.RequestedUtc)
+                    .ToListAsync(ct))
+                .FirstOrDefault(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
 
             if (reloginRequest is null)
             {
@@ -6356,7 +7007,9 @@ public static class CogitaEndpoints
                 {
                     Id = Guid.NewGuid(),
                     SessionId = session.Id,
-                    DisplayName = name,
+                    DisplayName = "[encrypted]",
+                    DisplayNameHash = nameHash,
+                    DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "relogin-name"),
                     Status = "pending",
                     RequestedUtc = now,
                     UpdatedUtc = now,
@@ -6366,18 +7019,28 @@ public static class CogitaEndpoints
                 session.UpdatedUtc = now;
                 await dbContext.SaveChangesAsync(ct);
             }
+            else if (reloginRequest.DisplayNameHash is null || string.IsNullOrWhiteSpace(reloginRequest.DisplayNameCipher))
+            {
+                reloginRequest.DisplayNameHash = nameHash;
+                reloginRequest.DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "relogin-name");
+                reloginRequest.DisplayName = "[encrypted]";
+                reloginRequest.UpdatedUtc = DateTimeOffset.UtcNow;
+                session.UpdatedUtc = reloginRequest.UpdatedUtc;
+                await dbContext.SaveChangesAsync(ct);
+            }
 
             return Results.Ok(new CogitaLiveRevisionReloginRequestCreateResponse(
                 session.Id,
                 reloginRequest.Id,
                 reloginRequest.Status,
-                reloginRequest.DisplayName
+                name
             ));
         }).AllowAnonymous();
 
         group.MapGet("/public/live-revision/{code}/relogin-request/{requestId:guid}", async (
             string code,
             Guid requestId,
+            IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -6397,7 +7060,7 @@ public static class CogitaEndpoints
 
             return Results.Ok(new CogitaLiveRevisionReloginRequestResponse(
                 reloginRequest.Id,
-                reloginRequest.DisplayName,
+                ResolveLiveReloginDisplayName(reloginRequest, dataProtectionProvider, session.Id),
                 reloginRequest.Status,
                 reloginRequest.RequestedUtc,
                 reloginRequest.ApprovedUtc
@@ -6407,6 +7070,7 @@ public static class CogitaEndpoints
         group.MapGet("/public/live-revision/{code}/state", async (
             string code,
             string? participantToken,
+            IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -6417,9 +7081,9 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
-            var scoreboard = await BuildLiveRevisionScoreboardAsync(session.Id, dbContext, ct);
-            var scoreHistory = await BuildLiveRevisionScoreHistoryAsync(session.Id, dbContext, ct);
-            var correctnessHistory = await BuildLiveRevisionCorrectnessHistoryAsync(session.Id, dbContext, ct);
+            var scoreboard = await BuildLiveRevisionScoreboardAsync(session.Id, dataProtectionProvider, dbContext, ct);
+            var scoreHistory = await BuildLiveRevisionScoreHistoryAsync(session.Id, dataProtectionProvider, dbContext, ct);
+            var correctnessHistory = await BuildLiveRevisionCorrectnessHistoryAsync(session.Id, dataProtectionProvider, dbContext, ct);
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
 
             var answerSubmitted = false;
@@ -6432,7 +7096,7 @@ public static class CogitaEndpoints
                 if (participant is not null)
                 {
                     participantId = participant.Id;
-                    participantName = participant.DisplayName;
+                    participantName = ResolveLiveParticipantDisplayName(participant, dataProtectionProvider, session.Id);
                     answerSubmitted = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .AnyAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex, ct);
                 }
@@ -6461,6 +7125,7 @@ public static class CogitaEndpoints
         group.MapPost("/public/live-revision/{code}/answer", async (
             string code,
             CogitaLiveRevisionAnswerSubmitRequest request,
+            IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
@@ -6474,6 +7139,10 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Live session is not accepting answers." });
             }
+            if (request.RoundIndex != session.CurrentRoundIndex)
+            {
+                return Results.BadRequest(new { error = "Round index does not match current live round." });
+            }
 
             var participant = await dbContext.CogitaLiveRevisionParticipants
                 .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(request.ParticipantToken), ct);
@@ -6483,7 +7152,20 @@ public static class CogitaEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
-            var roundIndex = Math.Max(0, request.RoundIndex);
+            var roundIndex = session.CurrentRoundIndex;
+            var currentPromptCardKey = ResolveCardIdentityFromPromptJson(session.CurrentPromptJson).CardKey;
+            var normalizedCardKey = string.IsNullOrWhiteSpace(currentPromptCardKey)
+                ? (string.IsNullOrWhiteSpace(request.CardKey) ? null : request.CardKey.Trim())
+                : currentPromptCardKey;
+            if (!string.IsNullOrWhiteSpace(currentPromptCardKey) &&
+                !string.IsNullOrWhiteSpace(request.CardKey) &&
+                !string.Equals(request.CardKey.Trim(), currentPromptCardKey, StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new { error = "Card key does not match current live prompt." });
+            }
+            var protectedAnswerJson = request.Answer.HasValue
+                ? ProtectLiveSessionScopedJson(request.Answer.Value.GetRawText(), dataProtectionProvider, session.Id)
+                : null;
             var answer = await dbContext.CogitaLiveRevisionAnswers
                 .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == roundIndex, ct);
             if (answer is null)
@@ -6494,8 +7176,8 @@ public static class CogitaEndpoints
                     SessionId = session.Id,
                     ParticipantId = participant.Id,
                     RoundIndex = roundIndex,
-                    CardKey = string.IsNullOrWhiteSpace(request.CardKey) ? null : request.CardKey.Trim(),
-                    AnswerJson = request.Answer.HasValue ? request.Answer.Value.GetRawText() : null,
+                    CardKey = normalizedCardKey,
+                    AnswerJson = protectedAnswerJson,
                     IsCorrect = null,
                     PointsAwarded = 0,
                     SubmittedUtc = now,
@@ -6505,12 +7187,86 @@ public static class CogitaEndpoints
             }
             else
             {
-                answer.CardKey = string.IsNullOrWhiteSpace(request.CardKey) ? answer.CardKey : request.CardKey.Trim();
-                answer.AnswerJson = request.Answer.HasValue ? request.Answer.Value.GetRawText() : answer.AnswerJson;
+                answer.CardKey = normalizedCardKey ?? answer.CardKey;
+                answer.AnswerJson = protectedAnswerJson ?? answer.AnswerJson;
                 answer.UpdatedUtc = now;
             }
             participant.IsConnected = true;
             participant.UpdatedUtc = now;
+
+            var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
+            var promptStartUtc = ResolvePromptStartUtc(session.CurrentPromptJson);
+            var durationMs = promptStartUtc.HasValue
+                ? (int?)Math.Max(0, (int)Math.Round((now - promptStartUtc.Value).TotalMilliseconds))
+                : null;
+            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = session.LibraryId,
+                ScopeType = "live-session",
+                ScopeId = session.Id,
+                SourceType = "live-session",
+                SessionId = session.Id,
+                PersonRoleId = null,
+                ParticipantId = participant.Id,
+                ParticipantLabel = null,
+                ItemType = itemType,
+                ItemId = itemId,
+                CheckType = checkType,
+                Direction = direction,
+                EventType = "live_answer_submitted",
+                RoundIndex = roundIndex,
+                CardKey = answer.CardKey,
+                IsCorrect = null,
+                Correctness = null,
+                PointsAwarded = null,
+                DurationMs = durationMs,
+                IsPersistent = false,
+                PayloadJson = null,
+                CreatedUtc = now
+            });
+
+            if (participant.UserId.HasValue &&
+                participant.UserId.Value != Guid.Empty &&
+                !string.IsNullOrWhiteSpace(itemType) &&
+                itemId.HasValue)
+            {
+                var personRoleId = await dbContext.UserAccounts.AsNoTracking()
+                    .Where(x => x.Id == participant.UserId.Value)
+                    .Select(x => x.MasterRoleId)
+                    .FirstOrDefaultAsync(ct);
+
+                if (personRoleId != Guid.Empty)
+                {
+                    dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                    {
+                        Id = Guid.NewGuid(),
+                        LibraryId = session.LibraryId,
+                        ScopeType = itemType!,
+                        ScopeId = itemId.Value,
+                        SourceType = "live-session-person",
+                        SessionId = session.Id,
+                        PersonRoleId = personRoleId,
+                        ParticipantId = participant.Id,
+                        ParticipantLabel = null,
+                        ItemType = itemType,
+                        ItemId = itemId,
+                        CheckType = checkType,
+                        Direction = direction,
+                        EventType = "live_answer_submitted_personal",
+                        RoundIndex = roundIndex,
+                        CardKey = answer.CardKey,
+                        IsCorrect = null,
+                        Correctness = null,
+                        PointsAwarded = null,
+                        DurationMs = durationMs,
+                        IsPersistent = true,
+                        PayloadJson = null,
+                        CreatedUtc = now
+                    });
+                }
+            }
+
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
         }).AllowAnonymous();
@@ -10200,6 +10956,20 @@ public static class CogitaEndpoints
             if (outcomes.Count > 0)
             {
                 dbContext.CogitaReviewOutcomes.RemoveRange(outcomes);
+            }
+            var reviewEvents = await dbContext.CogitaReviewEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "connection" && x.ItemId == connectionId)
+                .ToListAsync(ct);
+            if (reviewEvents.Count > 0)
+            {
+                dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
+            }
+            var statisticEvents = await dbContext.CogitaStatisticEvents
+                .Where(x => x.LibraryId == libraryId && x.ItemType == "connection" && x.ItemId == connectionId)
+                .ToListAsync(ct);
+            if (statisticEvents.Count > 0)
+            {
+                dbContext.CogitaStatisticEvents.RemoveRange(statisticEvents);
             }
 
             dbContext.CogitaConnections.Remove(connection);
@@ -14867,6 +15637,22 @@ public static class CogitaEndpoints
         return actual.Length == hash.Length && CryptographicOperations.FixedTimeEquals(actual, hash);
     }
 
+    private static bool MatchesStoredLiveName(string? storedName, byte[]? storedNameHash, string? requestedName, byte[]? requestedNameHash)
+    {
+        if (storedNameHash is { Length: > 0 } && requestedNameHash is { Length: > 0 })
+        {
+            return storedNameHash.Length == requestedNameHash.Length &&
+                   CryptographicOperations.FixedTimeEquals(storedNameHash, requestedNameHash);
+        }
+
+        if (string.IsNullOrWhiteSpace(storedName) || string.IsNullOrWhiteSpace(requestedName))
+        {
+            return false;
+        }
+
+        return string.Equals(storedName.Trim(), requestedName.Trim(), StringComparison.Ordinal);
+    }
+
     private static string GenerateAlphaNumericCode(int length)
     {
         if (length <= 0)
@@ -15078,6 +15864,124 @@ public static class CogitaEndpoints
         }
     }
 
+    private static string? ProtectLiveSessionScopedJson(string? plainJson, IDataProtectionProvider dataProtectionProvider, Guid sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(plainJson))
+        {
+            return null;
+        }
+
+        var protector = dataProtectionProvider.CreateProtector("cogita", "live-session", "answer-json", sessionId.ToString("N"));
+        return $"enc1:{protector.Protect(plainJson)}";
+    }
+
+    private static string? ProtectLiveSessionScopedText(
+        string? plainText,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId,
+        string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(plainText))
+        {
+            return null;
+        }
+
+        var protector = dataProtectionProvider.CreateProtector("cogita", "live-session", purpose, sessionId.ToString("N"));
+        return $"enc1:{protector.Protect(plainText)}";
+    }
+
+    private static string? UnprotectLiveSessionScopedJson(string? storedValue, IDataProtectionProvider dataProtectionProvider, Guid sessionId)
+    {
+        if (string.IsNullOrWhiteSpace(storedValue))
+        {
+            return null;
+        }
+
+        if (!storedValue.StartsWith("enc1:", StringComparison.Ordinal))
+        {
+            return storedValue;
+        }
+
+        try
+        {
+            var protector = dataProtectionProvider.CreateProtector("cogita", "live-session", "answer-json", sessionId.ToString("N"));
+            var cipher = storedValue["enc1:".Length..];
+            return protector.Unprotect(cipher);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    private static string? UnprotectLiveSessionScopedText(
+        string? storedValue,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId,
+        string purpose)
+    {
+        if (string.IsNullOrWhiteSpace(storedValue))
+        {
+            return null;
+        }
+
+        if (!storedValue.StartsWith("enc1:", StringComparison.Ordinal))
+        {
+            return storedValue;
+        }
+
+        try
+        {
+            var protector = dataProtectionProvider.CreateProtector("cogita", "live-session", purpose, sessionId.ToString("N"));
+            var cipher = storedValue["enc1:".Length..];
+            return protector.Unprotect(cipher);
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    private static string ResolveLiveParticipantDisplayName(
+        CogitaLiveRevisionParticipant participant,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId)
+    {
+        var decrypted = UnprotectLiveSessionScopedText(participant.DisplayNameCipher, dataProtectionProvider, sessionId, "participant-name");
+        if (!string.IsNullOrWhiteSpace(decrypted))
+        {
+            return decrypted.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(participant.DisplayName) &&
+            !string.Equals(participant.DisplayName, "[encrypted]", StringComparison.OrdinalIgnoreCase))
+        {
+            return participant.DisplayName.Trim();
+        }
+
+        return participant.Id.ToString("N")[..8];
+    }
+
+    private static string ResolveLiveReloginDisplayName(
+        CogitaLiveRevisionReloginRequest request,
+        IDataProtectionProvider dataProtectionProvider,
+        Guid sessionId)
+    {
+        var decrypted = UnprotectLiveSessionScopedText(request.DisplayNameCipher, dataProtectionProvider, sessionId, "relogin-name");
+        if (!string.IsNullOrWhiteSpace(decrypted))
+        {
+            return decrypted.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.DisplayName) &&
+            !string.Equals(request.DisplayName, "[encrypted]", StringComparison.OrdinalIgnoreCase))
+        {
+            return request.DisplayName.Trim();
+        }
+
+        return request.Id.ToString("N")[..8];
+    }
+
     private static int GetLiveSessionStatusRank(string? status)
     {
         return status?.Trim().ToLowerInvariant() switch
@@ -15091,8 +15995,223 @@ public static class CogitaEndpoints
         };
     }
 
+    private static (string? ItemType, Guid? ItemId, string? CheckType, string? Direction) ParseCardIdentityFromCardKey(string? cardKey)
+    {
+        if (string.IsNullOrWhiteSpace(cardKey))
+        {
+            return (null, null, null, null);
+        }
+
+        var parts = cardKey.Split('|');
+        if (parts.Length == 0)
+        {
+            return (null, null, null, null);
+        }
+
+        if (!Guid.TryParse(parts[0], out var itemId))
+        {
+            return (null, null, null, null);
+        }
+
+        var checkType = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])
+            ? parts[1].Trim().ToLowerInvariant()
+            : null;
+        var direction = parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2])
+            ? parts[2].Trim().ToLowerInvariant()
+            : null;
+        var normalizedItemType = checkType == "connection" ? "connection" : "info";
+        return (normalizedItemType, itemId, checkType, direction);
+    }
+
+    private static (string? ItemType, Guid? ItemId, string? CheckType, string? Direction, string? CardKey) ResolveCardIdentityFromPromptJson(string? promptJson)
+    {
+        if (string.IsNullOrWhiteSpace(promptJson))
+        {
+            return (null, null, null, null, null);
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(promptJson) as JsonObject;
+            var cardKey = node?["cardKey"]?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(cardKey))
+            {
+                return (null, null, null, null, null);
+            }
+
+            var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(cardKey);
+            return (itemType, itemId, checkType, direction, cardKey);
+        }
+        catch
+        {
+            return (null, null, null, null, null);
+        }
+    }
+
+    private static DateTimeOffset? ResolvePromptStartUtc(string? promptJson)
+    {
+        if (string.IsNullOrWhiteSpace(promptJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(promptJson) as JsonObject;
+            if (node is null)
+            {
+                return null;
+            }
+
+            var candidateFields = new[]
+            {
+                "roundTimerStartedUtc",
+                "bonusTimerStartedUtc",
+                "actionTimerStartedUtc",
+                "publishedUtc",
+                "createdUtc"
+            };
+            foreach (var field in candidateFields)
+            {
+                var raw = node[field]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(raw) && DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
+                {
+                    return parsed.ToUniversalTime();
+                }
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double ResolveCorrectnessValue(string? maskBase64, bool fallbackCorrect)
+    {
+        if (!string.IsNullOrWhiteSpace(maskBase64))
+        {
+            try
+            {
+                var bytes = Convert.FromBase64String(maskBase64);
+                if (bytes.Length > 0)
+                {
+                    var sum = bytes.Sum(x => (double)x);
+                    return Math.Clamp(sum / (bytes.Length * 255d), 0d, 1d);
+                }
+            }
+            catch
+            {
+                // fall back to boolean correctness
+            }
+        }
+
+        return fallbackCorrect ? 1d : 0d;
+    }
+
+    private readonly record struct TemporalKnownessEntry(double Correctness, DateTimeOffset CreatedUtc);
+
+    private readonly record struct TemporalKnownessSummary(double Score, DateTimeOffset? LastReviewedUtc);
+
+    private static TemporalKnownessSummary ComputeKnownessSummary(IEnumerable<TemporalKnownessEntry> rawEntries, DateTimeOffset nowUtc)
+    {
+        var entries = rawEntries
+            .OrderBy(x => x.CreatedUtc)
+            .TakeLast(5)
+            .ToList();
+        if (entries.Count == 0)
+        {
+            return new TemporalKnownessSummary(0d, null);
+        }
+
+        var avgCorrectness = entries.Average(x => Math.Clamp(x.Correctness, 0d, 1d));
+        const double tauMinutes = 5d;
+        const double scale = 2d;
+        const double correctBonus = 0.15d;
+        var timeScore = 0d;
+        var bonus = 0d;
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var start = entries[i].CreatedUtc;
+            var end = i == entries.Count - 1 ? nowUtc : entries[i + 1].CreatedUtc;
+            var deltaMinutes = Math.Max(0d, (end - start).TotalMinutes);
+            var timeFactor = 1d - Math.Exp(-deltaMinutes / tauMinutes);
+            timeScore += timeFactor;
+            if (entries[i].Correctness > 0.5d)
+            {
+                bonus += correctBonus;
+            }
+        }
+
+        var knowness = avgCorrectness * timeScore * scale + bonus;
+        var lastReviewed = entries[^1].CreatedUtc;
+        var minutesSinceLast = Math.Max(0d, (nowUtc - lastReviewed).TotalMinutes);
+        const double decayTauMinutes = 60d;
+        var decay = 1d / (1d + Math.Log(1d + (minutesSinceLast / decayTauMinutes)));
+        knowness *= decay;
+
+        const double shortBoostTauMinutes = 2d;
+        const double shortBoostAmount = 5.44d;
+        if (entries.Count == 1 && entries[0].Correctness > 0.5d)
+        {
+            knowness += shortBoostAmount * Math.Exp(-minutesSinceLast / shortBoostTauMinutes);
+        }
+
+        var score = Math.Round(Math.Clamp(knowness * 100d, 0d, 100d), 2);
+        return new TemporalKnownessSummary(score, lastReviewed);
+    }
+
+    private readonly record struct StatisticsParticipantRef(
+        string Key,
+        string Kind,
+        Guid? PersonRoleId,
+        Guid? ParticipantId,
+        string Label);
+
+    private sealed class StatisticsParticipantState
+    {
+        public StatisticsParticipantState(StatisticsParticipantRef participant)
+        {
+            Participant = participant;
+        }
+
+        public StatisticsParticipantRef Participant { get; }
+        public int EventCount { get; set; }
+        public int AnswerCount { get; set; }
+        public int CorrectCount { get; set; }
+        public double CorrectnessSum { get; set; }
+        public int TotalPoints { get; set; }
+        public DateTimeOffset? LastActivityUtc { get; set; }
+        public List<TemporalKnownessEntry> KnownessEntries { get; } = new();
+    }
+
+    private static StatisticsParticipantRef ResolveStatisticsParticipantRef(CogitaStatisticEvent statisticEvent)
+    {
+        if (statisticEvent.PersonRoleId.HasValue && statisticEvent.PersonRoleId.Value != Guid.Empty)
+        {
+            var roleId = statisticEvent.PersonRoleId.Value;
+            var label = !string.IsNullOrWhiteSpace(statisticEvent.ParticipantLabel)
+                ? statisticEvent.ParticipantLabel!
+                : $"Role {roleId.ToString("N")[..8]}";
+            return new StatisticsParticipantRef($"person:{roleId:N}", "person", roleId, null, label);
+        }
+
+        if (statisticEvent.ParticipantId.HasValue && statisticEvent.ParticipantId.Value != Guid.Empty)
+        {
+            var participantId = statisticEvent.ParticipantId.Value;
+            var label = !string.IsNullOrWhiteSpace(statisticEvent.ParticipantLabel)
+                ? statisticEvent.ParticipantLabel!
+                : $"Participant {participantId.ToString("N")[..8]}";
+            return new StatisticsParticipantRef($"participant:{participantId:N}", "participant", null, participantId, label);
+        }
+
+        return new StatisticsParticipantRef("system", "system", null, null, "System");
+    }
+
     private static async Task<List<CogitaLiveRevisionParticipantResponse>> BuildLiveRevisionParticipantsAsync(
         Guid sessionId,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
@@ -15103,7 +16222,7 @@ public static class CogitaEndpoints
 
         return participants.Select(x => new CogitaLiveRevisionParticipantResponse(
             x.Id,
-            x.DisplayName,
+            ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
             x.Score,
             x.IsConnected,
             x.JoinedUtc)).ToList();
@@ -15111,6 +16230,7 @@ public static class CogitaEndpoints
 
     private static async Task<List<CogitaLiveRevisionParticipantScoreResponse>> BuildLiveRevisionScoreboardAsync(
         Guid sessionId,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
@@ -15122,19 +16242,19 @@ public static class CogitaEndpoints
 
         return participants.Select(x => new CogitaLiveRevisionParticipantScoreResponse(
             x.Id,
-            x.DisplayName,
+            ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
             x.Score)).ToList();
     }
 
     private static async Task<List<CogitaLiveRevisionScoreHistoryPointResponse>> BuildLiveRevisionScoreHistoryAsync(
         Guid sessionId,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
         var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.JoinedUtc)
-            .Select(x => new { x.Id, x.DisplayName })
             .ToListAsync(ct);
         if (participants.Count == 0)
         {
@@ -15167,7 +16287,7 @@ public static class CogitaEndpoints
             var roundScores = participants
                 .Select(x => new CogitaLiveRevisionParticipantScoreResponse(
                     x.Id,
-                    x.DisplayName,
+                    ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
                     scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
                 .ToList();
 
@@ -15183,19 +16303,21 @@ public static class CogitaEndpoints
 
     private static async Task<List<CogitaLiveRevisionCorrectnessHistoryPointResponse>> BuildLiveRevisionCorrectnessHistoryAsync(
         Guid sessionId,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
         var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
-            .Select(x => new { x.Id, x.DisplayName })
             .ToListAsync(ct);
         if (participants.Count == 0)
         {
             return new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
         }
 
-        var participantNameById = participants.ToDictionary(x => x.Id, x => x.DisplayName);
+        var participantNameById = participants.ToDictionary(
+            x => x.Id,
+            x => ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId));
         var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.RoundIndex)
@@ -15231,6 +16353,7 @@ public static class CogitaEndpoints
 
     private static async Task<List<CogitaLiveRevisionReloginRequestResponse>> BuildLiveRevisionPendingReloginRequestsAsync(
         Guid sessionId,
+        IDataProtectionProvider dataProtectionProvider,
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
@@ -15241,7 +16364,7 @@ public static class CogitaEndpoints
 
         return requests.Select(x => new CogitaLiveRevisionReloginRequestResponse(
             x.Id,
-            x.DisplayName,
+            ResolveLiveReloginDisplayName(x, dataProtectionProvider, sessionId),
             x.Status,
             x.RequestedUtc,
             x.ApprovedUtc)).ToList();
@@ -15257,7 +16380,7 @@ public static class CogitaEndpoints
     {
         var meta = ParseLiveSessionMeta(session.SessionMetaJson);
         var resolvedCode = code ?? TryDecryptLiveSessionPublicCode(meta.EncryptedPublicCode, dataProtectionProvider) ?? string.Empty;
-        var participants = await BuildLiveRevisionParticipantsAsync(session.Id, dbContext, ct);
+        var participants = await BuildLiveRevisionParticipantsAsync(session.Id, dataProtectionProvider, dbContext, ct);
         var scoreboard = participants
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.JoinedUtc)
@@ -15271,11 +16394,11 @@ public static class CogitaEndpoints
             x.ParticipantId,
             x.RoundIndex,
             x.CardKey,
-            ParseJsonNullable(x.AnswerJson),
+            ParseJsonNullable(UnprotectLiveSessionScopedJson(x.AnswerJson, dataProtectionProvider, session.Id)),
             x.IsCorrect,
             x.PointsAwarded,
             x.SubmittedUtc)).ToList();
-        var pendingReloginRequests = await BuildLiveRevisionPendingReloginRequestsAsync(session.Id, dbContext, ct);
+        var pendingReloginRequests = await BuildLiveRevisionPendingReloginRequestsAsync(session.Id, dataProtectionProvider, dbContext, ct);
 
         return new CogitaLiveRevisionSessionResponse(
             session.Id,

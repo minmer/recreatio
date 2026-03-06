@@ -1435,6 +1435,52 @@
   min-height: 180px;
 }
 
+.sacrament-shortcuts {
+  margin-bottom: 1rem;
+}
+
+.sacrament-shortcuts-tabs {
+  margin: 0.5rem 0;
+}
+
+.sacrament-panel-content {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.sacrament-page-sections {
+  display: grid;
+  gap: 1rem;
+}
+
+.sacrament-page-sections article {
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.sacrament-page-sections article h4 {
+  margin: 0 0 0.4rem;
+}
+
+.sacrament-panel-editor {
+  margin-top: 1rem;
+}
+
+.sacrament-editor-sections {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.sacrament-editor-section {
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
 .download-list {
   list-style: none;
   padding: 0;
@@ -1990,6 +2036,64 @@
 .builder-actions .parish-login[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.confirmation-form-card,
+.confirmation-admin-card {
+  margin-top: 16px;
+}
+
+.confirmation-info {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--parish-line);
+}
+
+.confirmation-info-success {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.confirmation-info-error {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.confirmation-candidate-list {
+  display: grid;
+  gap: 12px;
+}
+
+.confirmation-candidate-item {
+  border: 1px solid var(--parish-line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--parish-surface);
+}
+
+.confirmation-candidate-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.confirmation-phone-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.confirmation-phone-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--parish-line);
 }
 
 .builder-layout {

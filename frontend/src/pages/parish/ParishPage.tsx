@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction, PointerEvent as ReactPointerEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import '../../styles/parish.css';
 import { AuthAction } from '../../components/AuthAction';
 import ReactFlow, {
@@ -19,6 +19,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../content/types';
+import { getParishSacramentContent, sacramentPanelMenuCopy, type SacramentContentKey } from '../../content/parishSacraments';
 import type { RouteKey } from '../../types/navigation';
 import {
   DndContext,
@@ -44,15 +45,20 @@ import {
   listParishMassRules,
   listParishes,
   applyParishMassRule,
+  createParishConfirmationCandidate,
   simulateParishMassRule,
+  listParishConfirmationCandidates,
   updateParishMassRule,
   updateParishSite,
+  verifyParishConfirmationPhone,
+  type ParishConfirmationCandidate,
   type ParishHomepageConfig,
   type ParishLayoutItem,
   type ParishMassRule,
   type ParishMassRuleNode,
   type ParishPublicIntention,
   type ParishPublicMass,
+  type ParishSacramentSection,
   type ParishSummary
 } from '../../lib/api';
 
@@ -61,6 +67,7 @@ type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
 type MassNodeCategory = 'filter' | 'mass' | 'intention' | 'save' | 'stop';
 type ValidationFinding = { level: 'error' | 'warning'; message: string };
+type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form';
 type MassRuleNodeData = {
   label: string;
   type: string;
@@ -813,12 +820,12 @@ const menu: MenuItem[] = [
     children: [
       { id: 'sacrament-baptism', label: 'Chrzest' },
       { id: 'sacrament-communion', label: 'I Komunia' },
-      { id: 'sacrament-confirmation', label: 'Bierzmowanie' },
       { id: 'sacrament-marriage', label: 'Małżeństwo' },
       { id: 'sacrament-funeral', label: 'Pogrzeb' },
       { id: 'sacrament-sick', label: 'Chorzy' }
     ]
   },
+  { label: 'Bierzmowanie', id: 'sacrament-confirmation' },
   {
     label: 'Wspólnoty',
     children: [
@@ -1060,6 +1067,50 @@ const sacramentDescriptions: Record<string, string> = {
   funeral: 'Pomagamy rodzinie w modlitwie i przygotowaniu liturgii pogrzebowej.',
   sick: 'Odwiedzamy chorych w domach i szpitalach, z posługą sakramentalną.'
 };
+
+const sacramentFaq: Record<string, Array<{ question: string; answer: string }>> = {
+  baptism: [
+    { question: 'Kiedy zgłosić chrzest?', answer: 'Najlepiej minimum 2 tygodnie przed planowanym terminem.' },
+    { question: 'Czy potrzebna jest metryka chrztu rodziców chrzestnych?', answer: 'Tak, jeśli pochodzą z innej parafii.' }
+  ],
+  communion: [
+    { question: 'Jak długo trwa przygotowanie?', answer: 'Przygotowanie obejmuje pełny rok formacyjny.' },
+    { question: 'Czy są obowiązkowe próby liturgiczne?', answer: 'Tak, przed uroczystością odbywają się próby.' }
+  ],
+  confirmation: [
+    { question: 'Czy można wysłać zgłoszenie online?', answer: 'Tak, przez formularz w zakładce „Formularz kandydata”.' },
+    { question: 'Czy numer telefonu trzeba potwierdzić?', answer: 'Tak, parafia wysyła link SMS do potwierdzenia numeru.' }
+  ],
+  marriage: [
+    { question: 'Ile wcześniej zgłosić ślub?', answer: 'Rekomendujemy minimum 3 miesiące przed datą ślubu.' },
+    { question: 'Czy kurs przedmałżeński jest wymagany?', answer: 'Tak, jest wymagany przed spisaniem protokołu.' }
+  ],
+  funeral: [
+    { question: 'Jakie dokumenty są potrzebne?', answer: 'Akt zgonu i podstawowe dane osoby zmarłej.' },
+    { question: 'Czy można ustalić intencję Mszy pogrzebowej?', answer: 'Tak, w kancelarii podczas ustalania terminu.' }
+  ],
+  sick: [
+    { question: 'Jak zgłosić chorego?', answer: 'Telefonicznie przez kancelarię lub numer alarmowy parafii.' },
+    { question: 'Czy sakrament jest udzielany w domu?', answer: 'Tak, po wcześniejszym ustaleniu wizyty duszpasterskiej.' }
+  ]
+};
+
+const confirmationSectionPath: Record<SacramentPanelSection, string> = {
+  overall: 'overall',
+  parish: 'parish-info',
+  faq: 'faq',
+  form: 'form'
+};
+
+const parseConfirmationSection = (value?: string | null): SacramentPanelSection => {
+  if (value === 'parish-info') return 'parish';
+  if (value === 'faq') return 'faq';
+  if (value === 'form') return 'form';
+  return 'overall';
+};
+
+const isKnownConfirmationSectionPath = (value?: string | null): boolean =>
+  value === 'overall' || value === 'parish-info' || value === 'faq' || value === 'form';
 
 const sacramentPageMap: Record<PageId, string> = {
   'sacrament-baptism': 'baptism',
@@ -1636,6 +1687,7 @@ export function ParishPage({
     onNavigate('home');
   };
   const navigate = useNavigate();
+  const location = useLocation();
   const [activePage, setActivePage] = useState<PageId>('start');
   const [menuOpen, setMenuOpen] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -1711,6 +1763,38 @@ export function ParishPage({
   const [massRulePreview, setMassRulePreview] = useState<ParishPublicMass[]>([]);
   const [selectedMassFlowNodeId, setSelectedMassFlowNodeId] = useState<string | null>(null);
   const [adminFormError, setAdminFormError] = useState<string | null>(null);
+  const [confirmationName, setConfirmationName] = useState('');
+  const [confirmationSurname, setConfirmationSurname] = useState('');
+  const [confirmationPhonesRaw, setConfirmationPhonesRaw] = useState('');
+  const [confirmationAddress, setConfirmationAddress] = useState('');
+  const [confirmationSchoolShort, setConfirmationSchoolShort] = useState('');
+  const [confirmationAcceptedRodo, setConfirmationAcceptedRodo] = useState(false);
+  const [confirmationFormError, setConfirmationFormError] = useState<string | null>(null);
+  const [confirmationFormSuccess, setConfirmationFormSuccess] = useState<string | null>(null);
+  const [confirmationVerifyInfo, setConfirmationVerifyInfo] = useState<string | null>(null);
+  const [confirmationSubmitting, setConfirmationSubmitting] = useState(false);
+  const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
+  const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
+  const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
+  const [sacramentParishEditTitle, setSacramentParishEditTitle] = useState('');
+  const [sacramentParishEditLead, setSacramentParishEditLead] = useState('');
+  const [sacramentParishEditNotice, setSacramentParishEditNotice] = useState('');
+  const [sacramentParishEditSections, setSacramentParishEditSections] = useState<ParishSacramentSection[]>([]);
+  const [sacramentParishSaving, setSacramentParishSaving] = useState(false);
+  const [sacramentParishSaveError, setSacramentParishSaveError] = useState<string | null>(null);
+  const [sacramentParishSaveInfo, setSacramentParishSaveInfo] = useState<string | null>(null);
+  const [sacramentPanelSection, setSacramentPanelSection] = useState<SacramentPanelSection>('overall');
+  const parishPathParts = useMemo(
+    () => location.pathname.split('/').filter((part) => part.length > 0),
+    [location.pathname]
+  );
+  const parishSubpage = parishPathParts[2] ?? null;
+  const isConfirmationSubpage = parishSubpage === 'confirmation';
+  const confirmationPathSection = parishPathParts[3] ?? null;
+  const confirmationPanelSection = useMemo(
+    () => parseConfirmationSection(confirmationPathSection),
+    [confirmationPathSection]
+  );
   const baseColumns = 6;
   const [gridColumns, setGridColumns] = useState(baseColumns);
   const [gridRowHeight, setGridRowHeight] = useState(90);
@@ -1957,6 +2041,63 @@ export function ParishPage({
       .catch(() => setMassRules([]));
   }, [isAuthenticated, parish?.id, selectedMassRuleId]);
 
+  const loadConfirmationCandidates = async () => {
+    if (!parish || !isAuthenticated) {
+      setConfirmationCandidates([]);
+      return;
+    }
+    try {
+      const items = await listParishConfirmationCandidates(parish.id);
+      setConfirmationCandidates(items);
+      setConfirmationCandidatesError(null);
+    } catch {
+      setConfirmationCandidates([]);
+      setConfirmationCandidatesError('Nie udało się pobrać zgłoszeń do bierzmowania.');
+    }
+  };
+
+  useEffect(() => {
+    if (!isConfirmationSubpage) {
+      setConfirmationVerifyInfo(null);
+      return;
+    }
+    if (!isKnownConfirmationSectionPath(confirmationPathSection)) return;
+    if (!parishSlug) return;
+    const token = new URLSearchParams(location.search).get('verifyPhone');
+    if (!token) return;
+    verifyParishConfirmationPhone(parishSlug, token)
+      .then((result) => {
+        if (result.status === 'verified') {
+          setConfirmationVerifyInfo('Numer telefonu został potwierdzony.');
+        } else if (result.status === 'already-verified') {
+          setConfirmationVerifyInfo('Ten numer telefonu był już wcześniej potwierdzony.');
+        } else {
+          setConfirmationVerifyInfo('Link weryfikacyjny jest nieprawidłowy.');
+        }
+      })
+      .catch(() => {
+        setConfirmationVerifyInfo('Nie udało się potwierdzić numeru telefonu.');
+      })
+      .finally(() => {
+        navigate(location.pathname, { replace: true });
+      });
+  }, [isConfirmationSubpage, confirmationPathSection, parishSlug, location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || !isAuthenticated || !parish) {
+      setConfirmationCandidates([]);
+      return;
+    }
+    void loadConfirmationCandidates();
+  }, [isConfirmationSubpage, isAuthenticated, parish?.id]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || !parishSlug) return;
+    if (isKnownConfirmationSectionPath(confirmationPathSection)) return;
+    const nextSection = location.search.includes('verifyPhone=') ? 'form' : 'overall';
+    navigate(`/parish/${parishSlug}/confirmation/${nextSection}${location.search}`, { replace: true });
+  }, [isConfirmationSubpage, parishSlug, confirmationPathSection, location.search, navigate]);
+
   useEffect(() => {
     setMassRuleConflicts([]);
     setMassRuleValidation([]);
@@ -1978,6 +2119,51 @@ export function ParishPage({
     () => sacraments.find((item) => item.id === selectedSacramentId) ?? sacraments[0],
     [selectedSacramentId]
   );
+  const selectedSacramentContent = useMemo(
+    () => getParishSacramentContent(language, selectedSacrament.id as SacramentContentKey),
+    [language, selectedSacrament.id]
+  );
+  const selectedSacramentFaq = selectedSacramentContent?.faqPage.items ?? sacramentFaq[selectedSacrament.id] ?? [];
+  const selectedSacramentParishInfo = useMemo(
+    () => [
+      `Parafia: ${parish?.name ?? 'Wybrana parafia'}.`,
+      'Szczegółowe terminy i harmonogram przygotowania publikuje kancelaria parafialna.',
+      'Dokumenty są przyjmowane w kancelarii w godzinach urzędowania.',
+      'W kolejnych etapach pojawią się dodatkowe moduły i formularze online dla pozostałych sakramentów.'
+    ],
+    [parish?.name]
+  );
+  const selectedSacramentParishPage = siteConfig?.sacramentParishPages?.[selectedSacrament.id] ?? null;
+  const selectedSacramentOverallInfo = useMemo(
+    () => [
+      sacramentDescriptions[selectedSacrament.id],
+      'Informacje ogólne mają charakter wspólny dla wszystkich parafii.',
+      ...selectedSacrament.steps.map((step) => `Etap: ${step}`)
+    ],
+    [selectedSacrament]
+  );
+  const selectedSacramentOverallPage = selectedSacramentContent?.generalPage ?? null;
+  const selectedSacramentFaqPage = selectedSacramentContent?.faqPage ?? null;
+  const selectedSacramentDisplayTitle = selectedSacramentOverallPage?.title ?? selectedSacrament.title;
+  const selectedSacramentLead = selectedSacramentOverallPage?.lead ?? sacramentDescriptions[selectedSacrament.id];
+  const selectedSacramentParishSections = selectedSacramentParishPage?.sections ?? [];
+  const sacramentMenuLabels = sacramentPanelMenuCopy[language];
+
+  useEffect(() => {
+    if (selectedSacramentParishPage) {
+      setSacramentParishEditTitle(selectedSacramentParishPage.title ?? '');
+      setSacramentParishEditLead(selectedSacramentParishPage.lead ?? '');
+      setSacramentParishEditNotice(selectedSacramentParishPage.notice ?? '');
+      setSacramentParishEditSections(selectedSacramentParishPage.sections ?? []);
+    } else {
+      setSacramentParishEditTitle('');
+      setSacramentParishEditLead('');
+      setSacramentParishEditNotice('');
+      setSacramentParishEditSections([]);
+    }
+    setSacramentParishSaveError(null);
+    setSacramentParishSaveInfo(null);
+  }, [selectedSacrament.id, selectedSacramentParishPage]);
 
   const communityData = useMemo(() => {
     if (activePage === 'community-bible' || activePage === 'community-formation') {
@@ -1986,6 +2172,9 @@ export function ParishPage({
     return null;
   }, [activePage]);
 
+  const activeSacramentPanelSection =
+    selectedSacrament.id === 'confirmation' ? confirmationPanelSection : sacramentPanelSection;
+
   const selectPage = (next: PageId) => {
     setActivePage(next);
     setMenuOpen(false);
@@ -1993,8 +2182,33 @@ export function ParishPage({
     if (sacramentPageMap[next]) {
       setSelectedSacramentId(sacramentPageMap[next]);
     }
+    if (!parishSlug) {
+      return;
+    }
+    if (next === 'sacrament-confirmation') {
+      navigate(`/parish/${parishSlug}/confirmation/overall`);
+      return;
+    }
+    if (isConfirmationSubpage) {
+      navigate(`/parish/${parishSlug}`);
+    }
+    if (next.startsWith('sacrament-')) {
+      setSacramentPanelSection('overall');
+    }
   };
   const openIntentionsPage = () => selectPage('intentions');
+
+  const openSacramentPanelSection = (section: SacramentPanelSection) => {
+    if (selectedSacrament.id === 'confirmation') {
+      if (!parishSlug) return;
+      navigate(`/parish/${parishSlug}/confirmation/${confirmationSectionPath[section]}`);
+      return;
+    }
+    if (section === 'form') {
+      return;
+    }
+    setSacramentPanelSection(section);
+  };
 
   useEffect(() => {
     if (!parishSlug) {
@@ -2008,9 +2222,14 @@ export function ParishPage({
       setParishId(nextParish.id);
       setTheme(nextParish.theme);
       setView('parish');
-      setActivePage('start');
+      if (isConfirmationSubpage) {
+        setActivePage('sacrament-confirmation');
+        setSelectedSacramentId('confirmation');
+      } else if (activePage === 'sacrament-confirmation') {
+        setActivePage('start');
+      }
     }
-  }, [parishSlug, parishOptions, view]);
+  }, [parishSlug, parishOptions, view, isConfirmationSubpage, activePage]);
 
   const renderModuleContent = (module: ParishLayoutItem, breakpoint: LayoutBreakpoint) => {
     const layout = getLayoutForBreakpoint(module, breakpoint);
@@ -2658,7 +2877,8 @@ export function ParishPage({
     try {
       setEditError(null);
       const homepage: ParishHomepageConfig = {
-        modules: editLayoutItems
+        modules: editLayoutItems,
+        sacramentParishPages: siteConfig?.sacramentParishPages ?? null
       };
       await updateParishSite(parish.id, { homepage, isPublished: true });
       setSiteConfig(homepage);
@@ -3115,6 +3335,155 @@ export function ParishPage({
       }
     } catch {
       setAdminFormError('Nie udało się zastosować reguły.');
+    }
+  };
+
+  const handleAddSacramentParishSection = () => {
+    setSacramentParishEditSections((current) => [...current, { title: '', body: '' }]);
+  };
+
+  const handleUpdateSacramentParishSection = (index: number, key: 'title' | 'body', value: string) => {
+    setSacramentParishEditSections((current) =>
+      current.map((section, sectionIndex) =>
+        sectionIndex === index
+          ? {
+              ...section,
+              [key]: value
+            }
+          : section
+      )
+    );
+  };
+
+  const handleRemoveSacramentParishSection = (index: number) => {
+    setSacramentParishEditSections((current) => current.filter((_, sectionIndex) => sectionIndex !== index));
+  };
+
+  const handleSaveSacramentParishPage = async () => {
+    if (!parish || !siteConfig) return;
+
+    const title = sacramentParishEditTitle.trim();
+    const lead = sacramentParishEditLead.trim();
+    const notice = sacramentParishEditNotice.trim();
+    const sections = sacramentParishEditSections
+      .map((section) => ({
+        title: section.title.trim(),
+        body: section.body.trim()
+      }))
+      .filter((section) => section.title.length > 0 || section.body.length > 0);
+
+    const clearRequested = title.length === 0 && lead.length === 0 && notice.length === 0 && sections.length === 0;
+
+    if (!clearRequested && (title.length === 0 || lead.length === 0 || sections.length === 0)) {
+      setSacramentParishSaveError('Aby zapisać stronę parafialną, uzupełnij tytuł, lead i co najmniej jedną sekcję.');
+      setSacramentParishSaveInfo(null);
+      return;
+    }
+
+    setSacramentParishSaving(true);
+    setSacramentParishSaveError(null);
+    setSacramentParishSaveInfo(null);
+    try {
+      const nextPages = { ...(siteConfig.sacramentParishPages ?? {}) };
+      if (clearRequested) {
+        delete nextPages[selectedSacrament.id];
+      } else {
+        nextPages[selectedSacrament.id] = {
+          title,
+          lead,
+          notice: notice || null,
+          sections
+        };
+      }
+
+      const normalizedPages = Object.keys(nextPages).length > 0 ? nextPages : null;
+      const nextHomepage: ParishHomepageConfig = {
+        ...siteConfig,
+        sacramentParishPages: normalizedPages
+      };
+
+      await updateParishSite(parish.id, {
+        homepage: nextHomepage,
+        isPublished: true
+      });
+
+      setSiteConfig(nextHomepage);
+      setSacramentParishSaveInfo(clearRequested ? 'Treść parafialna została wyczyszczona.' : 'Treść parafialna została zapisana.');
+    } catch {
+      setSacramentParishSaveError('Nie udało się zapisać treści parafialnej.');
+    } finally {
+      setSacramentParishSaving(false);
+    }
+  };
+
+  const handleSubmitConfirmationCandidate = async () => {
+    if (!parishSlug) return;
+    const phoneNumbers = confirmationPhonesRaw
+      .split('\n')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    if (
+      !confirmationName.trim() ||
+      !confirmationSurname.trim() ||
+      !confirmationAddress.trim() ||
+      !confirmationSchoolShort.trim()
+    ) {
+      setConfirmationFormError('Uzupełnij imię, nazwisko, adres i szkołę.');
+      setConfirmationFormSuccess(null);
+      return;
+    }
+    if (phoneNumbers.length === 0) {
+      setConfirmationFormError('Podaj co najmniej jeden numer telefonu.');
+      setConfirmationFormSuccess(null);
+      return;
+    }
+    if (!confirmationAcceptedRodo) {
+      setConfirmationFormError('Musisz zaakceptować RODO.');
+      setConfirmationFormSuccess(null);
+      return;
+    }
+
+    setConfirmationSubmitting(true);
+    setConfirmationFormError(null);
+    setConfirmationFormSuccess(null);
+    try {
+      await createParishConfirmationCandidate(parishSlug, {
+        name: confirmationName.trim(),
+        surname: confirmationSurname.trim(),
+        phoneNumbers,
+        address: confirmationAddress.trim(),
+        schoolShort: confirmationSchoolShort.trim(),
+        acceptedRodo: true
+      });
+      setConfirmationName('');
+      setConfirmationSurname('');
+      setConfirmationPhonesRaw('');
+      setConfirmationAddress('');
+      setConfirmationSchoolShort('');
+      setConfirmationAcceptedRodo(false);
+      setConfirmationFormSuccess('Zgłoszenie zostało wysłane.');
+      if (isAuthenticated && parish) {
+        await loadConfirmationCandidates();
+      }
+    } catch {
+      setConfirmationFormError('Nie udało się wysłać zgłoszenia.');
+    } finally {
+      setConfirmationSubmitting(false);
+    }
+  };
+
+  const handleCopyConfirmationVerificationLink = async (token: string) => {
+    if (!parishSlug || !token) return;
+    const link = `${window.location.origin}/#/parish/${parishSlug}/confirmation/form?verifyPhone=${encodeURIComponent(token)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setConfirmationCopiedToken(token);
+      window.setTimeout(() => {
+        setConfirmationCopiedToken((current) => (current === token ? null : current));
+      }, 1800);
+    } catch {
+      setConfirmationCandidatesError('Nie udało się skopiować linku weryfikacyjnego.');
     }
   };
 
@@ -5591,57 +5960,401 @@ export function ParishPage({
                 <div className="section-header">
                   <div>
                     <p className="tag">Sakramenty</p>
-                    <h2>{selectedSacrament.title}</h2>
-                    <p className="lead">{sacramentDescriptions[selectedSacrament.id]}</p>
+                    <h2>{selectedSacramentDisplayTitle}</h2>
+                    <p className="lead">{selectedSacramentLead}</p>
                   </div>
                   <button type="button" className="ghost">
                     Pobierz checklistę
                   </button>
                 </div>
-                <div className="sacrament-hero">
-                  <img src={selectedSacrament.img} alt={selectedSacrament.title} />
-                  <div className="parish-card">
-                    <h3>Kontakt w sprawie sakramentu</h3>
-                    <p className="note">Kancelaria: Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
-                    <button type="button" className="cta">
-                      Umów spotkanie
+                <div className="parish-card sacrament-shortcuts">
+                  <p className="tag">{sacramentMenuLabels.panelTitle}</p>
+                  <div className="tabs small sacrament-shortcuts-tabs">
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'overall' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('overall')}
+                    >
+                      {sacramentMenuLabels.overall}
                     </button>
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'parish' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('parish')}
+                    >
+                      {sacramentMenuLabels.parish}
+                    </button>
+                    <button
+                      type="button"
+                      className={activeSacramentPanelSection === 'faq' ? 'is-active' : undefined}
+                      onClick={() => openSacramentPanelSection('faq')}
+                    >
+                      {sacramentMenuLabels.faq}
+                    </button>
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'form' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('form')}
+                      >
+                        {sacramentMenuLabels.form}
+                      </button>
+                    )}
                   </div>
+                  <p className="muted">
+                    Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie formularz online jest dostępny dla bierzmowania.
+                  </p>
                 </div>
-                <div className="parish-card sacrament-detail">
-                  <div className="detail-columns">
-                    <div>
-                      <h4>Kroki</h4>
-                      <ol>
-                        {selectedSacrament.steps.map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div>
-                      <h4>Wymagane dokumenty</h4>
-                      <ul className="download-list">
-                        {selectedSacrament.docs.map((doc) => (
-                          <li key={doc}>
-                            <span>{doc}</span>
-                            <button type="button" className="ghost">
-                              Pobierz
+                {activeSacramentPanelSection === 'overall' && (
+                  <>
+                    {selectedSacramentOverallPage ? (
+                      <div className="parish-card sacrament-panel-content">
+                        <h3>{selectedSacramentOverallPage.title}</h3>
+                        <p className="note">{selectedSacramentOverallPage.lead}</p>
+                        <div className="sacrament-page-sections">
+                          {selectedSacramentOverallPage.sections.map((section, index) => (
+                            <article key={`${selectedSacrament.id}-overall-section-${index}`}>
+                              <h4>{section.title}</h4>
+                              <p className="note">{section.body}</p>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="sacrament-hero">
+                          <img src={selectedSacrament.img} alt={selectedSacrament.title} />
+                          <div className="parish-card">
+                            <h3>Kontakt w sprawie sakramentu</h3>
+                            <p className="note">Kancelaria: Pon.–Pt. 9:00–11:00, 16:00–18:00</p>
+                            <button type="button" className="cta">
+                              Umów spotkanie
                             </button>
-                          </li>
-                        ))}
-                      </ul>
+                          </div>
+                        </div>
+                        <div className="parish-card sacrament-detail">
+                          <div className="detail-columns">
+                            <div>
+                              <h4>Kroki</h4>
+                              <ol>
+                                {selectedSacrament.steps.map((step) => (
+                                  <li key={step}>{step}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            <div>
+                              <h4>Wymagane dokumenty</h4>
+                              <ul className="download-list">
+                                {selectedSacrament.docs.map((doc) => (
+                                  <li key={doc}>
+                                    <span>{doc}</span>
+                                    <button type="button" className="ghost">
+                                      Pobierz
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="contact-box">
+                              <h4>Informacje wspólne (ogólne)</h4>
+                              <ul className="status-list">
+                                {selectedSacramentOverallInfo.map((item, index) => (
+                                  <li key={`${selectedSacrament.id}-overall-${index}`}>
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                {activeSacramentPanelSection === 'parish' && (
+                  <>
+                    <div className="parish-card sacrament-panel-content">
+                      {selectedSacramentParishPage ? (
+                        <>
+                          <h3>{selectedSacramentParishPage.title}</h3>
+                          <p className="note">{selectedSacramentParishPage.lead}</p>
+                          {selectedSacramentParishPage.notice ? (
+                            <p className="confirmation-info confirmation-info-success">{selectedSacramentParishPage.notice}</p>
+                          ) : null}
+                          <div className="sacrament-page-sections">
+                            {selectedSacramentParishSections.map((section, index) => (
+                              <article key={`${selectedSacrament.id}-parish-section-${index}`}>
+                                <h4>{section.title}</h4>
+                                <p className="note">{section.body}</p>
+                              </article>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <h3>Informacje parafialne</h3>
+                          <ul className="status-list">
+                            {selectedSacramentParishInfo.map((item, index) => (
+                              <li key={`${selectedSacrament.id}-parish-${index}`}>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
                     </div>
-                    <div className="contact-box">
-                      <h4>Przygotowanie</h4>
-                      <p className="note">Przynieś dokumenty i ustal terminy z wyprzedzeniem.</p>
-                      <div className="chip-row">
-                        <span className="chip">Dokumenty</span>
-                        <span className="chip">Spotkanie</span>
-                        <span className="chip">Liturgia</span>
+                    {isAuthenticated && (
+                      <div className="parish-card sacrament-panel-editor">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Treść parafialna: {selectedSacrament.title}</h3>
+                          </div>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label className="admin-form-full">
+                            <span>Tytuł sekcji parafialnej</span>
+                            <input
+                              type="text"
+                              value={sacramentParishEditTitle}
+                              onChange={(event) => setSacramentParishEditTitle(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Lead (opis)</span>
+                            <textarea
+                              rows={3}
+                              value={sacramentParishEditLead}
+                              onChange={(event) => setSacramentParishEditLead(event.target.value)}
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Notatka wyróżniona (opcjonalnie)</span>
+                            <textarea
+                              rows={2}
+                              value={sacramentParishEditNotice}
+                              onChange={(event) => setSacramentParishEditNotice(event.target.value)}
+                            />
+                          </label>
+                        </div>
+                        <div className="sacrament-editor-sections">
+                          <div className="section-header">
+                            <h4>Sekcje parafialne</h4>
+                            <button type="button" className="ghost" onClick={handleAddSacramentParishSection}>
+                              Dodaj sekcję
+                            </button>
+                          </div>
+                          {sacramentParishEditSections.length === 0 ? (
+                            <p className="muted">Brak sekcji. Dodaj pierwszą sekcję lub wyczyść i zapisz.</p>
+                          ) : (
+                            sacramentParishEditSections.map((section, index) => (
+                              <article key={`${selectedSacrament.id}-editor-section-${index}`} className="sacrament-editor-section">
+                                <label>
+                                  <span>Tytuł</span>
+                                  <input
+                                    type="text"
+                                    value={section.title}
+                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'title', event.target.value)}
+                                  />
+                                </label>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={section.body}
+                                    onChange={(event) => handleUpdateSacramentParishSection(index, 'body', event.target.value)}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => handleRemoveSacramentParishSection(index)}
+                                >
+                                  Usuń sekcję
+                                </button>
+                              </article>
+                            ))
+                          )}
+                        </div>
+                        {sacramentParishSaveError ? (
+                          <p className="confirmation-info confirmation-info-error">{sacramentParishSaveError}</p>
+                        ) : null}
+                        {sacramentParishSaveInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{sacramentParishSaveInfo}</p>
+                        ) : null}
+                        <div className="builder-actions">
+                          <button
+                            type="button"
+                            className="parish-login"
+                            disabled={sacramentParishSaving}
+                            onClick={() => void handleSaveSacramentParishPage()}
+                          >
+                            {sacramentParishSaving ? 'Zapisywanie...' : 'Zapisz treść parafialną'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {activeSacramentPanelSection === 'faq' && (
+                  <div className="parish-card sacrament-panel-content">
+                    <h3>{selectedSacramentFaqPage?.title ?? 'FAQ (ogólne)'}</h3>
+                    {selectedSacramentFaqPage?.lead ? <p className="note">{selectedSacramentFaqPage.lead}</p> : null}
+                    <div className="accordion">
+                      {selectedSacramentFaq.map((item, index) => (
+                        <details key={`${selectedSacrament.id}-faq-${index}`}>
+                          <summary>{item.question}</summary>
+                          <div className="accordion-body">
+                            <p className="note">{item.answer}</p>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'form' && (
+                  <>
+                    <div className="parish-card confirmation-form-card">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Bierzmowanie</p>
+                          <h3>Formularz zgłoszeniowy</h3>
+                        </div>
+                        <span className="muted">Bez logowania. Zgłoszenia są jednokierunkowe.</span>
+                      </div>
+                      {confirmationVerifyInfo ? (
+                        <p className="confirmation-info confirmation-info-success">{confirmationVerifyInfo}</p>
+                      ) : null}
+                      <div className="admin-form-grid">
+                        <label>
+                          <span>Imię</span>
+                          <input
+                            type="text"
+                            value={confirmationName}
+                            onChange={(event) => setConfirmationName(event.target.value)}
+                          />
+                        </label>
+                        <label>
+                          <span>Nazwisko</span>
+                          <input
+                            type="text"
+                            value={confirmationSurname}
+                            onChange={(event) => setConfirmationSurname(event.target.value)}
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Numery telefonów (każdy numer w nowej linii)</span>
+                          <textarea
+                            rows={3}
+                            value={confirmationPhonesRaw}
+                            onChange={(event) => setConfirmationPhonesRaw(event.target.value)}
+                            placeholder="+48 600 111 222&#10;+48 600 333 444"
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Adres zamieszkania</span>
+                          <textarea
+                            rows={2}
+                            value={confirmationAddress}
+                            onChange={(event) => setConfirmationAddress(event.target.value)}
+                          />
+                        </label>
+                        <label className="admin-form-full">
+                          <span>Szkoła (skrót)</span>
+                          <input
+                            type="text"
+                            value={confirmationSchoolShort}
+                            onChange={(event) => setConfirmationSchoolShort(event.target.value)}
+                            placeholder="np. SP12"
+                          />
+                        </label>
+                        <label className="mass-require-intentions admin-form-full">
+                          <input
+                            type="checkbox"
+                            checked={confirmationAcceptedRodo}
+                            onChange={(event) => setConfirmationAcceptedRodo(event.target.checked)}
+                          />
+                          <span>Akceptuję RODO.</span>
+                        </label>
+                      </div>
+                      {confirmationFormError ? <p className="confirmation-info confirmation-info-error">{confirmationFormError}</p> : null}
+                      {confirmationFormSuccess ? (
+                        <p className="confirmation-info confirmation-info-success">{confirmationFormSuccess}</p>
+                      ) : null}
+                      <div className="builder-actions">
+                        <button
+                          type="button"
+                          className="parish-login"
+                          disabled={confirmationSubmitting}
+                          onClick={handleSubmitConfirmationCandidate}
+                        >
+                          {confirmationSubmitting ? 'Wysyłanie...' : 'Wyślij zgłoszenie'}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                </div>
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-admin-card">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Zgłoszenia do bierzmowania</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
+                            Odśwież
+                          </button>
+                        </div>
+                        {confirmationCandidatesError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
+                        ) : null}
+                        {confirmationCandidates.length === 0 ? (
+                          <p className="muted">Brak zgłoszeń.</p>
+                        ) : (
+                          <div className="confirmation-candidate-list">
+                            {confirmationCandidates.map((candidate) => (
+                              <article key={candidate.id} className="confirmation-candidate-item">
+                                <div className="confirmation-candidate-head">
+                                  <strong>
+                                    {candidate.name} {candidate.surname}
+                                  </strong>
+                                  <span className="muted">
+                                    {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
+                                  </span>
+                                </div>
+                                <p className="note">
+                                  <strong>Adres:</strong> {candidate.address}
+                                </p>
+                                <p className="note">
+                                  <strong>Szkoła:</strong> {candidate.schoolShort}
+                                </p>
+                                <ul className="confirmation-phone-list">
+                                  {candidate.phoneNumbers.map((phone) => (
+                                    <li key={`${candidate.id}-${phone.index}`}>
+                                      <span>{phone.number}</span>
+                                      {phone.isVerified ? (
+                                        <span className="pill">Zweryfikowany</span>
+                                      ) : (
+                                        <>
+                                          <span className="pill">Niezweryfikowany</span>
+                                          <button
+                                            type="button"
+                                            className="ghost"
+                                            onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                          >
+                                            {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
+                                          </button>
+                                        </>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </article>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
               </section>
             )}
             {activePage === 'contact' && (

@@ -10,6 +10,7 @@ import {
 } from '../../../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { CogitaShell } from '../../CogitaShell';
+import { CogitaStatisticsPanel } from '../components/CogitaStatisticsPanel';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 
@@ -86,6 +87,31 @@ export function CogitaRevisionOverviewPage({
     const query = params.toString();
     return query ? `${base}?${query}` : base;
   }, [libraryId, revision, revisionId]);
+
+  const revisionStatsScope = useMemo(() => {
+    const mode = String(revision?.revisionType ?? revision?.mode ?? '').trim().toLowerCase();
+    const hasRevisionSpecificScoring = mode === 'levels' || mode === 'temporal';
+    if (hasRevisionSpecificScoring) {
+      return {
+        scopeType: 'revision' as const,
+        scopeId: revisionId,
+        title: 'Revision statistics'
+      };
+    }
+    const collectionId = revision?.collectionId ?? null;
+    if (collectionId) {
+      return {
+        scopeType: 'collection' as const,
+        scopeId: collectionId,
+        title: 'Collection statistics'
+      };
+    }
+    return {
+      scopeType: 'revision' as const,
+      scopeId: revisionId,
+      title: 'Revision statistics'
+    };
+  }, [revision?.collectionId, revision?.mode, revision?.revisionType, revisionId]);
 
   const handleCreateShare = async () => {
     setShareStatus('working');
@@ -224,6 +250,12 @@ export function CogitaRevisionOverviewPage({
                     ) : null}
                   </div>
                 </section>
+                <CogitaStatisticsPanel
+                  libraryId={libraryId}
+                  scopeType={revisionStatsScope.scopeType}
+                  scopeId={revisionStatsScope.scopeId}
+                  title={revisionStatsScope.title}
+                />
               </div>
             </div>
           </div>

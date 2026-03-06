@@ -12,3 +12,4 @@
 **/.env.*
 **/*.user
 **/*.suo
+backend/Recreatio.Api/dataprotection-keys/

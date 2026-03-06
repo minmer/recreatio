@@ -1896,7 +1896,7 @@ export function CogitaWorkspacePage({
     };
 
     if (pathState.target === 'library_overview') {
-      return <CogitaLibraryOverviewPage {...baseProps} />;
+      return <CogitaLibraryOverviewPage {...baseProps} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
     }
     if (pathState.target === 'all_cards') {
       if (pathState.infoId && pathState.infoView === 'cards') {
