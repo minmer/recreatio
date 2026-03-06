@@ -72,7 +72,7 @@ public static class ParishEndpoints
     private static ParishHomepageConfig NormalizeHomepage(ParishHomepageConfig homepage)
     {
         var modules = homepage.Modules.Count == 0
-            ? Array.Empty<ParishLayoutItem>()
+            ? new List<ParishLayoutItem>()
             : homepage.Modules.Select(module =>
             {
                 var layouts = module.Layouts ?? new Dictionary<string, ParishLayoutFrame>(StringComparer.OrdinalIgnoreCase);
@@ -295,7 +295,7 @@ public static class ParishEndpoints
             var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
             var payloadEnc = protector.Protect(payloadJson);
 
-            var candidate = new ParishConfirmationCandidate
+            dbContext.ParishConfirmationCandidates.Add(new()
             {
                 Id = candidateId,
                 ParishId = parish.Id,
@@ -303,28 +303,28 @@ public static class ParishEndpoints
                 AcceptedRodo = true,
                 CreatedUtc = now,
                 UpdatedUtc = now
-            };
+            });
 
-            var verifications = phoneNumbers.Select((_, index) => new ParishConfirmationPhoneVerification
+            for (var index = 0; index < phoneNumbers.Count; index += 1)
             {
-                Id = Guid.NewGuid(),
-                ParishId = parish.Id,
-                CandidateId = candidateId,
-                PhoneIndex = index,
-                VerificationToken = CreatePhoneVerificationToken(),
-                VerifiedUtc = null,
-                CreatedUtc = now
-            }).ToList();
-
-            dbContext.ParishConfirmationCandidates.Add(candidate);
-            dbContext.ParishConfirmationPhoneVerifications.AddRange(verifications);
+                dbContext.ParishConfirmationPhoneVerifications.Add(new()
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parish.Id,
+                    CandidateId = candidateId,
+                    PhoneIndex = index,
+                    VerificationToken = CreatePhoneVerificationToken(),
+                    VerifiedUtc = null,
+                    CreatedUtc = now
+                });
+            }
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
                 parish.Id,
                 "ConfirmationCandidateCreated",
                 "public",
-                JsonSerializer.Serialize(new { candidate.Id, PhoneCount = phoneNumbers.Count }),
+                JsonSerializer.Serialize(new { Id = candidateId, PhoneCount = phoneNumbers.Count }),
                 ct);
 
             return Results.Ok(new { id = candidateId });
@@ -768,11 +768,9 @@ public static class ParishEndpoints
                 .OrderByDescending(x => x.CreatedUtc)
                 .ToListAsync(ct);
             var candidateIds = candidates.Select(x => x.Id).ToList();
-            var verifications = candidateIds.Count == 0
-                ? new List<ParishConfirmationPhoneVerification>()
-                : await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
-                    .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
-                    .ToListAsync(ct);
+            var verifications = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
+                .ToListAsync(ct);
             var verificationsByCandidate = verifications
                 .GroupBy(x => x.CandidateId)
                 .ToDictionary(
@@ -789,7 +787,7 @@ public static class ParishEndpoints
                     continue;
                 }
 
-                var candidateVerificationRows = verificationsByCandidate.GetValueOrDefault(candidate.Id) ?? new List<ParishConfirmationPhoneVerification>();
+                var candidateVerificationRows = verificationsByCandidate.GetValueOrDefault(candidate.Id) ?? [];
                 var verificationByIndex = candidateVerificationRows
                     .GroupBy(x => x.PhoneIndex)
                     .ToDictionary(group => group.Key, group => group.First());
