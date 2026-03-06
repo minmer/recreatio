@@ -918,6 +918,7 @@ export function CogitaStatisticsPanel({
   selectedPersonRoleId,
   persistentOnly = false,
   title = 'Statistics',
+  initialModuleId,
   data,
   loading,
   error
@@ -928,6 +929,7 @@ export function CogitaStatisticsPanel({
   selectedPersonRoleId?: string | null;
   persistentOnly?: boolean;
   title?: string;
+  initialModuleId?: string;
   data?: CogitaStatisticsResponse | null;
   loading?: boolean;
   error?: boolean;
@@ -991,6 +993,12 @@ export function CogitaStatisticsPanel({
     }
     setSlideIndex((current) => clamp(current, 0, modules.length - 1));
   }, [modules.length]);
+
+  useEffect(() => {
+    if (!initialModuleId || modules.length === 0) return;
+    const index = modules.findIndex((module) => module.id === initialModuleId);
+    if (index >= 0) setSlideIndex(index);
+  }, [initialModuleId, modules]);
 
   const currentModule = modules[slideIndex] ?? null;
   const hasMultipleSlides = modules.length > 1;

@@ -7,6 +7,7 @@ import {
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
+import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
@@ -14,6 +15,7 @@ import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime'
 import { clampInt, parseLiveRules } from './liveSessionRules';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
+import { buildLiveStatisticsResponse } from './liveStatistics';
 
 function readJoinNameFromHash() {
   if (typeof window === 'undefined') return '';
@@ -67,6 +69,17 @@ type DisplayScoreRow = {
   answeredCount: number;
   comparedAnsweredCount: number;
 };
+
+const CHART_COLORS = [
+  '#78d7ff',
+  '#8ef0b8',
+  '#f8c36c',
+  '#f78ab4',
+  '#b79dff',
+  '#6cf0f0',
+  '#ff8f7a',
+  '#d4f47d'
+];
 
 export function CogitaLiveRevisionJoinPage(props: {
   copy: Copy;
@@ -294,6 +307,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   useEffect(() => {
     let mounted = true;
     const poll = async () => {
+      if (timersPaused) return;
       try {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
@@ -317,7 +331,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       mounted = false;
       window.clearInterval(id);
     };
-  }, [code, participantToken, status]);
+  }, [code, participantToken, status, timersPaused]);
 
   const handleJoin = async () => {
     setStatus('joining');
@@ -471,7 +485,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     const timeoutKey = `${code}:${promptKey}:${state?.revealVersion ?? 0}:next`;
     if (timeoutNextKeyRef.current === timeoutKey) return;
     timeoutNextKeyRef.current = timeoutKey;
-    void submitAnswer({ force: true, answerOverride: null });
+    void submitAnswer({ force: true });
   }, [
     code,
     isAsyncSession,
@@ -697,6 +711,27 @@ export function CogitaLiveRevisionJoinPage(props: {
     });
     return normalizedRows.sort((left, right) => right.score - left.score || left.displayName.localeCompare(right.displayName));
   }, [asyncProgressByParticipant, isAsyncSession, selfProgressCount, state?.scoreboard]);
+  const isSessionFinished = sessionStage === 'finished';
+  const podiumRows = useMemo(
+    () =>
+      [...(state?.scoreboard ?? [])]
+        .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
+        .slice(0, 3),
+    [state?.scoreboard]
+  );
+  const podiumDisplayRows = useMemo(() => {
+    if (podiumRows.length <= 1) return podiumRows;
+    if (podiumRows.length === 2) return [podiumRows[1], podiumRows[0]];
+    return [podiumRows[1], podiumRows[0], podiumRows[2]];
+  }, [podiumRows]);
+  const participantColorById = useMemo(() => {
+    const mapping = new Map<string, string>();
+    (state?.scoreboard ?? []).forEach((row, index) => {
+      mapping.set(row.participantId, CHART_COLORS[index % CHART_COLORS.length]);
+    });
+    return mapping;
+  }, [state?.scoreboard]);
+  const liveStatisticsData = useMemo(() => buildLiveStatisticsResponse(state), [state]);
   const asyncScoreContextHelp = useMemo(() => {
     if (!isAsyncSession || selfProgressCount <= 0) return null;
     if (props.language === 'pl') {
@@ -933,21 +968,60 @@ export function CogitaLiveRevisionJoinPage(props: {
                   </>
                 ) : (
                   <>
-                    <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
-                    <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
-                    {sessionStage === 'active' && prompt
-                      ? timerBlocks.map((timer) => (
-                          <div className="cogita-live-timer" key={`timer:${timer.id}`}>
-                            <div className="cogita-live-timer-head">
-                              <span>{timer.label}</span>
-                              <strong>{`${Math.max(0, Math.ceil(timer.remainingMs / 1000))}s`}</strong>
+                    {isSessionFinished ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.8rem' }}>
+                        <CogitaStatisticsPanel
+                          libraryId={`live:${state?.sessionId ?? code}`}
+                          scopeType="live-session"
+                          scopeId={state?.sessionId ?? code}
+                          title={liveCopy.finalScoreTitle}
+                          data={liveStatisticsData}
+                          loading={status === 'loading'}
+                          error={status === 'error'}
+                          initialModuleId="score-line"
+                        />
+                        <section className="cogita-library-panel">
+                          <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
+                          {podiumRows.length > 0 ? (
+                            <div className="cogita-live-podium" role="presentation">
+                              {podiumDisplayRows.map((row) => {
+                                const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
+                                const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
+                                const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
+                                const height = heightByRank[order] ?? 52;
+                                return (
+                                  <div key={`participant-podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
+                                    <div className="cogita-live-podium-name" title={row.displayName}>{row.displayName}</div>
+                                    <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
+                                      <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
+                                      <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <div className="cogita-live-timer-track">
-                              <span style={{ width: `${Math.round(timer.progress * 100)}%` }} />
-                            </div>
-                          </div>
-                        ))
-                      : null}
+                          ) : (
+                            <p className="cogita-help">{liveCopy.noParticipants}</p>
+                          )}
+                        </section>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
+                        <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
+                        {sessionStage === 'active' && prompt
+                          ? timerBlocks.map((timer) => (
+                              <div className="cogita-live-timer" key={`timer:${timer.id}`}>
+                                <div className="cogita-live-timer-head">
+                                  <span>{timer.label}</span>
+                                  <strong>{`${Math.max(0, Math.ceil(timer.remainingMs / 1000))}s`}</strong>
+                                </div>
+                                <div className="cogita-live-timer-track">
+                                  <span style={{ width: `${Math.round(timer.progress * 100)}%` }} />
+                                </div>
+                              </div>
+                            ))
+                          : null}
                 {prompt ? (
                   <>
                     <CogitaCheckcardSurface
@@ -1041,7 +1115,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                             className="cta"
                             onClick={() => {
                               if (revealStep) {
-                                void submitAnswer({ force: true, answerOverride: null });
+                                void submitAnswer({ force: true });
                                 return;
                               }
                               void submitAnswer();
@@ -1069,6 +1143,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                     {sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.waitingForHostQuestion}
                   </p>
                 )}
+                      </>
+                    )}
                   </>
                 )}
               </div>

@@ -1633,18 +1633,21 @@ export function submitCogitaLiveRevisionAnswer(payload: {
   participantToken: string;
   roundIndex: number;
   cardKey?: string | null;
-  answer?: unknown | null;
+  answer?: unknown;
 }) {
+  const body: Record<string, unknown> = {
+    participantToken: payload.participantToken,
+    roundIndex: payload.roundIndex,
+    cardKey: payload.cardKey ?? null
+  };
+  if (Object.prototype.hasOwnProperty.call(payload, 'answer')) {
+    body.answer = payload.answer ?? null;
+  }
   return request<void>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/answer`,
     {
       method: 'POST',
-      body: JSON.stringify({
-        participantToken: payload.participantToken,
-        roundIndex: payload.roundIndex,
-        cardKey: payload.cardKey ?? null,
-        answer: payload.answer ?? null
-      })
+      body: JSON.stringify(body)
     }
   );
 }
