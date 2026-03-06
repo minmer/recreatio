@@ -224,7 +224,6 @@ export function CogitaRevisionLiveSessionsPage({
       allAnsweredAction: 'none',
       roundTimer: { ...formLiveRules.roundTimer, enabled: false, onExpire: 'reveal' },
       actionTimer: { ...formLiveRules.actionTimer, enabled: false, onExpire: 'reveal' },
-      nextQuestion: { ...formLiveRules.nextQuestion, mode: 'manual' },
       bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' },
       scoring: {
         ...formLiveRules.scoring,
@@ -233,6 +232,24 @@ export function CogitaRevisionLiveSessionsPage({
       }
     };
   }, [formLiveRules, formSessionMode]);
+
+  useEffect(() => {
+    if (formSessionMode !== 'asynchronous') return;
+    setFormLiveRules((previous) => {
+      const needsUpdate =
+        previous.scoring.firstCorrectBonus !== 0 ||
+        previous.scoring.firstWrongPenalty !== 0;
+      if (!needsUpdate) return previous;
+      return {
+        ...previous,
+        scoring: {
+          ...previous.scoring,
+          firstCorrectBonus: 0,
+          firstWrongPenalty: 0
+        }
+      };
+    });
+  }, [formSessionMode]);
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();
@@ -657,21 +674,23 @@ export function CogitaRevisionLiveSessionsPage({
                                     }
                                   />
                                 </label>
-                                <label className="cogita-field">
-                                  <span>{liveCopy.firstCorrectBonusLabel}</span>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={500000}
-                                    value={formLiveRules.scoring.firstCorrectBonus}
-                                    onChange={(event) =>
-                                      setFormLiveRules((previous) => ({
-                                        ...previous,
-                                        scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
-                                      }))
-                                    }
-                                  />
-                                </label>
+                                {!isAsyncSession ? (
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.firstCorrectBonusLabel}</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={500000}
+                                      value={formLiveRules.scoring.firstCorrectBonus}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
+                                        }))
+                                      }
+                                    />
+                                  </label>
+                                ) : null}
                                 <label className="cogita-field">
                                   <span>{liveCopy.wrongAnswerPenaltyLabel}</span>
                                   <input
@@ -687,21 +706,23 @@ export function CogitaRevisionLiveSessionsPage({
                                     }
                                   />
                                 </label>
-                                <label className="cogita-field">
-                                  <span>{liveCopy.firstWrongPenaltyLabel}</span>
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    max={500000}
-                                    value={formLiveRules.scoring.firstWrongPenalty}
-                                    onChange={(event) =>
-                                      setFormLiveRules((previous) => ({
-                                        ...previous,
-                                        scoring: { ...previous.scoring, firstWrongPenalty: clampInt(Number(event.target.value), 0, 500000) }
-                                      }))
-                                    }
-                                  />
-                                </label>
+                                {!isAsyncSession ? (
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.firstWrongPenaltyLabel}</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={500000}
+                                      value={formLiveRules.scoring.firstWrongPenalty}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          scoring: { ...previous.scoring, firstWrongPenalty: clampInt(Number(event.target.value), 0, 500000) }
+                                        }))
+                                      }
+                                    />
+                                  </label>
+                                ) : null}
                               </div>
                             </div>
 
@@ -844,51 +865,49 @@ export function CogitaRevisionLiveSessionsPage({
                               </div>
                             ) : null}
 
-                            {!isAsyncSession ? (
-                              <div className="cogita-library-panel" style={{ margin: 0 }}>
-                                <p className="cogita-user-kicker">{liveCopy.nextQuestionBehaviorLabel}</p>
-                                <div className="cogita-live-rules-grid">
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{liveCopy.nextQuestionBehaviorLabel}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.nextQuestionModeLabel}</span>
+                                  <select
+                                    value={formLiveRules.nextQuestion.mode}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        nextQuestion: {
+                                          ...previous.nextQuestion,
+                                          mode: event.target.value as NextQuestionMode
+                                        }
+                                      }))
+                                    }
+                                  >
+                                    <option value="manual">{liveCopy.nextQuestionModeManual}</option>
+                                    <option value="timer">{liveCopy.nextQuestionModeTimer}</option>
+                                  </select>
+                                </label>
+                                {formLiveRules.nextQuestion.mode === 'timer' ? (
                                   <label className="cogita-field">
-                                    <span>{liveCopy.nextQuestionModeLabel}</span>
-                                    <select
-                                      value={formLiveRules.nextQuestion.mode}
+                                    <span>{liveCopy.nextQuestionTimerSecondsLabel}</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={120}
+                                      value={formLiveRules.nextQuestion.seconds}
                                       onChange={(event) =>
                                         setFormLiveRules((previous) => ({
                                           ...previous,
                                           nextQuestion: {
                                             ...previous.nextQuestion,
-                                            mode: event.target.value as NextQuestionMode
+                                            seconds: clampInt(Number(event.target.value), 1, 120)
                                           }
                                         }))
                                       }
-                                    >
-                                      <option value="manual">{liveCopy.nextQuestionModeManual}</option>
-                                      <option value="timer">{liveCopy.nextQuestionModeTimer}</option>
-                                    </select>
+                                    />
                                   </label>
-                                  {formLiveRules.nextQuestion.mode === 'timer' ? (
-                                    <label className="cogita-field">
-                                      <span>{liveCopy.nextQuestionTimerSecondsLabel}</span>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        max={120}
-                                        value={formLiveRules.nextQuestion.seconds}
-                                        onChange={(event) =>
-                                          setFormLiveRules((previous) => ({
-                                            ...previous,
-                                            nextQuestion: {
-                                              ...previous.nextQuestion,
-                                              seconds: clampInt(Number(event.target.value), 1, 120)
-                                            }
-                                          }))
-                                        }
-                                      />
-                                    </label>
-                                  ) : null}
-                                </div>
+                                ) : null}
                               </div>
-                            ) : null}
+                            </div>
 
                             <div className="cogita-library-panel" style={{ margin: 0 }}>
                               <p className="cogita-user-kicker">{liveCopy.bonusTimerLabel}</p>

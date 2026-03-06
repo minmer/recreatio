@@ -205,7 +205,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       allAnsweredAction: 'none',
       roundTimer: { enabled: false, seconds: 30, onExpire: 'none' },
       actionTimer: { enabled: false, seconds: 10, onExpire: 'none' },
-      nextQuestion: { mode: 'manual', seconds: 6 },
+      nextQuestion: { mode: 'timer', seconds: 6 },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
       scoring: { baseCorrect: 1000, firstCorrectBonus: 0, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
