@@ -726,7 +726,7 @@ export const pl: Copy = {
         selectedStackHint: 'Wybrane informacje pozostają po zmianie wyszukiwania.',
         openInCollection: 'Otwórz w Kolekcji',
         openInDependencies: 'Otwórz w Zależnościach',
-        removeFromStack: 'Usuń ze stosu',
+        removeFromStack: 'Usuń zaznaczone',
         detailColumnName: 'Nazwa',
         detailColumnType: 'Typ',
         detailColumnId: 'Id',

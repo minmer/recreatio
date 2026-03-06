@@ -1086,9 +1086,6 @@ export function CogitaLibraryListPage({
                     ))}
                   </div>
                   <div className="cogita-form-actions">
-                    <button type="button" className="ghost" onClick={() => setSelectionStack({})} disabled={selectedItems.length === 0}>
-                      {listCopy.clearSelection}
-                    </button>
                     <button type="button" className="ghost" onClick={removeVisibleFromStack} disabled={selectedVisibleIds.length === 0}>
                       {`${listCopy.removeFromStack} (${selectedVisibleIds.length})`}
                     </button>

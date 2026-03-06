@@ -15,6 +15,22 @@ export type LivePrompt = Record<string, unknown> & {
   roundIndex?: number;
   firstAnswerAction?: string;
   allAnsweredAction?: string;
+  roundTimerEnabled?: boolean;
+  roundTimerSeconds?: number;
+  roundTimerStartedUtc?: string;
+  roundTimerEndsUtc?: string;
+  actionTimerEnabled?: boolean;
+  actionTimerSeconds?: number;
+  actionTimerStartedUtc?: string;
+  actionTimerEndsUtc?: string;
+  nextQuestionMode?: string;
+  nextQuestionSeconds?: number;
+  autoNextStartedUtc?: string;
+  autoNextEndsUtc?: string;
+  sessionTimerEnabled?: boolean;
+  sessionTimerSeconds?: number;
+  sessionTimerStartedUtc?: string;
+  sessionTimerEndsUtc?: string;
 };
 
 export type LivePromptAnswers = {

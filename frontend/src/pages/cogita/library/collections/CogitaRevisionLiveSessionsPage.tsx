@@ -222,7 +222,7 @@ export function CogitaRevisionLiveSessionsPage({
       ...formLiveRules,
       firstAnswerAction: 'none',
       allAnsweredAction: 'none',
-      roundTimer: { ...formLiveRules.roundTimer, enabled: false, onExpire: 'reveal' },
+      roundTimer: { ...formLiveRules.roundTimer, onExpire: 'reveal' },
       actionTimer: { ...formLiveRules.actionTimer, enabled: false, onExpire: 'reveal' },
       bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' },
       scoring: {
@@ -726,62 +726,61 @@ export function CogitaRevisionLiveSessionsPage({
                               </div>
                             </div>
 
-                            {!isAsyncSession ? (
-                              <div className="cogita-library-panel" style={{ margin: 0 }}>
-                                <p className="cogita-user-kicker">{liveCopy.roundTimerLabel}</p>
-                                <div className="cogita-live-rules-grid">
-                                  <label className="cogita-field">
-                                    <span>{liveCopy.roundTimerEnabledLabel}</span>
-                                    <select
-                                      value={formLiveRules.roundTimer.enabled ? 'yes' : 'no'}
-                                      onChange={(event) =>
-                                        setFormLiveRules((previous) => ({
-                                          ...previous,
-                                          roundTimer: { ...previous.roundTimer, enabled: event.target.value === 'yes' }
-                                        }))
-                                      }
-                                    >
-                                      <option value="yes">{liveCopy.optionYes}</option>
-                                      <option value="no">{liveCopy.optionNo}</option>
-                                    </select>
-                                  </label>
-                                  {formLiveRules.roundTimer.enabled ? (
-                                    <>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.roundTimerSecondsLabel}</span>
-                                        <input
-                                          type="number"
-                                          min={3}
-                                          max={600}
-                                          value={formLiveRules.roundTimer.seconds}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              roundTimer: { ...previous.roundTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.roundTimerExpireLabel}</span>
-                                        <select
-                                          value={formLiveRules.roundTimer.onExpire}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              roundTimer: { ...previous.roundTimer, onExpire: event.target.value as TimerExpireAction }
-                                            }))
-                                          }
-                                        >
-                                          <option value="reveal">{liveCopy.optionRevealScore}</option>
-                                          <option value="next">{liveCopy.optionRevealNext}</option>
-                                        </select>
-                                      </label>
-                                    </>
-                                  ) : null}
-                                </div>
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{liveCopy.roundTimerLabel}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.roundTimerEnabledLabel}</span>
+                                  <select
+                                    value={formLiveRules.roundTimer.enabled ? 'yes' : 'no'}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        roundTimer: { ...previous.roundTimer, enabled: event.target.value === 'yes' }
+                                      }))
+                                    }
+                                  >
+                                    <option value="yes">{liveCopy.optionYes}</option>
+                                    <option value="no">{liveCopy.optionNo}</option>
+                                  </select>
+                                </label>
+                                {formLiveRules.roundTimer.enabled ? (
+                                  <>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.roundTimerSecondsLabel}</span>
+                                      <input
+                                        type="number"
+                                        min={3}
+                                        max={600}
+                                        value={formLiveRules.roundTimer.seconds}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            roundTimer: { ...previous.roundTimer, seconds: clampInt(Number(event.target.value), 3, 600) }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.roundTimerExpireLabel}</span>
+                                      <select
+                                        value={isAsyncSession ? 'reveal' : formLiveRules.roundTimer.onExpire}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            roundTimer: { ...previous.roundTimer, onExpire: event.target.value as TimerExpireAction }
+                                          }))
+                                        }
+                                        disabled={isAsyncSession}
+                                      >
+                                        <option value="reveal">{liveCopy.optionRevealScore}</option>
+                                        {!isAsyncSession ? <option value="next">{liveCopy.optionRevealNext}</option> : null}
+                                      </select>
+                                    </label>
+                                  </>
+                                ) : null}
                               </div>
-                            ) : null}
+                            </div>
 
                             {!isAsyncSession ? (
                               <div className="cogita-library-panel" style={{ margin: 0 }}>
@@ -901,6 +900,44 @@ export function CogitaRevisionLiveSessionsPage({
                                             ...previous.nextQuestion,
                                             seconds: clampInt(Number(event.target.value), 1, 120)
                                           }
+                                        }))
+                                      }
+                                    />
+                                  </label>
+                                ) : null}
+                              </div>
+                            </div>
+
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{`${liveCopy.roundsLabel} · ${liveCopy.timerLabel}`}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.timerEnabledLabel}</span>
+                                  <select
+                                    value={formLiveRules.sessionTimer.enabled ? 'yes' : 'no'}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        sessionTimer: { ...previous.sessionTimer, enabled: event.target.value === 'yes' }
+                                      }))
+                                    }
+                                  >
+                                    <option value="yes">{liveCopy.optionYes}</option>
+                                    <option value="no">{liveCopy.optionNo}</option>
+                                  </select>
+                                </label>
+                                {formLiveRules.sessionTimer.enabled ? (
+                                  <label className="cogita-field">
+                                    <span>{liveCopy.roundTimerSecondsLabel}</span>
+                                    <input
+                                      type="number"
+                                      min={10}
+                                      max={86400}
+                                      value={formLiveRules.sessionTimer.seconds}
+                                      onChange={(event) =>
+                                        setFormLiveRules((previous) => ({
+                                          ...previous,
+                                          sessionTimer: { ...previous.sessionTimer, seconds: clampInt(Number(event.target.value), 10, 86400) }
                                         }))
                                       }
                                     />

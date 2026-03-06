@@ -726,7 +726,7 @@ export const de: Copy = {
         selectedStackHint: 'Ausgewählte Infos bleiben bei Suchänderungen erhalten.',
         openInCollection: 'In Sammlung öffnen',
         openInDependencies: 'In Abhängigkeiten öffnen',
-        removeFromStack: 'Aus Stapel entfernen',
+        removeFromStack: 'Ausgewählte löschen',
         detailColumnName: 'Name',
         detailColumnType: 'Typ',
         detailColumnId: 'Id',

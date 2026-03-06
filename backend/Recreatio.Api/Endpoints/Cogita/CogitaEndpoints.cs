@@ -7228,31 +7228,80 @@ public static class CogitaEndpoints
                 var effectiveRoundIndex = session.CurrentRoundIndex;
                 JsonElement? currentPrompt = null;
                 JsonElement? currentReveal = null;
+                var now = DateTimeOffset.UtcNow;
+                var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                 if (participant is not null)
                 {
                     var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                     var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
-                        .OrderByDescending(x => x.RoundIndex)
+                        .OrderBy(x => x.RoundIndex)
                         .ThenByDescending(x => x.UpdatedUtc)
                         .ToListAsync(ct);
-                    var latestAnswerByRound = participantAnswers
-                        .GroupBy(x => x.RoundIndex)
-                        .ToDictionary(group => group.Key, group => group.First());
+                    var asyncState = BuildLiveAsyncParticipantState(
+                        rounds,
+                        participantAnswers,
+                        participant.JoinedUtc,
+                        session.StartedUtc,
+                        flowRules,
+                        now);
+                    effectiveRoundIndex = Math.Max(0, Math.Min(asyncState.RoundIndex, rounds.Count));
 
-                    var completedRoundCount = latestAnswerByRound.Keys.Count(index => index >= 0);
-                    effectiveRoundIndex = Math.Max(0, Math.Min(completedRoundCount, rounds.Count));
-
-                    if (effectiveRoundIndex < rounds.Count)
+                    if (!string.Equals(asyncState.Phase, "finished", StringComparison.Ordinal) &&
+                        effectiveRoundIndex < rounds.Count)
                     {
                         var currentRound = rounds[effectiveRoundIndex];
                         var promptNode = CloneJsonObject(currentRound.Prompt);
+                        var isRevealPhase = string.Equals(asyncState.Phase, "reveal", StringComparison.Ordinal);
+                        var sessionTimerEndsUtc = flowRules.SessionTimerEnabled
+                            ? asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds)
+                            : (DateTimeOffset?)null;
+                        var roundTimerEndsUtc = flowRules.RoundTimerEnabled
+                            ? asyncState.RoundStartedUtc.AddSeconds(flowRules.RoundTimerSeconds)
+                            : (DateTimeOffset?)null;
                         promptNode["roundIndex"] = effectiveRoundIndex;
                         promptNode["cardKey"] = currentRound.CardKey;
+                        promptNode["sessionTimerEnabled"] = flowRules.SessionTimerEnabled;
+                        promptNode["sessionTimerSeconds"] = flowRules.SessionTimerSeconds;
+                        promptNode["sessionTimerStartedUtc"] = asyncState.SessionStartedUtc.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["sessionTimerEndsUtc"] = sessionTimerEndsUtc?.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["roundTimerEnabled"] = flowRules.RoundTimerEnabled;
+                        promptNode["roundTimerSeconds"] = flowRules.RoundTimerSeconds;
+                        promptNode["roundTimerStartedUtc"] = asyncState.RoundStartedUtc.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["roundTimerEndsUtc"] = roundTimerEndsUtc?.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["nextQuestionMode"] = flowRules.NextQuestionMode;
+                        promptNode["nextQuestionSeconds"] = flowRules.NextQuestionSeconds;
+                        promptNode["autoNextStartedUtc"] = asyncState.RevealStartedUtc?.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["autoNextEndsUtc"] = asyncState.AutoNextEndsUtc?.ToString("O", CultureInfo.InvariantCulture);
                         currentPrompt = JsonNodeToJsonElement(promptNode);
-                        answerSubmitted = latestAnswerByRound.ContainsKey(effectiveRoundIndex);
+                        answerSubmitted = asyncState.Answer is not null && asyncState.Answer.IsCorrect.HasValue;
+
+                        if (isRevealPhase)
+                        {
+                            var revealNode = CloneJsonObject(currentRound.Reveal);
+                            revealNode["roundIndex"] = effectiveRoundIndex;
+                            revealNode["cardKey"] = currentRound.CardKey;
+                            if (asyncState.Answer is not null && participantId.HasValue)
+                            {
+                                var participantScoring = new JsonObject
+                                {
+                                    ["isCorrect"] = asyncState.Answer.IsCorrect == true,
+                                    ["points"] = asyncState.Answer.PointsAwarded,
+                                    ["factors"] = new JsonArray
+                                    {
+                                        JsonValue.Create(asyncState.Answer.IsCorrect == true ? "base" : "wrong")
+                                    }
+                                };
+                                revealNode["roundScoring"] = new JsonObject
+                                {
+                                    [participantId.Value.ToString("D")] = participantScoring
+                                };
+                            }
+                            currentReveal = JsonNodeToJsonElement(revealNode);
+                        }
                     }
-                    else if (string.Equals(session.Status, "running", StringComparison.Ordinal))
+                    else if (string.Equals(session.Status, "running", StringComparison.Ordinal) ||
+                             string.Equals(asyncState.Phase, "finished", StringComparison.Ordinal))
                     {
                         effectiveStatus = "finished";
                     }
@@ -7334,6 +7383,7 @@ public static class CogitaEndpoints
             var now = DateTimeOffset.UtcNow;
             var roundIndex = session.CurrentRoundIndex;
             string? currentPromptCardKey;
+            DateTimeOffset? asyncRoundStartedUtc = null;
             if (isAsyncSession)
             {
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
@@ -7342,12 +7392,20 @@ public static class CogitaEndpoints
                     return Results.BadRequest(new { error = "Live session has no prepared rounds." });
                 }
 
-                var completedRounds = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
+                var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                     .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
-                    .Select(x => x.RoundIndex)
-                    .Distinct()
-                    .CountAsync(ct);
-                roundIndex = Math.Max(0, Math.Min(completedRounds, rounds.Count));
+                    .OrderBy(x => x.RoundIndex)
+                    .ThenByDescending(x => x.UpdatedUtc)
+                    .ToListAsync(ct);
+                var asyncState = BuildLiveAsyncParticipantState(
+                    rounds,
+                    participantAnswers,
+                    participant.JoinedUtc,
+                    session.StartedUtc,
+                    flowRules,
+                    now);
+                roundIndex = Math.Max(0, Math.Min(asyncState.RoundIndex, rounds.Count));
                 if (roundIndex >= rounds.Count)
                 {
                     return Results.BadRequest(new { error = "Participant completed this live session." });
@@ -7358,7 +7416,38 @@ public static class CogitaEndpoints
                     return Results.BadRequest(new { error = "Round index does not match participant progression." });
                 }
 
+                if (string.Equals(asyncState.Phase, "reveal", StringComparison.Ordinal))
+                {
+                    if (request.Answer.HasValue)
+                    {
+                        return Results.BadRequest(new { error = "Round answer already submitted." });
+                    }
+
+                    var acknowledgedAnswer = await dbContext.CogitaLiveRevisionAnswers
+                        .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == roundIndex, ct);
+                    if (acknowledgedAnswer is not null &&
+                        acknowledgedAnswer.UpdatedUtc <= acknowledgedAnswer.SubmittedUtc)
+                    {
+                        acknowledgedAnswer.UpdatedUtc = now > acknowledgedAnswer.SubmittedUtc
+                            ? now
+                            : acknowledgedAnswer.SubmittedUtc.AddMilliseconds(1);
+                    }
+
+                    participant.IsConnected = true;
+                    participant.UpdatedUtc = now;
+                    session.UpdatedUtc = now;
+                    await dbContext.SaveChangesAsync(ct);
+                    return Results.Ok();
+                }
+
+                if (flowRules.SessionTimerEnabled &&
+                    now >= asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds))
+                {
+                    return Results.BadRequest(new { error = "Live session timer expired." });
+                }
+
                 currentPromptCardKey = rounds[roundIndex].CardKey;
+                asyncRoundStartedUtc = asyncState.RoundStartedUtc;
             }
             else
             {
@@ -7528,7 +7617,9 @@ public static class CogitaEndpoints
             }
 
             var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
-            var promptStartUtc = ResolvePromptStartUtc(session.CurrentPromptJson);
+            var promptStartUtc = isAsyncSession
+                ? asyncRoundStartedUtc
+                : ResolvePromptStartUtc(session.CurrentPromptJson);
             var durationMs = promptStartUtc.HasValue
                 ? (int?)Math.Max(0, (int)Math.Round((now - promptStartUtc.Value).TotalMilliseconds))
                 : null;
@@ -16214,6 +16305,24 @@ public static class CogitaEndpoints
         int SpeedBonusMaxPoints,
         string SpeedBonusGrowth);
 
+    private sealed record LiveSessionFlowRules(
+        bool RoundTimerEnabled,
+        int RoundTimerSeconds,
+        string NextQuestionMode,
+        int NextQuestionSeconds,
+        bool SessionTimerEnabled,
+        int SessionTimerSeconds);
+
+    private sealed record LiveAsyncParticipantState(
+        int RoundIndex,
+        string Phase,
+        DateTimeOffset SessionStartedUtc,
+        DateTimeOffset RoundStartedUtc,
+        DateTimeOffset? RoundEndsUtc,
+        DateTimeOffset? RevealStartedUtc,
+        DateTimeOffset? AutoNextEndsUtc,
+        CogitaLiveRevisionAnswer? Answer);
+
     private static List<LiveAsyncRoundPayload> ParseLiveAsyncRoundBundle(string? promptJson)
     {
         if (string.IsNullOrWhiteSpace(promptJson))
@@ -16455,6 +16564,225 @@ public static class CogitaEndpoints
             speedBonusEnabled,
             speedBonusMaxPoints,
             speedBonusGrowth);
+    }
+
+    private static LiveSessionFlowRules ParseLiveSessionFlowRules(JsonElement? sessionSettings)
+    {
+        var defaults = new LiveSessionFlowRules(
+            RoundTimerEnabled: false,
+            RoundTimerSeconds: 60,
+            NextQuestionMode: "manual",
+            NextQuestionSeconds: 6,
+            SessionTimerEnabled: false,
+            SessionTimerSeconds: 1800);
+
+        if (sessionSettings is null)
+        {
+            return defaults;
+        }
+
+        JsonElement root = sessionSettings.Value;
+        JsonElement liveRulesRoot = root;
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("liveRules", out var nestedLiveRules) &&
+            nestedLiveRules.ValueKind == JsonValueKind.Object)
+        {
+            liveRulesRoot = nestedLiveRules;
+        }
+
+        if (liveRulesRoot.ValueKind != JsonValueKind.Object)
+        {
+            return defaults;
+        }
+
+        static bool ReadBool(JsonElement element, string propertyName, bool fallback)
+        {
+            if (element.TryGetProperty(propertyName, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False)
+                {
+                    return value.GetBoolean();
+                }
+                if (value.ValueKind == JsonValueKind.String &&
+                    bool.TryParse(value.GetString(), out var parsed))
+                {
+                    return parsed;
+                }
+            }
+            return fallback;
+        }
+
+        static int ReadInt(JsonElement element, string propertyName, int fallback, int min, int max)
+        {
+            if (element.TryGetProperty(propertyName, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var parsed))
+                {
+                    return Math.Max(min, Math.Min(max, parsed));
+                }
+                if (value.ValueKind == JsonValueKind.String &&
+                    int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedFromString))
+                {
+                    return Math.Max(min, Math.Min(max, parsedFromString));
+                }
+            }
+            return fallback;
+        }
+
+        var roundTimerRoot = liveRulesRoot.TryGetProperty("roundTimer", out var roundTimerElement) && roundTimerElement.ValueKind == JsonValueKind.Object
+            ? roundTimerElement
+            : default;
+        var nextQuestionRoot = liveRulesRoot.TryGetProperty("nextQuestion", out var nextQuestionElement) && nextQuestionElement.ValueKind == JsonValueKind.Object
+            ? nextQuestionElement
+            : default;
+        var sessionTimerRoot = liveRulesRoot.TryGetProperty("sessionTimer", out var sessionTimerElement) && sessionTimerElement.ValueKind == JsonValueKind.Object
+            ? sessionTimerElement
+            : default;
+
+        var roundTimerEnabled = roundTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadBool(roundTimerRoot, "enabled", defaults.RoundTimerEnabled)
+            : defaults.RoundTimerEnabled;
+        var roundTimerSeconds = roundTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(roundTimerRoot, "seconds", defaults.RoundTimerSeconds, 3, 7200)
+            : defaults.RoundTimerSeconds;
+        var nextQuestionMode = nextQuestionRoot.ValueKind == JsonValueKind.Object &&
+                               nextQuestionRoot.TryGetProperty("mode", out var modeElement) &&
+                               modeElement.ValueKind == JsonValueKind.String &&
+                               string.Equals(modeElement.GetString(), "timer", StringComparison.OrdinalIgnoreCase)
+            ? "timer"
+            : "manual";
+        var nextQuestionSeconds = nextQuestionRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(nextQuestionRoot, "seconds", defaults.NextQuestionSeconds, 1, 600)
+            : defaults.NextQuestionSeconds;
+        var sessionTimerEnabled = sessionTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadBool(sessionTimerRoot, "enabled", defaults.SessionTimerEnabled)
+            : defaults.SessionTimerEnabled;
+        var sessionTimerSeconds = sessionTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(sessionTimerRoot, "seconds", defaults.SessionTimerSeconds, 10, 86400)
+            : defaults.SessionTimerSeconds;
+
+        return new LiveSessionFlowRules(
+            roundTimerEnabled,
+            roundTimerSeconds,
+            nextQuestionMode,
+            nextQuestionSeconds,
+            sessionTimerEnabled,
+            sessionTimerSeconds);
+    }
+
+    private static LiveAsyncParticipantState BuildLiveAsyncParticipantState(
+        List<LiveAsyncRoundPayload> rounds,
+        List<CogitaLiveRevisionAnswer> participantAnswers,
+        DateTimeOffset participantJoinedUtc,
+        DateTimeOffset? sessionStartedUtc,
+        LiveSessionFlowRules flowRules,
+        DateTimeOffset nowUtc)
+    {
+        var sessionStartUtc = sessionStartedUtc.HasValue && sessionStartedUtc.Value > participantJoinedUtc
+            ? sessionStartedUtc.Value
+            : participantJoinedUtc;
+        if (rounds.Count == 0)
+        {
+            return new LiveAsyncParticipantState(
+                0,
+                "finished",
+                sessionStartUtc,
+                sessionStartUtc,
+                null,
+                null,
+                null,
+                null);
+        }
+
+        var latestByRound = participantAnswers
+            .GroupBy(x => x.RoundIndex)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.UpdatedUtc)
+                    .ThenByDescending(item => item.SubmittedUtc)
+                    .First());
+
+        var roundCursorUtc = sessionStartUtc;
+        var sessionEndsUtc = flowRules.SessionTimerEnabled
+            ? sessionStartUtc.AddSeconds(flowRules.SessionTimerSeconds)
+            : (DateTimeOffset?)null;
+        for (var index = 0; index < rounds.Count; index++)
+        {
+            if (sessionEndsUtc.HasValue && nowUtc >= sessionEndsUtc.Value)
+            {
+                return new LiveAsyncParticipantState(
+                    index,
+                    "finished",
+                    sessionStartUtc,
+                    roundCursorUtc,
+                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                    null,
+                    null,
+                    null);
+            }
+
+            if (!latestByRound.TryGetValue(index, out var answerRow) ||
+                !answerRow.IsCorrect.HasValue)
+            {
+                return new LiveAsyncParticipantState(
+                    index,
+                    "question",
+                    sessionStartUtc,
+                    roundCursorUtc,
+                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                    null,
+                    null,
+                    answerRow);
+            }
+
+            var revealStartedUtc = answerRow.SubmittedUtc > roundCursorUtc ? answerRow.SubmittedUtc : roundCursorUtc;
+            if (string.Equals(flowRules.NextQuestionMode, "timer", StringComparison.Ordinal))
+            {
+                var autoNextEndsUtc = revealStartedUtc.AddSeconds(flowRules.NextQuestionSeconds);
+                if (nowUtc < autoNextEndsUtc)
+                {
+                    return new LiveAsyncParticipantState(
+                        index,
+                        "reveal",
+                        sessionStartUtc,
+                        roundCursorUtc,
+                        flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                        revealStartedUtc,
+                        autoNextEndsUtc,
+                        answerRow);
+                }
+
+                roundCursorUtc = autoNextEndsUtc;
+                continue;
+            }
+
+            var acknowledged = answerRow.UpdatedUtc > answerRow.SubmittedUtc;
+            if (!acknowledged)
+            {
+                return new LiveAsyncParticipantState(
+                    index,
+                    "reveal",
+                    sessionStartUtc,
+                    roundCursorUtc,
+                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                    revealStartedUtc,
+                    null,
+                    answerRow);
+            }
+
+            roundCursorUtc = answerRow.UpdatedUtc > revealStartedUtc ? answerRow.UpdatedUtc : revealStartedUtc;
+        }
+
+        return new LiveAsyncParticipantState(
+            rounds.Count,
+            "finished",
+            sessionStartUtc,
+            roundCursorUtc,
+            null,
+            null,
+            null,
+            null);
     }
 
     private static List<int> ParseIntListFromJsonNode(JsonNode? node)
