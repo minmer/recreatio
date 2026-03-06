@@ -111,6 +111,27 @@ export function CogitaLibraryListPage({
       clear: 'Wyczyść filtr'
     };
   }, [language]);
+  const bulkDeleteCopy = useMemo(() => {
+    if (language === 'de') {
+      return {
+        confirm: 'Ausgewählte Informationen löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.',
+        allFailed: 'Ausgewählte Informationen konnten nicht gelöscht werden. Entferne zuerst Verknüpfungen und Verwendungen in Sammlungen/Verbindungen.',
+        partialFailed: 'Einige ausgewählte Informationen konnten nicht gelöscht werden. Entferne zuerst Verknüpfungen und Verwendungen in Sammlungen/Verbindungen.'
+      };
+    }
+    if (language === 'en') {
+      return {
+        confirm: 'Delete selected informations? This cannot be undone.',
+        allFailed: 'Failed to delete selected informations. Remove links and collection/connection usage first.',
+        partialFailed: 'Some selected informations could not be deleted. Remove links and collection/connection usage first.'
+      };
+    }
+    return {
+      confirm: 'Usunąć zaznaczone informacje? Tej operacji nie można cofnąć.',
+      allFailed: 'Nie udało się usunąć zaznaczonych informacji. Najpierw usuń powiązania i użycia w kolekcjach/połączeniach.',
+      partialFailed: 'Niektórych zaznaczonych informacji nie udało się usunąć. Najpierw usuń powiązania i użycia w kolekcjach/połączeniach.'
+    };
+  }, [language]);
 
   const [searchType, setSearchType] = useState<CogitaInfoType | 'any'>('any');
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +162,7 @@ export function CogitaLibraryListPage({
   const [collectionScopeInfoIds, setCollectionScopeInfoIds] = useState<Set<string> | null>(null);
   const [collectionScopeReady, setCollectionScopeReady] = useState(true);
   const [infoDeleteStatus, setInfoDeleteStatus] = useState<string | null>(null);
+  const [bulkDeleteStatus, setBulkDeleteStatus] = useState<string | null>(null);
 
   const infoTypeOptions = useMemo(() => getInfoTypeOptions(copy), [copy]);
   const sortOptions = useMemo(
@@ -514,10 +536,6 @@ export function CogitaLibraryListPage({
   const canLoadMore = visibleResults.length < sortedResults.length;
   const selectedIdSet = useMemo(() => new Set(Object.keys(selectionStack)), [selectionStack]);
   const selectedItems = useMemo(() => Object.values(selectionStack), [selectionStack]);
-  const selectedVisibleIds = useMemo(
-    () => visibleResults.map((result) => result.infoId).filter((infoId) => selectedIdSet.has(infoId)),
-    [selectedIdSet, visibleResults]
-  );
   const selectedByType = useMemo(() => {
     const bucket = new Map<string, number>();
     for (const item of selectedItems) {
@@ -568,15 +586,39 @@ export function CogitaLibraryListPage({
     });
   };
 
-  const removeVisibleFromStack = () => {
-    if (selectedVisibleIds.length === 0) return;
-    setSelectionStack((prev) => {
-      const next = { ...prev };
-      for (const infoId of selectedVisibleIds) {
-        delete next[infoId];
+  const deleteSelectedInfosFromDatabase = async () => {
+    if (selectedItems.length === 0) return;
+    if (!window.confirm(bulkDeleteCopy.confirm)) return;
+    setBulkDeleteStatus(null);
+    const ids = Array.from(new Set(selectedItems.map((item) => item.infoId).filter(Boolean)));
+    if (ids.length === 0) return;
+    const settled = await Promise.allSettled(ids.map((infoId) => deleteCogitaInfo({ libraryId, infoId })));
+    const deletedIds = ids.filter((_, index) => settled[index]?.status === 'fulfilled');
+    const failedCount = ids.length - deletedIds.length;
+    if (deletedIds.length > 0) {
+      const deletedSet = new Set(deletedIds);
+      setSelectionStack((prev) => {
+        const next = { ...prev };
+        for (const infoId of deletedSet) {
+          delete next[infoId];
+        }
+        return next;
+      });
+      setRawResults((prev) => prev.filter((item) => !deletedSet.has(item.infoId)));
+      setFocusedInfoId((prev) => (prev && deletedSet.has(prev) ? null : prev));
+      if (selectedInfoIdFromRoute && deletedSet.has(selectedInfoIdFromRoute)) {
+        navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
       }
-      return next;
-    });
+    }
+    if (failedCount === ids.length) {
+      setBulkDeleteStatus(bulkDeleteCopy.allFailed);
+      return;
+    }
+    if (failedCount > 0) {
+      setBulkDeleteStatus(bulkDeleteCopy.partialFailed);
+      return;
+    }
+    setBulkDeleteStatus(null);
   };
 
   const toggleSelection = (item: CogitaInfoSearchResult, checked: boolean) => {
@@ -959,9 +1001,6 @@ export function CogitaLibraryListPage({
                   <button type="button" className="ghost" onClick={() => setSelectionStack({})} disabled={selectedItems.length === 0}>
                     {listCopy.clearSelection}
                   </button>
-                  <button type="button" className="ghost" onClick={removeVisibleFromStack} disabled={selectedVisibleIds.length === 0}>
-                    {`${listCopy.removeFromStack} (${selectedVisibleIds.length})`}
-                  </button>
                   <button
                     type="button"
                     className="ghost"
@@ -1085,9 +1124,10 @@ export function CogitaLibraryListPage({
                       </span>
                     ))}
                   </div>
+                  {bulkDeleteStatus ? <p className="cogita-form-error">{bulkDeleteStatus}</p> : null}
                   <div className="cogita-form-actions">
-                    <button type="button" className="ghost" onClick={removeVisibleFromStack} disabled={selectedVisibleIds.length === 0}>
-                      {`${listCopy.removeFromStack} (${selectedVisibleIds.length})`}
+                    <button type="button" className="ghost" onClick={() => void deleteSelectedInfosFromDatabase()} disabled={selectedItems.length === 0}>
+                      {`${listCopy.removeFromStack} (${selectedItems.length})`}
                     </button>
                     <button type="button" className="cta" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
                       {listCopy.openInCollection}
