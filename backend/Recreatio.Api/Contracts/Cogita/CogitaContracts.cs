@@ -344,6 +344,16 @@ public sealed record CogitaStatisticsTimelinePointResponse(
     double KnownessScore
 );
 
+public sealed record CogitaStatisticsKnownessItemResponse(
+    Guid InfoId,
+    string InfoType,
+    string Label,
+    int AnswerCount,
+    int CorrectCount,
+    double AverageCorrectness,
+    double KnownessScore
+);
+
 public sealed record CogitaStatisticsResponse(
     string ScopeType,
     Guid? ScopeId,
@@ -353,7 +363,9 @@ public sealed record CogitaStatisticsResponse(
     double AverageCorrectness,
     int TotalPoints,
     List<CogitaStatisticsParticipantSummaryResponse> Participants,
-    List<CogitaStatisticsTimelinePointResponse> Timeline
+    List<CogitaStatisticsTimelinePointResponse> Timeline,
+    List<CogitaStatisticsKnownessItemResponse> BestKnownWords,
+    List<CogitaStatisticsKnownessItemResponse> WorstKnownWords
 );
 
 public sealed record CogitaReviewerResponse(

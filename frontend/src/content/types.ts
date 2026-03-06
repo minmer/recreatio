@@ -887,6 +887,10 @@ export type Copy = {
           participantPointsLabel: string;
           groupNameLabel: string;
           groupNamePlaceholder: string;
+          groupsListTitle: string;
+          groupsListEmpty: string;
+          loadGroupAction: string;
+          currentGroupLabel: string;
           saveGroupAction: string;
           groupSavedMessage: string;
           groupSaveError: string;

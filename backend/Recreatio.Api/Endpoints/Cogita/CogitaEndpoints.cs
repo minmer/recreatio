@@ -4002,6 +4002,7 @@ public static class CogitaEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
             CancellationToken ct) =>
         {
             if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
@@ -4027,7 +4028,7 @@ public static class CogitaEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetReadKey(library.RoleId, out _))
+            if (!keyRing.TryGetReadKey(library.RoleId, out var libraryReadKey))
             {
                 return Results.Forbid();
             }
@@ -4183,7 +4184,9 @@ public static class CogitaEndpoints
                     0d,
                     0,
                     new List<CogitaStatisticsParticipantSummaryResponse>(),
-                    new List<CogitaStatisticsTimelinePointResponse>()));
+                    new List<CogitaStatisticsTimelinePointResponse>(),
+                    new List<CogitaStatisticsKnownessItemResponse>(),
+                    new List<CogitaStatisticsKnownessItemResponse>()));
             }
 
             var participantStates = new Dictionary<string, StatisticsParticipantState>(StringComparer.Ordinal);
@@ -4287,6 +4290,121 @@ public static class CogitaEndpoints
                 : Math.Round(answerEvents.Average(x => (x.Correctness ?? 0d) * 100d), 2);
             var totalPoints = participantStates.Values.Sum(x => x.TotalPoints);
 
+            var scoredInfoGroups = events
+                .Where(x => string.Equals(x.ItemType, "info", StringComparison.OrdinalIgnoreCase) &&
+                            x.ItemId.HasValue &&
+                            (x.Correctness.HasValue || x.IsCorrect.HasValue))
+                .GroupBy(x => x.ItemId!.Value)
+                .ToList();
+
+            var infoIds = scoredInfoGroups.Select(x => x.Key).Distinct().ToList();
+            var infoTypeById = infoIds.Count == 0
+                ? new Dictionary<Guid, string>()
+                : await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.Id))
+                    .Select(x => new { x.Id, x.InfoType })
+                    .ToDictionaryAsync(x => x.Id, x => x.InfoType, ct);
+
+            var wordInfoIds = infoTypeById
+                .Where(x => x.Value is "word" or "translation")
+                .Select(x => x.Key)
+                .ToHashSet();
+            var candidateInfoIds = wordInfoIds.Count > 0
+                ? wordInfoIds
+                : infoTypeById.Keys.ToHashSet();
+
+            var labelsByInfoId = new Dictionary<Guid, string>();
+            var groupedByInfoType = candidateInfoIds
+                .Where(infoTypeById.ContainsKey)
+                .GroupBy(id => infoTypeById[id], StringComparer.Ordinal)
+                .ToList();
+            foreach (var typeGroup in groupedByInfoType)
+            {
+                var labels = await ResolveInfoLabelsAsync(
+                    libraryId,
+                    typeGroup.Key,
+                    typeGroup.ToList(),
+                    libraryReadKey,
+                    keyRingService,
+                    encryptionService,
+                    dbContext,
+                    ct);
+                foreach (var pair in labels)
+                {
+                    labelsByInfoId[pair.Key] = pair.Value;
+                }
+            }
+
+            var knownessItems = scoredInfoGroups
+                .Where(group => candidateInfoIds.Contains(group.Key) && infoTypeById.ContainsKey(group.Key))
+                .Select(group =>
+                {
+                    var entries = group
+                        .Select(statisticEvent =>
+                        {
+                            double? correctness = null;
+                            if (statisticEvent.Correctness.HasValue)
+                            {
+                                correctness = Math.Clamp(statisticEvent.Correctness.Value, 0d, 1d);
+                            }
+                            else if (statisticEvent.IsCorrect.HasValue)
+                            {
+                                correctness = statisticEvent.IsCorrect.Value ? 1d : 0d;
+                            }
+                            return correctness.HasValue
+                                ? new TemporalKnownessEntry(correctness.Value, statisticEvent.CreatedUtc)
+                                : (TemporalKnownessEntry?)null;
+                        })
+                        .Where(x => x.HasValue)
+                        .Select(x => x!.Value)
+                        .OrderBy(x => x.CreatedUtc)
+                        .ToList();
+                    if (entries.Count == 0)
+                    {
+                        return null;
+                    }
+
+                    var infoId = group.Key;
+                    var infoType = infoTypeById[infoId];
+                    var knownessSummary = ComputeKnownessSummary(entries, nowUtc);
+                    var answerCount = entries.Count;
+                    var correctCount = entries.Count(x => x.Correctness >= 0.5d);
+                    var averageCorrectness = answerCount == 0
+                        ? 0d
+                        : Math.Round(entries.Average(x => x.Correctness) * 100d, 2);
+                    var resolvedLabel = labelsByInfoId.TryGetValue(infoId, out var label) && !string.IsNullOrWhiteSpace(label)
+                        ? label
+                        : infoType;
+
+                    return new CogitaStatisticsKnownessItemResponse(
+                        infoId,
+                        infoType,
+                        resolvedLabel,
+                        answerCount,
+                        correctCount,
+                        averageCorrectness,
+                        knownessSummary.Score
+                    );
+                })
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .ToList();
+
+            var bestKnownWords = knownessItems
+                .OrderByDescending(x => x.KnownessScore)
+                .ThenByDescending(x => x.AverageCorrectness)
+                .ThenByDescending(x => x.AnswerCount)
+                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                .Take(12)
+                .ToList();
+            var worstKnownWords = knownessItems
+                .OrderBy(x => x.KnownessScore)
+                .ThenBy(x => x.AverageCorrectness)
+                .ThenByDescending(x => x.AnswerCount)
+                .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                .Take(12)
+                .ToList();
+
             return Results.Ok(new CogitaStatisticsResponse(
                 normalizedScopeType,
                 scopeId,
@@ -4296,7 +4414,9 @@ public static class CogitaEndpoints
                 averageCorrectness,
                 totalPoints,
                 participants,
-                timeline
+                timeline,
+                bestKnownWords,
+                worstKnownWords
             ));
         });
 

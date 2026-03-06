@@ -236,6 +236,18 @@ export function CogitaRevisionLiveSessionsPage({
       return haystack.includes(needle);
     });
   }, [items, query, statusFilter]);
+  const groupSessions = useMemo(
+    () =>
+      [...items].sort((left, right) => {
+        const leftTime = Date.parse(left.updatedUtc);
+        const rightTime = Date.parse(right.updatedUtc);
+        if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime) && leftTime !== rightTime) {
+          return rightTime - leftTime;
+        }
+        return left.sessionId.localeCompare(right.sessionId);
+      }),
+    [items]
+  );
 
   const createSession = async () => {
     setBusyAction('create');
@@ -1084,6 +1096,54 @@ export function CogitaRevisionLiveSessionsPage({
                               <div className="cogita-info-tree-key">{copy.cogita.library.revision.live.joinCodeLabel}</div>
                               <div className="cogita-info-tree-value">{attachedSession.code}</div>
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="cogita-library-panel cogita-live-session-overview-panel">
+                          <div className="cogita-detail-header">
+                            <div>
+                              <p className="cogita-user-kicker">{liveCopy.groupsListTitle}</p>
+                            </div>
+                          </div>
+                          <div className="cogita-share-list">
+                            {groupSessions.length ? (
+                              groupSessions.map((group) => {
+                                const isCurrent = group.sessionId === attachedSession.sessionId;
+                                const displayTitle =
+                                  group.title?.trim() ||
+                                  `${liveCopy.groupNameLabel} ${group.sessionId.slice(0, 8)}`;
+                                const displayUpdated = Number.isNaN(Date.parse(group.updatedUtc))
+                                  ? group.updatedUtc
+                                  : new Date(group.updatedUtc).toLocaleString();
+                                return (
+                                  <div key={group.sessionId} className="cogita-share-row">
+                                    <div>
+                                      <strong>{displayTitle}</strong>
+                                      <div className="cogita-share-meta">{`${group.status} · ${displayUpdated}`}</div>
+                                      <div className="cogita-share-meta">{`${liveCopy.participantsTitle}: ${group.participantCount}`}</div>
+                                    </div>
+                                    <div className="cogita-share-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                      {isCurrent ? <span className="ghost active">{liveCopy.currentGroupLabel}</span> : null}
+                                      <a
+                                        className="ghost"
+                                        href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions/${encodeURIComponent(group.sessionId)}`}
+                                        onClick={(event) => {
+                                          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+                                            return;
+                                          }
+                                          event.preventDefault();
+                                          onOpenSession?.(group.sessionId);
+                                        }}
+                                      >
+                                        {liveCopy.loadGroupAction}
+                                      </a>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p>{liveCopy.groupsListEmpty}</p>
+                            )}
                           </div>
                         </div>
 

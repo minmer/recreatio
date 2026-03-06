@@ -749,6 +749,16 @@ export type CogitaStatisticsTimelinePoint = {
   knownessScore: number;
 };
 
+export type CogitaStatisticsKnownessItem = {
+  infoId: string;
+  infoType: string;
+  label: string;
+  answerCount: number;
+  correctCount: number;
+  averageCorrectness: number;
+  knownessScore: number;
+};
+
 export type CogitaStatisticsResponse = {
   scopeType: string;
   scopeId?: string | null;
@@ -759,6 +769,8 @@ export type CogitaStatisticsResponse = {
   totalPoints: number;
   participants: CogitaStatisticsParticipantSummary[];
   timeline: CogitaStatisticsTimelinePoint[];
+  bestKnownWords?: CogitaStatisticsKnownessItem[];
+  worstKnownWords?: CogitaStatisticsKnownessItem[];
 };
 
 export type CogitaReviewOutcomeRequest = {

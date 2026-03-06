@@ -282,7 +282,9 @@ function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState | null
     averageCorrectness: totalAnswers > 0 ? (totalCorrectAnswers / totalAnswers) * 100 : 0,
     totalPoints,
     participants,
-    timeline
+    timeline,
+    bestKnownWords: [],
+    worstKnownWords: []
   };
 }
 

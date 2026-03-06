@@ -71,6 +71,16 @@ type NumberedStatistic = {
   value: string;
 };
 
+type KnownessWordItem = {
+  infoId: string;
+  infoType: string;
+  label: string;
+  answerCount: number;
+  correctCount: number;
+  averageCorrectness: number;
+  knownessScore: number;
+};
+
 type StatisticsContext = {
   response: CogitaStatisticsResponse;
   timeline: CogitaStatisticsTimelinePoint[];
@@ -84,6 +94,8 @@ type StatisticsContext = {
   medianDurationSeconds: number | null;
   minDurationSeconds: number | null;
   maxDurationSeconds: number | null;
+  bestKnownWords: KnownessWordItem[];
+  worstKnownWords: KnownessWordItem[];
 };
 
 type StatisticsModule = {
@@ -126,6 +138,21 @@ function formatFloat(value: number, digits = 1) {
 
 function formatCount(value: number) {
   return Number.isFinite(value) ? value.toLocaleString() : '0';
+}
+
+function normalizeKnownessWords(source: CogitaStatisticsResponse['bestKnownWords'] | CogitaStatisticsResponse['worstKnownWords']) {
+  return (source ?? [])
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .map((item) => ({
+      infoId: String(item.infoId ?? ''),
+      infoType: String(item.infoType ?? ''),
+      label: String(item.label ?? '').trim() || String(item.infoType ?? 'word'),
+      answerCount: Number.isFinite(item.answerCount) ? Math.max(0, Number(item.answerCount)) : 0,
+      correctCount: Number.isFinite(item.correctCount) ? Math.max(0, Number(item.correctCount)) : 0,
+      averageCorrectness: Number.isFinite(item.averageCorrectness) ? clamp(Number(item.averageCorrectness), 0, 100) : 0,
+      knownessScore: Number.isFinite(item.knownessScore) ? clamp(Number(item.knownessScore), 0, 100) : 0
+    }))
+    .filter((item) => item.infoId.length > 0);
 }
 
 function buildLinePath(points: Array<{ x: number; y: number }>) {
@@ -357,6 +384,8 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
       value: formatCount(transitions.reduce((sum, transition) => sum + transition.count, 0))
     }
   ];
+  const bestKnownWords = normalizeKnownessWords(response.bestKnownWords).slice(0, 12);
+  const worstKnownWords = normalizeKnownessWords(response.worstKnownWords).slice(0, 12);
 
   return {
     response,
@@ -370,7 +399,9 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
     averageDurationSeconds,
     medianDurationSeconds,
     minDurationSeconds,
-    maxDurationSeconds
+    maxDurationSeconds,
+    bestKnownWords,
+    worstKnownWords
   };
 }
 
@@ -505,6 +536,54 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             </li>
           ))}
         </ol>
+      </div>
+    )
+  },
+  {
+    id: 'knowness-words',
+    title: 'Knowness words',
+    subtitle: 'Best and worst known words for the current scope.',
+    isAvailable: (context) => context.bestKnownWords.length > 0 || context.worstKnownWords.length > 0,
+    render: (context) => (
+      <div className="cogita-statistics-chart-card">
+        <div className="cogita-statistics-word-lists">
+          <section>
+            <p className="cogita-user-kicker">Best known words</p>
+            {context.bestKnownWords.length > 0 ? (
+              <ol className="cogita-statistics-word-list">
+                {context.bestKnownWords.map((item, index) => (
+                  <li key={`best-${item.infoId}`} className="cogita-statistics-word-row">
+                    <span className="cogita-statistics-word-rank">#{index + 1}</span>
+                    <div className="cogita-statistics-word-content">
+                      <strong title={item.label}>{item.label}</strong>
+                      <p>{`Knowness ${formatFloat(item.knownessScore, 1)} · Correct ${formatFloat(item.averageCorrectness, 1)}% · ${formatCount(item.answerCount)} answers`}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="cogita-help">No scored words available.</p>
+            )}
+          </section>
+          <section>
+            <p className="cogita-user-kicker">Worst known words</p>
+            {context.worstKnownWords.length > 0 ? (
+              <ol className="cogita-statistics-word-list">
+                {context.worstKnownWords.map((item, index) => (
+                  <li key={`worst-${item.infoId}`} className="cogita-statistics-word-row">
+                    <span className="cogita-statistics-word-rank">#{index + 1}</span>
+                    <div className="cogita-statistics-word-content">
+                      <strong title={item.label}>{item.label}</strong>
+                      <p>{`Knowness ${formatFloat(item.knownessScore, 1)} · Correct ${formatFloat(item.averageCorrectness, 1)}% · ${formatCount(item.answerCount)} answers`}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="cogita-help">No scored words available.</p>
+            )}
+          </section>
+        </div>
       </div>
     )
   },

@@ -2672,6 +2672,53 @@
   font-size: 0.78rem;
 }
 
+.cogita-statistics-word-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.9rem;
+}
+
+.cogita-statistics-word-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cogita-statistics-word-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
+}
+
+.cogita-statistics-word-rank {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(110, 180, 235, 0.22);
+  border: 1px solid rgba(150, 210, 255, 0.35);
+  color: rgba(230, 244, 255, 0.92);
+  font-size: 0.76rem;
+}
+
+.cogita-statistics-word-content strong {
+  color: rgba(233, 244, 255, 0.97);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cogita-statistics-word-content p {
+  margin: 0.14rem 0 0;
+  color: rgba(194, 216, 240, 0.84);
+  font-size: 0.8rem;
+}
+
 .cogita-statistics-pyramid {
   display: grid;
   gap: 0.5rem;
