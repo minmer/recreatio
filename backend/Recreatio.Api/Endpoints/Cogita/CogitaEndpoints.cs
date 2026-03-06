@@ -7085,21 +7085,83 @@ public static class CogitaEndpoints
             var scoreHistory = await BuildLiveRevisionScoreHistoryAsync(session.Id, dataProtectionProvider, dbContext, ct);
             var correctnessHistory = await BuildLiveRevisionCorrectnessHistoryAsync(session.Id, dataProtectionProvider, dbContext, ct);
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+            var isAsyncSession = string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal);
 
             var answerSubmitted = false;
             Guid? participantId = null;
             string? participantName = null;
+            CogitaLiveRevisionParticipant? participant = null;
             if (!string.IsNullOrWhiteSpace(participantToken))
             {
-                var participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
                     .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
                 if (participant is not null)
                 {
                     participantId = participant.Id;
                     participantName = ResolveLiveParticipantDisplayName(participant, dataProtectionProvider, session.Id);
-                    answerSubmitted = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
-                        .AnyAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex, ct);
                 }
+            }
+
+            if (isAsyncSession)
+            {
+                var effectiveStatus = session.Status;
+                var effectiveRoundIndex = session.CurrentRoundIndex;
+                JsonElement? currentPrompt = null;
+                JsonElement? currentReveal = null;
+                if (participant is not null)
+                {
+                    var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                    var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                        .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                        .OrderByDescending(x => x.RoundIndex)
+                        .ThenByDescending(x => x.UpdatedUtc)
+                        .ToListAsync(ct);
+                    var latestAnswerByRound = participantAnswers
+                        .GroupBy(x => x.RoundIndex)
+                        .ToDictionary(group => group.Key, group => group.First());
+
+                    var completedRoundCount = latestAnswerByRound.Keys.Count(index => index >= 0);
+                    effectiveRoundIndex = Math.Max(0, Math.Min(completedRoundCount, rounds.Count));
+
+                    if (effectiveRoundIndex < rounds.Count)
+                    {
+                        var currentRound = rounds[effectiveRoundIndex];
+                        var promptNode = CloneJsonObject(currentRound.Prompt);
+                        promptNode["roundIndex"] = effectiveRoundIndex;
+                        promptNode["cardKey"] = currentRound.CardKey;
+                        currentPrompt = JsonNodeToJsonElement(promptNode);
+                        answerSubmitted = latestAnswerByRound.ContainsKey(effectiveRoundIndex);
+                    }
+                    else if (string.Equals(session.Status, "running", StringComparison.Ordinal))
+                    {
+                        effectiveStatus = "finished";
+                    }
+                }
+
+                return Results.Ok(new CogitaLiveRevisionPublicStateResponse(
+                    session.Id,
+                    meta.SessionMode,
+                    meta.Title,
+                    meta.ParticipantViewMode,
+                    meta.SessionSettings,
+                    effectiveStatus,
+                    effectiveRoundIndex,
+                    session.RevealVersion,
+                    currentPrompt,
+                    currentReveal,
+                    scoreboard,
+                    scoreHistory,
+                    correctnessHistory,
+                    answerSubmitted,
+                    participantId,
+                    participantName
+                ));
+            }
+
+            if (participant is not null)
+            {
+                answerSubmitted = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .AnyAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex, ct);
             }
 
             return Results.Ok(new CogitaLiveRevisionPublicStateResponse(
@@ -7139,10 +7201,6 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Live session is not accepting answers." });
             }
-            if (request.RoundIndex != session.CurrentRoundIndex)
-            {
-                return Results.BadRequest(new { error = "Round index does not match current live round." });
-            }
 
             var participant = await dbContext.CogitaLiveRevisionParticipants
                 .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(request.ParticipantToken), ct);
@@ -7151,9 +7209,46 @@ public static class CogitaEndpoints
                 return Results.Forbid();
             }
 
+            var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+            var isAsyncSession = string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal);
             var now = DateTimeOffset.UtcNow;
             var roundIndex = session.CurrentRoundIndex;
-            var currentPromptCardKey = ResolveCardIdentityFromPromptJson(session.CurrentPromptJson).CardKey;
+            string? currentPromptCardKey;
+            if (isAsyncSession)
+            {
+                var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                if (rounds.Count == 0)
+                {
+                    return Results.BadRequest(new { error = "Live session has no prepared rounds." });
+                }
+
+                var completedRounds = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                    .Select(x => x.RoundIndex)
+                    .Distinct()
+                    .CountAsync(ct);
+                roundIndex = Math.Max(0, Math.Min(completedRounds, rounds.Count));
+                if (roundIndex >= rounds.Count)
+                {
+                    return Results.BadRequest(new { error = "Participant completed this live session." });
+                }
+
+                if (request.RoundIndex != roundIndex)
+                {
+                    return Results.BadRequest(new { error = "Round index does not match participant progression." });
+                }
+
+                currentPromptCardKey = rounds[roundIndex].CardKey;
+            }
+            else
+            {
+                if (request.RoundIndex != session.CurrentRoundIndex)
+                {
+                    return Results.BadRequest(new { error = "Round index does not match current live round." });
+                }
+                currentPromptCardKey = ResolveCardIdentityFromPromptJson(session.CurrentPromptJson).CardKey;
+            }
+
             var normalizedCardKey = string.IsNullOrWhiteSpace(currentPromptCardKey)
                 ? (string.IsNullOrWhiteSpace(request.CardKey) ? null : request.CardKey.Trim())
                 : currentPromptCardKey;
@@ -7163,6 +7258,9 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Card key does not match current live prompt." });
             }
+            var answerNode = request.Answer.HasValue
+                ? JsonNode.Parse(request.Answer.Value.GetRawText())
+                : null;
             var protectedAnswerJson = request.Answer.HasValue
                 ? ProtectLiveSessionScopedJson(request.Answer.Value.GetRawText(), dataProtectionProvider, session.Id)
                 : null;
@@ -7187,12 +7285,138 @@ public static class CogitaEndpoints
             }
             else
             {
+                if (isAsyncSession && answer.IsCorrect.HasValue)
+                {
+                    participant.IsConnected = true;
+                    participant.UpdatedUtc = now;
+                    session.UpdatedUtc = now;
+                    await dbContext.SaveChangesAsync(ct);
+                    return Results.Ok();
+                }
                 answer.CardKey = normalizedCardKey ?? answer.CardKey;
                 answer.AnswerJson = protectedAnswerJson ?? answer.AnswerJson;
                 answer.UpdatedUtc = now;
             }
             participant.IsConnected = true;
             participant.UpdatedUtc = now;
+
+            if (isAsyncSession)
+            {
+                var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                var currentRound = rounds.FirstOrDefault(x => x.RoundIndex == roundIndex);
+                if (currentRound is null)
+                {
+                    return Results.BadRequest(new { error = "Unable to resolve async round." });
+                }
+
+                if (!EvaluateLiveAsyncAnswer(currentRound, answerNode, out var isCorrect, out _))
+                {
+                    return Results.BadRequest(new { error = "Unsupported prompt type for async scoring." });
+                }
+
+                var rules = ParseLiveSessionScoringRules(meta.SessionSettings);
+                var answersForRound = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.RoundIndex == roundIndex && x.ParticipantId != participant.Id)
+                    .ToListAsync(ct);
+                var firstAnswered = answersForRound.Count == 0;
+                var firstCorrect = isCorrect && !answersForRound.Any(x => x.IsCorrect == true);
+
+                var participantHistory = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex < roundIndex)
+                    .OrderByDescending(x => x.RoundIndex)
+                    .ThenByDescending(x => x.UpdatedUtc)
+                    .ToListAsync(ct);
+                var streakBefore = 0;
+                foreach (var historyEntry in participantHistory)
+                {
+                    if (historyEntry.IsCorrect == true)
+                    {
+                        streakBefore += 1;
+                        continue;
+                    }
+                    break;
+                }
+
+                var points = 0;
+                if (isCorrect)
+                {
+                    var basePoints = Math.Max(0, Math.Min(500000, rules.BaseCorrect));
+                    if (basePoints > 0)
+                    {
+                        points += basePoints;
+                    }
+
+                    if (firstCorrect && rules.FirstCorrectBonus > 0)
+                    {
+                        points += Math.Max(0, Math.Min(500000, rules.FirstCorrectBonus));
+                    }
+
+                    if (rules.BonusTimerEnabled &&
+                        rules.SpeedBonusEnabled &&
+                        rules.SpeedBonusMaxPoints > 0)
+                    {
+                        DateTimeOffset speedTimerStartUtc;
+                        if (string.Equals(rules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal))
+                        {
+                            speedTimerStartUtc = now;
+                        }
+                        else
+                        {
+                            var previousRoundAnswer = participantHistory.FirstOrDefault();
+                            if (previousRoundAnswer is not null)
+                            {
+                                speedTimerStartUtc = previousRoundAnswer.UpdatedUtc;
+                            }
+                            else if (session.StartedUtc.HasValue)
+                            {
+                                speedTimerStartUtc = session.StartedUtc.Value;
+                            }
+                            else
+                            {
+                                speedTimerStartUtc = participant.JoinedUtc;
+                            }
+                        }
+
+                        var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, rules.BonusTimerSeconds)));
+                        if (now <= speedTimerEndUtc)
+                        {
+                            var denominator = Math.Max(1d, (speedTimerEndUtc - speedTimerStartUtc).TotalMilliseconds);
+                            var ratio = Math.Max(0d, Math.Min(1d, (speedTimerEndUtc - now).TotalMilliseconds / denominator));
+                            var scaled = rules.SpeedBonusGrowth switch
+                            {
+                                "exponential" => ratio * ratio,
+                                "limited" => Math.Min(1d, ratio * 1.6d),
+                                _ => ratio
+                            };
+                            var speedPoints = (int)Math.Round(Math.Max(0, Math.Min(500000, rules.SpeedBonusMaxPoints * scaled)));
+                            if (speedPoints > 0)
+                            {
+                                points += speedPoints;
+                            }
+                        }
+                    }
+
+                    var nextStreak = streakBefore + 1;
+                    var streakPoints = ComputeAsyncStreakBonus(rules.StreakGrowth, rules.StreakBaseBonus, nextStreak, rules.StreakLimit);
+                    if (streakPoints > 0)
+                    {
+                        points += streakPoints;
+                    }
+                }
+                else
+                {
+                    var wrongPenalty = Math.Max(0, Math.Min(500000, rules.WrongAnswerPenalty));
+                    var firstWrongPenalty = firstAnswered ? Math.Max(0, Math.Min(500000, rules.FirstWrongPenalty)) : 0;
+                    points -= wrongPenalty + firstWrongPenalty;
+                }
+
+                answer.IsCorrect = isCorrect;
+                answer.PointsAwarded = Math.Max(-500000, Math.Min(500000, points));
+                answer.UpdatedUtc = now;
+                participant.Score += answer.PointsAwarded;
+                participant.UpdatedUtc = now;
+                session.UpdatedUtc = now;
+            }
 
             var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
             var promptStartUtc = ResolvePromptStartUtc(session.CurrentPromptJson);
@@ -7217,9 +7441,9 @@ public static class CogitaEndpoints
                 EventType = "live_answer_submitted",
                 RoundIndex = roundIndex,
                 CardKey = answer.CardKey,
-                IsCorrect = null,
-                Correctness = null,
-                PointsAwarded = null,
+                IsCorrect = isAsyncSession ? answer.IsCorrect : null,
+                Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
+                PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
                 DurationMs = durationMs,
                 IsPersistent = false,
                 PayloadJson = null,
@@ -7256,9 +7480,9 @@ public static class CogitaEndpoints
                         EventType = "live_answer_submitted_personal",
                         RoundIndex = roundIndex,
                         CardKey = answer.CardKey,
-                        IsCorrect = null,
-                        Correctness = null,
-                        PointsAwarded = null,
+                        IsCorrect = isAsyncSession ? answer.IsCorrect : null,
+                        Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
+                        PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
                         DurationMs = durationMs,
                         IsPersistent = true,
                         PayloadJson = null,
@@ -15862,6 +16086,571 @@ public static class CogitaEndpoints
         {
             return null;
         }
+    }
+
+    private sealed record LiveAsyncRoundPayload(int RoundIndex, string CardKey, JsonObject Prompt, JsonObject Reveal);
+
+    private sealed record LiveSessionScoringRules(
+        int BaseCorrect,
+        int FirstCorrectBonus,
+        int WrongAnswerPenalty,
+        int FirstWrongPenalty,
+        int StreakBaseBonus,
+        string StreakGrowth,
+        int StreakLimit,
+        bool BonusTimerEnabled,
+        int BonusTimerSeconds,
+        string BonusTimerStartMode,
+        bool SpeedBonusEnabled,
+        int SpeedBonusMaxPoints,
+        string SpeedBonusGrowth);
+
+    private static List<LiveAsyncRoundPayload> ParseLiveAsyncRoundBundle(string? promptJson)
+    {
+        if (string.IsNullOrWhiteSpace(promptJson))
+        {
+            return new List<LiveAsyncRoundPayload>();
+        }
+
+        try
+        {
+            var root = JsonNode.Parse(promptJson) as JsonObject;
+            if (root is null)
+            {
+                return new List<LiveAsyncRoundPayload>();
+            }
+
+            var kind = root["kind"]?.GetValue<string>()?.Trim().ToLowerInvariant();
+            if (!string.Equals(kind, "async-session", StringComparison.Ordinal))
+            {
+                return new List<LiveAsyncRoundPayload>();
+            }
+
+            var roundsNode = root["rounds"] as JsonArray;
+            if (roundsNode is null || roundsNode.Count == 0)
+            {
+                return new List<LiveAsyncRoundPayload>();
+            }
+
+            var rounds = new List<LiveAsyncRoundPayload>();
+            for (var index = 0; index < roundsNode.Count; index++)
+            {
+                var roundNode = roundsNode[index] as JsonObject;
+                if (roundNode is null)
+                {
+                    continue;
+                }
+
+                var cardKey = roundNode["cardKey"]?.GetValue<string>()?.Trim();
+                var prompt = roundNode["prompt"] as JsonObject;
+                var reveal = roundNode["reveal"] as JsonObject;
+                if (string.IsNullOrWhiteSpace(cardKey) || prompt is null || reveal is null)
+                {
+                    continue;
+                }
+
+                var roundIndex = index;
+                if (roundNode["roundIndex"] is JsonValue roundIndexValue &&
+                    roundIndexValue.TryGetValue<int>(out var parsedRoundIndex))
+                {
+                    roundIndex = parsedRoundIndex;
+                }
+                rounds.Add(new LiveAsyncRoundPayload(
+                    Math.Max(0, roundIndex),
+                    cardKey,
+                    CloneJsonObject(prompt),
+                    CloneJsonObject(reveal)));
+            }
+
+            return rounds
+                .OrderBy(x => x.RoundIndex)
+                .ThenBy(x => x.CardKey, StringComparer.Ordinal)
+                .ToList();
+        }
+        catch
+        {
+            return new List<LiveAsyncRoundPayload>();
+        }
+    }
+
+    private static JsonObject CloneJsonObject(JsonObject source)
+    {
+        return (JsonNode.Parse(source.ToJsonString()) as JsonObject) ?? new JsonObject();
+    }
+
+    private static JsonElement? JsonNodeToJsonElement(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(node.ToJsonString());
+            return doc.RootElement.Clone();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static LiveSessionScoringRules ParseLiveSessionScoringRules(JsonElement? sessionSettings)
+    {
+        var defaults = new LiveSessionScoringRules(
+            BaseCorrect: 1000,
+            FirstCorrectBonus: 500,
+            WrongAnswerPenalty: 0,
+            FirstWrongPenalty: 0,
+            StreakBaseBonus: 1000,
+            StreakGrowth: "limited",
+            StreakLimit: 5,
+            BonusTimerEnabled: true,
+            BonusTimerSeconds: 10,
+            BonusTimerStartMode: "first_answer",
+            SpeedBonusEnabled: true,
+            SpeedBonusMaxPoints: 500,
+            SpeedBonusGrowth: "exponential");
+        if (sessionSettings is null)
+        {
+            return defaults;
+        }
+
+        JsonElement root = sessionSettings.Value;
+        JsonElement liveRulesRoot = root;
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("liveRules", out var nestedLiveRules) &&
+            nestedLiveRules.ValueKind == JsonValueKind.Object)
+        {
+            liveRulesRoot = nestedLiveRules;
+        }
+
+        if (liveRulesRoot.ValueKind != JsonValueKind.Object)
+        {
+            return defaults;
+        }
+
+        static int ReadInt(JsonElement element, string propertyName, int fallback, int min, int max)
+        {
+            if (element.TryGetProperty(propertyName, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var parsed))
+                {
+                    return Math.Max(min, Math.Min(max, parsed));
+                }
+                if (value.ValueKind == JsonValueKind.String &&
+                    int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedFromString))
+                {
+                    return Math.Max(min, Math.Min(max, parsedFromString));
+                }
+            }
+            return fallback;
+        }
+
+        static bool ReadBool(JsonElement element, string propertyName, bool fallback)
+        {
+            if (element.TryGetProperty(propertyName, out var value))
+            {
+                if (value.ValueKind == JsonValueKind.True || value.ValueKind == JsonValueKind.False)
+                {
+                    return value.GetBoolean();
+                }
+                if (value.ValueKind == JsonValueKind.String &&
+                    bool.TryParse(value.GetString(), out var parsed))
+                {
+                    return parsed;
+                }
+            }
+            return fallback;
+        }
+
+        static string ReadString(JsonElement element, string propertyName, string fallback, string[] allowed)
+        {
+            if (element.TryGetProperty(propertyName, out var value) &&
+                value.ValueKind == JsonValueKind.String)
+            {
+                var candidate = value.GetString()?.Trim().ToLowerInvariant();
+                if (!string.IsNullOrWhiteSpace(candidate) &&
+                    allowed.Any(option => string.Equals(option, candidate, StringComparison.Ordinal)))
+                {
+                    return candidate;
+                }
+            }
+            return fallback;
+        }
+
+        var scoringRoot = liveRulesRoot.TryGetProperty("scoring", out var scoringElement) && scoringElement.ValueKind == JsonValueKind.Object
+            ? scoringElement
+            : default;
+        var bonusTimerRoot = liveRulesRoot.TryGetProperty("bonusTimer", out var bonusTimerElement) && bonusTimerElement.ValueKind == JsonValueKind.Object
+            ? bonusTimerElement
+            : default;
+        var speedBonusRoot = liveRulesRoot.TryGetProperty("speedBonus", out var speedBonusElement) && speedBonusElement.ValueKind == JsonValueKind.Object
+            ? speedBonusElement
+            : default;
+
+        var baseCorrect = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "baseCorrect", defaults.BaseCorrect, 0, 500000)
+            : defaults.BaseCorrect;
+        var firstCorrectBonus = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "firstCorrectBonus", defaults.FirstCorrectBonus, 0, 500000)
+            : defaults.FirstCorrectBonus;
+        var wrongAnswerPenalty = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "wrongAnswerPenalty", defaults.WrongAnswerPenalty, 0, 500000)
+            : defaults.WrongAnswerPenalty;
+        var firstWrongPenalty = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "firstWrongPenalty", defaults.FirstWrongPenalty, 0, 500000)
+            : defaults.FirstWrongPenalty;
+        var streakBaseBonus = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "streakBaseBonus", defaults.StreakBaseBonus, 0, 500000)
+            : defaults.StreakBaseBonus;
+        var streakLimit = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "streakLimit", defaults.StreakLimit, 1, 200)
+            : defaults.StreakLimit;
+        var streakGrowth = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(scoringRoot, "streakGrowth", defaults.StreakGrowth, new[] { "linear", "exponential", "limited" })
+            : defaults.StreakGrowth;
+
+        var bonusTimerEnabled = bonusTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadBool(bonusTimerRoot, "enabled", defaults.BonusTimerEnabled)
+            : defaults.BonusTimerEnabled;
+        var bonusTimerSeconds = bonusTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(bonusTimerRoot, "seconds", defaults.BonusTimerSeconds, 1, 600)
+            : defaults.BonusTimerSeconds;
+        var bonusTimerStartMode = bonusTimerRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(bonusTimerRoot, "startMode", defaults.BonusTimerStartMode, new[] { "round_start", "first_answer" })
+            : defaults.BonusTimerStartMode;
+
+        var speedBonusEnabled = speedBonusRoot.ValueKind == JsonValueKind.Object
+            ? ReadBool(speedBonusRoot, "enabled", defaults.SpeedBonusEnabled)
+            : defaults.SpeedBonusEnabled;
+        var speedBonusMaxPoints = speedBonusRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(speedBonusRoot, "maxPoints", defaults.SpeedBonusMaxPoints, 0, 500000)
+            : defaults.SpeedBonusMaxPoints;
+        var speedBonusGrowth = speedBonusRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(speedBonusRoot, "growth", defaults.SpeedBonusGrowth, new[] { "linear", "exponential", "limited" })
+            : defaults.SpeedBonusGrowth;
+
+        return new LiveSessionScoringRules(
+            baseCorrect,
+            firstCorrectBonus,
+            wrongAnswerPenalty,
+            firstWrongPenalty,
+            streakBaseBonus,
+            streakGrowth,
+            streakLimit,
+            bonusTimerEnabled,
+            bonusTimerSeconds,
+            bonusTimerStartMode,
+            speedBonusEnabled,
+            speedBonusMaxPoints,
+            speedBonusGrowth);
+    }
+
+    private static List<int> ParseIntListFromJsonNode(JsonNode? node)
+    {
+        var values = new List<int>();
+        if (node is null)
+        {
+            return values;
+        }
+
+        if (node is JsonValue scalar)
+        {
+            if (scalar.TryGetValue<int>(out var single))
+            {
+                values.Add(single);
+            }
+            return values;
+        }
+
+        if (node is not JsonArray array)
+        {
+            return values;
+        }
+
+        foreach (var entry in array)
+        {
+            if (entry is JsonValue value && value.TryGetValue<int>(out var parsed))
+            {
+                values.Add(parsed);
+            }
+        }
+        return values;
+    }
+
+    private static List<string> ParseStringListFromJsonNode(JsonNode? node)
+    {
+        var values = new List<string>();
+        if (node is not JsonArray array)
+        {
+            return values;
+        }
+
+        foreach (var entry in array)
+        {
+            if (entry is JsonValue value && value.TryGetValue<string>(out var parsed) && !string.IsNullOrWhiteSpace(parsed))
+            {
+                values.Add(parsed.Trim());
+            }
+        }
+        return values;
+    }
+
+    private static List<string> ParseMatchingPathsFromJsonNode(JsonNode? node)
+    {
+        JsonNode? root = node;
+        if (node is JsonObject asObj && asObj["paths"] is JsonNode nestedPaths)
+        {
+            root = nestedPaths;
+        }
+
+        if (root is not JsonArray rows)
+        {
+            return new List<string>();
+        }
+
+        var serializedPaths = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            if (row is not JsonArray rowArray)
+            {
+                continue;
+            }
+
+            var numbers = rowArray
+                .Select(item =>
+                {
+                    if (item is JsonValue value && value.TryGetValue<int>(out var parsed))
+                    {
+                        return (int?)parsed;
+                    }
+                    return null;
+                })
+                .Where(item => item.HasValue)
+                .Select(item => item!.Value)
+                .ToList();
+            if (numbers.Count == 0)
+            {
+                continue;
+            }
+
+            serializedPaths.Add(string.Join(",", numbers));
+        }
+
+        return serializedPaths.OrderBy(x => x, StringComparer.Ordinal).ToList();
+    }
+
+    private static string NormalizeLiveText(string input, bool ignorePunctuation)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        var normalized = input.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var ch in normalized)
+        {
+            var category = CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (category == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+                continue;
+            }
+
+            if (char.IsWhiteSpace(ch))
+            {
+                builder.Append(' ');
+                continue;
+            }
+
+            if (!ignorePunctuation)
+            {
+                builder.Append(char.ToLowerInvariant(ch));
+            }
+        }
+
+        return Regex.Replace(builder.ToString(), "\\s+", " ").Trim();
+    }
+
+    private static int ComputeLevenshteinDistance(string left, string right)
+    {
+        if (left == right)
+        {
+            return 0;
+        }
+        if (left.Length == 0)
+        {
+            return right.Length;
+        }
+        if (right.Length == 0)
+        {
+            return left.Length;
+        }
+
+        var previous = new int[right.Length + 1];
+        var current = new int[right.Length + 1];
+        for (var j = 0; j <= right.Length; j++)
+        {
+            previous[j] = j;
+        }
+
+        for (var i = 1; i <= left.Length; i++)
+        {
+            current[0] = i;
+            for (var j = 1; j <= right.Length; j++)
+            {
+                var cost = left[i - 1] == right[j - 1] ? 0 : 1;
+                current[j] = Math.Min(
+                    Math.Min(current[j - 1] + 1, previous[j] + 1),
+                    previous[j - 1] + cost);
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[right.Length];
+    }
+
+    private static bool EvaluateLiveAsyncAnswer(
+        LiveAsyncRoundPayload round,
+        JsonNode? answerNode,
+        out bool isCorrect,
+        out double correctness)
+    {
+        isCorrect = false;
+        correctness = 0d;
+
+        var kind = round.Prompt["kind"]?.GetValue<string>()?.Trim().ToLowerInvariant()
+                   ?? round.Reveal["kind"]?.GetValue<string>()?.Trim().ToLowerInvariant()
+                   ?? "text";
+        var expectedNode = round.Reveal["expected"];
+
+        if (kind == "selection")
+        {
+            var expected = ParseIntListFromJsonNode(expectedNode)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            var actual = ParseIntListFromJsonNode(answerNode)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
+            isCorrect = expected.SequenceEqual(actual);
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        if (kind == "boolean")
+        {
+            var expected = expectedNode is JsonValue expectedValue && expectedValue.TryGetValue<bool>(out var expectedBool)
+                ? expectedBool
+                : (bool?)null;
+            var actual = answerNode is JsonValue answerValue && answerValue.TryGetValue<bool>(out var answerBool)
+                ? answerBool
+                : (bool?)null;
+            isCorrect = expected.HasValue && actual.HasValue && expected.Value == actual.Value;
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        if (kind == "ordering")
+        {
+            var expected = ParseStringListFromJsonNode(expectedNode);
+            var actual = ParseStringListFromJsonNode(answerNode);
+            isCorrect = expected.Count > 0 &&
+                        expected.Count == actual.Count &&
+                        expected.Zip(actual, (left, right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase)).All(x => x);
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        if (kind == "matching")
+        {
+            var expectedPaths = ParseMatchingPathsFromJsonNode(expectedNode);
+            var actualPaths = ParseMatchingPathsFromJsonNode(answerNode);
+            isCorrect = expectedPaths.Count > 0 && expectedPaths.SequenceEqual(actualPaths);
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        var expectedText = expectedNode is JsonValue expectedScalar && expectedScalar.TryGetValue<string>(out var expectedString)
+            ? expectedString
+            : expectedNode?.ToJsonString()?.Trim('"');
+        var actualText = answerNode is JsonValue answerScalar && answerScalar.TryGetValue<string>(out var answerString)
+            ? answerString
+            : answerNode?.ToJsonString()?.Trim('"');
+        expectedText ??= string.Empty;
+        actualText ??= string.Empty;
+
+        var inputType = round.Prompt["inputType"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "text";
+        if (inputType == "number")
+        {
+            var expectedNumberOk = double.TryParse(expectedText, NumberStyles.Float, CultureInfo.InvariantCulture, out var expectedNumber);
+            var actualNumberOk = double.TryParse(actualText, NumberStyles.Float, CultureInfo.InvariantCulture, out var actualNumber);
+            isCorrect = expectedNumberOk && actualNumberOk && Math.Abs(expectedNumber - actualNumber) < 0.000001d;
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        if (inputType == "date")
+        {
+            var expectedDateOk = DateTime.TryParse(expectedText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expectedDate);
+            var actualDateOk = DateTime.TryParse(actualText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var actualDate);
+            isCorrect = expectedDateOk && actualDateOk && expectedDate.Date == actualDate.Date;
+            correctness = isCorrect ? 1d : 0d;
+            return true;
+        }
+
+        var ignorePunctuation = kind is "citation-fragment" or "text";
+        var normalizedExpected = NormalizeLiveText(expectedText, ignorePunctuation);
+        var normalizedActual = NormalizeLiveText(actualText, ignorePunctuation);
+        if (normalizedExpected.Length == 0 && normalizedActual.Length == 0)
+        {
+            isCorrect = true;
+            correctness = 1d;
+            return true;
+        }
+        if (normalizedExpected.Length == 0 || normalizedActual.Length == 0)
+        {
+            isCorrect = false;
+            correctness = 0d;
+            return true;
+        }
+
+        var distance = ComputeLevenshteinDistance(normalizedExpected, normalizedActual);
+        var maxLength = Math.Max(normalizedExpected.Length, normalizedActual.Length);
+        correctness = maxLength == 0 ? 1d : Math.Max(0d, 1d - (distance / (double)maxLength));
+        var threshold = kind == "citation-fragment" ? 0.9d : 0.85d;
+        isCorrect = correctness >= threshold;
+        return true;
+    }
+
+    private static int ComputeAsyncStreakBonus(string growthMode, int streakBaseBonus, int streakCount, int streakLimit)
+    {
+        var maxBonus = Math.Max(0, streakBaseBonus);
+        var extraCount = Math.Max(0, streakCount - 1);
+        if (maxBonus == 0 || extraCount == 0)
+        {
+            return 0;
+        }
+
+        var fullAfter = Math.Max(1, streakLimit);
+        var progress = Math.Max(0d, Math.Min(1d, extraCount / (double)fullAfter));
+        var scaled = growthMode switch
+        {
+            "exponential" => progress * progress,
+            "limited" => Math.Min(1d, progress * 1.6d),
+            _ => progress
+        };
+        return Math.Max(0, Math.Min(500000, (int)Math.Round(maxBonus * scaled)));
     }
 
     private static string? ProtectLiveSessionScopedJson(string? plainJson, IDataProtectionProvider dataProtectionProvider, Guid sessionId)

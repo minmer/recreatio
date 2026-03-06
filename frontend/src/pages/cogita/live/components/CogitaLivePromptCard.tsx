@@ -306,9 +306,17 @@ export function CogitaLivePromptCard({
   }
 
   if (kind === 'ordering') {
-    const shown = Array.isArray(isRevealed ? revealExpected : answers?.ordering)
-      ? (isRevealed ? (revealExpected as unknown[]) : (answers?.ordering ?? [])).map(String)
-      : [];
+    const shown = (() => {
+      if (isRevealed) {
+        if (Array.isArray(revealExpected)) return revealExpected.map(String);
+        if (Array.isArray(prompt.options)) return prompt.options.map(String);
+        return [];
+      }
+      if (mode === 'readonly') {
+        return Array.isArray(prompt.options) ? prompt.options.map(String) : [];
+      }
+      return Array.isArray(answers?.ordering) ? answers.ordering.map(String) : [];
+    })();
     return wrap(
       <>
         <p>{String(prompt.prompt ?? '')}</p>

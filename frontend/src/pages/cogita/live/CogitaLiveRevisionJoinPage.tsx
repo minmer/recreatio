@@ -12,6 +12,7 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
 import { clampInt, parseLiveRules } from './liveSessionRules';
+import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
 
 function readJoinNameFromHash() {
@@ -29,6 +30,10 @@ function tokenStorageKey(code: string) {
 
 function participantMetaStorageKey(code: string) {
   return `cogita.live.join.meta.${code}`;
+}
+
+function introSeenStorageKey(code: string, participantRef: string) {
+  return `cogita.live.join.intro.${code}.${participantRef}`;
 }
 
 function participantResetLabel(language: 'pl' | 'en' | 'de') {
@@ -80,6 +85,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [matchingRows, setMatchingRows] = useState<number[][]>([]);
   const [matchingSelection, setMatchingSelection] = useState<Array<number | null>>([]);
   const [showScoreOverlay, setShowScoreOverlay] = useState(false);
+  const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
@@ -103,6 +109,16 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (typeof rawTitle === 'string' && rawTitle.trim()) return rawTitle.trim();
     return liveCopy.joinTitle;
   }, [liveCopy.joinTitle, state]);
+  const participantRef = state?.participantId ?? participantMeta?.participantId ?? participantToken ?? '';
+  const sessionDescriptionLines = useMemo(
+    () =>
+      buildLiveSessionSummaryLines({
+        liveCopy,
+        rules: liveRules,
+        sessionMode: state?.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous'
+      }),
+    [liveCopy, liveRules, state?.sessionMode]
+  );
   const promptKey = useMemo(
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
@@ -158,6 +174,19 @@ export function CogitaLiveRevisionJoinPage(props: {
       setShowScoreOverlay(false);
     }
   }, [showJoinPanel]);
+
+  useEffect(() => {
+    if (!participantRef) {
+      setIntroAcknowledged(false);
+      return;
+    }
+    try {
+      const seen = typeof localStorage !== 'undefined' && localStorage.getItem(introSeenStorageKey(code, participantRef)) === '1';
+      setIntroAcknowledged(Boolean(seen));
+    } catch {
+      setIntroAcknowledged(false);
+    }
+  }, [code, participantRef]);
 
   useEffect(() => {
     if (!hasStoredTokenMismatch) return;
@@ -227,11 +256,16 @@ export function CogitaLiveRevisionJoinPage(props: {
   };
 
   const clearStoredParticipantData = () => {
+    const currentParticipantRef = participantRef;
     setParticipantToken(null);
     setParticipantMeta(null);
+    setIntroAcknowledged(false);
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(tokenStorageKey(code));
       localStorage.removeItem(participantMetaStorageKey(code));
+      if (currentParticipantRef) {
+        localStorage.removeItem(introSeenStorageKey(code, currentParticipantRef));
+      }
     }
   };
 
@@ -437,6 +471,17 @@ export function CogitaLiveRevisionJoinPage(props: {
     return { total, rows, bonusTotal, penaltyTotal };
   }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
+  const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
+
+  const acknowledgeIntro = () => {
+    setIntroAcknowledged(true);
+    if (!participantRef) return;
+    try {
+      localStorage.setItem(introSeenStorageKey(code, participantRef), '1');
+    } catch {
+      // Ignore storage quota or private mode errors.
+    }
+  };
 
   useEffect(() => {
     const rows = state?.scoreboard ?? [];
@@ -567,8 +612,25 @@ export function CogitaLiveRevisionJoinPage(props: {
               ) : null}
               {!isFirstLogin ? (
               <div className="cogita-library-panel cogita-live-fullscreen-panel">
-                <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
-                <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
+                {showIntroPanel ? (
+                  <>
+                    <p className="cogita-user-kicker">{liveCopy.sessionSettingsLabel}</p>
+                    <h3 className="cogita-detail-title">{sessionTitle}</h3>
+                    <div className="cogita-detail-body">
+                      {sessionDescriptionLines.map((line) => (
+                        <p key={`intro:${line}`}>{line}</p>
+                      ))}
+                    </div>
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={acknowledgeIntro}>
+                        {revisionCopy.start}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
+                    <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
                 {sessionStage === 'active' && prompt && effectiveQuestionTimer != null ? (
                   <div className="cogita-live-timer">
                     <div className="cogita-live-timer-head">
@@ -675,19 +737,23 @@ export function CogitaLiveRevisionJoinPage(props: {
                     {timerExpired ? <p className="cogita-help">{liveCopy.timeExpired}</p> : null}
                   </>
                 ) : (
-                  <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
+                  <p className="cogita-help">
+                    {sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.waitingForHostQuestion}
+                  </p>
+                )}
+                  </>
                 )}
               </div>
               ) : null}
             </div>
-            {!showJoinPanel && sessionStage !== 'lobby' ? (
+            {!showJoinPanel && sessionStage !== 'lobby' && !showIntroPanel ? (
               <div className="cogita-live-score-overlay-toggle">
                 <button type="button" className="ghost" onClick={() => setShowScoreOverlay(true)}>
                   {liveCopy.showScoreOverlayAction}
                 </button>
               </div>
             ) : null}
-            {showScoreOverlay && sessionStage !== 'lobby' ? (
+            {showScoreOverlay && sessionStage !== 'lobby' && !showIntroPanel ? (
               <div className="cogita-live-score-overlay" onClick={() => setShowScoreOverlay(false)}>
                 <div className="cogita-live-score-overlay-card" onClick={(event) => event.stopPropagation()}>
                   <div className="cogita-form-actions" style={{ justifyContent: 'space-between' }}>

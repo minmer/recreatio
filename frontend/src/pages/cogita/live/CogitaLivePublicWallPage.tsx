@@ -155,6 +155,95 @@ function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState | null
     });
   });
 
+  if (timeline.length === 0 && scoreHistory.length > 0) {
+    const previousScoreByParticipant = new Map<string, number>();
+    scoreHistory.forEach((round) => {
+      const roundRecordedUtc = round.recordedUtc ?? new Date().toISOString();
+      (round.scoreboard ?? []).forEach((entry) => {
+        const participantId = String(entry.participantId ?? '').trim();
+        if (!participantId) return;
+        const existing = participantMeta.get(participantId);
+        const meta =
+          existing ??
+          {
+            label: entry.displayName || participantId,
+            eventCount: 0,
+            answerCount: 0,
+            correctCount: 0,
+            runningPoints: 0,
+            knownessScore: 0,
+            lastActivityUtc: null
+          };
+        const currentScore = Number(entry.score ?? 0);
+        const previousScore = previousScoreByParticipant.get(participantId) ?? 0;
+        const pointsAwarded = currentScore - previousScore;
+        previousScoreByParticipant.set(participantId, currentScore);
+        meta.eventCount += 1;
+        meta.runningPoints = currentScore;
+        meta.lastActivityUtc = roundRecordedUtc;
+        meta.label = entry.displayName || meta.label || participantId;
+        participantMeta.set(participantId, { ...meta });
+        timeline.push({
+          index: ++timelineIndex,
+          recordedUtc: roundRecordedUtc,
+          participantKey: participantId,
+          participantKind: 'participant',
+          participantId,
+          label: meta.label || participantId,
+          eventType: 'score-snapshot',
+          roundIndex: round.roundIndex ?? null,
+          isCorrect: null,
+          correctness: null,
+          pointsAwarded,
+          durationMs: null,
+          runningPoints: currentScore,
+          knownessScore: meta.knownessScore
+        });
+      });
+    });
+  }
+
+  if (timeline.length === 0 && scoreboard.length > 0) {
+    scoreboard.forEach((row) => {
+      const participantId = String(row.participantId ?? '').trim();
+      if (!participantId) return;
+      const existing = participantMeta.get(participantId);
+      const meta =
+        existing ??
+        {
+          label: row.displayName || participantId,
+          eventCount: 0,
+          answerCount: 0,
+          correctCount: 0,
+          runningPoints: 0,
+          knownessScore: 0,
+          lastActivityUtc: null
+        };
+      const currentScore = Number(row.score ?? 0);
+      meta.eventCount += 1;
+      meta.runningPoints = currentScore;
+      meta.lastActivityUtc = meta.lastActivityUtc ?? new Date().toISOString();
+      meta.label = row.displayName || meta.label || participantId;
+      participantMeta.set(participantId, { ...meta });
+      timeline.push({
+        index: ++timelineIndex,
+        recordedUtc: meta.lastActivityUtc ?? new Date().toISOString(),
+        participantKey: participantId,
+        participantKind: 'participant',
+        participantId,
+        label: meta.label || participantId,
+        eventType: 'score-final',
+        roundIndex: null,
+        isCorrect: null,
+        correctness: null,
+        pointsAwarded: currentScore,
+        durationMs: null,
+        runningPoints: currentScore,
+        knownessScore: meta.knownessScore
+      });
+    });
+  }
+
   const scoreboardByParticipant = new Map<string, number>();
   scoreboard.forEach((row) => {
     scoreboardByParticipant.set(row.participantId, Number(row.score ?? 0));

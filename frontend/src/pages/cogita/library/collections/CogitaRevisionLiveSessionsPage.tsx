@@ -5,11 +5,9 @@ import {
   ApiError,
   attachCogitaLiveRevisionSession,
   removeCogitaLiveRevisionParticipant,
-  resetCogitaLiveRevisionSession,
   createCogitaLiveRevisionSession,
   deleteCogitaLiveRevisionSession,
   getCogitaLiveRevisionSessionsByRevision,
-  getCogitaRevision,
   updateCogitaLiveRevisionSession,
   type CogitaLiveRevisionSession,
   type CogitaLiveRevisionSessionListItem
@@ -32,6 +30,7 @@ import {
   type NextQuestionMode,
   type TimerExpireAction
 } from '../../live/liveSessionRules';
+import { buildLiveSessionSummaryLines } from '../../live/liveSessionDescription';
 
 export type LiveSessionsPageMode = 'search' | 'create' | 'detail' | 'edit';
 
@@ -77,7 +76,6 @@ export function CogitaRevisionLiveSessionsPage({
   const navigate = useNavigate();
   const FIXED_HOST_VIEW_MODE = 'panel' as const;
   const FIXED_PARTICIPANT_VIEW_MODE = 'question' as const;
-  const [revisionName, setRevisionName] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [items, setItems] = useState<CogitaLiveRevisionSessionListItem[]>([]);
@@ -90,7 +88,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [attachedSession, setAttachedSession] = useState<CogitaLiveRevisionSession | null>(null);
   const [reloginParticipantId, setReloginParticipantId] = useState<string | null>(null);
-  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'reset' | 'delete' | 'remove'>('none');
+  const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'archive' | 'next-group' | 'delete' | 'remove'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
   const baseHref = `/#/cogita/library/${libraryId}`;
@@ -112,11 +110,11 @@ export function CogitaRevisionLiveSessionsPage({
     [presetDefinitions, liveCopy]
   );
   const isAsyncSession = formSessionMode === 'asynchronous';
-  const growthRatio = (mode: BonusGrowthMode, ratio: number) => {
-    const clamped = Math.max(0, Math.min(1, ratio));
-    if (mode === 'exponential') return clamped * clamped;
-    if (mode === 'limited') return Math.min(1, clamped * 1.6);
-    return clamped;
+  const buildFallbackGroupName = () => {
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    return `${liveCopy.groupNameLabel} ${date} ${time}`;
   };
 
   const loadSessions = async () => {
@@ -130,17 +128,6 @@ export function CogitaRevisionLiveSessionsPage({
       setStatus('error');
     }
   };
-
-  useEffect(() => {
-    getCogitaRevision({ libraryId, revisionId })
-      .then((revision) => {
-        setRevisionName(revision.name);
-        if (!formTitle.trim()) {
-          setFormTitle(revision.name);
-        }
-      })
-      .catch(() => setRevisionName(revisionId));
-  }, [formTitle, libraryId, revisionId]);
 
   useEffect(() => {
     void loadSessions();
@@ -165,7 +152,7 @@ export function CogitaRevisionLiveSessionsPage({
         if (canceled) return;
         setAttachedSession(session);
         setReloginParticipantId(null);
-        setFormTitle(selectedItem?.title ?? revisionName);
+        setFormTitle(selectedItem?.title ?? '');
         setFormSessionMode((session.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as 'simultaneous' | 'asynchronous');
         setFormLiveRules(parseLiveRules(session.sessionSettings));
         setShowSpecialSettings(false);
@@ -181,7 +168,7 @@ export function CogitaRevisionLiveSessionsPage({
     return () => {
       canceled = true;
     };
-  }, [libraryId, mode, revisionName, selectedItem?.title, sessionId]);
+  }, [libraryId, mode, selectedItem?.title, sessionId]);
 
   useEffect(() => {
     if (mode !== 'create') return;
@@ -197,8 +184,8 @@ export function CogitaRevisionLiveSessionsPage({
       setFormPresetId('custom');
     }
     setShowSpecialSettings(false);
-    setFormTitle((previous) => (previous.trim() ? previous : revisionName || copy.cogita.library.revision.live.hostKicker));
-  }, [copy.cogita.library.revision.live.hostKicker, mode, revisionName]);
+    setFormTitle('');
+  }, [mode]);
 
   const applyPreset = (presetId: LivePresetId) => {
     setFormPresetId(presetId);
@@ -209,182 +196,30 @@ export function CogitaRevisionLiveSessionsPage({
     setFormLiveRules(preset.rules);
   };
 
-  const settingsImpactLines = useMemo(() => {
-    const growthLabel = (mode: BonusGrowthMode) =>
-      mode === 'exponential' ? liveCopy.optionExponential : mode === 'limited' ? liveCopy.optionLimited : liveCopy.optionLinear;
-    const firstActionLabel =
-      formLiveRules.firstAnswerAction === 'start_timer'
-        ? liveCopy.optionStartTimer
-        : formLiveRules.firstAnswerAction === 'next'
-          ? liveCopy.optionRevealNext
-        : formLiveRules.firstAnswerAction === 'reveal'
-          ? liveCopy.optionRevealScore
-          : liveCopy.optionDoNothing;
-    const allAnsweredLabel =
-      formLiveRules.allAnsweredAction === 'next'
-        ? liveCopy.optionRevealNext
-        : formLiveRules.allAnsweredAction === 'reveal'
-          ? liveCopy.optionRevealScore
-          : liveCopy.optionDoNothing;
-    const expireLabel =
-      formLiveRules.actionTimer.onExpire === 'next'
-        ? liveCopy.optionRevealNext
-        : formLiveRules.actionTimer.onExpire === 'reveal'
-          ? liveCopy.optionRevealScore
-          : liveCopy.optionDoNothing;
-    const roundExpireLabel =
-      formLiveRules.roundTimer.onExpire === 'next'
-        ? liveCopy.optionRevealNext
-        : formLiveRules.roundTimer.onExpire === 'reveal'
-          ? liveCopy.optionRevealScore
-          : liveCopy.optionDoNothing;
+  const settingsImpactLines = useMemo(
+    () =>
+      buildLiveSessionSummaryLines({
+        liveCopy,
+        rules: formLiveRules,
+        sessionMode: formSessionMode
+      }),
+    [formLiveRules, formSessionMode, liveCopy]
+  );
 
-    const elapsedOne = Math.max(1, Math.round(formLiveRules.bonusTimer.seconds / 3));
-    const elapsedTwo = Math.max(elapsedOne + 1, Math.round((2 * formLiveRules.bonusTimer.seconds) / 3));
-    const ratioOne = Math.max(0, 1 - elapsedOne / Math.max(1, formLiveRules.bonusTimer.seconds));
-    const ratioTwo = Math.max(0, 1 - elapsedTwo / Math.max(1, formLiveRules.bonusTimer.seconds));
-    const bonusOne = clampInt(growthRatio(formLiveRules.speedBonus.growth, ratioOne) * formLiveRules.speedBonus.maxPoints, 0, 500000);
-    const bonusTwo = clampInt(growthRatio(formLiveRules.speedBonus.growth, ratioTwo) * formLiveRules.speedBonus.maxPoints, 0, 500000);
-    const hasFirstBonus = formLiveRules.scoring.firstCorrectBonus > 0;
-    const hasSpeedBonus = formLiveRules.speedBonus.enabled && formLiveRules.speedBonus.maxPoints > 0;
-    const hasStreakBonus = formLiveRules.scoring.streakBaseBonus > 0;
-    const minPoints = formLiveRules.scoring.baseCorrect;
-    const maxPoints =
-      formLiveRules.scoring.baseCorrect +
-      (hasFirstBonus ? formLiveRules.scoring.firstCorrectBonus : 0) +
-      (hasSpeedBonus ? formLiveRules.speedBonus.maxPoints : 0) +
-      (hasStreakBonus ? formLiveRules.scoring.streakBaseBonus : 0);
-
-    const streakProgressBonus = (streakCount: number) => {
-      const maxBonus = Math.max(0, formLiveRules.scoring.streakBaseBonus);
-      const extraCount = Math.max(0, streakCount - 1);
-      if (maxBonus === 0 || extraCount === 0) return 0;
-      const fullAfter = Math.max(1, formLiveRules.scoring.streakLimit);
-      const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
-      return clampInt(growthRatio(formLiveRules.scoring.streakGrowth, progress) * maxBonus, 0, 500000);
+  const normalizedRulesForSave = useMemo<LiveRules>(() => {
+    if (formSessionMode !== 'asynchronous') {
+      return formLiveRules;
+    }
+    return {
+      ...formLiveRules,
+      firstAnswerAction: 'none',
+      allAnsweredAction: 'none',
+      roundTimer: { ...formLiveRules.roundTimer, enabled: false, onExpire: 'reveal' },
+      actionTimer: { ...formLiveRules.actionTimer, enabled: false, onExpire: 'reveal' },
+      nextQuestion: { ...formLiveRules.nextQuestion, mode: 'manual' },
+      bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' }
     };
-    const streakOne = 2;
-    const streakTwo = Math.max(3, Math.round((formLiveRules.scoring.streakLimit + 2) / 2));
-    const streakThree = Math.max(streakTwo + 1, formLiveRules.scoring.streakLimit + 1);
-    const streakBonusOne = streakProgressBonus(streakOne);
-    const streakBonusTwo = streakProgressBonus(streakTwo);
-    const streakBonusThree = streakProgressBonus(streakThree);
-
-    const lines: string[] = [];
-    const paragraphOneParts: string[] = [];
-    paragraphOneParts.push(isAsyncSession ? liveCopy.summaryTypeLineAsync : liveCopy.summaryTypeLineSync);
-    paragraphOneParts.push(
-      liveCopy.summaryBasePointsDetailed
-        .replace('{base}', String(formLiveRules.scoring.baseCorrect))
-        .replace('{unit}', liveCopy.scoreUnit)
-    );
-    if (hasFirstBonus || hasSpeedBonus || hasStreakBonus) {
-      const activeBonusSentences: string[] = [];
-      if (hasFirstBonus) {
-        activeBonusSentences.push(
-          liveCopy.summaryBonusFirst.replace('{first}', String(formLiveRules.scoring.firstCorrectBonus))
-        );
-      }
-      if (hasSpeedBonus) {
-        activeBonusSentences.push(
-          liveCopy.summaryBonusSpeed.replace('{max}', String(formLiveRules.speedBonus.maxPoints))
-        );
-      }
-      if (hasStreakBonus) {
-        activeBonusSentences.push(
-          liveCopy.summaryStreak
-            .replace('{growth}', growthLabel(formLiveRules.scoring.streakGrowth))
-            .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
-            .replace('{limit}', String(formLiveRules.scoring.streakLimit))
-        );
-      }
-      paragraphOneParts.push(activeBonusSentences.join(' '));
-    } else {
-      paragraphOneParts.push(liveCopy.summaryBonusesNone);
-    }
-    if (formLiveRules.scoring.wrongAnswerPenalty > 0) {
-      paragraphOneParts.push(
-        liveCopy.summaryWrongPenalty
-          .replace('{penalty}', String(formLiveRules.scoring.wrongAnswerPenalty))
-          .replace('{unit}', liveCopy.scoreUnit)
-      );
-    } else {
-      paragraphOneParts.push(liveCopy.summaryNoWrongPenalty);
-    }
-    if (formLiveRules.scoring.firstWrongPenalty > 0) {
-      paragraphOneParts.push(
-        liveCopy.summaryFirstWrongPenalty
-          .replace('{penalty}', String(formLiveRules.scoring.firstWrongPenalty))
-          .replace('{unit}', liveCopy.scoreUnit)
-      );
-    }
-    paragraphOneParts.push(
-      liveCopy.summaryRangeLine
-        .replace('{min}', String(minPoints))
-        .replace('{max}', String(maxPoints))
-        .replace('{unit}', liveCopy.scoreUnit)
-    );
-    lines.push(paragraphOneParts.join(' '));
-
-    const paragraphTwoParts: string[] = [];
-    paragraphTwoParts.push(
-      hasSpeedBonus && formLiveRules.bonusTimer.enabled
-        ? liveCopy.summaryBonusTimerDetail
-            .replace('{start}', formLiveRules.bonusTimer.startMode === 'round_start' ? liveCopy.bonusTimerStartRound : liveCopy.bonusTimerStartAfterFirst)
-            .replace('{startBonus}', String(formLiveRules.speedBonus.maxPoints))
-            .replace('{midOneSeconds}', String(elapsedOne))
-            .replace('{midOneBonus}', String(bonusOne))
-            .replace('{midTwoSeconds}', String(elapsedTwo))
-            .replace('{midTwoBonus}', String(bonusTwo))
-            .replace('{endSeconds}', String(formLiveRules.bonusTimer.seconds))
-        : liveCopy.summaryBonusTimerDisabled
-    );
-    paragraphTwoParts.push(
-      hasStreakBonus
-        ? liveCopy.summaryStreakDetail
-            .replace('{growth}', growthLabel(formLiveRules.scoring.streakGrowth))
-            .replace('{max}', String(formLiveRules.scoring.streakBaseBonus))
-            .replaceAll('{unit}', liveCopy.scoreUnit)
-            .replace('{streakOne}', String(streakOne))
-            .replace('{bonusOne}', String(streakBonusOne))
-            .replace('{streakTwo}', String(streakTwo))
-            .replace('{bonusTwo}', String(streakBonusTwo))
-            .replace('{streakThree}', String(streakThree))
-            .replace('{bonusThree}', String(streakBonusThree))
-        : liveCopy.summaryStreakDisabled
-    );
-    lines.push(paragraphTwoParts.join(' '));
-
-    const paragraphThreeParts: string[] = [];
-    paragraphThreeParts.push(
-      formLiveRules.roundTimer.enabled
-        ? liveCopy.summaryRoundTimerDetail
-            .replace('{seconds}', String(formLiveRules.roundTimer.seconds))
-            .replace('{expireAction}', roundExpireLabel)
-        : liveCopy.summaryRoundTimerDisabled
-    );
-    paragraphThreeParts.push(
-      formLiveRules.nextQuestion.mode === 'timer'
-        ? liveCopy.summaryNextQuestionTimer.replace('{seconds}', String(formLiveRules.nextQuestion.seconds))
-        : liveCopy.summaryNextQuestionManual
-    );
-    paragraphThreeParts.push(
-      liveCopy.summaryAllAnsweredDetail.replace('{allAction}', allAnsweredLabel)
-    );
-    if (formLiveRules.firstAnswerAction === 'start_timer' && formLiveRules.actionTimer.enabled) {
-      paragraphThreeParts.push(
-        liveCopy.summaryActionTimerOnlyDetail
-          .replace('{firstAction}', firstActionLabel)
-          .replace('{expireAction}', expireLabel)
-      );
-    } else {
-      paragraphThreeParts.push(liveCopy.summaryActionTimerDisabledDetail);
-    }
-    paragraphThreeParts.push(liveCopy.summaryEvaluationFlow);
-    lines.push(paragraphThreeParts.join(' '));
-
-    return lines.filter((line) => line.trim().length > 0);
-  }, [formLiveRules, isAsyncSession, liveCopy]);
+  }, [formLiveRules, formSessionMode]);
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();
@@ -413,7 +248,7 @@ export function CogitaRevisionLiveSessionsPage({
         sessionMode: formSessionMode,
         hostViewMode: FIXED_HOST_VIEW_MODE,
         participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(formLiveRules)
+        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
       });
       await loadSessions();
       onCreated?.(created.sessionId);
@@ -437,7 +272,7 @@ export function CogitaRevisionLiveSessionsPage({
         sessionMode: formSessionMode,
         hostViewMode: FIXED_HOST_VIEW_MODE,
         participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(formLiveRules)
+        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
       });
       await loadSessions();
       if (mode === 'edit') {
@@ -450,43 +285,71 @@ export function CogitaRevisionLiveSessionsPage({
     }
   };
 
-  const resetSession = async () => {
+  const saveCurrentGroup = async () => {
     if (!attachedSession?.sessionId) return;
-    setBusyAction('reset');
+    setBusyAction('archive');
     setMessage(null);
     try {
-      const runReset = async (secret: string) =>
-        resetCogitaLiveRevisionSession({
-          libraryId,
-          sessionId: attachedSession.sessionId,
-          hostSecret: secret
-        });
-
-      let secret = attachedSession.hostSecret;
-      if (!secret) {
-        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
-        secret = refreshed.hostSecret;
-      }
-
-      if (!secret) {
-        throw new Error('missing-host-secret');
-      }
-
-      try {
-        await runReset(secret);
-      } catch (error) {
-        const staleSecret = error instanceof ApiError && error.status === 403;
-        if (!staleSecret) throw error;
-        const refreshed = await attachCogitaLiveRevisionSession({ libraryId, sessionId: attachedSession.sessionId });
-        if (!refreshed.hostSecret) throw error;
-        await runReset(refreshed.hostSecret);
-      }
-
+      const finalGroupName =
+        formTitle.trim() ||
+        selectedItem?.title?.trim() ||
+        buildFallbackGroupName();
+      await updateCogitaLiveRevisionSession({
+        libraryId,
+        revisionId,
+        sessionId: attachedSession.sessionId,
+        title: finalGroupName,
+        sessionMode: formSessionMode,
+        hostViewMode: FIXED_HOST_VIEW_MODE,
+        participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
+        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+      });
+      setFormTitle(finalGroupName);
       await loadSessions();
-      setAttachedSession(null);
-      onOpenSession?.(attachedSession.sessionId);
+      setMessage(liveCopy.groupSavedMessage);
     } catch {
-      setMessage(copy.cogita.library.revision.shareError);
+      setMessage(liveCopy.groupSaveError);
+    } finally {
+      setBusyAction('none');
+    }
+  };
+
+  const startNextGroup = async () => {
+    setBusyAction('next-group');
+    setMessage(null);
+    try {
+      const finalGroupName =
+        formTitle.trim() ||
+        selectedItem?.title?.trim() ||
+        buildFallbackGroupName();
+      if (attachedSession?.sessionId) {
+        await updateCogitaLiveRevisionSession({
+          libraryId,
+          revisionId,
+          sessionId: attachedSession.sessionId,
+          title: finalGroupName,
+          sessionMode: formSessionMode,
+          hostViewMode: FIXED_HOST_VIEW_MODE,
+          participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
+          sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+        });
+      }
+
+      const created = await createCogitaLiveRevisionSession({
+        libraryId,
+        revisionId,
+        collectionId: attachedSession?.collectionId ?? null,
+        title: null,
+        sessionMode: formSessionMode,
+        hostViewMode: FIXED_HOST_VIEW_MODE,
+        participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
+        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+      });
+      setFormTitle('');
+      await loadSessions();
+      onOpenSession?.(created.sessionId);
+    } catch {
+      setMessage(liveCopy.startNextGroupError);
     } finally {
       setBusyAction('none');
     }
@@ -980,96 +843,105 @@ export function CogitaRevisionLiveSessionsPage({
                               </div>
                             ) : null}
 
-                            {!isAsyncSession ? (
-                              <div className="cogita-library-panel" style={{ margin: 0 }}>
-                                <p className="cogita-user-kicker">{liveCopy.bonusTimerLabel}</p>
-                                <div className="cogita-live-rules-grid">
-                                  <label className="cogita-field">
-                                    <span>{liveCopy.speedBonusEnabledLabel}</span>
-                                    <select
-                                      value={formLiveRules.speedBonus.enabled ? 'yes' : 'no'}
-                                      onChange={(event) =>
-                                        setFormLiveRules((previous) => ({
-                                          ...previous,
-                                          speedBonus: { ...previous.speedBonus, enabled: event.target.value === 'yes' },
-                                          bonusTimer: { ...previous.bonusTimer, enabled: event.target.value === 'yes' }
-                                        }))
-                                      }
-                                    >
-                                      <option value="yes">{liveCopy.optionYes}</option>
-                                      <option value="no">{liveCopy.optionNo}</option>
-                                    </select>
-                                  </label>
-                                  {formLiveRules.speedBonus.enabled ? (
-                                    <>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.bonusTimerStartLabel}</span>
-                                        <select
-                                          value={formLiveRules.bonusTimer.startMode}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              bonusTimer: { ...previous.bonusTimer, enabled: true, startMode: event.target.value === 'round_start' ? 'round_start' : 'first_answer' }
-                                            }))
-                                          }
-                                        >
+                            <div className="cogita-library-panel" style={{ margin: 0 }}>
+                              <p className="cogita-user-kicker">{liveCopy.bonusTimerLabel}</p>
+                              <div className="cogita-live-rules-grid">
+                                <label className="cogita-field">
+                                  <span>{liveCopy.speedBonusEnabledLabel}</span>
+                                  <select
+                                    value={formLiveRules.speedBonus.enabled ? 'yes' : 'no'}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        speedBonus: { ...previous.speedBonus, enabled: event.target.value === 'yes' },
+                                        bonusTimer: {
+                                          ...previous.bonusTimer,
+                                          enabled: event.target.value === 'yes',
+                                          startMode: isAsyncSession ? 'round_start' : previous.bonusTimer.startMode
+                                        }
+                                      }))
+                                    }
+                                  >
+                                    <option value="yes">{liveCopy.optionYes}</option>
+                                    <option value="no">{liveCopy.optionNo}</option>
+                                  </select>
+                                </label>
+                                {formLiveRules.speedBonus.enabled ? (
+                                  <>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.bonusTimerStartLabel}</span>
+                                      <select
+                                        value={isAsyncSession ? 'round_start' : formLiveRules.bonusTimer.startMode}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            bonusTimer: {
+                                              ...previous.bonusTimer,
+                                              enabled: true,
+                                              startMode: event.target.value === 'round_start' ? 'round_start' : 'first_answer'
+                                            }
+                                          }))
+                                        }
+                                        disabled={isAsyncSession}
+                                      >
+                                        {!isAsyncSession ? (
                                           <option value="first_answer">{liveCopy.bonusTimerStartAfterFirst}</option>
-                                          <option value="round_start">{liveCopy.bonusTimerStartRound}</option>
-                                        </select>
-                                      </label>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.bonusTimerSecondsLabel}</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          max={600}
-                                          value={formLiveRules.bonusTimer.seconds}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              bonusTimer: { ...previous.bonusTimer, enabled: true, seconds: clampInt(Number(event.target.value), 1, 600) }
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.speedBonusMaxLabel}</span>
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          max={500000}
-                                          value={formLiveRules.speedBonus.maxPoints}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) },
-                                              bonusTimer: { ...previous.bonusTimer, enabled: true }
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                      <label className="cogita-field">
-                                        <span>{liveCopy.speedGrowthLabel}</span>
-                                        <select
-                                          value={formLiveRules.speedBonus.growth}
-                                          onChange={(event) =>
-                                            setFormLiveRules((previous) => ({
-                                              ...previous,
-                                              speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode },
-                                              bonusTimer: { ...previous.bonusTimer, enabled: true }
-                                            }))
-                                          }
-                                        >
-                                          <option value="linear">{liveCopy.optionLinear}</option>
-                                          <option value="exponential">{liveCopy.optionExponential}</option>
-                                          <option value="limited">{liveCopy.optionLimited}</option>
-                                        </select>
-                                      </label>
-                                    </>
-                                  ) : null}
-                                </div>
+                                        ) : null}
+                                        <option value="round_start">{liveCopy.bonusTimerStartRound}</option>
+                                      </select>
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.bonusTimerSecondsLabel}</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={600}
+                                        value={formLiveRules.bonusTimer.seconds}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            bonusTimer: { ...previous.bonusTimer, enabled: true, seconds: clampInt(Number(event.target.value), 1, 600) }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.speedBonusMaxLabel}</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={500000}
+                                        value={formLiveRules.speedBonus.maxPoints}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            speedBonus: { ...previous.speedBonus, enabled: true, maxPoints: clampInt(Number(event.target.value), 0, 500000) },
+                                            bonusTimer: { ...previous.bonusTimer, enabled: true }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.speedGrowthLabel}</span>
+                                      <select
+                                        value={formLiveRules.speedBonus.growth}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            speedBonus: { ...previous.speedBonus, growth: event.target.value as BonusGrowthMode },
+                                            bonusTimer: { ...previous.bonusTimer, enabled: true }
+                                          }))
+                                        }
+                                      >
+                                        <option value="linear">{liveCopy.optionLinear}</option>
+                                        <option value="exponential">{liveCopy.optionExponential}</option>
+                                        <option value="limited">{liveCopy.optionLimited}</option>
+                                      </select>
+                                    </label>
+                                  </>
+                                ) : null}
                               </div>
-                            ) : null}
+                            </div>
 
                             <div className="cogita-library-panel" style={{ margin: 0 }}>
                               <p className="cogita-user-kicker">{liveCopy.streakLabel}</p>
@@ -1292,6 +1164,14 @@ export function CogitaRevisionLiveSessionsPage({
                               <p className="cogita-user-kicker">{copy.cogita.library.revision.live.detailLaunchTitle}</p>
                             </div>
                           </div>
+                          <label className="cogita-field">
+                            <span>{liveCopy.groupNameLabel}</span>
+                            <input
+                              value={formTitle}
+                              onChange={(event) => setFormTitle(event.target.value)}
+                              placeholder={liveCopy.groupNamePlaceholder}
+                            />
+                          </label>
                           <div className="cogita-form-actions">
                             {joinWallUrl ? (
                               <a className="ghost" href={`${joinWallUrl}?layout=fullscreen`} target="_blank" rel="noreferrer">
@@ -1311,10 +1191,18 @@ export function CogitaRevisionLiveSessionsPage({
                             <button
                               type="button"
                               className="ghost"
-                              onClick={() => void resetSession()}
-                              disabled={busyAction === 'reset'}
+                              onClick={() => void saveCurrentGroup()}
+                              disabled={busyAction !== 'none'}
                             >
-                              {copy.cogita.library.revision.live.resetSessionAction}
+                              {liveCopy.saveGroupAction}
+                            </button>
+                            <button
+                              type="button"
+                              className="cta"
+                              onClick={() => void startNextGroup()}
+                              disabled={busyAction !== 'none'}
+                            >
+                              {liveCopy.newSessionAction}
                             </button>
                             <button
                               type="button"
@@ -1325,6 +1213,7 @@ export function CogitaRevisionLiveSessionsPage({
                               Delete
                             </button>
                           </div>
+                          <p className="cogita-help">{liveCopy.resumeSessionHint}</p>
                         </div>
 
                       </>

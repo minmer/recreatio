@@ -885,6 +885,13 @@ export type Copy = {
           reloginQrAction: string;
           reloginQrHelp: string;
           participantPointsLabel: string;
+          groupNameLabel: string;
+          groupNamePlaceholder: string;
+          saveGroupAction: string;
+          groupSavedMessage: string;
+          groupSaveError: string;
+          startNextGroupError: string;
+          resumeSessionHint: string;
           newSessionAction: string;
           resetSessionAction: string;
           refreshLinksAction: string;

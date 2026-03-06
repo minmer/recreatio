@@ -95,6 +95,15 @@ function parseLanguageDescription(description?: string | null) {
   return description.trim();
 }
 
+function shuffleStrings(values: string[]) {
+  const next = [...values];
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [next[i], next[j]] = [next[j], next[i]];
+  }
+  return next;
+}
+
 function growthRatio(mode: string, ratio: number) {
   const clamped = Math.max(0, Math.min(1, ratio));
   if (mode === 'exponential') return clamped * clamped;
@@ -167,10 +176,11 @@ function buildQuestionRound(
 
   if (runtime.promptPayload.kind === 'ordering') {
     const options = runtime.promptPayload.options ?? [];
+    const randomizedOptions = options.length > 1 ? shuffleStrings(options) : [...options];
     return {
       roundIndex,
       cardKey: `info:${infoId}:question-ordering`,
-      publicPrompt: { kind: 'ordering', title, prompt: runtime.promptText, options, cardLabel: 'question' },
+      publicPrompt: { kind: 'ordering', title, prompt: runtime.promptText, options: randomizedOptions, cardLabel: 'question' },
       reveal: { kind: 'ordering', expected: runtime.expectedModel, title },
       grade: (answer) =>
         evaluateCheckcardAnswer({
@@ -523,10 +533,12 @@ export function CogitaLiveHostWallPage({
     sessionRef.current = session;
   }, [session]);
   const currentRound = session ? rounds[session.currentRoundIndex] ?? null : null;
-  const prompt =
-    ((session?.currentPrompt as LivePrompt | undefined) ??
-      (session?.status && session.status !== 'lobby' ? currentRound?.publicPrompt : null)) ??
-    null;
+  const isAsyncSession = session?.sessionMode === 'asynchronous';
+  const prompt = isAsyncSession
+    ? null
+    : ((session?.currentPrompt as LivePrompt | undefined) ??
+        (session?.status && session.status !== 'lobby' ? currentRound?.publicPrompt : null)) ??
+      null;
   const promptRoot = (prompt && typeof prompt === 'object' ? (prompt as Record<string, unknown>) : null);
   const reveal = (session?.currentReveal as Record<string, unknown> | undefined) ?? null;
   const rules = useMemo(() => parseLiveRules(session?.sessionSettings), [session?.sessionSettings]);
@@ -576,21 +588,24 @@ export function CogitaLiveHostWallPage({
       rounds.length > 0
   );
   const canStartTimer = Boolean(
-    isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !mutationInFlight
+    !isAsyncSession && isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !mutationInFlight
   );
   const canCheckReveal = Boolean(
+    !isAsyncSession &&
     isRunningStage &&
       (roundPhase === 'question' || roundPhase === 'revealed') &&
       !isCurrentRoundScored &&
       !mutationInFlight
   );
   const canScore = Boolean(
+    !isAsyncSession &&
     isRunningStage &&
       (roundPhase === 'question' || roundPhase === 'revealed') &&
       !isCurrentRoundScored &&
       !mutationInFlight
   );
   const canNextQuestion = Boolean(
+    !isAsyncSession &&
     isRunningStage &&
       hasPublishedRound &&
       (roundPhase === 'question' || roundPhase === 'revealed' || roundPhase === 'scored') &&
@@ -604,6 +619,7 @@ export function CogitaLiveHostWallPage({
       !mutationInFlight
   );
   const canStopAutoNextTimer = Boolean(
+    !isAsyncSession &&
     isRunningStage &&
       roundPhase === 'scored' &&
       promptRoot?.nextQuestionMode === 'timer' &&
@@ -1320,6 +1336,28 @@ export function CogitaLiveHostWallPage({
         setRoundLoadError(true);
         return;
       }
+      if (session.sessionMode === 'asynchronous') {
+        const asyncBundle = {
+          kind: 'async-session',
+          revisionMode: prepared.revisionMode || revisionMode,
+          publishedUtc: new Date().toISOString(),
+          rounds: localRounds.map((round, index) => ({
+            roundIndex: index,
+            cardKey: round.cardKey,
+            prompt: round.publicPrompt,
+            reveal: round.reveal
+          }))
+        };
+        await pushState({
+          status: 'running',
+          currentRoundIndex: 0,
+          revealVersion: session.revealVersion + 1,
+          currentPrompt: asyncBundle,
+          currentReveal: null
+        });
+        setStatus('ready');
+        return;
+      }
       const targetRoundIndex = Math.max(0, Math.min(localRounds.length - 1, session.currentRoundIndex));
       await publishRound(targetRoundIndex);
       setStatus('ready');
@@ -1414,6 +1452,7 @@ export function CogitaLiveHostWallPage({
 
   useEffect(() => {
     if (!session || !currentRound) return;
+    if (isAsyncSession) return;
     if (!hasPublishedRound) return;
     if (session.status === 'closed' || session.status === 'finished') return;
     const promptState =
@@ -1563,7 +1602,7 @@ export function CogitaLiveHostWallPage({
         await transitionRound('next');
       });
     }
-  }, [currentRound, hasPublishedRound, rules, session, roundPhase, isCurrentRoundScored, nowTick]);
+  }, [currentRound, hasPublishedRound, isAsyncSession, rules, session, roundPhase, isCurrentRoundScored, nowTick]);
 
   useEffect(() => {
     autoActionLockRef.current = null;
@@ -1598,13 +1637,17 @@ export function CogitaLiveHostWallPage({
               </div>
             </div>
           ))}
-          <div className="cogita-form-actions">
-            {isLobbyStage ? (
-              <button type="button" className="cta" onClick={() => void startSession()} disabled={!canStartSession}>
-                {liveCopy.publishCurrentRound}
-              </button>
-            ) : (
-              <>
+            <div className="cogita-form-actions">
+              {isLobbyStage ? (
+                <button type="button" className="cta" onClick={() => void startSession()} disabled={!canStartSession}>
+                  {liveCopy.publishCurrentRound}
+                </button>
+              ) : isAsyncSession ? (
+                <button type="button" className="cta ghost" onClick={() => void endGameEarly()} disabled={!canEndGame}>
+                  {liveCopy.closeSessionAction}
+                </button>
+              ) : (
+                <>
                 {rules.actionTimer.enabled &&
                 isRunningStage &&
                 !(typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0) ? (
@@ -1636,49 +1679,55 @@ export function CogitaLiveHostWallPage({
           {roundsStatus === 'ready' && rounds.length > 0 ? <p className="cogita-help">{preparedLabel}</p> : null}
           {roundLoadError ? <p className="cogita-help">{liveCopy.loadRoundsError}</p> : null}
           {!roundLoadError && rounds.length === 0 ? <p className="cogita-help">{liveCopy.waitingForPublishedRound}</p> : null}
-          <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
-            <CogitaLivePromptCard
-              prompt={prompt}
-              revealExpected={revealExpected}
-              mode="readonly"
-              labels={{
-                answerLabel: copy.cogita.library.revision.answerLabel,
-                correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
-                trueLabel: liveCopy.trueLabel,
-                falseLabel: liveCopy.falseLabel,
-                fragmentLabel: liveCopy.fragmentLabel,
-                correctFragmentLabel: liveCopy.correctFragmentLabel,
-                participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
-                unsupportedPromptType: liveCopy.unsupportedPromptType,
-                waitingForReveal: liveCopy.waitingForRevealLabel,
-                selectedPaths: liveCopy.selectedPathsLabel,
-                removePath: liveCopy.removePathAction,
-                columnPrefix: liveCopy.columnPrefixLabel
-              }}
-            />
-          </CogitaCheckcardSurface>
-          <div className="cogita-share-list">
-            {roundAnswers.map((row: CogitaLiveRevisionAnswer) => {
-              const participant = participantById.get(row.participantId);
-              const isCorrect =
-                prompt && revealExpected
-                  ? evaluateCheckcardAnswer({
-                      prompt: prompt as unknown as Record<string, unknown>,
-                      expected: revealExpected,
-                      answer: normalizeAnswer(row.answer, prompt)
-                    }).correct
-                  : false;
-              return (
-                <div className="cogita-share-row" data-state={isCorrect ? 'correct' : 'incorrect'} key={`${row.participantId}:${row.submittedUtc}`}>
-                  <div>
-                    <strong>{participant?.displayName ?? row.participantId}</strong>
-                    <div className="cogita-share-meta">{formatAnswer(row.answer)}</div>
-                  </div>
-                </div>
-              );
-            })}
-            {status === 'error' ? <p>{liveCopy.connectionError}</p> : null}
-          </div>
+          {!isAsyncSession ? (
+            <>
+              <CogitaCheckcardSurface className="cogita-live-card-container" feedbackToken={reveal ? `correct-${session?.revealVersion ?? 0}` : 'idle'}>
+                <CogitaLivePromptCard
+                  prompt={prompt}
+                  revealExpected={revealExpected}
+                  mode="readonly"
+                  labels={{
+                    answerLabel: copy.cogita.library.revision.answerLabel,
+                    correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
+                    trueLabel: liveCopy.trueLabel,
+                    falseLabel: liveCopy.falseLabel,
+                    fragmentLabel: liveCopy.fragmentLabel,
+                    correctFragmentLabel: liveCopy.correctFragmentLabel,
+                    participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                    unsupportedPromptType: liveCopy.unsupportedPromptType,
+                    waitingForReveal: liveCopy.waitingForRevealLabel,
+                    selectedPaths: liveCopy.selectedPathsLabel,
+                    removePath: liveCopy.removePathAction,
+                    columnPrefix: liveCopy.columnPrefixLabel
+                  }}
+                />
+              </CogitaCheckcardSurface>
+              <div className="cogita-share-list">
+                {roundAnswers.map((row: CogitaLiveRevisionAnswer) => {
+                  const participant = participantById.get(row.participantId);
+                  const isCorrect =
+                    prompt && revealExpected
+                      ? evaluateCheckcardAnswer({
+                          prompt: prompt as unknown as Record<string, unknown>,
+                          expected: revealExpected,
+                          answer: normalizeAnswer(row.answer, prompt)
+                        }).correct
+                      : false;
+                  return (
+                    <div className="cogita-share-row" data-state={isCorrect ? 'correct' : 'incorrect'} key={`${row.participantId}:${row.submittedUtc}`}>
+                      <div>
+                        <strong>{participant?.displayName ?? row.participantId}</strong>
+                        <div className="cogita-share-meta">{formatAnswer(row.answer)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {status === 'error' ? <p>{liveCopy.connectionError}</p> : null}
+              </div>
+            </>
+          ) : (
+            <p className="cogita-help">{liveCopy.modeAsynchronous}</p>
+          )}
         </div>
       }
       right={
