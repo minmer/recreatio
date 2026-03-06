@@ -40,9 +40,20 @@ const CELEBRATION_COLORS = ['#78d7ff', '#6cf0f0', '#8ef0b8', '#f6d28a', '#9ac8ff
 
 function PodiumFireworksLayer({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      setIsVisible(false);
+      return;
+    }
+    setIsVisible(true);
+    const id = window.setTimeout(() => setIsVisible(false), 6000);
+    return () => window.clearTimeout(id);
+  }, [active]);
+
+  useEffect(() => {
+    if (!isVisible) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
@@ -119,6 +130,11 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
 
     const frame = (time: number) => {
       if (!running) return;
+      if (time - effectStartAt >= 6000) {
+        running = false;
+        context.clearRect(0, 0, width, height);
+        return;
+      }
       if (time - lastCenterBurstAt > 620) {
         lastCenterBurstAt = time;
         addBurst(width * (0.5 + (Math.random() - 0.5) * 0.08), height * (0.24 + (Math.random() - 0.5) * 0.08), 'large');
@@ -177,6 +193,7 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
       animationId = window.requestAnimationFrame(frame);
     };
 
+    const effectStartAt = performance.now();
     resize();
     window.addEventListener('resize', resize);
     animationId = window.requestAnimationFrame(frame);
@@ -187,9 +204,9 @@ function PodiumFireworksLayer({ active }: { active: boolean }) {
       window.cancelAnimationFrame(animationId);
       context.clearRect(0, 0, width, height);
     };
-  }, [active]);
+  }, [isVisible]);
 
-  if (!active) return null;
+  if (!isVisible) return null;
   return <canvas ref={canvasRef} className="cogita-live-podium-fireworks" aria-hidden="true" />;
 }
 
