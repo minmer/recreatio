@@ -42,6 +42,32 @@ function participantResetLabel(language: 'pl' | 'en' | 'de') {
   return 'Clear saved participant data';
 }
 
+function pauseTimerLabel(language: 'pl' | 'en' | 'de') {
+  if (language === 'pl') return 'Wstrzymaj timer';
+  if (language === 'de') return 'Timer pausieren';
+  return 'Pause timer';
+}
+
+function resumeTimerLabel(language: 'pl' | 'en' | 'de') {
+  if (language === 'pl') return 'Wznów timer';
+  if (language === 'de') return 'Timer fortsetzen';
+  return 'Resume timer';
+}
+
+function bonusListTitle(language: 'pl' | 'en' | 'de') {
+  if (language === 'pl') return 'Konfiguracja punktów i bonusów';
+  if (language === 'de') return 'Punkte- und Bonuskonfiguration';
+  return 'Configured points and bonuses';
+}
+
+type DisplayScoreRow = {
+  participantId: string;
+  displayName: string;
+  score: number;
+  answeredCount: number;
+  comparedAnsweredCount: number;
+};
+
 export function CogitaLiveRevisionJoinPage(props: {
   copy: Copy;
   authLabel: string;
@@ -88,9 +114,12 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
+  const [timersPausedAtMs, setTimersPausedAtMs] = useState<number | null>(null);
+  const [timersPauseCarryMs, setTimersPauseCarryMs] = useState(0);
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const timeoutSubmitKeyRef = useRef<string | null>(null);
+  const timeoutNextKeyRef = useRef<string | null>(null);
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -125,6 +154,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
   );
+  const timersPaused = timersPausedAtMs != null;
+  const effectivePauseCarryMs =
+    timersPauseCarryMs + (timersPausedAtMs != null ? Math.max(0, nowTick - timersPausedAtMs) : 0);
+  const roundsLabelResolved = useMemo(() => {
+    const count = Math.max(0, Number(state?.currentRoundIndex ?? 0)) + 1;
+    return String(liveCopy.roundsLabel ?? '').replace('{count}', String(count));
+  }, [liveCopy.roundsLabel, state?.currentRoundIndex]);
   const effectiveQuestionTimer = useMemo(() => {
     if (state?.status !== 'running') return null;
     if (reveal) return null;
@@ -163,7 +199,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     state?.status
   ]);
   const timerRemainingMs =
-    effectiveQuestionTimer == null ? null : Math.max(0, effectiveQuestionTimer.endsMs - nowTick);
+    effectiveQuestionTimer == null ? null : Math.max(0, effectiveQuestionTimer.endsMs + effectivePauseCarryMs - nowTick);
   const timerExpired = effectiveQuestionTimer != null && timerRemainingMs === 0;
   const timerProgress =
     timerRemainingMs == null || effectiveQuestionTimer == null || effectiveQuestionTimer.totalSeconds <= 0
@@ -179,13 +215,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     const secondsRaw = Number(prompt.nextQuestionSeconds ?? liveRules.nextQuestion.seconds ?? 0);
     const totalSeconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? Math.max(1, Math.min(1200, Math.round(secondsRaw))) : 0;
     if (totalSeconds <= 0) return null;
-    const remainingMs = Math.max(0, endsMs - nowTick);
+    const remainingMs = Math.max(0, endsMs + effectivePauseCarryMs - nowTick);
     return {
       totalSeconds,
       remainingMs,
       progress: Math.max(0, Math.min(1, remainingMs / (totalSeconds * 1000)))
     };
-  }, [liveRules.nextQuestion.seconds, nowTick, prompt, reveal, state?.status]);
+  }, [effectivePauseCarryMs, liveRules.nextQuestion.seconds, nowTick, prompt, reveal, state?.status]);
 
   const fullSessionTimer = useMemo(() => {
     if (state?.status !== 'running' || !prompt || !prompt.sessionTimerEnabled || typeof prompt.sessionTimerEndsUtc !== 'string') {
@@ -196,13 +232,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     const secondsRaw = Number(prompt.sessionTimerSeconds ?? 0);
     const totalSeconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? Math.max(1, Math.min(86400, Math.round(secondsRaw))) : 0;
     if (totalSeconds <= 0) return null;
-    const remainingMs = Math.max(0, endsMs - nowTick);
+    const remainingMs = Math.max(0, endsMs + effectivePauseCarryMs - nowTick);
     return {
       totalSeconds,
       remainingMs,
       progress: Math.max(0, Math.min(1, remainingMs / (totalSeconds * 1000)))
     };
-  }, [nowTick, prompt, state?.status]);
+  }, [effectivePauseCarryMs, nowTick, prompt, state?.status]);
 
   useEffect(() => {
     if (sessionStage !== 'active') return;
@@ -246,6 +282,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     const matchingWidth = Array.isArray(prompt?.columns) ? Math.max(2, prompt.columns.length) : 0;
     setMatchingRows([]);
     setMatchingSelection(matchingWidth > 0 ? new Array(matchingWidth).fill(null) : []);
+  }, [promptKey]);
+
+  useEffect(() => {
+    setTimersPausedAtMs(null);
+    setTimersPauseCarryMs(0);
+    timeoutSubmitKeyRef.current = null;
+    timeoutNextKeyRef.current = null;
   }, [promptKey]);
 
   useEffect(() => {
@@ -309,6 +352,16 @@ export function CogitaLiveRevisionJoinPage(props: {
         localStorage.removeItem(introSeenStorageKey(code, currentParticipantRef));
       }
     }
+  };
+
+  const toggleTimersPaused = () => {
+    const tickNow = Date.now();
+    if (timersPausedAtMs != null) {
+      setTimersPauseCarryMs((previous) => previous + Math.max(0, tickNow - timersPausedAtMs));
+      setTimersPausedAtMs(null);
+      return;
+    }
+    setTimersPausedAtMs(tickNow);
   };
 
   const toggleSelection = (index: number) => {
@@ -402,12 +455,34 @@ export function CogitaLiveRevisionJoinPage(props: {
   useEffect(() => {
     if (!participantToken || !prompt || !effectiveQuestionTimer) return;
     if (!timerExpired || state?.answerSubmitted) return;
+    if (timersPaused) return;
     if (Boolean(reveal)) return;
     const timeoutKey = `${code}:${promptKey}:${state?.revealVersion ?? 0}`;
     if (timeoutSubmitKeyRef.current === timeoutKey) return;
     timeoutSubmitKeyRef.current = timeoutKey;
     void submitAnswer({ force: true });
-  }, [code, effectiveQuestionTimer, participantToken, prompt, promptKey, reveal, state?.answerSubmitted, state?.revealVersion, timerExpired]);
+  }, [code, effectiveQuestionTimer, participantToken, prompt, promptKey, reveal, state?.answerSubmitted, state?.revealVersion, timerExpired, timersPaused]);
+
+  useEffect(() => {
+    if (!participantToken || !prompt || !isAsyncSession || !reveal) return;
+    if (prompt.nextQuestionMode !== 'timer') return;
+    if (!nextQuestionTimer || nextQuestionTimer.remainingMs > 0) return;
+    if (timersPaused) return;
+    const timeoutKey = `${code}:${promptKey}:${state?.revealVersion ?? 0}:next`;
+    if (timeoutNextKeyRef.current === timeoutKey) return;
+    timeoutNextKeyRef.current = timeoutKey;
+    void submitAnswer({ force: true, answerOverride: null });
+  }, [
+    code,
+    isAsyncSession,
+    nextQuestionTimer,
+    participantToken,
+    prompt,
+    promptKey,
+    reveal,
+    state?.revealVersion,
+    timersPaused
+  ]);
 
   const submittedAnswer = useMemo(() => {
     if (!prompt) return null;
@@ -531,6 +606,144 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
   const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
+  const asyncProgressByParticipant = useMemo(() => {
+    const result = new Map<string, { answeredCount: number; cumulativeScores: number[]; roundsAnswered: number[] }>();
+    const history = [...(state?.correctnessHistory ?? [])].sort((left, right) => {
+      if ((left.roundIndex ?? 0) !== (right.roundIndex ?? 0)) {
+        return (left.roundIndex ?? 0) - (right.roundIndex ?? 0);
+      }
+      return Date.parse(left.recordedUtc ?? '') - Date.parse(right.recordedUtc ?? '');
+    });
+    const latestByParticipantRound = new Map<string, { roundIndex: number; pointsAwarded: number; submittedUtcMs: number }>();
+    history.forEach((round) => {
+      const roundIndex = Number(round.roundIndex ?? 0);
+      const entries = [...(round.entries ?? [])].sort(
+        (left, right) => Date.parse(left.submittedUtc ?? '') - Date.parse(right.submittedUtc ?? '')
+      );
+      entries.forEach((entry) => {
+        const participantId = String(entry.participantId ?? '').trim();
+        if (!participantId) return;
+        const key = `${participantId}::${roundIndex}`;
+        const submittedUtcMs = Date.parse(entry.submittedUtc ?? '');
+        const previous = latestByParticipantRound.get(key);
+        if (!previous || submittedUtcMs >= previous.submittedUtcMs) {
+          latestByParticipantRound.set(key, {
+            roundIndex,
+            pointsAwarded: Number.isFinite(entry.pointsAwarded) ? Math.round(Number(entry.pointsAwarded)) : 0,
+            submittedUtcMs: Number.isFinite(submittedUtcMs) ? submittedUtcMs : 0
+          });
+        }
+      });
+    });
+    const rowsByParticipant = new Map<string, Array<{ roundIndex: number; pointsAwarded: number }>>();
+    latestByParticipantRound.forEach((row, key) => {
+      const participantId = key.split('::')[0];
+      const bucket = rowsByParticipant.get(participantId) ?? [];
+      bucket.push({ roundIndex: row.roundIndex, pointsAwarded: row.pointsAwarded });
+      rowsByParticipant.set(participantId, bucket);
+    });
+    rowsByParticipant.forEach((rows, participantId) => {
+      rows.sort((left, right) => left.roundIndex - right.roundIndex);
+      const cumulativeScores: number[] = [];
+      const roundsAnswered: number[] = [];
+      let running = 0;
+      rows.forEach((row) => {
+        running += row.pointsAwarded;
+        cumulativeScores.push(running);
+        roundsAnswered.push(row.roundIndex);
+      });
+      result.set(participantId, {
+        answeredCount: rows.length,
+        cumulativeScores,
+        roundsAnswered
+      });
+    });
+    return result;
+  }, [state?.correctnessHistory]);
+  const selfProgressCount = useMemo(() => {
+    if (!isAsyncSession) return 0;
+    const byParticipant = selfParticipantId ? asyncProgressByParticipant.get(selfParticipantId)?.answeredCount ?? 0 : 0;
+    const fallbackByPosition =
+      Math.max(0, Number(state?.currentRoundIndex ?? 0)) + (state?.answerSubmitted ? 1 : 0);
+    return Math.max(byParticipant, fallbackByPosition);
+  }, [asyncProgressByParticipant, isAsyncSession, selfParticipantId, state?.answerSubmitted, state?.currentRoundIndex]);
+  const displayedScoreboard = useMemo<DisplayScoreRow[]>(() => {
+    const rows = state?.scoreboard ?? [];
+    const normalizedRows = rows.map((row) => {
+      const sourceScore = Math.round(Number(row.score ?? 0));
+      const progress = asyncProgressByParticipant.get(row.participantId);
+      const answeredCount = progress?.answeredCount ?? 0;
+      if (!isAsyncSession || selfProgressCount <= 0 || !progress || progress.cumulativeScores.length === 0) {
+        return {
+          participantId: row.participantId,
+          displayName: row.displayName,
+          score: sourceScore,
+          answeredCount,
+          comparedAnsweredCount: answeredCount
+        };
+      }
+      const comparedAnsweredCount = Math.max(0, Math.min(selfProgressCount, answeredCount));
+      const score =
+        comparedAnsweredCount > 0
+          ? progress.cumulativeScores[comparedAnsweredCount - 1] ?? 0
+          : 0;
+      return {
+        participantId: row.participantId,
+        displayName: row.displayName,
+        score: Math.round(score),
+        answeredCount,
+        comparedAnsweredCount
+      };
+    });
+    return normalizedRows.sort((left, right) => right.score - left.score || left.displayName.localeCompare(right.displayName));
+  }, [asyncProgressByParticipant, isAsyncSession, selfProgressCount, state?.scoreboard]);
+  const asyncScoreContextHelp = useMemo(() => {
+    if (!isAsyncSession || selfProgressCount <= 0) return null;
+    if (props.language === 'pl') {
+      return `Porównanie pokazuje wyniki po ${selfProgressCount} odpowiedziach dla każdego uczestnika (Twój aktualny etap).`;
+    }
+    if (props.language === 'de') {
+      return `Der Vergleich zeigt die Punkte jedes Teilnehmenden nach ${selfProgressCount} beantworteten Fragen (dein aktueller Stand).`;
+    }
+    return `The comparison shows each participant's score after ${selfProgressCount} answered questions (your current progress).`;
+  }, [isAsyncSession, props.language, selfProgressCount]);
+  const bonusExplanation = useMemo(() => {
+    if (props.language === 'pl') {
+      return '✓ punkty bazowe za poprawną odpowiedź, ⚡ bonus za pierwszą poprawną odpowiedź, ⏱ bonus szybkości zależny od pozostałego czasu, 🔥 bonus za serię poprawnych odpowiedzi, ✖ kara za złą odpowiedź.';
+    }
+    if (props.language === 'de') {
+      return '✓ Basispunkte für richtige Antwort, ⚡ Bonus für die erste richtige Antwort, ⏱ Tempobonus abhängig von Restzeit, 🔥 Bonus für eine richtige Serie, ✖ Abzug für falsche Antwort.';
+    }
+    return '✓ base points for a correct answer, ⚡ first-correct bonus, ⏱ speed bonus based on remaining time, 🔥 streak bonus for consecutive correct answers, ✖ penalty for a wrong answer.';
+  }, [props.language]);
+  const configuredBonusRows = useMemo(() => {
+    return [
+      { key: 'base', label: liveCopy.factorBaseLabel, points: liveRules.scoring.baseCorrect },
+      { key: 'first', label: liveCopy.factorFirstLabel, points: liveRules.scoring.firstCorrectBonus },
+      {
+        key: 'speed',
+        label: liveCopy.factorSpeedLabel,
+        points: liveRules.speedBonus.enabled ? liveRules.speedBonus.maxPoints : 0
+      },
+      { key: 'streak', label: liveCopy.factorStreakLabel, points: liveRules.scoring.streakBaseBonus },
+      { key: 'wrong', label: liveCopy.factorWrongLabel, points: -liveRules.scoring.wrongAnswerPenalty },
+      { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty }
+    ].filter((row) => row.points !== 0);
+  }, [
+    liveCopy.factorBaseLabel,
+    liveCopy.factorFirstLabel,
+    liveCopy.factorFirstWrongLabel,
+    liveCopy.factorSpeedLabel,
+    liveCopy.factorStreakLabel,
+    liveCopy.factorWrongLabel,
+    liveRules.scoring.baseCorrect,
+    liveRules.scoring.firstCorrectBonus,
+    liveRules.scoring.firstWrongPenalty,
+    liveRules.scoring.streakBaseBonus,
+    liveRules.scoring.wrongAnswerPenalty,
+    liveRules.speedBonus.enabled,
+    liveRules.speedBonus.maxPoints
+  ]);
 
   const acknowledgeIntro = () => {
     setIntroAcknowledged(true);
@@ -543,7 +756,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   };
 
   useEffect(() => {
-    const rows = state?.scoreboard ?? [];
+    const rows = displayedScoreboard;
     if (rows.length === 0) {
       prevScoresRef.current = new Map();
       prevRanksRef.current = new Map();
@@ -575,7 +788,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
     prevScoresRef.current = currentScores;
     prevRanksRef.current = currentRanks;
-  }, [state?.revealVersion, state?.scoreboard]);
+  }, [displayedScoreboard, state?.revealVersion]);
 
   const timerBlocks = useMemo(() => {
     const blocks: Array<{ id: string; label: string; remainingMs: number; progress: number }> = [];
@@ -598,13 +811,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (fullSessionTimer) {
       blocks.push({
         id: 'session',
-        label: `${liveCopy.roundsLabel} • ${liveCopy.timerLabel}`,
+        label: `${roundsLabelResolved} • ${liveCopy.timerLabel}`,
         remainingMs: fullSessionTimer.remainingMs,
         progress: fullSessionTimer.progress
       });
     }
     return blocks;
-  }, [effectiveQuestionTimer, fullSessionTimer, liveCopy.nextQuestionTimerLabel, liveCopy.roundsLabel, liveCopy.timerLabel, nextQuestionTimer, timerProgress, timerRemainingMs]);
+  }, [effectiveQuestionTimer, fullSessionTimer, liveCopy.nextQuestionTimerLabel, liveCopy.timerLabel, nextQuestionTimer, roundsLabelResolved, timerProgress, timerRemainingMs]);
 
   return (
     <CogitaShell {...props}>
@@ -665,7 +878,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <>
                     <p className="cogita-user-kicker">{liveCopy.scoreboardTitle}</p>
                     <div className="cogita-share-list">
-                      {state?.scoreboard.map((row) => {
+                      {displayedScoreboard.map((row) => {
                         const scoreFx = scoreFxByParticipant[row.participantId];
                         const rowScoring = scoringByParticipant?.[row.participantId];
                         const factors = Array.isArray(rowScoring?.factors) ? rowScoring.factors.map(String) : [];
@@ -678,6 +891,9 @@ export function CogitaLiveRevisionJoinPage(props: {
                             <div><strong>{row.displayName}</strong></div>
                             <div className="cogita-share-meta">
                               {row.score} {liveCopy.scoreUnit}
+                              {isAsyncSession && selfProgressCount > 0 ? (
+                                <span>{` · ${row.comparedAnsweredCount}/${selfProgressCount}`}</span>
+                              ) : null}
                               {scoreFx?.delta ? (
                                 <span key={`delta:lobby:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
                                   {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
@@ -692,7 +908,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                           </div>
                         );
                       })}
-                      {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
+                      {state && displayedScoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                     </div>
                   </>
                 ) : null}
@@ -815,8 +1031,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                       </div>
                     ) : null}
                     {(() => {
-                      const manualNextStep = isAsyncSession && Boolean(reveal) && prompt.nextQuestionMode === 'manual';
-                      const showSubmitButton = !reveal || manualNextStep;
+                      const revealStep = isAsyncSession && Boolean(reveal);
+                      const showSubmitButton = !reveal || revealStep;
                       if (!showSubmitButton) return null;
                       return (
                         <div className="cogita-form-actions">
@@ -824,20 +1040,25 @@ export function CogitaLiveRevisionJoinPage(props: {
                             type="button"
                             className="cta"
                             onClick={() => {
-                              if (manualNextStep) {
+                              if (revealStep) {
                                 void submitAnswer({ force: true, answerOverride: null });
                                 return;
                               }
                               void submitAnswer();
                             }}
-                            disabled={!participantToken || !prompt.cardKey || (!manualNextStep && (Boolean(state?.answerSubmitted) || timerExpired))}
+                            disabled={!participantToken || !prompt.cardKey || (!revealStep && (Boolean(state?.answerSubmitted) || timerExpired))}
                           >
-                            {manualNextStep
+                            {revealStep
                               ? liveCopy.nextQuestionAction
                               : state?.answerSubmitted
                                 ? liveCopy.submitted
                                 : liveCopy.submitAnswer}
                           </button>
+                          {revealStep && prompt.nextQuestionMode === 'timer' && nextQuestionTimer ? (
+                            <button type="button" className="ghost" onClick={toggleTimersPaused}>
+                              {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
+                            </button>
+                          ) : null}
                         </div>
                       );
                     })()}
@@ -870,8 +1091,23 @@ export function CogitaLiveRevisionJoinPage(props: {
                     </button>
                   </div>
                   <p className="cogita-help">{liveCopy.symbolsLegend}</p>
+                  <p className="cogita-help">{bonusExplanation}</p>
+                  {asyncScoreContextHelp ? <p className="cogita-help">{asyncScoreContextHelp}</p> : null}
+                  {configuredBonusRows.length > 0 ? (
+                    <div className="cogita-live-round-gain">
+                      <p className="cogita-user-kicker">{bonusListTitle(props.language)}</p>
+                      <div className="cogita-live-round-gain-list">
+                        {configuredBonusRows.map((row) => (
+                          <div className="cogita-live-round-gain-row" key={`bonus-config:${row.key}`}>
+                            <span>{row.label}</span>
+                            <strong>{`${formatPoints(Math.round(row.points))} ${liveCopy.scoreUnit}`}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="cogita-share-list">
-                    {state?.scoreboard.map((row) => {
+                    {displayedScoreboard.map((row) => {
                       const scoreFx = scoreFxByParticipant[row.participantId];
                       const rowScoring = scoringByParticipant?.[row.participantId];
                       const factors = Array.isArray(rowScoring?.factors) ? rowScoring.factors.map(String) : [];
@@ -895,6 +1131,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                           </div>
                           <div className="cogita-share-meta">
                             {row.score} {liveCopy.scoreUnit}
+                            {isAsyncSession && selfProgressCount > 0 ? ` · ${row.comparedAnsweredCount}/${selfProgressCount}` : ''}
                             {rowScoring?.points
                               ? ` (${formatPoints(Math.round(Number(rowScoring?.points ?? 0)))})`
                               : ''}
@@ -912,7 +1149,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                         </div>
                       );
                     })}
-                    {state && state.scoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
+                    {state && displayedScoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
                   </div>
                 </div>
               </div>
