@@ -621,6 +621,7 @@ export function CogitaLivePublicWallPage({
                 data={liveStatisticsData}
                 loading={status === 'loading'}
                 error={status === 'error'}
+                initialModuleId="score-line"
               />
             ) : (
               <>

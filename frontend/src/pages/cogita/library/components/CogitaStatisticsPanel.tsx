@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getCogitaStatistics, type CogitaStatisticsResponse, type CogitaStatisticsTimelinePoint } from '../../../../lib/api';
 
 const PARTICIPANT_COLORS = [
@@ -937,6 +937,7 @@ export function CogitaStatisticsPanel({
   const [state, setState] = useState<CogitaStatisticsResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [slideIndex, setSlideIndex] = useState(0);
+  const appliedInitialModuleRef = useRef<string | null>(null);
   const usesExternalData = data !== undefined;
 
   const resolvedStatus: 'loading' | 'ready' | 'error' = usesExternalData
@@ -989,6 +990,7 @@ export function CogitaStatisticsPanel({
   useEffect(() => {
     if (modules.length === 0) {
       setSlideIndex(0);
+      appliedInitialModuleRef.current = null;
       return;
     }
     setSlideIndex((current) => clamp(current, 0, modules.length - 1));
@@ -996,8 +998,12 @@ export function CogitaStatisticsPanel({
 
   useEffect(() => {
     if (!initialModuleId || modules.length === 0) return;
+    if (appliedInitialModuleRef.current === initialModuleId) return;
     const index = modules.findIndex((module) => module.id === initialModuleId);
-    if (index >= 0) setSlideIndex(index);
+    if (index >= 0) {
+      setSlideIndex(index);
+      appliedInitialModuleRef.current = initialModuleId;
+    }
   }, [initialModuleId, modules]);
 
   const currentModule = modules[slideIndex] ?? null;

@@ -7238,15 +7238,17 @@ public static class CogitaEndpoints
                         .OrderBy(x => x.RoundIndex)
                         .ThenByDescending(x => x.UpdatedUtc)
                         .ToListAsync(ct);
+                    var timerEvents = await LoadLiveAsyncTimerEventsAsync(session.Id, participant.Id, dbContext, ct);
                     var asyncState = BuildLiveAsyncParticipantState(
                         rounds,
                         participantAnswers,
+                        timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
                         flowRules,
                         now);
                     if (flowRules.SessionTimerEnabled &&
-                        now >= asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds))
+                        asyncState.SessionElapsedSeconds >= flowRules.SessionTimerSeconds)
                     {
                         var changed = await MarkLiveAsyncUnansweredRoundsAsync(
                             session.Id,
@@ -7266,6 +7268,7 @@ public static class CogitaEndpoints
                             asyncState = BuildLiveAsyncParticipantState(
                                 rounds,
                                 participantAnswers,
+                                timerEvents,
                                 participant.JoinedUtc,
                                 session.StartedUtc,
                                 flowRules,
@@ -7280,21 +7283,26 @@ public static class CogitaEndpoints
                         var currentRound = rounds[effectiveRoundIndex];
                         var promptNode = CloneJsonObject(currentRound.Prompt);
                         var isRevealPhase = string.Equals(asyncState.Phase, "reveal", StringComparison.Ordinal);
+                        var sessionElapsedSeconds = Math.Max(0d, asyncState.SessionElapsedSeconds);
+                        var sessionTimerRemainingSeconds = flowRules.SessionTimerEnabled
+                            ? Math.Max(0d, flowRules.SessionTimerSeconds - sessionElapsedSeconds)
+                            : 0d;
+                        var sessionTimerStartedUtc = now.AddSeconds(-sessionElapsedSeconds);
                         var sessionTimerEndsUtc = flowRules.SessionTimerEnabled
-                            ? asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds)
+                            ? now.AddSeconds(sessionTimerRemainingSeconds)
                             : (DateTimeOffset?)null;
-                        var roundTimerEndsUtc = flowRules.RoundTimerEnabled
-                            ? asyncState.RoundStartedUtc.AddSeconds(flowRules.RoundTimerSeconds)
-                            : (DateTimeOffset?)null;
+                        var roundElapsedSeconds = Math.Max(0d, asyncState.RoundElapsedSeconds);
+                        var roundTimerStartedUtc = now.AddSeconds(-roundElapsedSeconds);
+                        var roundTimerEndsUtc = asyncState.RoundEndsUtc;
                         promptNode["roundIndex"] = effectiveRoundIndex;
                         promptNode["cardKey"] = currentRound.CardKey;
                         promptNode["sessionTimerEnabled"] = flowRules.SessionTimerEnabled;
                         promptNode["sessionTimerSeconds"] = flowRules.SessionTimerSeconds;
-                        promptNode["sessionTimerStartedUtc"] = asyncState.SessionStartedUtc.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["sessionTimerStartedUtc"] = sessionTimerStartedUtc.ToString("O", CultureInfo.InvariantCulture);
                         promptNode["sessionTimerEndsUtc"] = sessionTimerEndsUtc?.ToString("O", CultureInfo.InvariantCulture);
                         promptNode["roundTimerEnabled"] = flowRules.RoundTimerEnabled;
                         promptNode["roundTimerSeconds"] = flowRules.RoundTimerSeconds;
-                        promptNode["roundTimerStartedUtc"] = asyncState.RoundStartedUtc.ToString("O", CultureInfo.InvariantCulture);
+                        promptNode["roundTimerStartedUtc"] = roundTimerStartedUtc.ToString("O", CultureInfo.InvariantCulture);
                         promptNode["roundTimerEndsUtc"] = roundTimerEndsUtc?.ToString("O", CultureInfo.InvariantCulture);
                         promptNode["nextQuestionMode"] = flowRules.NextQuestionMode;
                         promptNode["nextQuestionSeconds"] = flowRules.NextQuestionSeconds;
@@ -7425,9 +7433,11 @@ public static class CogitaEndpoints
                     .OrderBy(x => x.RoundIndex)
                     .ThenByDescending(x => x.UpdatedUtc)
                     .ToListAsync(ct);
+                var timerEvents = await LoadLiveAsyncTimerEventsAsync(session.Id, participant.Id, dbContext, ct);
                 var asyncState = BuildLiveAsyncParticipantState(
                     rounds,
                     participantAnswers,
+                    timerEvents,
                     participant.JoinedUtc,
                     session.StartedUtc,
                     flowRules,
@@ -7468,7 +7478,7 @@ public static class CogitaEndpoints
                 }
 
                 if (flowRules.SessionTimerEnabled &&
-                    now >= asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds))
+                    asyncState.SessionElapsedSeconds >= flowRules.SessionTimerSeconds)
                 {
                     await MarkLiveAsyncUnansweredRoundsAsync(
                         session.Id,
@@ -7728,6 +7738,97 @@ public static class CogitaEndpoints
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
+        }).AllowAnonymous();
+
+        group.MapPost("/public/live-revision/{code}/timer", async (
+            string code,
+            CogitaLiveRevisionTimerControlRequest request,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.ParticipantToken))
+            {
+                return Results.BadRequest(new { error = "Participant token is required." });
+            }
+
+            var action = request.Action?.Trim().ToLowerInvariant();
+            if (action is not ("pause" or "resume"))
+            {
+                return Results.BadRequest(new { error = "Unsupported timer action." });
+            }
+
+            var session = await dbContext.CogitaLiveRevisionSessions
+                .FirstOrDefaultAsync(x => x.PublicCodeHash == HashToken(code), ct);
+            if (session is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (session.Status != "running")
+            {
+                return Results.BadRequest(new { error = "Live session is not accepting timer control." });
+            }
+
+            var participant = await dbContext.CogitaLiveRevisionParticipants
+                .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(request.ParticipantToken), ct);
+            if (participant is null)
+            {
+                return Results.Forbid();
+            }
+
+            var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+            if (!string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new { error = "Timer control is available only in asynchronous sessions." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var requestedRoundIndex = request.RoundIndex.GetValueOrDefault(0);
+            var lastEvent = await dbContext.CogitaStatisticEvents.AsNoTracking()
+                .Where(x =>
+                    x.SessionId == session.Id &&
+                    x.ParticipantId == participant.Id &&
+                    (x.EventType == "live_async_timer_paused" || x.EventType == "live_async_timer_resumed"))
+                .OrderByDescending(x => x.CreatedUtc)
+                .FirstOrDefaultAsync(ct);
+            var isCurrentlyPaused = string.Equals(lastEvent?.EventType, "live_async_timer_paused", StringComparison.Ordinal);
+            var targetPaused = string.Equals(action, "pause", StringComparison.Ordinal);
+
+            if (isCurrentlyPaused != targetPaused)
+            {
+                dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = session.LibraryId,
+                    ScopeType = "live-session",
+                    ScopeId = session.Id,
+                    SourceType = "live-session",
+                    SessionId = session.Id,
+                    PersonRoleId = null,
+                    ParticipantId = participant.Id,
+                    ParticipantLabel = null,
+                    ItemType = null,
+                    ItemId = null,
+                    CheckType = null,
+                    Direction = null,
+                    EventType = targetPaused ? "live_async_timer_paused" : "live_async_timer_resumed",
+                    RoundIndex = Math.Max(0, requestedRoundIndex),
+                    CardKey = null,
+                    IsCorrect = null,
+                    Correctness = null,
+                    PointsAwarded = null,
+                    DurationMs = null,
+                    IsPersistent = false,
+                    PayloadJson = null,
+                    CreatedUtc = now
+                });
+            }
+
+            participant.IsConnected = true;
+            participant.UpdatedUtc = now;
+            session.UpdatedUtc = now;
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { paused = targetPaused });
         }).AllowAnonymous();
 
         group.MapGet("/public/revision/{code}", async (
@@ -16356,7 +16457,14 @@ public static class CogitaEndpoints
         DateTimeOffset? RoundEndsUtc,
         DateTimeOffset? RevealStartedUtc,
         DateTimeOffset? AutoNextEndsUtc,
+        double SessionElapsedSeconds,
+        double RoundElapsedSeconds,
         CogitaLiveRevisionAnswer? Answer);
+
+    private sealed record LiveAsyncTimerControlEvent(
+        DateTimeOffset CreatedUtc,
+        string Action,
+        int? RoundIndex);
 
     private static List<LiveAsyncRoundPayload> ParseLiveAsyncRoundBundle(string? promptJson)
     {
@@ -16447,6 +16555,26 @@ public static class CogitaEndpoints
         {
             return null;
         }
+    }
+
+    private static async Task<List<LiveAsyncTimerControlEvent>> LoadLiveAsyncTimerEventsAsync(
+        Guid sessionId,
+        Guid participantId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var events = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x =>
+                x.SessionId == sessionId &&
+                x.ParticipantId == participantId &&
+                (x.EventType == "live_async_timer_paused" || x.EventType == "live_async_timer_resumed"))
+            .OrderBy(x => x.CreatedUtc)
+            .Select(x => new LiveAsyncTimerControlEvent(
+                x.CreatedUtc,
+                x.EventType == "live_async_timer_paused" ? "pause" : "resume",
+                x.RoundIndex))
+            .ToListAsync(ct);
+        return events;
     }
 
     private static LiveSessionScoringRules ParseLiveSessionScoringRules(JsonElement? sessionSettings)
@@ -16708,11 +16836,109 @@ public static class CogitaEndpoints
     private static LiveAsyncParticipantState BuildLiveAsyncParticipantState(
         List<LiveAsyncRoundPayload> rounds,
         List<CogitaLiveRevisionAnswer> participantAnswers,
+        List<LiveAsyncTimerControlEvent> timerEvents,
         DateTimeOffset participantJoinedUtc,
         DateTimeOffset? sessionStartedUtc,
         LiveSessionFlowRules flowRules,
         DateTimeOffset nowUtc)
     {
+        static TimeSpan ComputePausedDurationForRound(
+            int roundIndex,
+            DateTimeOffset startUtc,
+            DateTimeOffset endUtc,
+            IReadOnlyList<LiveAsyncTimerControlEvent> events)
+        {
+            if (endUtc <= startUtc || events.Count == 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var ordered = events
+                .Where(x => x.RoundIndex == roundIndex)
+                .OrderBy(x => x.CreatedUtc)
+                .ToList();
+            if (ordered.Count == 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var paused = false;
+            DateTimeOffset? pauseStartUtc = null;
+            var pausedDuration = TimeSpan.Zero;
+
+            foreach (var timerEvent in ordered)
+            {
+                if (timerEvent.CreatedUtc <= startUtc)
+                {
+                    if (string.Equals(timerEvent.Action, "pause", StringComparison.Ordinal))
+                    {
+                        paused = true;
+                        pauseStartUtc = startUtc;
+                    }
+                    else if (string.Equals(timerEvent.Action, "resume", StringComparison.Ordinal))
+                    {
+                        paused = false;
+                        pauseStartUtc = null;
+                    }
+                    continue;
+                }
+
+                if (timerEvent.CreatedUtc >= endUtc)
+                {
+                    break;
+                }
+
+                if (string.Equals(timerEvent.Action, "pause", StringComparison.Ordinal))
+                {
+                    if (!paused)
+                    {
+                        paused = true;
+                        pauseStartUtc = timerEvent.CreatedUtc;
+                    }
+                    continue;
+                }
+
+                if (!paused || !pauseStartUtc.HasValue)
+                {
+                    continue;
+                }
+
+                pausedDuration += timerEvent.CreatedUtc - pauseStartUtc.Value;
+                paused = false;
+                pauseStartUtc = null;
+            }
+
+            if (paused && pauseStartUtc.HasValue)
+            {
+                pausedDuration += endUtc - pauseStartUtc.Value;
+            }
+
+            return pausedDuration < TimeSpan.Zero ? TimeSpan.Zero : pausedDuration;
+        }
+
+        static double ComputeActiveQuestionSeconds(
+            int roundIndex,
+            DateTimeOffset startUtc,
+            DateTimeOffset endUtc,
+            IReadOnlyList<LiveAsyncTimerControlEvent> timerEvents,
+            LiveSessionFlowRules flowRules)
+        {
+            if (endUtc <= startUtc)
+            {
+                return 0d;
+            }
+
+            var paused = ComputePausedDurationForRound(roundIndex, startUtc, endUtc, timerEvents);
+            var active = endUtc - startUtc - paused;
+            var activeSeconds = Math.Max(0d, active.TotalSeconds);
+            if (flowRules.RoundTimerEnabled)
+            {
+                activeSeconds = Math.Min(activeSeconds, flowRules.RoundTimerSeconds);
+            }
+
+            return activeSeconds;
+        }
+
         var sessionStartUtc = sessionStartedUtc.HasValue && sessionStartedUtc.Value > participantJoinedUtc
             ? sessionStartedUtc.Value
             : participantJoinedUtc;
@@ -16726,6 +16952,8 @@ public static class CogitaEndpoints
                 null,
                 null,
                 null,
+                0d,
+                0d,
                 null);
         }
 
@@ -16739,39 +16967,63 @@ public static class CogitaEndpoints
                     .First());
 
         var roundCursorUtc = sessionStartUtc;
-        var sessionEndsUtc = flowRules.SessionTimerEnabled
-            ? sessionStartUtc.AddSeconds(flowRules.SessionTimerSeconds)
-            : (DateTimeOffset?)null;
+        var sessionElapsedSeconds = 0d;
         for (var index = 0; index < rounds.Count; index++)
         {
-            if (sessionEndsUtc.HasValue && nowUtc >= sessionEndsUtc.Value)
+            if (!latestByRound.TryGetValue(index, out var answerRow) ||
+                !answerRow.IsCorrect.HasValue)
+            {
+                var questionElapsedSeconds = ComputeActiveQuestionSeconds(index, roundCursorUtc, nowUtc, timerEvents, flowRules);
+                var previewSessionElapsedSeconds = sessionElapsedSeconds + questionElapsedSeconds;
+                if (flowRules.SessionTimerEnabled && previewSessionElapsedSeconds >= flowRules.SessionTimerSeconds)
+                {
+                    return new LiveAsyncParticipantState(
+                        index,
+                        "finished",
+                        sessionStartUtc,
+                        roundCursorUtc,
+                        flowRules.RoundTimerEnabled ? nowUtc : null,
+                        null,
+                        null,
+                        flowRules.SessionTimerSeconds,
+                        questionElapsedSeconds,
+                        answerRow);
+                }
+
+                var roundRemainingSeconds = flowRules.RoundTimerEnabled
+                    ? Math.Max(0d, flowRules.RoundTimerSeconds - questionElapsedSeconds)
+                    : 0d;
+                return new LiveAsyncParticipantState(
+                    index,
+                    "question",
+                    sessionStartUtc,
+                    roundCursorUtc,
+                    flowRules.RoundTimerEnabled ? nowUtc.AddSeconds(roundRemainingSeconds) : null,
+                    null,
+                    null,
+                    previewSessionElapsedSeconds,
+                    questionElapsedSeconds,
+                    answerRow);
+            }
+
+            var revealStartedUtc = answerRow.SubmittedUtc > roundCursorUtc ? answerRow.SubmittedUtc : roundCursorUtc;
+            var questionElapsedAtSubmitSeconds = ComputeActiveQuestionSeconds(index, roundCursorUtc, revealStartedUtc, timerEvents, flowRules);
+            sessionElapsedSeconds += questionElapsedAtSubmitSeconds;
+            if (flowRules.SessionTimerEnabled && sessionElapsedSeconds >= flowRules.SessionTimerSeconds)
             {
                 return new LiveAsyncParticipantState(
                     index,
                     "finished",
                     sessionStartUtc,
                     roundCursorUtc,
-                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                    flowRules.RoundTimerEnabled ? revealStartedUtc : null,
+                    revealStartedUtc,
                     null,
-                    null,
-                    null);
-            }
-
-            if (!latestByRound.TryGetValue(index, out var answerRow) ||
-                !answerRow.IsCorrect.HasValue)
-            {
-                return new LiveAsyncParticipantState(
-                    index,
-                    "question",
-                    sessionStartUtc,
-                    roundCursorUtc,
-                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
-                    null,
-                    null,
+                    flowRules.SessionTimerSeconds,
+                    questionElapsedAtSubmitSeconds,
                     answerRow);
             }
 
-            var revealStartedUtc = answerRow.SubmittedUtc > roundCursorUtc ? answerRow.SubmittedUtc : roundCursorUtc;
             if (string.Equals(flowRules.NextQuestionMode, "timer", StringComparison.Ordinal))
             {
                 var autoNextEndsUtc = revealStartedUtc.AddSeconds(flowRules.NextQuestionSeconds);
@@ -16782,9 +17034,11 @@ public static class CogitaEndpoints
                         "reveal",
                         sessionStartUtc,
                         roundCursorUtc,
-                        flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                        flowRules.RoundTimerEnabled ? revealStartedUtc : null,
                         revealStartedUtc,
                         autoNextEndsUtc,
+                        sessionElapsedSeconds,
+                        questionElapsedAtSubmitSeconds,
                         answerRow);
                 }
 
@@ -16800,9 +17054,11 @@ public static class CogitaEndpoints
                     "reveal",
                     sessionStartUtc,
                     roundCursorUtc,
-                    flowRules.RoundTimerEnabled ? roundCursorUtc.AddSeconds(flowRules.RoundTimerSeconds) : null,
+                    flowRules.RoundTimerEnabled ? revealStartedUtc : null,
                     revealStartedUtc,
                     null,
+                    sessionElapsedSeconds,
+                    questionElapsedAtSubmitSeconds,
                     answerRow);
             }
 
@@ -16817,6 +17073,8 @@ public static class CogitaEndpoints
             null,
             null,
             null,
+            sessionElapsedSeconds,
+            0d,
             null);
     }
 

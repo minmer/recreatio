@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  controlCogitaLiveRevisionTimer,
   getCogitaLiveRevisionPublicState,
   joinCogitaLiveRevision,
   submitCogitaLiveRevisionAnswer,
@@ -368,8 +369,22 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
   };
 
-  const toggleTimersPaused = () => {
+  const toggleTimersPaused = async () => {
     const tickNow = Date.now();
+    if (participantToken && isAsyncSession && prompt) {
+      const action = timersPausedAtMs != null ? 'resume' : 'pause';
+      try {
+        await controlCogitaLiveRevisionTimer({
+          code,
+          participantToken,
+          action,
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
+        });
+      } catch {
+        // keep local pause behaviour even when sync fails
+      }
+    }
+
     if (timersPausedAtMs != null) {
       setTimersPauseCarryMs((previous) => previous + Math.max(0, tickNow - timersPausedAtMs));
       setTimersPausedAtMs(null);
@@ -969,7 +984,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : (
                   <>
                     {isSessionFinished ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '0.8rem' }}>
+                      <div className="cogita-live-finished-layout">
                         <CogitaStatisticsPanel
                           libraryId={`live:${state?.sessionId ?? code}`}
                           scopeType="live-session"
@@ -1166,7 +1181,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 </button>
               </div>
             ) : null}
-            {showScoreOverlay && sessionStage !== 'lobby' && !showIntroPanel ? (
+                {showScoreOverlay && sessionStage !== 'lobby' && !showIntroPanel ? (
               <div className="cogita-live-score-overlay" onClick={() => setShowScoreOverlay(false)}>
                 <div className="cogita-live-score-overlay-card" onClick={(event) => event.stopPropagation()}>
                   <div className="cogita-form-actions" style={{ justifyContent: 'space-between' }}>
@@ -1190,6 +1205,28 @@ export function CogitaLiveRevisionJoinPage(props: {
                         ))}
                       </div>
                     </div>
+                  ) : null}
+                  {!isAsyncSession && podiumRows.length > 0 ? (
+                    <section className="cogita-live-podium-wrap">
+                      <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
+                      <div className="cogita-live-podium" role="presentation">
+                        {podiumDisplayRows.map((row) => {
+                          const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
+                          const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
+                          const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
+                          const height = heightByRank[order] ?? 52;
+                          return (
+                            <div key={`overlay-podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
+                              <div className="cogita-live-podium-name" title={row.displayName}>{row.displayName}</div>
+                              <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
+                                <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
+                                <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
                   ) : null}
                   <div className="cogita-share-list">
                     {displayedScoreboard.map((row) => {

@@ -1934,6 +1934,12 @@
   min-height: calc(100vh - 10rem);
 }
 
+.cogita-live-finished-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 0.8rem;
+}
+
 .cogita-live-session-layout[data-participant-view='fullscreen'] {
   align-items: stretch;
 }
@@ -2961,6 +2967,11 @@
 }
 
 @media (orientation: portrait) {
+  .cogita-live-finished-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
   .cogita-live-wall {
     overflow-y: auto;
     overflow-x: hidden;

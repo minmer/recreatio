@@ -601,6 +601,12 @@ public sealed record CogitaLiveRevisionAnswerSubmitRequest(
     JsonElement? Answer
 );
 
+public sealed record CogitaLiveRevisionTimerControlRequest(
+    string ParticipantToken,
+    string Action,
+    int? RoundIndex
+);
+
 public sealed record CogitaLiveRevisionHostParticipantCreateRequest(
     string Name
 );
