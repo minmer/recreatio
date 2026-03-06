@@ -4127,16 +4127,16 @@ public static class CogitaEndpoints
                     .Where(x => x.CollectionInfoId == collectionId)
                     .Select(x => new { x.ItemType, x.ItemId })
                     .ToListAsync(ct);
-                var infoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
-                var connectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
-                var sessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                var collectionInfoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
+                var collectionConnectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
+                var collectionSessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && x.CollectionId == collectionId)
                     .Select(x => x.Id)
                     .ToListAsync(ct);
                 query = query.Where(x =>
-                    (x.ItemType == "info" && x.ItemId.HasValue && infoIds.Contains(x.ItemId.Value)) ||
-                    (x.ItemType == "connection" && x.ItemId.HasValue && connectionIds.Contains(x.ItemId.Value)) ||
-                    (x.SessionId.HasValue && sessionIds.Contains(x.SessionId.Value)));
+                    (x.ItemType == "info" && x.ItemId.HasValue && collectionInfoIds.Contains(x.ItemId.Value)) ||
+                    (x.ItemType == "connection" && x.ItemId.HasValue && collectionConnectionIds.Contains(x.ItemId.Value)) ||
+                    (x.SessionId.HasValue && collectionSessionIds.Contains(x.SessionId.Value)));
             }
             else if (normalizedScopeType == "revision")
             {
@@ -4152,16 +4152,16 @@ public static class CogitaEndpoints
                     .Where(x => x.CollectionInfoId == revision.CollectionId)
                     .Select(x => new { x.ItemType, x.ItemId })
                     .ToListAsync(ct);
-                var infoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
-                var connectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
-                var sessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                var revisionInfoIds = items.Where(x => x.ItemType == "info").Select(x => x.ItemId).Distinct().ToList();
+                var revisionConnectionIds = items.Where(x => x.ItemType == "connection").Select(x => x.ItemId).Distinct().ToList();
+                var revisionSessionIds = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && x.RevisionId == revisionId)
                     .Select(x => x.Id)
                     .ToListAsync(ct);
                 query = query.Where(x =>
-                    (x.ItemType == "info" && x.ItemId.HasValue && infoIds.Contains(x.ItemId.Value)) ||
-                    (x.ItemType == "connection" && x.ItemId.HasValue && connectionIds.Contains(x.ItemId.Value)) ||
-                    (x.SessionId.HasValue && sessionIds.Contains(x.SessionId.Value)));
+                    (x.ItemType == "info" && x.ItemId.HasValue && revisionInfoIds.Contains(x.ItemId.Value)) ||
+                    (x.ItemType == "connection" && x.ItemId.HasValue && revisionConnectionIds.Contains(x.ItemId.Value)) ||
+                    (x.SessionId.HasValue && revisionSessionIds.Contains(x.SessionId.Value)));
             }
 
             var events = await query
