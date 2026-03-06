@@ -7245,6 +7245,33 @@ public static class CogitaEndpoints
                         session.StartedUtc,
                         flowRules,
                         now);
+                    if (flowRules.SessionTimerEnabled &&
+                        now >= asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds))
+                    {
+                        var changed = await MarkLiveAsyncUnansweredRoundsAsync(
+                            session.Id,
+                            session.LibraryId,
+                            participant.Id,
+                            rounds,
+                            now,
+                            dbContext,
+                            ct);
+                        if (changed)
+                        {
+                            participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                                .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                                .OrderBy(x => x.RoundIndex)
+                                .ThenByDescending(x => x.UpdatedUtc)
+                                .ToListAsync(ct);
+                            asyncState = BuildLiveAsyncParticipantState(
+                                rounds,
+                                participantAnswers,
+                                participant.JoinedUtc,
+                                session.StartedUtc,
+                                flowRules,
+                                now);
+                        }
+                    }
                     effectiveRoundIndex = Math.Max(0, Math.Min(asyncState.RoundIndex, rounds.Count));
 
                     if (!string.Equals(asyncState.Phase, "finished", StringComparison.Ordinal) &&
@@ -7443,6 +7470,14 @@ public static class CogitaEndpoints
                 if (flowRules.SessionTimerEnabled &&
                     now >= asyncState.SessionStartedUtc.AddSeconds(flowRules.SessionTimerSeconds))
                 {
+                    await MarkLiveAsyncUnansweredRoundsAsync(
+                        session.Id,
+                        session.LibraryId,
+                        participant.Id,
+                        rounds,
+                        now,
+                        dbContext,
+                        ct);
                     return Results.BadRequest(new { error = "Live session timer expired." });
                 }
 
@@ -16783,6 +16818,94 @@ public static class CogitaEndpoints
             null,
             null,
             null);
+    }
+
+    private static async Task<bool> MarkLiveAsyncUnansweredRoundsAsync(
+        Guid sessionId,
+        Guid libraryId,
+        Guid participantId,
+        List<LiveAsyncRoundPayload> rounds,
+        DateTimeOffset nowUtc,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (rounds.Count == 0)
+        {
+            return false;
+        }
+
+        var answers = await dbContext.CogitaLiveRevisionAnswers
+            .Where(x => x.SessionId == sessionId && x.ParticipantId == participantId)
+            .OrderBy(x => x.RoundIndex)
+            .ThenByDescending(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+        var latestByRound = answers
+            .GroupBy(x => x.RoundIndex)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.UpdatedUtc)
+                    .ThenByDescending(item => item.SubmittedUtc)
+                    .First());
+
+        var changed = false;
+        for (var roundIndex = 0; roundIndex < rounds.Count; roundIndex++)
+        {
+            if (latestByRound.TryGetValue(roundIndex, out var existing))
+            {
+                if (existing.IsCorrect.HasValue)
+                {
+                    continue;
+                }
+
+                existing.IsCorrect = false;
+                existing.PointsAwarded = 0;
+                existing.UpdatedUtc = nowUtc > existing.SubmittedUtc
+                    ? nowUtc
+                    : existing.SubmittedUtc.AddMilliseconds(1);
+                changed = true;
+                continue;
+            }
+
+            dbContext.CogitaLiveRevisionAnswers.Add(new CogitaLiveRevisionAnswer
+            {
+                Id = Guid.NewGuid(),
+                SessionId = sessionId,
+                ParticipantId = participantId,
+                RoundIndex = roundIndex,
+                CardKey = rounds[roundIndex].CardKey,
+                AnswerJson = null,
+                IsCorrect = false,
+                PointsAwarded = 0,
+                SubmittedUtc = nowUtc,
+                UpdatedUtc = nowUtc
+            });
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return false;
+        }
+
+        dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+        {
+            Id = Guid.NewGuid(),
+            LibraryId = libraryId,
+            ScopeType = "live-session",
+            ScopeId = sessionId,
+            SourceType = "live-session",
+            SessionId = sessionId,
+            ParticipantId = participantId,
+            EventType = "live_async_timer_expired_marked_unanswered",
+            RoundIndex = rounds.Count - 1,
+            IsPersistent = false,
+            PayloadJson = null,
+            CreatedUtc = nowUtc
+        });
+
+        await dbContext.SaveChangesAsync(ct);
+        return true;
     }
 
     private static List<int> ParseIntListFromJsonNode(JsonNode? node)
