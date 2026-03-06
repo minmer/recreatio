@@ -18,6 +18,7 @@ import type { RouteKey } from '../../../../types/navigation';
 import {
   DEFAULT_LIVE_RULES,
   clampInt,
+  detectLivePreset,
   getLivePresetById,
   getLivePresets,
   parseLiveRules,
@@ -105,10 +106,12 @@ export function CogitaRevisionLiveSessionsPage({
     return liveCopy.presetCustom;
   };
 
-  const presetOptions = useMemo(
-    () => [...presetDefinitions.map((preset) => ({ value: preset.id, label: presetLabelById(preset.id) })), { value: 'custom' as const, label: presetLabelById('custom') }],
-    [presetDefinitions, liveCopy]
-  );
+  const presetOptions = useMemo(() => {
+    const byMode = presetDefinitions
+      .filter((preset) => preset.sessionMode === formSessionMode)
+      .map((preset) => ({ value: preset.id, label: presetLabelById(preset.id) }));
+    return [...byMode, { value: 'custom' as const, label: presetLabelById('custom') }];
+  }, [formSessionMode, presetDefinitions, liveCopy]);
   const isAsyncSession = formSessionMode === 'asynchronous';
   const buildFallbackGroupName = () => {
     const now = new Date();
@@ -150,11 +153,16 @@ export function CogitaRevisionLiveSessionsPage({
     attachCogitaLiveRevisionSession({ libraryId, sessionId })
       .then((session) => {
         if (canceled) return;
+        const parsedRules = parseLiveRules(session.sessionSettings);
+        const parsedMode = (session.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as
+          | 'simultaneous'
+          | 'asynchronous';
         setAttachedSession(session);
         setReloginParticipantId(null);
         setFormTitle(selectedItem?.title ?? '');
-        setFormSessionMode((session.sessionMode === 'asynchronous' ? 'asynchronous' : 'simultaneous') as 'simultaneous' | 'asynchronous');
-        setFormLiveRules(parseLiveRules(session.sessionSettings));
+        setFormSessionMode(parsedMode);
+        setFormLiveRules(parsedRules);
+        setFormPresetId(detectLivePreset(parsedMode, FIXED_HOST_VIEW_MODE, FIXED_PARTICIPANT_VIEW_MODE, parsedRules));
         setShowSpecialSettings(false);
         setDetailStatus('ready');
       })
@@ -217,7 +225,12 @@ export function CogitaRevisionLiveSessionsPage({
       roundTimer: { ...formLiveRules.roundTimer, enabled: false, onExpire: 'reveal' },
       actionTimer: { ...formLiveRules.actionTimer, enabled: false, onExpire: 'reveal' },
       nextQuestion: { ...formLiveRules.nextQuestion, mode: 'manual' },
-      bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' }
+      bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' },
+      scoring: {
+        ...formLiveRules.scoring,
+        firstCorrectBonus: 0,
+        firstWrongPenalty: 0
+      }
     };
   }, [formLiveRules, formSessionMode]);
 
@@ -586,6 +599,28 @@ export function CogitaRevisionLiveSessionsPage({
                         <label className="cogita-field">
                           <span>{copy.cogita.library.revision.nameLabel}</span>
                           <input value={formTitle} onChange={(event) => setFormTitle(event.target.value)} />
+                        </label>
+                        <label className="cogita-field">
+                          <span>{liveCopy.sessionModeLabel}</span>
+                          <select
+                            value={formSessionMode}
+                            onChange={(event) => {
+                              const nextMode = (event.target.value === 'asynchronous' ? 'asynchronous' : 'simultaneous') as
+                                | 'simultaneous'
+                                | 'asynchronous';
+                              setFormSessionMode(nextMode);
+                              const fallbackPreset = presetDefinitions.find((preset) => preset.sessionMode === nextMode) ?? null;
+                              if (fallbackPreset) {
+                                setFormPresetId(fallbackPreset.id);
+                                setFormLiveRules(fallbackPreset.rules);
+                                return;
+                              }
+                              setFormPresetId('custom');
+                            }}
+                          >
+                            <option value="simultaneous">{liveCopy.modeSimultaneous}</option>
+                            <option value="asynchronous">{liveCopy.modeAsynchronous}</option>
+                          </select>
                         </label>
                         <label className="cogita-field">
                           <span>{liveCopy.presetLabel}</span>

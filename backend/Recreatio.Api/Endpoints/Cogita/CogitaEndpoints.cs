@@ -7435,12 +7435,6 @@ public static class CogitaEndpoints
                 }
 
                 var rules = ParseLiveSessionScoringRules(meta.SessionSettings);
-                var answersForRound = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
-                    .Where(x => x.SessionId == session.Id && x.RoundIndex == roundIndex && x.ParticipantId != participant.Id)
-                    .ToListAsync(ct);
-                var firstAnswered = answersForRound.Count == 0;
-                var firstCorrect = isCorrect && !answersForRound.Any(x => x.IsCorrect == true);
-
                 var participantHistory = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                     .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex < roundIndex)
                     .OrderByDescending(x => x.RoundIndex)
@@ -7464,11 +7458,6 @@ public static class CogitaEndpoints
                     if (basePoints > 0)
                     {
                         points += basePoints;
-                    }
-
-                    if (firstCorrect && rules.FirstCorrectBonus > 0)
-                    {
-                        points += Math.Max(0, Math.Min(500000, rules.FirstCorrectBonus));
                     }
 
                     if (rules.BonusTimerEnabled &&
@@ -7526,7 +7515,7 @@ public static class CogitaEndpoints
                 else
                 {
                     var wrongPenalty = Math.Max(0, Math.Min(500000, rules.WrongAnswerPenalty));
-                    var firstWrongPenalty = firstAnswered ? Math.Max(0, Math.Min(500000, rules.FirstWrongPenalty)) : 0;
+                    var firstWrongPenalty = 0;
                     points -= wrongPenalty + firstWrongPenalty;
                 }
 

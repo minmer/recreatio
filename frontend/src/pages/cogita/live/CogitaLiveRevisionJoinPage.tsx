@@ -126,6 +126,10 @@ export function CogitaLiveRevisionJoinPage(props: {
   const effectiveQuestionTimer = useMemo(() => {
     if (state?.status !== 'running') return null;
     if (reveal) return null;
+    const actionTimerRelevant =
+      typeof prompt?.firstAnswerAction === 'string'
+        ? prompt.firstAnswerAction === 'start_timer'
+        : true;
     const timers: Array<{ endsMs: number; totalSeconds: number }> = [];
     if (prompt?.roundTimerEnabled && typeof prompt.roundTimerEndsUtc === 'string') {
       const endsMs = Date.parse(prompt.roundTimerEndsUtc);
@@ -135,7 +139,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         timers.push({ endsMs, totalSeconds });
       }
     }
-    if (prompt?.actionTimerEnabled && typeof prompt.actionTimerEndsUtc === 'string') {
+    if (actionTimerRelevant && prompt?.actionTimerEnabled && typeof prompt.actionTimerEndsUtc === 'string') {
       const endsMs = Date.parse(prompt.actionTimerEndsUtc);
       const rawSeconds = Number(prompt.actionTimerSeconds ?? 0);
       const totalSeconds = Number.isFinite(rawSeconds) && rawSeconds > 0 ? Math.max(1, Math.min(600, Math.round(rawSeconds))) : 0;
@@ -147,6 +151,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     return timers.sort((a, b) => a.endsMs - b.endsMs)[0];
   }, [
     reveal,
+    prompt?.firstAnswerAction,
     prompt?.actionTimerEnabled,
     prompt?.actionTimerEndsUtc,
     prompt?.actionTimerSeconds,

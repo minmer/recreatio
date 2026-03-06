@@ -588,7 +588,12 @@ export function CogitaLiveHostWallPage({
       rounds.length > 0
   );
   const canStartTimer = Boolean(
-    !isAsyncSession && isRunningStage && rules.actionTimer.enabled && !actionTimerStarted && !mutationInFlight
+    !isAsyncSession &&
+      isRunningStage &&
+      rules.firstAnswerAction === 'start_timer' &&
+      rules.actionTimer.enabled &&
+      !actionTimerStarted &&
+      !mutationInFlight
   );
   const canCheckReveal = Boolean(
     !isAsyncSession &&
@@ -906,7 +911,13 @@ export function CogitaLiveHostWallPage({
             ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
             : 0;
         let points = check ? clampInt(rules.scoring.baseCorrect, 0, 500000) : -(wrongPenalty + firstWrongPenalty);
-        if (check && firstCorrectParticipantId && row.participantId === firstCorrectParticipantId && rules.scoring.firstCorrectBonus > 0) {
+        if (
+          !isAsyncSession &&
+          check &&
+          firstCorrectParticipantId &&
+          row.participantId === firstCorrectParticipantId &&
+          rules.scoring.firstCorrectBonus > 0
+        ) {
           points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
         }
         if (
@@ -938,7 +949,7 @@ export function CogitaLiveHostWallPage({
       })
       .filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
     return processed.sort((a, b) => b.predicted - a.predicted);
-  }, [isCurrentRoundScored, participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
+  }, [isAsyncSession, isCurrentRoundScored, participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
 
   const projectionByParticipant = useMemo(() => new Map(projected.map((x) => [x.participant.participantId, x])), [projected]);
   const latestAnswerByParticipant = useMemo(() => {
@@ -1042,9 +1053,13 @@ export function CogitaLiveHostWallPage({
     if (!round || !session) return;
     const activeParticipants = session.participants.filter((participant) => participant.isConnected);
     const participantCount = activeParticipants.length > 0 ? activeParticipants.length : session.participants.length;
+    const actionTimerRelevant =
+      session.sessionMode === 'simultaneous' &&
+      rules.firstAnswerAction === 'start_timer' &&
+      rules.actionTimer.enabled;
     const startActionTimerImmediately =
       session.sessionMode === 'simultaneous' &&
-      rules.actionTimer.enabled &&
+      actionTimerRelevant &&
       participantCount <= 1;
     const actionTimerStartedUtc = startActionTimerImmediately ? new Date().toISOString() : null;
     const actionTimerEndsUtc = actionTimerStartedUtc
@@ -1071,7 +1086,9 @@ export function CogitaLiveHostWallPage({
         ...round.publicPrompt,
         roundIndex: index,
         cardKey: round.cardKey,
-        actionTimerEnabled: rules.actionTimer.enabled,
+        firstAnswerAction: rules.firstAnswerAction,
+        allAnsweredAction: rules.allAnsweredAction,
+        actionTimerEnabled: actionTimerRelevant,
         actionTimerSeconds: clampInt(rules.actionTimer.seconds, 3, 600),
         actionTimerStartedUtc,
         actionTimerEndsUtc,
@@ -1160,7 +1177,12 @@ export function CogitaLiveHostWallPage({
         const factors: string[] = [];
         let points = clampInt(rules.scoring.baseCorrect, 0, 500000);
         if (points > 0) factors.push('base');
-        if (firstCorrectParticipantId && row.participantId === firstCorrectParticipantId && rules.scoring.firstCorrectBonus > 0) {
+        if (
+          !isAsyncSession &&
+          firstCorrectParticipantId &&
+          row.participantId === firstCorrectParticipantId &&
+          rules.scoring.firstCorrectBonus > 0
+        ) {
           points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
           factors.push('first');
         }
@@ -1648,7 +1670,8 @@ export function CogitaLiveHostWallPage({
                 </button>
               ) : (
                 <>
-                {rules.actionTimer.enabled &&
+                {rules.firstAnswerAction === 'start_timer' &&
+                rules.actionTimer.enabled &&
                 isRunningStage &&
                 !(typeof promptRoot?.actionTimerStartedUtc === 'string' && promptRoot.actionTimerStartedUtc.length > 0) ? (
                   <button type="button" className="cta ghost" onClick={() => void startActionTimerManual()} disabled={!canStartTimer}>

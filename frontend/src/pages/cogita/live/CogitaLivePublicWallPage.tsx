@@ -508,6 +508,7 @@ export function CogitaLivePublicWallPage({
       : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
   const showPromptTimer = Boolean(
     prompt &&
+      (typeof prompt.firstAnswerAction === 'string' ? prompt.firstAnswerAction === 'start_timer' : true) &&
       prompt.actionTimerEnabled &&
       promptTimerEndMs != null &&
       state?.status === 'running' &&

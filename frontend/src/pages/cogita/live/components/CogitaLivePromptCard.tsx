@@ -13,6 +13,8 @@ export type LivePrompt = Record<string, unknown> & {
   after?: string;
   cardKey?: string;
   roundIndex?: number;
+  firstAnswerAction?: string;
+  allAnsweredAction?: string;
 };
 
 export type LivePromptAnswers = {

@@ -514,6 +514,10 @@ export function CogitaLibraryListPage({
   const canLoadMore = visibleResults.length < sortedResults.length;
   const selectedIdSet = useMemo(() => new Set(Object.keys(selectionStack)), [selectionStack]);
   const selectedItems = useMemo(() => Object.values(selectionStack), [selectionStack]);
+  const selectedVisibleIds = useMemo(
+    () => visibleResults.map((result) => result.infoId).filter((infoId) => selectedIdSet.has(infoId)),
+    [selectedIdSet, visibleResults]
+  );
   const selectedByType = useMemo(() => {
     const bucket = new Map<string, number>();
     for (const item of selectedItems) {
@@ -560,6 +564,17 @@ export function CogitaLibraryListPage({
       if (!prev[infoId]) return prev;
       const next = { ...prev };
       delete next[infoId];
+      return next;
+    });
+  };
+
+  const removeVisibleFromStack = () => {
+    if (selectedVisibleIds.length === 0) return;
+    setSelectionStack((prev) => {
+      const next = { ...prev };
+      for (const infoId of selectedVisibleIds) {
+        delete next[infoId];
+      }
       return next;
     });
   };
@@ -944,6 +959,9 @@ export function CogitaLibraryListPage({
                   <button type="button" className="ghost" onClick={() => setSelectionStack({})} disabled={selectedItems.length === 0}>
                     {listCopy.clearSelection}
                   </button>
+                  <button type="button" className="ghost" onClick={removeVisibleFromStack} disabled={selectedVisibleIds.length === 0}>
+                    {`${listCopy.removeFromStack} (${selectedVisibleIds.length})`}
+                  </button>
                   <button
                     type="button"
                     className="ghost"
@@ -1068,6 +1086,12 @@ export function CogitaLibraryListPage({
                     ))}
                   </div>
                   <div className="cogita-form-actions">
+                    <button type="button" className="ghost" onClick={() => setSelectionStack({})} disabled={selectedItems.length === 0}>
+                      {listCopy.clearSelection}
+                    </button>
+                    <button type="button" className="ghost" onClick={removeVisibleFromStack} disabled={selectedVisibleIds.length === 0}>
+                      {`${listCopy.removeFromStack} (${selectedVisibleIds.length})`}
+                    </button>
                     <button type="button" className="cta" onClick={startCollectionFromSelectedInfos} disabled={selectedItems.length === 0}>
                       {listCopy.openInCollection}
                     </button>
