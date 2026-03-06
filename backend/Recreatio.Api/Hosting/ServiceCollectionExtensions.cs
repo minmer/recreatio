@@ -37,15 +37,24 @@ public static class ServiceCollectionExtensions
         var dataProtectionCertPath = configuration.GetValue<string?>("DataProtection:CertificatePath");
         var dataProtectionCertPassword = configuration.GetValue<string?>("DataProtection:CertificatePassword");
         var dataProtectionCertThumbprint = configuration.GetValue<string?>("DataProtection:CertificateThumbprint");
+        var requireDataProtectionCertificateOutsideDevelopment =
+            configuration.GetValue<bool?>("DataProtection:RequireCertificateOutsideDevelopment") ?? true;
         var dataProtectionCert = TryLoadDataProtectionCertificate(dataProtectionCertPath, dataProtectionCertPassword, dataProtectionCertThumbprint);
         if (dataProtectionCert is not null)
         {
             dataProtectionBuilder.ProtectKeysWithCertificate(dataProtectionCert);
         }
-        else if (!environment.IsDevelopment())
+        else if (!environment.IsDevelopment() && requireDataProtectionCertificateOutsideDevelopment)
         {
             throw new InvalidOperationException(
-                "DataProtection certificate is required outside development. Configure DataProtection:CertificatePath/CertificatePassword or DataProtection:CertificateThumbprint.");
+                "DataProtection certificate is required outside development. Configure DataProtection:CertificatePath/CertificatePassword or DataProtection:CertificateThumbprint. " +
+                "To allow startup without certificate (not recommended), set DataProtection:RequireCertificateOutsideDevelopment=false.");
+        }
+        else if (!environment.IsDevelopment())
+        {
+            Console.WriteLine(
+                "WARNING: DataProtection certificate is not configured outside development. " +
+                "Keys will be persisted without certificate protection because DataProtection:RequireCertificateOutsideDevelopment=false.");
         }
 
         services.AddRecreatioCors();
