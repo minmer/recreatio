@@ -71,6 +71,20 @@ type DisplayScoreRow = {
   comparedAnsweredCount: number;
 };
 
+type FireworkParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  hue: number;
+  alpha: number;
+  trail: Array<{ x: number; y: number }>;
+  color: string;
+};
+
 const CHART_COLORS = [
   '#78d7ff',
   '#8ef0b8',
@@ -81,6 +95,187 @@ const CHART_COLORS = [
   '#ff8f7a',
   '#d4f47d'
 ];
+
+const CELEBRATION_COLORS = ['#78d7ff', '#6cf0f0', '#8ef0b8', '#f6d28a', '#9ac8ff'];
+
+function PodiumFireworksLayer({ active }: { active: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const TOTAL_MS = 6000;
+  const SPAWN_MS = 3000;
+
+  useEffect(() => {
+    if (!active) {
+      setIsVisible(false);
+      return;
+    }
+    setIsVisible(true);
+    const id = window.setTimeout(() => setIsVisible(false), TOTAL_MS);
+    return () => window.clearTimeout(id);
+  }, [active, TOTAL_MS]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    let width = 0;
+    let height = 0;
+    let animationId = 0;
+    let running = true;
+    let particles: FireworkParticle[] = [];
+    let lastCenterBurstAt = 0;
+    let lastSideBurstAt = 0;
+    const hexToRgba = (hex: string, alpha: number) => {
+      const sanitized = hex.replace('#', '');
+      const full = sanitized.length === 3
+        ? `${sanitized[0]}${sanitized[0]}${sanitized[1]}${sanitized[1]}${sanitized[2]}${sanitized[2]}`
+        : sanitized;
+      const r = parseInt(full.slice(0, 2), 16);
+      const g = parseInt(full.slice(2, 4), 16);
+      const b = parseInt(full.slice(4, 6), 16);
+      const safeAlpha = Math.max(0, Math.min(1, alpha));
+      return `rgba(${r}, ${g}, ${b}, ${safeAlpha})`;
+    };
+
+    const resize = () => {
+      const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      const bounds = canvas.parentElement?.getBoundingClientRect();
+      width = Math.max(1, Math.round(bounds?.width ?? 0));
+      height = Math.max(1, Math.round(bounds?.height ?? 0));
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const addBurst = (x: number, y: number, size: 'large' | 'small') => {
+      const count = size === 'large' ? 110 + Math.floor(Math.random() * 40) : 48 + Math.floor(Math.random() * 26);
+      for (let i = 0; i < count; i += 1) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.12;
+        const speed = (size === 'large' ? 2.2 : 1.2) + Math.random() * (size === 'large' ? 5.4 : 3.2);
+        const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
+        const life = (size === 'large' ? 120 : 96) + Math.random() * (size === 'large' ? 90 : 70);
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life,
+          maxLife: life,
+          size: (size === 'large' ? 1.6 : 1.1) + Math.random() * (size === 'large' ? 2.8 : 1.7),
+          hue: 0,
+          alpha: 1,
+          trail: [],
+          color
+        });
+      }
+      for (let i = 0; i < (size === 'large' ? 34 : 16); i += 1) {
+        const color = CELEBRATION_COLORS[Math.floor(Math.random() * CELEBRATION_COLORS.length)];
+        const life = (size === 'large' ? 90 : 72) + Math.random() * (size === 'large' ? 55 : 44);
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * (size === 'large' ? 2.8 : 1.9),
+          vy: (Math.random() - 0.7) * (size === 'large' ? 2.5 : 1.7),
+          life,
+          maxLife: life,
+          size: 0.8 + Math.random() * 1.6,
+          hue: 0,
+          alpha: 0.85,
+          trail: [],
+          color
+        });
+      }
+    };
+
+    const frame = (time: number) => {
+      if (!running) return;
+      const elapsedMs = time - effectStartAt;
+      if (elapsedMs >= TOTAL_MS) {
+        running = false;
+        context.clearRect(0, 0, width, height);
+        return;
+      }
+      const canSpawn = elapsedMs < SPAWN_MS;
+      const fadeRatio = elapsedMs <= SPAWN_MS ? 1 : Math.max(0, 1 - (elapsedMs - SPAWN_MS) / (TOTAL_MS - SPAWN_MS));
+      if (canSpawn && time - lastCenterBurstAt > 620) {
+        lastCenterBurstAt = time;
+        addBurst(width * (0.5 + (Math.random() - 0.5) * 0.08), height * (0.24 + (Math.random() - 0.5) * 0.08), 'large');
+      }
+      if (canSpawn && time - lastSideBurstAt > 980) {
+        lastSideBurstAt = time;
+        addBurst(width * (0.24 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
+        addBurst(width * (0.76 + (Math.random() - 0.5) * 0.06), height * (0.3 + (Math.random() - 0.5) * 0.1), 'small');
+      }
+
+      context.clearRect(0, 0, width, height);
+      const hazeTop = context.createRadialGradient(width * 0.5, height * 0.1, 0, width * 0.5, height * 0.1, width * 0.72);
+      hazeTop.addColorStop(0, `rgba(94, 214, 255, ${0.16 * fadeRatio})`);
+      hazeTop.addColorStop(0.52, `rgba(84, 236, 220, ${0.08 * fadeRatio})`);
+      hazeTop.addColorStop(1, 'rgba(12, 26, 44, 0)');
+      context.fillStyle = hazeTop;
+      context.fillRect(0, 0, width, height);
+
+      const nextParticles: FireworkParticle[] = [];
+      for (const particle of particles) {
+        const drag = 0.986;
+        const gravity = 0.05;
+        particle.vx *= drag;
+        particle.vy = particle.vy * drag + gravity;
+        particle.x += particle.vx;
+        particle.y += particle.vy;
+        particle.life -= 1;
+        particle.alpha = Math.max(0, (particle.life / particle.maxLife) * fadeRatio);
+        particle.trail.push({ x: particle.x, y: particle.y });
+        if (particle.trail.length > 7) {
+          particle.trail.shift();
+        }
+
+        if (particle.life > 0 && particle.y <= height + 40) {
+          nextParticles.push(particle);
+        }
+
+        if (particle.trail.length > 1) {
+          context.beginPath();
+          for (let i = 0; i < particle.trail.length; i += 1) {
+            const point = particle.trail[i];
+            if (i === 0) context.moveTo(point.x, point.y);
+            else context.lineTo(point.x, point.y);
+          }
+          context.strokeStyle = hexToRgba(particle.color, Math.max(0, particle.alpha * 0.4));
+          context.lineWidth = Math.max(0.8, particle.size * 0.75);
+          context.stroke();
+        }
+
+        context.beginPath();
+        context.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        context.fillStyle = hexToRgba(particle.color, Math.max(0, particle.alpha));
+        context.fill();
+      }
+      particles = nextParticles;
+      animationId = window.requestAnimationFrame(frame);
+    };
+
+    const effectStartAt = performance.now();
+    resize();
+    window.addEventListener('resize', resize);
+    animationId = window.requestAnimationFrame(frame);
+
+    return () => {
+      running = false;
+      window.removeEventListener('resize', resize);
+      window.cancelAnimationFrame(animationId);
+      context.clearRect(0, 0, width, height);
+    };
+  }, [isVisible]);
+
+  if (!isVisible) return null;
+  return <canvas ref={canvasRef} className="cogita-live-podium-fireworks" aria-hidden="true" />;
+}
 
 export function CogitaLiveRevisionJoinPage(props: {
   copy: Copy;
@@ -739,6 +934,16 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (podiumRows.length === 2) return [podiumRows[1], podiumRows[0]];
     return [podiumRows[1], podiumRows[0], podiumRows[2]];
   }, [podiumRows]);
+  const selfParticipantName = (state?.participantName ?? participantMeta?.name ?? joinName).trim();
+  const isParticipantOnPodium = useMemo(() => {
+    if (!isSessionFinished || podiumRows.length === 0) return false;
+    if (selfParticipantId && podiumRows.some((row) => row.participantId === selfParticipantId)) {
+      return true;
+    }
+    if (!selfParticipantName) return false;
+    const needle = selfParticipantName.toLocaleLowerCase();
+    return podiumRows.some((row) => row.displayName.trim().toLocaleLowerCase() === needle);
+  }, [isSessionFinished, podiumRows, selfParticipantId, selfParticipantName]);
   const participantColorById = useMemo(() => {
     const mapping = new Map<string, string>();
     (state?.scoreboard ?? []).forEach((row, index) => {
@@ -995,7 +1200,12 @@ export function CogitaLiveRevisionJoinPage(props: {
                           error={status === 'error'}
                           initialModuleId="score-line"
                         />
-                        <section className="cogita-library-panel">
+                        <section className="cogita-library-panel cogita-live-podium-wrap">
+                          {isParticipantOnPodium ? (
+                            <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
+                              <PodiumFireworksLayer active={status === 'ready' && isSessionFinished && isParticipantOnPodium} />
+                            </div>
+                          ) : null}
                           <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
                           {podiumRows.length > 0 ? (
                             <div className="cogita-live-podium" role="presentation">
@@ -1208,6 +1418,11 @@ export function CogitaLiveRevisionJoinPage(props: {
                   ) : null}
                   {!isAsyncSession && podiumRows.length > 0 ? (
                     <section className="cogita-live-podium-wrap">
+                      {isParticipantOnPodium ? (
+                        <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
+                          <PodiumFireworksLayer active={status === 'ready' && isSessionFinished && isParticipantOnPodium} />
+                        </div>
+                      ) : null}
                       <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
                       <div className="cogita-live-podium" role="presentation">
                         {podiumDisplayRows.map((row) => {
