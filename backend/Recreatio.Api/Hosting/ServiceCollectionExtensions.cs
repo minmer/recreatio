@@ -38,7 +38,7 @@ public static class ServiceCollectionExtensions
         var dataProtectionCertPassword = configuration.GetValue<string?>("DataProtection:CertificatePassword");
         var dataProtectionCertThumbprint = configuration.GetValue<string?>("DataProtection:CertificateThumbprint");
         var requireDataProtectionCertificateOutsideDevelopment =
-            configuration.GetValue<bool?>("DataProtection:RequireCertificateOutsideDevelopment") ?? true;
+            configuration.GetValue<bool?>("DataProtection:RequireCertificateOutsideDevelopment") ?? false;
         var dataProtectionCert = TryLoadDataProtectionCertificate(dataProtectionCertPath, dataProtectionCertPassword, dataProtectionCertThumbprint);
         if (dataProtectionCert is not null)
         {
