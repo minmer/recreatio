@@ -1354,9 +1354,9 @@ export function CogitaLiveRevisionJoinPage(props: {
   const showSessionFooter =
     !isFirstLogin &&
     !showJoinPanel &&
-    !showIntroPanel &&
-    !isSessionFinished &&
-    sessionStage !== 'lobby';
+    !showIntroPanel;
+  const canShowScoreButton = sessionStage !== 'lobby';
+  const canSwitchParticipant = isAsyncSession && Boolean(participantToken);
   const canSubmitPrimary = Boolean(participantToken && prompt?.cardKey) && (revealStep || (!state?.answerSubmitted && !timerExpired));
 
   return (
@@ -1700,14 +1700,16 @@ export function CogitaLiveRevisionJoinPage(props: {
                     {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
                   </button>
                 ) : null}
-                {isAsyncSession && participantToken ? (
+                {canSwitchParticipant ? (
                   <button type="button" className="ghost" onClick={() => void clearStoredParticipantData()}>
                     {switchParticipantActionLabel(props.language)}
                   </button>
                 ) : null}
-                <button type="button" className="ghost" onClick={() => setShowScoreOverlay(true)}>
-                  {liveCopy.showScoreOverlayAction}
-                </button>
+                {canShowScoreButton ? (
+                  <button type="button" className="ghost" onClick={() => setShowScoreOverlay(true)}>
+                    {liveCopy.showScoreOverlayAction}
+                  </button>
+                ) : null}
               </div>
             ) : null}
                 {showScoreOverlay && sessionStage !== 'lobby' && !showIntroPanel ? (
