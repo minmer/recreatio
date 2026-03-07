@@ -554,7 +554,8 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     List<CogitaLiveRevisionCorrectnessHistoryPointResponse> CorrectnessHistory,
     bool AnswerSubmitted,
     Guid? ParticipantId,
-    string? ParticipantName
+    string? ParticipantName,
+    string? ParticipantToken
 );
 
 public sealed record CogitaLiveRevisionScoreHistoryPointResponse(

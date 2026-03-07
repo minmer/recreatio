@@ -957,6 +957,7 @@ export type CogitaLiveRevisionPublicState = {
   answerSubmitted: boolean;
   participantId?: string | null;
   participantName?: string | null;
+  participantToken?: string | null;
 };
 
 export type CogitaPublicRevisionShare = {

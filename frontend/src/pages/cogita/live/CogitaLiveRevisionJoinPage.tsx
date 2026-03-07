@@ -542,6 +542,10 @@ export function CogitaLiveRevisionJoinPage(props: {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
         setState(next);
+        if (!participantToken && typeof next.participantToken === 'string' && next.participantToken.trim()) {
+          setParticipantToken(next.participantToken);
+          localStorage.setItem(tokenStorageKey(code), next.participantToken);
+        }
         if (next.participantId || next.participantName) {
           const meta = {
             participantId: next.participantId ?? undefined,

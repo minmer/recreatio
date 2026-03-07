@@ -7246,6 +7246,7 @@ public static class CogitaEndpoints
         group.MapGet("/public/live-revision/{code}/state", async (
             string code,
             string? participantToken,
+            HttpContext context,
             IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
@@ -7266,6 +7267,7 @@ public static class CogitaEndpoints
             var answerSubmitted = false;
             Guid? participantId = null;
             string? participantName = null;
+            string? participantTokenIssued = null;
             CogitaLiveRevisionParticipant? participant = null;
             if (!string.IsNullOrWhiteSpace(participantToken))
             {
@@ -7275,6 +7277,25 @@ public static class CogitaEndpoints
                 {
                     participantId = participant.Id;
                     participantName = ResolveLiveParticipantDisplayName(participant, dataProtectionProvider, session.Id);
+                }
+            }
+            else if (EndpointHelpers.TryGetUserId(context, out var currentUserId))
+            {
+                var trackedParticipant = await dbContext.CogitaLiveRevisionParticipants
+                    .Where(x => x.SessionId == session.Id && x.UserId == currentUserId)
+                    .OrderByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
+                if (trackedParticipant is not null)
+                {
+                    participantTokenIssued = GenerateAlphaNumericCode(24);
+                    trackedParticipant.JoinTokenHash = HashToken(participantTokenIssued);
+                    trackedParticipant.IsConnected = true;
+                    trackedParticipant.UpdatedUtc = DateTimeOffset.UtcNow;
+                    await dbContext.SaveChangesAsync(ct);
+
+                    participant = trackedParticipant;
+                    participantId = trackedParticipant.Id;
+                    participantName = ResolveLiveParticipantDisplayName(trackedParticipant, dataProtectionProvider, session.Id);
                 }
             }
 
@@ -7461,7 +7482,8 @@ public static class CogitaEndpoints
                     correctnessHistory,
                     answerSubmitted,
                     participantId,
-                    participantName
+                    participantName,
+                    participantTokenIssued
                 ));
             }
 
@@ -7487,7 +7509,8 @@ public static class CogitaEndpoints
                 correctnessHistory,
                 answerSubmitted,
                 participantId,
-                participantName
+                participantName,
+                participantTokenIssued
             ));
         }).AllowAnonymous();
 
