@@ -1677,6 +1677,23 @@ export function controlCogitaLiveRevisionTimer(payload: {
   );
 }
 
+export function leaveCogitaLiveRevision(payload: {
+  code: string;
+  participantToken: string;
+  roundIndex?: number;
+}) {
+  return request<{ left: boolean; paused?: boolean; roundIndex?: number; phase?: string }>(
+    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/leave`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        roundIndex: typeof payload.roundIndex === 'number' ? payload.roundIndex : null
+      })
+    }
+  );
+}
+
 export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);

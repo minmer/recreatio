@@ -4,6 +4,7 @@ import {
   controlCogitaLiveRevisionTimer,
   getCogitaLiveRevisionPublicState,
   joinCogitaLiveRevision,
+  leaveCogitaLiveRevision,
   submitCogitaLiveRevisionAnswer,
   type CogitaLiveRevisionPublicState
 } from '../../../lib/api';
@@ -318,6 +319,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   useScreenWakeLock(true);
 
   const { code } = props;
+  const apiBase = import.meta.env.VITE_API_BASE ?? 'https://api.recreatio.pl';
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;
   const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : factor === 'wrong' ? '✖' : factor === 'first-wrong' ? '⚠' : '✓');
@@ -349,8 +351,6 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
-  const [timersPausedAtMs, setTimersPausedAtMs] = useState<number | null>(null);
-  const [timersPauseCarryMs, setTimersPauseCarryMs] = useState(0);
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const timeoutSubmitKeyRef = useRef<string | null>(null);
@@ -389,9 +389,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
   );
-  const timersPaused = timersPausedAtMs != null;
-  const effectivePauseCarryMs =
-    timersPauseCarryMs + (timersPausedAtMs != null ? Math.max(0, nowTick - timersPausedAtMs) : 0);
+  const timersPaused = isAsyncSession && Boolean((prompt as Record<string, unknown> | null)?.timerPaused);
   const roundsLabelResolved = useMemo(() => {
     const count = Math.max(0, Number(state?.currentRoundIndex ?? 0)) + 1;
     return String(liveCopy.roundsLabel ?? '').replace('{count}', String(count));
@@ -434,7 +432,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     state?.status
   ]);
   const timerRemainingMs =
-    effectiveQuestionTimer == null ? null : Math.max(0, effectiveQuestionTimer.endsMs + effectivePauseCarryMs - nowTick);
+    effectiveQuestionTimer == null ? null : Math.max(0, effectiveQuestionTimer.endsMs - nowTick);
   const timerExpired = effectiveQuestionTimer != null && timerRemainingMs === 0;
   const timerProgress =
     timerRemainingMs == null || effectiveQuestionTimer == null || effectiveQuestionTimer.totalSeconds <= 0
@@ -450,13 +448,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     const secondsRaw = Number(prompt.nextQuestionSeconds ?? liveRules.nextQuestion.seconds ?? 0);
     const totalSeconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? Math.max(1, Math.min(1200, Math.round(secondsRaw))) : 0;
     if (totalSeconds <= 0) return null;
-    const remainingMs = Math.max(0, endsMs + effectivePauseCarryMs - nowTick);
+    const remainingMs = Math.max(0, endsMs - nowTick);
     return {
       totalSeconds,
       remainingMs,
       progress: Math.max(0, Math.min(1, remainingMs / (totalSeconds * 1000)))
     };
-  }, [effectivePauseCarryMs, liveRules.nextQuestion.seconds, nowTick, prompt, reveal, state?.status]);
+  }, [liveRules.nextQuestion.seconds, nowTick, prompt, reveal, state?.status]);
 
   const fullSessionTimer = useMemo(() => {
     if (state?.status !== 'running' || !prompt || !prompt.sessionTimerEnabled || typeof prompt.sessionTimerEndsUtc !== 'string') {
@@ -467,13 +465,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     const secondsRaw = Number(prompt.sessionTimerSeconds ?? 0);
     const totalSeconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? Math.max(1, Math.min(86400, Math.round(secondsRaw))) : 0;
     if (totalSeconds <= 0) return null;
-    const remainingMs = Math.max(0, endsMs + effectivePauseCarryMs - nowTick);
+    const remainingMs = Math.max(0, endsMs - nowTick);
     return {
       totalSeconds,
       remainingMs,
       progress: Math.max(0, Math.min(1, remainingMs / (totalSeconds * 1000)))
     };
-  }, [effectivePauseCarryMs, nowTick, prompt, state?.status]);
+  }, [nowTick, prompt, state?.status]);
 
   useEffect(() => {
     if (sessionStage !== 'active') return;
@@ -529,7 +527,6 @@ export function CogitaLiveRevisionJoinPage(props: {
   useEffect(() => {
     let mounted = true;
     const poll = async () => {
-      if (timersPaused) return;
       try {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
@@ -553,7 +550,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       mounted = false;
       window.clearInterval(id);
     };
-  }, [code, participantToken, status, timersPaused]);
+  }, [code, participantToken, status]);
 
   const handleJoin = async (useExistingName = false) => {
     setStatus('joining');
@@ -591,8 +588,19 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
   };
 
-  const clearStoredParticipantData = () => {
+  const clearStoredParticipantData = async () => {
     const currentParticipantRef = participantRef;
+    if (participantToken && isAsyncSession) {
+      try {
+        await leaveCogitaLiveRevision({
+          code,
+          participantToken,
+          roundIndex: Number(prompt?.roundIndex ?? state?.currentRoundIndex ?? 0)
+        });
+      } catch {
+        // Keep local cleanup even if leave call fails.
+      }
+    }
     setParticipantToken(null);
     setParticipantMeta(null);
     setIntroAcknowledged(false);
@@ -606,8 +614,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   };
 
   const pauseTimersNow = async () => {
-    if (timersPausedAtMs != null) return;
-    const tickNow = Date.now();
+    if (timersPaused) return;
     if (participantToken && isAsyncSession && prompt) {
       try {
         await controlCogitaLiveRevisionTimer({
@@ -617,16 +624,20 @@ export function CogitaLiveRevisionJoinPage(props: {
           roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
         });
       } catch {
-        // keep local pause behaviour even when sync fails
+        // Keep UI stable even when pause sync fails.
       }
     }
-    setTimersPausedAtMs(tickNow);
+    try {
+      const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+      setState(refreshed);
+    } catch {
+      // ignore refresh errors
+    }
   };
 
   const toggleTimersPaused = async () => {
-    const tickNow = Date.now();
     if (participantToken && isAsyncSession && prompt) {
-      const action = timersPausedAtMs != null ? 'resume' : 'pause';
+      const action = timersPaused ? 'resume' : 'pause';
       try {
         await controlCogitaLiveRevisionTimer({
           code,
@@ -635,16 +646,15 @@ export function CogitaLiveRevisionJoinPage(props: {
           roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
         });
       } catch {
-        // keep local pause behaviour even when sync fails
+        // Keep UI stable even when pause sync fails.
       }
     }
-
-    if (timersPausedAtMs != null) {
-      setTimersPauseCarryMs((previous) => previous + Math.max(0, tickNow - timersPausedAtMs));
-      setTimersPausedAtMs(null);
-      return;
+    try {
+      const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+      setState(refreshed);
+    } catch {
+      // ignore refresh errors
     }
-    setTimersPausedAtMs(tickNow);
   };
 
   useEffect(() => {
@@ -653,6 +663,30 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (!effectiveQuestionTimer && !nextQuestionTimer && !fullSessionTimer) return;
     void pauseTimersNow();
   }, [effectiveQuestionTimer, fullSessionTimer, isAsyncSession, nextQuestionTimer, showScoreOverlay]);
+
+  useEffect(() => {
+    if (!participantToken || !isAsyncSession) return;
+
+    const notifyLeave = () => {
+      try {
+        const payload = JSON.stringify({
+          participantToken,
+          roundIndex: Number(prompt?.roundIndex ?? state?.currentRoundIndex ?? 0)
+        });
+        navigator.sendBeacon(
+          `${apiBase}/cogita/public/live-revision/${encodeURIComponent(code)}/leave`,
+          new Blob([payload], { type: 'application/json' })
+        );
+      } catch {
+        // Ignore unload transport errors.
+      }
+    };
+
+    window.addEventListener('pagehide', notifyLeave);
+    return () => {
+      window.removeEventListener('pagehide', notifyLeave);
+    };
+  }, [apiBase, code, isAsyncSession, participantToken, prompt?.roundIndex, state?.currentRoundIndex]);
 
   const toggleSelection = (index: number) => {
     const multiple = Boolean(prompt?.multiple);

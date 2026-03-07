@@ -524,6 +524,11 @@ public sealed record CogitaLiveRevisionJoinResponse(
     string Name
 );
 
+public sealed record CogitaLiveRevisionLeaveRequest(
+    string ParticipantToken,
+    int? RoundIndex
+);
+
 public sealed record CogitaLiveRevisionReloginRequestCreateRequest(string Name);
 
 public sealed record CogitaLiveRevisionReloginRequestCreateResponse(
