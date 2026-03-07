@@ -7303,6 +7303,49 @@ public static class CogitaEndpoints
                         session.StartedUtc,
                         flowRules,
                         now);
+
+                    if (asyncState.TimerPaused &&
+                        string.Equals(asyncState.TimerPauseSource, "leave", StringComparison.Ordinal) &&
+                        !string.Equals(asyncState.Phase, "finished", StringComparison.Ordinal) &&
+                        !participant.IsConnected)
+                    {
+                        var trackedParticipant = await dbContext.CogitaLiveRevisionParticipants
+                            .FirstOrDefaultAsync(x => x.Id == participant.Id && x.SessionId == session.Id, ct);
+                        if (trackedParticipant is not null)
+                        {
+                            dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
+                            {
+                                Id = Guid.NewGuid(),
+                                LibraryId = session.LibraryId,
+                                ScopeType = "live-session",
+                                ScopeId = session.Id,
+                                SourceType = "live-session",
+                                SessionId = session.Id,
+                                ParticipantId = trackedParticipant.Id,
+                                ParticipantLabel = null,
+                                EventType = "live_async_timer_resumed",
+                                RoundIndex = asyncState.RoundIndex,
+                                IsPersistent = false,
+                                PayloadJson = JsonSerializer.Serialize(new Dictionary<string, object?> { ["source"] = "return" }),
+                                CreatedUtc = now
+                            });
+                            trackedParticipant.IsConnected = true;
+                            trackedParticipant.UpdatedUtc = now;
+                            session.UpdatedUtc = now;
+                            await dbContext.SaveChangesAsync(ct);
+
+                            timerEvents = await LoadLiveAsyncTimerEventsAsync(session.Id, participant.Id, dbContext, ct);
+                            asyncState = BuildLiveAsyncParticipantState(
+                                rounds,
+                                participantAnswers,
+                                timerEvents,
+                                participant.JoinedUtc,
+                                session.StartedUtc,
+                                flowRules,
+                                now);
+                        }
+                    }
+
                     if (flowRules.SessionTimerEnabled &&
                         asyncState.SessionElapsedSeconds >= flowRules.SessionTimerSeconds)
                     {

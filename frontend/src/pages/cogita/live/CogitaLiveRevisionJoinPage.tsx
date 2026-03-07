@@ -720,35 +720,38 @@ export function CogitaLiveRevisionJoinPage(props: {
     });
   };
 
-  const submitAnswer = async (options?: { force?: boolean; answerOverride?: unknown }) => {
+  const submitAnswer = async (options?: { force?: boolean; answerOverride?: unknown; acknowledgeOnly?: boolean }) => {
     if (!participantToken || !prompt || typeof prompt.cardKey !== 'string') return;
     const manualNextStep = isAsyncSession && Boolean(reveal) && prompt.nextQuestionMode === 'manual';
     if (!options?.force && timerExpired && effectiveQuestionTimer != null && !manualNextStep) return;
     if (state?.answerSubmitted && !manualNextStep && !options?.force) return;
 
     let answer: unknown = null;
+    let includeAnswer = !Boolean(options?.acknowledgeOnly);
     const hasAnswerOverride = options && Object.prototype.hasOwnProperty.call(options, 'answerOverride');
-    if (hasAnswerOverride) {
-      answer = options?.answerOverride;
-    } else {
-      switch (prompt.kind) {
-        case 'selection':
-          answer = selectionAnswer;
-          break;
-        case 'boolean':
-          answer = boolAnswer;
-          break;
-        case 'ordering':
-          answer = orderingAnswer;
-          break;
-        case 'matching':
-          answer = { paths: matchingRows };
-          break;
-        case 'citation-fragment':
-        case 'text':
-        default:
-          answer = textAnswer;
-          break;
+    if (includeAnswer) {
+      if (hasAnswerOverride) {
+        answer = options?.answerOverride;
+      } else {
+        switch (prompt.kind) {
+          case 'selection':
+            answer = selectionAnswer;
+            break;
+          case 'boolean':
+            answer = boolAnswer;
+            break;
+          case 'ordering':
+            answer = orderingAnswer;
+            break;
+          case 'matching':
+            answer = { paths: matchingRows };
+            break;
+          case 'citation-fragment':
+          case 'text':
+          default:
+            answer = textAnswer;
+            break;
+        }
       }
     }
 
@@ -758,7 +761,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         participantToken,
         roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0),
         cardKey: prompt.cardKey,
-        answer
+        ...(includeAnswer ? { answer } : {})
       });
       const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
       setState(refreshed);
@@ -793,7 +796,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     const timeoutKey = `${code}:${promptKey}:${state?.revealVersion ?? 0}:next`;
     if (timeoutNextKeyRef.current === timeoutKey) return;
     timeoutNextKeyRef.current = timeoutKey;
-    void submitAnswer({ force: true });
+    void submitAnswer({ force: true, acknowledgeOnly: true });
   }, [
     code,
     isAsyncSession,
@@ -1492,7 +1495,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                             className="cta"
                             onClick={() => {
                               if (revealStep) {
-                                void submitAnswer({ force: true });
+                                void submitAnswer({ force: true, acknowledgeOnly: true });
                                 return;
                               }
                               void submitAnswer();
