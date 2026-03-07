@@ -453,7 +453,8 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? 'active'
         : 'lobby';
   const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
-  const showJoinPanel = sessionStage === 'lobby' || !participantToken || hasStoredTokenMismatch;
+  const shouldForceJoinByMismatch = hasStoredTokenMismatch && sessionStage !== 'finished';
+  const showJoinPanel = sessionStage === 'lobby' || !participantToken || shouldForceJoinByMismatch;
   const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
   const isFirstLogin = !participantToken;
   const sessionTitle = useMemo(() => {
@@ -686,7 +687,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (fallbackName) {
       setJoinName((previous) => (previous.trim() ? previous : fallbackName));
     }
-  }, [hasStoredTokenMismatch, participantMeta?.name]);
+  }, [participantMeta?.name, shouldForceJoinByMismatch]);
 
   useEffect(() => {
     setTextAnswer('');
