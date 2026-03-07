@@ -351,6 +351,11 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [localTimerPauseHold, setLocalTimerPauseHold] = useState(false);
+  const [pausedTimerSnapshot, setPausedTimerSnapshot] = useState<{
+    questionRemainingMs?: number | null;
+    nextRemainingMs?: number | null;
+    sessionRemainingMs?: number | null;
+  } | null>(null);
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
@@ -479,6 +484,44 @@ export function CogitaLiveRevisionJoinPage(props: {
       progress: Math.max(0, Math.min(1, remainingMs / (totalSeconds * 1000)))
     };
   }, [nowTick, prompt, state?.status]);
+
+  useEffect(() => {
+    if (timersPaused) {
+      setPausedTimerSnapshot((previous) =>
+        previous ?? {
+          questionRemainingMs: timerRemainingMs,
+          nextRemainingMs: nextQuestionTimer?.remainingMs ?? null,
+          sessionRemainingMs: fullSessionTimer?.remainingMs ?? null
+        }
+      );
+      return;
+    }
+    if (pausedTimerSnapshot) {
+      setPausedTimerSnapshot(null);
+    }
+  }, [fullSessionTimer?.remainingMs, nextQuestionTimer?.remainingMs, pausedTimerSnapshot, timerRemainingMs, timersPaused]);
+
+  const visibleTimerRemainingMs = timersPaused
+    ? (pausedTimerSnapshot?.questionRemainingMs ?? timerRemainingMs)
+    : timerRemainingMs;
+  const visibleNextRemainingMs = timersPaused
+    ? (pausedTimerSnapshot?.nextRemainingMs ?? nextQuestionTimer?.remainingMs ?? null)
+    : (nextQuestionTimer?.remainingMs ?? null);
+  const visibleSessionRemainingMs = timersPaused
+    ? (pausedTimerSnapshot?.sessionRemainingMs ?? fullSessionTimer?.remainingMs ?? null)
+    : (fullSessionTimer?.remainingMs ?? null);
+  const visibleTimerProgress =
+    visibleTimerRemainingMs == null || effectiveQuestionTimer == null || effectiveQuestionTimer.totalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, visibleTimerRemainingMs / (effectiveQuestionTimer.totalSeconds * 1000)));
+  const visibleNextProgress =
+    visibleNextRemainingMs == null || !nextQuestionTimer || nextQuestionTimer.totalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, visibleNextRemainingMs / (nextQuestionTimer.totalSeconds * 1000)));
+  const visibleSessionProgress =
+    visibleSessionRemainingMs == null || !fullSessionTimer || fullSessionTimer.totalSeconds <= 0
+      ? 0
+      : Math.max(0, Math.min(1, visibleSessionRemainingMs / (fullSessionTimer.totalSeconds * 1000)));
 
   useEffect(() => {
     if (!serverTimerPaused && localTimerPauseHold) {
@@ -681,9 +724,8 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (!showScoreOverlay) return;
     if (!isAsyncSession) return;
     if (!reveal) return;
-    if (!effectiveQuestionTimer && !nextQuestionTimer && !fullSessionTimer) return;
     void pauseTimersNow();
-  }, [effectiveQuestionTimer, fullSessionTimer, isAsyncSession, nextQuestionTimer, reveal, showScoreOverlay]);
+  }, [isAsyncSession, reveal, showScoreOverlay]);
 
   useEffect(() => {
     if (showScoreOverlay) return;
@@ -737,7 +779,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       return;
     }
 
-    if (!showIntroPanel && timersPaused && timerPauseSource === 'intro' && introTimerSyncRef.current !== 'resume') {
+    if (!showIntroPanel && timersPaused && timerPauseSource === 'intro' && introTimerSyncRef.current !== 'resume' && !reveal) {
       setLocalTimerPauseHold(false);
       introTimerSyncRef.current = 'resume';
       void (async () => {
@@ -758,7 +800,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         }
       })();
     }
-  }, [code, isAsyncSession, participantToken, prompt, sessionStage, showIntroPanel, state?.currentRoundIndex, timerPauseSource, timersPaused]);
+  }, [code, isAsyncSession, participantToken, prompt, reveal, sessionStage, showIntroPanel, state?.currentRoundIndex, timerPauseSource, timersPaused]);
 
   useEffect(() => {
     if (!isAsyncSession || !participantToken || !prompt) return;
@@ -1268,32 +1310,45 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const timerBlocks = useMemo(() => {
     const blocks: Array<{ id: string; label: string; remainingMs: number; progress: number }> = [];
-    if (effectiveQuestionTimer && timerRemainingMs != null) {
+    if (effectiveQuestionTimer && visibleTimerRemainingMs != null) {
       blocks.push({
         id: 'question',
         label: liveCopy.timerLabel,
-        remainingMs: timerRemainingMs,
-        progress: timerProgress
+        remainingMs: visibleTimerRemainingMs,
+        progress: visibleTimerProgress
       });
     }
-    if (nextQuestionTimer) {
+    if (nextQuestionTimer && visibleNextRemainingMs != null) {
       blocks.push({
         id: 'next',
         label: liveCopy.nextQuestionTimerLabel,
-        remainingMs: nextQuestionTimer.remainingMs,
-        progress: nextQuestionTimer.progress
+        remainingMs: visibleNextRemainingMs,
+        progress: visibleNextProgress
       });
     }
-    if (fullSessionTimer) {
+    if (fullSessionTimer && visibleSessionRemainingMs != null) {
       blocks.push({
         id: 'session',
         label: `${roundsLabelResolved} • ${liveCopy.timerLabel}`,
-        remainingMs: fullSessionTimer.remainingMs,
-        progress: fullSessionTimer.progress
+        remainingMs: visibleSessionRemainingMs,
+        progress: visibleSessionProgress
       });
     }
     return blocks;
-  }, [effectiveQuestionTimer, fullSessionTimer, liveCopy.nextQuestionTimerLabel, liveCopy.timerLabel, nextQuestionTimer, roundsLabelResolved, timerProgress, timerRemainingMs]);
+  }, [
+    effectiveQuestionTimer,
+    fullSessionTimer,
+    liveCopy.nextQuestionTimerLabel,
+    liveCopy.timerLabel,
+    nextQuestionTimer,
+    roundsLabelResolved,
+    visibleNextProgress,
+    visibleNextRemainingMs,
+    visibleSessionProgress,
+    visibleSessionRemainingMs,
+    visibleTimerProgress,
+    visibleTimerRemainingMs
+  ]);
 
   return (
     <CogitaShell {...props}>
