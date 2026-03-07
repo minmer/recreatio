@@ -1551,17 +1551,16 @@ export function CogitaLiveRevisionJoinPage(props: {
       }
     }
 
-    return {
-      total,
-      rows: [
+    const rows = [
         { key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: reason('base') },
         { key: 'first', label: liveCopy.factorFirstLabel, points: firstPoints, reason: reason('first') },
         { key: 'speed', label: liveCopy.factorSpeedLabel, points: speedPoints, reason: reason('speed') },
         { key: 'streak', label: liveCopy.factorStreakLabel, points: streakPoints, reason: reason('streak') },
         { key: 'wrong', label: liveCopy.factorWrongLabel, points: wrongPoints, reason: reason('wrong') },
         { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: firstWrongPoints, reason: reason('first-wrong') }
-      ]
-    };
+      ].filter((row) => row.points !== 0);
+
+    return { total, rows };
   }, [
     reviewRound,
     reviewRoundScoring,

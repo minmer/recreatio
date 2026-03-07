@@ -273,6 +273,10 @@ function formatDuration(value: number | null) {
   return `${formatFloat(value, 1)} s`;
 }
 
+function toSafeNonNegative(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
 function normalizeKnownessWords(source: CogitaStatisticsResponse['bestKnownWords'] | CogitaStatisticsResponse['worstKnownWords']) {
   return (source ?? [])
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -648,17 +652,11 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
 }
 
 function getParticipantsInRenderOrder(participants: ParticipantSeries[], focusedParticipantKey: string | null) {
-  if (!focusedParticipantKey) return participants;
-  const focused = participants.find((participant) => participant.key === focusedParticipantKey);
-  if (!focused) return participants;
-  return [...participants.filter((participant) => participant.key !== focusedParticipantKey), focused];
+  return participants;
 }
 
 function getStreamBandsInRenderOrder(bands: StreamBand[], focusedParticipantKey: string | null) {
-  if (!focusedParticipantKey) return bands;
-  const focused = bands.find((band) => band.key === focusedParticipantKey);
-  if (!focused) return bands;
-  return [...bands.filter((band) => band.key !== focusedParticipantKey), focused];
+  return bands;
 }
 
 function renderLineChartModule(
@@ -1070,8 +1068,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                       </div>
                     </div>
                     <div className="cogita-statistics-pyramid-details cogita-statistics-time-pyramid-details">
-                      <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
                       <small>{`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
+                      <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
                     </div>
                   </div>
                 </div>
@@ -1101,21 +1099,25 @@ const STATISTICS_MODULES: StatisticsModule[] = [
           .sort((left, right) => left.label.localeCompare(right.label)),
         controls.focusedParticipantKey
       );
-      const maxValue = Math.max(
-        1,
-        ...participants.map((participant) =>
-          Math.max(participant.averageCorrectDurationSeconds ?? 0, participant.averageWrongDurationSeconds ?? 0)
-        )
-      );
+      const durationValues = participants.flatMap((participant) => [
+        toSafeNonNegative(participant.averageCorrectDurationSeconds),
+        toSafeNonNegative(participant.averageWrongDurationSeconds)
+      ]);
+      const finiteDurations = durationValues.filter((value) => Number.isFinite(value) && value > 0);
+      const robustMax = finiteDurations.length > 0 ? percentile(finiteDurations, 90) : 0;
+      const absoluteMax = finiteDurations.length > 0 ? Math.max(...finiteDurations) : 0;
+      const maxValue = Math.max(1, robustMax > 0 ? robustMax : absoluteMax);
 
       return (
         <div className="cogita-statistics-chart-card">
           <div className="cogita-statistics-time-split">
             {participants.map((participant) => {
-              const correct = Math.max(0, participant.averageCorrectDurationSeconds ?? 0);
-              const wrong = Math.max(0, participant.averageWrongDurationSeconds ?? 0);
-              const correctWidth = Math.max(0, Math.min(100, (correct / maxValue) * 100));
-              const wrongWidth = Math.max(0, Math.min(100, (wrong / maxValue) * 100));
+              const correct = toSafeNonNegative(participant.averageCorrectDurationSeconds);
+              const wrong = toSafeNonNegative(participant.averageWrongDurationSeconds);
+              const correctWidthRaw = Math.max(0, Math.min(100, (correct / maxValue) * 100));
+              const wrongWidthRaw = Math.max(0, Math.min(100, (wrong / maxValue) * 100));
+              const correctWidth = correct > 0 ? Math.max(2, correctWidthRaw) : 0;
+              const wrongWidth = wrong > 0 ? Math.max(2, wrongWidthRaw) : 0;
               return (
                 <div
                   key={`time-split-${participant.key}`}

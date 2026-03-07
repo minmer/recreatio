@@ -6625,6 +6625,44 @@ public static class CogitaEndpoints
                 }
             }
 
+            var priorAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                .Where(x =>
+                    x.SessionId == sessionId &&
+                    x.RoundIndex < roundIndex &&
+                    participantIds.Contains(x.ParticipantId) &&
+                    x.IsCorrect.HasValue)
+                .OrderByDescending(x => x.RoundIndex)
+                .ThenByDescending(x => x.UpdatedUtc)
+                .ToListAsync(ct);
+            var previousStreakByParticipant = priorAnswers
+                .GroupBy(x => x.ParticipantId)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var streak = 0;
+                        foreach (var previous in group)
+                        {
+                            if (previous.IsCorrect == true)
+                            {
+                                streak += 1;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        return streak;
+                    });
+            var firstCorrectParticipantId = scoreItems
+                .Where(x => x.IsCorrect == true)
+                .Select(x => answersByParticipant.TryGetValue(x.ParticipantId, out var answer) ? answer : null)
+                .Where(x => x is not null)
+                .OrderBy(x => x!.SubmittedUtc)
+                .ThenBy(x => x!.UpdatedUtc)
+                .Select(x => x!.ParticipantId)
+                .FirstOrDefault();
+
             var now = DateTimeOffset.UtcNow;
             foreach (var delta in scoreItems)
             {
@@ -6641,8 +6679,79 @@ public static class CogitaEndpoints
                     answer.IsCorrect = delta.IsCorrect;
                     answer.PointsAwarded = delta.PointsAwarded;
                     answer.UpdatedUtc = now;
+                    if (!roundScoringByParticipant.TryGetValue(delta.ParticipantId, out var participantScoringNode))
+                    {
+                        var synthesizedScoringNode = new JsonObject
+                        {
+                            ["isCorrect"] = delta.IsCorrect == true,
+                            ["points"] = delta.PointsAwarded
+                        };
+                        var synthesizedFactors = new JsonArray();
+                        var basePoints = 0;
+                        var firstBonusPoints = 0;
+                        var speedPoints = 0;
+                        var streakPoints = 0;
+                        var streakCount = 0;
+                        if (delta.IsCorrect == true)
+                        {
+                            basePoints = Math.Max(0, Math.Min(500000, scoringRules.BaseCorrect));
+                            if (basePoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("base"));
+                            }
+
+                            if (firstCorrectParticipantId != Guid.Empty && delta.ParticipantId == firstCorrectParticipantId)
+                            {
+                                firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
+                                if (firstBonusPoints > 0)
+                                {
+                                    synthesizedFactors.Add(JsonValue.Create("first"));
+                                }
+                            }
+
+                            var previousStreak = previousStreakByParticipant.TryGetValue(delta.ParticipantId, out var resolvedStreak)
+                                ? resolvedStreak
+                                : 0;
+                            streakCount = previousStreak + 1;
+                            streakPoints = ComputeAsyncStreakBonus(
+                                scoringRules.StreakGrowth,
+                                scoringRules.StreakBaseBonus,
+                                streakCount,
+                                scoringRules.StreakLimit);
+                            if (streakPoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("streak"));
+                            }
+
+                            speedPoints = Math.Max(0, delta.PointsAwarded - basePoints - firstBonusPoints - streakPoints);
+                            if (speedPoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("speed"));
+                            }
+
+                            var knownSum = basePoints + firstBonusPoints + speedPoints + streakPoints;
+                            if (knownSum != delta.PointsAwarded && delta.PointsAwarded > 0)
+                            {
+                                basePoints = Math.Max(0, delta.PointsAwarded - firstBonusPoints - speedPoints - streakPoints);
+                            }
+                        }
+                        else if (delta.PointsAwarded < 0)
+                        {
+                            synthesizedFactors.Add(JsonValue.Create("wrong"));
+                        }
+
+                        synthesizedScoringNode["factors"] = synthesizedFactors;
+                        synthesizedScoringNode["basePoints"] = basePoints;
+                        synthesizedScoringNode["firstBonusPoints"] = firstBonusPoints;
+                        synthesizedScoringNode["speedPoints"] = speedPoints;
+                        synthesizedScoringNode["streakPoints"] = streakPoints;
+                        synthesizedScoringNode["streak"] = streakCount;
+                        synthesizedScoringNode["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds));
+                        participantScoringNode = synthesizedScoringNode;
+                        roundScoringByParticipant[delta.ParticipantId] = synthesizedScoringNode;
+                    }
                     var payloadJson = BuildLiveScoreBreakdownPayload(
-                        roundScoringByParticipant.TryGetValue(delta.ParticipantId, out var participantScoringNode) ? participantScoringNode : null,
+                        participantScoringNode,
                         scoringRules,
                         delta.PointsAwarded,
                         delta.IsCorrect);
@@ -18184,6 +18293,10 @@ public static class CogitaEndpoints
                     .Distinct()
                     .Where(index => index >= 0 && index < optionsCount)
                     .ToList();
+                if (selected.Count == 0)
+                {
+                    continue;
+                }
                 totalAnswers += 1;
                 foreach (var optionIndex in selected)
                 {
@@ -18279,6 +18392,44 @@ public static class CogitaEndpoints
         var values = new List<int>();
         if (node is null)
         {
+            return values;
+        }
+
+        if (node is JsonObject obj)
+        {
+            static List<int> ParseFromField(JsonObject root, string key)
+            {
+                if (!root.TryGetPropertyValue(key, out var fieldNode) || fieldNode is null)
+                {
+                    return new List<int>();
+                }
+                return ParseIntListFromJsonNode(fieldNode);
+            }
+
+            var fromSelection = ParseFromField(obj, "selection");
+            if (fromSelection.Count > 0)
+            {
+                return fromSelection;
+            }
+
+            var fromAnswer = ParseFromField(obj, "answer");
+            if (fromAnswer.Count > 0)
+            {
+                return fromAnswer;
+            }
+
+            var fromSelected = ParseFromField(obj, "selected");
+            if (fromSelected.Count > 0)
+            {
+                return fromSelected;
+            }
+
+            var fromValue = ParseFromField(obj, "value");
+            if (fromValue.Count > 0)
+            {
+                return fromValue;
+            }
+
             return values;
         }
 
