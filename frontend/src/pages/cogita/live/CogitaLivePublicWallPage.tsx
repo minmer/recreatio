@@ -264,7 +264,13 @@ function buildLiveStatisticsResponse(state: CogitaLiveRevisionPublicState | null
         averageCorrectness: meta.answerCount > 0 ? (meta.correctCount / meta.answerCount) * 100 : 0,
         totalPoints,
         lastActivityUtc: meta.lastActivityUtc ?? null,
-        knownessScore: meta.knownessScore
+        knownessScore: meta.knownessScore,
+        averageDurationMs: null,
+        averagePointsPerCorrectAnswer: 0,
+        averageBasePointsPerCorrectAnswer: 0,
+        averageFirstBonusPointsPerCorrectAnswer: 0,
+        averageSpeedBonusPointsPerCorrectAnswer: 0,
+        averageStreakBonusPointsPerCorrectAnswer: 0
       };
     })
     .sort((left, right) => right.totalPoints - left.totalPoints || left.label.localeCompare(right.label));
@@ -642,6 +648,7 @@ export function CogitaLivePublicWallPage({
                   <CogitaLivePromptCard
                     prompt={prompt}
                     revealExpected={reveal?.expected}
+                    answerDistribution={reveal?.answerDistribution}
                     mode="readonly"
                     labels={{
                       answerLabel: copy.cogita.library.revision.answerLabel,

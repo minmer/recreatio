@@ -17,6 +17,7 @@ type ParticipantSeriesPoint = {
   index: number;
   eventType: string;
   roundIndex: number | null;
+  answersSeen: number;
   knowness: number;
   runningPoints: number;
   correctness: number | null;
@@ -30,7 +31,14 @@ type ParticipantSeries = {
   color: string;
   totalPoints: number;
   averageCorrectness: number;
+  averageDurationSeconds: number | null;
+  averagePointsPerCorrectAnswer: number;
+  averageBasePointsPerCorrectAnswer: number;
+  averageFirstBonusPointsPerCorrectAnswer: number;
+  averageSpeedBonusPointsPerCorrectAnswer: number;
+  averageStreakBonusPointsPerCorrectAnswer: number;
   answerCount: number;
+  correctCount: number;
   points: ParticipantSeriesPoint[];
 };
 
@@ -103,7 +111,16 @@ type StatisticsModule = {
   title: string;
   subtitle: string;
   isAvailable: (context: StatisticsContext) => boolean;
-  render: (context: StatisticsContext) => ReactNode;
+  render: (context: StatisticsContext, controls: StatisticsRenderControls) => ReactNode;
+};
+
+type StatisticsRenderControls = {
+  allParticipantSeries: ParticipantSeries[];
+  visibleParticipantKeys: Set<string>;
+  focusedParticipantKey: string | null;
+  onToggleParticipantVisibility: (participantKey: string) => void;
+  onHoverParticipant: (participantKey: string | null) => void;
+  onToggleParticipantFocus: (participantKey: string) => void;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -215,12 +232,16 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
     .map((participantKey) => {
       const summary = response.participants.find((participant) => participant.participantKey === participantKey);
       const entries = timelineByParticipant.get(participantKey) ?? [];
+      let answersSeen = 0;
       const points = entries.map((point, sequence) => {
         let correctness: number | null = null;
         if (typeof point.correctness === 'number' && Number.isFinite(point.correctness)) {
           correctness = clamp(point.correctness, 0, 1);
         } else if (typeof point.isCorrect === 'boolean') {
           correctness = point.isCorrect ? 1 : 0;
+        }
+        if (correctness !== null) {
+          answersSeen += 1;
         }
         const durationSeconds =
           typeof point.durationMs === 'number' && Number.isFinite(point.durationMs) && point.durationMs > 0
@@ -232,6 +253,7 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
           index: point.index ?? sequence + 1,
           eventType: point.eventType ?? 'event',
           roundIndex: typeof point.roundIndex === 'number' ? point.roundIndex : null,
+          answersSeen,
           knowness: typeof point.knownessScore === 'number' && Number.isFinite(point.knownessScore) ? point.knownessScore : 0,
           runningPoints: typeof point.runningPoints === 'number' && Number.isFinite(point.runningPoints) ? point.runningPoints : 0,
           correctness,
@@ -245,7 +267,40 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
         color: colorByParticipant.get(participantKey) ?? PARTICIPANT_COLORS[0],
         totalPoints: summary?.totalPoints ?? (points.length > 0 ? points[points.length - 1].runningPoints : 0),
         averageCorrectness: summary?.averageCorrectness ?? 0,
+        averageDurationSeconds:
+          typeof summary?.averageDurationMs === 'number' && Number.isFinite(summary.averageDurationMs)
+            ? summary.averageDurationMs / 1000
+            : (() => {
+                const durations = points
+                  .map((point) => point.durationSeconds)
+                  .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
+                return durations.length > 0 ? mean(durations) : null;
+              })(),
+        averagePointsPerCorrectAnswer:
+          typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
+            ? summary.averagePointsPerCorrectAnswer
+            : 0,
+        averageBasePointsPerCorrectAnswer:
+          typeof summary?.averageBasePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
+            ? summary.averageBasePointsPerCorrectAnswer
+            : 0,
+        averageFirstBonusPointsPerCorrectAnswer:
+          typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
+          Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
+            ? summary.averageFirstBonusPointsPerCorrectAnswer
+            : 0,
+        averageSpeedBonusPointsPerCorrectAnswer:
+          typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
+          Number.isFinite(summary.averageSpeedBonusPointsPerCorrectAnswer)
+            ? summary.averageSpeedBonusPointsPerCorrectAnswer
+            : 0,
+        averageStreakBonusPointsPerCorrectAnswer:
+          typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' &&
+          Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
+            ? summary.averageStreakBonusPointsPerCorrectAnswer
+            : 0,
         answerCount: summary?.answerCount ?? points.filter((point) => point.correctness !== null).length,
+        correctCount: summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length,
         points
       } satisfies ParticipantSeries;
     })
@@ -405,22 +460,63 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
   };
 }
 
-function renderParticipantLegend(context: StatisticsContext) {
+function getParticipantsInRenderOrder(participants: ParticipantSeries[], focusedParticipantKey: string | null) {
+  if (!focusedParticipantKey) return participants;
+  const focused = participants.find((participant) => participant.key === focusedParticipantKey);
+  if (!focused) return participants;
+  return [...participants.filter((participant) => participant.key !== focusedParticipantKey), focused];
+}
+
+function getStreamBandsInRenderOrder(bands: StreamBand[], focusedParticipantKey: string | null) {
+  if (!focusedParticipantKey) return bands;
+  const focused = bands.find((band) => band.key === focusedParticipantKey);
+  if (!focused) return bands;
+  return [...bands.filter((band) => band.key !== focusedParticipantKey), focused];
+}
+
+function renderParticipantLegend(context: StatisticsContext, controls: StatisticsRenderControls) {
   return (
     <div className="cogita-statistics-legend">
-      {context.participantSeries.map((participant) => (
-        <div key={participant.key} className="cogita-statistics-legend-row">
-          <span className="cogita-statistics-legend-dot" style={{ background: participant.color }} />
+      {controls.allParticipantSeries.map((participant) => {
+        const isVisible = controls.visibleParticipantKeys.has(participant.key);
+        const isFocused = controls.focusedParticipantKey === participant.key;
+        return (
+          <button
+            key={participant.key}
+            type="button"
+            className={`cogita-statistics-legend-row ${isFocused ? 'active' : ''} ${isVisible ? '' : 'is-hidden'}`}
+            onMouseEnter={() => controls.onHoverParticipant(participant.key)}
+            onMouseLeave={() => controls.onHoverParticipant(null)}
+            onClick={() => controls.onToggleParticipantFocus(participant.key)}
+          >
+            <span
+              className={`cogita-statistics-legend-dot ${isVisible ? '' : 'is-hidden'}`}
+              style={{
+                background: isVisible ? participant.color : 'transparent',
+                borderColor: participant.color,
+                boxShadow: isVisible ? `0 0 14px ${participant.color}` : 'none'
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                controls.onToggleParticipantVisibility(participant.key);
+              }}
+            />
           <span className="cogita-statistics-legend-name">{participant.label}</span>
           <span>{formatFloat(participant.averageCorrectness, 1)}%</span>
           <span>{formatCount(participant.totalPoints)}</span>
-        </div>
-      ))}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function renderLineChartModule(context: StatisticsContext, metric: 'knowness' | 'runningPoints', yLabel: string) {
+function renderLineChartModule(
+  context: StatisticsContext,
+  controls: StatisticsRenderControls,
+  metric: 'knowness' | 'runningPoints',
+  yLabel: string
+) {
   const chartWidth = 940;
   const chartHeight = 240;
   const paddingX = 44;
@@ -428,12 +524,34 @@ function renderLineChartModule(context: StatisticsContext, metric: 'knowness' | 
   const plotWidth = chartWidth - paddingX * 2;
   const plotHeight = chartHeight - paddingY * 2;
 
-  const source = context.participantSeries.filter((participant) => participant.points.length > 0);
+  const source = getParticipantsInRenderOrder(
+    context.participantSeries.filter((participant) => participant.points.length > 0),
+    controls.focusedParticipantKey
+  );
+  const maxAnswersForKnownessSpread = Math.max(
+    1,
+    ...source.map((participant) =>
+      Math.max(
+        participant.answerCount,
+        participant.points.length > 0 ? participant.points[participant.points.length - 1].answersSeen : 0
+      )
+    )
+  );
+  const normalizeKnownessForDisplay = (rawKnowness: number, answersSeen: number) => {
+    if (metric !== 'knowness') return rawKnowness;
+    if (answersSeen <= 0) return 50;
+    const spread = Math.max(0.1, Math.min(1, answersSeen / maxAnswersForKnownessSpread));
+    return 50 + (rawKnowness - 50) * spread;
+  };
   const xValues = source.flatMap((participant) => participant.points.map((point) => point.index));
   const minX = xValues.length > 0 ? Math.min(...xValues) : 0;
   const maxX = xValues.length > 0 ? Math.max(...xValues) : 1;
   const yValues = source.flatMap((participant) =>
-    participant.points.map((point) => (metric === 'knowness' ? point.knowness : point.runningPoints))
+    participant.points.map((point) =>
+      metric === 'knowness'
+        ? normalizeKnownessForDisplay(point.knowness, point.answersSeen)
+        : point.runningPoints
+    )
   );
   const minY = yValues.length > 0 ? Math.min(...yValues) : 0;
   const maxY = yValues.length > 0 ? Math.max(...yValues) : 1;
@@ -485,22 +603,40 @@ function renderLineChartModule(context: StatisticsContext, metric: 'knowness' | 
         {source.map((participant) => {
           const points = participant.points.map((point) => ({
             x: toX(point.index),
-            y: toY(metric === 'knowness' ? point.knowness : point.runningPoints)
+            y: toY(
+              metric === 'knowness'
+                ? normalizeKnownessForDisplay(point.knowness, point.answersSeen)
+                : point.runningPoints
+            )
           }));
           const line = buildLinePath(points);
           if (!line) return null;
           return (
             <g key={`line-${metric}-${participant.key}`}>
-              <path d={line} stroke={participant.color} fill="none" strokeWidth={2.4} strokeLinecap="round" />
+              <path
+                d={line}
+                stroke={participant.color}
+                fill="none"
+                strokeWidth={controls.focusedParticipantKey === participant.key ? 3.8 : 2.2}
+                strokeLinecap="round"
+                opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.26 : 0.95}
+              />
               {points.map((point, index) => (
-                <circle key={`${participant.key}-${index}`} cx={point.x} cy={point.y} r={2.1} fill={participant.color} />
+                <circle
+                  key={`${participant.key}-${index}`}
+                  cx={point.x}
+                  cy={point.y}
+                  r={controls.focusedParticipantKey === participant.key ? 3 : 2.2}
+                  fill={participant.color}
+                  opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.32 : 0.98}
+                />
               ))}
             </g>
           );
         })}
       </svg>
       <p className="cogita-help">{yLabel}</p>
-      {renderParticipantLegend(context)}
+      {renderParticipantLegend(context, controls)}
     </div>
   );
 }
@@ -592,28 +728,103 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     title: 'Knowness graph',
     subtitle: 'Temporal knowness trend per participant.',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
-    render: (context) => renderLineChartModule(context, 'knowness', 'Knowness values are computed over time by the shared temporal algorithm.')
+    render: (context, controls) =>
+      renderLineChartModule(context, controls, 'knowness', 'Knowness values are computed over time by the shared temporal algorithm.')
   },
   {
     id: 'score-line',
     title: 'Score graph',
     subtitle: 'Running points timeline per participant.',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
-    render: (context) => renderLineChartModule(context, 'runningPoints', 'Running points show cumulative score progression in this scope.')
+    render: (context, controls) =>
+      renderLineChartModule(context, controls, 'runningPoints', 'Running points show cumulative score progression in this scope.')
   },
   {
-    id: 'participant-bars',
-    title: 'Bar chart',
-    subtitle: 'Total points per participant.',
-    isAvailable: (context) => context.participantSeries.length > 0,
-    render: (context) => {
+    id: 'response-time-participants',
+    title: 'Response time comparison',
+    subtitle: 'Average response time per participant.',
+    isAvailable: (context) => context.participantSeries.some((participant) => participant.averageDurationSeconds !== null),
+    render: (context, controls) => {
       const chartWidth = 940;
       const chartHeight = 260;
       const paddingX = 40;
       const paddingY = 24;
       const plotWidth = chartWidth - paddingX * 2;
       const plotHeight = chartHeight - paddingY * 2;
-      const participants = context.participantSeries.slice(0, 12);
+
+      const participants = getParticipantsInRenderOrder(
+        context.participantSeries
+          .filter((participant) => participant.averageDurationSeconds !== null)
+          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0))
+          .slice(0, 12),
+        controls.focusedParticipantKey
+      );
+      const maxValue = Math.max(1, ...participants.map((participant) => participant.averageDurationSeconds ?? 0));
+      const columnWidth = participants.length > 0 ? plotWidth / participants.length : plotWidth;
+
+      return (
+        <div className="cogita-statistics-chart-card">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
+            <line
+              x1={paddingX}
+              y1={paddingY + plotHeight}
+              x2={paddingX + plotWidth}
+              y2={paddingY + plotHeight}
+              stroke="rgba(120, 170, 220, 0.32)"
+            />
+            {participants.map((participant, index) => {
+              const value = participant.averageDurationSeconds ?? 0;
+              const ratio = value / maxValue;
+              const barHeight = ratio * plotHeight;
+              const x = paddingX + index * columnWidth + columnWidth * 0.15;
+              const y = paddingY + plotHeight - barHeight;
+              const width = columnWidth * 0.7;
+              return (
+                <g key={`duration-bar-${participant.key}`}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={barHeight}
+                    rx={6}
+                    fill={participant.color}
+                    opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.28 : 0.86}
+                  />
+                  <text x={x + width / 2} y={y - 6} textAnchor="middle" fill="rgba(208, 229, 252, 0.92)" fontSize="10">
+                    {formatFloat(value, 2)}s
+                  </text>
+                  <text
+                    x={x + width / 2}
+                    y={paddingY + plotHeight + 14}
+                    textAnchor="middle"
+                    fill="rgba(178, 204, 236, 0.82)"
+                    fontSize="10"
+                  >
+                    {participant.label.length > 12 ? `${participant.label.slice(0, 12)}…` : participant.label}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          <p className="cogita-help">Lower bars mean faster average responses.</p>
+          {renderParticipantLegend(context, controls)}
+        </div>
+      );
+    }
+  },
+  {
+    id: 'participant-bars',
+    title: 'Bar chart',
+    subtitle: 'Total points per participant.',
+    isAvailable: (context) => context.participantSeries.length > 0,
+    render: (context, controls) => {
+      const chartWidth = 940;
+      const chartHeight = 260;
+      const paddingX = 40;
+      const paddingY = 24;
+      const plotWidth = chartWidth - paddingX * 2;
+      const plotHeight = chartHeight - paddingY * 2;
+      const participants = getParticipantsInRenderOrder(context.participantSeries.slice(0, 12), controls.focusedParticipantKey);
       const maxValue = Math.max(1, ...participants.map((participant) => participant.totalPoints));
       const columnWidth = participants.length > 0 ? plotWidth / participants.length : plotWidth;
 
@@ -635,7 +846,15 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               const width = columnWidth * 0.7;
               return (
                 <g key={`bar-${participant.key}`}>
-                  <rect x={x} y={y} width={width} height={barHeight} rx={6} fill={participant.color} opacity={0.85} />
+                  <rect
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={barHeight}
+                    rx={6}
+                    fill={participant.color}
+                    opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.28 : 0.86}
+                  />
                   <text x={x + width / 2} y={y - 6} textAnchor="middle" fill="rgba(208, 229, 252, 0.92)" fontSize="10">
                     {formatCount(participant.totalPoints)}
                   </text>
@@ -652,7 +871,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               );
             })}
           </svg>
-          {renderParticipantLegend(context)}
+          {renderParticipantLegend(context, controls)}
         </div>
       );
     }
@@ -737,10 +956,11 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     title: 'Correlation chart',
     subtitle: 'Answer time versus correctness.',
     isAvailable: (context) => context.answerEvents.some((event) => event.durationSeconds !== null),
-    render: (context) => {
+    render: (context, controls) => {
       const points = context.answerEvents
         .filter((event) => event.durationSeconds !== null)
         .map((event) => ({
+          participantKey: event.participantKey,
           x: event.durationSeconds ?? 0,
           y: event.correctness * 100,
           color: event.color
@@ -807,7 +1027,14 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               />
             ) : null}
             {points.map((point, index) => (
-              <circle key={`corr-point-${index}`} cx={toX(point.x)} cy={toY(point.y)} r={3.1} fill={point.color} opacity={0.9} />
+              <circle
+                key={`corr-point-${index}`}
+                cx={toX(point.x)}
+                cy={toY(point.y)}
+                r={3.1}
+                fill={point.color}
+                opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== point.participantKey ? 0.26 : 0.92}
+              />
             ))}
           </svg>
           <p className="cogita-help">
@@ -815,7 +1042,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               ? 'No timed answers available yet.'
               : `Average response time: ${formatFloat(context.averageDurationSeconds, 2)} s`}
           </p>
-          {renderParticipantLegend(context)}
+          {renderParticipantLegend(context, controls)}
         </div>
       );
     }
@@ -823,26 +1050,62 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   {
     id: 'pyramid',
     title: 'Pyramid ranking',
-    subtitle: 'Point-weighted participant hierarchy.',
-    isAvailable: (context) => context.participantSeries.length > 0,
-    render: (context) => {
-      const ranked = context.participantSeries.slice(0, 8);
-      const max = Math.max(1, ...ranked.map((participant) => participant.totalPoints));
+    subtitle: 'Average points per correct answer split into base and bonus parts.',
+    isAvailable: (context) => context.participantSeries.some((participant) => participant.correctCount > 0),
+    render: (context, controls) => {
+      const ranked = getParticipantsInRenderOrder(
+        context.participantSeries
+          .filter((participant) => participant.correctCount > 0)
+          .sort(
+            (left, right) =>
+              right.averagePointsPerCorrectAnswer - left.averagePointsPerCorrectAnswer ||
+              left.label.localeCompare(right.label)
+          )
+          .slice(0, 8),
+        controls.focusedParticipantKey
+      );
+      const max = Math.max(1, ...ranked.map((participant) => participant.averagePointsPerCorrectAnswer));
       return (
         <div className="cogita-statistics-chart-card">
           <div className="cogita-statistics-pyramid">
             {ranked.map((participant, index) => {
-              const widthPercent = 35 + (participant.totalPoints / max) * 65;
+              const total = Math.max(0, participant.averagePointsPerCorrectAnswer);
+              const widthPercent = 35 + (total / max) * 65;
+              const base = Math.max(0, participant.averageBasePointsPerCorrectAnswer);
+              const first = Math.max(0, participant.averageFirstBonusPointsPerCorrectAnswer);
+              const speed = Math.max(0, participant.averageSpeedBonusPointsPerCorrectAnswer);
+              const streak = Math.max(0, participant.averageStreakBonusPointsPerCorrectAnswer);
+              const segmentSum = Math.max(0.0001, base + first + speed + streak);
+              const baseWidth = (base / segmentSum) * 100;
+              const firstWidth = (first / segmentSum) * 100;
+              const speedWidth = (speed / segmentSum) * 100;
+              const streakWidth = (streak / segmentSum) * 100;
               return (
                 <div key={`pyramid-${participant.key}`} className="cogita-statistics-pyramid-row">
                   <span className="cogita-statistics-pyramid-rank">#{index + 1}</span>
                   <div className="cogita-statistics-pyramid-bar-wrap">
                     <div
                       className="cogita-statistics-pyramid-bar"
-                      style={{ width: `${widthPercent}%`, background: participant.color }}
+                      style={{
+                        width: `${widthPercent}%`,
+                        background: 'rgba(10, 28, 50, 0.45)',
+                        opacity: controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.35 : 1
+                      }}
                     >
+                      <div className="cogita-statistics-pyramid-segments">
+                        <span className="cogita-statistics-pyramid-segment is-base" style={{ width: `${baseWidth}%` }} />
+                        <span className="cogita-statistics-pyramid-segment is-first" style={{ width: `${firstWidth}%` }} />
+                        <span className="cogita-statistics-pyramid-segment is-speed" style={{ width: `${speedWidth}%` }} />
+                        <span className="cogita-statistics-pyramid-segment is-streak" style={{ width: `${streakWidth}%` }} />
+                      </div>
                       <span>{participant.label}</span>
-                      <strong>{formatCount(participant.totalPoints)}</strong>
+                      <strong>{`${formatFloat(total, 1)} pts/correct`}</strong>
+                    </div>
+                    <div className="cogita-statistics-pyramid-details">
+                      <small>{`Base ${formatFloat(base, 1)}`}</small>
+                      <small>{`First ${formatFloat(first, 1)}`}</small>
+                      <small>{`Speed ${formatFloat(speed, 1)}`}</small>
+                      <small>{`Streak ${formatFloat(streak, 1)}`}</small>
                     </div>
                   </div>
                 </div>
@@ -858,7 +1121,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     title: 'Streamgraph',
     subtitle: 'Round-by-round activity distribution.',
     isAvailable: (context) => context.rounds.length >= 2 && context.streamBands.length >= 2,
-    render: (context) => {
+    render: (context, controls) => {
       const chartWidth = 940;
       const chartHeight = 250;
       const paddingX = 40;
@@ -887,12 +1150,21 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               const y = paddingY + (index / 4) * plotHeight;
               return <line key={`stream-grid-${index}`} x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(110, 160, 220, 0.12)" />;
             })}
-            {context.streamBands.map((band) => {
+            {getStreamBandsInRenderOrder(context.streamBands, controls.focusedParticipantKey).map((band) => {
               const upper = band.points.map((point) => ({ x: toX(point.x), y: toY(point.y1) }));
               const lower = band.points.map((point) => ({ x: toX(point.x), y: toY(point.y0) }));
               const areaPath = buildAreaPath(upper, lower);
               if (!areaPath) return null;
-              return <path key={`stream-${band.key}`} d={areaPath} fill={band.color} opacity={0.58} stroke={band.color} strokeWidth={1} />;
+              return (
+                <path
+                  key={`stream-${band.key}`}
+                  d={areaPath}
+                  fill={band.color}
+                  opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== band.key ? 0.22 : 0.6}
+                  stroke={band.color}
+                  strokeWidth={controls.focusedParticipantKey === band.key ? 1.6 : 1}
+                />
+              );
             })}
             {context.rounds.map((round, index) => {
               const x = toX(index);
@@ -904,7 +1176,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             })}
           </svg>
           <p className="cogita-help">Each layer shows how strongly one participant contributed answers in each round.</p>
-          {renderParticipantLegend(context)}
+          {renderParticipantLegend(context, controls)}
         </div>
       );
     }
@@ -937,6 +1209,9 @@ export function CogitaStatisticsPanel({
   const [state, setState] = useState<CogitaStatisticsResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [slideIndex, setSlideIndex] = useState(0);
+  const [visibleParticipantKeys, setVisibleParticipantKeys] = useState<Set<string>>(new Set());
+  const [hoveredParticipantKey, setHoveredParticipantKey] = useState<string | null>(null);
+  const [pinnedParticipantKey, setPinnedParticipantKey] = useState<string | null>(null);
   const appliedInitialModuleRef = useRef<string | null>(null);
   const usesExternalData = data !== undefined;
 
@@ -982,10 +1257,44 @@ export function CogitaStatisticsPanel({
     return makeStatisticsContext(resolvedState);
   }, [resolvedState]);
 
-  const modules = useMemo(() => {
-    if (!statisticsContext) return [] as StatisticsModule[];
-    return STATISTICS_MODULES.filter((module) => module.isAvailable(statisticsContext));
+  useEffect(() => {
+    if (!statisticsContext) {
+      setVisibleParticipantKeys(new Set());
+      setHoveredParticipantKey(null);
+      setPinnedParticipantKey(null);
+      return;
+    }
+    const allKeys = statisticsContext.participantSeries.map((participant) => participant.key);
+    setVisibleParticipantKeys((current) => {
+      if (current.size === 0) return new Set(allKeys);
+      const next = new Set(allKeys.filter((key) => current.has(key)));
+      if (next.size === 0) return new Set(allKeys);
+      return next;
+    });
+    setHoveredParticipantKey((current) => (current && allKeys.includes(current) ? current : null));
+    setPinnedParticipantKey((current) => (current && allKeys.includes(current) ? current : null));
   }, [statisticsContext]);
+
+  const filteredStatisticsContext = useMemo(() => {
+    if (!statisticsContext) return null;
+    const visibleKeys = visibleParticipantKeys.size > 0 ? visibleParticipantKeys : new Set(statisticsContext.participantSeries.map((p) => p.key));
+    const filteredParticipantSeries = statisticsContext.participantSeries.filter((participant) => visibleKeys.has(participant.key));
+    const filteredAnswerEvents = statisticsContext.answerEvents.filter((event) => visibleKeys.has(event.participantKey));
+    const filteredStreamBands = statisticsContext.streamBands.filter((band) => visibleKeys.has(band.key));
+    return {
+      ...statisticsContext,
+      participantSeries: filteredParticipantSeries,
+      answerEvents: filteredAnswerEvents,
+      streamBands: filteredStreamBands
+    } satisfies StatisticsContext;
+  }, [statisticsContext, visibleParticipantKeys]);
+
+  const focusedParticipantKey = hoveredParticipantKey ?? pinnedParticipantKey;
+
+  const modules = useMemo(() => {
+    if (!filteredStatisticsContext) return [] as StatisticsModule[];
+    return STATISTICS_MODULES.filter((module) => module.isAvailable(filteredStatisticsContext));
+  }, [filteredStatisticsContext]);
 
   useEffect(() => {
     if (modules.length === 0) {
@@ -1024,7 +1333,7 @@ export function CogitaStatisticsPanel({
         </div>
       </div>
 
-      {resolvedStatus === 'ready' && resolvedState && statisticsContext ? (
+      {resolvedStatus === 'ready' && resolvedState && statisticsContext && filteredStatisticsContext ? (
         <>
           <div className="cogita-statistics-summary">
             <div className="cogita-statistics-chip">
@@ -1036,7 +1345,7 @@ export function CogitaStatisticsPanel({
               <span>Total points</span>
             </div>
             <div className="cogita-statistics-chip">
-              <strong>{formatCount(statisticsContext.participantSeries.length)}</strong>
+              <strong>{formatCount(filteredStatisticsContext.participantSeries.length)}</strong>
               <span>Participants</span>
             </div>
             <div className="cogita-statistics-chip">
@@ -1081,7 +1390,29 @@ export function CogitaStatisticsPanel({
                 <div className="cogita-statistics-carousel-track" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
                   {modules.map((module) => (
                     <article key={module.id} className="cogita-statistics-slide">
-                      {module.render(statisticsContext)}
+                      {module.render(filteredStatisticsContext, {
+                        allParticipantSeries: statisticsContext.participantSeries,
+                        visibleParticipantKeys:
+                          visibleParticipantKeys.size > 0
+                            ? visibleParticipantKeys
+                            : new Set(statisticsContext.participantSeries.map((participant) => participant.key)),
+                        focusedParticipantKey,
+                        onToggleParticipantVisibility: (participantKey) => {
+                          setVisibleParticipantKeys((current) => {
+                            const allKeys = statisticsContext.participantSeries.map((participant) => participant.key);
+                            const base = current.size > 0 ? new Set(current) : new Set(allKeys);
+                            if (base.has(participantKey)) {
+                              base.delete(participantKey);
+                            } else {
+                              base.add(participantKey);
+                            }
+                            return base.size === 0 ? new Set(allKeys) : base;
+                          });
+                        },
+                        onHoverParticipant: (participantKey) => setHoveredParticipantKey(participantKey),
+                        onToggleParticipantFocus: (participantKey) =>
+                          setPinnedParticipantKey((current) => (current === participantKey ? null : participantKey))
+                      })}
                     </article>
                   ))}
                 </div>

@@ -1708,6 +1708,7 @@ export function CogitaLiveHostWallPage({
                 <CogitaLivePromptCard
                   prompt={prompt}
                   revealExpected={revealExpected}
+                  answerDistribution={reveal?.answerDistribution}
                   mode="readonly"
                   labels={{
                     answerLabel: copy.cogita.library.revision.answerLabel,

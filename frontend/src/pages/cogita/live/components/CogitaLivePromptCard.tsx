@@ -76,6 +76,7 @@ export function CogitaLivePromptCard({
   prompt,
   revealExpected,
   revealedAnswer,
+  answerDistribution,
   answerMask,
   surfaceState,
   mode,
@@ -91,6 +92,7 @@ export function CogitaLivePromptCard({
   prompt: LivePrompt | null;
   revealExpected?: unknown;
   revealedAnswer?: unknown;
+  answerDistribution?: unknown;
   answerMask?: Uint8Array | null;
   surfaceState?: 'idle' | 'correct' | 'incorrect';
   mode: 'interactive' | 'readonly';
@@ -114,6 +116,34 @@ export function CogitaLivePromptCard({
   const selectedOnReveal = Array.isArray(revealedAnswer)
     ? revealedAnswer.map((x) => Number(x)).filter(Number.isFinite)
     : answers?.selection ?? [];
+  const selectionDistributionByIndex = (() => {
+    const result = new Map<number, number>();
+    if (!isRevealed || !answerDistribution || typeof answerDistribution !== 'object') return result;
+    const root = answerDistribution as Record<string, unknown>;
+    if (String(root.kind ?? '') !== 'selection' || !Array.isArray(root.options)) return result;
+    root.options.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      const option = entry as Record<string, unknown>;
+      const index = Number(option.index);
+      const percent = Number(option.percent);
+      if (Number.isFinite(index) && Number.isFinite(percent)) {
+        result.set(index, Math.max(0, Math.min(100, percent)));
+      }
+    });
+    return result;
+  })();
+  const booleanDistribution = (() => {
+    if (!isRevealed || !answerDistribution || typeof answerDistribution !== 'object') return null;
+    const root = answerDistribution as Record<string, unknown>;
+    if (String(root.kind ?? '') !== 'boolean') return null;
+    const truePercent = Number(root.truePercent);
+    const falsePercent = Number(root.falsePercent);
+    if (!Number.isFinite(truePercent) || !Number.isFinite(falsePercent)) return null;
+    return {
+      truePercent: Math.max(0, Math.min(100, truePercent)),
+      falsePercent: Math.max(0, Math.min(100, falsePercent))
+    };
+  })();
 
   const sharedInput = (
     inputType?: string,
@@ -256,7 +286,7 @@ export function CogitaLivePromptCard({
             onClick={() => onBooleanChange?.(true)}
             disabled={mode === 'readonly' || isRevealed}
           >
-            {copy.trueLabel}
+            {isRevealed && booleanDistribution ? `${copy.trueLabel} (${booleanDistribution.truePercent.toFixed(1)}%)` : copy.trueLabel}
           </button>
           <button
             type="button"
@@ -265,7 +295,7 @@ export function CogitaLivePromptCard({
             onClick={() => onBooleanChange?.(false)}
             disabled={mode === 'readonly' || isRevealed}
           >
-            {copy.falseLabel}
+            {isRevealed && booleanDistribution ? `${copy.falseLabel} (${booleanDistribution.falsePercent.toFixed(1)}%)` : copy.falseLabel}
           </button>
         </div>
         {isRevealed ? (
@@ -309,6 +339,9 @@ export function CogitaLivePromptCard({
               key={`${index}-${option}`}
             >
               <span>{option}</span>
+              {isRevealed && selectionDistributionByIndex.has(index) ? (
+                <small>{`${selectionDistributionByIndex.get(index)?.toFixed(1)}%`}</small>
+              ) : null}
               <input
                 type={isRevealed ? 'checkbox' : multiple ? 'checkbox' : 'radio'}
                 name="live-selection"

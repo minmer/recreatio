@@ -729,6 +729,12 @@ export type CogitaStatisticsParticipantSummary = {
   totalPoints: number;
   lastActivityUtc?: string | null;
   knownessScore: number;
+  averageDurationMs?: number | null;
+  averagePointsPerCorrectAnswer?: number | null;
+  averageBasePointsPerCorrectAnswer?: number | null;
+  averageFirstBonusPointsPerCorrectAnswer?: number | null;
+  averageSpeedBonusPointsPerCorrectAnswer?: number | null;
+  averageStreakBonusPointsPerCorrectAnswer?: number | null;
 };
 
 export type CogitaStatisticsTimelinePoint = {

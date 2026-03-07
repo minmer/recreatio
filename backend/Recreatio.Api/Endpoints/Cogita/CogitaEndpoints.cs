@@ -4227,8 +4227,25 @@ public static class CogitaEndpoints
                     if (eventCorrectness.Value >= 0.5d)
                     {
                         state.CorrectCount += 1;
+                        if (statisticEvent.PointsAwarded.HasValue)
+                        {
+                            var scoreBreakdown = ParseStatisticScoreBreakdown(
+                                statisticEvent.PayloadJson,
+                                statisticEvent.PointsAwarded.Value,
+                                eventCorrectness.Value >= 0.5d);
+                            state.CorrectAnswerPointsSum += statisticEvent.PointsAwarded.Value;
+                            state.BasePointsSum += scoreBreakdown.BasePoints;
+                            state.FirstBonusPointsSum += scoreBreakdown.FirstBonusPoints;
+                            state.SpeedBonusPointsSum += scoreBreakdown.SpeedBonusPoints;
+                            state.StreakBonusPointsSum += scoreBreakdown.StreakBonusPoints;
+                        }
                     }
                     state.KnownessEntries.Add(new TemporalKnownessEntry(eventCorrectness.Value, statisticEvent.CreatedUtc));
+                    if (statisticEvent.DurationMs.HasValue && statisticEvent.DurationMs.Value >= 0)
+                    {
+                        state.DurationSumMs += statisticEvent.DurationMs.Value;
+                        state.DurationCount += 1;
+                    }
                 }
 
                 var knowness = state.KnownessEntries.Count == 0
@@ -4262,6 +4279,12 @@ public static class CogitaEndpoints
                         ? 0d
                         : ComputeKnownessSummary(x.KnownessEntries, nowUtc).Score;
                     var avgCorrectness = x.AnswerCount == 0 ? 0d : Math.Round(x.CorrectnessSum / x.AnswerCount * 100d, 2);
+                    var avgDurationMs = x.DurationCount == 0 ? (double?)null : Math.Round(x.DurationSumMs / x.DurationCount, 2);
+                    var avgPointsPerCorrectAnswer = x.CorrectCount == 0 ? 0d : Math.Round(x.CorrectAnswerPointsSum / x.CorrectCount, 2);
+                    var avgBasePointsPerCorrectAnswer = x.CorrectCount == 0 ? 0d : Math.Round(x.BasePointsSum / x.CorrectCount, 2);
+                    var avgFirstBonusPointsPerCorrectAnswer = x.CorrectCount == 0 ? 0d : Math.Round(x.FirstBonusPointsSum / x.CorrectCount, 2);
+                    var avgSpeedBonusPointsPerCorrectAnswer = x.CorrectCount == 0 ? 0d : Math.Round(x.SpeedBonusPointsSum / x.CorrectCount, 2);
+                    var avgStreakBonusPointsPerCorrectAnswer = x.CorrectCount == 0 ? 0d : Math.Round(x.StreakBonusPointsSum / x.CorrectCount, 2);
                     return new CogitaStatisticsParticipantSummaryResponse(
                         x.Participant.Key,
                         x.Participant.Kind,
@@ -4274,7 +4297,13 @@ public static class CogitaEndpoints
                         avgCorrectness,
                         x.TotalPoints,
                         x.LastActivityUtc,
-                        knowness
+                        knowness,
+                        avgDurationMs,
+                        avgPointsPerCorrectAnswer,
+                        avgBasePointsPerCorrectAnswer,
+                        avgFirstBonusPointsPerCorrectAnswer,
+                        avgSpeedBonusPointsPerCorrectAnswer,
+                        avgStreakBonusPointsPerCorrectAnswer
                     );
                 })
                 .OrderByDescending(x => x.KnownessScore)
@@ -6572,6 +6601,29 @@ public static class CogitaEndpoints
                         .OrderByDescending(x => x.SubmittedUtc)
                         .ThenByDescending(x => x.UpdatedUtc)
                         .First());
+            var scoringRules = ParseLiveSessionScoringRules(ParseLiveSessionMeta(liveSession.SessionMetaJson).SessionSettings);
+            var roundScoringByParticipant = new Dictionary<Guid, JsonObject>();
+            if (!string.IsNullOrWhiteSpace(liveSession.CurrentRevealJson))
+            {
+                try
+                {
+                    var revealRoot = JsonNode.Parse(liveSession.CurrentRevealJson) as JsonObject;
+                    if (revealRoot?["roundScoring"] is JsonObject roundScoringNode)
+                    {
+                        foreach (var pair in roundScoringNode)
+                        {
+                            if (Guid.TryParse(pair.Key, out var parsedParticipantId) && pair.Value is JsonObject participantScoringNode)
+                            {
+                                roundScoringByParticipant[parsedParticipantId] = participantScoringNode;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Keep fallback behaviour without score breakdown payload.
+                }
+            }
 
             var now = DateTimeOffset.UtcNow;
             foreach (var delta in scoreItems)
@@ -6589,6 +6641,11 @@ public static class CogitaEndpoints
                     answer.IsCorrect = delta.IsCorrect;
                     answer.PointsAwarded = delta.PointsAwarded;
                     answer.UpdatedUtc = now;
+                    var payloadJson = BuildLiveScoreBreakdownPayload(
+                        roundScoringByParticipant.TryGetValue(delta.ParticipantId, out var participantScoringNode) ? participantScoringNode : null,
+                        scoringRules,
+                        delta.PointsAwarded,
+                        delta.IsCorrect);
 
                     var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
                     dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
@@ -6614,7 +6671,7 @@ public static class CogitaEndpoints
                         PointsAwarded = delta.PointsAwarded,
                         DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
                         IsPersistent = false,
-                        PayloadJson = null,
+                        PayloadJson = payloadJson,
                         CreatedUtc = now
                     });
 
@@ -6647,7 +6704,7 @@ public static class CogitaEndpoints
                             PointsAwarded = delta.PointsAwarded,
                             DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
                             IsPersistent = true,
-                            PayloadJson = null,
+                            PayloadJson = payloadJson,
                             CreatedUtc = now
                         });
                     }
@@ -7454,6 +7511,14 @@ public static class CogitaEndpoints
                             var revealNode = CloneJsonObject(currentRound.Reveal);
                             revealNode["roundIndex"] = effectiveRoundIndex;
                             revealNode["cardKey"] = currentRound.CardKey;
+                            await AppendLiveRoundAnswerDistributionAsync(
+                                session.Id,
+                                effectiveRoundIndex,
+                                currentRound.Prompt,
+                                revealNode,
+                                dataProtectionProvider,
+                                dbContext,
+                                ct);
                             if (asyncState.Answer is not null && participantId.HasValue)
                             {
                                 var participantAnswer = ParseJsonNullable(
@@ -7568,6 +7633,34 @@ public static class CogitaEndpoints
             }
 
             JsonElement? currentRevealPayload = ParseJsonNullable(session.CurrentRevealJson);
+            var currentPromptPayload = ParseJsonNullable(session.CurrentPromptJson);
+            JsonObject? syncRevealNode = null;
+            if (currentRevealPayload.HasValue)
+            {
+                try
+                {
+                    syncRevealNode = JsonNode.Parse(currentRevealPayload.Value.GetRawText()) as JsonObject;
+                    var promptNode = currentPromptPayload.HasValue
+                        ? (JsonNode.Parse(currentPromptPayload.Value.GetRawText()) as JsonObject)
+                        : null;
+                    if (syncRevealNode is not null && promptNode is not null)
+                    {
+                        await AppendLiveRoundAnswerDistributionAsync(
+                            session.Id,
+                            session.CurrentRoundIndex,
+                            promptNode,
+                            syncRevealNode,
+                            dataProtectionProvider,
+                            dbContext,
+                            ct);
+                        currentRevealPayload = JsonNodeToJsonElement(syncRevealNode);
+                    }
+                }
+                catch
+                {
+                    syncRevealNode = null;
+                }
+            }
             if (participant is not null && currentRevealPayload.HasValue)
             {
                 var answer = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
@@ -7578,7 +7671,7 @@ public static class CogitaEndpoints
                 {
                     try
                     {
-                        var revealNode = JsonNode.Parse(currentRevealPayload.Value.GetRawText()) as JsonObject;
+                        var revealNode = syncRevealNode ?? (JsonNode.Parse(currentRevealPayload.Value.GetRawText()) as JsonObject);
                         if (revealNode is not null)
                         {
                             var participantAnswer = ParseJsonNullable(
@@ -7865,6 +7958,7 @@ public static class CogitaEndpoints
             }
             participant.IsConnected = true;
             participant.UpdatedUtc = now;
+            string? scorePayloadJson = null;
 
             if (isAsyncSession)
             {
@@ -7898,12 +7992,17 @@ public static class CogitaEndpoints
                 }
 
                 var points = 0;
+                var scoredBasePoints = 0;
+                var scoredFirstBonusPoints = 0;
+                var scoredSpeedPoints = 0;
+                var scoredStreakPoints = 0;
                 if (isCorrect)
                 {
                     var basePoints = Math.Max(0, Math.Min(500000, rules.BaseCorrect));
                     if (basePoints > 0)
                     {
                         points += basePoints;
+                        scoredBasePoints = basePoints;
                     }
 
                     if (rules.BonusTimerEnabled &&
@@ -7947,6 +8046,7 @@ public static class CogitaEndpoints
                             if (speedPoints > 0)
                             {
                                 points += speedPoints;
+                                scoredSpeedPoints += speedPoints;
                             }
                         }
                     }
@@ -7956,6 +8056,7 @@ public static class CogitaEndpoints
                     if (streakPoints > 0)
                     {
                         points += streakPoints;
+                        scoredStreakPoints += streakPoints;
                     }
                 }
                 else
@@ -7971,6 +8072,13 @@ public static class CogitaEndpoints
                 participant.Score += answer.PointsAwarded;
                 participant.UpdatedUtc = now;
                 session.UpdatedUtc = now;
+                scorePayloadJson = JsonSerializer.Serialize(new
+                {
+                    basePoints = scoredBasePoints,
+                    firstBonusPoints = scoredFirstBonusPoints,
+                    speedPoints = scoredSpeedPoints,
+                    streakPoints = scoredStreakPoints
+                });
             }
 
             var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
@@ -8003,7 +8111,7 @@ public static class CogitaEndpoints
                 PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
                 DurationMs = durationMs,
                 IsPersistent = false,
-                PayloadJson = null,
+                PayloadJson = isAsyncSession ? scorePayloadJson : null,
                 CreatedUtc = now
             });
 
@@ -8042,7 +8150,7 @@ public static class CogitaEndpoints
                         PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
                         DurationMs = durationMs,
                         IsPersistent = true,
-                        PayloadJson = null,
+                        PayloadJson = isAsyncSession ? scorePayloadJson : null,
                         CreatedUtc = now
                     });
                 }
@@ -17796,6 +17904,328 @@ public static class CogitaEndpoints
         return true;
     }
 
+    private static bool? ParseBooleanFromJsonNode(JsonNode? node)
+    {
+        if (node is JsonValue scalar)
+        {
+            if (scalar.TryGetValue<bool>(out var boolValue))
+            {
+                return boolValue;
+            }
+            if (scalar.TryGetValue<int>(out var intValue))
+            {
+                if (intValue == 1) return true;
+                if (intValue == 0) return false;
+            }
+            if (scalar.TryGetValue<string>(out var stringValue))
+            {
+                var normalized = stringValue.Trim().ToLowerInvariant();
+                if (normalized is "true" or "1") return true;
+                if (normalized is "false" or "0") return false;
+            }
+        }
+        return null;
+    }
+
+    private readonly record struct StatisticScoreBreakdown(
+        int BasePoints,
+        int FirstBonusPoints,
+        int SpeedBonusPoints,
+        int StreakBonusPoints);
+
+    private static StatisticScoreBreakdown ParseStatisticScoreBreakdown(string? payloadJson, int totalPoints, bool isCorrect)
+    {
+        if (!isCorrect)
+        {
+            return new StatisticScoreBreakdown(0, 0, 0, 0);
+        }
+
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(payloadJson) as JsonObject;
+            if (node is null)
+            {
+                return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+            }
+
+            static int ReadInt(JsonObject root, string key)
+            {
+                if (root[key] is JsonValue value)
+                {
+                    if (value.TryGetValue<int>(out var intValue)) return intValue;
+                    if (value.TryGetValue<double>(out var doubleValue)) return (int)Math.Round(doubleValue);
+                }
+                return 0;
+            }
+
+            var basePoints = Math.Max(0, ReadInt(node, "basePoints"));
+            var firstBonusPoints = Math.Max(0, ReadInt(node, "firstBonusPoints"));
+            var speedBonusPoints = Math.Max(0, ReadInt(node, "speedPoints"));
+            var streakBonusPoints = Math.Max(0, ReadInt(node, "streakPoints"));
+            var knownSum = basePoints + firstBonusPoints + speedBonusPoints + streakBonusPoints;
+            if (knownSum <= 0)
+            {
+                basePoints = Math.Max(0, totalPoints);
+            }
+            else if (knownSum != totalPoints && totalPoints > 0)
+            {
+                basePoints = Math.Max(0, totalPoints - firstBonusPoints - speedBonusPoints - streakBonusPoints);
+            }
+
+            return new StatisticScoreBreakdown(basePoints, firstBonusPoints, speedBonusPoints, streakBonusPoints);
+        }
+        catch
+        {
+            return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+        }
+    }
+
+    private static string? BuildLiveScoreBreakdownPayload(
+        JsonObject? participantScoringNode,
+        LiveSessionScoringRules scoringRules,
+        int pointsAwarded,
+        bool? isCorrect)
+    {
+        if (isCorrect != true)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                basePoints = 0,
+                firstBonusPoints = 0,
+                speedPoints = 0,
+                streakPoints = 0
+            });
+        }
+
+        var basePoints = Math.Max(0, scoringRules.BaseCorrect);
+        var firstBonusPoints = 0;
+        var speedPoints = 0;
+        var streakPoints = 0;
+
+        if (participantScoringNode is not null)
+        {
+            static int ReadInt(JsonObject root, string key)
+            {
+                if (root[key] is JsonValue value)
+                {
+                    if (value.TryGetValue<int>(out var intValue)) return intValue;
+                    if (value.TryGetValue<double>(out var doubleValue)) return (int)Math.Round(doubleValue);
+                }
+                return 0;
+            }
+
+            var factors = (participantScoringNode["factors"] as JsonArray)
+                ?.Select(item => item?.GetValue<string>() ?? string.Empty)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+                ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (factors.Contains("first"))
+            {
+                firstBonusPoints = Math.Max(0, scoringRules.FirstCorrectBonus);
+            }
+            speedPoints = Math.Max(0, ReadInt(participantScoringNode, "speedPoints"));
+            streakPoints = Math.Max(0, ReadInt(participantScoringNode, "streakPoints"));
+            var explicitBase = Math.Max(0, ReadInt(participantScoringNode, "basePoints"));
+            if (explicitBase > 0)
+            {
+                basePoints = explicitBase;
+            }
+        }
+
+        var knownSum = basePoints + firstBonusPoints + speedPoints + streakPoints;
+        if (knownSum != pointsAwarded && pointsAwarded > 0)
+        {
+            basePoints = Math.Max(0, pointsAwarded - firstBonusPoints - speedPoints - streakPoints);
+        }
+
+        return JsonSerializer.Serialize(new
+        {
+            basePoints,
+            firstBonusPoints,
+            speedPoints,
+            streakPoints
+        });
+    }
+
+    private static async Task AppendLiveRoundAnswerDistributionAsync(
+        Guid sessionId,
+        int roundIndex,
+        JsonObject promptNode,
+        JsonObject revealNode,
+        IDataProtectionProvider dataProtectionProvider,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var kind = promptNode["kind"]?.GetValue<string>()?.Trim().ToLowerInvariant()
+                   ?? revealNode["kind"]?.GetValue<string>()?.Trim().ToLowerInvariant()
+                   ?? string.Empty;
+        if (kind is not ("selection" or "boolean"))
+        {
+            revealNode.Remove("answerDistribution");
+            return;
+        }
+
+        var answerRows = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+            .Where(x => x.SessionId == sessionId && x.RoundIndex == roundIndex)
+            .OrderByDescending(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+        if (answerRows.Count == 0)
+        {
+            revealNode.Remove("answerDistribution");
+            return;
+        }
+
+        var latestByParticipant = answerRows
+            .GroupBy(x => x.ParticipantId)
+            .Select(group => group.First())
+            .ToList();
+
+        if (kind == "selection")
+        {
+            var optionsCount = promptNode["options"] is JsonArray optionsArray ? optionsArray.Count : 0;
+            if (optionsCount <= 0 && revealNode["expected"] is JsonArray expectedArray)
+            {
+                var maxExpectedIndex = expectedArray
+                    .Select(item =>
+                    {
+                        if (item is JsonValue value && value.TryGetValue<int>(out var parsed))
+                        {
+                            return (int?)parsed;
+                        }
+                        return null;
+                    })
+                    .Where(value => value.HasValue)
+                    .Select(value => value!.Value)
+                    .DefaultIfEmpty(-1)
+                    .Max();
+                optionsCount = maxExpectedIndex + 1;
+            }
+            if (optionsCount <= 0)
+            {
+                revealNode.Remove("answerDistribution");
+                return;
+            }
+
+            var optionHits = new int[optionsCount];
+            var totalAnswers = 0;
+            foreach (var answerRow in latestByParticipant)
+            {
+                var rawAnswer = UnprotectLiveSessionScopedJson(answerRow.AnswerJson, dataProtectionProvider, sessionId);
+                if (string.IsNullOrWhiteSpace(rawAnswer))
+                {
+                    continue;
+                }
+
+                JsonNode? parsedAnswer;
+                try
+                {
+                    parsedAnswer = JsonNode.Parse(rawAnswer);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var selected = ParseIntListFromJsonNode(parsedAnswer)
+                    .Distinct()
+                    .Where(index => index >= 0 && index < optionsCount)
+                    .ToList();
+                totalAnswers += 1;
+                foreach (var optionIndex in selected)
+                {
+                    optionHits[optionIndex] += 1;
+                }
+            }
+
+            if (totalAnswers == 0)
+            {
+                revealNode.Remove("answerDistribution");
+                return;
+            }
+
+            var options = new JsonArray();
+            for (var optionIndex = 0; optionIndex < optionsCount; optionIndex += 1)
+            {
+                var count = optionHits[optionIndex];
+                var percent = Math.Round(count * 100d / totalAnswers, 1);
+                options.Add(new JsonObject
+                {
+                    ["index"] = optionIndex,
+                    ["count"] = count,
+                    ["percent"] = percent
+                });
+            }
+
+            revealNode["answerDistribution"] = new JsonObject
+            {
+                ["kind"] = "selection",
+                ["totalAnswers"] = totalAnswers,
+                ["options"] = options
+            };
+            return;
+        }
+
+        var trueCount = 0;
+        var falseCount = 0;
+        var booleanTotalAnswers = 0;
+        foreach (var answerRow in latestByParticipant)
+        {
+            var rawAnswer = UnprotectLiveSessionScopedJson(answerRow.AnswerJson, dataProtectionProvider, sessionId);
+            if (string.IsNullOrWhiteSpace(rawAnswer))
+            {
+                continue;
+            }
+
+            JsonNode? parsedAnswer;
+            try
+            {
+                parsedAnswer = JsonNode.Parse(rawAnswer);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var value = ParseBooleanFromJsonNode(parsedAnswer);
+            if (!value.HasValue)
+            {
+                continue;
+            }
+
+            booleanTotalAnswers += 1;
+            if (value.Value)
+            {
+                trueCount += 1;
+            }
+            else
+            {
+                falseCount += 1;
+            }
+        }
+
+        if (booleanTotalAnswers == 0)
+        {
+            revealNode.Remove("answerDistribution");
+            return;
+        }
+
+        revealNode["answerDistribution"] = new JsonObject
+        {
+            ["kind"] = "boolean",
+            ["totalAnswers"] = booleanTotalAnswers,
+            ["trueCount"] = trueCount,
+            ["falseCount"] = falseCount,
+            ["truePercent"] = Math.Round(trueCount * 100d / booleanTotalAnswers, 1),
+            ["falsePercent"] = Math.Round(falseCount * 100d / booleanTotalAnswers, 1)
+        };
+    }
+
     private static List<int> ParseIntListFromJsonNode(JsonNode? node)
     {
         var values = new List<int>();
@@ -18418,6 +18848,13 @@ public static class CogitaEndpoints
         public int AnswerCount { get; set; }
         public int CorrectCount { get; set; }
         public double CorrectnessSum { get; set; }
+        public double DurationSumMs { get; set; }
+        public int DurationCount { get; set; }
+        public double CorrectAnswerPointsSum { get; set; }
+        public double BasePointsSum { get; set; }
+        public double FirstBonusPointsSum { get; set; }
+        public double SpeedBonusPointsSum { get; set; }
+        public double StreakBonusPointsSum { get; set; }
         public int TotalPoints { get; set; }
         public DateTimeOffset? LastActivityUtc { get; set; }
         public List<TemporalKnownessEntry> KnownessEntries { get; } = new();
@@ -18804,6 +19241,32 @@ public static class CogitaEndpoints
             x.PointsAwarded,
             x.SubmittedUtc)).ToList();
         var pendingReloginRequests = await BuildLiveRevisionPendingReloginRequestsAsync(session.Id, dataProtectionProvider, dbContext, ct);
+        JsonElement? currentPrompt = ParseJsonNullable(session.CurrentPromptJson);
+        JsonElement? currentReveal = ParseJsonNullable(session.CurrentRevealJson);
+        if (currentPrompt.HasValue && currentReveal.HasValue)
+        {
+            try
+            {
+                var promptNode = JsonNode.Parse(currentPrompt.Value.GetRawText()) as JsonObject;
+                var revealNode = JsonNode.Parse(currentReveal.Value.GetRawText()) as JsonObject;
+                if (promptNode is not null && revealNode is not null)
+                {
+                    await AppendLiveRoundAnswerDistributionAsync(
+                        session.Id,
+                        session.CurrentRoundIndex,
+                        promptNode,
+                        revealNode,
+                        dataProtectionProvider,
+                        dbContext,
+                        ct);
+                    currentReveal = JsonNodeToJsonElement(revealNode);
+                }
+            }
+            catch
+            {
+                // Keep original payload on parse failures.
+            }
+        }
 
         return new CogitaLiveRevisionSessionResponse(
             session.Id,
@@ -18819,8 +19282,8 @@ public static class CogitaEndpoints
             session.Status,
             session.CurrentRoundIndex,
             session.RevealVersion,
-            ParseJsonNullable(session.CurrentPromptJson),
-            ParseJsonNullable(session.CurrentRevealJson),
+            currentPrompt,
+            currentReveal,
             participants,
             scoreboard,
             currentRoundAnswers,

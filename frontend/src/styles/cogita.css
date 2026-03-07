@@ -2633,13 +2633,38 @@
   gap: 0.45rem;
   color: rgba(215, 232, 250, 0.9);
   font-size: 0.8rem;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.16rem 0.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cogita-statistics-legend-row:hover {
+  background: rgba(120, 170, 220, 0.12);
+}
+
+.cogita-statistics-legend-row.active {
+  background: rgba(120, 170, 220, 0.2);
+}
+
+.cogita-statistics-legend-row.is-hidden {
+  opacity: 0.72;
 }
 
 .cogita-statistics-legend-dot {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
+  border: 2px solid transparent;
   box-shadow: 0 0 10px currentColor;
+}
+
+.cogita-statistics-legend-dot.is-hidden {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .cogita-statistics-legend-name {
@@ -2783,6 +2808,57 @@
   padding: 0 0.6rem;
   color: rgba(236, 246, 255, 0.96);
   font-size: 0.82rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.cogita-statistics-pyramid-segments {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.cogita-statistics-pyramid-segment {
+  height: 100%;
+}
+
+.cogita-statistics-pyramid-segment.is-base {
+  background: rgba(117, 194, 255, 0.78);
+}
+
+.cogita-statistics-pyramid-segment.is-first {
+  background: rgba(255, 215, 123, 0.72);
+}
+
+.cogita-statistics-pyramid-segment.is-speed {
+  background: rgba(126, 241, 210, 0.7);
+}
+
+.cogita-statistics-pyramid-segment.is-streak {
+  background: rgba(209, 143, 255, 0.7);
+}
+
+.cogita-statistics-pyramid-bar > span,
+.cogita-statistics-pyramid-bar > strong {
+  position: relative;
+  z-index: 1;
+}
+
+.cogita-statistics-pyramid-bar > strong {
+  justify-self: end;
+}
+
+.cogita-statistics-pyramid-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.25rem 0.45rem 0.35rem;
+}
+
+.cogita-statistics-pyramid-details small {
+  color: rgba(182, 208, 236, 0.84);
+  font-size: 0.72rem;
 }
 
 .cogita-live-history-chart {

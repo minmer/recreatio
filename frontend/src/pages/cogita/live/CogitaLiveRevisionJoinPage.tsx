@@ -1382,6 +1382,63 @@ export function CogitaLiveRevisionJoinPage(props: {
   const reviewReveal = (reviewRound?.reveal as Record<string, unknown> | undefined) ?? null;
   const reviewExpected = reviewReveal?.expected;
   const reviewAnswer = reviewRound?.participantAnswer;
+  const reviewRoundScoring = useMemo(() => {
+    if (!reviewReveal || typeof reviewReveal !== 'object' || !selfParticipantId) return null;
+    const roundScoring =
+      (reviewReveal.roundScoring as Record<string, { points?: number; factors?: string[]; streak?: number; basePoints?: number; speedPoints?: number; streakPoints?: number }> | undefined) ?? null;
+    return roundScoring ? roundScoring[selfParticipantId] ?? null : null;
+  }, [reviewReveal, selfParticipantId]);
+  const reviewRoundRows = useMemo(() => {
+    if (!reviewRoundScoring) return [] as Array<{ key: string; label: string; points: number }>;
+    const factors = new Set((Array.isArray(reviewRoundScoring.factors) ? reviewRoundScoring.factors : []).map(String));
+    const rows: Array<{ key: string; label: string; points: number }> = [];
+    if (factors.has('base')) {
+      rows.push({
+        key: 'base',
+        label: liveCopy.factorBaseLabel,
+        points: Math.round(Number(reviewRoundScoring.basePoints ?? liveRules.scoring.baseCorrect))
+      });
+    }
+    if (factors.has('first')) {
+      rows.push({ key: 'first', label: liveCopy.factorFirstLabel, points: Math.round(liveRules.scoring.firstCorrectBonus) });
+    }
+    if (factors.has('speed')) {
+      const rawSpeed = Number(reviewRoundScoring.speedPoints ?? 0);
+      rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: Math.round(Number.isFinite(rawSpeed) ? rawSpeed : 0) });
+    }
+    if (factors.has('streak')) {
+      const streakCount = Math.max(0, Math.round(Number(reviewRoundScoring.streak ?? 0)));
+      const fromServer = Number(reviewRoundScoring.streakPoints ?? Number.NaN);
+      rows.push({
+        key: 'streak',
+        label: `${liveCopy.factorStreakLabel}${streakCount > 0 ? ` (${liveCopy.streakLabel} ${streakCount})` : ''}`,
+        points: Math.round(Number.isFinite(fromServer) ? fromServer : streakBonus(liveRules.scoring.streakBaseBonus, streakCount, liveRules.scoring.streakLimit, liveRules.scoring.streakGrowth))
+      });
+    }
+    if (factors.has('wrong')) {
+      rows.push({ key: 'wrong', label: liveCopy.factorWrongLabel, points: -Math.round(liveRules.scoring.wrongAnswerPenalty) });
+    }
+    if (factors.has('first-wrong')) {
+      rows.push({ key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -Math.round(liveRules.scoring.firstWrongPenalty) });
+    }
+    return rows;
+  }, [
+    reviewRoundScoring,
+    liveCopy.factorBaseLabel,
+    liveCopy.factorFirstLabel,
+    liveCopy.factorFirstWrongLabel,
+    liveCopy.factorSpeedLabel,
+    liveCopy.factorStreakLabel,
+    liveCopy.factorWrongLabel,
+    liveCopy.streakLabel,
+    liveRules.scoring.baseCorrect,
+    liveRules.scoring.firstCorrectBonus,
+    liveRules.scoring.firstWrongPenalty,
+    liveRules.scoring.streakBaseBonus,
+    liveRules.scoring.streakGrowth,
+    liveRules.scoring.streakLimit,
+    liveRules.scoring.wrongAnswerPenalty
+  ]);
   const reviewEvaluation = useMemo(
     () => evaluatePromptAnswer(reviewPrompt, reviewExpected, reviewAnswer),
     [reviewAnswer, reviewExpected, reviewPrompt]
@@ -1798,6 +1855,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                                   prompt={reviewPrompt}
                                   revealExpected={reviewExpected}
                                   revealedAnswer={reviewAnswer}
+                                  answerDistribution={reviewReveal?.answerDistribution}
                                   answerMask={reviewEvaluation?.mask}
                                   surfaceState={reviewFeedbackState ?? undefined}
                                   mode="readonly"
@@ -1836,7 +1894,22 @@ export function CogitaLiveRevisionJoinPage(props: {
                                   onMatchingRemovePath={() => undefined}
                                 />
                               </CogitaCheckcardSurface>
-                              <p className="cogita-help">{`${formatPoints(Math.round(Number(reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                              {reviewRoundRows.length > 0 ? (
+                                <div className="cogita-live-round-gain">
+                                  <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
+                                  <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                  <div className="cogita-live-round-gain-list">
+                                    {reviewRoundRows.map((row) => (
+                                      <div className="cogita-live-round-gain-row" key={`review-row:${reviewRound.roundIndex}:${row.key}`}>
+                                        <span>{row.label}</span>
+                                        <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="cogita-help">{`${formatPoints(Math.round(Number(reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                              )}
                             </>
                           ) : null}
                         </section>
@@ -1874,6 +1947,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                         prompt={prompt}
                         revealExpected={revealExpected}
                         revealedAnswer={displayedSubmittedAnswer}
+                        answerDistribution={reveal?.answerDistribution}
                         answerMask={displayedEvaluation?.mask}
                         surfaceState={feedbackState ?? undefined}
                         mode={state?.answerSubmitted || !participantToken ? 'readonly' : 'interactive'}

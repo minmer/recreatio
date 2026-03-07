@@ -323,7 +323,13 @@ public sealed record CogitaStatisticsParticipantSummaryResponse(
     double AverageCorrectness,
     int TotalPoints,
     DateTimeOffset? LastActivityUtc,
-    double KnownessScore
+    double KnownessScore,
+    double? AverageDurationMs,
+    double AveragePointsPerCorrectAnswer,
+    double AverageBasePointsPerCorrectAnswer,
+    double AverageFirstBonusPointsPerCorrectAnswer,
+    double AverageSpeedBonusPointsPerCorrectAnswer,
+    double AverageStreakBonusPointsPerCorrectAnswer
 );
 
 public sealed record CogitaStatisticsTimelinePointResponse(
