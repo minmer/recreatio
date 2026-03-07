@@ -1350,6 +1350,14 @@ export function CogitaLiveRevisionJoinPage(props: {
     visibleTimerProgress,
     visibleTimerRemainingMs
   ]);
+  const revealStep = isAsyncSession && Boolean(reveal);
+  const showSessionFooter =
+    !isFirstLogin &&
+    !showJoinPanel &&
+    !showIntroPanel &&
+    !isSessionFinished &&
+    sessionStage !== 'lobby';
+  const canSubmitPrimary = Boolean(participantToken && prompt?.cardKey) && (revealStep || (!state?.answerSubmitted && !timerExpired));
 
   return (
     <CogitaShell {...props}>
@@ -1549,13 +1557,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                       <>
                         <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                         <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
-                        {isAsyncSession && participantToken ? (
-                          <div className="cogita-form-actions">
-                            <button type="button" className="ghost" onClick={clearStoredParticipantData}>
-                              {switchParticipantActionLabel(props.language)}
-                            </button>
-                          </div>
-                        ) : null}
                         {sessionStage === 'active' && prompt
                           ? timerBlocks.map((timer) => (
                               <div className="cogita-live-timer" key={`timer:${timer.id}`}>
@@ -1660,38 +1661,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                         ) : null}
                       </div>
                     ) : null}
-                    {(() => {
-                      const revealStep = isAsyncSession && Boolean(reveal);
-                      const showSubmitButton = !reveal || revealStep;
-                      if (!showSubmitButton) return null;
-                      return (
-                        <div className="cogita-form-actions">
-                          <button
-                            type="button"
-                            className="cta"
-                            onClick={() => {
-                              if (revealStep) {
-                                void submitAnswer({ force: true, acknowledgeOnly: true });
-                                return;
-                              }
-                              void submitAnswer();
-                            }}
-                            disabled={!participantToken || !prompt.cardKey || (!revealStep && (Boolean(state?.answerSubmitted) || timerExpired))}
-                          >
-                            {revealStep
-                              ? liveCopy.nextQuestionAction
-                              : state?.answerSubmitted
-                                ? liveCopy.submitted
-                                : liveCopy.submitAnswer}
-                          </button>
-                          {revealStep && prompt.nextQuestionMode === 'timer' && nextQuestionTimer ? (
-                            <button type="button" className="ghost" onClick={toggleTimersPaused}>
-                              {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
-                            </button>
-                          ) : null}
-                        </div>
-                      );
-                    })()}
                     {timerExpired ? <p className="cogita-help">{liveCopy.timeExpired}</p> : null}
                   </>
                 ) : (
@@ -1706,8 +1675,36 @@ export function CogitaLiveRevisionJoinPage(props: {
               </div>
               ) : null}
             </div>
-            {!showJoinPanel && sessionStage !== 'lobby' && !showIntroPanel ? (
-              <div className="cogita-live-score-overlay-toggle">
+            {showSessionFooter ? (
+              <div className="cogita-live-session-footer">
+                <button
+                  type="button"
+                  className="cta"
+                  onClick={() => {
+                    if (revealStep) {
+                      void submitAnswer({ force: true, acknowledgeOnly: true });
+                      return;
+                    }
+                    void submitAnswer();
+                  }}
+                  disabled={!canSubmitPrimary}
+                >
+                  {revealStep
+                    ? liveCopy.nextQuestionAction
+                    : state?.answerSubmitted
+                      ? liveCopy.submitted
+                      : liveCopy.submitAnswer}
+                </button>
+                {revealStep && prompt?.nextQuestionMode === 'timer' && nextQuestionTimer ? (
+                  <button type="button" className="ghost" onClick={toggleTimersPaused}>
+                    {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
+                  </button>
+                ) : null}
+                {isAsyncSession && participantToken ? (
+                  <button type="button" className="ghost" onClick={() => void clearStoredParticipantData()}>
+                    {switchParticipantActionLabel(props.language)}
+                  </button>
+                ) : null}
                 <button type="button" className="ghost" onClick={() => setShowScoreOverlay(true)}>
                   {liveCopy.showScoreOverlayAction}
                 </button>
