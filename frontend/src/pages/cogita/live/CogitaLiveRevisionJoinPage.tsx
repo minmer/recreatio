@@ -91,6 +91,16 @@ function chooseDifferentNameLabel(language: 'pl' | 'en' | 'de') {
   return 'Choose different name';
 }
 
+function duplicateNameInfoLabel(language: 'pl' | 'en' | 'de', name: string) {
+  if (language === 'pl') {
+    return `Nazwa „${name}” jest już używana. Klikając „Użyj istniejącego uczestnika”, przejmiesz jego aktualny wynik i postęp sesji.`;
+  }
+  if (language === 'de') {
+    return `Der Name „${name}” wird bereits verwendet. Mit „Bestehenden Teilnehmer verwenden“ übernimmst du dessen aktuellen Punktestand und Sitzungsfortschritt.`;
+  }
+  return `The name "${name}" is already in use. By choosing "Use existing participant", you will continue with that participant's current score and session progress.`;
+}
+
 function previousQuestionLabel(language: 'pl' | 'en' | 'de') {
   if (language === 'pl') return 'Poprzednie pytanie';
   if (language === 'de') return 'Vorherige Frage';
@@ -1555,6 +1565,12 @@ export function CogitaLiveRevisionJoinPage(props: {
   const canSubmitPrimary = Boolean(participantToken && prompt?.cardKey) && (revealStep || (!state?.answerSubmitted && !timerExpired));
   const canToggleNextTimer = revealStep && prompt?.nextQuestionMode === 'timer' && Boolean(nextQuestionTimer);
   const hasFooterActions = canSubmitPrimary || canToggleNextTimer || canSwitchParticipant || canShowScoreButton;
+  const normalizedJoinName = joinName.trim().toLocaleLowerCase();
+  const typedDuplicateJoinName = normalizedJoinName
+    ? (state?.scoreboard ?? []).find((row) => row.displayName.trim().toLocaleLowerCase() === normalizedJoinName)?.displayName ?? null
+    : null;
+  const duplicateNameCandidate = duplicateJoinName ?? typedDuplicateJoinName;
+  const joinBlockedByDuplicate = Boolean(duplicateNameCandidate);
 
   return (
     <CogitaShell {...props}>
@@ -1581,18 +1597,19 @@ export function CogitaLiveRevisionJoinPage(props: {
                     />
                   </label>
                   <div className="cogita-form-actions">
-                    <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                    <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining' || joinBlockedByDuplicate}>
                       {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
                     </button>
                   </div>
-                  {duplicateJoinName ? (
+                  {duplicateNameCandidate ? (
                     <>
-                      <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateJoinName)}</p>
+                      <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateNameCandidate)}</p>
+                      <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
                       <div className="cogita-form-actions">
                         <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
                           {useExistingParticipantLabel(props.language)}
                         </button>
-                        <button type="button" className="ghost" onClick={() => setDuplicateJoinName(null)}>
+                        <button type="button" className="ghost" onClick={() => { setDuplicateJoinName(null); setJoinName(''); }}>
                           {chooseDifferentNameLabel(props.language)}
                         </button>
                       </div>
@@ -1618,18 +1635,19 @@ export function CogitaLiveRevisionJoinPage(props: {
                       />
                     </label>
                     <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                      <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining' || joinBlockedByDuplicate}>
                         {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
                       </button>
                     </div>
-                    {duplicateJoinName ? (
+                    {duplicateNameCandidate ? (
                       <>
-                        <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateJoinName)}</p>
+                        <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateNameCandidate)}</p>
+                        <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
                         <div className="cogita-form-actions">
                           <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
                             {useExistingParticipantLabel(props.language)}
                           </button>
-                          <button type="button" className="ghost" onClick={() => setDuplicateJoinName(null)}>
+                          <button type="button" className="ghost" onClick={() => { setDuplicateJoinName(null); setJoinName(''); }}>
                             {chooseDifferentNameLabel(props.language)}
                           </button>
                         </div>
