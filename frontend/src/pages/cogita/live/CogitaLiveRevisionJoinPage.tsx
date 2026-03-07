@@ -370,6 +370,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? 'active'
         : 'lobby';
   const showJoinPanel = sessionStage === 'lobby' || !participantToken;
+  const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
   const isFirstLogin = !participantToken;
   const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
   const sessionTitle = useMemo(() => {
@@ -1050,7 +1051,6 @@ export function CogitaLiveRevisionJoinPage(props: {
     return { total, rows, bonusTotal, penaltyTotal };
   }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
-  const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
   const asyncProgressByParticipant = useMemo(() => {
     const result = new Map<string, { answeredCount: number; cumulativeScores: number[]; roundsAnswered: number[] }>();
     const history = [...(state?.correctnessHistory ?? [])].sort((left, right) => {
