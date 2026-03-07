@@ -805,7 +805,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   useEffect(() => {
     if (!isAsyncSession || !participantToken || !prompt) return;
     if (!reveal || !timersPaused) return;
-    if (timerPauseSource !== 'intro' && timerPauseSource !== 'score') return;
+    if (showScoreOverlay) return;
+    if (timerPauseSource !== 'intro') return;
 
     setLocalTimerPauseHold(false);
     void (async () => {
@@ -823,7 +824,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         // Ignore reveal resume errors.
       }
     })();
-  }, [code, isAsyncSession, participantToken, prompt, reveal, state?.currentRoundIndex, timerPauseSource, timersPaused]);
+  }, [code, isAsyncSession, participantToken, prompt, reveal, showScoreOverlay, state?.currentRoundIndex, timerPauseSource, timersPaused]);
 
   useEffect(() => {
     if (!participantToken || !isAsyncSession) return;
