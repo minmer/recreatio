@@ -1731,35 +1731,31 @@ export function CogitaStatisticsPanel({
               </div>
 
               <div className="cogita-statistics-carousel-window">
-                <div className="cogita-statistics-carousel-track" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
-                  {modules.map((module) => (
-                    <article key={module.id} className="cogita-statistics-slide">
-                      {module.render(filteredStatisticsContext, {
-                        allParticipantSeries: statisticsContext.participantSeries,
-                        visibleParticipantKeys:
-                          visibleParticipantKeys.size > 0
-                            ? visibleParticipantKeys
-                            : new Set(statisticsContext.participantSeries.map((participant) => participant.key)),
-                        focusedParticipantKey,
-                        onToggleParticipantVisibility: (participantKey) => {
-                          setVisibleParticipantKeys((current) => {
-                            const allKeys = statisticsContext.participantSeries.map((participant) => participant.key);
-                            const base = current.size > 0 ? new Set(current) : new Set(allKeys);
-                            if (base.has(participantKey)) {
-                              base.delete(participantKey);
-                            } else {
-                              base.add(participantKey);
-                            }
-                            return base.size === 0 ? new Set(allKeys) : base;
-                          });
-                        },
-                        onHoverParticipant: (participantKey) => setHoveredParticipantKey(participantKey),
-                        onToggleParticipantFocus: (participantKey) =>
-                          setPinnedParticipantKey((current) => (current === participantKey ? null : participantKey))
-                      })}
-                    </article>
-                  ))}
-                </div>
+                <article className="cogita-statistics-slide">
+                  {currentModule.render(filteredStatisticsContext, {
+                    allParticipantSeries: statisticsContext.participantSeries,
+                    visibleParticipantKeys:
+                      visibleParticipantKeys.size > 0
+                        ? visibleParticipantKeys
+                        : new Set(statisticsContext.participantSeries.map((participant) => participant.key)),
+                    focusedParticipantKey,
+                    onToggleParticipantVisibility: (participantKey) => {
+                      setVisibleParticipantKeys((current) => {
+                        const allKeys = statisticsContext.participantSeries.map((participant) => participant.key);
+                        const base = current.size > 0 ? new Set(current) : new Set(allKeys);
+                        if (base.has(participantKey)) {
+                          base.delete(participantKey);
+                        } else {
+                          base.add(participantKey);
+                        }
+                        return base.size === 0 ? new Set(allKeys) : base;
+                      });
+                    },
+                    onHoverParticipant: (participantKey) => setHoveredParticipantKey(participantKey),
+                    onToggleParticipantFocus: (participantKey) =>
+                      setPinnedParticipantKey((current) => (current === participantKey ? null : participantKey))
+                  })}
+                </article>
               </div>
 
               {hasMultipleSlides ? (

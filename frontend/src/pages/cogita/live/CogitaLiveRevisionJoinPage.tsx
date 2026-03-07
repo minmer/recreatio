@@ -449,6 +449,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const sessionStage =
     state?.status === 'finished' || state?.status === 'closed'
       ? 'finished'
+      : isAsyncSession && Boolean(participantToken)
+        ? 'active'
       : state?.status && state.status !== 'lobby'
         ? 'active'
         : 'lobby';
@@ -1634,7 +1636,7 @@ export function CogitaLiveRevisionJoinPage(props: {
               data-stage={sessionStage}
               data-participant-view={isFirstLogin ? 'login' : 'question'}
             >
-              {isFirstLogin ? (
+              {showJoinPanel ? (
               <div className="cogita-library-panel cogita-live-join-only-panel">
                 <h2 className="cogita-detail-title cogita-live-join-only-title">{sessionTitle}</h2>
                 <div className="cogita-live-join-only-card">
@@ -1669,94 +1671,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                   )}
                   {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 </div>
-              </div>
-              ) : showJoinPanel ? (
-              <div className="cogita-library-panel">
-                <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
-                <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
-                {!participantToken ? (
-                  <>
-                    <label className="cogita-field">
-                      <span>{liveCopy.participantNameLabel}</span>
-                      <input
-                        value={joinName}
-                        onChange={(event) => {
-                          if (duplicateJoinName) setDuplicateJoinName(null);
-                          setJoinName(event.target.value);
-                        }}
-                      />
-                    </label>
-                    {duplicateNameCandidate ? (
-                      <>
-                        <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
-                        <div className="cogita-form-actions">
-                          <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
-                            {useExistingParticipantLabel(props.language)}
-                          </button>
-                          <button type="button" className="ghost" onClick={() => { setDuplicateJoinName(null); setJoinName(''); }}>
-                            {chooseDifferentNameLabel(props.language)}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="cogita-form-actions">
-                        <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
-                          {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <p className="cogita-help">
-                      {liveCopy.joinedWaiting}
-                    </p>
-                    <div className="cogita-form-actions">
-                      <button type="button" className="cta ghost" onClick={clearStoredParticipantData}>
-                        {participantResetLabel(props.language)}
-                      </button>
-                    </div>
-                  </>
-                )}
-                {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
-                {sessionStage === 'lobby' ? (
-                  <>
-                    <p className="cogita-user-kicker">{liveCopy.scoreboardTitle}</p>
-                    <div className="cogita-share-list">
-                      {displayedScoreboard.map((row) => {
-                        const scoreFx = scoreFxByParticipant[row.participantId];
-                        const rowScoring = scoringByParticipant?.[row.participantId];
-                        const factors = Array.isArray(rowScoring?.factors) ? rowScoring.factors.map(String) : [];
-                        const isIncorrect = factors.includes('wrong') || factors.includes('first-wrong');
-                        const isCorrect = !isIncorrect && factors.some((factor) => factor === 'base' || factor === 'first' || factor === 'speed' || factor === 'streak');
-                        const rankState = scoreFx?.rankShift ? (scoreFx.rankShift > 0 ? 'up' : 'down') : undefined;
-                        const flashState = isCorrect ? 'correct' : isIncorrect ? 'incorrect' : undefined;
-                        return (
-                          <div className="cogita-share-row" key={row.participantId} data-flash={flashState} data-rank-change={rankState}>
-                            <div><strong>{row.displayName}</strong></div>
-                            <div className="cogita-share-meta">
-                              {row.score} {liveCopy.scoreUnit}
-                              {isAsyncSession && selfProgressCount > 0 ? (
-                                <span>{` · ${row.comparedAnsweredCount}/${selfProgressCount}`}</span>
-                              ) : null}
-                              {scoreFx?.delta ? (
-                                <span key={`delta:lobby:${row.participantId}:${scoreFx.token}`} className="cogita-score-delta" data-sign={scoreFx.delta > 0 ? 'plus' : 'minus'}>
-                                  {scoreFx.delta > 0 ? ` +${scoreFx.delta}` : ` ${scoreFx.delta}`}
-                                </span>
-                              ) : null}
-                              {rankState ? (
-                                <span key={`rank:lobby:${row.participantId}:${scoreFx?.token ?? 0}`} className="cogita-score-rank" data-rank={rankState}>
-                                  {rankState === 'up' ? ' ↑' : ' ↓'}
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {state && displayedScoreboard.length === 0 ? <p className="cogita-help">{liveCopy.noParticipants}</p> : null}
-                    </div>
-                  </>
-                ) : null}
               </div>
               ) : null}
               {!isFirstLogin && sessionStage !== 'lobby' ? (
@@ -2029,7 +1943,11 @@ export function CogitaLiveRevisionJoinPage(props: {
                   </>
                 ) : (
                   <p className="cogita-help">
-                    {sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.waitingForHostQuestion}
+                    {sessionStage === 'finished'
+                      ? liveCopy.finalScoreTitle
+                      : isAsyncSession
+                        ? liveCopy.loading
+                        : liveCopy.waitingForHostQuestion}
                   </p>
                 )}
                       </>
