@@ -472,20 +472,38 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
             }
             return 0;
           })(),
-        averageFirstBonusPointsPerCorrectAnswer:
-          typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
-          Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
-            ? summary.averageFirstBonusPointsPerCorrectAnswer
-            : 0,
-        averageSpeedBonusPointsPerCorrectAnswer:
-          typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
-          Number.isFinite(summary.averageSpeedBonusPointsPerCorrectAnswer)
-            ? summary.averageSpeedBonusPointsPerCorrectAnswer
-            : 0,
+        averageFirstBonusPointsPerCorrectAnswer: (() => {
+          const value = typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageFirstBonusPointsPerCorrectAnswer)
+              : 0;
+          return value;
+        })(),
+        averageSpeedBonusPointsPerCorrectAnswer: (() => {
+          const explicit = typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageSpeedBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageSpeedBonusPointsPerCorrectAnswer)
+              : 0;
+          if (explicit > 0) return explicit;
+          const avgPoints = typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
+            ? Math.max(0, summary.averagePointsPerCorrectAnswer)
+            : 0;
+          const avgBase = typeof summary?.averageBasePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
+            ? Math.max(0, summary.averageBasePointsPerCorrectAnswer)
+            : 0;
+          const first = typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
+            ? Math.max(0, summary.averageFirstBonusPointsPerCorrectAnswer)
+            : 0;
+          const streak = typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
+            ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
+            : 0;
+          const derived = avgPoints - avgBase - first - streak;
+          return derived > 0 ? derived : 0;
+        })(),
         averageStreakBonusPointsPerCorrectAnswer:
           typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' &&
           Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
-            ? summary.averageStreakBonusPointsPerCorrectAnswer
+            ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
             : 0,
         answerCount: summary?.answerCount ?? points.filter((point) => point.correctness !== null).length,
         correctCount: summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length,
@@ -773,12 +791,37 @@ function renderLineChartModule(
           const ratio = index / yTicks;
           const value = safeMaxY - (safeMaxY - safeMinY) * ratio;
           const y = paddingY + ratio * plotHeight;
+          const yLinePath =
+            metric === 'knowness'
+              ? (() => {
+                  const samples = 24;
+                  const points = Array.from({ length: samples + 1 }, (_, sampleIndex) => {
+                    const t = sampleIndex / samples;
+                    const x = paddingX + t * plotWidth;
+                    const spread = t;
+                    const transformedValue = 50 + (value - 50) * spread;
+                    return { x, y: toY(transformedValue) };
+                  });
+                  return buildLinePath(points);
+                })()
+              : '';
           return (
             <g key={`y-tick-${index}`}>
-              <line x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(120, 170, 220, 0.18)" />
-              <text x={6} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
-                {metric === 'knowness' ? `${formatFloat(value, 1)}%` : formatFloat(value, 0)}
-              </text>
+              {metric === 'knowness' ? (
+                <path d={yLinePath} stroke="rgba(120, 170, 220, 0.18)" fill="none" />
+              ) : (
+                <>
+                  <line x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(120, 170, 220, 0.18)" />
+                  <text x={6} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
+                    {formatFloat(value, 0)}
+                  </text>
+                </>
+              )}
+              {metric === 'knowness' ? (
+                <text x={paddingX + plotWidth + 8} y={toY(value) + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
+                  {`${formatFloat(value, 1)}%`}
+                </text>
+              ) : null}
             </g>
           );
         })}
@@ -1114,10 +1157,13 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             {participants.map((participant) => {
               const correct = toSafeNonNegative(participant.averageCorrectDurationSeconds);
               const wrong = toSafeNonNegative(participant.averageWrongDurationSeconds);
-              const correctWidthRaw = Math.max(0, Math.min(100, (correct / maxValue) * 100));
-              const wrongWidthRaw = Math.max(0, Math.min(100, (wrong / maxValue) * 100));
-              const correctWidth = correct > 0 ? Math.max(2, correctWidthRaw) : 0;
-              const wrongWidth = wrong > 0 ? Math.max(2, wrongWidthRaw) : 0;
+              const correctRatio = maxValue > 0 ? Math.max(0, Math.min(1, correct / maxValue)) : 0;
+              const wrongRatio = maxValue > 0 ? Math.max(0, Math.min(1, wrong / maxValue)) : 0;
+              // Use perceptual scaling so low-but-valid values remain visible despite outliers.
+              const correctWidthRaw = Math.sqrt(correctRatio) * 100;
+              const wrongWidthRaw = Math.sqrt(wrongRatio) * 100;
+              const correctWidth = correct > 0 ? Math.max(8, correctWidthRaw) : 0;
+              const wrongWidth = wrong > 0 ? Math.max(8, wrongWidthRaw) : 0;
               return (
                 <div
                   key={`time-split-${participant.key}`}

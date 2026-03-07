@@ -2988,14 +2988,16 @@
   height: 100%;
   flex: 0 0 auto;
   border-radius: 7px;
+  min-width: 0;
+  box-shadow: inset 0 0 0 1px rgba(9, 22, 38, 0.35);
 }
 
 .cogita-statistics-time-split-fill.is-correct-time {
-  background: rgba(122, 242, 214, 0.72);
+  background: linear-gradient(90deg, rgba(122, 242, 214, 0.9), rgba(122, 242, 214, 0.72));
 }
 
 .cogita-statistics-time-split-fill.is-wrong-time {
-  background: rgba(244, 142, 165, 0.72);
+  background: linear-gradient(90deg, rgba(244, 142, 165, 0.9), rgba(244, 142, 165, 0.72));
 }
 
 .cogita-statistics-time-split-track small {

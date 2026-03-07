@@ -1284,32 +1284,76 @@ export function CogitaLiveRevisionJoinPage(props: {
       }
       return '';
     };
-    const rows: Array<{ key: string; label: string; points: number; reason: string }> = [];
-    if (factors.has('base')) {
-      const basePoints = Math.round(Number((selfRoundScoring as { basePoints?: number }).basePoints ?? liveRules.scoring.baseCorrect));
-      rows.push({ key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: pushReason('base') });
+    const serverBase = Number((selfRoundScoring as { basePoints?: number }).basePoints ?? Number.NaN);
+    const serverFirst = Number((selfRoundScoring as { firstBonusPoints?: number }).firstBonusPoints ?? Number.NaN);
+    const serverSpeed = Number((selfRoundScoring as { speedPoints?: number }).speedPoints ?? Number.NaN);
+    const serverStreak = Number((selfRoundScoring as { streakPoints?: number }).streakPoints ?? Number.NaN);
+    const isCorrect = typeof selfRoundScoring.isCorrect === 'boolean'
+      ? selfRoundScoring.isCorrect
+      : !(factors.has('wrong') || factors.has('first-wrong')) && total >= 0;
+
+    let basePoints =
+      Number.isFinite(serverBase)
+        ? Math.round(serverBase)
+        : (isCorrect ? Math.round(liveRules.scoring.baseCorrect) : 0);
+    let firstPoints =
+      Number.isFinite(serverFirst)
+        ? Math.round(serverFirst)
+        : (factors.has('first') ? Math.round(liveRules.scoring.firstCorrectBonus) : 0);
+    let speedPoints =
+      Number.isFinite(serverSpeed)
+        ? Math.round(serverSpeed)
+        : 0;
+    let streakPoints =
+      Number.isFinite(serverStreak)
+        ? Math.round(serverStreak)
+        : (factors.has('streak')
+          ? streakBonus(
+            liveRules.scoring.streakBaseBonus,
+            Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0))),
+            liveRules.scoring.streakLimit,
+            liveRules.scoring.streakGrowth)
+          : 0);
+    let wrongPoints = factors.has('wrong') ? -Math.round(liveRules.scoring.wrongAnswerPenalty) : 0;
+    let firstWrongPoints = factors.has('first-wrong') ? -Math.round(liveRules.scoring.firstWrongPenalty) : 0;
+
+    // If backend collapsed all points into base, recover configured base and move remainder to bonuses.
+    if (isCorrect && total > 0 && basePoints >= total && total > Math.round(liveRules.scoring.baseCorrect)) {
+      const allBonusesUnknown =
+        !Number.isFinite(serverFirst) &&
+        !Number.isFinite(serverSpeed) &&
+        !Number.isFinite(serverStreak);
+      const allBonusesZero = firstPoints === 0 && speedPoints === 0 && streakPoints === 0;
+      if (allBonusesUnknown || allBonusesZero) {
+        basePoints = Math.round(liveRules.scoring.baseCorrect);
+      }
     }
-    if (factors.has('first')) rows.push({ key: 'first', label: liveCopy.factorFirstLabel, points: liveRules.scoring.firstCorrectBonus, reason: pushReason('first') });
-    if (factors.has('wrong')) rows.push({ key: 'wrong', label: liveCopy.factorWrongLabel, points: -liveRules.scoring.wrongAnswerPenalty, reason: pushReason('wrong') });
-    if (factors.has('first-wrong')) rows.push({ key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty, reason: pushReason('first-wrong') });
-    if (factors.has('streak')) {
-      const streakCount = Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0)));
-      const streakPointsFromServer = Number((selfRoundScoring as { streakPoints?: number }).streakPoints ?? Number.NaN);
-      rows.push({
-        key: 'streak',
-        label: liveCopy.factorStreakLabel,
-        points: Number.isFinite(streakPointsFromServer)
-          ? Math.round(streakPointsFromServer)
-          : streakBonus(liveRules.scoring.streakBaseBonus, streakCount, liveRules.scoring.streakLimit, liveRules.scoring.streakGrowth),
-        reason: pushReason('streak')
-      });
+
+    if (isCorrect) {
+      const known = basePoints + firstPoints + speedPoints + streakPoints;
+      const remainder = total - known;
+      if (remainder !== 0) {
+        speedPoints += remainder;
+      }
+    } else {
+      if (total < 0 && wrongPoints === 0 && firstWrongPoints === 0) {
+        wrongPoints = total;
+      } else {
+        const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
+        if (known !== total) {
+          wrongPoints += total - known;
+        }
+      }
     }
-    const known = rows.reduce((sum, row) => sum + row.points, 0);
-    const speedPointsFromServer = Number((selfRoundScoring as { speedPoints?: number }).speedPoints ?? Number.NaN);
-    const speedValue = Number.isFinite(speedPointsFromServer) ? Math.round(speedPointsFromServer) : total - known;
-    if (factors.has('speed')) {
-      rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: speedValue, reason: pushReason('speed') });
-    }
+
+    const rows = [
+      { key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: pushReason('base') },
+      { key: 'first', label: liveCopy.factorFirstLabel, points: firstPoints, reason: pushReason('first') },
+      { key: 'speed', label: liveCopy.factorSpeedLabel, points: speedPoints, reason: pushReason('speed') },
+      { key: 'streak', label: liveCopy.factorStreakLabel, points: streakPoints, reason: pushReason('streak') },
+      { key: 'wrong', label: liveCopy.factorWrongLabel, points: wrongPoints, reason: pushReason('wrong') },
+      { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: firstWrongPoints, reason: pushReason('first-wrong') }
+    ].filter((row) => row.points !== 0);
     const bonusTotal = rows
       .filter((row) => row.key === 'first' || row.key === 'speed' || row.key === 'streak')
       .reduce((sum, row) => sum + Math.max(0, row.points), 0);
@@ -1524,7 +1568,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     let speedPoints =
       Number.isFinite(serverSpeed)
         ? Math.round(serverSpeed)
-        : (factors.has('speed') ? 0 : 0);
+        : 0;
     let streakPoints =
       Number.isFinite(serverStreak)
         ? Math.round(serverStreak)
@@ -1545,7 +1589,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
     if (known !== total) {
       if (total >= 0) {
-        basePoints += total - known;
+        speedPoints += total - known;
       } else {
         wrongPoints += total - known;
       }
