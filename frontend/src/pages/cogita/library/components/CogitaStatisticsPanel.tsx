@@ -30,8 +30,11 @@ type ParticipantSeries = {
   label: string;
   color: string;
   totalPoints: number;
+  totalDurationSeconds: number;
   averageCorrectness: number;
   averageDurationSeconds: number | null;
+  averageCorrectDurationSeconds: number | null;
+  averageWrongDurationSeconds: number | null;
   averagePointsPerCorrectAnswer: number;
   averageBasePointsPerCorrectAnswer: number;
   averageFirstBonusPointsPerCorrectAnswer: number;
@@ -157,6 +160,28 @@ function formatCount(value: number) {
   return Number.isFinite(value) ? value.toLocaleString() : '0';
 }
 
+function formatDuration(value: number | null) {
+  if (value === null || !Number.isFinite(value) || value < 0) return 'n/a';
+  if (value >= 3600) {
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60)
+      .toString()
+      .padStart(2, '0');
+    const seconds = Math.floor(value % 60)
+      .toString()
+      .padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+  }
+  if (value >= 60) {
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.floor(value % 60)
+      .toString()
+      .padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  }
+  return `${formatFloat(value, 1)} s`;
+}
+
 function normalizeKnownessWords(source: CogitaStatisticsResponse['bestKnownWords'] | CogitaStatisticsResponse['worstKnownWords']) {
   return (source ?? [])
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -266,6 +291,10 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
         label: summary?.label ?? labelByParticipant.get(participantKey) ?? participantKey,
         color: colorByParticipant.get(participantKey) ?? PARTICIPANT_COLORS[0],
         totalPoints: summary?.totalPoints ?? (points.length > 0 ? points[points.length - 1].runningPoints : 0),
+        totalDurationSeconds: points
+          .map((point) => point.durationSeconds)
+          .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0)
+          .reduce((sum, duration) => sum + duration, 0),
         averageCorrectness: summary?.averageCorrectness ?? 0,
         averageDurationSeconds:
           typeof summary?.averageDurationMs === 'number' && Number.isFinite(summary.averageDurationMs)
@@ -276,14 +305,61 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
                   .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
                 return durations.length > 0 ? mean(durations) : null;
               })(),
+        averageCorrectDurationSeconds: (() => {
+          const durations = points
+            .filter((point) => point.correctness !== null && point.correctness >= 0.5)
+            .map((point) => point.durationSeconds)
+            .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
+          return durations.length > 0 ? mean(durations) : null;
+        })(),
+        averageWrongDurationSeconds: (() => {
+          const durations = points
+            .filter((point) => point.correctness !== null && point.correctness < 0.5)
+            .map((point) => point.durationSeconds)
+            .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
+          return durations.length > 0 ? mean(durations) : null;
+        })(),
         averagePointsPerCorrectAnswer:
-          typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
-            ? summary.averagePointsPerCorrectAnswer
-            : 0,
+          (() => {
+            if (typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer) && summary.averagePointsPerCorrectAnswer > 0) {
+              return summary.averagePointsPerCorrectAnswer;
+            }
+            const correctPointAwards = points
+              .filter((point) => (point.correctness ?? 0) >= 0.5)
+              .map((point) => point.pointsAwarded)
+              .filter((value) => Number.isFinite(value) && value > 0);
+            if (correctPointAwards.length > 0) {
+              return mean(correctPointAwards);
+            }
+            const correctCount = summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length;
+            if (correctCount > 0) {
+              const totalPoints = summary?.totalPoints ?? (points.length > 0 ? points[points.length - 1].runningPoints : 0);
+              return Math.max(0, totalPoints / correctCount);
+            }
+            return 0;
+          })(),
         averageBasePointsPerCorrectAnswer:
-          typeof summary?.averageBasePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
-            ? summary.averageBasePointsPerCorrectAnswer
-            : 0,
+          (() => {
+            if (typeof summary?.averageBasePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageBasePointsPerCorrectAnswer) && summary.averageBasePointsPerCorrectAnswer > 0) {
+              return summary.averageBasePointsPerCorrectAnswer;
+            }
+            if (typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer) && summary.averagePointsPerCorrectAnswer > 0) {
+              return summary.averagePointsPerCorrectAnswer;
+            }
+            const correctPointAwards = points
+              .filter((point) => (point.correctness ?? 0) >= 0.5)
+              .map((point) => point.pointsAwarded)
+              .filter((value) => Number.isFinite(value) && value > 0);
+            if (correctPointAwards.length > 0) {
+              return mean(correctPointAwards);
+            }
+            const correctCount = summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length;
+            if (correctCount > 0) {
+              const totalPoints = summary?.totalPoints ?? (points.length > 0 ? points[points.length - 1].runningPoints : 0);
+              return Math.max(0, totalPoints / correctCount);
+            }
+            return 0;
+          })(),
         averageFirstBonusPointsPerCorrectAnswer:
           typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
           Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
@@ -307,6 +383,9 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
     .filter((participant) => participant.points.length > 0 || participant.answerCount > 0);
 
   participantSeries.sort((left, right) => right.totalPoints - left.totalPoints || left.label.localeCompare(right.label));
+  participantSeries.forEach((participant, index) => {
+    participant.color = PARTICIPANT_COLORS[index % PARTICIPANT_COLORS.length];
+  });
 
   const answerEvents: AnswerEventPoint[] = participantSeries.flatMap((participant) =>
     participant.points
@@ -543,16 +622,24 @@ function renderLineChartModule(
     const spread = Math.max(0.1, Math.min(1, answersSeen / maxAnswersForKnownessSpread));
     return 50 + (rawKnowness - 50) * spread;
   };
-  const xValues = source.flatMap((participant) => participant.points.map((point) => point.index));
+  const chartSeries = source.map((participant) => {
+    const answerPoints = participant.points.filter((point) => point.correctness !== null);
+    const basePoints = answerPoints.length > 0 ? answerPoints : participant.points;
+    return {
+      participant,
+      points: basePoints.map((point, answerIndex) => ({
+        x: answerIndex + 1,
+        y:
+          metric === 'knowness'
+            ? normalizeKnownessForDisplay(point.knowness, point.answersSeen)
+            : point.runningPoints
+      }))
+    };
+  });
+  const xValues = chartSeries.flatMap((series) => series.points.map((point) => point.x));
   const minX = xValues.length > 0 ? Math.min(...xValues) : 0;
   const maxX = xValues.length > 0 ? Math.max(...xValues) : 1;
-  const yValues = source.flatMap((participant) =>
-    participant.points.map((point) =>
-      metric === 'knowness'
-        ? normalizeKnownessForDisplay(point.knowness, point.answersSeen)
-        : point.runningPoints
-    )
-  );
+  const yValues = chartSeries.flatMap((series) => series.points.map((point) => point.y));
   const minY = yValues.length > 0 ? Math.min(...yValues) : 0;
   const maxY = yValues.length > 0 ? Math.max(...yValues) : 1;
   const safeMinY = Math.abs(maxY - minY) < 0.001 ? minY - 1 : minY;
@@ -600,14 +687,10 @@ function renderLineChartModule(
             </g>
           );
         })}
-        {source.map((participant) => {
-          const points = participant.points.map((point) => ({
-            x: toX(point.index),
-            y: toY(
-              metric === 'knowness'
-                ? normalizeKnownessForDisplay(point.knowness, point.answersSeen)
-                : point.runningPoints
-            )
+        {chartSeries.map(({ participant, points: seriesPoints }) => {
+          const points = seriesPoints.map((point) => ({
+            x: toX(point.x),
+            y: toY(point.y)
           }));
           const line = buildLinePath(points);
           if (!line) return null;
@@ -635,7 +718,7 @@ function renderLineChartModule(
           );
         })}
       </svg>
-      <p className="cogita-help">{yLabel}</p>
+      <p className="cogita-help">{`${yLabel} X-axis uses answer index (answer #1, #2, #3...).`}</p>
       {renderParticipantLegend(context, controls)}
     </div>
   );
@@ -813,6 +896,72 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     }
   },
   {
+    id: 'response-time-pyramid',
+    title: 'Response time pyramid',
+    subtitle: 'Overall average with per-participant split: correct vs wrong answers.',
+    isAvailable: (context) => context.participantSeries.some((participant) => participant.averageDurationSeconds !== null),
+    render: (context, controls) => {
+      const ranked = getParticipantsInRenderOrder(
+        context.participantSeries
+          .filter((participant) => participant.averageDurationSeconds !== null)
+          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0))
+          .slice(0, 8),
+        controls.focusedParticipantKey
+      );
+      const max = Math.max(1, ...ranked.map((participant) => participant.averageDurationSeconds ?? 0));
+      return (
+        <div className="cogita-statistics-chart-card">
+          <p className="cogita-help">
+            {context.averageDurationSeconds === null
+              ? 'Overall average response time: n/a'
+              : `Overall average response time: ${formatFloat(context.averageDurationSeconds, 2)} s`}
+          </p>
+          <div className="cogita-statistics-pyramid">
+            {ranked.map((participant, index) => {
+              const total = Math.max(0, participant.averageDurationSeconds ?? 0);
+              const widthPercent = 35 + (total / max) * 65;
+              const correct = Math.max(0, participant.averageCorrectDurationSeconds ?? 0);
+              const wrong = Math.max(0, participant.averageWrongDurationSeconds ?? 0);
+              let totalSegments = correct + wrong;
+              if (totalSegments <= 0 && total > 0) {
+                totalSegments = total;
+              }
+              const correctWidth = totalSegments > 0 ? (correct / totalSegments) * 100 : 0;
+              const wrongWidth = totalSegments > 0 ? (wrong / totalSegments) * 100 : 0;
+              return (
+                <div key={`time-pyramid-${participant.key}`} className="cogita-statistics-pyramid-row">
+                  <span className="cogita-statistics-pyramid-rank">#{index + 1}</span>
+                  <div className="cogita-statistics-pyramid-bar-wrap">
+                    <div
+                      className="cogita-statistics-pyramid-bar"
+                      style={{
+                        width: `${widthPercent}%`,
+                        background: 'rgba(10, 28, 50, 0.45)',
+                        opacity: controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.35 : 1
+                      }}
+                    >
+                      <div className="cogita-statistics-pyramid-segments">
+                        <span className="cogita-statistics-pyramid-segment is-correct-time" style={{ width: `${correctWidth}%` }} />
+                        <span className="cogita-statistics-pyramid-segment is-wrong-time" style={{ width: `${wrongWidth}%` }} />
+                      </div>
+                      <span>{participant.label}</span>
+                      <strong>{`${formatFloat(total, 2)} s`}</strong>
+                    </div>
+                    <div className="cogita-statistics-pyramid-details">
+                      <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
+                      <small>{`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {renderParticipantLegend(context, controls)}
+        </div>
+      );
+    }
+  },
+  {
     id: 'participant-bars',
     title: 'Bar chart',
     subtitle: 'Total points per participant.',
@@ -824,7 +973,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       const paddingY = 24;
       const plotWidth = chartWidth - paddingX * 2;
       const plotHeight = chartHeight - paddingY * 2;
-      const participants = getParticipantsInRenderOrder(context.participantSeries.slice(0, 12), controls.focusedParticipantKey);
+      // Keep visual order stable (score/rank order). Focus should not move bars.
+      const participants = context.participantSeries.slice(0, 12);
       const maxValue = Math.max(1, ...participants.map((participant) => participant.totalPoints));
       const columnWidth = participants.length > 0 ? plotWidth / participants.length : plotWidth;
 
@@ -1071,10 +1221,16 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             {ranked.map((participant, index) => {
               const total = Math.max(0, participant.averagePointsPerCorrectAnswer);
               const widthPercent = 35 + (total / max) * 65;
-              const base = Math.max(0, participant.averageBasePointsPerCorrectAnswer);
-              const first = Math.max(0, participant.averageFirstBonusPointsPerCorrectAnswer);
-              const speed = Math.max(0, participant.averageSpeedBonusPointsPerCorrectAnswer);
-              const streak = Math.max(0, participant.averageStreakBonusPointsPerCorrectAnswer);
+              let base = Math.max(0, participant.averageBasePointsPerCorrectAnswer);
+              let first = Math.max(0, participant.averageFirstBonusPointsPerCorrectAnswer);
+              let speed = Math.max(0, participant.averageSpeedBonusPointsPerCorrectAnswer);
+              let streak = Math.max(0, participant.averageStreakBonusPointsPerCorrectAnswer);
+              if (base + first + speed + streak <= 0 && total > 0) {
+                base = total;
+                first = 0;
+                speed = 0;
+                streak = 0;
+              }
               const segmentSum = Math.max(0.0001, base + first + speed + streak);
               const baseWidth = (base / segmentSum) * 100;
               const firstWidth = (first / segmentSum) * 100;
@@ -1206,9 +1362,14 @@ export function CogitaStatisticsPanel({
   loading?: boolean;
   error?: boolean;
 }) {
+  type ScoreboardSortKey = 'score' | 'correctness' | 'totalTime' | 'avgTime' | 'answers' | 'name';
+  type ScoreboardSortDirection = 'asc' | 'desc';
+
   const [state, setState] = useState<CogitaStatisticsResponse | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [slideIndex, setSlideIndex] = useState(0);
+  const [scoreboardSortKey, setScoreboardSortKey] = useState<ScoreboardSortKey>('score');
+  const [scoreboardSortDirection, setScoreboardSortDirection] = useState<ScoreboardSortDirection>('desc');
   const [visibleParticipantKeys, setVisibleParticipantKeys] = useState<Set<string>>(new Set());
   const [hoveredParticipantKey, setHoveredParticipantKey] = useState<string | null>(null);
   const [pinnedParticipantKey, setPinnedParticipantKey] = useState<string | null>(null);
@@ -1290,6 +1451,53 @@ export function CogitaStatisticsPanel({
   }, [statisticsContext, visibleParticipantKeys]);
 
   const focusedParticipantKey = hoveredParticipantKey ?? pinnedParticipantKey;
+  const scoreRankByParticipant = useMemo(() => {
+    if (!statisticsContext) return new Map<string, number>();
+    return new Map(statisticsContext.participantSeries.map((participant, index) => [participant.key, index + 1]));
+  }, [statisticsContext]);
+  const scoreboardRows = useMemo(() => {
+    if (!statisticsContext) return [] as ParticipantSeries[];
+    const rows = [...statisticsContext.participantSeries];
+    const directionFactor = scoreboardSortDirection === 'asc' ? 1 : -1;
+    rows.sort((left, right) => {
+      let compare = 0;
+      switch (scoreboardSortKey) {
+        case 'name':
+          compare = left.label.localeCompare(right.label);
+          break;
+        case 'correctness':
+          compare = left.averageCorrectness - right.averageCorrectness;
+          break;
+        case 'totalTime':
+          compare = left.totalDurationSeconds - right.totalDurationSeconds;
+          break;
+        case 'avgTime':
+          compare = (left.averageDurationSeconds ?? Number.POSITIVE_INFINITY) - (right.averageDurationSeconds ?? Number.POSITIVE_INFINITY);
+          break;
+        case 'answers':
+          compare = left.answerCount - right.answerCount;
+          break;
+        case 'score':
+        default:
+          compare = left.totalPoints - right.totalPoints;
+          break;
+      }
+      if (compare === 0) {
+        compare = left.label.localeCompare(right.label);
+      }
+      return compare * directionFactor;
+    });
+    return rows;
+  }, [statisticsContext, scoreboardSortDirection, scoreboardSortKey]);
+  const setScoreboardSort = (nextKey: ScoreboardSortKey) => {
+    if (scoreboardSortKey === nextKey) {
+      setScoreboardSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setScoreboardSortKey(nextKey);
+    setScoreboardSortDirection(nextKey === 'name' || nextKey === 'totalTime' || nextKey === 'avgTime' ? 'asc' : 'desc');
+  };
+  const scoreSortLabel = scoreboardSortDirection === 'asc' ? 'ascending' : 'descending';
 
   const modules = useMemo(() => {
     if (!filteredStatisticsContext) return [] as StatisticsModule[];
@@ -1435,6 +1643,85 @@ export function CogitaStatisticsPanel({
           ) : (
             <p className="cogita-library-hint">No statistics are currently available for this scope.</p>
           )}
+
+          {statisticsContext.participantSeries.length > 0 ? (
+            <section className="cogita-statistics-table-panel">
+              <div className="cogita-statistics-table-header">
+                <p className="cogita-user-kicker">Participants table</p>
+                <p className="cogita-help">Sort by score, correctness, total time, average time, or answer count.</p>
+              </div>
+              <div className="cogita-statistics-table-grid cogita-statistics-table-grid--head">
+                <span>#</span>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'name' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('name')}
+                >
+                  Participant {scoreboardSortKey === 'name' ? `(${scoreSortLabel})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'score' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('score')}
+                >
+                  Score {scoreboardSortKey === 'score' ? `(${scoreSortLabel})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'correctness' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('correctness')}
+                >
+                  Correctness {scoreboardSortKey === 'correctness' ? `(${scoreSortLabel})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'totalTime' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('totalTime')}
+                >
+                  Total time {scoreboardSortKey === 'totalTime' ? `(${scoreSortLabel})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'avgTime' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('avgTime')}
+                >
+                  Avg time {scoreboardSortKey === 'avgTime' ? `(${scoreSortLabel})` : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`cogita-statistics-sort ${scoreboardSortKey === 'answers' ? 'active' : ''}`}
+                  onClick={() => setScoreboardSort('answers')}
+                >
+                  Answers {scoreboardSortKey === 'answers' ? `(${scoreSortLabel})` : ''}
+                </button>
+              </div>
+              <div className="cogita-statistics-table-body">
+                {scoreboardRows.map((participant) => {
+                  const rank = scoreRankByParticipant.get(participant.key) ?? 0;
+                  return (
+                    <div key={`row-${participant.key}`} className="cogita-statistics-table-grid">
+                      <span className="cogita-statistics-rank-cell">{rank > 0 ? `#${rank}` : '-'}</span>
+                      <span className="cogita-statistics-name-cell">
+                        <i
+                          className="cogita-statistics-table-dot"
+                          style={{
+                            background: participant.color,
+                            boxShadow: `0 0 12px ${participant.color}`
+                          }}
+                        />
+                        <strong title={participant.label}>{participant.label}</strong>
+                      </span>
+                      <span>{formatCount(participant.totalPoints)}</span>
+                      <span>{`${formatFloat(participant.averageCorrectness, 1)}%`}</span>
+                      <span>{formatDuration(participant.totalDurationSeconds)}</span>
+                      <span>{formatDuration(participant.averageDurationSeconds)}</span>
+                      <span>{formatCount(participant.answerCount)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : resolvedStatus === 'error' ? (
         <p className="cogita-library-hint">Failed to load statistics.</p>
