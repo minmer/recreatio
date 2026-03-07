@@ -7920,12 +7920,17 @@ public static class CogitaEndpoints
 
             var isCurrentlyPaused = asyncState.TimerPaused;
             var targetPaused = string.Equals(action, "pause", StringComparison.Ordinal);
+            var source = request.Source?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                source = "manual";
+            }
 
             if (isCurrentlyPaused != targetPaused)
             {
                 var payloadJson = JsonSerializer.Serialize(new Dictionary<string, object?>
                 {
-                    ["source"] = "manual"
+                    ["source"] = source
                 });
                 dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
                 {

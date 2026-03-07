@@ -350,11 +350,13 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [showScoreOverlay, setShowScoreOverlay] = useState(false);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [localTimerPauseHold, setLocalTimerPauseHold] = useState(false);
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const timeoutSubmitKeyRef = useRef<string | null>(null);
   const timeoutNextKeyRef = useRef<string | null>(null);
+  const introTimerSyncRef = useRef<'idle' | 'pause' | 'resume'>('idle');
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -389,7 +391,11 @@ export function CogitaLiveRevisionJoinPage(props: {
     () => `${state?.currentRoundIndex ?? 0}:${String(prompt?.cardKey ?? '')}`,
     [prompt?.cardKey, state?.currentRoundIndex]
   );
-  const timersPaused = isAsyncSession && Boolean((prompt as Record<string, unknown> | null)?.timerPaused);
+  const serverTimerPaused = isAsyncSession && Boolean((prompt as Record<string, unknown> | null)?.timerPaused);
+  const timerPauseSource = typeof (prompt as Record<string, unknown> | null)?.timerPauseSource === 'string'
+    ? String((prompt as Record<string, unknown>).timerPauseSource).toLowerCase()
+    : '';
+  const timersPaused = serverTimerPaused || (isAsyncSession && localTimerPauseHold);
   const roundsLabelResolved = useMemo(() => {
     const count = Math.max(0, Number(state?.currentRoundIndex ?? 0)) + 1;
     return String(liveCopy.roundsLabel ?? '').replace('{count}', String(count));
@@ -474,11 +480,18 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [nowTick, prompt, state?.status]);
 
   useEffect(() => {
+    if (!serverTimerPaused && localTimerPauseHold) {
+      setLocalTimerPauseHold(false);
+    }
+  }, [localTimerPauseHold, serverTimerPaused]);
+
+  useEffect(() => {
     if (sessionStage !== 'active') return;
     if (effectiveQuestionTimer == null && nextQuestionTimer == null && fullSessionTimer == null) return;
+    if (timersPaused) return;
     const id = window.setInterval(() => setNowTick(Date.now()), 100);
     return () => window.clearInterval(id);
-  }, [effectiveQuestionTimer, fullSessionTimer, nextQuestionTimer, sessionStage]);
+  }, [effectiveQuestionTimer, fullSessionTimer, nextQuestionTimer, sessionStage, timersPaused]);
 
   useEffect(() => {
     if (showJoinPanel) {
@@ -613,13 +626,15 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const pauseTimersNow = async () => {
     if (timersPaused) return;
+    setLocalTimerPauseHold(true);
     if (participantToken && isAsyncSession && prompt) {
       try {
         await controlCogitaLiveRevisionTimer({
           code,
           participantToken,
           action: 'pause',
-          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0),
+          source: 'score'
         });
       } catch {
         // Keep UI stable even when pause sync fails.
@@ -636,12 +651,14 @@ export function CogitaLiveRevisionJoinPage(props: {
   const toggleTimersPaused = async () => {
     if (participantToken && isAsyncSession && prompt) {
       const action = timersPaused ? 'resume' : 'pause';
+      setLocalTimerPauseHold(action === 'pause');
       try {
         await controlCogitaLiveRevisionTimer({
           code,
           participantToken,
           action,
-          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0),
+          source: 'manual'
         });
       } catch {
         // Keep UI stable even when pause sync fails.
@@ -658,9 +675,108 @@ export function CogitaLiveRevisionJoinPage(props: {
   useEffect(() => {
     if (!showScoreOverlay) return;
     if (!isAsyncSession) return;
+    if (!reveal) return;
     if (!effectiveQuestionTimer && !nextQuestionTimer && !fullSessionTimer) return;
     void pauseTimersNow();
-  }, [effectiveQuestionTimer, fullSessionTimer, isAsyncSession, nextQuestionTimer, showScoreOverlay]);
+  }, [effectiveQuestionTimer, fullSessionTimer, isAsyncSession, nextQuestionTimer, reveal, showScoreOverlay]);
+
+  useEffect(() => {
+    if (showScoreOverlay) return;
+    if (!isAsyncSession || !participantToken || !prompt) return;
+    if (!timersPaused) return;
+    if (timerPauseSource !== 'score') return;
+
+    setLocalTimerPauseHold(false);
+    void (async () => {
+      try {
+        await controlCogitaLiveRevisionTimer({
+          code,
+          participantToken,
+          action: 'resume',
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0),
+          source: 'score'
+        });
+        const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+        setState(refreshed);
+      } catch {
+        // Ignore resume errors on overlay close.
+      }
+    })();
+  }, [code, isAsyncSession, participantToken, prompt, showScoreOverlay, state?.currentRoundIndex, timerPauseSource, timersPaused]);
+
+  useEffect(() => {
+    if (!participantToken || !isAsyncSession || !prompt || sessionStage !== 'active') return;
+    const roundIndex = Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0);
+
+    if (showIntroPanel) {
+      if (timersPaused || introTimerSyncRef.current === 'pause') return;
+      setLocalTimerPauseHold(true);
+      introTimerSyncRef.current = 'pause';
+      void (async () => {
+        try {
+          await controlCogitaLiveRevisionTimer({
+            code,
+            participantToken,
+            action: 'pause',
+            roundIndex,
+            source: 'intro'
+          });
+          const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+          setState(refreshed);
+        } catch {
+          // Keep UI responsive if intro pause fails.
+        } finally {
+          introTimerSyncRef.current = 'idle';
+        }
+      })();
+      return;
+    }
+
+    if (!showIntroPanel && timersPaused && timerPauseSource === 'intro' && introTimerSyncRef.current !== 'resume') {
+      setLocalTimerPauseHold(false);
+      introTimerSyncRef.current = 'resume';
+      void (async () => {
+        try {
+          await controlCogitaLiveRevisionTimer({
+            code,
+            participantToken,
+            action: 'resume',
+            roundIndex,
+            source: 'intro'
+          });
+          const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+          setState(refreshed);
+        } catch {
+          // Keep UI responsive if intro resume fails.
+        } finally {
+          introTimerSyncRef.current = 'idle';
+        }
+      })();
+    }
+  }, [code, isAsyncSession, participantToken, prompt, sessionStage, showIntroPanel, state?.currentRoundIndex, timerPauseSource, timersPaused]);
+
+  useEffect(() => {
+    if (!isAsyncSession || !participantToken || !prompt) return;
+    if (!reveal || !timersPaused) return;
+    if (timerPauseSource !== 'intro' && timerPauseSource !== 'score') return;
+
+    setLocalTimerPauseHold(false);
+    void (async () => {
+      try {
+        await controlCogitaLiveRevisionTimer({
+          code,
+          participantToken,
+          action: 'resume',
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0),
+          source: 'reveal'
+        });
+        const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken });
+        setState(refreshed);
+      } catch {
+        // Ignore reveal resume errors.
+      }
+    })();
+  }, [code, isAsyncSession, participantToken, prompt, reveal, state?.currentRoundIndex, timerPauseSource, timersPaused]);
 
   useEffect(() => {
     if (!participantToken || !isAsyncSession) return;

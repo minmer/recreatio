@@ -612,7 +612,8 @@ public sealed record CogitaLiveRevisionAnswerSubmitRequest(
 public sealed record CogitaLiveRevisionTimerControlRequest(
     string ParticipantToken,
     string Action,
-    int? RoundIndex
+    int? RoundIndex,
+    string? Source
 );
 
 public sealed record CogitaLiveRevisionHostParticipantCreateRequest(

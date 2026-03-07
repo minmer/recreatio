@@ -1663,6 +1663,7 @@ export function controlCogitaLiveRevisionTimer(payload: {
   participantToken: string;
   action: 'pause' | 'resume';
   roundIndex?: number;
+  source?: string;
 }) {
   return request<{ paused: boolean }>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/timer`,
@@ -1671,7 +1672,8 @@ export function controlCogitaLiveRevisionTimer(payload: {
       body: JSON.stringify({
         participantToken: payload.participantToken,
         action: payload.action,
-        roundIndex: typeof payload.roundIndex === 'number' ? payload.roundIndex : null
+        roundIndex: typeof payload.roundIndex === 'number' ? payload.roundIndex : null,
+        source: payload.source ?? null
       })
     }
   );
