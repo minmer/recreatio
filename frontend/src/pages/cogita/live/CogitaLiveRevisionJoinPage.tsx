@@ -458,10 +458,10 @@ export function CogitaLiveRevisionJoinPage(props: {
       : state?.status && state.status !== 'lobby'
         ? 'active'
         : 'lobby';
-  const showJoinPanel = sessionStage === 'lobby' || !participantToken;
+  const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
+  const showJoinPanel = sessionStage === 'lobby' || !participantToken || hasStoredTokenMismatch;
   const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
   const isFirstLogin = !participantToken;
-  const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
   const sessionTitle = useMemo(() => {
     const rawTitle = (state as { title?: unknown } | null)?.title;
     if (typeof rawTitle === 'string' && rawTitle.trim()) return rawTitle.trim();
@@ -1622,7 +1622,7 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
                 <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
-                {!participantToken ? (
+                {!participantToken || hasStoredTokenMismatch ? (
                   <>
                     <label className="cogita-field">
                       <span>{liveCopy.participantNameLabel}</span>
