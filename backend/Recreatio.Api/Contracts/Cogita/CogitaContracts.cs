@@ -512,7 +512,10 @@ public sealed record CogitaLiveRevisionSessionResponse(
     List<CogitaLiveRevisionReloginRequestResponse> PendingReloginRequests
 );
 
-public sealed record CogitaLiveRevisionJoinRequest(string Name);
+public sealed record CogitaLiveRevisionJoinRequest(
+    string Name,
+    bool UseExistingName = false
+);
 
 public sealed record CogitaLiveRevisionJoinResponse(
     Guid SessionId,

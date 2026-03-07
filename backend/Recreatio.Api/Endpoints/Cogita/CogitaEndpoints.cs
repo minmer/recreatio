@@ -7014,6 +7014,16 @@ public static class CogitaEndpoints
                 .FirstOrDefault(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
             if (existingParticipant is not null)
             {
+                if (!request.UseExistingName)
+                {
+                    return Results.Conflict(new
+                    {
+                        error = "Name is already used in this live session.",
+                        code = "name_already_used",
+                        participantName = name
+                    });
+                }
+
                 var nowApproved = DateTimeOffset.UtcNow;
                 var reloginParticipantToken = GenerateAlphaNumericCode(24);
                 existingParticipant.JoinTokenHash = HashToken(reloginParticipantToken);

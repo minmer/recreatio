@@ -1598,10 +1598,16 @@ export function resetCogitaLiveRevisionSession(payload: {
   );
 }
 
-export function joinCogitaLiveRevision(payload: { code: string; name: string }) {
+export function joinCogitaLiveRevision(payload: { code: string; name: string; useExistingName?: boolean }) {
   return request<CogitaLiveRevisionJoinResponse>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/join`,
-    { method: 'POST', body: JSON.stringify({ name: payload.name }) }
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name,
+        useExistingName: Boolean(payload.useExistingName)
+      })
+    }
   );
 }
 
