@@ -7318,6 +7318,7 @@ public static class CogitaEndpoints
                 JsonElement? currentReveal = null;
                 var now = DateTimeOffset.UtcNow;
                 var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
+                var scoringRules = ParseLiveSessionScoringRules(meta.SessionSettings);
                 if (participant is not null)
                 {
                     var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
@@ -7459,11 +7460,65 @@ public static class CogitaEndpoints
                                 {
                                     revealNode["participantAnswer"] = JsonNode.Parse(participantAnswer.Value.GetRawText());
                                 }
+                                var factorList = new JsonArray();
+                                var basePoints = asyncState.Answer.IsCorrect == true ? Math.Max(0, scoringRules.BaseCorrect) : 0;
+                                if (basePoints > 0)
+                                {
+                                    factorList.Add(JsonValue.Create("base"));
+                                }
+                                var streakCount = 0;
+                                var streakPoints = 0;
+                                var speedPoints = 0;
+                                if (asyncState.Answer.IsCorrect == true)
+                                {
+                                    var streakBefore = 0;
+                                    foreach (var historyEntry in participantAnswers
+                                                 .Where(x => x.RoundIndex < effectiveRoundIndex && x.IsCorrect.HasValue)
+                                                 .OrderByDescending(x => x.RoundIndex))
+                                    {
+                                        if (historyEntry.IsCorrect == true)
+                                        {
+                                            streakBefore++;
+                                        }
+                                        else
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    streakCount = streakBefore + 1;
+                                    streakPoints = ComputeAsyncStreakBonus(
+                                        scoringRules.StreakGrowth,
+                                        scoringRules.StreakBaseBonus,
+                                        streakCount,
+                                        scoringRules.StreakLimit);
+                                    speedPoints = Math.Max(0, asyncState.Answer.PointsAwarded - basePoints - Math.Max(0, streakPoints));
+                                    if (speedPoints > 0)
+                                    {
+                                        factorList.Add(JsonValue.Create("speed"));
+                                    }
+                                    if (streakPoints > 0)
+                                    {
+                                        factorList.Add(JsonValue.Create("streak"));
+                                    }
+                                }
+                                else
+                                {
+                                    factorList.Add(JsonValue.Create("wrong"));
+                                }
+                                var answerDurationSeconds = Math.Max(
+                                    0,
+                                    (int)Math.Round((asyncState.Answer.UpdatedUtc - asyncState.RoundStartedUtc).TotalSeconds));
                                 var participantScoring = new JsonObject
                                 {
                                     ["isCorrect"] = asyncState.Answer.IsCorrect == true,
                                     ["points"] = asyncState.Answer.PointsAwarded,
-                                    ["factors"] = new JsonArray
+                                    ["factors"] = factorList,
+                                    ["basePoints"] = basePoints,
+                                    ["speedPoints"] = speedPoints,
+                                    ["streakPoints"] = streakPoints,
+                                    ["streak"] = streakCount,
+                                    ["answerDurationSeconds"] = answerDurationSeconds,
+                                    ["factorsLegacy"] = new JsonArray
                                     {
                                         JsonValue.Create(asyncState.Answer.IsCorrect == true ? "base" : "wrong")
                                     }
@@ -7537,6 +7592,7 @@ public static class CogitaEndpoints
                                 {
                                     ["isCorrect"] = answer.IsCorrect == true,
                                     ["points"] = answer.PointsAwarded,
+                                    ["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
                                     ["factors"] = new JsonArray
                                     {
                                         JsonValue.Create(answer.IsCorrect == true ? "base" : "wrong")

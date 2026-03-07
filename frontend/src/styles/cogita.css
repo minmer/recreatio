@@ -2315,14 +2315,15 @@
   z-index: 252;
   background: rgba(2, 10, 20, 0.66);
   display: grid;
-  align-items: end;
+  align-items: stretch;
   padding: 0.75rem;
 }
 
 .cogita-live-score-overlay-card {
   width: min(980px, 100%);
   margin: 0 auto;
-  max-height: 78vh;
+  height: calc(100vh - 1.5rem);
+  max-height: calc(100vh - 1.5rem);
   overflow: auto;
   border-radius: 14px;
   border: 1px solid rgba(120, 170, 220, 0.28);

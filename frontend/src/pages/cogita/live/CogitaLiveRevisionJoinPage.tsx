@@ -1179,23 +1179,66 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (!selfRoundScoring) return null;
     const total = Math.round(Number(selfRoundScoring.points ?? 0));
     const factors = new Set((Array.isArray(selfRoundScoring.factors) ? selfRoundScoring.factors : []).map(String));
-    const rows: Array<{ key: string; label: string; points: number }> = [];
-    if (factors.has('base')) rows.push({ key: 'base', label: liveCopy.factorBaseLabel, points: liveRules.scoring.baseCorrect });
-    if (factors.has('first')) rows.push({ key: 'first', label: liveCopy.factorFirstLabel, points: liveRules.scoring.firstCorrectBonus });
-    if (factors.has('wrong')) rows.push({ key: 'wrong', label: liveCopy.factorWrongLabel, points: -liveRules.scoring.wrongAnswerPenalty });
-    if (factors.has('first-wrong')) rows.push({ key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty });
+    const answerDurationSeconds = Math.max(0, Math.round(Number((selfRoundScoring as { answerDurationSeconds?: number }).answerDurationSeconds ?? 0)));
+    const pushReason = (key: string) => {
+      if (key === 'base') {
+        if (props.language === 'pl') return 'za poprawną odpowiedź';
+        if (props.language === 'de') return 'für die richtige Antwort';
+        return 'for a correct answer';
+      }
+      if (key === 'speed') {
+        if (props.language === 'pl') return `za odpowiedź w ${answerDurationSeconds}s`;
+        if (props.language === 'de') return `für die Antwort in ${answerDurationSeconds}s`;
+        return `for answering in ${answerDurationSeconds}s`;
+      }
+      if (key === 'streak') {
+        const streakCount = Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0)));
+        if (props.language === 'pl') return `za serię ${streakCount} poprawnych odpowiedzi`;
+        if (props.language === 'de') return `für eine Serie von ${streakCount} richtigen Antworten`;
+        return `for ${streakCount} correct answers in a row`;
+      }
+      if (key === 'first') {
+        if (props.language === 'pl') return 'za pierwszą poprawną odpowiedź';
+        if (props.language === 'de') return 'für die erste richtige Antwort';
+        return 'for the first correct answer';
+      }
+      if (key === 'wrong') {
+        if (props.language === 'pl') return 'kara za błędną odpowiedź';
+        if (props.language === 'de') return 'Abzug für falsche Antwort';
+        return 'penalty for wrong answer';
+      }
+      if (key === 'first-wrong') {
+        if (props.language === 'pl') return 'dodatkowa kara za pierwszą błędną odpowiedź';
+        if (props.language === 'de') return 'zusätzlicher Abzug für die erste falsche Antwort';
+        return 'extra penalty for first wrong answer';
+      }
+      return '';
+    };
+    const rows: Array<{ key: string; label: string; points: number; reason: string }> = [];
+    if (factors.has('base')) {
+      const basePoints = Math.round(Number((selfRoundScoring as { basePoints?: number }).basePoints ?? liveRules.scoring.baseCorrect));
+      rows.push({ key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: pushReason('base') });
+    }
+    if (factors.has('first')) rows.push({ key: 'first', label: liveCopy.factorFirstLabel, points: liveRules.scoring.firstCorrectBonus, reason: pushReason('first') });
+    if (factors.has('wrong')) rows.push({ key: 'wrong', label: liveCopy.factorWrongLabel, points: -liveRules.scoring.wrongAnswerPenalty, reason: pushReason('wrong') });
+    if (factors.has('first-wrong')) rows.push({ key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty, reason: pushReason('first-wrong') });
     if (factors.has('streak')) {
       const streakCount = Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0)));
+      const streakPointsFromServer = Number((selfRoundScoring as { streakPoints?: number }).streakPoints ?? Number.NaN);
       rows.push({
         key: 'streak',
         label: liveCopy.factorStreakLabel,
-        points: streakBonus(liveRules.scoring.streakBaseBonus, streakCount, liveRules.scoring.streakLimit, liveRules.scoring.streakGrowth)
+        points: Number.isFinite(streakPointsFromServer)
+          ? Math.round(streakPointsFromServer)
+          : streakBonus(liveRules.scoring.streakBaseBonus, streakCount, liveRules.scoring.streakLimit, liveRules.scoring.streakGrowth),
+        reason: pushReason('streak')
       });
     }
     const known = rows.reduce((sum, row) => sum + row.points, 0);
-    const speedValue = total - known;
+    const speedPointsFromServer = Number((selfRoundScoring as { speedPoints?: number }).speedPoints ?? Number.NaN);
+    const speedValue = Number.isFinite(speedPointsFromServer) ? Math.round(speedPointsFromServer) : total - known;
     if (factors.has('speed')) {
-      rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: speedValue });
+      rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: speedValue, reason: pushReason('speed') });
     }
     const bonusTotal = rows
       .filter((row) => row.key === 'first' || row.key === 'speed' || row.key === 'streak')
@@ -1204,7 +1247,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       .filter((row) => row.key === 'wrong' || row.key === 'first-wrong')
       .reduce((sum, row) => sum + Math.abs(Math.min(0, row.points)), 0);
     return { total, rows, bonusTotal, penaltyTotal };
-  }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
+  }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, props.language, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
   const asyncProgressByParticipant = useMemo(() => {
     const result = new Map<string, { answeredCount: number; cumulativeScores: number[]; roundsAnswered: number[] }>();
@@ -1510,6 +1553,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const canShowScoreButton = sessionStage !== 'lobby';
   const canSwitchParticipant = isAsyncSession && Boolean(participantToken);
   const canSubmitPrimary = Boolean(participantToken && prompt?.cardKey) && (revealStep || (!state?.answerSubmitted && !timerExpired));
+  const canToggleNextTimer = revealStep && prompt?.nextQuestionMode === 'timer' && Boolean(nextQuestionTimer);
+  const hasFooterActions = canSubmitPrimary || canToggleNextTimer || canSwitchParticipant || canShowScoreButton;
 
   return (
     <CogitaShell {...props}>
@@ -1876,7 +1921,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                         <div className="cogita-live-round-gain-list">
                           {selfRoundBreakdown.rows.map((row) => (
                             <div className="cogita-live-round-gain-row" key={`gain:${row.key}`}>
-                              <span>{row.label}</span>
+                              <span>{`${row.label}: ${formatPoints(row.points)} ${liveCopy.scoreUnit}.${row.reason ? ` ${row.reason}.` : ''}`}</span>
                               <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
                             </div>
                           ))}
@@ -1907,27 +1952,28 @@ export function CogitaLiveRevisionJoinPage(props: {
               </div>
               ) : null}
             </div>
-            {showSessionFooter ? (
+            {showSessionFooter && hasFooterActions ? (
               <div className="cogita-live-session-footer">
-                <button
-                  type="button"
-                  className="cta"
-                  onClick={() => {
-                    if (revealStep) {
-                      void submitAnswer({ force: true, acknowledgeOnly: true });
-                      return;
-                    }
-                    void submitAnswer();
-                  }}
-                  disabled={!canSubmitPrimary}
-                >
-                  {revealStep
-                    ? liveCopy.nextQuestionAction
-                    : state?.answerSubmitted
-                      ? liveCopy.submitted
-                      : liveCopy.submitAnswer}
-                </button>
-                {revealStep && prompt?.nextQuestionMode === 'timer' && nextQuestionTimer ? (
+                {canSubmitPrimary ? (
+                  <button
+                    type="button"
+                    className="cta"
+                    onClick={() => {
+                      if (revealStep) {
+                        void submitAnswer({ force: true, acknowledgeOnly: true });
+                        return;
+                      }
+                      void submitAnswer();
+                    }}
+                  >
+                    {revealStep
+                      ? liveCopy.nextQuestionAction
+                      : state?.answerSubmitted
+                        ? liveCopy.submitted
+                        : liveCopy.submitAnswer}
+                  </button>
+                ) : null}
+                {canToggleNextTimer ? (
                   <button type="button" className="ghost" onClick={toggleTimersPaused}>
                     {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
                   </button>
