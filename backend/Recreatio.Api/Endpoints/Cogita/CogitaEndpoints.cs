@@ -17220,6 +17220,98 @@ public static class CogitaEndpoints
             return activeSeconds;
         }
 
+        static DateTimeOffset? ComputeSegmentCompletionUtc(
+            int roundIndex,
+            DateTimeOffset startUtc,
+            double requiredActiveSeconds,
+            IReadOnlyList<LiveAsyncTimerControlEvent> events,
+            DateTimeOffset nowUtc)
+        {
+            if (requiredActiveSeconds <= 0d)
+            {
+                return startUtc;
+            }
+
+            if (nowUtc <= startUtc)
+            {
+                return null;
+            }
+
+            var ordered = events
+                .Where(x => x.RoundIndex == roundIndex)
+                .OrderBy(x => x.CreatedUtc)
+                .ToList();
+
+            var paused = false;
+            foreach (var timerEvent in ordered)
+            {
+                if (timerEvent.CreatedUtc > startUtc)
+                {
+                    break;
+                }
+
+                if (string.Equals(timerEvent.Action, "pause", StringComparison.Ordinal))
+                {
+                    paused = true;
+                }
+                else if (string.Equals(timerEvent.Action, "resume", StringComparison.Ordinal))
+                {
+                    paused = false;
+                }
+            }
+
+            var remainingSeconds = requiredActiveSeconds;
+            var cursorUtc = startUtc;
+
+            foreach (var timerEvent in ordered)
+            {
+                if (timerEvent.CreatedUtc <= startUtc)
+                {
+                    continue;
+                }
+
+                if (timerEvent.CreatedUtc > nowUtc)
+                {
+                    break;
+                }
+
+                if (!paused)
+                {
+                    var activeSegmentSeconds = Math.Max(0d, (timerEvent.CreatedUtc - cursorUtc).TotalSeconds);
+                    if (activeSegmentSeconds >= remainingSeconds)
+                    {
+                        return cursorUtc.AddSeconds(remainingSeconds);
+                    }
+
+                    remainingSeconds -= activeSegmentSeconds;
+                }
+
+                if (string.Equals(timerEvent.Action, "pause", StringComparison.Ordinal))
+                {
+                    paused = true;
+                }
+                else if (string.Equals(timerEvent.Action, "resume", StringComparison.Ordinal))
+                {
+                    paused = false;
+                }
+
+                cursorUtc = timerEvent.CreatedUtc;
+            }
+
+            if (paused)
+            {
+                return null;
+            }
+
+            var tailActiveSeconds = Math.Max(0d, (nowUtc - cursorUtc).TotalSeconds);
+            if (tailActiveSeconds >= remainingSeconds)
+            {
+                return cursorUtc.AddSeconds(remainingSeconds);
+            }
+
+            return null;
+        }
+
         var sessionStartUtc = sessionStartedUtc.HasValue && sessionStartedUtc.Value > participantJoinedUtc
             ? sessionStartedUtc.Value
             : participantJoinedUtc;
@@ -17353,7 +17445,13 @@ public static class CogitaEndpoints
                         revealPauseState.PauseStartedUtc);
                 }
 
-                roundCursorUtc = nowUtc;
+                roundCursorUtc = ComputeSegmentCompletionUtc(
+                        index,
+                        revealStartedUtc,
+                        flowRules.NextQuestionSeconds,
+                        timerEvents,
+                        nowUtc)
+                    ?? nowUtc;
                 continue;
             }
 
