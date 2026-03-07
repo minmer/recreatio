@@ -961,6 +961,16 @@ export type CogitaLiveRevisionPublicState = {
   participantToken?: string | null;
 };
 
+export type CogitaLiveRevisionReviewRound = {
+  roundIndex: number;
+  cardKey: string;
+  prompt: unknown;
+  reveal: unknown;
+  participantAnswer?: unknown;
+  isCorrect?: boolean | null;
+  pointsAwarded: number;
+};
+
 export type CogitaPublicRevisionShare = {
   shareId: string;
   revisionId: string;
@@ -1632,6 +1642,15 @@ export function getCogitaLiveRevisionPublicState(payload: { code: string; partic
   if (payload.participantToken) params.set('participantToken', payload.participantToken);
   return request<CogitaLiveRevisionPublicState>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/state${params.toString() ? `?${params.toString()}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaLiveRevisionReview(payload: { code: string; participantToken?: string | null }) {
+  const params = new URLSearchParams();
+  if (payload.participantToken) params.set('participantToken', payload.participantToken);
+  return request<CogitaLiveRevisionReviewRound[]>(
+    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/review${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }

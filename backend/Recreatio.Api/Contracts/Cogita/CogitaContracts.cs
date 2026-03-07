@@ -558,6 +558,16 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     string? ParticipantToken
 );
 
+public sealed record CogitaLiveRevisionReviewRoundResponse(
+    int RoundIndex,
+    string CardKey,
+    JsonElement Prompt,
+    JsonElement Reveal,
+    JsonElement? ParticipantAnswer,
+    bool? IsCorrect,
+    int PointsAwarded
+);
+
 public sealed record CogitaLiveRevisionScoreHistoryPointResponse(
     int RoundIndex,
     DateTimeOffset RecordedUtc,

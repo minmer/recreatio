@@ -7453,6 +7453,12 @@ public static class CogitaEndpoints
                             revealNode["cardKey"] = currentRound.CardKey;
                             if (asyncState.Answer is not null && participantId.HasValue)
                             {
+                                var participantAnswer = ParseJsonNullable(
+                                    UnprotectLiveSessionScopedJson(asyncState.Answer.AnswerJson, dataProtectionProvider, session.Id));
+                                if (participantAnswer.HasValue)
+                                {
+                                    revealNode["participantAnswer"] = JsonNode.Parse(participantAnswer.Value.GetRawText());
+                                }
                                 var participantScoring = new JsonObject
                                 {
                                     ["isCorrect"] = asyncState.Answer.IsCorrect == true,
@@ -7504,6 +7510,50 @@ public static class CogitaEndpoints
                     .AnyAsync(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex, ct);
             }
 
+            JsonElement? currentRevealPayload = ParseJsonNullable(session.CurrentRevealJson);
+            if (participant is not null && currentRevealPayload.HasValue)
+            {
+                var answer = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id && x.RoundIndex == session.CurrentRoundIndex)
+                    .OrderByDescending(x => x.UpdatedUtc)
+                    .FirstOrDefaultAsync(ct);
+                if (answer is not null)
+                {
+                    try
+                    {
+                        var revealNode = JsonNode.Parse(currentRevealPayload.Value.GetRawText()) as JsonObject;
+                        if (revealNode is not null)
+                        {
+                            var participantAnswer = ParseJsonNullable(
+                                UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                            if (participantAnswer.HasValue)
+                            {
+                                revealNode["participantAnswer"] = JsonNode.Parse(participantAnswer.Value.GetRawText());
+                            }
+                            if (answer.IsCorrect.HasValue || answer.PointsAwarded != 0)
+                            {
+                                var scoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
+                                scoring[participant.Id.ToString("D")] = new JsonObject
+                                {
+                                    ["isCorrect"] = answer.IsCorrect == true,
+                                    ["points"] = answer.PointsAwarded,
+                                    ["factors"] = new JsonArray
+                                    {
+                                        JsonValue.Create(answer.IsCorrect == true ? "base" : "wrong")
+                                    }
+                                };
+                                revealNode["roundScoring"] = scoring;
+                            }
+                            currentRevealPayload = JsonNodeToJsonElement(revealNode);
+                        }
+                    }
+                    catch
+                    {
+                        // Keep original reveal payload on parse failures.
+                    }
+                }
+            }
+
             return Results.Ok(new CogitaLiveRevisionPublicStateResponse(
                 session.Id,
                 meta.SessionMode,
@@ -7514,7 +7564,7 @@ public static class CogitaEndpoints
                 session.CurrentRoundIndex,
                 session.RevealVersion,
                 ParseJsonNullable(session.CurrentPromptJson),
-                ParseJsonNullable(session.CurrentRevealJson),
+                currentRevealPayload,
                 scoreboard,
                 scoreHistory,
                 correctnessHistory,
@@ -7523,6 +7573,73 @@ public static class CogitaEndpoints
                 participantName,
                 participantTokenIssued
             ));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/live-revision/{code}/review", async (
+            string code,
+            string? participantToken,
+            IDataProtectionProvider dataProtectionProvider,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var session = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.PublicCodeHash == HashToken(code), ct);
+            if (session is null)
+            {
+                return Results.NotFound();
+            }
+
+            var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+            if (!string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal))
+            {
+                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+            }
+
+            if (string.IsNullOrWhiteSpace(participantToken))
+            {
+                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+            }
+
+            var participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
+            if (participant is null)
+            {
+                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+            }
+
+            var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+            if (rounds.Count == 0)
+            {
+                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+            }
+
+            var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .ToListAsync(ct);
+            var answerByRound = answers
+                .GroupBy(x => x.RoundIndex)
+                .ToDictionary(x => x.Key, x => x.First());
+
+            var response = new List<CogitaLiveRevisionReviewRoundResponse>(rounds.Count);
+            foreach (var round in rounds.OrderBy(x => x.RoundIndex))
+            {
+                answerByRound.TryGetValue(round.RoundIndex, out var answer);
+                var participantAnswer = answer is null
+                    ? null
+                    : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                response.Add(new CogitaLiveRevisionReviewRoundResponse(
+                    round.RoundIndex,
+                    round.CardKey,
+                    JsonNodeToJsonElement(round.Prompt) ?? default,
+                    JsonNodeToJsonElement(round.Reveal) ?? default,
+                    participantAnswer,
+                    answer?.IsCorrect,
+                    answer?.PointsAwarded ?? 0
+                ));
+            }
+
+            return Results.Ok(response);
         }).AllowAnonymous();
 
         group.MapPost("/public/live-revision/{code}/answer", async (
