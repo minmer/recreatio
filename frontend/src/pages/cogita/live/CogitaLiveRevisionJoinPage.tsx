@@ -564,6 +564,24 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
   };
 
+  const pauseTimersNow = async () => {
+    if (timersPausedAtMs != null) return;
+    const tickNow = Date.now();
+    if (participantToken && isAsyncSession && prompt) {
+      try {
+        await controlCogitaLiveRevisionTimer({
+          code,
+          participantToken,
+          action: 'pause',
+          roundIndex: Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0)
+        });
+      } catch {
+        // keep local pause behaviour even when sync fails
+      }
+    }
+    setTimersPausedAtMs(tickNow);
+  };
+
   const toggleTimersPaused = async () => {
     const tickNow = Date.now();
     if (participantToken && isAsyncSession && prompt) {
@@ -587,6 +605,13 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
     setTimersPausedAtMs(tickNow);
   };
+
+  useEffect(() => {
+    if (!showScoreOverlay) return;
+    if (!isAsyncSession) return;
+    if (!effectiveQuestionTimer && !nextQuestionTimer && !fullSessionTimer) return;
+    void pauseTimersNow();
+  }, [effectiveQuestionTimer, fullSessionTimer, isAsyncSession, nextQuestionTimer, showScoreOverlay]);
 
   const toggleSelection = (index: number) => {
     const multiple = Boolean(prompt?.multiple);

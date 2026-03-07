@@ -455,7 +455,7 @@ function renderLineChartModule(context: StatisticsContext, metric: 'knowness' | 
 
   return (
     <div className="cogita-statistics-chart-card">
-      <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
         {Array.from({ length: yTicks + 1 }).map((_, index) => {
           const ratio = index / yTicks;
           const value = safeMaxY - (safeMaxY - safeMinY) * ratio;
@@ -619,7 +619,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
 
       return (
         <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
             <line
               x1={paddingX}
               y1={paddingY + plotHeight}
@@ -686,7 +686,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
 
       return (
         <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
             {transitions.map((transition, index) => {
               const y1 = fromY.get(transition.from) ?? top;
               const y2 = toY.get(transition.to) ?? top;
@@ -771,7 +771,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
 
       return (
         <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
             {Array.from({ length: 5 }).map((_, index) => {
               const ratio = index / 4;
               const y = paddingY + ratio * plotHeight;
@@ -882,7 +882,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
 
       return (
         <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
             {Array.from({ length: 5 }).map((_, index) => {
               const y = paddingY + (index / 4) * plotHeight;
               return <line key={`stream-grid-${index}`} x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(110, 160, 220, 0.12)" />;

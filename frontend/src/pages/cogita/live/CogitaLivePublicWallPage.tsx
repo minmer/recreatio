@@ -522,6 +522,8 @@ export function CogitaLivePublicWallPage({
     [reveal]
   );
   const isSessionFinished = state?.status === 'finished' || state?.status === 'closed';
+  const isAsyncSession = state?.sessionMode === 'asynchronous';
+  const showStatisticsWindow = isSessionFinished || isAsyncSession;
   const podiumRows = useMemo(
     () =>
       [...(state?.scoreboard ?? [])]
@@ -612,7 +614,7 @@ export function CogitaLivePublicWallPage({
         subtitle={liveCopy.hostKicker}
         left={
           <div className="cogita-live-wall-stack">
-            {isSessionFinished ? (
+            {showStatisticsWindow ? (
               <CogitaStatisticsPanel
                 libraryId={`live:${state?.sessionId ?? code}`}
                 scopeType="live-session"
@@ -664,7 +666,7 @@ export function CogitaLivePublicWallPage({
         right={
           <div className="cogita-live-wall-stack">
             <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p>
-            {isSessionFinished && podiumRows.length > 0 ? (
+            {showStatisticsWindow && podiumRows.length > 0 ? (
               <div className="cogita-live-podium-wrap">
                 <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
                   <PodiumFireworksLayer active={status === 'ready' && isSessionFinished} />

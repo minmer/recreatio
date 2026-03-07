@@ -16842,7 +16842,7 @@ public static class CogitaEndpoints
         LiveSessionFlowRules flowRules,
         DateTimeOffset nowUtc)
     {
-        static TimeSpan ComputePausedDurationForRound(
+        static TimeSpan ComputePausedDurationForRoundSegment(
             int roundIndex,
             DateTimeOffset startUtc,
             DateTimeOffset endUtc,
@@ -16928,7 +16928,7 @@ public static class CogitaEndpoints
                 return 0d;
             }
 
-            var paused = ComputePausedDurationForRound(roundIndex, startUtc, endUtc, timerEvents);
+            var paused = ComputePausedDurationForRoundSegment(roundIndex, startUtc, endUtc, timerEvents);
             var active = endUtc - startUtc - paused;
             var activeSeconds = Math.Max(0d, active.TotalSeconds);
             if (flowRules.RoundTimerEnabled)
@@ -17026,9 +17026,20 @@ public static class CogitaEndpoints
 
             if (string.Equals(flowRules.NextQuestionMode, "timer", StringComparison.Ordinal))
             {
-                var autoNextEndsUtc = revealStartedUtc.AddSeconds(flowRules.NextQuestionSeconds);
-                if (nowUtc < autoNextEndsUtc)
+                var acknowledgedDuringReveal = answerRow.UpdatedUtc > answerRow.SubmittedUtc;
+                if (acknowledgedDuringReveal)
                 {
+                    roundCursorUtc = answerRow.UpdatedUtc > revealStartedUtc ? answerRow.UpdatedUtc : revealStartedUtc;
+                    continue;
+                }
+
+                var revealActiveSeconds = Math.Max(
+                    0d,
+                    (nowUtc - revealStartedUtc - ComputePausedDurationForRoundSegment(index, revealStartedUtc, nowUtc, timerEvents)).TotalSeconds);
+                if (revealActiveSeconds < flowRules.NextQuestionSeconds)
+                {
+                    var revealRemainingSeconds = Math.Max(0d, flowRules.NextQuestionSeconds - revealActiveSeconds);
+                    var autoNextEndsUtc = nowUtc.AddSeconds(revealRemainingSeconds);
                     return new LiveAsyncParticipantState(
                         index,
                         "reveal",
@@ -17042,7 +17053,7 @@ public static class CogitaEndpoints
                         answerRow);
                 }
 
-                roundCursorUtc = autoNextEndsUtc;
+                roundCursorUtc = nowUtc;
                 continue;
             }
 
