@@ -1451,44 +1451,119 @@ export function CogitaLiveRevisionJoinPage(props: {
   const reviewRoundScoring = useMemo(() => {
     if (!reviewReveal || typeof reviewReveal !== 'object' || !selfParticipantId) return null;
     const roundScoring =
-      (reviewReveal.roundScoring as Record<string, { points?: number; factors?: string[]; streak?: number; basePoints?: number; speedPoints?: number; streakPoints?: number }> | undefined) ?? null;
+      (reviewReveal.roundScoring as Record<string, {
+        isCorrect?: boolean;
+        points?: number;
+        factors?: string[];
+        streak?: number;
+        basePoints?: number;
+        firstBonusPoints?: number;
+        speedPoints?: number;
+        streakPoints?: number;
+        answerDurationSeconds?: number;
+      }> | undefined) ?? null;
     return roundScoring ? roundScoring[selfParticipantId] ?? null : null;
   }, [reviewReveal, selfParticipantId]);
-  const reviewRoundRows = useMemo(() => {
-    if (!reviewRoundScoring) return [] as Array<{ key: string; label: string; points: number }>;
-    const factors = new Set((Array.isArray(reviewRoundScoring.factors) ? reviewRoundScoring.factors : []).map(String));
-    const rows: Array<{ key: string; label: string; points: number }> = [];
-    if (factors.has('base')) {
-      rows.push({
-        key: 'base',
-        label: liveCopy.factorBaseLabel,
-        points: Math.round(Number(reviewRoundScoring.basePoints ?? liveRules.scoring.baseCorrect))
-      });
+  const reviewRoundBreakdown = useMemo(() => {
+    if (!reviewRound) return null as null | { total: number; rows: Array<{ key: string; label: string; points: number; reason: string }> };
+    const total = Math.round(Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0));
+    const factors = new Set((Array.isArray(reviewRoundScoring?.factors) ? reviewRoundScoring?.factors : []).map(String));
+    const answerDurationSeconds = Math.max(0, Math.round(Number(reviewRoundScoring?.answerDurationSeconds ?? 0)));
+    const isCorrect = typeof reviewRoundScoring?.isCorrect === 'boolean'
+      ? reviewRoundScoring.isCorrect
+      : (typeof reviewRound.isCorrect === 'boolean' ? reviewRound.isCorrect : null);
+
+    const reason = (key: string) => {
+      if (key === 'base') {
+        if (props.language === 'pl') return 'za poprawną odpowiedź';
+        if (props.language === 'de') return 'für die richtige Antwort';
+        return 'for a correct answer';
+      }
+      if (key === 'first') {
+        if (props.language === 'pl') return 'za pierwszą poprawną odpowiedź';
+        if (props.language === 'de') return 'für die erste richtige Antwort';
+        return 'for the first correct answer';
+      }
+      if (key === 'speed') {
+        if (props.language === 'pl') return `za odpowiedź w ${answerDurationSeconds}s`;
+        if (props.language === 'de') return `für die Antwort in ${answerDurationSeconds}s`;
+        return `for answering in ${answerDurationSeconds}s`;
+      }
+      if (key === 'streak') {
+        const streakCount = Math.max(0, Math.round(Number(reviewRoundScoring?.streak ?? 0)));
+        if (props.language === 'pl') return `za serię ${streakCount} poprawnych odpowiedzi`;
+        if (props.language === 'de') return `für eine Serie von ${streakCount} richtigen Antworten`;
+        return `for ${streakCount} correct answers in a row`;
+      }
+      if (key === 'wrong') {
+        if (props.language === 'pl') return 'kara za błędną odpowiedź';
+        if (props.language === 'de') return 'Abzug für falsche Antwort';
+        return 'penalty for wrong answer';
+      }
+      if (key === 'first-wrong') {
+        if (props.language === 'pl') return 'dodatkowa kara za pierwszą błędną odpowiedź';
+        if (props.language === 'de') return 'zusätzlicher Abzug für die erste falsche Antwort';
+        return 'extra penalty for first wrong answer';
+      }
+      return '';
+    };
+
+    const serverBase = Number(reviewRoundScoring?.basePoints ?? Number.NaN);
+    const serverFirst = Number(reviewRoundScoring?.firstBonusPoints ?? Number.NaN);
+    const serverSpeed = Number(reviewRoundScoring?.speedPoints ?? Number.NaN);
+    const serverStreak = Number(reviewRoundScoring?.streakPoints ?? Number.NaN);
+
+    let basePoints =
+      Number.isFinite(serverBase)
+        ? Math.round(serverBase)
+        : (factors.has('base') || isCorrect === true ? Math.round(liveRules.scoring.baseCorrect) : 0);
+    let firstPoints =
+      Number.isFinite(serverFirst)
+        ? Math.round(serverFirst)
+        : (factors.has('first') ? Math.round(liveRules.scoring.firstCorrectBonus) : 0);
+    let speedPoints =
+      Number.isFinite(serverSpeed)
+        ? Math.round(serverSpeed)
+        : (factors.has('speed') ? 0 : 0);
+    let streakPoints =
+      Number.isFinite(serverStreak)
+        ? Math.round(serverStreak)
+        : (factors.has('streak')
+            ? streakBonus(
+              liveRules.scoring.streakBaseBonus,
+              Math.max(0, Math.round(Number(reviewRoundScoring?.streak ?? 0))),
+              liveRules.scoring.streakLimit,
+              liveRules.scoring.streakGrowth)
+            : 0);
+    let wrongPoints = factors.has('wrong') ? -Math.round(liveRules.scoring.wrongAnswerPenalty) : 0;
+    let firstWrongPoints = factors.has('first-wrong') ? -Math.round(liveRules.scoring.firstWrongPenalty) : 0;
+
+    if (isCorrect === false && total < 0 && wrongPoints === 0 && firstWrongPoints === 0) {
+      wrongPoints = total;
     }
-    if (factors.has('first')) {
-      rows.push({ key: 'first', label: liveCopy.factorFirstLabel, points: Math.round(liveRules.scoring.firstCorrectBonus) });
+
+    const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
+    if (known !== total) {
+      if (total >= 0) {
+        basePoints += total - known;
+      } else {
+        wrongPoints += total - known;
+      }
     }
-    if (factors.has('speed')) {
-      const rawSpeed = Number(reviewRoundScoring.speedPoints ?? 0);
-      rows.push({ key: 'speed', label: liveCopy.factorSpeedLabel, points: Math.round(Number.isFinite(rawSpeed) ? rawSpeed : 0) });
-    }
-    if (factors.has('streak')) {
-      const streakCount = Math.max(0, Math.round(Number(reviewRoundScoring.streak ?? 0)));
-      const fromServer = Number(reviewRoundScoring.streakPoints ?? Number.NaN);
-      rows.push({
-        key: 'streak',
-        label: `${liveCopy.factorStreakLabel}${streakCount > 0 ? ` (${liveCopy.streakLabel} ${streakCount})` : ''}`,
-        points: Math.round(Number.isFinite(fromServer) ? fromServer : streakBonus(liveRules.scoring.streakBaseBonus, streakCount, liveRules.scoring.streakLimit, liveRules.scoring.streakGrowth))
-      });
-    }
-    if (factors.has('wrong')) {
-      rows.push({ key: 'wrong', label: liveCopy.factorWrongLabel, points: -Math.round(liveRules.scoring.wrongAnswerPenalty) });
-    }
-    if (factors.has('first-wrong')) {
-      rows.push({ key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -Math.round(liveRules.scoring.firstWrongPenalty) });
-    }
-    return rows;
+
+    return {
+      total,
+      rows: [
+        { key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: reason('base') },
+        { key: 'first', label: liveCopy.factorFirstLabel, points: firstPoints, reason: reason('first') },
+        { key: 'speed', label: liveCopy.factorSpeedLabel, points: speedPoints, reason: reason('speed') },
+        { key: 'streak', label: liveCopy.factorStreakLabel, points: streakPoints, reason: reason('streak') },
+        { key: 'wrong', label: liveCopy.factorWrongLabel, points: wrongPoints, reason: reason('wrong') },
+        { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: firstWrongPoints, reason: reason('first-wrong') }
+      ]
+    };
   }, [
+    reviewRound,
     reviewRoundScoring,
     liveCopy.factorBaseLabel,
     liveCopy.factorFirstLabel,
@@ -1503,7 +1578,8 @@ export function CogitaLiveRevisionJoinPage(props: {
     liveRules.scoring.streakBaseBonus,
     liveRules.scoring.streakGrowth,
     liveRules.scoring.streakLimit,
-    liveRules.scoring.wrongAnswerPenalty
+    liveRules.scoring.wrongAnswerPenalty,
+    props.language
   ]);
   const reviewEvaluation = useMemo(
     () => evaluatePromptAnswer(reviewPrompt, reviewExpected, reviewAnswer),
@@ -1872,14 +1948,14 @@ export function CogitaLiveRevisionJoinPage(props: {
                                   onMatchingRemovePath={() => undefined}
                                 />
                               </CogitaCheckcardSurface>
-                              {reviewRoundRows.length > 0 ? (
+                              {reviewRoundBreakdown ? (
                                 <div className="cogita-live-round-gain">
                                   <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
-                                  <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                  <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundBreakdown.total ?? reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
                                   <div className="cogita-live-round-gain-list">
-                                    {reviewRoundRows.map((row) => (
+                                    {reviewRoundBreakdown.rows.map((row) => (
                                       <div className="cogita-live-round-gain-row" key={`review-row:${reviewRound.roundIndex}:${row.key}`}>
-                                        <span>{row.label}</span>
+                                        <span>{`${row.label}${row.reason ? ` • ${row.reason}` : ''}`}</span>
                                         <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
                                       </div>
                                     ))}

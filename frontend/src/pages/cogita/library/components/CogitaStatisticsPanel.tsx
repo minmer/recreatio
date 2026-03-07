@@ -713,8 +713,28 @@ function renderLineChartModule(
   const yValues = chartSeries.flatMap((series) => series.points.map((point) => point.y));
   const minY = yValues.length > 0 ? Math.min(...yValues) : 0;
   const maxY = yValues.length > 0 ? Math.max(...yValues) : 1;
-  const safeMinY = metric === 'knowness' ? 0 : Math.abs(maxY - minY) < 0.001 ? minY - 1 : minY;
-  const safeMaxY = metric === 'knowness' ? 100 : Math.abs(maxY - minY) < 0.001 ? maxY + 1 : maxY;
+  const safeMinY =
+    metric === 'knowness'
+      ? (() => {
+          if (yValues.length === 0) return 0;
+          const span = Math.max(2, maxY - minY);
+          const padding = Math.max(2, span * 0.08);
+          return Math.max(0, minY - padding);
+        })()
+      : Math.abs(maxY - minY) < 0.001
+        ? minY - 1
+        : minY;
+  const safeMaxY =
+    metric === 'knowness'
+      ? (() => {
+          if (yValues.length === 0) return 100;
+          const span = Math.max(2, maxY - minY);
+          const padding = Math.max(2, span * 0.08);
+          return Math.min(100, maxY + padding);
+        })()
+      : Math.abs(maxY - minY) < 0.001
+        ? maxY + 1
+        : maxY;
 
   const toX = (value: number) => {
     if (Math.abs(maxX - minX) < 0.001) return paddingX + plotWidth / 2;
@@ -726,8 +746,27 @@ function renderLineChartModule(
     return paddingY + (1 - normalized) * plotHeight;
   };
 
-  const yTicks = metric === 'knowness' ? 10 : 5;
-  const xTicks = 5;
+  const yTicks = metric === 'knowness' ? 8 : 5;
+  const xTickValues = (() => {
+    if (maxX <= minX) return [minX];
+    const span = maxX - minX;
+    if (span <= 20) {
+      return Array.from({ length: span + 1 }, (_, i) => minX + i);
+    }
+    const targetTicks = 9;
+    const roughStep = Math.max(1, span / targetTicks);
+    const normalized = Math.pow(10, Math.floor(Math.log10(roughStep)));
+    const candidates = [1, 2, 5, 10].map((base) => base * normalized);
+    const step = candidates.find((candidate) => candidate >= roughStep) ?? candidates[candidates.length - 1];
+    const values: number[] = [];
+    let current = minX;
+    while (current <= maxX) {
+      values.push(current);
+      current += step;
+    }
+    if (values[values.length - 1] !== maxX) values.push(maxX);
+    return values;
+  })();
 
   return (
     <div className="cogita-statistics-chart-card">
@@ -739,18 +778,17 @@ function renderLineChartModule(
           return (
             <g key={`y-tick-${index}`}>
               <line x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(120, 170, 220, 0.18)" />
-              <text x={8} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
-                {formatFloat(value, metric === 'knowness' ? 1 : 0)}
+              <text x={6} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
+                {metric === 'knowness' ? `${formatFloat(value, 1)}%` : formatFloat(value, 0)}
               </text>
             </g>
           );
         })}
-        {Array.from({ length: xTicks + 1 }).map((_, index) => {
-          const ratio = index / xTicks;
-          const value = minX + (maxX - minX) * ratio;
+        {xTickValues.map((value, index) => {
+          const ratio = maxX === minX ? 0 : (value - minX) / (maxX - minX);
           const x = paddingX + ratio * plotWidth;
           return (
-            <g key={`x-tick-${index}`}>
+            <g key={`x-tick-${value}-${index}`}>
               <line x1={x} y1={paddingY} x2={x} y2={paddingY + plotHeight} stroke="rgba(120, 170, 220, 0.12)" />
               <text x={x - 8} y={chartHeight - 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
                 {formatFloat(value, 0)}
@@ -973,11 +1011,19 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       const ranked = getParticipantsInRenderOrder(
         context.participantSeries
           .filter((participant) => participant.averageDurationSeconds !== null)
-          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0))
-          .slice(0, 8),
+          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0)),
         controls.focusedParticipantKey
       );
-      const max = Math.max(1, ...ranked.map((participant) => participant.averageDurationSeconds ?? 0));
+      const maxSide = Math.max(
+        1,
+        ...ranked.map((participant) =>
+          Math.max(
+            0,
+            participant.averageCorrectDurationSeconds ?? 0,
+            participant.averageWrongDurationSeconds ?? 0
+          )
+        )
+      );
       return (
         <div className="cogita-statistics-chart-card">
           <p className="cogita-help">
@@ -985,38 +1031,45 @@ const STATISTICS_MODULES: StatisticsModule[] = [
               ? 'Overall average response time: n/a'
               : `Overall average response time: ${formatFloat(context.averageDurationSeconds, 2)} s`}
           </p>
-          <div className="cogita-statistics-pyramid">
+          <div className="cogita-statistics-time-pyramid">
             {ranked.map((participant, index) => {
               const total = Math.max(0, participant.averageDurationSeconds ?? 0);
-              const widthPercent = 35 + (total / max) * 65;
               const correct = Math.max(0, participant.averageCorrectDurationSeconds ?? 0);
               const wrong = Math.max(0, participant.averageWrongDurationSeconds ?? 0);
-              let totalSegments = correct + wrong;
-              if (totalSegments <= 0 && total > 0) {
-                totalSegments = total;
-              }
-              const correctWidth = totalSegments > 0 ? (correct / totalSegments) * 100 : 0;
-              const wrongWidth = totalSegments > 0 ? (wrong / totalSegments) * 100 : 0;
+              const correctWidth = Math.max(0, Math.min(100, (correct / maxSide) * 100));
+              const wrongWidth = Math.max(0, Math.min(100, (wrong / maxSide) * 100));
               return (
-                <div key={`time-pyramid-${participant.key}`} className="cogita-statistics-pyramid-row">
+                <div
+                  key={`time-pyramid-${participant.key}`}
+                  className="cogita-statistics-time-pyramid-row"
+                  style={{
+                    opacity: controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.35 : 1
+                  }}
+                >
                   <span className="cogita-statistics-pyramid-rank">#{index + 1}</span>
-                  <div className="cogita-statistics-pyramid-bar-wrap">
-                    <div
-                      className="cogita-statistics-pyramid-bar"
-                      style={{
-                        width: `${widthPercent}%`,
-                        background: 'rgba(10, 28, 50, 0.45)',
-                        opacity: controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.35 : 1
-                      }}
-                    >
-                      <div className="cogita-statistics-pyramid-segments">
-                        <span className="cogita-statistics-pyramid-segment is-correct-time" style={{ width: `${correctWidth}%` }} />
-                        <span className="cogita-statistics-pyramid-segment is-wrong-time" style={{ width: `${wrongWidth}%` }} />
-                      </div>
+                  <div className="cogita-statistics-time-pyramid-main">
+                    <div className="cogita-statistics-time-pyramid-head">
                       <span>{participant.label}</span>
                       <strong>{`${formatFloat(total, 2)} s`}</strong>
                     </div>
-                    <div className="cogita-statistics-pyramid-details">
+                    <div className="cogita-statistics-time-pyramid-axis">
+                      <div className="cogita-statistics-time-pyramid-half is-left">
+                        <span
+                          className="cogita-statistics-time-pyramid-fill is-wrong-time"
+                          style={{ width: `${wrongWidth}%` }}
+                          title={`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}
+                        />
+                      </div>
+                      <span className="cogita-statistics-time-pyramid-center" />
+                      <div className="cogita-statistics-time-pyramid-half is-right">
+                        <span
+                          className="cogita-statistics-time-pyramid-fill is-correct-time"
+                          style={{ width: `${correctWidth}%` }}
+                          title={`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}
+                        />
+                      </div>
+                    </div>
+                    <div className="cogita-statistics-pyramid-details cogita-statistics-time-pyramid-details">
                       <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
                       <small>{`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
                     </div>
@@ -1061,8 +1114,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             {participants.map((participant) => {
               const correct = Math.max(0, participant.averageCorrectDurationSeconds ?? 0);
               const wrong = Math.max(0, participant.averageWrongDurationSeconds ?? 0);
-              const correctWidth = (correct / maxValue) * 100;
-              const wrongWidth = (wrong / maxValue) * 100;
+              const correctWidth = Math.max(0, Math.min(100, (correct / maxValue) * 100));
+              const wrongWidth = Math.max(0, Math.min(100, (wrong / maxValue) * 100));
               return (
                 <div
                   key={`time-split-${participant.key}`}
@@ -1072,24 +1125,33 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                       controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.34 : 1
                   }}
                 >
-                  <strong title={participant.label}>{participant.label}</strong>
-                  <div className="cogita-statistics-time-split-bars">
-                    <span className="cogita-statistics-time-split-label">Correct</span>
-                    <div className="cogita-statistics-time-split-track">
-                      <div
-                        className="cogita-statistics-time-split-fill is-correct-time"
-                        style={{ width: `${correctWidth}%` }}
-                      />
-                      <small>{correct > 0 ? `${formatFloat(correct, 2)} s` : 'n/a'}</small>
+                  <div className="cogita-statistics-time-split-head">
+                    <strong title={participant.label}>{participant.label}</strong>
+                  </div>
+                  <div className="cogita-statistics-time-split-axis">
+                    <div className="cogita-statistics-time-pyramid-half is-left">
+                      <div className="cogita-statistics-time-split-track is-left">
+                        <div
+                          className="cogita-statistics-time-split-fill is-wrong-time"
+                          style={{ width: `${wrongWidth}%` }}
+                        />
+                        <small>{wrong > 0 ? `${formatFloat(wrong, 2)} s` : 'n/a'}</small>
+                      </div>
                     </div>
-                    <span className="cogita-statistics-time-split-label">Wrong</span>
-                    <div className="cogita-statistics-time-split-track">
-                      <div
-                        className="cogita-statistics-time-split-fill is-wrong-time"
-                        style={{ width: `${wrongWidth}%` }}
-                      />
-                      <small>{wrong > 0 ? `${formatFloat(wrong, 2)} s` : 'n/a'}</small>
+                    <span className="cogita-statistics-time-pyramid-center" />
+                    <div className="cogita-statistics-time-pyramid-half is-right">
+                      <div className="cogita-statistics-time-split-track is-right">
+                        <div
+                          className="cogita-statistics-time-split-fill is-correct-time"
+                          style={{ width: `${correctWidth}%` }}
+                        />
+                        <small>{correct > 0 ? `${formatFloat(correct, 2)} s` : 'n/a'}</small>
+                      </div>
                     </div>
+                  </div>
+                  <div className="cogita-statistics-time-split-details">
+                    <small>{`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
+                    <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
                   </div>
                 </div>
               );

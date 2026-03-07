@@ -2874,6 +2874,79 @@
   gap: 0.55rem;
 }
 
+.cogita-statistics-time-pyramid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cogita-statistics-time-pyramid-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.cogita-statistics-time-pyramid-main {
+  border: 1px solid rgba(120, 170, 220, 0.2);
+  border-radius: 10px;
+  background: rgba(5, 15, 28, 0.66);
+  padding: 0.45rem 0.6rem 0.4rem;
+  display: grid;
+  gap: 0.34rem;
+}
+
+.cogita-statistics-time-pyramid-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: rgba(233, 244, 255, 0.97);
+  font-size: 0.85rem;
+}
+
+.cogita-statistics-time-pyramid-axis,
+.cogita-statistics-time-split-axis {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cogita-statistics-time-pyramid-half {
+  height: 1.1rem;
+  display: flex;
+}
+
+.cogita-statistics-time-pyramid-half.is-left {
+  justify-content: flex-end;
+}
+
+.cogita-statistics-time-pyramid-half.is-right {
+  justify-content: flex-start;
+}
+
+.cogita-statistics-time-pyramid-fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+}
+
+.cogita-statistics-time-pyramid-fill.is-correct-time {
+  background: rgba(122, 242, 214, 0.72);
+}
+
+.cogita-statistics-time-pyramid-fill.is-wrong-time {
+  background: rgba(244, 142, 165, 0.72);
+}
+
+.cogita-statistics-time-pyramid-center {
+  width: 2px;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: rgba(188, 214, 244, 0.48);
+}
+
 .cogita-statistics-time-split-row {
   border: 1px solid rgba(120, 170, 220, 0.2);
   border-radius: 10px;
@@ -2883,25 +2956,12 @@
   gap: 0.4rem;
 }
 
-.cogita-statistics-time-split-row > strong {
+.cogita-statistics-time-split-head > strong {
   color: rgba(233, 244, 255, 0.97);
   font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.cogita-statistics-time-split-bars {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.35rem 0.55rem;
-  align-items: center;
-}
-
-.cogita-statistics-time-split-label {
-  color: rgba(191, 214, 238, 0.84);
-  font-size: 0.76rem;
-  min-width: 52px;
 }
 
 .cogita-statistics-time-split-track {
@@ -2911,14 +2971,23 @@
   border: 1px solid rgba(120, 170, 220, 0.2);
   background: rgba(9, 23, 40, 0.72);
   overflow: hidden;
-  display: grid;
+  display: flex;
   align-items: center;
 }
 
+.cogita-statistics-time-split-track.is-left {
+  justify-content: flex-end;
+}
+
+.cogita-statistics-time-split-track.is-right {
+  justify-content: flex-start;
+}
+
 .cogita-statistics-time-split-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
+  position: relative;
   height: 100%;
+  flex: 0 0 auto;
+  border-radius: 7px;
 }
 
 .cogita-statistics-time-split-fill.is-correct-time {
@@ -2930,11 +2999,32 @@
 }
 
 .cogita-statistics-time-split-track small {
-  position: relative;
+  position: absolute;
   z-index: 1;
   color: rgba(232, 244, 255, 0.95);
   padding: 0 0.45rem;
   font-size: 0.76rem;
+}
+
+.cogita-statistics-time-split-track.is-left small {
+  left: 0;
+}
+
+.cogita-statistics-time-split-track.is-right small {
+  right: 0;
+}
+
+.cogita-statistics-time-split-details,
+.cogita-statistics-time-pyramid-details {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.cogita-statistics-time-split-details small,
+.cogita-statistics-time-pyramid-details small {
+  color: rgba(182, 208, 236, 0.84);
+  font-size: 0.72rem;
 }
 
 .cogita-statistics-table-panel {

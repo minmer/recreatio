@@ -7494,6 +7494,7 @@ public static class CogitaEndpoints
                             await AppendLiveRoundAnswerDistributionAsync(
                                 session.Id,
                                 effectiveRoundIndex,
+                                currentRound.CardKey,
                                 currentRound.Prompt,
                                 revealNode,
                                 dataProtectionProvider,
@@ -7628,6 +7629,7 @@ public static class CogitaEndpoints
                         await AppendLiveRoundAnswerDistributionAsync(
                             session.Id,
                             session.CurrentRoundIndex,
+                            promptNode["cardKey"]?.GetValue<string>()?.Trim(),
                             promptNode,
                             syncRevealNode,
                             dataProtectionProvider,
@@ -7752,18 +7754,74 @@ public static class CogitaEndpoints
                 .GroupBy(x => x.RoundIndex)
                 .ToDictionary(x => x.Key, x => x.First());
 
+            var scoreEvents = await dbContext.CogitaStatisticEvents.AsNoTracking()
+                .Where(x => x.SessionId == session.Id &&
+                            x.ParticipantId == participant.Id &&
+                            x.EventType == "live_answer_scored")
+                .OrderByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+            var scoreEventByRoundAndCard = scoreEvents
+                .GroupBy(x => (RoundIndex: x.RoundIndex ?? 0, CardKey: (x.CardKey ?? string.Empty).Trim()))
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderByDescending(x => x.CreatedUtc).First());
+
             var response = new List<CogitaLiveRevisionReviewRoundResponse>(rounds.Count);
             foreach (var round in rounds.OrderBy(x => x.RoundIndex))
             {
+                var roundCardKey = string.IsNullOrWhiteSpace(round.CardKey)
+                    ? $"round-{round.RoundIndex}"
+                    : round.CardKey.Trim();
                 answerByRound.TryGetValue(round.RoundIndex, out var answer);
                 var participantAnswer = answer is null
                     ? null
                     : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                var revealNode = CloneJsonObject(round.Reveal);
+                await AppendLiveRoundAnswerDistributionAsync(
+                    session.Id,
+                    round.RoundIndex,
+                    roundCardKey,
+                    round.Prompt,
+                    revealNode,
+                    dataProtectionProvider,
+                    dbContext,
+                    ct);
+                if (answer is not null)
+                {
+                    scoreEventByRoundAndCard.TryGetValue((round.RoundIndex, roundCardKey), out var scoreEvent);
+                    var scoreBreakdown = ParseStatisticScoreBreakdown(scoreEvent?.PayloadJson, answer.PointsAwarded, answer.IsCorrect == true);
+                    var factorList = new JsonArray();
+                    if (answer.IsCorrect == true)
+                    {
+                        if (scoreBreakdown.BasePoints > 0) factorList.Add(JsonValue.Create("base"));
+                        if (scoreBreakdown.FirstBonusPoints > 0) factorList.Add(JsonValue.Create("first"));
+                        if (scoreBreakdown.SpeedBonusPoints > 0) factorList.Add(JsonValue.Create("speed"));
+                        if (scoreBreakdown.StreakBonusPoints > 0) factorList.Add(JsonValue.Create("streak"));
+                    }
+                    else if (answer.PointsAwarded < 0)
+                    {
+                        factorList.Add(JsonValue.Create("wrong"));
+                    }
+
+                    var roundScoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
+                    roundScoring[participant.Id.ToString("D")] = new JsonObject
+                    {
+                        ["isCorrect"] = answer.IsCorrect == true,
+                        ["points"] = answer.PointsAwarded,
+                        ["factors"] = factorList,
+                        ["basePoints"] = scoreBreakdown.BasePoints,
+                        ["firstBonusPoints"] = scoreBreakdown.FirstBonusPoints,
+                        ["speedPoints"] = scoreBreakdown.SpeedBonusPoints,
+                        ["streakPoints"] = scoreBreakdown.StreakBonusPoints,
+                        ["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds))
+                    };
+                    revealNode["roundScoring"] = roundScoring;
+                }
                 response.Add(new CogitaLiveRevisionReviewRoundResponse(
                     round.RoundIndex,
-                    round.CardKey,
+                    roundCardKey,
                     JsonNodeToJsonElement(round.Prompt) ?? default,
-                    JsonNodeToJsonElement(round.Reveal) ?? default,
+                    JsonNodeToJsonElement(revealNode) ?? default,
                     participantAnswer,
                     answer?.IsCorrect,
                     answer?.PointsAwarded ?? 0
@@ -18040,6 +18098,7 @@ public static class CogitaEndpoints
     private static async Task AppendLiveRoundAnswerDistributionAsync(
         Guid sessionId,
         int roundIndex,
+        string? cardKey,
         JsonObject promptNode,
         JsonObject revealNode,
         IDataProtectionProvider dataProtectionProvider,
@@ -18055,8 +18114,13 @@ public static class CogitaEndpoints
             return;
         }
 
-        var answerRows = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
-            .Where(x => x.SessionId == sessionId && x.RoundIndex == roundIndex)
+        var normalizedCardKey = string.IsNullOrWhiteSpace(cardKey) ? null : cardKey.Trim();
+        var answerQuery = dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+            .Where(x => x.SessionId == sessionId);
+        answerQuery = normalizedCardKey is null
+            ? answerQuery.Where(x => x.RoundIndex == roundIndex)
+            : answerQuery.Where(x => x.CardKey == normalizedCardKey);
+        var answerRows = await answerQuery
             .OrderByDescending(x => x.UpdatedUtc)
             .ToListAsync(ct);
         if (answerRows.Count == 0)
@@ -19289,6 +19353,7 @@ public static class CogitaEndpoints
                     await AppendLiveRoundAnswerDistributionAsync(
                         session.Id,
                         session.CurrentRoundIndex,
+                        promptNode["cardKey"]?.GetValue<string>()?.Trim(),
                         promptNode,
                         revealNode,
                         dataProtectionProvider,

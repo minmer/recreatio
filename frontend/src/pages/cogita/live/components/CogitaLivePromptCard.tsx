@@ -275,6 +275,10 @@ export function CogitaLivePromptCard({
     const selected = isRevealed
       ? parseBooleanValue(revealedAnswer)
       : (typeof answers?.booleanAnswer === 'boolean' ? answers.booleanAnswer : null);
+    const trueShare = Number(booleanDistribution?.truePercent ?? Number.NaN);
+    const falseShare = Number(booleanDistribution?.falsePercent ?? Number.NaN);
+    const trueShareAlpha = Number.isFinite(trueShare) ? (0.12 + (Math.max(0, Math.min(100, trueShare)) / 100) * 0.3) : 0;
+    const falseShareAlpha = Number.isFinite(falseShare) ? (0.12 + (Math.max(0, Math.min(100, falseShare)) / 100) * 0.3) : 0;
     return wrap(
       <>
         <p>{String(prompt.prompt ?? '')}</p>
@@ -283,6 +287,11 @@ export function CogitaLivePromptCard({
             type="button"
             className={`cta ghost ${isRevealed && expected ? 'live-correct-answer' : ''} ${isRevealed && selected === true && !expected ? 'live-incorrect-answer' : ''}`}
             data-active={!isRevealed && selected === true ? 'true' : undefined}
+            style={isRevealed && Number.isFinite(trueShare)
+              ? {
+                  backgroundImage: `linear-gradient(90deg, rgba(108,194,255,${trueShareAlpha}) 0%, rgba(108,194,255,${trueShareAlpha}) ${Math.max(0, Math.min(100, trueShare))}%, transparent ${Math.max(0, Math.min(100, trueShare))}%, transparent 100%)`
+                }
+              : undefined}
             onClick={() => onBooleanChange?.(true)}
             disabled={mode === 'readonly' || isRevealed}
           >
@@ -292,6 +301,11 @@ export function CogitaLivePromptCard({
             type="button"
             className={`cta ghost ${isRevealed && !expected ? 'live-correct-answer' : ''} ${isRevealed && selected === false && expected ? 'live-incorrect-answer' : ''}`}
             data-active={!isRevealed && selected === false ? 'true' : undefined}
+            style={isRevealed && Number.isFinite(falseShare)
+              ? {
+                  backgroundImage: `linear-gradient(90deg, rgba(108,194,255,${falseShareAlpha}) 0%, rgba(108,194,255,${falseShareAlpha}) ${Math.max(0, Math.min(100, falseShare))}%, transparent ${Math.max(0, Math.min(100, falseShare))}%, transparent 100%)`
+                }
+              : undefined}
             onClick={() => onBooleanChange?.(false)}
             disabled={mode === 'readonly' || isRevealed}
           >
@@ -325,6 +339,11 @@ export function CogitaLivePromptCard({
         <p>{String(prompt.prompt ?? '')}</p>
         <div className="cogita-share-list">
           {options.map((option, index) => (
+            (() => {
+              const selectedPercent = isRevealed ? Number(selectionDistributionByIndex.get(index) ?? Number.NaN) : Number.NaN;
+              const share = Number.isFinite(selectedPercent) ? Math.max(0, Math.min(100, selectedPercent)) : null;
+              const alpha = share == null ? 0 : (0.1 + (share / 100) * 0.28);
+              return (
             <label
               className="cogita-share-row"
               data-state={
@@ -337,6 +356,11 @@ export function CogitaLivePromptCard({
                   : undefined
               }
               key={`${index}-${option}`}
+              style={share == null
+                ? undefined
+                : {
+                    backgroundImage: `linear-gradient(90deg, rgba(108,194,255,${alpha}) 0%, rgba(108,194,255,${alpha}) ${share}%, transparent ${share}%, transparent 100%)`
+                  }}
             >
               <span>{option}</span>
               {isRevealed && selectionDistributionByIndex.has(index) ? (
@@ -350,6 +374,8 @@ export function CogitaLivePromptCard({
                 disabled={mode === 'readonly' || isRevealed}
               />
             </label>
+              );
+            })()
           ))}
         </div>
       </>
