@@ -7262,12 +7262,14 @@ public static class CogitaEndpoints
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
-            var session = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+            var session = await dbContext.CogitaLiveRevisionSessions
                 .FirstOrDefaultAsync(x => x.PublicCodeHash == HashToken(code), ct);
             if (session is null)
             {
                 return Results.NotFound();
             }
+
+            await EnsureLiveScoresMaterializedAsync(session, dbContext, ct);
 
             var scoreboard = await BuildLiveRevisionScoreboardAsync(session.Id, dataProtectionProvider, dbContext, ct);
             var scoreHistory = await BuildLiveRevisionScoreHistoryAsync(session.Id, dataProtectionProvider, dbContext, ct);
@@ -18444,6 +18446,174 @@ public static class CogitaEndpoints
         return new StatisticsParticipantRef("system", "system", null, null, "System");
     }
 
+    private static string BuildLiveScoreSettingsFingerprint(LiveSessionScoringRules rules)
+    {
+        var payload = string.Join("|", new[]
+        {
+            rules.BaseCorrect.ToString(CultureInfo.InvariantCulture),
+            rules.FirstCorrectBonus.ToString(CultureInfo.InvariantCulture),
+            rules.WrongAnswerPenalty.ToString(CultureInfo.InvariantCulture),
+            rules.FirstWrongPenalty.ToString(CultureInfo.InvariantCulture),
+            rules.StreakBaseBonus.ToString(CultureInfo.InvariantCulture),
+            rules.StreakGrowth,
+            rules.StreakLimit.ToString(CultureInfo.InvariantCulture),
+            rules.BonusTimerEnabled ? "1" : "0",
+            rules.BonusTimerSeconds.ToString(CultureInfo.InvariantCulture),
+            rules.BonusTimerStartMode,
+            rules.SpeedBonusEnabled ? "1" : "0",
+            rules.SpeedBonusMaxPoints.ToString(CultureInfo.InvariantCulture),
+            rules.SpeedBonusGrowth
+        });
+        return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload)));
+    }
+
+    private static async Task EnsureLiveScoresMaterializedAsync(
+        CogitaLiveRevisionSession sessionCandidate,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        CogitaLiveRevisionSession? session = sessionCandidate;
+        var entry = dbContext.Entry(sessionCandidate);
+        if (entry.State == EntityState.Detached)
+        {
+            session = await dbContext.CogitaLiveRevisionSessions
+                .FirstOrDefaultAsync(x => x.Id == sessionCandidate.Id, ct);
+            if (session is null)
+            {
+                return;
+            }
+        }
+
+        var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+        if (!string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var scoringRules = ParseLiveSessionScoringRules(meta.SessionSettings);
+        var fingerprint = BuildLiveScoreSettingsFingerprint(scoringRules);
+        JsonObject? metaNode = null;
+        try
+        {
+            metaNode = string.IsNullOrWhiteSpace(session.SessionMetaJson)
+                ? new JsonObject()
+                : JsonNode.Parse(session.SessionMetaJson) as JsonObject;
+        }
+        catch
+        {
+            metaNode = null;
+        }
+        metaNode ??= new JsonObject();
+        var storedFingerprint = metaNode["materializedScoreFingerprint"]?.GetValue<string>();
+        if (!string.IsNullOrWhiteSpace(storedFingerprint) &&
+            string.Equals(storedFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var participants = await dbContext.CogitaLiveRevisionParticipants
+            .Where(x => x.SessionId == session.Id)
+            .OrderBy(x => x.JoinedUtc)
+            .ToListAsync(ct);
+        var answers = await dbContext.CogitaLiveRevisionAnswers
+            .Where(x => x.SessionId == session.Id)
+            .OrderBy(x => x.ParticipantId)
+            .ThenBy(x => x.RoundIndex)
+            .ThenBy(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+
+        var pointsByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
+        foreach (var group in answers.GroupBy(x => x.ParticipantId))
+        {
+            var streak = 0;
+            CogitaLiveRevisionAnswer? previousAnswer = null;
+            foreach (var answer in group.OrderBy(x => x.RoundIndex).ThenBy(x => x.UpdatedUtc))
+            {
+                if (!answer.IsCorrect.HasValue)
+                {
+                    answer.PointsAwarded = 0;
+                    continue;
+                }
+
+                var points = 0;
+                if (answer.IsCorrect == true)
+                {
+                    points += Math.Max(0, Math.Min(500000, scoringRules.BaseCorrect));
+
+                    if (scoringRules.BonusTimerEnabled &&
+                        scoringRules.SpeedBonusEnabled &&
+                        scoringRules.SpeedBonusMaxPoints > 0)
+                    {
+                        DateTimeOffset speedTimerStartUtc;
+                        if (string.Equals(scoringRules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal))
+                        {
+                            speedTimerStartUtc = answer.UpdatedUtc;
+                        }
+                        else if (previousAnswer is not null)
+                        {
+                            speedTimerStartUtc = previousAnswer.UpdatedUtc;
+                        }
+                        else if (session.StartedUtc.HasValue)
+                        {
+                            speedTimerStartUtc = session.StartedUtc.Value;
+                        }
+                        else
+                        {
+                            speedTimerStartUtc = participants.FirstOrDefault(x => x.Id == group.Key)?.JoinedUtc ?? answer.SubmittedUtc;
+                        }
+
+                        var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, scoringRules.BonusTimerSeconds)));
+                        if (answer.UpdatedUtc <= speedTimerEndUtc)
+                        {
+                            var denominator = Math.Max(1d, (speedTimerEndUtc - speedTimerStartUtc).TotalMilliseconds);
+                            var ratio = Math.Max(0d, Math.Min(1d, (speedTimerEndUtc - answer.UpdatedUtc).TotalMilliseconds / denominator));
+                            var scaled = scoringRules.SpeedBonusGrowth switch
+                            {
+                                "exponential" => ratio * ratio,
+                                "limited" => Math.Min(1d, ratio * 1.6d),
+                                _ => ratio
+                            };
+                            points += (int)Math.Round(Math.Max(0, Math.Min(500000, scoringRules.SpeedBonusMaxPoints * scaled)));
+                        }
+                    }
+
+                    var nextStreak = streak + 1;
+                    points += ComputeAsyncStreakBonus(
+                        scoringRules.StreakGrowth,
+                        scoringRules.StreakBaseBonus,
+                        nextStreak,
+                        scoringRules.StreakLimit);
+                    streak = nextStreak;
+                }
+                else
+                {
+                    points -= Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
+                    streak = 0;
+                }
+
+                points = Math.Max(-500000, Math.Min(500000, points));
+                answer.PointsAwarded = points;
+                if (pointsByParticipant.ContainsKey(answer.ParticipantId))
+                {
+                    pointsByParticipant[answer.ParticipantId] += points;
+                }
+                previousAnswer = answer;
+            }
+        }
+
+        foreach (var participant in participants)
+        {
+            participant.Score = pointsByParticipant.TryGetValue(participant.Id, out var score) ? score : 0;
+            participant.UpdatedUtc = DateTimeOffset.UtcNow;
+        }
+
+        metaNode["materializedScoreFingerprint"] = fingerprint;
+        session.SessionMetaJson = metaNode.ToJsonString();
+        session.UpdatedUtc = DateTimeOffset.UtcNow;
+
+        await dbContext.SaveChangesAsync(ct);
+    }
+
     private static async Task<List<CogitaLiveRevisionParticipantResponse>> BuildLiveRevisionParticipantsAsync(
         Guid sessionId,
         IDataProtectionProvider dataProtectionProvider,
@@ -18505,7 +18675,6 @@ public static class CogitaEndpoints
         {
             return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         }
-
         var scoreByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
         var snapshots = new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
@@ -18613,6 +18782,7 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        await EnsureLiveScoresMaterializedAsync(session, dbContext, ct);
         var meta = ParseLiveSessionMeta(session.SessionMetaJson);
         var resolvedCode = code ?? TryDecryptLiveSessionPublicCode(meta.EncryptedPublicCode, dataProtectionProvider) ?? string.Empty;
         var participants = await BuildLiveRevisionParticipantsAsync(session.Id, dataProtectionProvider, dbContext, ct);
