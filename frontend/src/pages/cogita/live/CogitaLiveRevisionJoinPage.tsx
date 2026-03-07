@@ -453,8 +453,9 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? 'active'
         : 'lobby';
   const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
-  const shouldForceJoinByMismatch = hasStoredTokenMismatch && sessionStage !== 'finished';
-  const showJoinPanel = sessionStage === 'lobby' || !participantToken || shouldForceJoinByMismatch;
+  // Do not auto-force participant rejoin on transient polling mismatch.
+  // A joined participant should remain in-session unless they explicitly switch participant.
+  const showJoinPanel = !participantToken;
   const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
   const isFirstLogin = !participantToken;
   const sessionTitle = useMemo(() => {
@@ -687,7 +688,7 @@ export function CogitaLiveRevisionJoinPage(props: {
     if (fallbackName) {
       setJoinName((previous) => (previous.trim() ? previous : fallbackName));
     }
-  }, [participantMeta?.name, shouldForceJoinByMismatch]);
+  }, [hasStoredTokenMismatch, participantMeta?.name]);
 
   useEffect(() => {
     setTextAnswer('');
@@ -1673,7 +1674,7 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.joinKicker}</p>
                 <h2 className="cogita-detail-title">{liveCopy.joinTitle}</h2>
-                {!participantToken || hasStoredTokenMismatch ? (
+                {!participantToken ? (
                   <>
                     <label className="cogita-field">
                       <span>{liveCopy.participantNameLabel}</span>
@@ -1708,7 +1709,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : (
                   <>
                     <p className="cogita-help">
-                      {hasStoredTokenMismatch ? liveCopy.joinTitle : liveCopy.joinedWaiting}
+                      {liveCopy.joinedWaiting}
                     </p>
                     <div className="cogita-form-actions">
                       <button type="button" className="cta ghost" onClick={clearStoredParticipantData}>
