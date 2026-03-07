@@ -19170,7 +19170,7 @@ public static class CogitaEndpoints
                 ? 3
                 : (scoreEvent.IsCorrect.HasValue || scoreEvent.PointsAwarded.HasValue ? 2 : 1);
             var durationMs = scoreEvent.DurationMs.HasValue
-                ? Math.Max(0, scoreEvent.DurationMs.Value)
+                ? (int?)Math.Max(0, scoreEvent.DurationMs.Value)
                 : null;
             var totalPoints = Math.Max(0, scoreEvent.PointsAwarded ?? 0);
             var breakdown = ParseStatisticScoreBreakdown(scoreEvent.PayloadJson, totalPoints, scoreEvent.IsCorrect == true);
