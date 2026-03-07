@@ -73,12 +73,6 @@ function switchParticipantActionLabel(language: 'pl' | 'en' | 'de') {
   return 'Switch participant';
 }
 
-function duplicateNameQuestionLabel(language: 'pl' | 'en' | 'de', name: string) {
-  if (language === 'pl') return `Nazwa „${name}” jest już używana. Czy chcesz dołączyć jako ten uczestnik?`;
-  if (language === 'de') return `Der Name „${name}” wird bereits verwendet. Möchtest du als dieser Teilnehmer beitreten?`;
-  return `The name "${name}" is already used. Do you want to join as that participant?`;
-}
-
 function useExistingParticipantLabel(language: 'pl' | 'en' | 'de') {
   if (language === 'pl') return 'Użyj istniejącego uczestnika';
   if (language === 'de') return 'Bestehenden Teilnehmer verwenden';
@@ -93,12 +87,12 @@ function chooseDifferentNameLabel(language: 'pl' | 'en' | 'de') {
 
 function duplicateNameInfoLabel(language: 'pl' | 'en' | 'de', name: string) {
   if (language === 'pl') {
-    return `Nazwa „${name}” jest już używana. Klikając „Użyj istniejącego uczestnika”, przejmiesz jego aktualny wynik i postęp sesji.`;
+    return `Nazwa „${name}” jest już używana. Jeśli wybierzesz „Użyj istniejącego uczestnika”, przejmiesz jego aktualny wynik i postęp sesji.`;
   }
   if (language === 'de') {
-    return `Der Name „${name}” wird bereits verwendet. Mit „Bestehenden Teilnehmer verwenden“ übernimmst du dessen aktuellen Punktestand und Sitzungsfortschritt.`;
+    return `Der Name „${name}” wird bereits verwendet. Wenn du „Bestehenden Teilnehmer verwenden“ wählst, übernimmst du dessen aktuellen Punktestand und Sitzungsfortschritt.`;
   }
-  return `The name "${name}" is already in use. By choosing "Use existing participant", you will continue with that participant's current score and session progress.`;
+  return `The name "${name}" is already in use. If you choose "Use existing participant", you will continue with that participant's current score and session progress.`;
 }
 
 function previousQuestionLabel(language: 'pl' | 'en' | 'de') {
@@ -1570,7 +1564,6 @@ export function CogitaLiveRevisionJoinPage(props: {
     ? (state?.scoreboard ?? []).find((row) => row.displayName.trim().toLocaleLowerCase() === normalizedJoinName)?.displayName ?? null
     : null;
   const duplicateNameCandidate = duplicateJoinName ?? typedDuplicateJoinName;
-  const joinBlockedByDuplicate = Boolean(duplicateNameCandidate);
 
   return (
     <CogitaShell {...props}>
@@ -1596,14 +1589,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                       }}
                     />
                   </label>
-                  <div className="cogita-form-actions">
-                    <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining' || joinBlockedByDuplicate}>
-                      {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
-                    </button>
-                  </div>
                   {duplicateNameCandidate ? (
                     <>
-                      <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateNameCandidate)}</p>
                       <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
                       <div className="cogita-form-actions">
                         <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
@@ -1614,7 +1601,13 @@ export function CogitaLiveRevisionJoinPage(props: {
                         </button>
                       </div>
                     </>
-                  ) : null}
+                  ) : (
+                    <div className="cogita-form-actions">
+                      <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                        {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
+                      </button>
+                    </div>
+                  )}
                   {status === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
                 </div>
               </div>
@@ -1634,14 +1627,8 @@ export function CogitaLiveRevisionJoinPage(props: {
                         }}
                       />
                     </label>
-                    <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining' || joinBlockedByDuplicate}>
-                        {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
-                      </button>
-                    </div>
                     {duplicateNameCandidate ? (
                       <>
-                        <p className="cogita-help">{duplicateNameQuestionLabel(props.language, duplicateNameCandidate)}</p>
                         <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
                         <div className="cogita-form-actions">
                           <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
@@ -1652,7 +1639,13 @@ export function CogitaLiveRevisionJoinPage(props: {
                           </button>
                         </div>
                       </>
-                    ) : null}
+                    ) : (
+                      <div className="cogita-form-actions">
+                        <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                          {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1707,7 +1700,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : null}
               </div>
               ) : null}
-              {!isFirstLogin ? (
+              {!isFirstLogin && sessionStage !== 'lobby' ? (
               <div className="cogita-library-panel cogita-live-fullscreen-panel">
                 {showIntroPanel ? (
                   <>
