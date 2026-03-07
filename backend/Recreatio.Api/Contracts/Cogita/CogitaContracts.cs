@@ -585,7 +585,12 @@ public sealed record CogitaLiveRevisionCorrectnessEntryResponse(
     string DisplayName,
     bool? IsCorrect,
     int PointsAwarded,
-    DateTimeOffset SubmittedUtc
+    DateTimeOffset SubmittedUtc,
+    int? DurationMs,
+    int BasePoints,
+    int FirstBonusPoints,
+    int SpeedBonusPoints,
+    int StreakBonusPoints
 );
 
 public sealed record CogitaLiveRevisionCorrectnessHistoryPointResponse(

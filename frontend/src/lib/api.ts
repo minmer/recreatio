@@ -959,6 +959,11 @@ export type CogitaLiveRevisionPublicState = {
       isCorrect?: boolean | null;
       pointsAwarded: number;
       submittedUtc: string;
+      durationMs?: number | null;
+      basePoints?: number | null;
+      firstBonusPoints?: number | null;
+      speedBonusPoints?: number | null;
+      streakBonusPoints?: number | null;
     }>;
   }>;
   answerSubmitted: boolean;

@@ -7314,7 +7314,6 @@ public static class CogitaEndpoints
         group.MapGet("/public/live-revision/{code}/state", async (
             string code,
             string? participantToken,
-            HttpContext context,
             IDataProtectionProvider dataProtectionProvider,
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
@@ -7347,25 +7346,6 @@ public static class CogitaEndpoints
                 {
                     participantId = participant.Id;
                     participantName = ResolveLiveParticipantDisplayName(participant, dataProtectionProvider, session.Id);
-                }
-            }
-            else if (EndpointHelpers.TryGetUserId(context, out var currentUserId))
-            {
-                var trackedParticipant = await dbContext.CogitaLiveRevisionParticipants
-                    .Where(x => x.SessionId == session.Id && x.UserId == currentUserId)
-                    .OrderByDescending(x => x.UpdatedUtc)
-                    .FirstOrDefaultAsync(ct);
-                if (trackedParticipant is not null)
-                {
-                    participantTokenIssued = GenerateAlphaNumericCode(24);
-                    trackedParticipant.JoinTokenHash = HashToken(participantTokenIssued);
-                    trackedParticipant.IsConnected = true;
-                    trackedParticipant.UpdatedUtc = DateTimeOffset.UtcNow;
-                    await dbContext.SaveChangesAsync(ct);
-
-                    participant = trackedParticipant;
-                    participantId = trackedParticipant.Id;
-                    participantName = ResolveLiveParticipantDisplayName(trackedParticipant, dataProtectionProvider, session.Id);
                 }
             }
 
@@ -19173,18 +19153,69 @@ public static class CogitaEndpoints
             return new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
         }
 
+        var scoreEvents = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x =>
+                x.SessionId == sessionId &&
+                x.ParticipantId.HasValue &&
+                x.RoundIndex.HasValue &&
+                (x.EventType == "live_answer_scored" || x.EventType == "live_answer_submitted"))
+            .OrderBy(x => x.CreatedUtc)
+            .ToListAsync(ct);
+        var scoreByRoundAndParticipant = new Dictionary<(int RoundIndex, Guid ParticipantId), (int? DurationMs, StatisticScoreBreakdown Breakdown, int Priority, DateTimeOffset CreatedUtc)>();
+        foreach (var scoreEvent in scoreEvents)
+        {
+            var roundIndex = scoreEvent.RoundIndex!.Value;
+            var participantId = scoreEvent.ParticipantId!.Value;
+            var eventPriority = scoreEvent.EventType == "live_answer_scored"
+                ? 3
+                : (scoreEvent.IsCorrect.HasValue || scoreEvent.PointsAwarded.HasValue ? 2 : 1);
+            var durationMs = scoreEvent.DurationMs.HasValue
+                ? Math.Max(0, scoreEvent.DurationMs.Value)
+                : null;
+            var totalPoints = Math.Max(0, scoreEvent.PointsAwarded ?? 0);
+            var breakdown = ParseStatisticScoreBreakdown(scoreEvent.PayloadJson, totalPoints, scoreEvent.IsCorrect == true);
+            var key = (roundIndex, participantId);
+            if (!scoreByRoundAndParticipant.TryGetValue(key, out var existing) ||
+                eventPriority > existing.Priority ||
+                (eventPriority == existing.Priority && scoreEvent.CreatedUtc >= existing.CreatedUtc))
+            {
+                scoreByRoundAndParticipant[key] = (durationMs, breakdown, eventPriority, scoreEvent.CreatedUtc);
+            }
+        }
+
         var snapshots = new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
         foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
         {
             var entries = roundGroup
-                .Select(answer => new CogitaLiveRevisionCorrectnessEntryResponse(
-                    answer.ParticipantId,
-                    participantNameById.TryGetValue(answer.ParticipantId, out var participantName)
-                        ? participantName
-                        : answer.ParticipantId.ToString("N")[..8],
-                    answer.IsCorrect,
-                    answer.PointsAwarded,
-                    answer.SubmittedUtc))
+                .Select(answer =>
+                {
+                    var key = (answer.RoundIndex, answer.ParticipantId);
+                    var fallbackDurationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
+                    var scoreDetails = scoreByRoundAndParticipant.TryGetValue(key, out var resolved)
+                        ? resolved
+                        : (
+                            (int?)null,
+                            ParseStatisticScoreBreakdown(
+                                null,
+                                Math.Max(0, answer.PointsAwarded),
+                                answer.IsCorrect == true),
+                            0,
+                            DateTimeOffset.MinValue
+                        );
+                    return new CogitaLiveRevisionCorrectnessEntryResponse(
+                        answer.ParticipantId,
+                        participantNameById.TryGetValue(answer.ParticipantId, out var participantName)
+                            ? participantName
+                            : answer.ParticipantId.ToString("N")[..8],
+                        answer.IsCorrect,
+                        answer.PointsAwarded,
+                        answer.SubmittedUtc,
+                        scoreDetails.Item1 ?? fallbackDurationMs,
+                        scoreDetails.Item2.BasePoints,
+                        scoreDetails.Item2.FirstBonusPoints,
+                        scoreDetails.Item2.SpeedBonusPoints,
+                        scoreDetails.Item2.StreakBonusPoints);
+                })
                 .ToList();
 
             snapshots.Add(new CogitaLiveRevisionCorrectnessHistoryPointResponse(

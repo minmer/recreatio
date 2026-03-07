@@ -95,6 +95,24 @@ function duplicateNameInfoLabel(language: 'pl' | 'en' | 'de', name: string) {
   return `The name "${name}" is already in use. If you choose "Use existing participant", you will continue with that participant's current score and session progress.`;
 }
 
+function normalizeJoinResponse(raw: unknown): { participantToken: string; participantId?: string; name?: string } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const root = raw as Record<string, unknown>;
+  const tokenCandidate = root.participantToken ?? root.ParticipantToken;
+  const participantIdCandidate = root.participantId ?? root.ParticipantId;
+  const nameCandidate = root.name ?? root.Name;
+  const participantToken =
+    typeof tokenCandidate === 'string' && tokenCandidate.trim()
+      ? tokenCandidate.trim()
+      : '';
+  if (!participantToken) return null;
+  return {
+    participantToken,
+    participantId: typeof participantIdCandidate === 'string' && participantIdCandidate.trim() ? participantIdCandidate.trim() : undefined,
+    name: typeof nameCandidate === 'string' && nameCandidate.trim() ? nameCandidate.trim() : undefined
+  };
+}
+
 function previousQuestionLabel(language: 'pl' | 'en' | 'de') {
   if (language === 'pl') return 'Poprzednie pytanie';
   if (language === 'de') return 'Vorherige Frage';
@@ -440,6 +458,8 @@ export function CogitaLiveRevisionJoinPage(props: {
   const timeoutSubmitKeyRef = useRef<string | null>(null);
   const timeoutNextKeyRef = useRef<string | null>(null);
   const introTimerSyncRef = useRef<'idle' | 'pause' | 'resume'>('idle');
+  const participantRecoverRef = useRef(false);
+  const participantRecoverLastAttemptRef = useRef(0);
 
   const prompt = (state?.currentPrompt as LivePrompt | undefined) ?? null;
   const reveal = (state?.currentReveal as Record<string, unknown> | undefined) ?? null;
@@ -693,6 +713,38 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [hasStoredTokenMismatch, participantMeta?.name]);
 
   useEffect(() => {
+    if (!participantToken || !state || state.participantId || manualParticipantSwitch) return;
+    if (status === 'joining' || participantRecoverRef.current) return;
+    const nowMs = Date.now();
+    if (nowMs - participantRecoverLastAttemptRef.current < 5000) return;
+    const fallbackName = (participantMeta?.name ?? joinName).trim();
+    if (!fallbackName) return;
+    participantRecoverRef.current = true;
+    participantRecoverLastAttemptRef.current = nowMs;
+    setStatus('joining');
+    void (async () => {
+      try {
+        const joinedRaw = await joinCogitaLiveRevision({ code, name: fallbackName, useExistingName: true });
+        const joined = normalizeJoinResponse(joinedRaw);
+        if (joined) {
+          setParticipantToken(joined.participantToken);
+          localStorage.setItem(tokenStorageKey(code), joined.participantToken);
+          const meta = { participantId: joined.participantId, name: joined.name ?? fallbackName };
+          setParticipantMeta(meta);
+          localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
+          const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken: joined.participantToken });
+          setState(refreshed);
+        }
+      } catch {
+        // Keep current token and let polling continue; don't force user back to join.
+      } finally {
+        participantRecoverRef.current = false;
+        setStatus('ready');
+      }
+    })();
+  }, [code, joinName, manualParticipantSwitch, participantMeta?.name, participantToken, state?.participantId, status]);
+
+  useEffect(() => {
     setTextAnswer('');
     setSelectionAnswer([]);
     setBoolAnswer(null);
@@ -742,13 +794,23 @@ export function CogitaLiveRevisionJoinPage(props: {
   const handleJoin = async (useExistingName = false) => {
     setStatus('joining');
     try {
-      const joined = await joinCogitaLiveRevision({ code, name: joinName, useExistingName });
+      const joinedRaw = await joinCogitaLiveRevision({ code, name: joinName, useExistingName });
+      const joined = normalizeJoinResponse(joinedRaw);
+      if (!joined) {
+        throw new Error('Missing participant token in join response.');
+      }
       setManualParticipantSwitch(false);
       setParticipantToken(joined.participantToken);
       localStorage.setItem(tokenStorageKey(code), joined.participantToken);
-      const meta = { participantId: joined.participantId, name: joined.name };
+      const meta = { participantId: joined.participantId, name: joined.name ?? joinName.trim() };
       setParticipantMeta(meta);
       localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
+      try {
+        const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken: joined.participantToken });
+        setState(refreshed);
+      } catch {
+        // Keep local participant token even if immediate refresh fails.
+      }
       setDuplicateJoinName(null);
       setStatus('ready');
     } catch (error) {
