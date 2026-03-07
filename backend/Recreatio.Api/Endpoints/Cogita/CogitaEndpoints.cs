@@ -17967,6 +17967,10 @@ public static class CogitaEndpoints
             var firstBonusPoints = Math.Max(0, ReadInt(node, "firstBonusPoints"));
             var speedBonusPoints = Math.Max(0, ReadInt(node, "speedPoints"));
             var streakBonusPoints = Math.Max(0, ReadInt(node, "streakPoints"));
+            if (firstBonusPoints <= 0)
+            {
+                firstBonusPoints = Math.Max(0, ReadInt(node, "firstPoints"));
+            }
             var knownSum = basePoints + firstBonusPoints + speedBonusPoints + streakBonusPoints;
             if (knownSum <= 0)
             {

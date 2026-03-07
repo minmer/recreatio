@@ -80,6 +80,10 @@ type RoundGain = {
   factors: string[];
   streak: number;
   rankDelta: number;
+  basePoints?: number;
+  firstBonusPoints?: number;
+  speedPoints?: number;
+  streakPoints?: number;
 };
 
 function parseWordPair(label: string) {
@@ -1170,20 +1174,34 @@ export function CogitaLiveHostWallPage({
           const factors: string[] = [];
           if (wrongPenalty > 0) factors.push('wrong');
           if (firstWrongPenalty > 0) factors.push('first-wrong');
-          roundGain[row.participantId] = { points: pointsAwarded, factors, streak: 0, rankDelta: 0 };
+          roundGain[row.participantId] = {
+            points: pointsAwarded,
+            factors,
+            streak: 0,
+            rankDelta: 0,
+            basePoints: 0,
+            firstBonusPoints: 0,
+            speedPoints: 0,
+            streakPoints: 0
+          };
           return { participantId: row.participantId, isCorrect: false, pointsAwarded };
         }
 
         const factors: string[] = [];
-        let points = clampInt(rules.scoring.baseCorrect, 0, 500000);
-        if (points > 0) factors.push('base');
+        const basePoints = clampInt(rules.scoring.baseCorrect, 0, 500000);
+        let firstBonusPoints = 0;
+        let speedPoints = 0;
+        let streakPoints = 0;
+        let points = basePoints;
+        if (basePoints > 0) factors.push('base');
         if (
           !isAsyncSession &&
           firstCorrectParticipantId &&
           row.participantId === firstCorrectParticipantId &&
           rules.scoring.firstCorrectBonus > 0
         ) {
-          points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
+          firstBonusPoints = clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
+          points += firstBonusPoints;
           factors.push('first');
         }
 
@@ -1198,9 +1216,9 @@ export function CogitaLiveHostWallPage({
           const submittedMs = Date.parse(row.submittedUtc);
           if (Number.isFinite(submittedMs) && submittedMs <= timerEndsMs) {
             const ratio = Math.max(0, Math.min(1, (timerEndsMs - submittedMs) / Math.max(1, timerEndsMs - timerStartedMs)));
-            const speedBonus = clampInt(growthRatio(rules.speedBonus.growth, ratio) * rules.speedBonus.maxPoints, 0, 500000);
-            if (speedBonus > 0) {
-              points += speedBonus;
+            speedPoints = clampInt(growthRatio(rules.speedBonus.growth, ratio) * rules.speedBonus.maxPoints, 0, 500000);
+            if (speedPoints > 0) {
+              points += speedPoints;
               factors.push('speed');
             }
           }
@@ -1208,14 +1226,23 @@ export function CogitaLiveHostWallPage({
 
         const nextStreak = previousStreak + 1;
         nextStreaks[row.participantId] = nextStreak;
-        const extraStreak = streakBonus(rules.scoring.streakGrowth, rules.scoring.streakBaseBonus, nextStreak, rules.scoring.streakLimit);
-        if (extraStreak > 0) {
-          points += extraStreak;
+        streakPoints = streakBonus(rules.scoring.streakGrowth, rules.scoring.streakBaseBonus, nextStreak, rules.scoring.streakLimit);
+        if (streakPoints > 0) {
+          points += streakPoints;
           factors.push('streak');
         }
 
         const safePoints = clampInt(points, -500000, 500000);
-        roundGain[row.participantId] = { points: safePoints, factors, streak: nextStreak, rankDelta: 0 };
+        roundGain[row.participantId] = {
+          points: safePoints,
+          factors,
+          streak: nextStreak,
+          rankDelta: 0,
+          basePoints,
+          firstBonusPoints,
+          speedPoints,
+          streakPoints
+        };
         return { participantId: row.participantId, isCorrect: true, pointsAwarded: safePoints };
       });
 
