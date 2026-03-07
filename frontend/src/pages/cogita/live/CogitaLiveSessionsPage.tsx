@@ -45,13 +45,22 @@ export function CogitaLiveSessionsPage(props: {
 
   const statusLabelMap: Record<string, string> = useMemo(
     () => ({
+      not_started: liveCopy.sessionNotStarted,
+      started: liveCopy.statusRunning,
       lobby: liveCopy.statusLobby,
       running: liveCopy.statusRunning,
       revealed: liveCopy.statusRevealed,
       finished: liveCopy.statusFinished,
       closed: liveCopy.closedStatus
     }),
-    [liveCopy.closedStatus, liveCopy.statusFinished, liveCopy.statusLobby, liveCopy.statusRevealed, liveCopy.statusRunning]
+    [
+      liveCopy.closedStatus,
+      liveCopy.sessionNotStarted,
+      liveCopy.statusFinished,
+      liveCopy.statusLobby,
+      liveCopy.statusRevealed,
+      liveCopy.statusRunning
+    ]
   );
 
   const load = async () => {
@@ -156,7 +165,9 @@ export function CogitaLiveSessionsPage(props: {
       <div>
         <strong>{item.title || item.sessionId}</strong>
         <div className="cogita-share-meta">
-          {statusLabelMap[item.status] ?? item.status} · {liveCopy.participantsTitle}: {item.participantCount}
+          {statusLabelMap[role === 'participant' ? (item.participantItem?.participantStatus ?? item.status) : item.status] ??
+            (role === 'participant' ? item.participantItem?.participantStatus ?? item.status : item.status)}{' '}
+          · {liveCopy.participantsTitle}: {item.participantCount}
         </div>
         <div className="cogita-share-meta">
           {liveCopy.roleLabel}: {role === 'host' ? liveCopy.roleHost : liveCopy.roleParticipant}

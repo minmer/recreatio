@@ -592,7 +592,8 @@ public sealed record CogitaLiveRevisionParticipantSessionListItemResponse(
     string? Title,
     int ParticipantCount,
     int ParticipantScore,
-    bool IsConnected
+    bool IsConnected,
+    string ParticipantStatus
 );
 
 public sealed record CogitaLiveRevisionHostStateUpdateRequest(

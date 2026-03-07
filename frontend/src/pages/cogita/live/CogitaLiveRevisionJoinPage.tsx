@@ -351,11 +351,21 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [localTimerPauseHold, setLocalTimerPauseHold] = useState(false);
+  const [manualParticipantSwitch, setManualParticipantSwitch] = useState(false);
   const [pausedTimerSnapshot, setPausedTimerSnapshot] = useState<{
     questionRemainingMs?: number | null;
     nextRemainingMs?: number | null;
     sessionRemainingMs?: number | null;
   } | null>(null);
+  const timerDisplayRef = useRef<{
+    questionRemainingMs: number | null;
+    nextRemainingMs: number | null;
+    sessionRemainingMs: number | null;
+  }>({
+    questionRemainingMs: null,
+    nextRemainingMs: null,
+    sessionRemainingMs: null
+  });
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
@@ -486,30 +496,76 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [nowTick, prompt, state?.status]);
 
   useEffect(() => {
-    if (timersPaused) {
-      setPausedTimerSnapshot((previous) =>
-        previous ?? {
-          questionRemainingMs: timerRemainingMs,
-          nextRemainingMs: nextQuestionTimer?.remainingMs ?? null,
-          sessionRemainingMs: fullSessionTimer?.remainingMs ?? null
-        }
-      );
-      return;
-    }
-    if (pausedTimerSnapshot) {
-      setPausedTimerSnapshot(null);
-    }
-  }, [fullSessionTimer?.remainingMs, nextQuestionTimer?.remainingMs, pausedTimerSnapshot, timerRemainingMs, timersPaused]);
+    timerDisplayRef.current = {
+      questionRemainingMs: timerRemainingMs,
+      nextRemainingMs: nextQuestionTimer?.remainingMs ?? null,
+      sessionRemainingMs: fullSessionTimer?.remainingMs ?? null
+    };
+  }, [promptKey]);
 
-  const visibleTimerRemainingMs = timersPaused
-    ? (pausedTimerSnapshot?.questionRemainingMs ?? timerRemainingMs)
-    : timerRemainingMs;
-  const visibleNextRemainingMs = timersPaused
-    ? (pausedTimerSnapshot?.nextRemainingMs ?? nextQuestionTimer?.remainingMs ?? null)
-    : (nextQuestionTimer?.remainingMs ?? null);
-  const visibleSessionRemainingMs = timersPaused
-    ? (pausedTimerSnapshot?.sessionRemainingMs ?? fullSessionTimer?.remainingMs ?? null)
-    : (fullSessionTimer?.remainingMs ?? null);
+  useEffect(() => {
+    if (!timersPaused) return;
+    setPausedTimerSnapshot((previous) =>
+      previous ?? {
+        questionRemainingMs: timerDisplayRef.current.questionRemainingMs ?? timerRemainingMs,
+        nextRemainingMs: timerDisplayRef.current.nextRemainingMs ?? nextQuestionTimer?.remainingMs ?? null,
+        sessionRemainingMs: timerDisplayRef.current.sessionRemainingMs ?? fullSessionTimer?.remainingMs ?? null
+      }
+    );
+  }, [fullSessionTimer?.remainingMs, nextQuestionTimer?.remainingMs, timerRemainingMs, timersPaused]);
+
+  const visibleTimers = useMemo(() => {
+    const targetQuestion = timerRemainingMs;
+    const targetNext = nextQuestionTimer?.remainingMs ?? null;
+    const targetSession = fullSessionTimer?.remainingMs ?? null;
+
+    const smooth = (previous: number | null, target: number | null, pausedSnapshot: number | null | undefined) => {
+      if (timersPaused) {
+        if (pausedSnapshot == null) return previous;
+        return Math.max(0, pausedSnapshot);
+      }
+      if (target == null) return null;
+      if (previous == null) return Math.max(0, target);
+      const boundedTarget = Math.max(0, target);
+      // Ignore brief polling corrections that would visually jump the timer backwards.
+      if (boundedTarget > previous + 450) {
+        return previous;
+      }
+      return boundedTarget;
+    };
+
+    const nextVisible = {
+      questionRemainingMs: smooth(
+        timerDisplayRef.current.questionRemainingMs,
+        targetQuestion,
+        pausedTimerSnapshot?.questionRemainingMs
+      ),
+      nextRemainingMs: smooth(
+        timerDisplayRef.current.nextRemainingMs,
+        targetNext,
+        pausedTimerSnapshot?.nextRemainingMs
+      ),
+      sessionRemainingMs: smooth(
+        timerDisplayRef.current.sessionRemainingMs,
+        targetSession,
+        pausedTimerSnapshot?.sessionRemainingMs
+      )
+    };
+    timerDisplayRef.current = nextVisible;
+    return nextVisible;
+  }, [
+    fullSessionTimer?.remainingMs,
+    nextQuestionTimer?.remainingMs,
+    pausedTimerSnapshot?.nextRemainingMs,
+    pausedTimerSnapshot?.questionRemainingMs,
+    pausedTimerSnapshot?.sessionRemainingMs,
+    timerRemainingMs,
+    timersPaused
+  ]);
+
+  const visibleTimerRemainingMs = visibleTimers.questionRemainingMs;
+  const visibleNextRemainingMs = visibleTimers.nextRemainingMs;
+  const visibleSessionRemainingMs = visibleTimers.sessionRemainingMs;
   const visibleTimerProgress =
     visibleTimerRemainingMs == null || effectiveQuestionTimer == null || effectiveQuestionTimer.totalSeconds <= 0
       ? 0
@@ -586,11 +642,11 @@ export function CogitaLiveRevisionJoinPage(props: {
         const next = await getCogitaLiveRevisionPublicState({ code, participantToken });
         if (!mounted) return;
         setState(next);
-        if (!participantToken && typeof next.participantToken === 'string' && next.participantToken.trim()) {
+        if (!manualParticipantSwitch && !participantToken && typeof next.participantToken === 'string' && next.participantToken.trim()) {
           setParticipantToken(next.participantToken);
           localStorage.setItem(tokenStorageKey(code), next.participantToken);
         }
-        if (next.participantId || next.participantName) {
+        if (!manualParticipantSwitch && (next.participantId || next.participantName)) {
           const meta = {
             participantId: next.participantId ?? undefined,
             name: next.participantName ?? undefined
@@ -609,12 +665,13 @@ export function CogitaLiveRevisionJoinPage(props: {
       mounted = false;
       window.clearInterval(id);
     };
-  }, [code, participantToken, status]);
+  }, [code, manualParticipantSwitch, participantToken, status]);
 
   const handleJoin = async (useExistingName = false) => {
     setStatus('joining');
     try {
       const joined = await joinCogitaLiveRevision({ code, name: joinName, useExistingName });
+      setManualParticipantSwitch(false);
       setParticipantToken(joined.participantToken);
       localStorage.setItem(tokenStorageKey(code), joined.participantToken);
       const meta = { participantId: joined.participantId, name: joined.name };
@@ -648,6 +705,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   };
 
   const clearStoredParticipantData = async () => {
+    setManualParticipantSwitch(true);
     const currentParticipantRef = participantRef;
     if (participantToken && isAsyncSession) {
       try {
@@ -662,6 +720,8 @@ export function CogitaLiveRevisionJoinPage(props: {
     }
     setParticipantToken(null);
     setParticipantMeta(null);
+    setJoinName('');
+    setDuplicateJoinName(null);
     setIntroAcknowledged(false);
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(tokenStorageKey(code));
@@ -674,6 +734,11 @@ export function CogitaLiveRevisionJoinPage(props: {
 
   const pauseTimersNow = async () => {
     if (timersPaused) return;
+    setPausedTimerSnapshot({
+      questionRemainingMs: timerDisplayRef.current.questionRemainingMs ?? timerRemainingMs,
+      nextRemainingMs: timerDisplayRef.current.nextRemainingMs ?? nextQuestionTimer?.remainingMs ?? null,
+      sessionRemainingMs: timerDisplayRef.current.sessionRemainingMs ?? fullSessionTimer?.remainingMs ?? null
+    });
     setLocalTimerPauseHold(true);
     if (participantToken && isAsyncSession && prompt) {
       try {
@@ -699,6 +764,13 @@ export function CogitaLiveRevisionJoinPage(props: {
   const toggleTimersPaused = async () => {
     if (participantToken && isAsyncSession && prompt) {
       const action = timersPaused ? 'resume' : 'pause';
+      if (action === 'pause') {
+        setPausedTimerSnapshot({
+          questionRemainingMs: timerDisplayRef.current.questionRemainingMs ?? timerRemainingMs,
+          nextRemainingMs: timerDisplayRef.current.nextRemainingMs ?? nextQuestionTimer?.remainingMs ?? null,
+          sessionRemainingMs: timerDisplayRef.current.sessionRemainingMs ?? fullSessionTimer?.remainingMs ?? null
+        });
+      }
       setLocalTimerPauseHold(action === 'pause');
       try {
         await controlCogitaLiveRevisionTimer({

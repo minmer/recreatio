@@ -888,6 +888,7 @@ export type CogitaLiveRevisionParticipantSessionListItem = {
   participantCount: number;
   participantScore: number;
   isConnected: boolean;
+  participantStatus: string;
 };
 
 export type CogitaLiveRevisionSession = {

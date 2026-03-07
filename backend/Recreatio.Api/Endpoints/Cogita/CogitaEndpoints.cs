@@ -5878,6 +5878,7 @@ public static class CogitaEndpoints
                 .GroupBy(x => x.SessionId)
                 .ToDictionary(x => x.Key, x => x.OrderByDescending(p => p.UpdatedUtc).First());
             var sessionIds = participantBySession.Keys.ToList();
+            var participantIds = participantBySession.Values.Select(x => x.Id).ToList();
             var sessions = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && sessionIds.Contains(x.Id) && x.Status != "closed")
                 .OrderByDescending(x => x.UpdatedUtc)
@@ -5889,11 +5890,20 @@ public static class CogitaEndpoints
                 .Select(x => new { SessionId = x.Key, Count = x.Count() })
                 .ToListAsync(ct);
             var participantCountBySession = participantCounts.ToDictionary(x => x.SessionId, x => x.Count);
+            var startedParticipantIds = participantIds.Count == 0
+                ? new HashSet<Guid>()
+                : (await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => participantIds.Contains(x.ParticipantId))
+                    .Select(x => x.ParticipantId)
+                    .Distinct()
+                    .ToListAsync(ct))
+                .ToHashSet();
 
             var response = sessions.Select(session =>
             {
                 var participant = participantBySession[session.Id];
                 var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+                var participantStatus = startedParticipantIds.Contains(participant.Id) ? "started" : "not_started";
                 return new CogitaLiveRevisionParticipantSessionListItemResponse(
                     session.Id,
                     session.LibraryId,
@@ -5908,7 +5918,8 @@ public static class CogitaEndpoints
                     meta.Title,
                     participantCountBySession.TryGetValue(session.Id, out var count) ? count : 0,
                     participant.Score,
-                    participant.IsConnected
+                    participant.IsConnected,
+                    participantStatus
                 );
             }).ToList();
 
