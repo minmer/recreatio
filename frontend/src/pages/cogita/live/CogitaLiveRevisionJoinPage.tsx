@@ -518,8 +518,6 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [promptKey]);
 
   useEffect(() => {
-    setTimersPausedAtMs(null);
-    setTimersPauseCarryMs(0);
     timeoutSubmitKeyRef.current = null;
     timeoutNextKeyRef.current = null;
   }, [promptKey]);
