@@ -896,22 +896,30 @@ function Kal26EventPage({
       return (
         <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
           <div className="pilgrimage-stones">
-            <span className="stone stone-a" />
-            <span className="stone stone-b" />
-            <span className="stone stone-c" />
-            <span className="stone stone-d" />
-            <span className="stone stone-e" />
-            <span className="stone stone-f" />
-            <span className="stone stone-g" />
-            <span className="stone stone-h" />
-            <span className="stone stone-i" />
-            <span className="stone stone-j" />
-            <span className="stone stone-k" />
-            <span className="stone stone-l" />
-            <span className="stone stone-m" />
-            <span className="stone stone-n" />
-            <span className="stone stone-o" />
-            <span className="stone stone-p" />
+            <span className="stone stone-a tone-coral" />
+            <span className="stone stone-b tone-amber" />
+            <span className="stone stone-c tone-yellow" />
+            <span className="stone stone-d tone-green" />
+            <span className="stone stone-e tone-green-dark" />
+            <span className="stone stone-f tone-coral" />
+            <span className="stone stone-g tone-yellow" />
+            <span className="stone stone-h tone-amber" />
+            <span className="stone stone-i tone-coral" />
+            <span className="stone stone-j tone-green-dark" />
+            <span className="stone stone-k tone-yellow" />
+            <span className="stone stone-l tone-amber" />
+            <span className="stone stone-m tone-coral" />
+            <span className="stone stone-n tone-green" />
+            <span className="stone stone-o tone-yellow" />
+            <span className="stone stone-p tone-green-dark" />
+            <span className="stone stone-q tone-coral" />
+            <span className="stone stone-r tone-amber" />
+            <span className="stone stone-s tone-yellow" />
+            <span className="stone stone-t tone-green" />
+            <span className="stone stone-u tone-coral" />
+            <span className="stone stone-v tone-amber" />
+            <span className="stone stone-w tone-green-dark" />
+            <span className="stone stone-x tone-yellow" />
           </div>
           <div className="hero-center">
             <svg
@@ -924,12 +932,19 @@ function Kal26EventPage({
               <path fill="#4172eb" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
               <path fill="#fab75e" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
               <path fill="#fb9109" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
-              <path fill="#f65f44" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
+              <path fill="#f65a45" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
               <path fill="#1441b6" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
-              <path fill="#9c1e07" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
+              <path fill="#af1400" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
               <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#040d24">Wielkanocna</text>
               <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#040d24">KALWARIA</text>
             </svg>
+          </div>
+          <div className="pilgrimage-start-links">
+            <a className="stone-link tone-green" href={`/#/event/${event.slug}/zapisy`}><span>Zapisy online</span></a>
+            <a className="stone-link tone-yellow" href={`/#/event/${event.slug}/program`}><span>Program</span></a>
+            <a className="stone-link tone-coral" href={`/#/event/${event.slug}/trasa`}><span>Trasa i etapy</span></a>
+            <a className="stone-link tone-amber" href={`/#/event/${event.slug}/faq`}><span>FAQ i informacje</span></a>
+            <a className="stone-link tone-green-dark" href={`/#/event/${event.slug}/kontakt`}><span>Kontakt</span></a>
           </div>
         </section>
       );

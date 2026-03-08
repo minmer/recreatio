@@ -2422,6 +2422,17 @@
   overflow: visible;
 }
 
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-chart-card,
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-table-panel {
+  overflow: visible;
+}
+
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-statistics-chart,
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-live-history-chart-svg {
+  width: 100%;
+  min-width: 0;
+}
+
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-fullscreen-panel {
   min-height: 0;
   padding-bottom: 6.8rem;
