@@ -17,10 +17,11 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
-import { clampInt, parseLiveRules } from './liveSessionRules';
+import { parseLiveRules } from './liveSessionRules';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
 import { buildLiveStatisticsResponse } from './liveStatistics';
+import { computeLiveRoundBreakdown } from './liveScoring';
 
 function readJoinNameFromHash() {
   if (typeof window === 'undefined') return '';
@@ -1177,125 +1178,46 @@ export function CogitaLiveRevisionJoinPage(props: {
         ? (submittedEvaluation.correct ? 'correct' : 'incorrect')
         : null;
   const scoreOverlayTitle = sessionStage === 'finished' ? liveCopy.finalScoreTitle : liveCopy.pointsTitle;
-  const growthRatio = (mode: string, ratio: number) => {
-    const clamped = Math.max(0, Math.min(1, ratio));
-    if (mode === 'exponential') return clamped * clamped;
-    if (mode === 'limited') return Math.min(1, clamped * 1.6);
-    return clamped;
-  };
-  const streakBonus = (base: number, streak: number, limit: number, growth: string) => {
-    const maxBonus = Math.max(0, base);
-    const extraCount = Math.max(0, streak - 1);
-    if (maxBonus === 0 || extraCount === 0) return 0;
-    const fullAfter = Math.max(1, limit);
-    const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
-    return clampInt(growthRatio(growth, progress) * maxBonus, 0, 500000);
-  };
+  const liveBreakdownLabels = useMemo(
+    () => ({
+      factorBaseLabel: liveCopy.factorBaseLabel,
+      factorFirstLabel: liveCopy.factorFirstLabel,
+      factorSpeedLabel: liveCopy.factorSpeedLabel,
+      factorStreakLabel: liveCopy.factorStreakLabel,
+      factorWrongLabel: liveCopy.factorWrongLabel,
+      factorFirstWrongLabel: liveCopy.factorFirstWrongLabel,
+      roundReasonBase: liveCopy.roundReasonBase,
+      roundReasonFirst: liveCopy.roundReasonFirst,
+      roundReasonSpeed: liveCopy.roundReasonSpeed,
+      roundReasonStreak: liveCopy.roundReasonStreak,
+      roundReasonWrong: liveCopy.roundReasonWrong,
+      roundReasonFirstWrong: liveCopy.roundReasonFirstWrong
+    }),
+    [
+      liveCopy.factorBaseLabel,
+      liveCopy.factorFirstLabel,
+      liveCopy.factorFirstWrongLabel,
+      liveCopy.factorSpeedLabel,
+      liveCopy.factorStreakLabel,
+      liveCopy.factorWrongLabel,
+      liveCopy.roundReasonBase,
+      liveCopy.roundReasonFirst,
+      liveCopy.roundReasonFirstWrong,
+      liveCopy.roundReasonSpeed,
+      liveCopy.roundReasonStreak,
+      liveCopy.roundReasonWrong
+    ]
+  );
   const selfRoundBreakdown = useMemo(() => {
-    if (!selfRoundScoring) return null;
-    const total = Math.round(Number(selfRoundScoring.points ?? 0));
-    const factors = new Set((Array.isArray(selfRoundScoring.factors) ? selfRoundScoring.factors : []).map(String));
-    const answerDurationSeconds = Math.max(0, Math.round(Number((selfRoundScoring as { answerDurationSeconds?: number }).answerDurationSeconds ?? 0)));
-    const pushReason = (key: string) => {
-      if (key === 'base') {
-        return liveCopy.roundReasonBase;
-      }
-      if (key === 'speed') {
-        return formatTemplate(liveCopy.roundReasonSpeed, { seconds: answerDurationSeconds });
-      }
-      if (key === 'streak') {
-        const streakCount = Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0)));
-        return formatTemplate(liveCopy.roundReasonStreak, { count: streakCount });
-      }
-      if (key === 'first') {
-        return liveCopy.roundReasonFirst;
-      }
-      if (key === 'wrong') {
-        return liveCopy.roundReasonWrong;
-      }
-      if (key === 'first-wrong') {
-        return liveCopy.roundReasonFirstWrong;
-      }
-      return '';
-    };
-    const serverBase = Number((selfRoundScoring as { basePoints?: number }).basePoints ?? Number.NaN);
-    const serverFirst = Number((selfRoundScoring as { firstBonusPoints?: number }).firstBonusPoints ?? Number.NaN);
-    const serverSpeed = Number((selfRoundScoring as { speedPoints?: number }).speedPoints ?? Number.NaN);
-    const serverStreak = Number((selfRoundScoring as { streakPoints?: number }).streakPoints ?? Number.NaN);
-    const isCorrect = typeof selfRoundScoring.isCorrect === 'boolean'
-      ? selfRoundScoring.isCorrect
-      : !(factors.has('wrong') || factors.has('first-wrong')) && total >= 0;
-
-    let basePoints =
-      Number.isFinite(serverBase)
-        ? Math.round(serverBase)
-        : (isCorrect ? Math.round(liveRules.scoring.baseCorrect) : 0);
-    let firstPoints =
-      Number.isFinite(serverFirst)
-        ? Math.round(serverFirst)
-        : (factors.has('first') ? Math.round(liveRules.scoring.firstCorrectBonus) : 0);
-    let speedPoints =
-      Number.isFinite(serverSpeed)
-        ? Math.round(serverSpeed)
-        : 0;
-    let streakPoints =
-      Number.isFinite(serverStreak)
-        ? Math.round(serverStreak)
-        : (factors.has('streak')
-          ? streakBonus(
-            liveRules.scoring.streakBaseBonus,
-            Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0))),
-            liveRules.scoring.streakLimit,
-            liveRules.scoring.streakGrowth)
-          : 0);
-    let wrongPoints = factors.has('wrong') ? -Math.round(liveRules.scoring.wrongAnswerPenalty) : 0;
-    let firstWrongPoints = factors.has('first-wrong') ? -Math.round(liveRules.scoring.firstWrongPenalty) : 0;
-
-    // If backend collapsed all points into base, recover configured base and move remainder to bonuses.
-    if (isCorrect && total > 0 && basePoints >= total && total > Math.round(liveRules.scoring.baseCorrect)) {
-      const allBonusesUnknown =
-        !Number.isFinite(serverFirst) &&
-        !Number.isFinite(serverSpeed) &&
-        !Number.isFinite(serverStreak);
-      const allBonusesZero = firstPoints === 0 && speedPoints === 0 && streakPoints === 0;
-      if (allBonusesUnknown || allBonusesZero) {
-        basePoints = Math.round(liveRules.scoring.baseCorrect);
-      }
-    }
-
-    if (isCorrect) {
-      const known = basePoints + firstPoints + speedPoints + streakPoints;
-      const remainder = total - known;
-      if (remainder !== 0) {
-        speedPoints += remainder;
-      }
-    } else {
-      if (total < 0 && wrongPoints === 0 && firstWrongPoints === 0) {
-        wrongPoints = total;
-      } else {
-        const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
-        if (known !== total) {
-          wrongPoints += total - known;
-        }
-      }
-    }
-
-    const rows = [
-      { key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: pushReason('base') },
-      { key: 'first', label: liveCopy.factorFirstLabel, points: firstPoints, reason: pushReason('first') },
-      { key: 'speed', label: liveCopy.factorSpeedLabel, points: speedPoints, reason: pushReason('speed') },
-      { key: 'streak', label: liveCopy.factorStreakLabel, points: streakPoints, reason: pushReason('streak') },
-      { key: 'wrong', label: liveCopy.factorWrongLabel, points: wrongPoints, reason: pushReason('wrong') },
-      { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: firstWrongPoints, reason: pushReason('first-wrong') }
-    ].filter((row) => row.points !== 0);
-    const bonusTotal = rows
-      .filter((row) => row.key === 'first' || row.key === 'speed' || row.key === 'streak')
-      .reduce((sum, row) => sum + Math.max(0, row.points), 0);
-    const penaltyTotal = rows
-      .filter((row) => row.key === 'wrong' || row.key === 'first-wrong')
-      .reduce((sum, row) => sum + Math.abs(Math.min(0, row.points)), 0);
-    return { total, rows, bonusTotal, penaltyTotal };
-  }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveCopy.roundReasonBase, liveCopy.roundReasonFirst, liveCopy.roundReasonFirstWrong, liveCopy.roundReasonSpeed, liveCopy.roundReasonStreak, liveCopy.roundReasonWrong, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
+    return computeLiveRoundBreakdown({
+      scoring: selfRoundScoring,
+      fallbackTotal: Number(selfRoundScoring?.points ?? 0),
+      fallbackIsCorrect: typeof selfRoundScoring?.isCorrect === 'boolean' ? selfRoundScoring.isCorrect : null,
+      labels: liveBreakdownLabels,
+      rules: liveRules,
+      formatTemplate
+    });
+  }, [selfRoundScoring, liveBreakdownLabels, liveRules]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
   const asyncProgressByParticipant = useMemo(() => {
     const result = new Map<string, { answeredCount: number; cumulativeScores: number[]; roundsAnswered: number[] }>();
@@ -1443,113 +1365,23 @@ export function CogitaLiveRevisionJoinPage(props: {
     return roundScoring ? roundScoring[selfParticipantId] ?? null : null;
   }, [reviewReveal, selfParticipantId]);
   const reviewRoundBreakdown = useMemo(() => {
-    if (!reviewRound) return null as null | { total: number; rows: Array<{ key: string; label: string; points: number; reason: string }> };
-    const total = Math.round(Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0));
-    const factors = new Set((Array.isArray(reviewRoundScoring?.factors) ? reviewRoundScoring?.factors : []).map(String));
-    const answerDurationSeconds = Math.max(0, Math.round(Number(reviewRoundScoring?.answerDurationSeconds ?? 0)));
-    const isCorrect = typeof reviewRoundScoring?.isCorrect === 'boolean'
-      ? reviewRoundScoring.isCorrect
-      : (typeof reviewRound.isCorrect === 'boolean' ? reviewRound.isCorrect : null);
-
-    const reason = (key: string) => {
-      if (key === 'base') {
-        return liveCopy.roundReasonBase;
-      }
-      if (key === 'first') {
-        return liveCopy.roundReasonFirst;
-      }
-      if (key === 'speed') {
-        return formatTemplate(liveCopy.roundReasonSpeed, { seconds: answerDurationSeconds });
-      }
-      if (key === 'streak') {
-        const streakCount = Math.max(0, Math.round(Number(reviewRoundScoring?.streak ?? 0)));
-        return formatTemplate(liveCopy.roundReasonStreak, { count: streakCount });
-      }
-      if (key === 'wrong') {
-        return liveCopy.roundReasonWrong;
-      }
-      if (key === 'first-wrong') {
-        return liveCopy.roundReasonFirstWrong;
-      }
-      return '';
-    };
-
-    const serverBase = Number(reviewRoundScoring?.basePoints ?? Number.NaN);
-    const serverFirst = Number(reviewRoundScoring?.firstBonusPoints ?? Number.NaN);
-    const serverSpeed = Number(reviewRoundScoring?.speedPoints ?? Number.NaN);
-    const serverStreak = Number(reviewRoundScoring?.streakPoints ?? Number.NaN);
-
-    let basePoints =
-      Number.isFinite(serverBase)
-        ? Math.round(serverBase)
-        : (factors.has('base') || isCorrect === true ? Math.round(liveRules.scoring.baseCorrect) : 0);
-    let firstPoints =
-      Number.isFinite(serverFirst)
-        ? Math.round(serverFirst)
-        : (factors.has('first') ? Math.round(liveRules.scoring.firstCorrectBonus) : 0);
-    let speedPoints =
-      Number.isFinite(serverSpeed)
-        ? Math.round(serverSpeed)
-        : 0;
-    let streakPoints =
-      Number.isFinite(serverStreak)
-        ? Math.round(serverStreak)
-        : (factors.has('streak')
-            ? streakBonus(
-              liveRules.scoring.streakBaseBonus,
-              Math.max(0, Math.round(Number(reviewRoundScoring?.streak ?? 0))),
-              liveRules.scoring.streakLimit,
-              liveRules.scoring.streakGrowth)
-            : 0);
-    let wrongPoints = factors.has('wrong') ? -Math.round(liveRules.scoring.wrongAnswerPenalty) : 0;
-    let firstWrongPoints = factors.has('first-wrong') ? -Math.round(liveRules.scoring.firstWrongPenalty) : 0;
-
-    if (isCorrect === false && total < 0 && wrongPoints === 0 && firstWrongPoints === 0) {
-      wrongPoints = total;
-    }
-
-    const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
-    if (known !== total) {
-      if (total >= 0) {
-        speedPoints += total - known;
-      } else {
-        wrongPoints += total - known;
-      }
-    }
-
-    const rows = [
-        { key: 'base', label: liveCopy.factorBaseLabel, points: basePoints, reason: reason('base') },
-        { key: 'first', label: liveCopy.factorFirstLabel, points: firstPoints, reason: reason('first') },
-        { key: 'speed', label: liveCopy.factorSpeedLabel, points: speedPoints, reason: reason('speed') },
-        { key: 'streak', label: liveCopy.factorStreakLabel, points: streakPoints, reason: reason('streak') },
-        { key: 'wrong', label: liveCopy.factorWrongLabel, points: wrongPoints, reason: reason('wrong') },
-        { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: firstWrongPoints, reason: reason('first-wrong') }
-      ].filter((row) => row.points !== 0);
-
-    return { total, rows };
+    if (!reviewRound) return null;
+    return computeLiveRoundBreakdown({
+      scoring: reviewRoundScoring,
+      fallbackTotal: Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0),
+      fallbackIsCorrect:
+        typeof reviewRoundScoring?.isCorrect === 'boolean'
+          ? reviewRoundScoring.isCorrect
+          : (typeof reviewRound.isCorrect === 'boolean' ? reviewRound.isCorrect : null),
+      labels: liveBreakdownLabels,
+      rules: liveRules,
+      formatTemplate
+    });
   }, [
     reviewRound,
     reviewRoundScoring,
-    liveCopy.factorBaseLabel,
-    liveCopy.factorFirstLabel,
-    liveCopy.factorFirstWrongLabel,
-    liveCopy.factorSpeedLabel,
-    liveCopy.factorStreakLabel,
-    liveCopy.factorWrongLabel,
-    liveCopy.roundReasonBase,
-    liveCopy.roundReasonFirst,
-    liveCopy.roundReasonFirstWrong,
-    liveCopy.roundReasonSpeed,
-    liveCopy.roundReasonStreak,
-    liveCopy.roundReasonWrong,
-    liveCopy.streakLabel,
-    liveRules.scoring.baseCorrect,
-    liveRules.scoring.firstCorrectBonus,
-    liveRules.scoring.firstWrongPenalty,
-    liveRules.scoring.streakBaseBonus,
-    liveRules.scoring.streakGrowth,
-    liveRules.scoring.streakLimit,
-    liveRules.scoring.wrongAnswerPenalty,
+    liveBreakdownLabels,
+    liveRules
   ]);
   const reviewEvaluation = useMemo(
     () => evaluatePromptAnswer(reviewPrompt, reviewExpected, reviewAnswer),

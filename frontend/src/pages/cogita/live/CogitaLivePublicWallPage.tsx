@@ -285,6 +285,7 @@ export function CogitaLivePublicWallPage({
   );
   const isSessionFinished = state?.status === 'finished' || state?.status === 'closed';
   const isAsyncSession = state?.sessionMode === 'asynchronous';
+  const hideSessionDescription = !isAsyncSession && state?.status === 'running';
   const showStatisticsWindow = isSessionFinished || isAsyncSession;
   const showPodiumOnPublicScreen = !isAsyncSession && isSessionFinished;
   const showRightScoreboard = !isAsyncSession && !isSessionFinished;
@@ -392,7 +393,7 @@ export function CogitaLivePublicWallPage({
         subtitle={liveCopy.hostKicker}
         left={
           <div className="cogita-live-wall-stack">
-            {sessionDescriptionLines.length > 0 ? (
+            {sessionDescriptionLines.length > 0 && !hideSessionDescription ? (
               <section className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.sessionSettingsLabel}</p>
                 <div className="cogita-detail-body">
