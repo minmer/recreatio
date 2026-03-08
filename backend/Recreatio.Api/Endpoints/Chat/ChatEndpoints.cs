@@ -3,6 +3,7 @@ using Recreatio.Api.Contracts.Chat;
 using Recreatio.Api.Data;
 using Recreatio.Api.Data.Chat;
 using Recreatio.Api.Security;
+using Recreatio.Api.Services;
 using Recreatio.Api.Services.Chat;
 
 namespace Recreatio.Api.Endpoints;
@@ -74,6 +75,7 @@ public static class ChatEndpoints
                 return error;
             }
 
+            var resolvedUser = userContext!;
             var normalizedScopeType = NormalizeScopeTypeOrNull(scopeType);
             var normalizedScopeId = string.IsNullOrWhiteSpace(scopeId) ? null : scopeId.Trim();
             if (scopeType is not null && normalizedScopeType is null)
@@ -81,11 +83,11 @@ public static class ChatEndpoints
                 return Results.BadRequest(new { error = "Invalid scope type filter." });
             }
 
-            var roleIds = userContext!.RoleIds.ToList();
+            var roleIds = resolvedUser.RoleIds.ToList();
             var memberships = await dbContext.ChatConversationParticipants.AsNoTracking()
                 .Where(participant =>
                     participant.RemovedUtc == null &&
-                    ((participant.SubjectType == "user" && participant.SubjectId == userContext.UserId)
+                    ((participant.SubjectType == "user" && participant.SubjectId == resolvedUser.UserId)
                     || (participant.SubjectType == "role" && roleIds.Contains(participant.SubjectId))))
                 .ToListAsync(ct);
 
@@ -199,6 +201,7 @@ public static class ChatEndpoints
                 return error;
             }
 
+            var resolvedUser = userContext!;
             var chatType = NormalizeChatType(request.ChatType);
             if (chatType is null)
             {
@@ -235,7 +238,7 @@ public static class ChatEndpoints
             }
 
             Guid? createdByRoleId = request.CreatedByRoleId;
-            if (createdByRoleId is not null && !userContext!.RoleIds.Contains(createdByRoleId.Value))
+            if (createdByRoleId is not null && !resolvedUser.RoleIds.Contains(createdByRoleId.Value))
             {
                 return Results.Forbid();
             }
@@ -276,7 +279,7 @@ public static class ChatEndpoints
             {
                 participants.Add(new ChatParticipantRequest(
                     "user",
-                    userContext.UserId,
+                    resolvedUser.UserId,
                     CanRead: true,
                     CanWrite: true,
                     CanManage: true,
@@ -312,7 +315,7 @@ public static class ChatEndpoints
                 ScopeId = scopeId,
                 Title = title,
                 Description = description,
-                CreatedByUserId = userContext.UserId,
+                CreatedByUserId = resolvedUser.UserId,
                 CreatedByRoleId = createdByRoleId,
                 IsArchived = false,
                 IsPublic = request.IsPublic,
@@ -332,7 +335,7 @@ public static class ChatEndpoints
                 Version = 1,
                 EncryptedKeyBlob = chatCryptoService.ProtectConversationKey(initialKey),
                 Reason = "initial",
-                RotatedByUserId = userContext.UserId,
+                RotatedByUserId = resolvedUser.UserId,
                 CreatedUtc = now
             };
 
@@ -1495,6 +1498,7 @@ public static class ChatEndpoints
             return (null, error);
         }
 
+        var resolvedUser = user!;
         var conversation = await dbContext.ChatConversations.AsNoTracking()
             .FirstOrDefaultAsync(item => item.Id == conversationId && !item.IsArchived, ct);
         if (conversation is null)
@@ -1511,8 +1515,8 @@ public static class ChatEndpoints
         }
 
         var matchedParticipants = participants.Where(participant =>
-            (participant.SubjectType == "user" && participant.SubjectId == user!.UserId)
-            || (participant.SubjectType == "role" && user.RoleIds.Contains(participant.SubjectId)))
+            (participant.SubjectType == "user" && participant.SubjectId == resolvedUser.UserId)
+            || (participant.SubjectType == "role" && resolvedUser.RoleIds.Contains(participant.SubjectId)))
             .ToList();
 
         var canRead = matchedParticipants.Any(participant => participant.CanRead || participant.CanWrite || participant.CanManage);
@@ -1529,7 +1533,7 @@ public static class ChatEndpoints
             : matchedParticipants.Min(participant => participant.MinReadableSequence);
 
         return (new ConversationAccessContext(
-            user,
+            resolvedUser,
             conversation,
             participants,
             canRead,

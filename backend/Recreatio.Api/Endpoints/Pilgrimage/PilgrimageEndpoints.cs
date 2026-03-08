@@ -539,7 +539,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageContactInquiryCreated",
                 "public",
-                JsonSerializer.Serialize(new { pilgrimage.Id, entity.Id, entity.Topic }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, inquiryId = entity.Id, entity.Topic }),
                 ct);
 
             return Results.Ok(entity.Id);
@@ -698,7 +698,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageParticipantIssueCreated",
                 "participant",
-                JsonSerializer.Serialize(new { pilgrimage.Id, issue.Id, issue.ParticipantId, issue.Kind }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, issueId = issue.Id, issue.ParticipantId, issue.Kind }),
                 ct);
 
             return Results.Ok(issue.Id);
@@ -940,7 +940,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageAnnouncementCreated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, entity.Id, entity.Audience, entity.IsCritical }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, announcementId = entity.Id, entity.Audience, entity.IsCritical }),
                 ct);
 
             return Results.Ok(entity.Id);
@@ -1013,7 +1013,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageTaskCreated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, entity.Id, entity.Status, entity.Priority }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, taskId = entity.Id, entity.Status, entity.Priority }),
                 ct);
 
             return Results.Ok(entity.Id);
@@ -1085,7 +1085,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageTaskUpdated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, task.Id, task.Status, task.Priority }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, taskId = task.Id, task.Status, task.Priority }),
                 ct);
 
             return Results.Ok();
@@ -1153,7 +1153,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageParticipantUpdated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, participant.Id, participant.RegistrationStatus, participant.PaymentStatus, participant.GroupName }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, participantId = participant.Id, participant.RegistrationStatus, participant.PaymentStatus, participant.GroupName }),
                 ct);
 
             return Results.Ok();
@@ -1211,7 +1211,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageParticipantIssueUpdated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, issue.Id, issue.Status }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, issueId = issue.Id, issue.Status }),
                 ct);
 
             return Results.Ok();
@@ -1268,7 +1268,7 @@ public static class PilgrimageEndpoints
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageContactInquiryUpdated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, inquiry.Id, inquiry.Status }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, inquiryId = inquiry.Id, inquiry.Status }),
                 ct);
 
             return Results.Ok();
