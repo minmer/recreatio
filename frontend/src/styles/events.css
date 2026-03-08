@@ -241,17 +241,17 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(239, 247, 239, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(34, 84, 46, 0.2);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   transition: padding 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
 }
 
 .kal-header.is-compact {
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
-  background: rgba(238, 246, 238, 0.98);
-  box-shadow: 0 10px 28px rgba(27, 62, 38, 0.14);
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
 }
 
 .kal-kicker {
@@ -282,22 +282,25 @@
 .kal-top-nav {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   flex-wrap: wrap;
 }
 
 .kal-top-nav a {
   text-decoration: none;
-  color: #20472e;
-  border: 1px solid rgba(34, 84, 46, 0.22);
-  border-radius: 999px;
-  padding: 0.42rem 0.68rem;
-  background: rgba(255, 255, 255, 0.9);
+  color: #1f2731;
+  padding: 0.42rem 0.56rem;
+  font-size: 0.94rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: color 180ms ease, border-color 180ms ease;
 }
 
 .kal-top-nav a.active {
-  background: #214c30;
-  color: #ffffff;
+  color: #111922;
+  border-bottom-color: #d0872c;
 }
 
 .kal-header-cta {

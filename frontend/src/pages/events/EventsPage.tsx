@@ -582,9 +582,17 @@ function Kal26EventPage({
   ]);
 
   const signupSection = sectionById('zapisy');
-  const headerMenuPages = event.pages.filter((item) =>
-    ['start', 'o-pielgrzymce', 'program', 'trasa', 'zapisy', 'faq', 'galeria', 'kontakt'].includes(item.slug)
-  );
+  const headerMenuPages = [
+    { slug: 'start', label: 'AKTUALNOSCI' },
+    { slug: 'o-pielgrzymce', label: 'INFORMACJE' },
+    { slug: 'program', label: 'PROGRAM' },
+    { slug: 'zapisy', label: 'REJESTRACJA' },
+    { slug: 'uczestnik', label: 'GRUPY' },
+    { slug: 'faq', label: 'FAQ' },
+    { slug: 'formalnosci', label: 'POBIERZ' },
+    { slug: 'galeria', label: 'HISTORIA' },
+    { slug: 'kontakt', label: 'WSPARCIE' }
+  ];
 
   const handleRegistrationSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
@@ -2249,7 +2257,7 @@ function Kal26EventPage({
         <nav className="kal-top-nav" aria-label="Pilgrimage sections">
           {headerMenuPages.map((item) => (
             <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
-              {item.title}
+              {item.label}
             </a>
           ))}
         </nav>
