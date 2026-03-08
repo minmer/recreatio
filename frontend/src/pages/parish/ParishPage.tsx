@@ -3473,9 +3473,28 @@ export function ParishPage({
     }
   };
 
+  const buildConfirmationVerificationLink = (token: string) => {
+    if (!parishSlug || !token) return '';
+    return `${window.location.origin}/#/parish/${parishSlug}/confirmation/form?verifyPhone=${encodeURIComponent(token)}`;
+  };
+
+  const buildConfirmationSmsHref = (phoneNumber: string, token: string) => {
+    const verificationLink = buildConfirmationVerificationLink(token);
+    if (!verificationLink) return '';
+    const normalizedPhone = phoneNumber.replace(/[^\d+]/g, '');
+    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
+    const message =
+      `Szczęść Boże!\n` +
+      `Ten numer telefonu został podany przy zgłoszeniu do przygotowania do bierzmowania w ${parishLabel}.\n` +
+      `Aby potwierdzić numer, proszę kliknąć w poniższy link:\n${verificationLink}`;
+    const smsTarget = normalizedPhone.length > 0 ? `sms:${normalizedPhone}` : 'sms:';
+    return `${smsTarget}?body=${encodeURIComponent(message)}`;
+  };
+
   const handleCopyConfirmationVerificationLink = async (token: string) => {
     if (!parishSlug || !token) return;
-    const link = `${window.location.origin}/#/parish/${parishSlug}/confirmation/form?verifyPhone=${encodeURIComponent(token)}`;
+    const link = buildConfirmationVerificationLink(token);
+    if (!link) return;
     try {
       await navigator.clipboard.writeText(link);
       setConfirmationCopiedToken(token);
@@ -6327,25 +6346,33 @@ export function ParishPage({
                                   <strong>Szkoła:</strong> {candidate.schoolShort}
                                 </p>
                                 <ul className="confirmation-phone-list">
-                                  {candidate.phoneNumbers.map((phone) => (
-                                    <li key={`${candidate.id}-${phone.index}`}>
-                                      <span>{phone.number}</span>
-                                      {phone.isVerified ? (
-                                        <span className="pill">Zweryfikowany</span>
-                                      ) : (
-                                        <>
-                                          <span className="pill">Niezweryfikowany</span>
-                                          <button
-                                            type="button"
-                                            className="ghost"
-                                            onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
-                                          >
-                                            {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
-                                          </button>
-                                        </>
-                                      )}
-                                    </li>
-                                  ))}
+                                  {candidate.phoneNumbers.map((phone) => {
+                                    const smsHref = buildConfirmationSmsHref(phone.number, phone.verificationToken);
+                                    return (
+                                      <li key={`${candidate.id}-${phone.index}`}>
+                                        <span>{phone.number}</span>
+                                        {phone.isVerified ? (
+                                          <span className="pill">Zweryfikowany</span>
+                                        ) : (
+                                          <>
+                                            <span className="pill">Niezweryfikowany</span>
+                                            {smsHref ? (
+                                              <a className="ghost" href={smsHref}>
+                                                Utwórz SMS
+                                              </a>
+                                            ) : null}
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                            >
+                                              {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
+                                            </button>
+                                          </>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
                                 </ul>
                               </article>
                             ))}

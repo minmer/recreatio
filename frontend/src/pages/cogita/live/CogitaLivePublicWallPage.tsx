@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  getCogitaLiveRevisionReview,
   getCogitaLiveRevisionPublicState,
-  type CogitaLiveRevisionPublicState
+  type CogitaLiveRevisionPublicState,
+  type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
 import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
@@ -238,6 +240,8 @@ export function CogitaLivePublicWallPage({
   const liveCopy = copy.cogita.library.revision.live;
   const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [reviewRounds, setReviewRounds] = useState<CogitaLiveRevisionReviewRound[]>([]);
+  const [reviewStatus, setReviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const prevScoresRef = useRef<Map<string, number>>(new Map());
@@ -324,6 +328,10 @@ export function CogitaLivePublicWallPage({
       };
     });
   }, [state?.correctnessHistory]);
+  const usedReviewRounds = useMemo(
+    () => [...reviewRounds].sort((left, right) => left.roundIndex - right.roundIndex),
+    [reviewRounds]
+  );
 
   useEffect(() => {
     if (promptTimerEndMs == null) return;
@@ -386,6 +394,30 @@ export function CogitaLivePublicWallPage({
     prevScoresRef.current = currentScores;
     prevRanksRef.current = currentRanks;
   }, [state?.revealVersion, state?.scoreboard]);
+
+  useEffect(() => {
+    if (!isSessionFinished || isAsyncSession) {
+      setReviewRounds([]);
+      setReviewStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    setReviewStatus('loading');
+    void getCogitaLiveRevisionReview({ code, participantToken: null })
+      .then((rows) => {
+        if (cancelled) return;
+        setReviewRounds(Array.isArray(rows) ? rows : []);
+        setReviewStatus('ready');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setReviewRounds([]);
+        setReviewStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code, isAsyncSession, isSessionFinished, state?.revealVersion]);
 
   return (
     <>
@@ -552,6 +584,58 @@ export function CogitaLivePublicWallPage({
                   })}
                 </div>
               </div>
+            ) : null}
+            {showPodiumOnPublicScreen ? (
+              <section className="cogita-library-panel">
+                <div className="cogita-detail-header">
+                  <div>
+                    <p className="cogita-user-kicker">{liveCopy.reviewQuestionsTitle}</p>
+                    <h3 className="cogita-detail-title">{usedReviewRounds.length}</h3>
+                  </div>
+                </div>
+                {reviewStatus === 'loading' ? <p className="cogita-help">{liveCopy.loading}</p> : null}
+                {reviewStatus === 'error' ? <p className="cogita-help">{liveCopy.connectionError}</p> : null}
+                {reviewStatus !== 'loading' && usedReviewRounds.length === 0 ? (
+                  <p className="cogita-help">{liveCopy.noParticipants}</p>
+                ) : null}
+                {usedReviewRounds.length > 0 ? (
+                  <div className="cogita-live-wall-stack">
+                    {usedReviewRounds.map((round) => {
+                      const reviewPrompt = (round.prompt as LivePrompt | undefined) ?? null;
+                      const reviewReveal = (round.reveal as Record<string, unknown> | undefined) ?? null;
+                      if (!reviewPrompt) return null;
+                      return (
+                        <CogitaCheckcardSurface
+                          key={`public-review-round:${round.roundIndex}:${round.cardKey}`}
+                          className="cogita-live-card-container"
+                          feedbackToken={`public-review:${round.roundIndex}`}
+                        >
+                          <CogitaLivePromptCard
+                            prompt={reviewPrompt}
+                            revealExpected={reviewReveal?.expected}
+                            answerDistribution={reviewReveal?.answerDistribution}
+                            mode="readonly"
+                            labels={{
+                              answerLabel: copy.cogita.library.revision.answerLabel,
+                              correctAnswerLabel: copy.cogita.library.revision.correctAnswerLabel,
+                              trueLabel: liveCopy.trueLabel,
+                              falseLabel: liveCopy.falseLabel,
+                              fragmentLabel: liveCopy.fragmentLabel,
+                              correctFragmentLabel: liveCopy.correctFragmentLabel,
+                              participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                              unsupportedPromptType: liveCopy.unsupportedPromptType,
+                              waitingForReveal: liveCopy.waitingForRevealLabel,
+                              selectedPaths: liveCopy.selectedPathsLabel,
+                              removePath: liveCopy.removePathAction,
+                              columnPrefix: liveCopy.columnPrefixLabel
+                            }}
+                          />
+                        </CogitaCheckcardSurface>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </section>
             ) : null}
             {showRightScoreboard ? (
               <div className="cogita-share-list">

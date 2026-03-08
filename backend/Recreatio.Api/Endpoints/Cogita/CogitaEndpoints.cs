@@ -6414,7 +6414,7 @@ public static class CogitaEndpoints
                     RoundIndex = requestedRoundIndex,
                     CardKey = cardKey,
                     IsPersistent = false,
-                    PayloadJson = null,
+                    PayloadJson = session.CurrentPromptJson,
                     CreatedUtc = now
                 });
             }
@@ -6435,7 +6435,7 @@ public static class CogitaEndpoints
                     EventType = "live_round_revealed",
                     RoundIndex = requestedRoundIndex,
                     IsPersistent = false,
-                    PayloadJson = null,
+                    PayloadJson = session.CurrentRevealJson,
                     CreatedUtc = now
                 });
             }
@@ -6772,8 +6772,35 @@ public static class CogitaEndpoints
                         }
                         return streak;
                     });
+            var previousWrongStreakByParticipant = priorAnswers
+                .GroupBy(x => x.ParticipantId)
+                .ToDictionary(
+                    group => group.Key,
+                    group =>
+                    {
+                        var streak = 0;
+                        foreach (var previous in group)
+                        {
+                            if (previous.IsCorrect == false)
+                            {
+                                streak += 1;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        return streak;
+                    });
             var firstCorrectParticipantId = scoreItems
                 .Where(x => x.IsCorrect == true)
+                .Select(x => answersByParticipant.TryGetValue(x.ParticipantId, out var answer) ? answer : null)
+                .Where(x => x is not null)
+                .OrderBy(x => x!.SubmittedUtc)
+                .ThenBy(x => x!.UpdatedUtc)
+                .Select(x => x!.ParticipantId)
+                .FirstOrDefault();
+            var firstAnsweredParticipantId = scoreItems
                 .Select(x => answersByParticipant.TryGetValue(x.ParticipantId, out var answer) ? answer : null)
                 .Where(x => x is not null)
                 .OrderBy(x => x!.SubmittedUtc)
@@ -6818,22 +6845,28 @@ public static class CogitaEndpoints
                         var streakPoints = 0;
                         var wrongPenaltyPoints = 0;
                         var firstWrongPenaltyPoints = 0;
+                        var wrongStreakPenaltyPoints = 0;
                         var streakCount = 0;
+                        var wrongStreakCount = 0;
+                        var firstBonusApplies = scoringRules.FirstCorrectBonus > 0 &&
+                            (
+                                (string.Equals(scoringRules.FirstBonusMode, "first_answer", StringComparison.Ordinal) && firstAnsweredParticipantId != Guid.Empty && delta.ParticipantId == firstAnsweredParticipantId) ||
+                                (string.Equals(scoringRules.FirstBonusMode, "first_correct", StringComparison.Ordinal) && firstCorrectParticipantId != Guid.Empty && delta.ParticipantId == firstCorrectParticipantId)
+                            );
+                        if (firstBonusApplies)
+                        {
+                            firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
+                            if (firstBonusPoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("first"));
+                            }
+                        }
                         if (delta.IsCorrect == true)
                         {
                             basePoints = Math.Max(0, Math.Min(500000, scoringRules.BaseCorrect));
                             if (basePoints > 0)
                             {
                                 synthesizedFactors.Add(JsonValue.Create("base"));
-                            }
-
-                            if (firstCorrectParticipantId != Guid.Empty && delta.ParticipantId == firstCorrectParticipantId)
-                            {
-                                firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
-                                if (firstBonusPoints > 0)
-                                {
-                                    synthesizedFactors.Add(JsonValue.Create("first"));
-                                }
                             }
 
                             var previousStreak = previousStreakByParticipant.TryGetValue(delta.ParticipantId, out var resolvedStreak)
@@ -6862,14 +6895,21 @@ public static class CogitaEndpoints
                                 basePoints = Math.Max(0, delta.PointsAwarded - firstBonusPoints - speedPoints - streakPoints);
                             }
                         }
-                        else if (delta.PointsAwarded < 0)
+                        else
                         {
                             wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
                             if (wrongPenaltyPoints > 0)
                             {
                                 synthesizedFactors.Add(JsonValue.Create("wrong"));
                             }
-                            if (firstWrongParticipantId != Guid.Empty && delta.ParticipantId == firstWrongParticipantId)
+                            var firstWrongPenaltyApplies =
+                                (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_overall_answer", StringComparison.Ordinal) &&
+                                 firstAnsweredParticipantId != Guid.Empty &&
+                                 delta.ParticipantId == firstAnsweredParticipantId) ||
+                                (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_wrong", StringComparison.Ordinal) &&
+                                 firstWrongParticipantId != Guid.Empty &&
+                                 delta.ParticipantId == firstWrongParticipantId);
+                            if (firstWrongPenaltyApplies)
                             {
                                 firstWrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstWrongPenalty));
                                 if (firstWrongPenaltyPoints > 0)
@@ -6877,7 +6917,20 @@ public static class CogitaEndpoints
                                     synthesizedFactors.Add(JsonValue.Create("first-wrong"));
                                 }
                             }
-                            var knownPenalty = wrongPenaltyPoints + firstWrongPenaltyPoints;
+                            var previousWrong = previousWrongStreakByParticipant.TryGetValue(delta.ParticipantId, out var resolvedWrong)
+                                ? resolvedWrong
+                                : 0;
+                            wrongStreakCount = previousWrong + 1;
+                            wrongStreakPenaltyPoints = ComputeAsyncStreakBonus(
+                                scoringRules.WrongStreakGrowth,
+                                scoringRules.WrongStreakBasePenalty,
+                                wrongStreakCount,
+                                scoringRules.WrongStreakLimit);
+                            if (wrongStreakPenaltyPoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("wrong-streak"));
+                            }
+                            var knownPenalty = wrongPenaltyPoints + firstWrongPenaltyPoints + wrongStreakPenaltyPoints;
                             if (knownPenalty <= 0)
                             {
                                 wrongPenaltyPoints = Math.Abs(delta.PointsAwarded);
@@ -6891,7 +6944,9 @@ public static class CogitaEndpoints
                         synthesizedScoringNode["streakPoints"] = streakPoints;
                         synthesizedScoringNode["wrongPenaltyPoints"] = wrongPenaltyPoints;
                         synthesizedScoringNode["firstWrongPenaltyPoints"] = firstWrongPenaltyPoints;
+                        synthesizedScoringNode["wrongStreakPenaltyPoints"] = wrongStreakPenaltyPoints;
                         synthesizedScoringNode["streak"] = streakCount;
+                        synthesizedScoringNode["wrongStreak"] = wrongStreakCount;
                         synthesizedScoringNode["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds));
                         participantScoringNode = synthesizedScoringNode;
                         roundScoringByParticipant[delta.ParticipantId] = synthesizedScoringNode;
@@ -7935,82 +7990,150 @@ public static class CogitaEndpoints
             }
 
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
-            if (!string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal))
+            var isAsyncSession = string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal);
+            if (!string.Equals(session.Status, "finished", StringComparison.Ordinal) &&
+                !string.Equals(session.Status, "closed", StringComparison.Ordinal))
             {
                 return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
             }
 
-            if (string.IsNullOrWhiteSpace(participantToken))
+            CogitaLiveRevisionParticipant? participant = null;
+            if (!string.IsNullOrWhiteSpace(participantToken))
+            {
+                participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
+            }
+
+            var asyncRounds = isAsyncSession
+                ? ParseLiveAsyncRoundBundle(session.CurrentPromptJson)
+                : new List<LiveAsyncRoundPayload>();
+            var syncRounds = new List<LiveSyncRoundPayload>();
+            if (!isAsyncSession)
+            {
+                var roundEvents = await dbContext.CogitaStatisticEvents.AsNoTracking()
+                    .Where(x =>
+                        x.SessionId == session.Id &&
+                        x.RoundIndex.HasValue &&
+                        (x.EventType == "live_round_published" || x.EventType == "live_round_revealed"))
+                    .OrderBy(x => x.CreatedUtc)
+                    .ToListAsync(ct);
+                syncRounds = BuildLiveSyncRoundBundle(roundEvents, session.CurrentPromptJson, session.CurrentRevealJson, session.CurrentRoundIndex);
+            }
+
+            var totalRounds = isAsyncSession ? asyncRounds.Count : syncRounds.Count;
+            if (totalRounds == 0)
             {
                 return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
             }
 
-            var participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
-            if (participant is null)
+            var answerByRound = new Dictionary<int, CogitaLiveRevisionAnswer>();
+            if (participant is not null)
             {
-                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+                var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                    .OrderByDescending(x => x.UpdatedUtc)
+                    .ToListAsync(ct);
+                answerByRound = answers
+                    .GroupBy(x => x.RoundIndex)
+                    .ToDictionary(x => x.Key, x => x.First());
             }
-
-            var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
-            if (rounds.Count == 0)
-            {
-                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
-            }
-
-            var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
-                .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
-                .OrderByDescending(x => x.UpdatedUtc)
-                .ToListAsync(ct);
-            var answerByRound = answers
-                .GroupBy(x => x.RoundIndex)
-                .ToDictionary(x => x.Key, x => x.First());
 
             var computedScores = await ComputeLiveSessionScoresOnTheFlyAsync(session.Id, dbContext, ct);
+            var response = new List<CogitaLiveRevisionReviewRoundResponse>(totalRounds);
 
-            var response = new List<CogitaLiveRevisionReviewRoundResponse>(rounds.Count);
-            foreach (var round in rounds.OrderBy(x => x.RoundIndex))
+            if (isAsyncSession)
             {
-                var roundCardKey = string.IsNullOrWhiteSpace(round.CardKey)
-                    ? $"round-{round.RoundIndex}"
-                    : round.CardKey.Trim();
-                answerByRound.TryGetValue(round.RoundIndex, out var answer);
-                var participantAnswer = answer is null
-                    ? null
-                    : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
-                var revealNode = CloneJsonObject(round.Reveal);
-                await AppendLiveRoundAnswerDistributionAsync(
-                    session.Id,
-                    round.RoundIndex,
-                    roundCardKey,
-                    round.Prompt,
-                    revealNode,
-                    dataProtectionProvider,
-                    dbContext,
-                    ct);
-                if (answer is not null)
+                foreach (var round in asyncRounds.OrderBy(x => x.RoundIndex))
                 {
-                    var hasDetail = computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var detail);
-                    var awardedPoints = hasDetail ? detail.Points : 0;
-                    var roundScoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
-                    roundScoring[participant.Id.ToString("D")] = BuildLiveRoundScoringNode(
-                        answer.IsCorrect == true,
-                        awardedPoints,
-                        Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
-                        hasDetail ? detail : null);
-                    revealNode["roundScoring"] = roundScoring;
+                    var roundCardKey = string.IsNullOrWhiteSpace(round.CardKey)
+                        ? $"round-{round.RoundIndex}"
+                        : round.CardKey.Trim();
+                    answerByRound.TryGetValue(round.RoundIndex, out var answer);
+                    var participantAnswer = answer is null
+                        ? null
+                        : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                    var revealNode = CloneJsonObject(round.Reveal);
+                    await AppendLiveRoundAnswerDistributionAsync(
+                        session.Id,
+                        round.RoundIndex,
+                        roundCardKey,
+                        round.Prompt,
+                        revealNode,
+                        dataProtectionProvider,
+                        dbContext,
+                        ct);
+                    if (answer is not null && participant is not null)
+                    {
+                        var hasDetail = computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var detail);
+                        var awardedPoints = hasDetail ? detail.Points : 0;
+                        var roundScoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
+                        roundScoring[participant.Id.ToString("D")] = BuildLiveRoundScoringNode(
+                            answer.IsCorrect == true,
+                            awardedPoints,
+                            Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
+                            hasDetail ? detail : null);
+                        revealNode["roundScoring"] = roundScoring;
+                    }
+                    response.Add(new CogitaLiveRevisionReviewRoundResponse(
+                        round.RoundIndex,
+                        roundCardKey,
+                        JsonNodeToJsonElement(round.Prompt) ?? default,
+                        JsonNodeToJsonElement(revealNode) ?? default,
+                        participantAnswer,
+                        answer?.IsCorrect,
+                        participant is not null &&
+                        computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var reviewDetail)
+                            ? reviewDetail.Points
+                            : 0
+                    ));
                 }
-                response.Add(new CogitaLiveRevisionReviewRoundResponse(
-                    round.RoundIndex,
-                    roundCardKey,
-                    JsonNodeToJsonElement(round.Prompt) ?? default,
-                    JsonNodeToJsonElement(revealNode) ?? default,
-                    participantAnswer,
-                    answer?.IsCorrect,
-                    computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var reviewDetail)
-                        ? reviewDetail.Points
-                        : 0
-                ));
+            }
+            else
+            {
+                foreach (var round in syncRounds.OrderBy(x => x.RoundIndex))
+                {
+                    var roundCardKey = string.IsNullOrWhiteSpace(round.CardKey)
+                        ? $"round-{round.RoundIndex}"
+                        : round.CardKey.Trim();
+                    answerByRound.TryGetValue(round.RoundIndex, out var answer);
+                    var participantAnswer = answer is null
+                        ? null
+                        : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                    var revealNode = CloneJsonObject(round.Reveal);
+                    await AppendLiveRoundAnswerDistributionAsync(
+                        session.Id,
+                        round.RoundIndex,
+                        roundCardKey,
+                        round.Prompt,
+                        revealNode,
+                        dataProtectionProvider,
+                        dbContext,
+                        ct);
+                    if (answer is not null && participant is not null)
+                    {
+                        var hasDetail = computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var detail);
+                        var awardedPoints = hasDetail ? detail.Points : 0;
+                        var roundScoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
+                        roundScoring[participant.Id.ToString("D")] = BuildLiveRoundScoringNode(
+                            answer.IsCorrect == true,
+                            awardedPoints,
+                            Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
+                            hasDetail ? detail : null);
+                        revealNode["roundScoring"] = roundScoring;
+                    }
+                    response.Add(new CogitaLiveRevisionReviewRoundResponse(
+                        round.RoundIndex,
+                        roundCardKey,
+                        JsonNodeToJsonElement(round.Prompt) ?? default,
+                        JsonNodeToJsonElement(revealNode) ?? default,
+                        participantAnswer,
+                        answer?.IsCorrect,
+                        participant is not null &&
+                        computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var reviewDetail)
+                            ? reviewDetail.Points
+                            : 0
+                    ));
+                }
             }
 
             return Results.Ok(response);
@@ -8204,6 +8327,11 @@ public static class CogitaEndpoints
                     .OrderByDescending(x => x.RoundIndex)
                     .ThenByDescending(x => x.UpdatedUtc)
                     .ToListAsync(ct);
+                var roundPeerAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                    .Where(x => x.SessionId == session.Id && x.RoundIndex == roundIndex && x.ParticipantId != participant.Id && x.IsCorrect.HasValue)
+                    .OrderBy(x => x.SubmittedUtc)
+                    .ThenBy(x => x.UpdatedUtc)
+                    .ToListAsync(ct);
                 var streakBefore = 0;
                 foreach (var historyEntry in participantHistory)
                 {
@@ -8214,12 +8342,43 @@ public static class CogitaEndpoints
                     }
                     break;
                 }
+                var wrongStreakBefore = 0;
+                foreach (var historyEntry in participantHistory)
+                {
+                    if (historyEntry.IsCorrect == false)
+                    {
+                        wrongStreakBefore += 1;
+                        continue;
+                    }
+                    break;
+                }
+
+                var firstOverallParticipantId = roundPeerAnswers.FirstOrDefault()?.ParticipantId;
+                var firstCorrectParticipantId = roundPeerAnswers.FirstOrDefault(x => x.IsCorrect == true)?.ParticipantId;
+                var firstWrongParticipantId = roundPeerAnswers.FirstOrDefault(x => x.IsCorrect == false)?.ParticipantId;
+                var isCurrentFirstOverall = firstOverallParticipantId is null;
+                var isCurrentFirstCorrect = firstCorrectParticipantId is null && isCorrect;
+                var isCurrentFirstWrong = firstWrongParticipantId is null && !isCorrect;
 
                 var points = 0;
                 var scoredBasePoints = 0;
                 var scoredFirstBonusPoints = 0;
                 var scoredSpeedPoints = 0;
                 var scoredStreakPoints = 0;
+                var scoredWrongPenaltyPoints = 0;
+                var scoredFirstWrongPenaltyPoints = 0;
+                var scoredWrongStreakPenaltyPoints = 0;
+                var scoredWrongStreakCount = 0;
+                var firstBonusApplies = rules.FirstCorrectBonus > 0 &&
+                    (
+                        (string.Equals(rules.FirstBonusMode, "first_answer", StringComparison.Ordinal) && isCurrentFirstOverall) ||
+                        (string.Equals(rules.FirstBonusMode, "first_correct", StringComparison.Ordinal) && isCurrentFirstCorrect)
+                    );
+                if (firstBonusApplies)
+                {
+                    scoredFirstBonusPoints = Math.Max(0, Math.Min(500000, rules.FirstCorrectBonus));
+                    points += scoredFirstBonusPoints;
+                }
                 if (isCorrect)
                 {
                     var basePoints = Math.Max(0, Math.Min(500000, rules.BaseCorrect));
@@ -8286,8 +8445,23 @@ public static class CogitaEndpoints
                 else
                 {
                     var wrongPenalty = Math.Max(0, Math.Min(500000, rules.WrongAnswerPenalty));
-                    var firstWrongPenalty = 0;
-                    points -= wrongPenalty + firstWrongPenalty;
+                    var firstWrongPenaltyApplies =
+                        (string.Equals(rules.FirstWrongPenaltyMode, "first_overall_answer", StringComparison.Ordinal) && isCurrentFirstOverall) ||
+                        (string.Equals(rules.FirstWrongPenaltyMode, "first_wrong", StringComparison.Ordinal) && isCurrentFirstWrong);
+                    var firstWrongPenalty = firstWrongPenaltyApplies
+                        ? Math.Max(0, Math.Min(500000, rules.FirstWrongPenalty))
+                        : 0;
+                    var wrongStreakCount = wrongStreakBefore + 1;
+                    var wrongStreakPenalty = ComputeAsyncStreakBonus(
+                        rules.WrongStreakGrowth,
+                        rules.WrongStreakBasePenalty,
+                        wrongStreakCount,
+                        rules.WrongStreakLimit);
+                    scoredWrongPenaltyPoints = wrongPenalty;
+                    scoredFirstWrongPenaltyPoints = firstWrongPenalty;
+                    scoredWrongStreakPenaltyPoints = wrongStreakPenalty;
+                    scoredWrongStreakCount = wrongStreakCount;
+                    points -= wrongPenalty + firstWrongPenalty + wrongStreakPenalty;
                 }
 
                 answer.IsCorrect = isCorrect;
@@ -8301,7 +8475,11 @@ public static class CogitaEndpoints
                     basePoints = scoredBasePoints,
                     firstBonusPoints = scoredFirstBonusPoints,
                     speedPoints = scoredSpeedPoints,
-                    streakPoints = scoredStreakPoints
+                    streakPoints = scoredStreakPoints,
+                    wrongPenaltyPoints = scoredWrongPenaltyPoints,
+                    firstWrongPenaltyPoints = scoredFirstWrongPenaltyPoints,
+                    wrongStreakPenaltyPoints = scoredWrongStreakPenaltyPoints,
+                    wrongStreak = scoredWrongStreakCount
                 });
             }
 
@@ -17322,15 +17500,21 @@ public static class CogitaEndpoints
     }
 
     private sealed record LiveAsyncRoundPayload(int RoundIndex, string CardKey, JsonObject Prompt, JsonObject Reveal);
+    private sealed record LiveSyncRoundPayload(int RoundIndex, string CardKey, JsonObject Prompt, JsonObject Reveal);
 
     private sealed record LiveSessionScoringRules(
         int BaseCorrect,
+        string FirstBonusMode,
         int FirstCorrectBonus,
         int WrongAnswerPenalty,
+        string FirstWrongPenaltyMode,
         int FirstWrongPenalty,
         int StreakBaseBonus,
         string StreakGrowth,
         int StreakLimit,
+        int WrongStreakBasePenalty,
+        string WrongStreakGrowth,
+        int WrongStreakLimit,
         bool BonusTimerEnabled,
         int BonusTimerSeconds,
         string BonusTimerStartMode,
@@ -17435,6 +17619,139 @@ public static class CogitaEndpoints
         }
     }
 
+    private static JsonObject? ParseJsonObjectSafe(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonNode.Parse(raw) as JsonObject;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static List<LiveSyncRoundPayload> BuildLiveSyncRoundBundle(
+        List<CogitaStatisticEvent> roundEvents,
+        string? currentPromptJson,
+        string? currentRevealJson,
+        int currentRoundIndex)
+    {
+        var promptByRound = new Dictionary<int, JsonObject>();
+        var revealByRound = new Dictionary<int, JsonObject>();
+        var cardKeyByRound = new Dictionary<int, string>();
+
+        foreach (var statisticEvent in roundEvents.OrderBy(x => x.CreatedUtc))
+        {
+            if (!statisticEvent.RoundIndex.HasValue)
+            {
+                continue;
+            }
+
+            var roundIndex = Math.Max(0, statisticEvent.RoundIndex.Value);
+            if (string.Equals(statisticEvent.EventType, "live_round_published", StringComparison.Ordinal))
+            {
+                var promptNode = ParseJsonObjectSafe(statisticEvent.PayloadJson);
+                if (promptNode is not null)
+                {
+                    promptByRound[roundIndex] = promptNode;
+                    var promptCardKey = promptNode["cardKey"]?.GetValue<string>()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(promptCardKey))
+                    {
+                        cardKeyByRound[roundIndex] = promptCardKey;
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(statisticEvent.CardKey))
+                {
+                    cardKeyByRound[roundIndex] = statisticEvent.CardKey.Trim();
+                }
+
+                continue;
+            }
+
+            if (string.Equals(statisticEvent.EventType, "live_round_revealed", StringComparison.Ordinal))
+            {
+                var revealNode = ParseJsonObjectSafe(statisticEvent.PayloadJson);
+                if (revealNode is not null)
+                {
+                    revealByRound[roundIndex] = revealNode;
+                }
+            }
+        }
+
+        var currentPromptNode = ParseJsonObjectSafe(currentPromptJson);
+        if (currentPromptNode is not null)
+        {
+            promptByRound[currentRoundIndex] = currentPromptNode;
+            var currentCardKey = currentPromptNode["cardKey"]?.GetValue<string>()?.Trim();
+            if (!string.IsNullOrWhiteSpace(currentCardKey))
+            {
+                cardKeyByRound[currentRoundIndex] = currentCardKey;
+            }
+        }
+
+        var currentRevealNode = ParseJsonObjectSafe(currentRevealJson);
+        if (currentRevealNode is not null)
+        {
+            revealByRound[currentRoundIndex] = currentRevealNode;
+        }
+
+        var roundIndexes = promptByRound.Keys
+            .Concat(revealByRound.Keys)
+            .Concat(cardKeyByRound.Keys)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+
+        var result = new List<LiveSyncRoundPayload>(roundIndexes.Count);
+        foreach (var roundIndex in roundIndexes)
+        {
+            if (!promptByRound.TryGetValue(roundIndex, out var promptNode))
+            {
+                continue;
+            }
+
+            var cardKey = promptNode["cardKey"]?.GetValue<string>()?.Trim();
+            if (string.IsNullOrWhiteSpace(cardKey) &&
+                cardKeyByRound.TryGetValue(roundIndex, out var fallbackCardKey) &&
+                !string.IsNullOrWhiteSpace(fallbackCardKey))
+            {
+                cardKey = fallbackCardKey;
+                promptNode["cardKey"] = fallbackCardKey;
+            }
+            cardKey ??= $"round-{roundIndex}";
+
+            if (!revealByRound.TryGetValue(roundIndex, out var revealNode))
+            {
+                revealNode = new JsonObject();
+            }
+            revealNode["cardKey"] = cardKey;
+            if (revealNode["kind"] is null && promptNode["kind"] is not null)
+            {
+                revealNode["kind"] = JsonNode.Parse(promptNode["kind"]!.ToJsonString());
+            }
+            if (revealNode["expected"] is null)
+            {
+                revealNode["expected"] = promptNode["expected"] is not null
+                    ? JsonNode.Parse(promptNode["expected"]!.ToJsonString())
+                    : JsonValue.Create(string.Empty);
+            }
+
+            result.Add(new LiveSyncRoundPayload(
+                roundIndex,
+                cardKey,
+                CloneJsonObject(promptNode),
+                CloneJsonObject(revealNode)));
+        }
+
+        return result;
+    }
+
     private static JsonObject CloneJsonObject(JsonObject source)
     {
         return (JsonNode.Parse(source.ToJsonString()) as JsonObject) ?? new JsonObject();
@@ -17509,12 +17826,17 @@ public static class CogitaEndpoints
     {
         var defaults = new LiveSessionScoringRules(
             BaseCorrect: 1000,
+            FirstBonusMode: "first_answer",
             FirstCorrectBonus: 500,
             WrongAnswerPenalty: 0,
+            FirstWrongPenaltyMode: "first_overall_answer",
             FirstWrongPenalty: 0,
             StreakBaseBonus: 1000,
             StreakGrowth: "limited",
             StreakLimit: 5,
+            WrongStreakBasePenalty: 0,
+            WrongStreakGrowth: "limited",
+            WrongStreakLimit: 5,
             BonusTimerEnabled: true,
             BonusTimerSeconds: 10,
             BonusTimerStartMode: "first_answer",
@@ -17602,12 +17924,18 @@ public static class CogitaEndpoints
         var baseCorrect = scoringRoot.ValueKind == JsonValueKind.Object
             ? ReadInt(scoringRoot, "baseCorrect", defaults.BaseCorrect, 0, 500000)
             : defaults.BaseCorrect;
+        var firstBonusMode = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(scoringRoot, "firstBonusMode", defaults.FirstBonusMode, new[] { "first_answer", "first_correct" })
+            : defaults.FirstBonusMode;
         var firstCorrectBonus = scoringRoot.ValueKind == JsonValueKind.Object
             ? ReadInt(scoringRoot, "firstCorrectBonus", defaults.FirstCorrectBonus, 0, 500000)
             : defaults.FirstCorrectBonus;
         var wrongAnswerPenalty = scoringRoot.ValueKind == JsonValueKind.Object
             ? ReadInt(scoringRoot, "wrongAnswerPenalty", defaults.WrongAnswerPenalty, 0, 500000)
             : defaults.WrongAnswerPenalty;
+        var firstWrongPenaltyMode = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(scoringRoot, "firstWrongPenaltyMode", defaults.FirstWrongPenaltyMode, new[] { "first_overall_answer", "first_wrong" })
+            : defaults.FirstWrongPenaltyMode;
         var firstWrongPenalty = scoringRoot.ValueKind == JsonValueKind.Object
             ? ReadInt(scoringRoot, "firstWrongPenalty", defaults.FirstWrongPenalty, 0, 500000)
             : defaults.FirstWrongPenalty;
@@ -17620,6 +17948,15 @@ public static class CogitaEndpoints
         var streakGrowth = scoringRoot.ValueKind == JsonValueKind.Object
             ? ReadString(scoringRoot, "streakGrowth", defaults.StreakGrowth, new[] { "linear", "exponential", "limited" })
             : defaults.StreakGrowth;
+        var wrongStreakBasePenalty = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "wrongStreakBasePenalty", defaults.WrongStreakBasePenalty, 0, 500000)
+            : defaults.WrongStreakBasePenalty;
+        var wrongStreakGrowth = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadString(scoringRoot, "wrongStreakGrowth", defaults.WrongStreakGrowth, new[] { "linear", "exponential", "limited" })
+            : defaults.WrongStreakGrowth;
+        var wrongStreakLimit = scoringRoot.ValueKind == JsonValueKind.Object
+            ? ReadInt(scoringRoot, "wrongStreakLimit", defaults.WrongStreakLimit, 1, 200)
+            : defaults.WrongStreakLimit;
 
         var bonusTimerEnabled = bonusTimerRoot.ValueKind == JsonValueKind.Object
             ? ReadBool(bonusTimerRoot, "enabled", defaults.BonusTimerEnabled)
@@ -17643,12 +17980,17 @@ public static class CogitaEndpoints
 
         return new LiveSessionScoringRules(
             baseCorrect,
+            firstBonusMode,
             firstCorrectBonus,
             wrongAnswerPenalty,
+            firstWrongPenaltyMode,
             firstWrongPenalty,
             streakBaseBonus,
             streakGrowth,
             streakLimit,
+            wrongStreakBasePenalty,
+            wrongStreakGrowth,
+            wrongStreakLimit,
             bonusTimerEnabled,
             bonusTimerSeconds,
             bonusTimerStartMode,
@@ -18299,11 +18641,13 @@ public static class CogitaEndpoints
         var streakPoints = Math.Max(0, detail?.StreakBonusPoints ?? 0);
         var wrongPenaltyPoints = Math.Max(0, detail?.WrongPenaltyPoints ?? 0);
         var firstWrongPenaltyPoints = Math.Max(0, detail?.FirstWrongPenaltyPoints ?? 0);
+        var wrongStreakPenaltyPoints = Math.Max(0, detail?.WrongStreakPenaltyPoints ?? 0);
         var streakCount = Math.Max(0, detail?.StreakCount ?? 0);
+        var wrongStreakCount = Math.Max(0, detail?.WrongStreakCount ?? 0);
 
         if (!isCorrect)
         {
-            if (wrongPenaltyPoints == 0 && firstWrongPenaltyPoints == 0 && totalPoints < 0)
+            if (wrongPenaltyPoints == 0 && firstWrongPenaltyPoints == 0 && wrongStreakPenaltyPoints == 0 && totalPoints < 0)
             {
                 wrongPenaltyPoints = Math.Abs(totalPoints);
             }
@@ -18325,6 +18669,7 @@ public static class CogitaEndpoints
         if (streakPoints > 0) factors.Add(JsonValue.Create("streak"));
         if (wrongPenaltyPoints > 0) factors.Add(JsonValue.Create("wrong"));
         if (firstWrongPenaltyPoints > 0) factors.Add(JsonValue.Create("first-wrong"));
+        if (wrongStreakPenaltyPoints > 0) factors.Add(JsonValue.Create("wrong-streak"));
 
         return new JsonObject
         {
@@ -18337,7 +18682,9 @@ public static class CogitaEndpoints
             ["streakPoints"] = streakPoints,
             ["wrongPenaltyPoints"] = wrongPenaltyPoints,
             ["firstWrongPenaltyPoints"] = firstWrongPenaltyPoints,
+            ["wrongStreakPenaltyPoints"] = wrongStreakPenaltyPoints,
             ["streak"] = streakCount,
+            ["wrongStreak"] = wrongStreakCount,
             ["answerDurationSeconds"] = Math.Max(0, answerDurationSeconds)
         };
     }
@@ -18423,7 +18770,8 @@ public static class CogitaEndpoints
                 speedPoints = 0,
                 streakPoints = 0,
                 wrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongPenaltyPoints")),
-                firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints"))
+                firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints")),
+                wrongStreakPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongStreakPenaltyPoints"))
             });
         }
 
@@ -18466,7 +18814,8 @@ public static class CogitaEndpoints
             speedPoints,
             streakPoints,
             wrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongPenaltyPoints")),
-            firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints"))
+            firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints")),
+            wrongStreakPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongStreakPenaltyPoints"))
         });
     }
 
@@ -19004,7 +19353,9 @@ public static class CogitaEndpoints
         int StreakBonusPoints,
         int WrongPenaltyPoints,
         int FirstWrongPenaltyPoints,
+        int WrongStreakPenaltyPoints,
         int StreakCount,
+        int WrongStreakCount,
         int DurationMs,
         DateTimeOffset AnsweredUtc);
 
@@ -19061,17 +19412,36 @@ public static class CogitaEndpoints
             .GroupBy(x => x.RoundIndex)
             .ToDictionary(group => group.Key, group => group.Min(x => x.CreatedUtc));
 
-        var participantJoinedById = participants.ToDictionary(x => x.Id, x => x.JoinedUtc);
         var streakByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
+        var wrongStreakByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
 
         if (isAsyncSession)
         {
-            foreach (var participantGroup in latestAnswers.GroupBy(x => x.ParticipantId))
+            foreach (var roundGroup in latestAnswers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
             {
-                var previousAnswerUtc = participantJoinedById.TryGetValue(participantGroup.Key, out var joinedUtc)
-                    ? joinedUtc
-                    : session.StartedUtc ?? DateTimeOffset.UtcNow;
-                foreach (var answer in participantGroup.OrderBy(x => x.RoundIndex).ThenBy(x => x.UpdatedUtc))
+                var roundAnswers = roundGroup.OrderBy(x => x.SubmittedUtc).ThenBy(x => x.UpdatedUtc).ToList();
+                if (roundAnswers.Count == 0)
+                {
+                    continue;
+                }
+
+                var firstAnswered = roundAnswers.FirstOrDefault();
+                var firstAnsweredParticipantId = firstAnswered?.ParticipantId ?? Guid.Empty;
+                var firstCorrectParticipantId = roundAnswers.FirstOrDefault(x => x.IsCorrect == true)?.ParticipantId ?? Guid.Empty;
+                var firstWrongParticipantId = roundAnswers.FirstOrDefault(x => x.IsCorrect == false)?.ParticipantId ?? Guid.Empty;
+                var hasFirstOverall = firstAnsweredParticipantId != Guid.Empty;
+                var hasFirstCorrect = firstCorrectParticipantId != Guid.Empty;
+                var hasFirstWrong = firstWrongParticipantId != Guid.Empty;
+                var firstAnsweredUtc = firstAnswered?.SubmittedUtc ?? roundAnswers.Min(x => x.SubmittedUtc);
+                var roundStartUtc = roundStartByIndex.TryGetValue(roundGroup.Key, out var publishedUtc)
+                    ? publishedUtc
+                    : firstAnsweredUtc;
+                var speedTimerStartUtc = string.Equals(scoringRules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal)
+                    ? firstAnsweredUtc
+                    : roundStartUtc;
+                var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, scoringRules.BonusTimerSeconds)));
+
+                foreach (var answer in roundAnswers)
                 {
                     var basePoints = 0;
                     var firstBonusPoints = 0;
@@ -19079,10 +19449,23 @@ public static class CogitaEndpoints
                     var streakPoints = 0;
                     var wrongPenaltyPoints = 0;
                     var firstWrongPenaltyPoints = 0;
+                    var wrongStreakPenaltyPoints = 0;
                     var streakCount = 0;
+                    var wrongStreakCount = 0;
                     var points = 0;
                     var isCorrect = answer.IsCorrect == true;
                     var durationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
+
+                    var firstBonusApplies = scoringRules.FirstCorrectBonus > 0 &&
+                        (
+                            (string.Equals(scoringRules.FirstBonusMode, "first_answer", StringComparison.Ordinal) && hasFirstOverall && answer.ParticipantId == firstAnsweredParticipantId) ||
+                            (string.Equals(scoringRules.FirstBonusMode, "first_correct", StringComparison.Ordinal) && isCorrect && hasFirstCorrect && answer.ParticipantId == firstCorrectParticipantId)
+                        );
+                    if (firstBonusApplies)
+                    {
+                        firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
+                        points += firstBonusPoints;
+                    }
 
                     if (isCorrect)
                     {
@@ -19091,10 +19474,6 @@ public static class CogitaEndpoints
 
                         if (scoringRules.BonusTimerEnabled && scoringRules.SpeedBonusEnabled && scoringRules.SpeedBonusMaxPoints > 0)
                         {
-                            var speedTimerStartUtc = string.Equals(scoringRules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal)
-                                ? answer.UpdatedUtc
-                                : previousAnswerUtc;
-                            var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, scoringRules.BonusTimerSeconds)));
                             if (answer.UpdatedUtc <= speedTimerEndUtc)
                             {
                                 var denominator = Math.Max(1d, (speedTimerEndUtc - speedTimerStartUtc).TotalMilliseconds);
@@ -19110,7 +19489,7 @@ public static class CogitaEndpoints
                             }
                         }
 
-                        var previousStreak = streakByParticipant.TryGetValue(answer.ParticipantId, out var resolved) ? resolved : 0;
+                        var previousStreak = streakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedStreak) ? resolvedStreak : 0;
                         var nextStreak = previousStreak + 1;
                         streakPoints = ComputeAsyncStreakBonus(
                             scoringRules.StreakGrowth,
@@ -19119,13 +19498,34 @@ public static class CogitaEndpoints
                             scoringRules.StreakLimit);
                         points += streakPoints;
                         streakByParticipant[answer.ParticipantId] = nextStreak;
+                        wrongStreakByParticipant[answer.ParticipantId] = 0;
                         streakCount = nextStreak;
                     }
                     else
                     {
                         wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
                         points -= wrongPenaltyPoints;
+
+                        var firstWrongPenaltyApplies =
+                            (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_overall_answer", StringComparison.Ordinal) && hasFirstOverall && answer.ParticipantId == firstAnsweredParticipantId) ||
+                            (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_wrong", StringComparison.Ordinal) && hasFirstWrong && answer.ParticipantId == firstWrongParticipantId);
+                        if (firstWrongPenaltyApplies)
+                        {
+                            firstWrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstWrongPenalty));
+                            points -= firstWrongPenaltyPoints;
+                        }
+
+                        var previousWrong = wrongStreakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedWrong) ? resolvedWrong : 0;
+                        var nextWrong = previousWrong + 1;
+                        wrongStreakPenaltyPoints = ComputeAsyncStreakBonus(
+                            scoringRules.WrongStreakGrowth,
+                            scoringRules.WrongStreakBasePenalty,
+                            nextWrong,
+                            scoringRules.WrongStreakLimit);
+                        points -= wrongStreakPenaltyPoints;
+                        wrongStreakByParticipant[answer.ParticipantId] = nextWrong;
                         streakByParticipant[answer.ParticipantId] = 0;
+                        wrongStreakCount = nextWrong;
                     }
 
                     points = Math.Max(-500000, Math.Min(500000, points));
@@ -19142,10 +19542,11 @@ public static class CogitaEndpoints
                         streakPoints,
                         wrongPenaltyPoints,
                         firstWrongPenaltyPoints,
+                        wrongStreakPenaltyPoints,
                         streakCount,
+                        wrongStreakCount,
                         durationMs,
                         answer.UpdatedUtc);
-                    previousAnswerUtc = answer.UpdatedUtc;
                 }
             }
 
@@ -19176,6 +19577,12 @@ public static class CogitaEndpoints
                 .Select(x => x.ParticipantId)
                 .FirstOrDefault();
             var hasFirstCorrect = firstCorrectParticipantId != Guid.Empty;
+            var firstAnsweredParticipantId = roundAnswers
+                .OrderBy(x => x.SubmittedUtc)
+                .ThenBy(x => x.UpdatedUtc)
+                .Select(x => x.ParticipantId)
+                .FirstOrDefault();
+            var hasFirstOverall = firstAnsweredParticipantId != Guid.Empty;
 
             var firstWrongParticipantId = roundAnswers
                 .Where(x => x.IsCorrect == false)
@@ -19193,20 +19600,27 @@ public static class CogitaEndpoints
                 var streakPoints = 0;
                 var wrongPenaltyPoints = 0;
                 var firstWrongPenaltyPoints = 0;
+                var wrongStreakPenaltyPoints = 0;
                 var points = 0;
                 var isCorrect = answer.IsCorrect == true;
                 var durationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
+                var wrongStreakCount = 0;
+
+                var firstBonusApplies = scoringRules.FirstCorrectBonus > 0 &&
+                    (
+                        (string.Equals(scoringRules.FirstBonusMode, "first_answer", StringComparison.Ordinal) && hasFirstOverall && answer.ParticipantId == firstAnsweredParticipantId) ||
+                        (string.Equals(scoringRules.FirstBonusMode, "first_correct", StringComparison.Ordinal) && isCorrect && hasFirstCorrect && answer.ParticipantId == firstCorrectParticipantId)
+                    );
+                if (firstBonusApplies)
+                {
+                    firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
+                    points += firstBonusPoints;
+                }
 
                 if (isCorrect)
                 {
                     basePoints = Math.Max(0, Math.Min(500000, scoringRules.BaseCorrect));
                     points += basePoints;
-
-                    if (hasFirstCorrect && answer.ParticipantId == firstCorrectParticipantId)
-                    {
-                        firstBonusPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstCorrectBonus));
-                        points += firstBonusPoints;
-                    }
 
                     if (scoringRules.BonusTimerEnabled && scoringRules.SpeedBonusEnabled && scoringRules.SpeedBonusMaxPoints > 0)
                     {
@@ -19236,14 +19650,28 @@ public static class CogitaEndpoints
                         scoringRules.StreakLimit);
                     points += streakPoints;
                     streakByParticipant[answer.ParticipantId] = nextStreak;
+                    wrongStreakByParticipant[answer.ParticipantId] = 0;
                 }
                 else
                 {
                     wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
-                    firstWrongPenaltyPoints = hasFirstWrong && answer.ParticipantId == firstWrongParticipantId
+                    var firstWrongPenaltyApplies =
+                        (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_overall_answer", StringComparison.Ordinal) && hasFirstOverall && answer.ParticipantId == firstAnsweredParticipantId) ||
+                        (string.Equals(scoringRules.FirstWrongPenaltyMode, "first_wrong", StringComparison.Ordinal) && hasFirstWrong && answer.ParticipantId == firstWrongParticipantId);
+                    firstWrongPenaltyPoints = firstWrongPenaltyApplies
                         ? Math.Max(0, Math.Min(500000, scoringRules.FirstWrongPenalty))
                         : 0;
-                    points -= wrongPenaltyPoints + firstWrongPenaltyPoints;
+                    var previousWrongStreak = wrongStreakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedWrongStreak)
+                        ? resolvedWrongStreak
+                        : 0;
+                    wrongStreakCount = previousWrongStreak + 1;
+                    wrongStreakPenaltyPoints = ComputeAsyncStreakBonus(
+                        scoringRules.WrongStreakGrowth,
+                        scoringRules.WrongStreakBasePenalty,
+                        wrongStreakCount,
+                        scoringRules.WrongStreakLimit);
+                    points -= wrongPenaltyPoints + firstWrongPenaltyPoints + wrongStreakPenaltyPoints;
+                    wrongStreakByParticipant[answer.ParticipantId] = wrongStreakCount;
                     streakByParticipant[answer.ParticipantId] = 0;
                 }
 
@@ -19261,7 +19689,9 @@ public static class CogitaEndpoints
                     streakPoints,
                     wrongPenaltyPoints,
                     firstWrongPenaltyPoints,
+                    wrongStreakPenaltyPoints,
                     isCorrect ? (streakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedStreak) ? resolvedStreak : 0) : 0,
+                    wrongStreakCount,
                     durationMs,
                     answer.UpdatedUtc);
             }
@@ -19812,6 +20242,15 @@ public static class CogitaEndpoints
             return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         }
 
+        var publishedRoundRows = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x => x.SessionId == sessionId && x.EventType == "live_round_published" && x.RoundIndex.HasValue)
+            .OrderBy(x => x.CreatedUtc)
+            .Select(x => new { RoundIndex = x.RoundIndex!.Value, x.CreatedUtc })
+            .ToListAsync(ct);
+        var firstPublishedUtcByRound = publishedRoundRows
+            .GroupBy(x => x.RoundIndex)
+            .ToDictionary(group => group.Key, group => group.Min(item => item.CreatedUtc));
+
         var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
             .Where(x => x.SessionId == sessionId && x.IsCorrect != null)
             .OrderBy(x => x.RoundIndex)
@@ -19826,7 +20265,13 @@ public static class CogitaEndpoints
             .OrderBy(x => x.RoundIndex)
             .ThenBy(x => x.SubmittedUtc)
             .ToList();
-        if (answers.Count == 0)
+        var allRoundIndexes = publishedRoundRows
+            .Select(x => x.RoundIndex)
+            .Concat(answers.Select(x => x.RoundIndex))
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+        if (allRoundIndexes.Count == 0)
         {
             return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         }
@@ -19834,17 +20279,23 @@ public static class CogitaEndpoints
 
         var scoreByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
         var snapshots = new List<CogitaLiveRevisionScoreHistoryPointResponse>();
-        foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
+        var answerByRoundParticipant = answers.ToDictionary(x => (x.RoundIndex, x.ParticipantId), x => x);
+        foreach (var roundIndex in allRoundIndexes)
         {
-            foreach (var answer in roundGroup)
+            DateTimeOffset? roundRecordedUtc = null;
+            foreach (var participant in participants)
             {
-                if (!scoreByParticipant.ContainsKey(answer.ParticipantId))
+                if (!answerByRoundParticipant.TryGetValue((roundIndex, participant.Id), out var answer))
                 {
                     continue;
                 }
-                scoreByParticipant[answer.ParticipantId] += computed.DetailByRoundParticipant.TryGetValue((answer.RoundIndex, answer.ParticipantId), out var detail)
+                scoreByParticipant[participant.Id] += computed.DetailByRoundParticipant.TryGetValue((answer.RoundIndex, answer.ParticipantId), out var detail)
                     ? detail.Points
                     : 0;
+                var answerRecordedUtc = answer.UpdatedUtc > answer.SubmittedUtc ? answer.UpdatedUtc : answer.SubmittedUtc;
+                roundRecordedUtc = roundRecordedUtc.HasValue
+                    ? (roundRecordedUtc.Value > answerRecordedUtc ? roundRecordedUtc.Value : answerRecordedUtc)
+                    : answerRecordedUtc;
             }
 
             var roundScores = participants
@@ -19854,9 +20305,10 @@ public static class CogitaEndpoints
                     scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
                 .ToList();
 
-            var recordedUtc = roundGroup.Max(x => x.UpdatedUtc > x.SubmittedUtc ? x.UpdatedUtc : x.SubmittedUtc);
+            var recordedUtc = roundRecordedUtc ??
+                (firstPublishedUtcByRound.TryGetValue(roundIndex, out var publishedUtc) ? publishedUtc : DateTimeOffset.UtcNow);
             snapshots.Add(new CogitaLiveRevisionScoreHistoryPointResponse(
-                roundGroup.Key,
+                roundIndex,
                 recordedUtc,
                 roundScores));
         }
@@ -19881,6 +20333,15 @@ public static class CogitaEndpoints
         var participantNameById = participants.ToDictionary(
             x => x.Id,
             x => ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId));
+        var publishedRoundRows = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x => x.SessionId == sessionId && x.EventType == "live_round_published" && x.RoundIndex.HasValue)
+            .OrderBy(x => x.CreatedUtc)
+            .Select(x => new { RoundIndex = x.RoundIndex!.Value, x.CreatedUtc })
+            .ToListAsync(ct);
+        var firstPublishedUtcByRound = publishedRoundRows
+            .GroupBy(x => x.RoundIndex)
+            .ToDictionary(group => group.Key, group => group.Min(item => item.CreatedUtc));
+
         var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.RoundIndex)
@@ -19895,22 +20356,54 @@ public static class CogitaEndpoints
             .OrderBy(x => x.RoundIndex)
             .ThenBy(x => x.SubmittedUtc)
             .ToList();
-        if (answers.Count == 0)
+        var allRoundIndexes = publishedRoundRows
+            .Select(x => x.RoundIndex)
+            .Concat(answers.Select(x => x.RoundIndex))
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+        if (allRoundIndexes.Count == 0)
         {
             return new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
         }
 
         var computed = await ComputeLiveSessionScoresOnTheFlyAsync(sessionId, dbContext, ct);
+        var answerByRoundParticipant = answers.ToDictionary(x => (x.RoundIndex, x.ParticipantId), x => x);
 
         var snapshots = new List<CogitaLiveRevisionCorrectnessHistoryPointResponse>();
-        foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
+        foreach (var roundIndex in allRoundIndexes)
         {
-            var entries = roundGroup
-                .Select(answer =>
+            DateTimeOffset? roundRecordedUtc = null;
+            var entries = participants
+                .Select(participant =>
                 {
+                    if (!answerByRoundParticipant.TryGetValue((roundIndex, participant.Id), out var answer))
+                    {
+                        var missingSubmittedUtc = firstPublishedUtcByRound.TryGetValue(roundIndex, out var publishedUtc)
+                            ? publishedUtc
+                            : DateTimeOffset.UtcNow;
+                        return new CogitaLiveRevisionCorrectnessEntryResponse(
+                            participant.Id,
+                            participantNameById.TryGetValue(participant.Id, out var missingName)
+                                ? missingName
+                                : participant.Id.ToString("N")[..8],
+                            false,
+                            0,
+                            missingSubmittedUtc,
+                            null,
+                            0,
+                            0,
+                            0,
+                            0);
+                    }
+
                     var key = (answer.RoundIndex, answer.ParticipantId);
                     var fallbackDurationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
                     var hasDetail = computed.DetailByRoundParticipant.TryGetValue(key, out var detail);
+                    var answerRecordedUtc = answer.UpdatedUtc > answer.SubmittedUtc ? answer.UpdatedUtc : answer.SubmittedUtc;
+                    roundRecordedUtc = roundRecordedUtc.HasValue
+                        ? (roundRecordedUtc.Value > answerRecordedUtc ? roundRecordedUtc.Value : answerRecordedUtc)
+                        : answerRecordedUtc;
                     return new CogitaLiveRevisionCorrectnessEntryResponse(
                         answer.ParticipantId,
                         participantNameById.TryGetValue(answer.ParticipantId, out var participantName)
@@ -19928,8 +20421,9 @@ public static class CogitaEndpoints
                 .ToList();
 
             snapshots.Add(new CogitaLiveRevisionCorrectnessHistoryPointResponse(
-                roundGroup.Key,
-                roundGroup.Max(x => x.UpdatedUtc > x.SubmittedUtc ? x.UpdatedUtc : x.SubmittedUtc),
+                roundIndex,
+                roundRecordedUtc ??
+                    (firstPublishedUtcByRound.TryGetValue(roundIndex, out var publishedUtc) ? publishedUtc : DateTimeOffset.UtcNow),
                 entries));
         }
 

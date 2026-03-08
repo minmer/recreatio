@@ -28,11 +28,31 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';
 
+function parseBooleanLike(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+    return null;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0') return false;
+    return null;
+  }
+  if (value && typeof value === 'object') {
+    const root = value as Record<string, unknown>;
+    return parseBooleanLike(root.booleanAnswer) ?? parseBooleanLike(root.expected) ?? parseBooleanLike(root.value);
+  }
+  return null;
+}
+
 function normalizeAnswer(answer: unknown, prompt: LivePrompt | null) {
   if (!prompt) return {};
   const kind = String(prompt.kind ?? '');
   if (kind === 'selection') return { selection: Array.isArray(answer) ? answer.map((x) => Number(x)).filter(Number.isFinite) : [] };
-  if (kind === 'boolean') return { booleanAnswer: typeof answer === 'boolean' ? answer : null };
+  if (kind === 'boolean') return { booleanAnswer: parseBooleanLike(answer) };
   if (kind === 'ordering') return { ordering: Array.isArray(answer) ? answer.map(String) : [] };
   if (kind === 'matching') {
     const root = answer && typeof answer === 'object' ? (answer as Record<string, unknown>) : {};
@@ -86,6 +106,7 @@ type RoundGain = {
   streakPoints?: number;
   wrongPenaltyPoints?: number;
   firstWrongPenaltyPoints?: number;
+  wrongStreakPenaltyPoints?: number;
 };
 
 function parseWordPair(label: string) {
@@ -175,7 +196,7 @@ function buildQuestionRound(
         evaluateCheckcardAnswer({
           prompt: runtime.promptModel,
           expected: runtime.expectedModel,
-          answer: { booleanAnswer: answer == null ? null : Boolean(answer) }
+          answer: { booleanAnswer: parseBooleanLike(answer) }
         }).correct
     };
   }
@@ -530,6 +551,7 @@ export function CogitaLiveHostWallPage({
   const sessionRef = useRef<CogitaLiveRevisionSession | null>(null);
   const autoActionLockRef = useRef<string | null>(null);
   const streakByParticipantRef = useRef<Record<string, number>>({});
+  const wrongStreakByParticipantRef = useRef<Record<string, number>>({});
   const scoredRoundKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -669,6 +691,22 @@ export function CogitaLiveHostWallPage({
         next[key] = clampInt(Number(value), 0, 100000);
       });
       streakByParticipantRef.current = next;
+    }
+    const wrongPromptState =
+      session?.currentPrompt && typeof session.currentPrompt === 'object'
+        ? ((session.currentPrompt as Record<string, unknown>).wrongStreakState as Record<string, unknown> | undefined)
+        : undefined;
+    const wrongRevealState =
+      session?.currentReveal && typeof session.currentReveal === 'object'
+        ? ((session.currentReveal as Record<string, unknown>).wrongStreakState as Record<string, unknown> | undefined)
+        : undefined;
+    const wrongSource = wrongPromptState ?? wrongRevealState;
+    if (wrongSource && typeof wrongSource === 'object') {
+      const nextWrong: Record<string, number> = {};
+      Object.entries(wrongSource).forEach(([key, value]) => {
+        nextWrong[key] = clampInt(Number(value), 0, 100000);
+      });
+      wrongStreakByParticipantRef.current = nextWrong;
     }
   }, [session?.currentPrompt, session?.currentReveal, session?.sessionId]);
 
@@ -893,6 +931,15 @@ export function CogitaLiveHostWallPage({
             answer: normalizeAnswer(row.answer, prompt)
           }).correct
         )[0]?.participantId ?? null;
+    const firstWrongParticipantId =
+      roundAnswers
+        .filter((row) =>
+          !evaluateCheckcardAnswer({
+            prompt: prompt as unknown as Record<string, unknown>,
+            expected: revealExpected,
+            answer: normalizeAnswer(row.answer, prompt)
+          }).correct
+        )[0]?.participantId ?? null;
     const processed = roundAnswers
       .map((row) => {
         const participant = participantById.get(row.participantId);
@@ -902,20 +949,27 @@ export function CogitaLiveHostWallPage({
           expected: revealExpected,
           answer: normalizeAnswer(row.answer, prompt)
         }).correct;
+        const isFirstOverall = Boolean(firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId);
+        const isFirstCorrect = Boolean(firstCorrectParticipantId && row.participantId === firstCorrectParticipantId);
+        const firstBonusApplies =
+          rules.scoring.firstCorrectBonus > 0 &&
+          (
+            (rules.scoring.firstBonusMode === 'first_answer' && isFirstOverall) ||
+            (rules.scoring.firstBonusMode === 'first_correct' && check && isFirstCorrect)
+          );
+        const firstBonusPoints = firstBonusApplies ? clampInt(rules.scoring.firstCorrectBonus, 0, 500000) : 0;
         const wrongPenalty = !check ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
-        const firstWrongPenalty =
-          !check && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
-            ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
-            : 0;
+        const firstWrongPenaltyApplies =
+          !check &&
+          (
+            (rules.scoring.firstWrongPenaltyMode === 'first_overall_answer' && isFirstOverall) ||
+            (rules.scoring.firstWrongPenaltyMode === 'first_wrong' && firstWrongParticipantId && row.participantId === firstWrongParticipantId)
+          );
+        const firstWrongPenalty = firstWrongPenaltyApplies ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000) : 0;
         let points = check ? clampInt(rules.scoring.baseCorrect, 0, 500000) : -(wrongPenalty + firstWrongPenalty);
-        if (
-          !isAsyncSession &&
-          check &&
-          firstCorrectParticipantId &&
-          row.participantId === firstCorrectParticipantId &&
-          rules.scoring.firstCorrectBonus > 0
-        ) {
-          points += clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
+        points += firstBonusPoints;
+        if (firstBonusPoints > 0 && !check) {
+          points = clampInt(points, -500000, 500000);
         }
         if (
           check &&
@@ -935,6 +989,15 @@ export function CogitaLiveHostWallPage({
           const previousStreak = streakByParticipantRef.current[row.participantId] ?? 0;
           const nextStreak = previousStreak + 1;
           points += streakBonus(rules.scoring.streakGrowth, rules.scoring.streakBaseBonus, nextStreak, rules.scoring.streakLimit);
+        } else {
+          const previousWrongStreak = wrongStreakByParticipantRef.current[row.participantId] ?? 0;
+          const nextWrongStreak = previousWrongStreak + 1;
+          points -= streakBonus(
+            rules.scoring.wrongStreakGrowth,
+            rules.scoring.wrongStreakBasePenalty,
+            nextWrongStreak,
+            rules.scoring.wrongStreakLimit
+          );
         }
         const current = scoresById.get(row.participantId) ?? participant.score ?? 0;
         return {
@@ -946,7 +1009,7 @@ export function CogitaLiveHostWallPage({
       })
       .filter((row): row is { participant: CogitaLiveRevisionParticipant; current: number; predicted: number; correct: boolean } => Boolean(row));
     return processed.sort((a, b) => b.predicted - a.predicted);
-  }, [isAsyncSession, isCurrentRoundScored, participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
+  }, [isCurrentRoundScored, participantById, prompt, revealExpected, roundAnswers, rules.bonusTimer.enabled, rules.scoring.baseCorrect, rules.scoring.firstBonusMode, rules.scoring.firstCorrectBonus, rules.scoring.firstWrongPenalty, rules.scoring.firstWrongPenaltyMode, rules.scoring.streakBaseBonus, rules.scoring.streakGrowth, rules.scoring.streakLimit, rules.scoring.wrongAnswerPenalty, rules.scoring.wrongStreakBasePenalty, rules.scoring.wrongStreakGrowth, rules.scoring.wrongStreakLimit, rules.speedBonus.enabled, rules.speedBonus.growth, rules.speedBonus.maxPoints, scoresById]);
 
   const projectionByParticipant = useMemo(() => new Map(projected.map((x) => [x.participant.participantId, x])), [projected]);
   const latestAnswerByParticipant = useMemo(() => {
@@ -1103,6 +1166,8 @@ export function CogitaLiveHostWallPage({
         roundTimerSeconds,
         roundTimerStartedUtc,
         roundTimerEndsUtc,
+        streakState: { ...streakByParticipantRef.current },
+        wrongStreakState: { ...wrongStreakByParticipantRef.current },
         knownessByCardKey: options?.knownessByCardKey ?? {},
         askedCardKeys: options?.askedCardKeys ?? [round.cardKey]
       }
@@ -1149,35 +1214,60 @@ export function CogitaLiveHostWallPage({
       const firstCorrectParticipantId =
         answersForRound.find((answer) => isCorrectByParticipant.get(answer.participantId) === true)?.participantId ?? null;
       const firstAnsweredParticipantId = answersForRound[0]?.participantId ?? null;
+      const firstWrongParticipantId =
+        answersForRound.find((answer) => isCorrectByParticipant.get(answer.participantId) === false)?.participantId ?? null;
       const previousStreaks = streakByParticipantRef.current;
+      const previousWrongStreaks = wrongStreakByParticipantRef.current;
       const nextStreaks: Record<string, number> = { ...previousStreaks };
+      const nextWrongStreaks: Record<string, number> = { ...previousWrongStreaks };
       const roundGain: Record<string, RoundGain> = {};
 
       const payload = correctness.map((row) => {
         const previousStreak = nextStreaks[row.participantId] ?? 0;
         if (!row.isCorrect) {
           nextStreaks[row.participantId] = 0;
+          const previousWrongStreak = nextWrongStreaks[row.participantId] ?? 0;
+          const nextWrongStreak = previousWrongStreak + 1;
+          nextWrongStreaks[row.participantId] = nextWrongStreak;
           const answered = Boolean(row.submittedUtc);
           const wrongPenalty = answered ? clampInt(rules.scoring.wrongAnswerPenalty, 0, 500000) : 0;
           const firstWrongPenalty =
-            answered && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId
+            answered && (
+              (rules.scoring.firstWrongPenaltyMode === 'first_overall_answer' && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId) ||
+              (rules.scoring.firstWrongPenaltyMode === 'first_wrong' && firstWrongParticipantId && row.participantId === firstWrongParticipantId)
+            )
               ? clampInt(rules.scoring.firstWrongPenalty, 0, 500000)
               : 0;
-          const pointsAwarded = -(wrongPenalty + firstWrongPenalty);
+          const wrongStreakPenalty = answered
+            ? streakBonus(rules.scoring.wrongStreakGrowth, rules.scoring.wrongStreakBasePenalty, nextWrongStreak, rules.scoring.wrongStreakLimit)
+            : 0;
+          const firstBonusPoints =
+            answered &&
+            rules.scoring.firstCorrectBonus > 0 &&
+            (
+              (rules.scoring.firstBonusMode === 'first_answer' && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId) ||
+              (rules.scoring.firstBonusMode === 'first_correct' && firstCorrectParticipantId && row.participantId === firstCorrectParticipantId)
+            )
+              ? clampInt(rules.scoring.firstCorrectBonus, 0, 500000)
+              : 0;
+          const pointsAwarded = firstBonusPoints - (wrongPenalty + firstWrongPenalty + wrongStreakPenalty);
           const factors: string[] = [];
+          if (firstBonusPoints > 0) factors.push('first');
           if (wrongPenalty > 0) factors.push('wrong');
           if (firstWrongPenalty > 0) factors.push('first-wrong');
+          if (wrongStreakPenalty > 0) factors.push('wrong-streak');
           roundGain[row.participantId] = {
             points: pointsAwarded,
             factors,
             streak: 0,
             rankDelta: 0,
             basePoints: 0,
-            firstBonusPoints: 0,
+            firstBonusPoints,
             speedPoints: 0,
             streakPoints: 0,
             wrongPenaltyPoints: wrongPenalty,
-            firstWrongPenaltyPoints: firstWrongPenalty
+            firstWrongPenaltyPoints: firstWrongPenalty,
+            wrongStreakPenaltyPoints: wrongStreakPenalty
           };
           return { participantId: row.participantId, isCorrect: false, pointsAwarded };
         }
@@ -1189,11 +1279,13 @@ export function CogitaLiveHostWallPage({
         let streakPoints = 0;
         let points = basePoints;
         if (basePoints > 0) factors.push('base');
+        nextWrongStreaks[row.participantId] = 0;
         if (
-          !isAsyncSession &&
-          firstCorrectParticipantId &&
-          row.participantId === firstCorrectParticipantId &&
-          rules.scoring.firstCorrectBonus > 0
+          rules.scoring.firstCorrectBonus > 0 &&
+          (
+            (rules.scoring.firstBonusMode === 'first_answer' && firstAnsweredParticipantId && row.participantId === firstAnsweredParticipantId) ||
+            (rules.scoring.firstBonusMode === 'first_correct' && firstCorrectParticipantId && row.participantId === firstCorrectParticipantId)
+          )
         ) {
           firstBonusPoints = clampInt(rules.scoring.firstCorrectBonus, 0, 500000);
           points += firstBonusPoints;
@@ -1238,7 +1330,8 @@ export function CogitaLiveHostWallPage({
           speedPoints,
           streakPoints,
           wrongPenaltyPoints: 0,
-          firstWrongPenaltyPoints: 0
+          firstWrongPenaltyPoints: 0,
+          wrongStreakPenaltyPoints: 0
         };
         return { participantId: row.participantId, isCorrect: true, pointsAwarded: safePoints };
       });
@@ -1273,6 +1366,7 @@ export function CogitaLiveHostWallPage({
         };
       });
       streakByParticipantRef.current = nextStreaks;
+      wrongStreakByParticipantRef.current = nextWrongStreaks;
       const afterReveal = await withFreshHostSecret((secret) =>
         updateCogitaLiveRevisionHostState({
           libraryId,
@@ -1293,6 +1387,7 @@ export function CogitaLiveHostWallPage({
             ...currentRound.reveal,
             roundScoring: roundGain,
             streakState: nextStreaks,
+            wrongStreakState: nextWrongStreaks,
             knownessAveragePercent,
             knownessCorrectCount,
             knownessSampleSize,

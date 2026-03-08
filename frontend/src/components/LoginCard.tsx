@@ -68,6 +68,10 @@ export function LoginCard({
   const contextLabel =
     context === 'parish'
       ? copy.parish.title
+      : context === 'events'
+        ? copy.events.title
+      : context === 'limanowa'
+        ? copy.limanowa.title
       : context === 'cogita'
         ? copy.cogita.title
         : context === 'account'

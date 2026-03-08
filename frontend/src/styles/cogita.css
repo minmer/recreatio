@@ -1889,11 +1889,21 @@
 }
 
 .cogita-live-card-surface {
+  display: grid;
+  gap: 0.95rem;
   border-radius: 14px;
   border: 1px solid rgba(120, 170, 220, 0.22);
   background: rgba(8, 20, 36, 0.5);
-  padding: 0.8rem;
+  padding: 1rem;
   color: rgba(230, 242, 255, 0.94);
+}
+
+.cogita-live-card-surface .cogita-form-actions {
+  gap: 1rem;
+}
+
+.cogita-live-card-surface .cogita-share-list {
+  gap: 0.75rem;
 }
 
 .cogita-live-card-surface p,
@@ -1938,6 +1948,32 @@
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 0.8rem;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.cogita-live-finished-column {
+  display: grid;
+  gap: 0.8rem;
+  min-height: 0;
+}
+
+.cogita-live-finished-column--primary {
+  grid-template-rows: minmax(260px, 34vh) minmax(0, 1fr);
+}
+
+.cogita-live-finished-column--secondary {
+  min-height: 0;
+}
+
+.cogita-live-finished-podium {
+  min-height: 0;
+  height: 100%;
+}
+
+.cogita-live-finished-review {
+  min-height: 0;
+  overflow: auto;
 }
 
 .cogita-live-session-layout[data-participant-view='fullscreen'] {
@@ -2608,10 +2644,13 @@
   padding: 0.8rem;
   display: grid;
   gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .cogita-statistics-chart {
-  width: 100%;
+  width: max(100%, 940px);
+  min-width: 940px;
   height: auto;
   aspect-ratio: 940 / 250;
   max-height: min(40vh, 360px);
@@ -3183,7 +3222,8 @@
 }
 
 .cogita-live-history-chart-svg {
-  width: 100%;
+  width: max(100%, 940px);
+  min-width: 940px;
   height: auto;
   aspect-ratio: 940 / 420;
   max-height: min(56vh, 520px);
@@ -3389,6 +3429,10 @@
 @media (orientation: portrait) {
   .cogita-live-finished-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .cogita-live-finished-column--primary {
     grid-template-rows: auto auto;
   }
 

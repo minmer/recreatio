@@ -79,13 +79,27 @@ export function HomePage({
       },
       {
         id: 'section-3',
+        title: copy.events.slideTitle,
+        text: copy.events.slideSubtitle,
+        ctaLabel: copy.nav.events,
+        ctaAction: () => onNavigate('events')
+      },
+      {
+        id: 'section-4',
+        title: copy.limanowa.slideTitle,
+        text: copy.limanowa.slideSubtitle,
+        ctaLabel: copy.nav.limanowa,
+        ctaAction: () => onNavigate('limanowa')
+      },
+      {
+        id: 'section-5',
         title: copy.cogita.title,
         text: copy.cogita.subtitle,
         ctaLabel: copy.nav.cogita,
         ctaAction: () => onNavigate('cogita')
       },
       {
-        id: 'section-4',
+        id: 'section-6',
         title: copy.faq.title,
         text: faqText,
         ctaLabel: copy.nav.faq,
@@ -93,7 +107,7 @@ export function HomePage({
         variant: 'secondary'
       },
       {
-        id: 'section-5',
+        id: 'section-7',
         title: copy.legal.title,
         text: legalText,
         ctaLabel: copy.nav.legal,
@@ -199,6 +213,12 @@ export function HomePage({
         <nav className="home-nav">
           <button type="button" onClick={() => onNavigate('parish')}>
             {copy.nav.parish}
+          </button>
+          <button type="button" onClick={() => onNavigate('events')}>
+            {copy.nav.events}
+          </button>
+          <button type="button" onClick={() => onNavigate('limanowa')}>
+            {copy.nav.limanowa}
           </button>
           <button type="button" onClick={() => onNavigate('cogita')}>
             {copy.nav.cogita}

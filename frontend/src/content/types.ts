@@ -4,6 +4,8 @@ export type Copy = {
   nav: {
     home: string;
     parish: string;
+    events: string;
+    limanowa: string;
     cogita: string;
     faq: string;
     legal: string;
@@ -72,6 +74,27 @@ export type Copy = {
     items: string[];
     note: string;
     loginCta: string;
+  };
+  events: {
+    slideTitle: string;
+    slideSubtitle: string;
+    title: string;
+    subtitle: string;
+    chooserTitle: string;
+    chooserSubtitle: string;
+    pagesLabel: string;
+    openEvent: string;
+    backToEvents: string;
+    unknownEvent: string;
+    unknownPage: string;
+  };
+  limanowa: {
+    slideTitle: string;
+    slideSubtitle: string;
+    title: string;
+    subtitle: string;
+    inBuildTitle: string;
+    inBuildText: string;
   };
   cogita: {
     title: string;
@@ -930,6 +953,7 @@ export type Copy = {
           roundReasonStreak: string;
           roundReasonWrong: string;
           roundReasonFirstWrong: string;
+          roundReasonWrongStreak: string;
           asyncScoreContextHelp: string;
           bonusExplanation: string;
           showScoreOverlayAction: string;
@@ -940,6 +964,7 @@ export type Copy = {
           factorStreakLabel: string;
           factorWrongLabel: string;
           factorFirstWrongLabel: string;
+          factorWrongStreakLabel: string;
           streakLabel: string;
           onFirstAnswerLabel: string;
           onAllAnsweredLabel: string;
@@ -965,8 +990,14 @@ export type Copy = {
           bonusTimerStartRound: string;
           basePointsLabel: string;
           firstCorrectBonusLabel: string;
+          firstBonusModeLabel: string;
+          firstBonusModeFirstAnswer: string;
+          firstBonusModeFirstCorrect: string;
           wrongAnswerPenaltyLabel: string;
           firstWrongPenaltyLabel: string;
+          firstWrongPenaltyModeLabel: string;
+          firstWrongPenaltyModeOverallFirst: string;
+          firstWrongPenaltyModeFirstWrong: string;
           speedBonusEnabledLabel: string;
           speedBonusMaxLabel: string;
           speedGrowthLabel: string;
@@ -974,6 +1005,10 @@ export type Copy = {
           streakBonusEnabledLabel: string;
           streakGrowthLabel: string;
           streakLimitLabel: string;
+          wrongStreakPenaltyEnabledLabel: string;
+          wrongStreakBasePenaltyLabel: string;
+          wrongStreakGrowthLabel: string;
+          wrongStreakLimitLabel: string;
           presetLabel: string;
           presetBalancedDuel: string;
           presetFirstStrike: string;

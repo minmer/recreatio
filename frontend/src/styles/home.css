@@ -179,6 +179,14 @@
   background: linear-gradient(135deg, #fef5ef 0%, #f0e1d3 55%, #d6e2ef 100%);
 }
 
+.home-section.section-6 {
+  background: linear-gradient(135deg, #f2f4f1 0%, #dfebdf 55%, #d7e2ea 100%);
+}
+
+.home-section.section-7 {
+  background: linear-gradient(135deg, #f7f0eb 0%, #eadfd1 55%, #d7e2ec 100%);
+}
+
 .home-dots {
   position: fixed;
   right: 2.4vw;

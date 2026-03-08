@@ -37,12 +37,17 @@ export type LiveRules = {
   };
   scoring: {
     baseCorrect: number;
+    firstBonusMode: 'first_answer' | 'first_correct';
     firstCorrectBonus: number;
     wrongAnswerPenalty: number;
+    firstWrongPenaltyMode: 'first_overall_answer' | 'first_wrong';
     firstWrongPenalty: number;
     streakBaseBonus: number;
     streakGrowth: BonusGrowthMode;
     streakLimit: number;
+    wrongStreakBasePenalty: number;
+    wrongStreakGrowth: BonusGrowthMode;
+    wrongStreakLimit: number;
   };
 };
 
@@ -79,12 +84,17 @@ export const DEFAULT_LIVE_RULES: LiveRules = {
   },
   scoring: {
     baseCorrect: 1000,
+    firstBonusMode: 'first_answer',
     firstCorrectBonus: 500,
     wrongAnswerPenalty: 0,
+    firstWrongPenaltyMode: 'first_overall_answer',
     firstWrongPenalty: 0,
     streakBaseBonus: 1000,
     streakGrowth: 'limited',
-    streakLimit: 5
+    streakLimit: 5,
+    wrongStreakBasePenalty: 0,
+    wrongStreakGrowth: 'limited',
+    wrongStreakLimit: 5
   }
 };
 
@@ -121,7 +131,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: true, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 500, growth: 'exponential' },
-      scoring: { baseCorrect: 1000, firstCorrectBonus: 500, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
+      scoring: { baseCorrect: 1000, firstBonusMode: 'first_answer', firstCorrectBonus: 500, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 5 }
     }
   },
   {
@@ -138,7 +148,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'first_answer' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
-      scoring: { baseCorrect: 1500, firstCorrectBonus: 0, wrongAnswerPenalty: 1000, firstWrongPenalty: 500, streakBaseBonus: 0, streakGrowth: 'linear', streakLimit: 5 }
+      scoring: { baseCorrect: 1500, firstBonusMode: 'first_answer', firstCorrectBonus: 0, wrongAnswerPenalty: 1000, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 500, streakBaseBonus: 0, streakGrowth: 'linear', streakLimit: 5, wrongStreakBasePenalty: 250, wrongStreakGrowth: 'limited', wrongStreakLimit: 4 }
     }
   },
   {
@@ -155,7 +165,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: true, seconds: 8, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 700, growth: 'exponential' },
-      scoring: { baseCorrect: 900, firstCorrectBonus: 600, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4 }
+      scoring: { baseCorrect: 900, firstBonusMode: 'first_answer', firstCorrectBonus: 600, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 4, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 4 }
     }
   },
   {
@@ -172,7 +182,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: false, seconds: 20, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
-      scoring: { baseCorrect: 1200, firstCorrectBonus: 200, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6 }
+      scoring: { baseCorrect: 1200, firstBonusMode: 'first_correct', firstCorrectBonus: 200, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 800, streakGrowth: 'limited', streakLimit: 6, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 6 }
     }
   },
   {
@@ -189,7 +199,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: true, seconds: 12, startMode: 'first_answer' },
       speedBonus: { enabled: true, maxPoints: 300, growth: 'linear' },
-      scoring: { baseCorrect: 800, firstCorrectBonus: 300, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6 }
+      scoring: { baseCorrect: 800, firstBonusMode: 'first_answer', firstCorrectBonus: 300, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 1400, streakGrowth: 'limited', streakLimit: 6, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 6 }
     }
   },
   {
@@ -206,7 +216,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: false, seconds: 1800 },
       bonusTimer: { enabled: true, seconds: 15, startMode: 'round_start' },
       speedBonus: { enabled: true, maxPoints: 250, growth: 'linear' },
-      scoring: { baseCorrect: 1100, firstCorrectBonus: 250, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7 }
+      scoring: { baseCorrect: 1100, firstBonusMode: 'first_answer', firstCorrectBonus: 250, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 900, streakGrowth: 'limited', streakLimit: 7, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 7 }
     }
   },
   {
@@ -223,7 +233,7 @@ const PRESET_DEFINITIONS: LivePresetDefinition[] = [
       sessionTimer: { enabled: true, seconds: 1800 },
       bonusTimer: { enabled: false, seconds: 10, startMode: 'round_start' },
       speedBonus: { enabled: false, maxPoints: 0, growth: 'linear' },
-      scoring: { baseCorrect: 1000, firstCorrectBonus: 0, wrongAnswerPenalty: 0, firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5 }
+      scoring: { baseCorrect: 1000, firstBonusMode: 'first_answer', firstCorrectBonus: 0, wrongAnswerPenalty: 0, firstWrongPenaltyMode: 'first_overall_answer', firstWrongPenalty: 0, streakBaseBonus: 1000, streakGrowth: 'limited', streakLimit: 5, wrongStreakBasePenalty: 0, wrongStreakGrowth: 'limited', wrongStreakLimit: 5 }
     }
   }
 ];
@@ -360,12 +370,17 @@ export function parseLiveRules(settings: unknown): LiveRules {
     },
     scoring: {
       baseCorrect: clampInt(Number(scoringRoot.baseCorrect ?? DEFAULT_LIVE_RULES.scoring.baseCorrect), 0, 500000),
+      firstBonusMode: scoringRoot.firstBonusMode === 'first_correct' ? 'first_correct' : 'first_answer',
       firstCorrectBonus: clampInt(Number(scoringRoot.firstCorrectBonus ?? DEFAULT_LIVE_RULES.scoring.firstCorrectBonus), 0, 500000),
       wrongAnswerPenalty: clampInt(Number(scoringRoot.wrongAnswerPenalty ?? DEFAULT_LIVE_RULES.scoring.wrongAnswerPenalty), 0, 500000),
+      firstWrongPenaltyMode: scoringRoot.firstWrongPenaltyMode === 'first_wrong' ? 'first_wrong' : 'first_overall_answer',
       firstWrongPenalty: clampInt(Number(scoringRoot.firstWrongPenalty ?? DEFAULT_LIVE_RULES.scoring.firstWrongPenalty), 0, 500000),
       streakBaseBonus: clampInt(Number(scoringRoot.streakBaseBonus ?? DEFAULT_LIVE_RULES.scoring.streakBaseBonus), 0, 500000),
       streakGrowth: normalizeGrowthMode(scoringRoot.streakGrowth),
-      streakLimit: clampInt(Number(scoringRoot.streakLimit ?? DEFAULT_LIVE_RULES.scoring.streakLimit), 1, 200)
+      streakLimit: clampInt(Number(scoringRoot.streakLimit ?? DEFAULT_LIVE_RULES.scoring.streakLimit), 1, 200),
+      wrongStreakBasePenalty: clampInt(Number(scoringRoot.wrongStreakBasePenalty ?? DEFAULT_LIVE_RULES.scoring.wrongStreakBasePenalty), 0, 500000),
+      wrongStreakGrowth: normalizeGrowthMode(scoringRoot.wrongStreakGrowth),
+      wrongStreakLimit: clampInt(Number(scoringRoot.wrongStreakLimit ?? DEFAULT_LIVE_RULES.scoring.wrongStreakLimit), 1, 200)
     }
   };
 }

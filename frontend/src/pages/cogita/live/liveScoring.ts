@@ -1,6 +1,6 @@
 import { clampInt, type LiveRules } from './liveSessionRules';
 
-export type LiveBreakdownRowKey = 'base' | 'first' | 'speed' | 'streak' | 'wrong' | 'first-wrong';
+export type LiveBreakdownRowKey = 'base' | 'first' | 'speed' | 'streak' | 'wrong' | 'first-wrong' | 'wrong-streak';
 
 export type LiveBreakdownRow = {
   key: LiveBreakdownRowKey;
@@ -23,12 +23,14 @@ export type LiveBreakdownLabels = {
   factorStreakLabel: string;
   factorWrongLabel: string;
   factorFirstWrongLabel: string;
+  factorWrongStreakLabel: string;
   roundReasonBase: string;
   roundReasonFirst: string;
   roundReasonSpeed: string;
   roundReasonStreak: string;
   roundReasonWrong: string;
   roundReasonFirstWrong: string;
+  roundReasonWrongStreak: string;
 };
 
 const growthRatio = (mode: string, ratio: number) => {
@@ -77,7 +79,7 @@ export function computeLiveRoundBreakdown(options: {
       ? source.isCorrect
       : typeof fallbackIsCorrect === 'boolean'
         ? fallbackIsCorrect
-        : !(factors.has('wrong') || factors.has('first-wrong')) && total >= 0;
+        : !(factors.has('wrong') || factors.has('first-wrong') || factors.has('wrong-streak')) && total >= 0;
 
   const reasonFor = (key: LiveBreakdownRowKey) => {
     if (key === 'base') return labels.roundReasonBase;
@@ -88,6 +90,10 @@ export function computeLiveRoundBreakdown(options: {
       return formatTemplate(labels.roundReasonStreak, { count: streakCount });
     }
     if (key === 'wrong') return labels.roundReasonWrong;
+    if (key === 'wrong-streak') {
+      const streakCount = Math.max(0, Math.round(Number(source.wrongStreak ?? 0)));
+      return formatTemplate(labels.roundReasonWrongStreak, { count: streakCount });
+    }
     return labels.roundReasonFirstWrong;
   };
 
@@ -97,6 +103,7 @@ export function computeLiveRoundBreakdown(options: {
   const serverStreak = readScorePart(source, ['streakBonusPoints', 'streakPoints']);
   const serverWrongPenalty = readScorePart(source, ['wrongPenaltyPoints', 'wrongPoints']);
   const serverFirstWrongPenalty = readScorePart(source, ['firstWrongPenaltyPoints', 'firstWrongPoints']);
+  const serverWrongStreakPenalty = readScorePart(source, ['wrongStreakPenaltyPoints', 'wrongStreakPoints']);
 
   let basePoints =
     Number.isFinite(serverBase)
@@ -129,6 +136,17 @@ export function computeLiveRoundBreakdown(options: {
     Number.isFinite(serverFirstWrongPenalty)
       ? -Math.abs(Math.round(serverFirstWrongPenalty))
       : (factors.has('first-wrong') ? -Math.round(rules.scoring.firstWrongPenalty) : 0);
+  let wrongStreakPoints =
+    Number.isFinite(serverWrongStreakPenalty)
+      ? -Math.abs(Math.round(serverWrongStreakPenalty))
+      : (factors.has('wrong-streak')
+        ? -computeStreakBonus(
+            rules.scoring.wrongStreakBasePenalty,
+            Math.max(0, Math.round(Number(source.wrongStreak ?? 0))),
+            rules.scoring.wrongStreakLimit,
+            rules.scoring.wrongStreakGrowth
+          )
+        : 0);
 
   if (isCorrect && total > 0 && basePoints >= total && total > Math.round(rules.scoring.baseCorrect)) {
     const allBonusesUnknown =
@@ -147,10 +165,10 @@ export function computeLiveRoundBreakdown(options: {
     if (remainder !== 0) {
       basePoints += remainder;
     }
-  } else if (total < 0 && wrongPoints === 0 && firstWrongPoints === 0) {
+  } else if (total < 0 && wrongPoints === 0 && firstWrongPoints === 0 && wrongStreakPoints === 0) {
     wrongPoints = total;
   } else {
-    const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints;
+    const known = basePoints + firstPoints + speedPoints + streakPoints + wrongPoints + firstWrongPoints + wrongStreakPoints;
     if (known !== total) {
       wrongPoints += total - known;
     }
@@ -162,14 +180,15 @@ export function computeLiveRoundBreakdown(options: {
     { key: 'speed', label: labels.factorSpeedLabel, points: speedPoints, reason: reasonFor('speed') },
     { key: 'streak', label: labels.factorStreakLabel, points: streakPoints, reason: reasonFor('streak') },
     { key: 'wrong', label: labels.factorWrongLabel, points: wrongPoints, reason: reasonFor('wrong') },
-    { key: 'first-wrong', label: labels.factorFirstWrongLabel, points: firstWrongPoints, reason: reasonFor('first-wrong') }
+    { key: 'first-wrong', label: labels.factorFirstWrongLabel, points: firstWrongPoints, reason: reasonFor('first-wrong') },
+    { key: 'wrong-streak', label: labels.factorWrongStreakLabel, points: wrongStreakPoints, reason: reasonFor('wrong-streak') }
   ].filter((row) => row.points !== 0);
 
   const bonusTotal = rows
     .filter((row) => row.key === 'first' || row.key === 'speed' || row.key === 'streak')
     .reduce((sum, row) => sum + Math.max(0, row.points), 0);
   const penaltyTotal = rows
-    .filter((row) => row.key === 'wrong' || row.key === 'first-wrong')
+    .filter((row) => row.key === 'wrong' || row.key === 'first-wrong' || row.key === 'wrong-streak')
     .reduce((sum, row) => sum + Math.abs(Math.min(0, row.points)), 0);
 
   return { total, rows, bonusTotal, penaltyTotal };

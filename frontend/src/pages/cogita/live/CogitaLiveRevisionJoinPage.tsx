@@ -349,7 +349,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   const apiBase = import.meta.env.VITE_API_BASE ?? 'https://api.recreatio.pl';
   const revisionCopy = props.copy.cogita.library.revision;
   const liveCopy = revisionCopy.live;
-  const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : factor === 'wrong' ? '✖' : factor === 'first-wrong' ? '⚠' : '✓');
+  const factorIcon = (factor: string) => (factor === 'first' ? '⚡' : factor === 'streak' ? '🔥' : factor === 'speed' ? '⏱' : factor === 'wrong' ? '✖' : factor === 'first-wrong' ? '⚠' : factor === 'wrong-streak' ? '⛔' : '✓');
   const [joinName, setJoinName] = useState(() => readJoinNameFromHash());
   const [duplicateJoinName, setDuplicateJoinName] = useState<string | null>(null);
   const [participantToken, setParticipantToken] = useState<string | null>(() =>
@@ -1176,6 +1176,7 @@ export function CogitaLiveRevisionJoinPage(props: {
             streakPoints?: number;
             wrongPenaltyPoints?: number;
             firstWrongPenaltyPoints?: number;
+            wrongStreakPenaltyPoints?: number;
             answerDurationSeconds?: number;
           }> | undefined) ?? null)
         : null,
@@ -1198,23 +1199,27 @@ export function CogitaLiveRevisionJoinPage(props: {
       factorStreakLabel: liveCopy.factorStreakLabel,
       factorWrongLabel: liveCopy.factorWrongLabel,
       factorFirstWrongLabel: liveCopy.factorFirstWrongLabel,
+      factorWrongStreakLabel: liveCopy.factorWrongStreakLabel,
       roundReasonBase: liveCopy.roundReasonBase,
       roundReasonFirst: liveCopy.roundReasonFirst,
       roundReasonSpeed: liveCopy.roundReasonSpeed,
       roundReasonStreak: liveCopy.roundReasonStreak,
       roundReasonWrong: liveCopy.roundReasonWrong,
-      roundReasonFirstWrong: liveCopy.roundReasonFirstWrong
+      roundReasonFirstWrong: liveCopy.roundReasonFirstWrong,
+      roundReasonWrongStreak: liveCopy.roundReasonWrongStreak
     }),
     [
       liveCopy.factorBaseLabel,
       liveCopy.factorFirstLabel,
       liveCopy.factorFirstWrongLabel,
+      liveCopy.factorWrongStreakLabel,
       liveCopy.factorSpeedLabel,
       liveCopy.factorStreakLabel,
       liveCopy.factorWrongLabel,
       liveCopy.roundReasonBase,
       liveCopy.roundReasonFirst,
       liveCopy.roundReasonFirstWrong,
+      liveCopy.roundReasonWrongStreak,
       liveCopy.roundReasonSpeed,
       liveCopy.roundReasonStreak,
       liveCopy.roundReasonWrong
@@ -1353,13 +1358,33 @@ export function CogitaLiveRevisionJoinPage(props: {
     return mapping;
   }, [state?.scoreboard]);
   const liveStatisticsData = useMemo(() => buildLiveStatisticsResponse(state), [state]);
-  const reviewRound = reviewRounds.length > 0
-    ? reviewRounds[Math.max(0, Math.min(reviewIndex, reviewRounds.length - 1))]
+  const effectiveReviewRounds = useMemo(() => {
+    if (reviewRounds.length > 0) return reviewRounds;
+    if (!isSessionFinished || !prompt || !reveal) return [];
+    const fallbackRoundIndex = Number(prompt.roundIndex ?? state?.currentRoundIndex ?? 0);
+    const fallbackCardKey =
+      typeof prompt.cardKey === 'string' && prompt.cardKey.trim().length > 0
+        ? prompt.cardKey.trim()
+        : `round-${fallbackRoundIndex}`;
+    return [
+      {
+        roundIndex: fallbackRoundIndex,
+        cardKey: fallbackCardKey,
+        prompt,
+        reveal,
+        participantAnswer: reveal?.participantAnswer,
+        isCorrect: typeof reveal?.isCorrect === 'boolean' ? reveal.isCorrect : null,
+        pointsAwarded: 0
+      } satisfies CogitaLiveRevisionReviewRound
+    ];
+  }, [isSessionFinished, prompt, reveal, reviewRounds, state?.currentRoundIndex]);
+  const effectiveReviewRound = effectiveReviewRounds.length > 0
+    ? effectiveReviewRounds[Math.max(0, Math.min(reviewIndex, effectiveReviewRounds.length - 1))]
     : null;
-  const reviewPrompt = (reviewRound?.prompt as LivePrompt | undefined) ?? null;
-  const reviewReveal = (reviewRound?.reveal as Record<string, unknown> | undefined) ?? null;
+  const reviewPrompt = (effectiveReviewRound?.prompt as LivePrompt | undefined) ?? null;
+  const reviewReveal = (effectiveReviewRound?.reveal as Record<string, unknown> | undefined) ?? null;
   const reviewExpected = reviewReveal?.expected;
-  const reviewAnswer = reviewRound?.participantAnswer;
+  const reviewAnswer = effectiveReviewRound?.participantAnswer;
   const reviewRoundScoring = useMemo(() => {
     if (!reviewReveal || typeof reviewReveal !== 'object' || !selfParticipantId) return null;
     const roundScoring =
@@ -1374,25 +1399,26 @@ export function CogitaLiveRevisionJoinPage(props: {
         streakPoints?: number;
         wrongPenaltyPoints?: number;
         firstWrongPenaltyPoints?: number;
+        wrongStreakPenaltyPoints?: number;
         answerDurationSeconds?: number;
       }> | undefined) ?? null;
     return roundScoring ? roundScoring[selfParticipantId] ?? null : null;
   }, [reviewReveal, selfParticipantId]);
   const reviewRoundBreakdown = useMemo(() => {
-    if (!reviewRound) return null;
+    if (!effectiveReviewRound) return null;
     return computeLiveRoundBreakdown({
       scoring: reviewRoundScoring,
-      fallbackTotal: Number(reviewRoundScoring?.points ?? reviewRound.pointsAwarded ?? 0),
+      fallbackTotal: Number(reviewRoundScoring?.points ?? effectiveReviewRound.pointsAwarded ?? 0),
       fallbackIsCorrect:
         typeof reviewRoundScoring?.isCorrect === 'boolean'
           ? reviewRoundScoring.isCorrect
-          : (typeof reviewRound.isCorrect === 'boolean' ? reviewRound.isCorrect : null),
+          : (typeof effectiveReviewRound.isCorrect === 'boolean' ? effectiveReviewRound.isCorrect : null),
       labels: liveBreakdownLabels,
       rules: liveRules,
       formatTemplate
     });
   }, [
-    reviewRound,
+    effectiveReviewRound,
     reviewRoundScoring,
     liveBreakdownLabels,
     liveRules
@@ -1402,8 +1428,8 @@ export function CogitaLiveRevisionJoinPage(props: {
     [reviewAnswer, reviewExpected, reviewPrompt]
   );
   const reviewFeedbackState =
-    typeof reviewRound?.isCorrect === 'boolean'
-      ? (reviewRound.isCorrect ? 'correct' : 'incorrect')
+    typeof effectiveReviewRound?.isCorrect === 'boolean'
+      ? (effectiveReviewRound.isCorrect ? 'correct' : 'incorrect')
       : (reviewEvaluation?.correct ? 'correct' : reviewEvaluation ? 'incorrect' : null);
 
   useEffect(() => {
@@ -1448,7 +1474,8 @@ export function CogitaLiveRevisionJoinPage(props: {
       },
       { key: 'streak', label: liveCopy.factorStreakLabel, points: liveRules.scoring.streakBaseBonus },
       { key: 'wrong', label: liveCopy.factorWrongLabel, points: -liveRules.scoring.wrongAnswerPenalty },
-      { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty }
+      { key: 'first-wrong', label: liveCopy.factorFirstWrongLabel, points: -liveRules.scoring.firstWrongPenalty },
+      { key: 'wrong-streak', label: liveCopy.factorWrongStreakLabel, points: -liveRules.scoring.wrongStreakBasePenalty }
     ].filter((row) => row.points !== 0);
   }, [
     liveCopy.factorBaseLabel,
@@ -1658,141 +1685,145 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <>
                     {isSessionFinished ? (
                       <div className="cogita-live-finished-layout">
-                        <section className="cogita-library-panel cogita-live-podium-wrap">
-                          {isParticipantOnPodium ? (
-                            <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
-                              <PodiumFireworksLayer active={status === 'ready' && isSessionFinished && isParticipantOnPodium} />
+                        <div className="cogita-live-finished-column cogita-live-finished-column--primary">
+                          <section className="cogita-library-panel cogita-live-podium-wrap cogita-live-finished-podium">
+                            {isParticipantOnPodium ? (
+                              <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
+                                <PodiumFireworksLayer active={status === 'ready' && isSessionFinished && isParticipantOnPodium} />
+                              </div>
+                            ) : null}
+                            <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
+                            {podiumRows.length > 0 ? (
+                              <div className="cogita-live-podium" role="presentation">
+                                {podiumDisplayRows.map((row) => {
+                                  const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
+                                  const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
+                                  const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
+                                  const height = heightByRank[order] ?? 52;
+                                  return (
+                                    <div key={`participant-podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
+                                      <div className="cogita-live-podium-name" title={row.displayName}>{row.displayName}</div>
+                                      <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
+                                        <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
+                                        <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="cogita-help">{liveCopy.noParticipants}</p>
+                            )}
+                          </section>
+                          <section className="cogita-library-panel cogita-live-finished-review">
+                            <div className="cogita-detail-header">
+                              <div>
+                                <p className="cogita-user-kicker">{liveCopy.reviewQuestionsTitle}</p>
+                                <h3 className="cogita-detail-title">
+                                  {effectiveReviewRound ? `${reviewIndex + 1}/${effectiveReviewRounds.length}` : '0/0'}
+                                </h3>
+                              </div>
+                              <div className="cogita-form-actions">
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => setReviewIndex((value) => Math.max(0, value - 1))}
+                                  disabled={reviewIndex <= 0}
+                                >
+                                  {liveCopy.previousQuestionAction}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() => setReviewIndex((value) => Math.min(Math.max(0, effectiveReviewRounds.length - 1), value + 1))}
+                                  disabled={effectiveReviewRounds.length === 0 || reviewIndex >= effectiveReviewRounds.length - 1}
+                                >
+                                  {liveCopy.nextQuestionAction}
+                                </button>
+                              </div>
                             </div>
-                          ) : null}
-                          <p className="cogita-user-kicker">{liveCopy.podiumTitle}</p>
-                          {podiumRows.length > 0 ? (
-                            <div className="cogita-live-podium" role="presentation">
-                              {podiumDisplayRows.map((row) => {
-                                const order = podiumRows.findIndex((entry) => entry.participantId === row.participantId) + 1;
-                                const color = participantColorById.get(row.participantId) ?? CHART_COLORS[Math.max(0, order - 1) % CHART_COLORS.length];
-                                const heightByRank: Record<number, number> = { 1: 100, 2: 74, 3: 58 };
-                                const height = heightByRank[order] ?? 52;
-                                return (
-                                  <div key={`participant-podium:${row.participantId}`} className="cogita-live-podium-slot" data-rank={order}>
-                                    <div className="cogita-live-podium-name" title={row.displayName}>{row.displayName}</div>
-                                    <div className="cogita-live-podium-pillar" style={{ height: `${height}%`, borderColor: color, boxShadow: `inset 0 0 0 1px ${color}55, 0 0 18px ${color}33` }}>
-                                      <span className="cogita-live-podium-medal" style={{ background: color }}>{order}</span>
-                                      <strong>{`${row.score} ${liveCopy.scoreUnit}`}</strong>
+                            {reviewLoading ? <p className="cogita-help">{liveCopy.loading}</p> : null}
+                            {effectiveReviewRound && reviewPrompt ? (
+                              <>
+                                <CogitaCheckcardSurface
+                                  className="cogita-live-card-container"
+                                  feedbackToken={`review-${effectiveReviewRound.roundIndex}-${reviewFeedbackState ?? 'idle'}`}
+                                >
+                                  <CogitaLivePromptCard
+                                    prompt={reviewPrompt}
+                                    revealExpected={reviewExpected}
+                                    revealedAnswer={reviewAnswer}
+                                    answerDistribution={reviewReveal?.answerDistribution}
+                                    answerMask={reviewEvaluation?.mask}
+                                    surfaceState={reviewFeedbackState ?? undefined}
+                                    mode="readonly"
+                                    labels={{
+                                      answerLabel: revisionCopy.answerLabel,
+                                      correctAnswerLabel: revisionCopy.correctAnswerLabel,
+                                      trueLabel: liveCopy.trueLabel,
+                                      falseLabel: liveCopy.falseLabel,
+                                      fragmentLabel: liveCopy.fragmentLabel,
+                                      correctFragmentLabel: liveCopy.correctFragmentLabel,
+                                      participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                                      unsupportedPromptType: liveCopy.unsupportedPromptType,
+                                      waitingForReveal: liveCopy.waitingForRevealLabel,
+                                      selectedPaths: liveCopy.selectedPathsLabel,
+                                      removePath: liveCopy.removePathAction,
+                                      columnPrefix: liveCopy.columnPrefixLabel
+                                    }}
+                                    answers={{
+                                      text: typeof reviewAnswer === 'string' ? reviewAnswer : '',
+                                      selection: Array.isArray(reviewAnswer) ? reviewAnswer.map((value) => Number(value)).filter(Number.isFinite) : [],
+                                      booleanAnswer: typeof reviewAnswer === 'boolean' ? reviewAnswer : null,
+                                      ordering: Array.isArray(reviewAnswer) ? reviewAnswer.map(String) : [],
+                                      matchingRows:
+                                        reviewAnswer &&
+                                        typeof reviewAnswer === 'object' &&
+                                        Array.isArray((reviewAnswer as { paths?: unknown[] }).paths)
+                                          ? (((reviewAnswer as { paths?: unknown[] }).paths ?? []) as number[][])
+                                          : [],
+                                      matchingSelection: []
+                                    }}
+                                    onTextChange={() => undefined}
+                                    onSelectionToggle={() => undefined}
+                                    onBooleanChange={() => undefined}
+                                    onOrderingMove={() => undefined}
+                                    onMatchingPick={() => undefined}
+                                    onMatchingRemovePath={() => undefined}
+                                  />
+                                </CogitaCheckcardSurface>
+                                {reviewRoundBreakdown ? (
+                                  <div className="cogita-live-round-gain">
+                                    <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
+                                    <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundBreakdown.total ?? effectiveReviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                    <div className="cogita-live-round-gain-list">
+                                      {reviewRoundBreakdown.rows.map((row) => (
+                                        <div className="cogita-live-round-gain-row" key={`review-row:${effectiveReviewRound.roundIndex}:${row.key}`}>
+                                          <span>{`${row.label}${row.reason ? ` • ${row.reason}` : ''}`}</span>
+                                          <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
+                                        </div>
+                                      ))}
                                     </div>
                                   </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <p className="cogita-help">{liveCopy.noParticipants}</p>
-                          )}
-                        </section>
-                        <CogitaStatisticsPanel
-                          libraryId={`live:${state?.sessionId ?? code}`}
-                          scopeType="live-session"
-                          scopeId={state?.sessionId ?? code}
-                          title={liveCopy.finalScoreTitle}
-                          data={liveStatisticsData}
-                          loading={status === 'loading'}
-                          error={status === 'error'}
-                          initialModuleId="score-line"
-                        />
-                        <section className="cogita-library-panel">
-                          <div className="cogita-detail-header">
-                            <div>
-                              <p className="cogita-user-kicker">{liveCopy.reviewQuestionsTitle}</p>
-                              <h3 className="cogita-detail-title">
-                                {reviewRound ? `${reviewIndex + 1}/${reviewRounds.length}` : '0/0'}
-                              </h3>
-                            </div>
-                            <div className="cogita-form-actions">
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => setReviewIndex((value) => Math.max(0, value - 1))}
-                                disabled={reviewIndex <= 0}
-                              >
-                                {liveCopy.previousQuestionAction}
-                              </button>
-                              <button
-                                type="button"
-                                className="ghost"
-                                onClick={() => setReviewIndex((value) => Math.min(Math.max(0, reviewRounds.length - 1), value + 1))}
-                                disabled={reviewRounds.length === 0 || reviewIndex >= reviewRounds.length - 1}
-                              >
-                                {liveCopy.nextQuestionAction}
-                              </button>
-                            </div>
-                          </div>
-                          {reviewLoading ? <p className="cogita-help">{liveCopy.loading}</p> : null}
-                          {reviewRound && reviewPrompt ? (
-                            <>
-                              <CogitaCheckcardSurface
-                                className="cogita-live-card-container"
-                                feedbackToken={`review-${reviewRound.roundIndex}-${reviewFeedbackState ?? 'idle'}`}
-                              >
-                                <CogitaLivePromptCard
-                                  prompt={reviewPrompt}
-                                  revealExpected={reviewExpected}
-                                  revealedAnswer={reviewAnswer}
-                                  answerDistribution={reviewReveal?.answerDistribution}
-                                  answerMask={reviewEvaluation?.mask}
-                                  surfaceState={reviewFeedbackState ?? undefined}
-                                  mode="readonly"
-                                  labels={{
-                                    answerLabel: revisionCopy.answerLabel,
-                                    correctAnswerLabel: revisionCopy.correctAnswerLabel,
-                                    trueLabel: liveCopy.trueLabel,
-                                    falseLabel: liveCopy.falseLabel,
-                                    fragmentLabel: liveCopy.fragmentLabel,
-                                    correctFragmentLabel: liveCopy.correctFragmentLabel,
-                                    participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
-                                    unsupportedPromptType: liveCopy.unsupportedPromptType,
-                                    waitingForReveal: liveCopy.waitingForRevealLabel,
-                                    selectedPaths: liveCopy.selectedPathsLabel,
-                                    removePath: liveCopy.removePathAction,
-                                    columnPrefix: liveCopy.columnPrefixLabel
-                                  }}
-                                  answers={{
-                                    text: typeof reviewAnswer === 'string' ? reviewAnswer : '',
-                                    selection: Array.isArray(reviewAnswer) ? reviewAnswer.map((value) => Number(value)).filter(Number.isFinite) : [],
-                                    booleanAnswer: typeof reviewAnswer === 'boolean' ? reviewAnswer : null,
-                                    ordering: Array.isArray(reviewAnswer) ? reviewAnswer.map(String) : [],
-                                    matchingRows:
-                                      reviewAnswer &&
-                                      typeof reviewAnswer === 'object' &&
-                                      Array.isArray((reviewAnswer as { paths?: unknown[] }).paths)
-                                        ? (((reviewAnswer as { paths?: unknown[] }).paths ?? []) as number[][])
-                                        : [],
-                                    matchingSelection: []
-                                  }}
-                                  onTextChange={() => undefined}
-                                  onSelectionToggle={() => undefined}
-                                  onBooleanChange={() => undefined}
-                                  onOrderingMove={() => undefined}
-                                  onMatchingPick={() => undefined}
-                                  onMatchingRemovePath={() => undefined}
-                                />
-                              </CogitaCheckcardSurface>
-                              {reviewRoundBreakdown ? (
-                                <div className="cogita-live-round-gain">
-                                  <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
-                                  <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundBreakdown.total ?? reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
-                                  <div className="cogita-live-round-gain-list">
-                                    {reviewRoundBreakdown.rows.map((row) => (
-                                      <div className="cogita-live-round-gain-row" key={`review-row:${reviewRound.roundIndex}:${row.key}`}>
-                                        <span>{`${row.label}${row.reason ? ` • ${row.reason}` : ''}`}</span>
-                                        <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ) : (
-                                <p className="cogita-help">{`${formatPoints(Math.round(Number(reviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
-                              )}
-                            </>
-                          ) : null}
-                        </section>
+                                ) : (
+                                  <p className="cogita-help">{`${formatPoints(Math.round(Number(effectiveReviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                )}
+                              </>
+                            ) : null}
+                          </section>
+                        </div>
+                        <div className="cogita-live-finished-column cogita-live-finished-column--secondary">
+                          <CogitaStatisticsPanel
+                            libraryId={`live:${state?.sessionId ?? code}`}
+                            scopeType="live-session"
+                            scopeId={state?.sessionId ?? code}
+                            title={liveCopy.finalScoreTitle}
+                            data={liveStatisticsData}
+                            loading={status === 'loading'}
+                            error={status === 'error'}
+                            initialModuleId="score-line"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <>

@@ -224,32 +224,9 @@ export function CogitaRevisionLiveSessionsPage({
       allAnsweredAction: 'none',
       roundTimer: { ...formLiveRules.roundTimer, onExpire: 'reveal' },
       actionTimer: { ...formLiveRules.actionTimer, enabled: false, onExpire: 'reveal' },
-      bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' },
-      scoring: {
-        ...formLiveRules.scoring,
-        firstCorrectBonus: 0,
-        firstWrongPenalty: 0
-      }
+      bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' }
     };
   }, [formLiveRules, formSessionMode]);
-
-  useEffect(() => {
-    if (formSessionMode !== 'asynchronous') return;
-    setFormLiveRules((previous) => {
-      const needsUpdate =
-        previous.scoring.firstCorrectBonus !== 0 ||
-        previous.scoring.firstWrongPenalty !== 0;
-      if (!needsUpdate) return previous;
-      return {
-        ...previous,
-        scoring: {
-          ...previous.scoring,
-          firstCorrectBonus: 0,
-          firstWrongPenalty: 0
-        }
-      };
-    });
-  }, [formSessionMode]);
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();
@@ -621,23 +598,39 @@ export function CogitaRevisionLiveSessionsPage({
                                     }
                                   />
                                 </label>
-                                {!isAsyncSession ? (
-                                  <label className="cogita-field">
-                                    <span>{liveCopy.firstCorrectBonusLabel}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={500000}
-                                      value={formLiveRules.scoring.firstCorrectBonus}
-                                      onChange={(event) =>
-                                        setFormLiveRules((previous) => ({
-                                          ...previous,
-                                          scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
-                                        }))
-                                      }
-                                    />
-                                  </label>
-                                ) : null}
+                                <label className="cogita-field">
+                                  <span>{liveCopy.firstCorrectBonusLabel}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500000}
+                                    value={formLiveRules.scoring.firstCorrectBonus}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: { ...previous.scoring, firstCorrectBonus: clampInt(Number(event.target.value), 0, 500000) }
+                                      }))
+                                    }
+                                  />
+                                </label>
+                                <label className="cogita-field">
+                                  <span>{liveCopy.firstBonusModeLabel ?? 'First answer bonus mode'}</span>
+                                  <select
+                                    value={formLiveRules.scoring.firstBonusMode}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: {
+                                          ...previous.scoring,
+                                          firstBonusMode: event.target.value === 'first_correct' ? 'first_correct' : 'first_answer'
+                                        }
+                                      }))
+                                    }
+                                  >
+                                    <option value="first_answer">{liveCopy.firstBonusModeFirstAnswer ?? 'First answer (even if wrong)'}</option>
+                                    <option value="first_correct">{liveCopy.firstBonusModeFirstCorrect ?? 'First correct answer'}</option>
+                                  </select>
+                                </label>
                                 <label className="cogita-field">
                                   <span>{liveCopy.wrongAnswerPenaltyLabel}</span>
                                   <input
@@ -653,23 +646,40 @@ export function CogitaRevisionLiveSessionsPage({
                                     }
                                   />
                                 </label>
-                                {!isAsyncSession ? (
-                                  <label className="cogita-field">
-                                    <span>{liveCopy.firstWrongPenaltyLabel}</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={500000}
-                                      value={formLiveRules.scoring.firstWrongPenalty}
-                                      onChange={(event) =>
-                                        setFormLiveRules((previous) => ({
-                                          ...previous,
-                                          scoring: { ...previous.scoring, firstWrongPenalty: clampInt(Number(event.target.value), 0, 500000) }
-                                        }))
-                                      }
-                                    />
-                                  </label>
-                                ) : null}
+                                <label className="cogita-field">
+                                  <span>{liveCopy.firstWrongPenaltyLabel}</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={500000}
+                                    value={formLiveRules.scoring.firstWrongPenalty}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: { ...previous.scoring, firstWrongPenalty: clampInt(Number(event.target.value), 0, 500000) }
+                                      }))
+                                    }
+                                  />
+                                </label>
+                                <label className="cogita-field">
+                                  <span>{liveCopy.firstWrongPenaltyModeLabel ?? 'First wrong penalty mode'}</span>
+                                  <select
+                                    value={formLiveRules.scoring.firstWrongPenaltyMode}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: {
+                                          ...previous.scoring,
+                                          firstWrongPenaltyMode:
+                                            event.target.value === 'first_wrong' ? 'first_wrong' : 'first_overall_answer'
+                                        }
+                                      }))
+                                    }
+                                  >
+                                    <option value="first_overall_answer">{liveCopy.firstWrongPenaltyModeOverallFirst ?? 'Only if wrong answer was the first overall answer'}</option>
+                                    <option value="first_wrong">{liveCopy.firstWrongPenaltyModeFirstWrong ?? 'First wrong answer in the round'}</option>
+                                  </select>
+                                </label>
                               </div>
                             </div>
 
@@ -1058,6 +1068,77 @@ export function CogitaRevisionLiveSessionsPage({
                                           setFormLiveRules((previous) => ({
                                             ...previous,
                                             scoring: { ...previous.scoring, streakLimit: clampInt(Number(event.target.value), 1, 200) }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                  </>
+                                ) : null}
+                                <label className="cogita-field">
+                                  <span>{liveCopy.wrongStreakPenaltyEnabledLabel ?? 'Wrong streak penalty enabled'}</span>
+                                  <select
+                                    value={formLiveRules.scoring.wrongStreakBasePenalty > 0 ? 'yes' : 'no'}
+                                    onChange={(event) =>
+                                      setFormLiveRules((previous) => ({
+                                        ...previous,
+                                        scoring: {
+                                          ...previous.scoring,
+                                          wrongStreakBasePenalty:
+                                            event.target.value === 'yes'
+                                              ? (previous.scoring.wrongStreakBasePenalty > 0 ? previous.scoring.wrongStreakBasePenalty : 100)
+                                              : 0
+                                        }
+                                      }))
+                                    }
+                                  >
+                                    <option value="yes">{liveCopy.optionYes}</option>
+                                    <option value="no">{liveCopy.optionNo}</option>
+                                  </select>
+                                </label>
+                                {formLiveRules.scoring.wrongStreakBasePenalty > 0 ? (
+                                  <>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.wrongStreakBasePenaltyLabel ?? 'Wrong streak base penalty'}</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={500000}
+                                        value={formLiveRules.scoring.wrongStreakBasePenalty}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            scoring: { ...previous.scoring, wrongStreakBasePenalty: clampInt(Number(event.target.value), 0, 500000) }
+                                          }))
+                                        }
+                                      />
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.wrongStreakGrowthLabel ?? 'Wrong streak growth'}</span>
+                                      <select
+                                        value={formLiveRules.scoring.wrongStreakGrowth}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            scoring: { ...previous.scoring, wrongStreakGrowth: event.target.value as BonusGrowthMode }
+                                          }))
+                                        }
+                                      >
+                                        <option value="linear">{liveCopy.optionLinear}</option>
+                                        <option value="exponential">{liveCopy.optionExponential}</option>
+                                        <option value="limited">{liveCopy.optionLimited}</option>
+                                      </select>
+                                    </label>
+                                    <label className="cogita-field">
+                                      <span>{liveCopy.wrongStreakLimitLabel ?? 'Wrong streak limit'}</span>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={200}
+                                        value={formLiveRules.scoring.wrongStreakLimit}
+                                        onChange={(event) =>
+                                          setFormLiveRules((previous) => ({
+                                            ...previous,
+                                            scoring: { ...previous.scoring, wrongStreakLimit: clampInt(Number(event.target.value), 1, 200) }
                                           }))
                                         }
                                       />

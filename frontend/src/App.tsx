@@ -11,6 +11,8 @@ import { FaqPage } from './pages/FaqPage';
 import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 const ParishPage = lazy(() => import('./pages/parish/ParishPage').then((module) => ({ default: module.ParishPage })));
+const EventsPage = lazy(() => import('./pages/events/EventsPage').then((module) => ({ default: module.EventsPage })));
+const LimanowaPage = lazy(() => import('./pages/limanowa/LimanowaPage').then((module) => ({ default: module.LimanowaPage })));
 const CogitaPage = lazy(() => import('./pages/cogita/CogitaPage').then((module) => ({ default: module.CogitaPage })));
 const CogitaWorkspacePage = lazy(() =>
   import('./pages/cogita/CogitaWorkspacePage').then((module) => ({ default: module.CogitaWorkspacePage }))
@@ -73,6 +75,8 @@ export default function App() {
   const pathname = location.pathname;
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
   const isCogitaPath = pathname.startsWith('/cogita');
+  const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
+  const isLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isCogitaSharePath = pathname.startsWith('/cogita/public/revision');
   const isCogitaLiveJoinPath = pathname.startsWith('/cogita/public/live-revision/');
   const isCogitaLiveWallLoginPath = pathname.startsWith('/cogita/live-wall/login/');
@@ -116,6 +120,8 @@ export default function App() {
   const navigateRoute = useMemo(() => {
     return (next: RouteKey) => {
       if (next === 'parish') navigate('/parish');
+      else if (next === 'events') navigate('/event');
+      else if (next === 'limanowa') navigate('/limanowa');
       else if (next === 'cogita') navigate('/cogita');
       else if (next === 'faq') navigate('/faq');
       else if (next === 'legal') navigate('/legal');
@@ -412,6 +418,52 @@ export default function App() {
             language={language}
             onLanguageChange={setLanguage}
             parishSlug={pathname.startsWith('/parish/') ? pathname.split('/')[2] : undefined}
+          />
+        </Suspense>
+      )}
+      {isEventsPath && (
+        <Suspense fallback={lazyFallback}>
+          <EventsPage
+            copy={t}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'events');
+              } else {
+                openLoginCard('events');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'events')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        </Suspense>
+      )}
+      {isLimanowaPath && (
+        <Suspense fallback={lazyFallback}>
+          <LimanowaPage
+            copy={t}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'limanowa');
+              } else {
+                openLoginCard('limanowa');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'limanowa')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
           />
         </Suspense>
       )}
