@@ -28,6 +28,7 @@
   border: none;
   background: transparent;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .brand img {
@@ -41,12 +42,13 @@
   flex-wrap: wrap;
 }
 
-.home-nav button {
+.home-nav a {
   background: transparent;
   border: none;
   color: var(--muted);
   cursor: pointer;
   font-size: 0.95rem;
+  text-decoration: none;
 }
 
 .home-actions {

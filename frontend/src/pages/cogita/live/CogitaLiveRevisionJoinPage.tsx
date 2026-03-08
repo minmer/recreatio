@@ -395,7 +395,6 @@ export function CogitaLiveRevisionJoinPage(props: {
   });
   const [scoreFxByParticipant, setScoreFxByParticipant] = useState<Record<string, { delta: number; rankShift: number; token: number }>>({});
   const [reviewRounds, setReviewRounds] = useState<CogitaLiveRevisionReviewRound[]>([]);
-  const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewLoading, setReviewLoading] = useState(false);
   const prevScoresRef = useRef<Map<string, number>>(new Map());
   const prevRanksRef = useRef<Map<string, number>>(new Map());
@@ -1378,59 +1377,6 @@ export function CogitaLiveRevisionJoinPage(props: {
       } satisfies CogitaLiveRevisionReviewRound
     ];
   }, [isSessionFinished, prompt, reveal, reviewRounds, state?.currentRoundIndex]);
-  const effectiveReviewRound = effectiveReviewRounds.length > 0
-    ? effectiveReviewRounds[Math.max(0, Math.min(reviewIndex, effectiveReviewRounds.length - 1))]
-    : null;
-  const reviewPrompt = (effectiveReviewRound?.prompt as LivePrompt | undefined) ?? null;
-  const reviewReveal = (effectiveReviewRound?.reveal as Record<string, unknown> | undefined) ?? null;
-  const reviewExpected = reviewReveal?.expected;
-  const reviewAnswer = effectiveReviewRound?.participantAnswer;
-  const reviewRoundScoring = useMemo(() => {
-    if (!reviewReveal || typeof reviewReveal !== 'object' || !selfParticipantId) return null;
-    const roundScoring =
-      (reviewReveal.roundScoring as Record<string, {
-        isCorrect?: boolean;
-        points?: number;
-        factors?: string[];
-        streak?: number;
-        basePoints?: number;
-        firstBonusPoints?: number;
-        speedPoints?: number;
-        streakPoints?: number;
-        wrongPenaltyPoints?: number;
-        firstWrongPenaltyPoints?: number;
-        wrongStreakPenaltyPoints?: number;
-        answerDurationSeconds?: number;
-      }> | undefined) ?? null;
-    return roundScoring ? roundScoring[selfParticipantId] ?? null : null;
-  }, [reviewReveal, selfParticipantId]);
-  const reviewRoundBreakdown = useMemo(() => {
-    if (!effectiveReviewRound) return null;
-    return computeLiveRoundBreakdown({
-      scoring: reviewRoundScoring,
-      fallbackTotal: Number(reviewRoundScoring?.points ?? effectiveReviewRound.pointsAwarded ?? 0),
-      fallbackIsCorrect:
-        typeof reviewRoundScoring?.isCorrect === 'boolean'
-          ? reviewRoundScoring.isCorrect
-          : (typeof effectiveReviewRound.isCorrect === 'boolean' ? effectiveReviewRound.isCorrect : null),
-      labels: liveBreakdownLabels,
-      rules: liveRules,
-      formatTemplate
-    });
-  }, [
-    effectiveReviewRound,
-    reviewRoundScoring,
-    liveBreakdownLabels,
-    liveRules
-  ]);
-  const reviewEvaluation = useMemo(
-    () => evaluatePromptAnswer(reviewPrompt, reviewExpected, reviewAnswer),
-    [reviewAnswer, reviewExpected, reviewPrompt]
-  );
-  const reviewFeedbackState =
-    typeof effectiveReviewRound?.isCorrect === 'boolean'
-      ? (effectiveReviewRound.isCorrect ? 'correct' : 'incorrect')
-      : (reviewEvaluation?.correct ? 'correct' : reviewEvaluation ? 'incorrect' : null);
 
   useEffect(() => {
     if (!isSessionFinished || !participantToken) return;
@@ -1440,10 +1386,6 @@ export function CogitaLiveRevisionJoinPage(props: {
       .then((rows) => {
         if (!mounted) return;
         setReviewRounds(Array.isArray(rows) ? rows : []);
-        setReviewIndex((previous) => {
-          const max = Math.max(0, (Array.isArray(rows) ? rows.length : 0) - 1);
-          return Math.max(0, Math.min(previous, max));
-        });
       })
       .catch(() => {
         if (!mounted) return;
@@ -1719,97 +1661,119 @@ export function CogitaLiveRevisionJoinPage(props: {
                             <div className="cogita-detail-header">
                               <div>
                                 <p className="cogita-user-kicker">{liveCopy.reviewQuestionsTitle}</p>
-                                <h3 className="cogita-detail-title">
-                                  {effectiveReviewRound ? `${reviewIndex + 1}/${effectiveReviewRounds.length}` : '0/0'}
-                                </h3>
-                              </div>
-                              <div className="cogita-form-actions">
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() => setReviewIndex((value) => Math.max(0, value - 1))}
-                                  disabled={reviewIndex <= 0}
-                                >
-                                  {liveCopy.previousQuestionAction}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  onClick={() => setReviewIndex((value) => Math.min(Math.max(0, effectiveReviewRounds.length - 1), value + 1))}
-                                  disabled={effectiveReviewRounds.length === 0 || reviewIndex >= effectiveReviewRounds.length - 1}
-                                >
-                                  {liveCopy.nextQuestionAction}
-                                </button>
+                                <h3 className="cogita-detail-title">{effectiveReviewRounds.length}</h3>
                               </div>
                             </div>
                             {reviewLoading ? <p className="cogita-help">{liveCopy.loading}</p> : null}
-                            {effectiveReviewRound && reviewPrompt ? (
-                              <>
-                                <CogitaCheckcardSurface
-                                  className="cogita-live-card-container"
-                                  feedbackToken={`review-${effectiveReviewRound.roundIndex}-${reviewFeedbackState ?? 'idle'}`}
-                                >
-                                  <CogitaLivePromptCard
-                                    prompt={reviewPrompt}
-                                    revealExpected={reviewExpected}
-                                    revealedAnswer={reviewAnswer}
-                                    answerDistribution={reviewReveal?.answerDistribution}
-                                    answerMask={reviewEvaluation?.mask}
-                                    surfaceState={reviewFeedbackState ?? undefined}
-                                    mode="readonly"
-                                    labels={{
-                                      answerLabel: revisionCopy.answerLabel,
-                                      correctAnswerLabel: revisionCopy.correctAnswerLabel,
-                                      trueLabel: liveCopy.trueLabel,
-                                      falseLabel: liveCopy.falseLabel,
-                                      fragmentLabel: liveCopy.fragmentLabel,
-                                      correctFragmentLabel: liveCopy.correctFragmentLabel,
-                                      participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
-                                      unsupportedPromptType: liveCopy.unsupportedPromptType,
-                                      waitingForReveal: liveCopy.waitingForRevealLabel,
-                                      selectedPaths: liveCopy.selectedPathsLabel,
-                                      removePath: liveCopy.removePathAction,
-                                      columnPrefix: liveCopy.columnPrefixLabel
-                                    }}
-                                    answers={{
-                                      text: typeof reviewAnswer === 'string' ? reviewAnswer : '',
-                                      selection: Array.isArray(reviewAnswer) ? reviewAnswer.map((value) => Number(value)).filter(Number.isFinite) : [],
-                                      booleanAnswer: typeof reviewAnswer === 'boolean' ? reviewAnswer : null,
-                                      ordering: Array.isArray(reviewAnswer) ? reviewAnswer.map(String) : [],
-                                      matchingRows:
-                                        reviewAnswer &&
-                                        typeof reviewAnswer === 'object' &&
-                                        Array.isArray((reviewAnswer as { paths?: unknown[] }).paths)
-                                          ? (((reviewAnswer as { paths?: unknown[] }).paths ?? []) as number[][])
-                                          : [],
-                                      matchingSelection: []
-                                    }}
-                                    onTextChange={() => undefined}
-                                    onSelectionToggle={() => undefined}
-                                    onBooleanChange={() => undefined}
-                                    onOrderingMove={() => undefined}
-                                    onMatchingPick={() => undefined}
-                                    onMatchingRemovePath={() => undefined}
-                                  />
-                                </CogitaCheckcardSurface>
-                                {reviewRoundBreakdown ? (
-                                  <div className="cogita-live-round-gain">
-                                    <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
-                                    <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(reviewRoundBreakdown.total ?? effectiveReviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
-                                    <div className="cogita-live-round-gain-list">
-                                      {reviewRoundBreakdown.rows.map((row) => (
-                                        <div className="cogita-live-round-gain-row" key={`review-row:${effectiveReviewRound.roundIndex}:${row.key}`}>
-                                          <span>{`${row.label}${row.reason ? ` • ${row.reason}` : ''}`}</span>
-                                          <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
+                            <div className="cogita-live-wall-stack">
+                              {effectiveReviewRounds.map((round) => {
+                                const roundPrompt = (round.prompt as LivePrompt | undefined) ?? null;
+                                const roundReveal = (round.reveal as Record<string, unknown> | undefined) ?? null;
+                                if (!roundPrompt) return null;
+                                const roundExpected = roundReveal?.expected;
+                                const roundAnswer = round.participantAnswer;
+                                const roundEvaluation = evaluatePromptAnswer(roundPrompt, roundExpected, roundAnswer);
+                                const roundScoring =
+                                  roundReveal && typeof roundReveal === 'object' && selfParticipantId
+                                    ? ((roundReveal.roundScoring as Record<string, {
+                                        isCorrect?: boolean;
+                                        points?: number;
+                                        factors?: string[];
+                                        streak?: number;
+                                        basePoints?: number;
+                                        firstBonusPoints?: number;
+                                        speedPoints?: number;
+                                        streakPoints?: number;
+                                        wrongPenaltyPoints?: number;
+                                        firstWrongPenaltyPoints?: number;
+                                        wrongStreakPenaltyPoints?: number;
+                                        answerDurationSeconds?: number;
+                                      }> | undefined) ?? null)?.[selfParticipantId] ?? null
+                                    : null;
+                                const roundBreakdown = computeLiveRoundBreakdown({
+                                  scoring: roundScoring,
+                                  fallbackTotal: Number(roundScoring?.points ?? round.pointsAwarded ?? 0),
+                                  fallbackIsCorrect:
+                                    typeof roundScoring?.isCorrect === 'boolean'
+                                      ? roundScoring.isCorrect
+                                      : (typeof round.isCorrect === 'boolean' ? round.isCorrect : null),
+                                  labels: liveBreakdownLabels,
+                                  rules: liveRules,
+                                  formatTemplate
+                                });
+                                const roundFeedbackState =
+                                  typeof round.isCorrect === 'boolean'
+                                    ? (round.isCorrect ? 'correct' : 'incorrect')
+                                    : (roundEvaluation?.correct ? 'correct' : roundEvaluation ? 'incorrect' : null);
+                                return (
+                                  <div key={`review-round:${round.roundIndex}:${round.cardKey}`} className="cogita-live-round-review-item">
+                                    <CogitaCheckcardSurface
+                                      className="cogita-live-card-container"
+                                      feedbackToken={`review-${round.roundIndex}-${roundFeedbackState ?? 'idle'}`}
+                                    >
+                                      <CogitaLivePromptCard
+                                        prompt={roundPrompt}
+                                        revealExpected={roundExpected}
+                                        revealedAnswer={roundAnswer}
+                                        answerDistribution={roundReveal?.answerDistribution}
+                                        answerMask={roundEvaluation?.mask}
+                                        surfaceState={roundFeedbackState ?? undefined}
+                                        mode="readonly"
+                                        labels={{
+                                          answerLabel: revisionCopy.answerLabel,
+                                          correctAnswerLabel: revisionCopy.correctAnswerLabel,
+                                          trueLabel: liveCopy.trueLabel,
+                                          falseLabel: liveCopy.falseLabel,
+                                          fragmentLabel: liveCopy.fragmentLabel,
+                                          correctFragmentLabel: liveCopy.correctFragmentLabel,
+                                          participantAnswerPlaceholder: liveCopy.participantAnswerPlaceholder,
+                                          unsupportedPromptType: liveCopy.unsupportedPromptType,
+                                          waitingForReveal: liveCopy.waitingForRevealLabel,
+                                          selectedPaths: liveCopy.selectedPathsLabel,
+                                          removePath: liveCopy.removePathAction,
+                                          columnPrefix: liveCopy.columnPrefixLabel
+                                        }}
+                                        answers={{
+                                          text: typeof roundAnswer === 'string' ? roundAnswer : '',
+                                          selection: Array.isArray(roundAnswer) ? roundAnswer.map((value) => Number(value)).filter(Number.isFinite) : [],
+                                          booleanAnswer: typeof roundAnswer === 'boolean' ? roundAnswer : null,
+                                          ordering: Array.isArray(roundAnswer) ? roundAnswer.map(String) : [],
+                                          matchingRows:
+                                            roundAnswer &&
+                                            typeof roundAnswer === 'object' &&
+                                            Array.isArray((roundAnswer as { paths?: unknown[] }).paths)
+                                              ? (((roundAnswer as { paths?: unknown[] }).paths ?? []) as number[][])
+                                              : [],
+                                          matchingSelection: []
+                                        }}
+                                        onTextChange={() => undefined}
+                                        onSelectionToggle={() => undefined}
+                                        onBooleanChange={() => undefined}
+                                        onOrderingMove={() => undefined}
+                                        onMatchingPick={() => undefined}
+                                        onMatchingRemovePath={() => undefined}
+                                      />
+                                    </CogitaCheckcardSurface>
+                                    {roundBreakdown ? (
+                                      <div className="cogita-live-round-gain">
+                                        <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
+                                        <p className="cogita-detail-title">{`${formatPoints(Math.round(Number(roundBreakdown.total ?? round.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                        <div className="cogita-live-round-gain-list">
+                                          {roundBreakdown.rows.map((row) => (
+                                            <div className="cogita-live-round-gain-row" key={`review-row:${round.roundIndex}:${row.key}`}>
+                                              <span>{`${row.label}${row.reason ? ` • ${row.reason}` : ''}`}</span>
+                                              <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
+                                            </div>
+                                          ))}
                                         </div>
-                                      ))}
-                                    </div>
+                                      </div>
+                                    ) : (
+                                      <p className="cogita-help">{`${formatPoints(Math.round(Number(round.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
+                                    )}
                                   </div>
-                                ) : (
-                                  <p className="cogita-help">{`${formatPoints(Math.round(Number(effectiveReviewRound.pointsAwarded ?? 0)))} ${liveCopy.scoreUnit}`}</p>
-                                )}
-                              </>
-                            ) : null}
+                                );
+                              })}
+                            </div>
                           </section>
                         </div>
                         <div className="cogita-live-finished-column cogita-live-finished-column--secondary">

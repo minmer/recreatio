@@ -448,22 +448,7 @@ export default function App() {
         <Suspense fallback={lazyFallback}>
           <LimanowaPage
             copy={t}
-            onAuthAction={() => {
-              if (isAuthenticated) {
-                handleProtectedNavigation('account', 'limanowa');
-              } else {
-                openLoginCard('limanowa');
-              }
-            }}
-            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
-            showProfileMenu={isAuthenticated}
-            onProfileNavigate={() => handleProtectedNavigation('account', 'limanowa')}
-            onToggleSecureMode={handleToggleMode}
-            onLogout={handleLogout}
-            secureMode={secureMode}
             onNavigate={navigateRoute}
-            language={language}
-            onLanguageChange={setLanguage}
           />
         </Suspense>
       )}

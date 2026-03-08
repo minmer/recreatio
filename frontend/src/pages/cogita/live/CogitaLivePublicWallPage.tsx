@@ -396,7 +396,7 @@ export function CogitaLivePublicWallPage({
   }, [state?.revealVersion, state?.scoreboard]);
 
   useEffect(() => {
-    if (!isSessionFinished || isAsyncSession) {
+    if (!isSessionFinished) {
       setReviewRounds([]);
       setReviewStatus('idle');
       return;
@@ -417,7 +417,7 @@ export function CogitaLivePublicWallPage({
     return () => {
       cancelled = true;
     };
-  }, [code, isAsyncSession, isSessionFinished, state?.revealVersion]);
+  }, [code, isSessionFinished, state?.revealVersion]);
 
   return (
     <>
@@ -585,7 +585,7 @@ export function CogitaLivePublicWallPage({
                 </div>
               </div>
             ) : null}
-            {showPodiumOnPublicScreen ? (
+            {isSessionFinished ? (
               <section className="cogita-library-panel">
                 <div className="cogita-detail-header">
                   <div>

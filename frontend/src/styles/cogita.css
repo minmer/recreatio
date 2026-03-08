@@ -1966,6 +1966,15 @@
   min-height: 0;
 }
 
+.cogita-live-finished-column--secondary .cogita-statistics-panel {
+  gap: 0.7rem;
+}
+
+.cogita-live-finished-column--secondary .cogita-statistics-chart {
+  min-width: 760px;
+  max-height: min(28vh, 260px);
+}
+
 .cogita-live-finished-podium {
   min-height: 0;
   height: 100%;
@@ -1974,6 +1983,11 @@
 .cogita-live-finished-review {
   min-height: 0;
   overflow: auto;
+}
+
+.cogita-live-round-review-item {
+  display: grid;
+  gap: 0.55rem;
 }
 
 .cogita-live-session-layout[data-participant-view='fullscreen'] {
@@ -3478,6 +3492,17 @@
   .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-library-panel {
     max-height: none;
     overflow: visible;
+  }
+}
+
+@media (max-width: 1460px) {
+  .cogita-live-finished-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .cogita-live-finished-column--primary {
+    grid-template-rows: auto auto;
   }
 }
 

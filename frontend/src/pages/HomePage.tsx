@@ -207,28 +207,28 @@ export function HomePage({
   return (
     <div className={`home ${panelOpen ? 'home-panel-open' : ''}`}>
       <header className="home-header">
-        <button type="button" className="brand" onClick={() => onNavigate('home')}>
+        <a className="brand" href="/#/section-1">
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
-        </button>
+        </a>
         <nav className="home-nav">
-          <button type="button" onClick={() => onNavigate('parish')}>
+          <a href="/#/parish">
             {copy.nav.parish}
-          </button>
-          <button type="button" onClick={() => onNavigate('events')}>
+          </a>
+          <a href="/#/event">
             {copy.nav.events}
-          </button>
-          <button type="button" onClick={() => onNavigate('limanowa')}>
+          </a>
+          <a href="/#/limanowa">
             {copy.nav.limanowa}
-          </button>
-          <button type="button" onClick={() => onNavigate('cogita')}>
+          </a>
+          <a href="/#/cogita">
             {copy.nav.cogita}
-          </button>
-          <button type="button" onClick={() => onOpenPanel('faq')}>
+          </a>
+          <a href="/#/faq">
             {copy.nav.faq}
-          </button>
-          <button type="button" onClick={() => onOpenPanel('legal')}>
+          </a>
+          <a href="/#/legal">
             {copy.nav.legal}
-          </button>
+          </a>
         </nav>
         <div className="home-actions">
           <LanguageSelect value={language} onChange={onLanguageChange} />

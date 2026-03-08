@@ -1,30 +1,25 @@
 .portal-page.limanowa-page {
   min-height: 100vh;
   background: linear-gradient(160deg, #f6f2ea 0%, #e6eddf 45%, #d9e4ef 100%);
-}
-
-.portal-page.limanowa-page .limanowa-header {
-  background: rgba(246, 242, 234, 0.93);
-}
-
-.limanowa-header-actions {
   display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.limanowa-up {
-  font-weight: 600;
-}
-
-.limanowa-brand img {
-  width: 150px;
+  flex-direction: column;
 }
 
 .limanowa-main {
-  padding: 2.8rem 6vw 4.5rem;
+  flex: 1;
+  min-height: 0;
+  padding: 2.8rem 6vw 2rem;
+}
+
+.limanowa-shell-card {
+  max-width: 920px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 1.3rem;
   display: grid;
-  gap: 1.4rem;
+  gap: 1.2rem;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.1);
 }
 
 .limanowa-hero {
@@ -61,4 +56,8 @@
 
 .limanowa-footer {
   margin-top: 1rem;
+}
+
+.limanowa-footer-home {
+  text-decoration: none;
 }
