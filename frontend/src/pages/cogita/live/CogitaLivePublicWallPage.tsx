@@ -392,6 +392,16 @@ export function CogitaLivePublicWallPage({
         subtitle={liveCopy.hostKicker}
         left={
           <div className="cogita-live-wall-stack">
+            {sessionDescriptionLines.length > 0 ? (
+              <section className="cogita-library-panel">
+                <p className="cogita-user-kicker">{liveCopy.sessionSettingsLabel}</p>
+                <div className="cogita-detail-body">
+                  {sessionDescriptionLines.map((line) => (
+                    <p key={`public-session-line:${line}`}>{line}</p>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             {showStatisticsWindow ? (
               <>
                 {isAsyncSession ? (
@@ -513,16 +523,6 @@ export function CogitaLivePublicWallPage({
         }
         right={
           <div className="cogita-live-wall-stack">
-            {sessionDescriptionLines.length > 0 ? (
-              <section className="cogita-library-panel">
-                <p className="cogita-user-kicker">{liveCopy.sessionSettingsLabel}</p>
-                <div className="cogita-detail-body">
-                  {sessionDescriptionLines.map((line) => (
-                    <p key={`public-session-line:${line}`}>{line}</p>
-                  ))}
-                </div>
-              </section>
-            ) : null}
             {showRightScoreboard ? <p className="cogita-user-kicker">{liveCopy.pointsTitle}</p> : null}
             {showPodiumOnPublicScreen && podiumRows.length > 0 ? (
               <div className="cogita-live-podium-wrap">
