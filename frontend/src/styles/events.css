@@ -437,26 +437,23 @@
   min-height: 180vh;
   width: 100%;
   overflow: hidden;
-  background: #d7e1cf;
+  background: #F1FDE8;
 }
 
 .pilgrimage-start-stage::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 52% 44%, rgba(215, 225, 207, 0) 0%, rgba(215, 225, 207, 0.12) 22%, rgba(215, 225, 207, 0.32) 62%);
-  z-index: 1;
+  content: none;
 }
 
 .pilgrimage-stones {
+  --stone-gap: clamp(9px, 0.65vw, 12px);
   position: absolute;
   inset: 0;
   z-index: 0;
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-template-rows: repeat(14, minmax(0, 1fr));
-  gap: clamp(8px, 0.7vw, 14px);
-  padding: clamp(8px, 0.7vw, 14px);
+  gap: var(--stone-gap);
+  padding: var(--stone-gap);
 }
 
 .stone {
@@ -464,11 +461,11 @@
   position: relative;
 }
 
-.tone-coral { background: #f65a45; }
-.tone-amber { background: #ffb106; }
-.tone-yellow { background: #f3de41; }
-.tone-green { background: #8bc823; }
-.tone-green-dark { background: #4e9200; }
+.tone-coral { background: #F45741; }
+.tone-amber { background: #FB9926; }
+.tone-yellow { background: #FCE960; }
+.tone-green { background: #88C529; }
+.tone-green-dark { background: #6D8F1E; }
 
 .stone-a { grid-column: 1 / 3; grid-row: 1 / 2; clip-path: polygon(0 0, 100% 10%, 80% 100%, 0 80%); }
 .stone-b { grid-column: 3 / 5; grid-row: 1 / 3; clip-path: polygon(0 10%, 70% 0, 100% 68%, 12% 100%); }
@@ -499,9 +496,26 @@
   content: '';
   position: absolute;
   inset: 0;
-  clip-path: inherit;
-  background: linear-gradient(140deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.18));
-  mix-blend-mode: multiply;
+  clip-path: polygon(100% 0, 100% 100%, 72% 100%, 84% 0);
+  background: #93260E;
+}
+
+.stone.tone-green::after,
+.stone.tone-green-dark::after {
+  background: #6D8F1E;
+}
+
+.stone.tone-yellow::after,
+.stone.tone-amber::after {
+  background: #FB9926;
+}
+
+.stone-a::after,
+.stone-f::after,
+.stone-j::after,
+.stone-o::after,
+.stone-x::after {
+  clip-path: polygon(0 0, 22% 0, 0 100%);
   pointer-events: none;
 }
 
@@ -533,7 +547,7 @@
 
 .stone-link {
   text-decoration: none;
-  color: #08131e;
+  color: #111111;
   font-weight: 700;
   font-size: clamp(0.86rem, 1.15vw, 1.05rem);
   text-transform: uppercase;
@@ -550,13 +564,89 @@
   content: '';
   position: absolute;
   inset: 0;
-  clip-path: inherit;
-  background: linear-gradient(140deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.14));
   z-index: 0;
-  pointer-events: none;
+  clip-path: polygon(100% 0, 100% 100%, 78% 100%, 86% 0);
+  background: #93260E;
+}
+
+.stone-link.tone-green::after,
+.stone-link.tone-green-dark::after {
+  background: #6D8F1E;
+}
+
+.stone-link.tone-yellow::after,
+.stone-link.tone-amber::after {
+  background: #FB9926;
 }
 
 .stone-link span {
+  position: relative;
+  z-index: 1;
+}
+
+.pilgrimage-start-sections {
+  position: relative;
+  z-index: 2;
+  width: min(1320px, 96%);
+  margin: 0 auto;
+  padding: 0 0 13rem;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(8px, 0.7vw, 14px);
+}
+
+.stone-zone {
+  color: #111111;
+  clip-path: polygon(6% 0, 100% 12%, 88% 100%, 0 86%);
+  padding: 1rem 1rem 1.1rem;
+  min-height: 190px;
+  position: relative;
+  isolation: isolate;
+}
+
+.stone-zone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  clip-path: polygon(100% 0, 100% 100%, 76% 100%, 86% 0);
+  background: #93260E;
+}
+
+.stone-zone.tone-green::after,
+.stone-zone.tone-green-dark::after {
+  background: #6D8F1E;
+}
+
+.stone-zone.tone-yellow::after,
+.stone-zone.tone-amber::after {
+  background: #FB9926;
+}
+
+.stone-zone h3,
+.stone-zone p {
+  margin: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.stone-zone h3 {
+  font-size: 1.02rem;
+  text-transform: uppercase;
+}
+
+.stone-zone p {
+  margin-top: 0.6rem;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.stone-zone a {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: #111111;
+  font-weight: 700;
+  text-decoration: none;
   position: relative;
   z-index: 1;
 }
@@ -1029,8 +1119,15 @@
   left: 0;
   right: 0;
   top: 0;
-  background: rgba(255, 255, 255, 0.78);
-  border-bottom-color: rgba(13, 22, 36, 0.14);
+  background: #F1FDE8;
+  border-bottom-color: #111111;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.kal-header--overlay.is-compact {
+  background: #F1FDE8;
+  box-shadow: none;
 }
 
 .kal-footer--overlay {
@@ -1039,15 +1136,85 @@
   right: 0;
   bottom: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.78);
-  border-top: 1px solid rgba(13, 22, 36, 0.14);
-  color: #0f1c2f;
+  background: #F1FDE8;
+  border-top: 1px solid #111111;
+  color: #111111;
 }
 
 .kal-footer--overlay .kal-logo,
 .kal-footer--overlay .kal-footer-links a,
 .kal-footer--overlay .ghost {
-  color: #0f1c2f;
+  color: #111111;
+  opacity: 1;
+}
+
+.kal-header--overlay .kal-hamburger {
+  border-color: #111111;
+  background: #F1FDE8;
+}
+
+.kal-header--overlay .kal-hamburger span {
+  background: #111111;
+}
+
+.kal-header--overlay .kal-top-nav--desktop a,
+.kal-header--overlay .kal-menu-dropdown a {
+  color: #111111;
+}
+
+.kal-header--overlay .kal-top-nav--desktop a.active {
+  border-bottom-color: #FB9926;
+}
+
+.kal-header--overlay .kal-menu-dropdown a:hover,
+.kal-header--overlay .kal-menu-dropdown a.active {
+  background: #FCE960;
+}
+
+.kal-header--overlay .kal-menu-dropdown {
+  background: #F1FDE8;
+  border-color: #111111;
+  box-shadow: none;
+}
+
+.kal-header--overlay .ghost,
+.kal-footer--overlay .ghost {
+  border-color: #111111;
+  background: #F1FDE8;
+  color: #111111;
+  box-shadow: none;
+}
+
+.kal-header--overlay .kal-tools .ghost,
+.kal-header--overlay .kal-tools button,
+.kal-header--overlay .kal-tools a,
+.kal-header--overlay .kal-tools select {
+  color: #111111;
+}
+
+.kal-header--overlay .lang-button,
+.kal-header--overlay .profile-button,
+.kal-header--overlay .profile-dropdown,
+.kal-header--overlay .lang-menu,
+.kal-header--overlay .lang-menu button,
+.kal-header--overlay .profile-dropdown button {
+  background: #F1FDE8;
+  color: #111111;
+  border-color: #111111;
+  box-shadow: none;
+}
+
+.kal-header--overlay .lang-button:hover,
+.kal-header--overlay .lang-select.open .lang-button,
+.kal-header--overlay .profile-button:hover,
+.kal-header--overlay .profile-menu.open .profile-button {
+  box-shadow: none;
+  transform: none;
+}
+
+.kal-header--overlay .lang-menu button:hover,
+.kal-header--overlay .profile-dropdown button:hover {
+  background: #FCE960;
 }
 
 .kal-logo {
@@ -1182,12 +1349,17 @@
   }
 
   .pilgrimage-stones {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(12, minmax(0, 1fr));
     grid-template-rows: repeat(28, minmax(0, 1fr));
   }
 
   .pilgrimage-start-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding-bottom: 10.5rem;
+  }
+
+  .pilgrimage-start-sections {
+    grid-template-columns: 1fr;
+    padding-bottom: 14rem;
   }
 }
