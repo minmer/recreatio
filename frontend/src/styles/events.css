@@ -267,7 +267,6 @@
   width: min(270px, 28vw);
   min-width: 190px;
   border-radius: 10px;
-  overflow: hidden;
 }
 
 .kal-header-logo svg {
@@ -1022,11 +1021,18 @@
 @media (max-width: 980px) {
   .events-card-head,
   .warsztaty-header,
-  .kal-header,
   .kal-main {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .kal-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    flex-wrap: nowrap;
   }
 
   .warsztaty-footer,
@@ -1110,7 +1116,7 @@
   }
 
   .kal-header-logo {
-    width: min(250px, 52vw);
-    min-width: 160px;
+    width: min(320px, 56vw);
+    min-width: 180px;
   }
 }
