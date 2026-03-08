@@ -4282,16 +4282,16 @@ public static class CogitaEndpoints
                         out var timelineDetail))
                 {
                     timelinePointsAwarded = timelineDetail.Points;
-                    var participantId = participantRef.ParticipantId.Value;
-                    if (!liveRunningPointsByParticipant.ContainsKey(participantId))
+                    var timelineParticipantId = participantRef.ParticipantId.Value;
+                    if (!liveRunningPointsByParticipant.ContainsKey(timelineParticipantId))
                     {
-                        liveRunningPointsByParticipant[participantId] = 0;
+                        liveRunningPointsByParticipant[timelineParticipantId] = 0;
                     }
-                    if (eventCorrectness.HasValue && liveCountedRounds.Add((participantId, statisticEvent.RoundIndex.Value)))
+                    if (eventCorrectness.HasValue && liveCountedRounds.Add((timelineParticipantId, statisticEvent.RoundIndex.Value)))
                     {
-                        liveRunningPointsByParticipant[participantId] += timelineDetail.Points;
+                        liveRunningPointsByParticipant[timelineParticipantId] += timelineDetail.Points;
                     }
-                    timelineRunningPoints = liveRunningPointsByParticipant[participantId];
+                    timelineRunningPoints = liveRunningPointsByParticipant[timelineParticipantId];
                 }
 
                 timeline.Add(new CogitaStatisticsTimelinePointResponse(
