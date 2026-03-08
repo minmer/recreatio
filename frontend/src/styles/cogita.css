@@ -2417,6 +2417,11 @@
   overflow: visible;
 }
 
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] .cogita-library-panel {
+  max-height: none;
+  overflow: visible;
+}
+
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-fullscreen-panel {
   min-height: 0;
   padding-bottom: 6.8rem;

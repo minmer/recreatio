@@ -6391,11 +6391,10 @@ public static class CogitaEndpoints
                 });
             }
 
-            var isNewRoundPrompt = requestedRoundIndex > previousRoundIndex ||
-                                   (requestedRoundIndex == previousRoundIndex && string.IsNullOrWhiteSpace(previousPromptJson));
-            if (isNewRoundPrompt &&
+            var promptChanged =
                 !string.Equals(previousPromptJson, session.CurrentPromptJson, StringComparison.Ordinal) &&
-                !string.IsNullOrWhiteSpace(session.CurrentPromptJson))
+                !string.IsNullOrWhiteSpace(session.CurrentPromptJson);
+            if (promptChanged)
             {
                 var (itemType, itemId, checkType, direction, cardKey) = ResolveCardIdentityFromPromptJson(session.CurrentPromptJson);
                 dbContext.CogitaStatisticEvents.Add(new CogitaStatisticEvent
@@ -7991,17 +7990,44 @@ public static class CogitaEndpoints
 
             var meta = ParseLiveSessionMeta(session.SessionMetaJson);
             var isAsyncSession = string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal);
-            if (!string.Equals(session.Status, "finished", StringComparison.Ordinal) &&
-                !string.Equals(session.Status, "closed", StringComparison.Ordinal))
-            {
-                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
-            }
-
             CogitaLiveRevisionParticipant? participant = null;
             if (!string.IsNullOrWhiteSpace(participantToken))
             {
                 participant = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
                     .FirstOrDefaultAsync(x => x.SessionId == session.Id && x.JoinTokenHash == HashToken(participantToken), ct);
+            }
+
+            var canReadReview =
+                string.Equals(session.Status, "finished", StringComparison.Ordinal) ||
+                string.Equals(session.Status, "closed", StringComparison.Ordinal);
+            if (!canReadReview &&
+                isAsyncSession &&
+                participant is not null)
+            {
+                var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                if (rounds.Count > 0)
+                {
+                    var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
+                    var participantAnswersForPhase = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                        .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
+                        .OrderBy(x => x.RoundIndex)
+                        .ThenByDescending(x => x.UpdatedUtc)
+                        .ToListAsync(ct);
+                    var timerEvents = await LoadLiveAsyncTimerEventsAsync(session.Id, participant.Id, dbContext, ct);
+                    var asyncState = BuildLiveAsyncParticipantState(
+                        rounds,
+                        participantAnswersForPhase,
+                        timerEvents,
+                        participant.JoinedUtc,
+                        session.StartedUtc,
+                        flowRules,
+                        DateTimeOffset.UtcNow);
+                    canReadReview = string.Equals(asyncState.Phase, "finished", StringComparison.Ordinal);
+                }
+            }
+            if (!canReadReview)
+            {
+                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
             }
 
             var asyncRounds = isAsyncSession
@@ -8020,10 +8046,56 @@ public static class CogitaEndpoints
                 syncRounds = BuildLiveSyncRoundBundle(roundEvents, session.CurrentPromptJson, session.CurrentRevealJson, session.CurrentRoundIndex);
             }
 
-            var totalRounds = isAsyncSession ? asyncRounds.Count : syncRounds.Count;
-            if (totalRounds == 0)
+            var inferredRoundMeta = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+                .Where(x => x.SessionId == session.Id)
+                .GroupBy(x => x.RoundIndex)
+                .Select(group => new
+                {
+                    RoundIndex = group.Key,
+                    CardKey = group
+                        .OrderByDescending(x => x.UpdatedUtc)
+                        .Select(x => x.CardKey)
+                        .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))
+                })
+                .OrderBy(x => x.RoundIndex)
+                .ToListAsync(ct);
+
+            if (!isAsyncSession && inferredRoundMeta.Count > 0)
             {
-                return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+                var existingRoundIndexes = syncRounds.Select(x => x.RoundIndex).ToHashSet();
+                foreach (var inferred in inferredRoundMeta)
+                {
+                    if (existingRoundIndexes.Contains(inferred.RoundIndex))
+                    {
+                        continue;
+                    }
+
+                    var fallbackCardKey = string.IsNullOrWhiteSpace(inferred.CardKey)
+                        ? $"round-{Math.Max(0, inferred.RoundIndex)}"
+                        : inferred.CardKey.Trim();
+                    var fallbackTitle = $"Round {Math.Max(0, inferred.RoundIndex) + 1}";
+                    var fallbackPrompt = new JsonObject
+                    {
+                        ["kind"] = "text",
+                        ["title"] = fallbackTitle,
+                        ["prompt"] = fallbackCardKey,
+                        ["cardKey"] = fallbackCardKey,
+                        ["cardLabel"] = "reconstructed"
+                    };
+                    var fallbackReveal = new JsonObject
+                    {
+                        ["kind"] = "text",
+                        ["expected"] = "",
+                        ["title"] = fallbackTitle,
+                        ["cardKey"] = fallbackCardKey,
+                        ["reconstructed"] = true
+                    };
+                    syncRounds.Add(new LiveSyncRoundPayload(
+                        Math.Max(0, inferred.RoundIndex),
+                        fallbackCardKey,
+                        CloneJsonObject(fallbackPrompt),
+                        CloneJsonObject(fallbackReveal)));
+                }
             }
 
             var answerByRound = new Dictionary<int, CogitaLiveRevisionAnswer>();
@@ -8036,6 +8108,81 @@ public static class CogitaEndpoints
                 answerByRound = answers
                     .GroupBy(x => x.RoundIndex)
                     .ToDictionary(x => x.Key, x => x.First());
+            }
+
+            var totalRounds = isAsyncSession ? asyncRounds.Count : syncRounds.Count;
+            if (totalRounds == 0)
+            {
+                if (inferredRoundMeta.Count == 0)
+                {
+                    return Results.Ok(new List<CogitaLiveRevisionReviewRoundResponse>());
+                }
+
+                var fallbackRounds = inferredRoundMeta
+                    .Select(inferred =>
+                    {
+                        var fallbackCardKey = string.IsNullOrWhiteSpace(inferred.CardKey)
+                            ? $"round-{Math.Max(0, inferred.RoundIndex)}"
+                            : inferred.CardKey.Trim();
+                        var fallbackTitle = $"Round {Math.Max(0, inferred.RoundIndex) + 1}";
+                        var promptNode = new JsonObject
+                        {
+                            ["kind"] = "text",
+                            ["title"] = fallbackTitle,
+                            ["prompt"] = fallbackCardKey,
+                            ["cardKey"] = fallbackCardKey,
+                            ["cardLabel"] = "reconstructed"
+                        };
+                        var revealNode = new JsonObject
+                        {
+                            ["kind"] = "text",
+                            ["expected"] = "",
+                            ["title"] = fallbackTitle,
+                            ["cardKey"] = fallbackCardKey,
+                            ["reconstructed"] = true
+                        };
+                        return new LiveSyncRoundPayload(
+                            Math.Max(0, inferred.RoundIndex),
+                            fallbackCardKey,
+                            promptNode,
+                            revealNode);
+                    })
+                    .OrderBy(x => x.RoundIndex)
+                    .ToList();
+
+                var fallbackResponse = new List<CogitaLiveRevisionReviewRoundResponse>(fallbackRounds.Count);
+                var computedFallbackScores = await ComputeLiveSessionScoresOnTheFlyAsync(session.Id, dbContext, ct);
+                foreach (var round in fallbackRounds)
+                {
+                    answerByRound.TryGetValue(round.RoundIndex, out var answer);
+                    var participantAnswer = answer is null
+                        ? null
+                        : ParseJsonNullable(UnprotectLiveSessionScopedJson(answer.AnswerJson, dataProtectionProvider, session.Id));
+                    var revealNode = CloneJsonObject(round.Reveal);
+                    await AppendLiveRoundAnswerDistributionAsync(
+                        session.Id,
+                        round.RoundIndex,
+                        round.CardKey,
+                        round.Prompt,
+                        revealNode,
+                        dataProtectionProvider,
+                        dbContext,
+                        ct);
+                    fallbackResponse.Add(new CogitaLiveRevisionReviewRoundResponse(
+                        round.RoundIndex,
+                        round.CardKey,
+                        JsonNodeToJsonElement(round.Prompt) ?? default,
+                        JsonNodeToJsonElement(revealNode) ?? default,
+                        participantAnswer,
+                        answer?.IsCorrect,
+                        participant is not null &&
+                        computedFallbackScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var fallbackDetail)
+                            ? fallbackDetail.Points
+                            : 0
+                    ));
+                }
+
+                return Results.Ok(fallbackResponse);
             }
 
             var computedScores = await ComputeLiveSessionScoresOnTheFlyAsync(session.Id, dbContext, ct);
@@ -17665,14 +17812,9 @@ public static class CogitaEndpoints
                 continue;
             }
 
-            var eventRoundIndex = publishEvent.RoundIndex.HasValue
+            var roundIndex = publishEvent.RoundIndex.HasValue
                 ? Math.Max(0, publishEvent.RoundIndex.Value)
                 : sequenceIndex;
-
-            // Keep event round index if it is monotonic; otherwise preserve chronological order.
-            var roundIndex = result.Count == 0
-                ? eventRoundIndex
-                : Math.Max(eventRoundIndex, result[result.Count - 1].RoundIndex + 1);
 
             var cardKey = promptNode["cardKey"]?.GetValue<string>()?.Trim();
             if (string.IsNullOrWhiteSpace(cardKey) && !string.IsNullOrWhiteSpace(publishEvent.CardKey))
@@ -17682,17 +17824,21 @@ public static class CogitaEndpoints
             }
             cardKey ??= $"round-{roundIndex}";
 
-            // Prefer reveal with same round index and created after publish; fallback to next chronological reveal.
+            var nextPublishCreatedUtc = sequenceIndex + 1 < publishedEvents.Count
+                ? publishedEvents[sequenceIndex + 1].CreatedUtc
+                : DateTimeOffset.MaxValue;
+
+            // Match reveal by chronological round window to support non-monotonic round indexes.
             CogitaStatisticEvent? matchedRevealEvent = revealedEvents
                 .FirstOrDefault(x =>
                     !usedRevealIds.Contains(x.Id) &&
-                    x.RoundIndex.HasValue &&
-                    publishEvent.RoundIndex.HasValue &&
-                    x.RoundIndex.Value == publishEvent.RoundIndex.Value &&
-                    x.CreatedUtc >= publishEvent.CreatedUtc);
+                    x.CreatedUtc >= publishEvent.CreatedUtc &&
+                    x.CreatedUtc < nextPublishCreatedUtc);
 
             matchedRevealEvent ??= revealedEvents
-                .FirstOrDefault(x => !usedRevealIds.Contains(x.Id) && x.CreatedUtc >= publishEvent.CreatedUtc);
+                .FirstOrDefault(x =>
+                    !usedRevealIds.Contains(x.Id) &&
+                    x.CreatedUtc >= publishEvent.CreatedUtc);
 
             JsonObject revealNode;
             if (matchedRevealEvent is not null)
