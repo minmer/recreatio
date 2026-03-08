@@ -16,6 +16,7 @@ const PARTICIPANT_COLORS = [
 type ParticipantSeriesPoint = {
   sequence: number;
   index: number;
+  recordedAtMs: number | null;
   eventType: string;
   roundIndex: number | null;
   answersSeen: number;
@@ -373,10 +374,13 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
             : typeof (point as any).answerDurationMs === 'number' && Number.isFinite((point as any).answerDurationMs)
             ? Math.max(0, Number((point as any).answerDurationMs) / 1000)
             : null;
+        const recordedAtMsRaw = Date.parse(point.recordedUtc);
+        const recordedAtMs = Number.isFinite(recordedAtMsRaw) ? recordedAtMsRaw : null;
         const pointsAwarded = typeof point.pointsAwarded === 'number' && Number.isFinite(point.pointsAwarded) ? point.pointsAwarded : 0;
         return {
           sequence,
           index: point.index ?? sequence + 1,
+          recordedAtMs,
           eventType: point.eventType ?? 'event',
           roundIndex: typeof point.roundIndex === 'number' ? point.roundIndex : null,
           answersSeen,
@@ -387,6 +391,40 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
           pointsAwarded
         } satisfies ParticipantSeriesPoint;
       });
+
+      // Fill missing durations on the fly from per-participant answer timestamps.
+      const answerPointIndexes = points
+        .map((point, index) => ({ point, index }))
+        .filter(({ point }) => point.correctness !== null)
+        .map(({ index }) => index);
+      for (let i = 0; i < answerPointIndexes.length; i += 1) {
+        const currentIndex = answerPointIndexes[i];
+        const currentPoint = points[currentIndex];
+        if (typeof currentPoint.durationSeconds === 'number' && Number.isFinite(currentPoint.durationSeconds)) {
+          continue;
+        }
+        let derivedDuration: number | null = null;
+        const nextAnswerIndex = answerPointIndexes[i + 1];
+        if (typeof nextAnswerIndex === 'number') {
+          const nextPoint = points[nextAnswerIndex];
+          if (currentPoint.recordedAtMs !== null && nextPoint.recordedAtMs !== null) {
+            const delta = (nextPoint.recordedAtMs - currentPoint.recordedAtMs) / 1000;
+            if (Number.isFinite(delta) && delta >= 0) {
+              derivedDuration = delta;
+            }
+          }
+        }
+        if (
+          derivedDuration === null &&
+          typeof summary?.averageDurationMs === 'number' &&
+          Number.isFinite(summary.averageDurationMs) &&
+          summary.averageDurationMs >= 0
+        ) {
+          derivedDuration = summary.averageDurationMs / 1000;
+        }
+        currentPoint.durationSeconds = derivedDuration;
+      }
+
       return {
         key: participantKey,
         label: summary?.label ?? labelByParticipant.get(participantKey) ?? participantKey,
@@ -1035,8 +1073,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       const participants = getParticipantsInRenderOrder(
         context.participantSeries
           .filter((participant) => participant.averageDurationSeconds !== null)
-          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0))
-          .slice(0, 12),
+          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0)),
         controls.focusedParticipantKey
       );
       const maxValue = Math.max(1, ...participants.map((participant) => participant.averageDurationSeconds ?? 0));
@@ -1103,10 +1140,6 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     render: (context, controls) => {
       const ranked = getParticipantsInRenderOrder(
         context.participantSeries
-          .filter(
-            (participant) =>
-              participant.totalCorrectDurationSeconds !== null || participant.totalWrongDurationSeconds !== null
-          )
           .sort(
             (left, right) =>
               (left.totalDurationSeconds ?? Number.POSITIVE_INFINITY) -
@@ -1198,10 +1231,6 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     render: (context, controls) => {
       const participants = getParticipantsInRenderOrder(
         context.participantSeries
-          .filter(
-            (participant) =>
-              participant.averageCorrectDurationSeconds !== null || participant.averageWrongDurationSeconds !== null
-          )
           .sort((left, right) => left.label.localeCompare(right.label)),
         controls.focusedParticipantKey
       );
@@ -1285,7 +1314,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       const plotWidth = chartWidth - paddingX * 2;
       const plotHeight = chartHeight - paddingY * 2;
       // Keep visual order stable (score/rank order). Focus should not move bars.
-      const participants = context.participantSeries.slice(0, 12);
+      const participants = context.participantSeries;
       const maxValue = Math.max(1, ...participants.map((participant) => participant.totalPoints));
       const columnWidth = participants.length > 0 ? plotWidth / participants.length : plotWidth;
 
@@ -1519,8 +1548,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
             (left, right) =>
               right.averagePointsPerCorrectAnswer - left.averagePointsPerCorrectAnswer ||
               left.label.localeCompare(right.label)
-          )
-          .slice(0, 8),
+          ),
         controls.focusedParticipantKey
       );
       const max = Math.max(1, ...ranked.map((participant) => participant.averagePointsPerCorrectAnswer));
@@ -1529,7 +1557,6 @@ const STATISTICS_MODULES: StatisticsModule[] = [
           <div className="cogita-statistics-pyramid">
             {ranked.map((participant, index) => {
               const total = Math.max(0, participant.averagePointsPerCorrectAnswer);
-              const widthPercent = 35 + (total / max) * 65;
               let base = Math.max(0, participant.averageBasePointsPerCorrectAnswer);
               let first = Math.max(0, participant.averageFirstBonusPointsPerCorrectAnswer);
               let speed = Math.max(0, participant.averageSpeedBonusPointsPerCorrectAnswer);
@@ -1540,11 +1567,10 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                 speed = 0;
                 streak = 0;
               }
-              const segmentSum = Math.max(0.0001, base + first + speed + streak);
-              const baseWidth = (base / segmentSum) * 100;
-              const firstWidth = (first / segmentSum) * 100;
-              const speedWidth = (speed / segmentSum) * 100;
-              const streakWidth = (streak / segmentSum) * 100;
+              const baseWidth = Math.max(0, Math.min(100, (base / max) * 100));
+              const firstWidth = Math.max(0, Math.min(100, (first / max) * 100));
+              const speedWidth = Math.max(0, Math.min(100, (speed / max) * 100));
+              const streakWidth = Math.max(0, Math.min(100, (streak / max) * 100));
               return (
                 <div key={`pyramid-${participant.key}`} className="cogita-statistics-pyramid-row">
                   <span className="cogita-statistics-pyramid-rank">#{index + 1}</span>
@@ -1552,7 +1578,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                     <div
                       className="cogita-statistics-pyramid-bar"
                       style={{
-                        width: `${widthPercent}%`,
+                        width: '100%',
                         background: 'rgba(10, 28, 50, 0.45)',
                         opacity: controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.35 : 1
                       }}
