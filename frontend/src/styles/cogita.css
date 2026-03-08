@@ -2966,6 +2966,7 @@
 
 .cogita-statistics-time-split-track {
   position: relative;
+  width: 100%;
   height: 1.2rem;
   border-radius: 8px;
   border: 1px solid rgba(120, 170, 220, 0.2);
@@ -3118,6 +3119,30 @@
   min-width: 0;
 }
 
+.cogita-statistics-table-dot-toggle {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  margin: -6px;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+
+.cogita-statistics-table-dot-toggle:hover,
+.cogita-statistics-table-dot-toggle:focus-visible {
+  background: rgba(106, 176, 244, 0.16);
+  box-shadow: 0 0 0 1px rgba(130, 190, 246, 0.24);
+  outline: none;
+}
+
 .cogita-statistics-name-cell strong {
   white-space: nowrap;
   overflow: hidden;
@@ -3125,8 +3150,8 @@
 }
 
 .cogita-statistics-table-dot {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   flex-shrink: 0;
 }

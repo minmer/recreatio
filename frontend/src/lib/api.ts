@@ -1,5 +1,6 @@
 const apiBase = import.meta.env.VITE_API_BASE ?? 'https://api.recreatio.pl';
 let csrfTokenCache: string | null = null;
+const liveStateCache = new Map<string, { etag: string; payload: unknown }>();
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -47,6 +48,63 @@ async function request<T>(path: string, options: RequestInit): Promise<T> {
   }
 
   return JSON.parse(text) as T;
+}
+
+async function requestLiveStateCached<T>(cacheKey: string, path: string): Promise<T> {
+  const csrfToken = getCsrfToken();
+  const cached = liveStateCache.get(cacheKey);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {})
+  };
+  if (cached?.etag) {
+    headers['If-None-Match'] = cached.etag;
+  }
+
+  const response = await fetch(`${apiBase}${path}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers
+  });
+
+  if (response.status === 304) {
+    if (cached) {
+      return cached.payload as T;
+    }
+    // Fallback safety: no local payload for this ETag state, force full fetch.
+    const retry = await fetch(`${apiBase}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {})
+      }
+    });
+    if (!retry.ok) {
+      const text = await retry.text();
+      throw new ApiError(retry.status, text || retry.statusText);
+    }
+    const retryText = await retry.text();
+    const retryPayload = retryText ? (JSON.parse(retryText) as T) : (undefined as T);
+    const retryEtag = retry.headers.get('ETag');
+    if (retryEtag && retryText) {
+      liveStateCache.set(cacheKey, { etag: retryEtag, payload: retryPayload as unknown });
+    }
+    return retryPayload;
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  const text = await response.text();
+  const payload = text ? (JSON.parse(text) as T) : (undefined as T);
+  const etag = response.headers.get('ETag');
+  if (etag && text) {
+    liveStateCache.set(cacheKey, { etag, payload: payload as unknown });
+  }
+  return payload;
 }
 
 export function register(payload: {
@@ -1500,9 +1558,10 @@ export function attachCogitaLiveRevisionSession(payload: { libraryId: string; se
 
 export function getCogitaLiveRevisionSession(payload: { libraryId: string; sessionId: string; hostSecret: string }) {
   const params = new URLSearchParams({ hostSecret: payload.hostSecret });
-  return request<CogitaLiveRevisionSession>(
-    `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}?${params.toString()}`,
-    { method: 'GET' }
+  const path = `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}?${params.toString()}`;
+  return requestLiveStateCached<CogitaLiveRevisionSession>(
+    `live-host:${payload.libraryId}:${payload.sessionId}:${payload.hostSecret}`,
+    path
   );
 }
 
@@ -1651,9 +1710,10 @@ export function getCogitaLiveRevisionReloginRequest(payload: { code: string; req
 export function getCogitaLiveRevisionPublicState(payload: { code: string; participantToken?: string | null }) {
   const params = new URLSearchParams();
   if (payload.participantToken) params.set('participantToken', payload.participantToken);
-  return request<CogitaLiveRevisionPublicState>(
-    `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/state${params.toString() ? `?${params.toString()}` : ''}`,
-    { method: 'GET' }
+  const path = `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/state${params.toString() ? `?${params.toString()}` : ''}`;
+  return requestLiveStateCached<CogitaLiveRevisionPublicState>(
+    `live-public:${payload.code}:${payload.participantToken ?? '-'}`,
+    path
   );
 }
 

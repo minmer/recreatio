@@ -2021,13 +2021,10 @@ export function CogitaStatisticsPanel({
                     >
                       <span className="cogita-statistics-rank-cell">{rank > 0 ? `#${rank}` : '-'}</span>
                       <span className="cogita-statistics-name-cell">
-                        <i
-                          className="cogita-statistics-table-dot"
-                          style={{
-                            background: isVisible ? participant.color : 'transparent',
-                            border: `2px solid ${participant.color}`,
-                            boxShadow: isVisible ? `0 0 12px ${participant.color}` : 'none'
-                          }}
+                        <button
+                          type="button"
+                          className="cogita-statistics-table-dot-toggle"
+                          aria-label={isVisible ? `Hide ${participant.label}` : `Show ${participant.label}`}
                           onClick={(event) => {
                             event.stopPropagation();
                             setVisibleParticipantKeys((current) => {
@@ -2041,7 +2038,16 @@ export function CogitaStatisticsPanel({
                               return next.size === 0 ? new Set(allKeys) : next;
                             });
                           }}
-                        />
+                        >
+                          <i
+                            className="cogita-statistics-table-dot"
+                            style={{
+                              background: isVisible ? participant.color : 'transparent',
+                              border: `2px solid ${participant.color}`,
+                              boxShadow: isVisible ? `0 0 14px ${participant.color}` : 'none'
+                            }}
+                          />
+                        </button>
                         <strong title={participant.label}>{participant.label}</strong>
                       </span>
                       <span>{formatCount(participant.totalPoints)}</span>
