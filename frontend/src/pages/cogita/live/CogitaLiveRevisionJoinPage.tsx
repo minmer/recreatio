@@ -1789,16 +1789,6 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <>
                     {isSessionFinished ? (
                       <div className="cogita-live-finished-layout">
-                        <CogitaStatisticsPanel
-                          libraryId={`live:${state?.sessionId ?? code}`}
-                          scopeType="live-session"
-                          scopeId={state?.sessionId ?? code}
-                          title={liveCopy.finalScoreTitle}
-                          data={liveStatisticsData}
-                          loading={status === 'loading'}
-                          error={status === 'error'}
-                          initialModuleId="score-line"
-                        />
                         <section className="cogita-library-panel cogita-live-podium-wrap">
                           {isParticipantOnPodium ? (
                             <div className="cogita-live-podium-celebration-layer" aria-hidden="true">
@@ -1828,6 +1818,16 @@ export function CogitaLiveRevisionJoinPage(props: {
                             <p className="cogita-help">{liveCopy.noParticipants}</p>
                           )}
                         </section>
+                        <CogitaStatisticsPanel
+                          libraryId={`live:${state?.sessionId ?? code}`}
+                          scopeType="live-session"
+                          scopeId={state?.sessionId ?? code}
+                          title={liveCopy.finalScoreTitle}
+                          data={liveStatisticsData}
+                          loading={status === 'loading'}
+                          error={status === 'error'}
+                          initialModuleId="score-line"
+                        />
                         <section className="cogita-library-panel">
                           <div className="cogita-detail-header">
                             <div>

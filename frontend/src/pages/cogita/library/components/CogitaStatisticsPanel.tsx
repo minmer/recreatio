@@ -438,45 +438,59 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
           derivedDuration === null &&
           typeof summary?.averageDurationMs === 'number' &&
           Number.isFinite(summary.averageDurationMs) &&
-          summary.averageDurationMs >= 0
+          summary.averageDurationMs > 0
         ) {
           derivedDuration = summary.averageDurationMs / 1000;
         }
         currentPoint.durationSeconds = derivedDuration;
       }
 
+      const computedAnswerCount = summary?.answerCount ?? points.filter((point) => point.correctness !== null).length;
+      const computedTotalDurationSeconds = (() => {
+        const total = points
+          .map((point) => point.durationSeconds)
+          .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0)
+          .reduce((sum, duration) => sum + duration, 0);
+        if (total > 0) return total;
+        if (
+          typeof summary?.averageDurationMs === 'number' &&
+          Number.isFinite(summary.averageDurationMs) &&
+          summary.averageDurationMs > 0 &&
+          computedAnswerCount > 0
+        ) {
+          return (summary.averageDurationMs / 1000) * computedAnswerCount;
+        }
+        return null;
+      })();
+
+      const computedAverageDurationSeconds = (() => {
+        const durations = points
+          .map((point) => point.durationSeconds)
+          .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration > 0);
+        if (durations.length > 0) {
+          return mean(durations);
+        }
+        if (computedTotalDurationSeconds !== null && computedTotalDurationSeconds > 0 && computedAnswerCount > 0) {
+          return computedTotalDurationSeconds / computedAnswerCount;
+        }
+        if (
+          typeof summary?.averageDurationMs === 'number' &&
+          Number.isFinite(summary.averageDurationMs) &&
+          summary.averageDurationMs > 0
+        ) {
+          return summary.averageDurationMs / 1000;
+        }
+        return null;
+      })();
+
       return {
         key: participantKey,
         label: summary?.label ?? labelByParticipant.get(participantKey) ?? participantKey,
         color: colorByParticipant.get(participantKey) ?? PARTICIPANT_COLORS[0],
         totalPoints: summary?.totalPoints ?? (points.length > 0 ? points[points.length - 1].runningPoints : 0),
-        totalDurationSeconds:
-          (() => {
-            const total = points
-              .map((point) => point.durationSeconds)
-              .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0)
-              .reduce((sum, duration) => sum + duration, 0);
-            if (total > 0) return total;
-            if (
-              typeof summary?.averageDurationMs === 'number' &&
-              Number.isFinite(summary.averageDurationMs) &&
-              summary.averageDurationMs > 0 &&
-              (summary?.answerCount ?? 0) > 0
-            ) {
-              return (summary.averageDurationMs / 1000) * (summary.answerCount ?? 0);
-            }
-            return null;
-          })(),
+        totalDurationSeconds: computedTotalDurationSeconds,
         averageCorrectness: summary?.averageCorrectness ?? 0,
-        averageDurationSeconds:
-          typeof summary?.averageDurationMs === 'number' && Number.isFinite(summary.averageDurationMs)
-            ? summary.averageDurationMs / 1000
-            : (() => {
-                const durations = points
-                  .map((point) => point.durationSeconds)
-                  .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
-                return durations.length > 0 ? mean(durations) : null;
-              })(),
+        averageDurationSeconds: computedAverageDurationSeconds,
         averageCorrectDurationSeconds: (() => {
           const durations = points
             .filter((point) => point.correctness !== null && point.correctness >= 0.5)
@@ -611,7 +625,7 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
           const residual = avgPoints - avgBase - first - speed;
           return residual > 0 ? residual : 0;
         })(),
-        answerCount: summary?.answerCount ?? points.filter((point) => point.correctness !== null).length,
+        answerCount: computedAnswerCount,
         correctCount: summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length,
         points
       } satisfies ParticipantSeries;
@@ -1023,39 +1037,14 @@ function renderLineChartModule(
   );
 }
 
-function buildLinearRegression(points: Array<{ x: number; y: number }>) {
-  if (points.length < 2) return null;
-  const xAvg = mean(points.map((point) => point.x));
-  const yAvg = mean(points.map((point) => point.y));
-  const numerator = points.reduce((sum, point) => sum + (point.x - xAvg) * (point.y - yAvg), 0);
-  const denominator = points.reduce((sum, point) => sum + (point.x - xAvg) ** 2, 0);
-  if (Math.abs(denominator) < 0.000001) return null;
-  const slope = numerator / denominator;
-  const intercept = yAvg - slope * xAvg;
-  return { slope, intercept };
-}
-
 const STATISTICS_MODULES: StatisticsModule[] = [
   {
-    id: 'metrics',
-    title: 'Numbered metrics',
-    subtitle: 'Key indicators collected from the current scope.',
-    isAvailable: (context) => context.numberedStats.length > 0,
-    render: (context) => (
-      <div className="cogita-statistics-chart-card">
-        <ol className="cogita-statistics-numbered-list">
-          {context.numberedStats.map((statistic, index) => (
-            <li key={`${statistic.label}-${index}`} className="cogita-statistics-numbered-item">
-              <span className="cogita-statistics-number">{index + 1}</span>
-              <div>
-                <strong>{statistic.label}</strong>
-                <p>{statistic.value}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    )
+    id: 'score-line',
+    title: 'Score graph',
+    subtitle: 'Running points timeline per participant.',
+    isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
+    render: (context, controls) =>
+      renderLineChartModule(context, controls, 'runningPoints', 'Running points show cumulative score progression in this scope.')
   },
   {
     id: 'knowness-words',
@@ -1114,12 +1103,139 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       renderLineChartModule(context, controls, 'knowness', 'Knowness values are computed over time by the shared temporal algorithm.')
   },
   {
-    id: 'score-line',
-    title: 'Score graph',
-    subtitle: 'Running points timeline per participant.',
-    isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
-    render: (context, controls) =>
-      renderLineChartModule(context, controls, 'runningPoints', 'Running points show cumulative score progression in this scope.')
+    id: 'round-score-line',
+    title: 'Round score gain',
+    subtitle: 'Points gained in each round per participant.',
+    isAvailable: (context) =>
+      context.rounds.length > 0 &&
+      context.participantSeries.some((participant) =>
+        participant.points.some((point) => point.roundIndex !== null && point.correctness !== null)
+      ),
+    render: (context, controls) => {
+      const chartWidth = 940;
+      const chartHeight = 240;
+      const paddingX = 44;
+      const paddingY = 20;
+      const plotWidth = chartWidth - paddingX * 2;
+      const plotHeight = chartHeight - paddingY * 2;
+
+      const rounds = context.rounds.length > 0
+        ? context.rounds
+        : Array.from(
+            new Set(
+              context.participantSeries.flatMap((participant) =>
+                participant.points
+                  .map((point) => point.roundIndex)
+                  .filter((round): round is number => typeof round === 'number' && Number.isFinite(round))
+              )
+            )
+          ).sort((left, right) => left - right);
+
+      const participants = getParticipantsInRenderOrder(
+        context.participantSeries,
+        controls.focusedParticipantKey
+      );
+
+      const series = participants.map((participant) => {
+        const byRound = new Map<number, number>();
+        participant.points.forEach((point) => {
+          if (point.correctness === null || point.roundIndex === null) return;
+          byRound.set(point.roundIndex, (byRound.get(point.roundIndex) ?? 0) + (Number.isFinite(point.pointsAwarded) ? point.pointsAwarded : 0));
+        });
+        return {
+          participant,
+          values: rounds.map((round) => ({
+            round,
+            value: byRound.get(round) ?? 0
+          }))
+        };
+      });
+
+      const yValues = series.flatMap((item) => item.values.map((point) => point.value));
+      const minYRaw = yValues.length > 0 ? Math.min(...yValues) : 0;
+      const maxYRaw = yValues.length > 0 ? Math.max(...yValues) : 0;
+      const minY = Math.min(0, minYRaw);
+      const maxY = Math.max(0, maxYRaw);
+      const safeMinY = Math.abs(maxY - minY) < 0.001 ? minY - 1 : minY;
+      const safeMaxY = Math.abs(maxY - minY) < 0.001 ? maxY + 1 : maxY;
+
+      const toX = (roundIndex: number) => {
+        if (rounds.length <= 1) return paddingX + plotWidth / 2;
+        const start = rounds[0];
+        const end = rounds[rounds.length - 1];
+        const ratio = end === start ? 0 : (roundIndex - start) / (end - start);
+        return paddingX + ratio * plotWidth;
+      };
+      const toY = (value: number) => {
+        if (Math.abs(safeMaxY - safeMinY) < 0.001) return paddingY + plotHeight / 2;
+        const normalized = (value - safeMinY) / (safeMaxY - safeMinY);
+        return paddingY + (1 - normalized) * plotHeight;
+      };
+
+      const yTickCount = 6;
+      const zeroY = toY(0);
+
+      return (
+        <div className="cogita-statistics-chart-card">
+          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
+            {Array.from({ length: yTickCount + 1 }).map((_, index) => {
+              const ratio = index / yTickCount;
+              const value = safeMaxY - (safeMaxY - safeMinY) * ratio;
+              const y = paddingY + ratio * plotHeight;
+              return (
+                <g key={`round-score-y-${index}`}>
+                  <line x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(120, 170, 220, 0.18)" />
+                  <text x={6} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
+                    {formatFloat(value, 0)}
+                  </text>
+                </g>
+              );
+            })}
+            <line x1={paddingX} y1={zeroY} x2={paddingX + plotWidth} y2={zeroY} stroke="rgba(168, 214, 255, 0.36)" />
+            {rounds.map((round, index) => {
+              const x = toX(round);
+              return (
+                <g key={`round-score-x-${round}-${index}`}>
+                  <line x1={x} y1={paddingY} x2={x} y2={paddingY + plotHeight} stroke="rgba(120, 170, 220, 0.12)" />
+                  <text x={x - 8} y={chartHeight - 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
+                    {formatFloat(round, 0)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {series.map(({ participant, values }) => {
+              const points = values.map((entry) => ({ x: toX(entry.round), y: toY(entry.value) }));
+              const line = buildLinePath(points);
+              if (!line) return null;
+              return (
+                <g key={`round-score-series-${participant.key}`}>
+                  <path
+                    d={line}
+                    stroke={participant.color}
+                    fill="none"
+                    strokeWidth={controls.focusedParticipantKey === participant.key ? 3.8 : 2.2}
+                    strokeLinecap="round"
+                    opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.26 : 0.95}
+                  />
+                  {points.map((point, index) => (
+                    <circle
+                      key={`round-score-point-${participant.key}-${index}`}
+                      cx={point.x}
+                      cy={point.y}
+                      r={controls.focusedParticipantKey === participant.key ? 3 : 2.2}
+                      fill={participant.color}
+                      opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== participant.key ? 0.32 : 0.98}
+                    />
+                  ))}
+                </g>
+              );
+            })}
+          </svg>
+          <p className="cogita-help">Per-round score deltas (positive and negative) on a shared linear scale.</p>
+        </div>
+      );
+    }
   },
   {
     id: 'response-time-participants',
@@ -1447,176 +1563,6 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     }
   },
   {
-    id: 'flow',
-    title: 'Flow chart',
-    subtitle: 'Most frequent transition paths between event types.',
-    isAvailable: (context) => context.transitions.length > 0,
-    render: (context) => {
-      const chartWidth = 940;
-      const chartHeight = 260;
-      const transitions = context.transitions.slice(0, 10);
-      const fromNodes = Array.from(new Set(transitions.map((transition) => transition.from)));
-      const toNodes = Array.from(new Set(transitions.map((transition) => transition.to)));
-      const leftX = 150;
-      const rightX = 790;
-      const top = 26;
-      const bottom = chartHeight - 26;
-      const fromSpacing = fromNodes.length > 1 ? (bottom - top) / (fromNodes.length - 1) : 0;
-      const toSpacing = toNodes.length > 1 ? (bottom - top) / (toNodes.length - 1) : 0;
-      const fromY = new Map<string, number>();
-      const toY = new Map<string, number>();
-      fromNodes.forEach((node, index) => {
-        fromY.set(node, top + fromSpacing * index);
-      });
-      toNodes.forEach((node, index) => {
-        toY.set(node, top + toSpacing * index);
-      });
-      const maxCount = Math.max(1, ...transitions.map((transition) => transition.count));
-
-      return (
-        <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
-            {transitions.map((transition, index) => {
-              const y1 = fromY.get(transition.from) ?? top;
-              const y2 = toY.get(transition.to) ?? top;
-              const controlX = (leftX + rightX) / 2;
-              const width = 1.6 + (transition.count / maxCount) * 8;
-              return (
-                <path
-                  key={`flow-${transition.from}-${transition.to}-${index}`}
-                  d={`M ${leftX} ${y1} C ${controlX} ${y1}, ${controlX} ${y2}, ${rightX} ${y2}`}
-                  fill="none"
-                  stroke="rgba(130, 220, 255, 0.74)"
-                  strokeWidth={width}
-                  strokeLinecap="round"
-                  opacity={0.9}
-                />
-              );
-            })}
-            {fromNodes.map((node) => {
-              const y = fromY.get(node) ?? top;
-              return (
-                <g key={`from-${node}`}>
-                  <circle cx={leftX} cy={y} r={5} fill="rgba(122, 190, 255, 0.92)" />
-                  <text x={leftX - 10} y={y + 4} textAnchor="end" fill="rgba(208, 229, 252, 0.95)" fontSize="11">
-                    {node}
-                  </text>
-                </g>
-              );
-            })}
-            {toNodes.map((node) => {
-              const y = toY.get(node) ?? top;
-              return (
-                <g key={`to-${node}`}>
-                  <circle cx={rightX} cy={y} r={5} fill="rgba(122, 248, 222, 0.9)" />
-                  <text x={rightX + 10} y={y + 4} textAnchor="start" fill="rgba(208, 229, 252, 0.95)" fontSize="11">
-                    {node}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-          <p className="cogita-help">Flow width reflects how often a transition occurred.</p>
-        </div>
-      );
-    }
-  },
-  {
-    id: 'correlation',
-    title: 'Correlation chart',
-    subtitle: 'Answer time versus correctness.',
-    isAvailable: (context) => context.answerEvents.some((event) => event.durationSeconds !== null),
-    render: (context, controls) => {
-      const points = context.answerEvents
-        .filter((event) => event.durationSeconds !== null)
-        .map((event) => ({
-          participantKey: event.participantKey,
-          x: event.durationSeconds ?? 0,
-          y: event.correctness * 100,
-          color: event.color
-        }));
-
-      const chartWidth = 940;
-      const chartHeight = 250;
-      const paddingX = 44;
-      const paddingY = 22;
-      const plotWidth = chartWidth - paddingX * 2;
-      const plotHeight = chartHeight - paddingY * 2;
-
-      const minX = 0;
-      const maxX = Math.max(1, ...points.map((point) => point.x));
-      const minY = 0;
-      const maxY = 100;
-      const toX = (value: number) => paddingX + ((value - minX) / Math.max(0.001, maxX - minX)) * plotWidth;
-      const toY = (value: number) => paddingY + (1 - (value - minY) / Math.max(0.001, maxY - minY)) * plotHeight;
-
-      const regression = buildLinearRegression(points);
-      const regressionPoints =
-        regression === null
-          ? null
-          : [
-              { x: minX, y: clamp(regression.slope * minX + regression.intercept, 0, 100) },
-              { x: maxX, y: clamp(regression.slope * maxX + regression.intercept, 0, 100) }
-            ];
-
-      return (
-        <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
-            {Array.from({ length: 5 }).map((_, index) => {
-              const ratio = index / 4;
-              const y = paddingY + ratio * plotHeight;
-              const label = formatFloat(100 - ratio * 100, 0);
-              return (
-                <g key={`corr-y-${index}`}>
-                  <line x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(110, 160, 220, 0.15)" />
-                  <text x={8} y={y + 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
-                    {label}%
-                  </text>
-                </g>
-              );
-            })}
-            {Array.from({ length: 5 }).map((_, index) => {
-              const ratio = index / 4;
-              const x = paddingX + ratio * plotWidth;
-              const label = formatFloat(minX + ratio * (maxX - minX), 1);
-              return (
-                <g key={`corr-x-${index}`}>
-                  <line x1={x} y1={paddingY} x2={x} y2={paddingY + plotHeight} stroke="rgba(110, 160, 220, 0.12)" />
-                  <text x={x - 8} y={chartHeight - 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
-                    {label}s
-                  </text>
-                </g>
-              );
-            })}
-            {regressionPoints ? (
-              <path
-                d={buildLinePath(regressionPoints.map((point) => ({ x: toX(point.x), y: toY(point.y) })))}
-                stroke="rgba(245, 227, 140, 0.92)"
-                strokeWidth={2.2}
-                fill="none"
-              />
-            ) : null}
-            {points.map((point, index) => (
-              <circle
-                key={`corr-point-${index}`}
-                cx={toX(point.x)}
-                cy={toY(point.y)}
-                r={3.1}
-                fill={point.color}
-                opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== point.participantKey ? 0.26 : 0.92}
-              />
-            ))}
-          </svg>
-          <p className="cogita-help">
-            {context.averageDurationSeconds === null
-              ? 'No timed answers available yet.'
-              : `Average response time: ${formatFloat(context.averageDurationSeconds, 2)} s`}
-          </p>
-        </div>
-      );
-    }
-  },
-  {
     id: 'pyramid',
     title: 'Pyramid ranking',
     subtitle: 'Average points per correct answer split into base and bonus parts.',
@@ -1689,68 +1635,25 @@ const STATISTICS_MODULES: StatisticsModule[] = [
     }
   },
   {
-    id: 'streamgraph',
-    title: 'Streamgraph',
-    subtitle: 'Round-by-round activity distribution.',
-    isAvailable: (context) => context.rounds.length >= 2 && context.streamBands.length >= 2,
-    render: (context, controls) => {
-      const chartWidth = 940;
-      const chartHeight = 250;
-      const paddingX = 40;
-      const paddingY = 22;
-      const plotWidth = chartWidth - paddingX * 2;
-      const plotHeight = chartHeight - paddingY * 2;
-
-      const allY = context.streamBands.flatMap((band) => band.points.flatMap((point) => [point.y0, point.y1]));
-      const minY = allY.length > 0 ? Math.min(...allY) : -1;
-      const maxY = allY.length > 0 ? Math.max(...allY) : 1;
-
-      const toX = (value: number) => {
-        if (context.rounds.length <= 1) return paddingX + plotWidth / 2;
-        return paddingX + (value / (context.rounds.length - 1)) * plotWidth;
-      };
-      const toY = (value: number) => {
-        if (Math.abs(maxY - minY) < 0.001) return paddingY + plotHeight / 2;
-        const ratio = (value - minY) / (maxY - minY);
-        return paddingY + (1 - ratio) * plotHeight;
-      };
-
-      return (
-        <div className="cogita-statistics-chart-card">
-          <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="cogita-statistics-chart" preserveAspectRatio="xMidYMid meet">
-            {Array.from({ length: 5 }).map((_, index) => {
-              const y = paddingY + (index / 4) * plotHeight;
-              return <line key={`stream-grid-${index}`} x1={paddingX} y1={y} x2={paddingX + plotWidth} y2={y} stroke="rgba(110, 160, 220, 0.12)" />;
-            })}
-            {getStreamBandsInRenderOrder(context.streamBands, controls.focusedParticipantKey).map((band) => {
-              const upper = band.points.map((point) => ({ x: toX(point.x), y: toY(point.y1) }));
-              const lower = band.points.map((point) => ({ x: toX(point.x), y: toY(point.y0) }));
-              const areaPath = buildAreaPath(upper, lower);
-              if (!areaPath) return null;
-              return (
-                <path
-                  key={`stream-${band.key}`}
-                  d={areaPath}
-                  fill={band.color}
-                  opacity={controls.focusedParticipantKey && controls.focusedParticipantKey !== band.key ? 0.22 : 0.6}
-                  stroke={band.color}
-                  strokeWidth={controls.focusedParticipantKey === band.key ? 1.6 : 1}
-                />
-              );
-            })}
-            {context.rounds.map((round, index) => {
-              const x = toX(index);
-              return (
-                <text key={`round-${round}`} x={x - 8} y={chartHeight - 4} fill="rgba(186, 209, 238, 0.8)" fontSize="10">
-                  {round + 1}
-                </text>
-              );
-            })}
-          </svg>
-          <p className="cogita-help">Each layer shows how strongly one participant contributed answers in each round.</p>
-        </div>
-      );
-    }
+    id: 'metrics',
+    title: 'Numbered metrics',
+    subtitle: 'Key indicators collected from the current scope.',
+    isAvailable: (context) => context.numberedStats.length > 0,
+    render: (context) => (
+      <div className="cogita-statistics-chart-card">
+        <ol className="cogita-statistics-numbered-list">
+          {context.numberedStats.map((statistic, index) => (
+            <li key={`${statistic.label}-${index}`} className="cogita-statistics-numbered-item">
+              <span className="cogita-statistics-number">{index + 1}</span>
+              <div>
+                <strong>{statistic.label}</strong>
+                <p>{statistic.value}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    )
   }
 ];
 
