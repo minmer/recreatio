@@ -183,8 +183,17 @@ export function HomePage({
     }
   }, [activeSectionId, panelOpen, slides]);
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (panelOpen) setMenuOpen(false);
+  }, [panelOpen]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
       if (panelOpen) return;
       const viewport = viewportRef.current;
       const height = getViewportHeight();
@@ -210,23 +219,32 @@ export function HomePage({
         <a className="brand" href="/#/section-1">
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
         </a>
-        <nav className="home-nav">
-          <a href="/#/parish">
+        <button
+          type="button"
+          className="home-menu-toggle"
+          aria-expanded={menuOpen}
+          aria-label={copy.nav.home}
+          onClick={() => setMenuOpen((current) => !current)}
+        >
+          Menu
+        </button>
+        <nav className={`home-nav ${menuOpen ? 'open' : ''}`}>
+          <a href="/#/parish" onClick={() => setMenuOpen(false)}>
             {copy.nav.parish}
           </a>
-          <a href="/#/event">
+          <a href="/#/event" onClick={() => setMenuOpen(false)}>
             {copy.nav.events}
           </a>
-          <a href="/#/limanowa">
+          <a href="/#/limanowa" onClick={() => setMenuOpen(false)}>
             {copy.nav.limanowa}
           </a>
-          <a href="/#/cogita">
+          <a href="/#/cogita" onClick={() => setMenuOpen(false)}>
             {copy.nav.cogita}
           </a>
-          <a href="/#/faq">
+          <a href="/#/faq" onClick={() => setMenuOpen(false)}>
             {copy.nav.faq}
           </a>
-          <a href="/#/legal">
+          <a href="/#/legal" onClick={() => setMenuOpen(false)}>
             {copy.nav.legal}
           </a>
         </nav>

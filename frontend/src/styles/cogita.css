@@ -1946,7 +1946,7 @@
 
 .cogita-live-finished-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 0.8rem;
   min-height: 0;
   align-items: stretch;
@@ -1959,7 +1959,7 @@
 }
 
 .cogita-live-finished-column--primary {
-  grid-template-rows: minmax(260px, 34vh) minmax(0, 1fr);
+  grid-template-rows: auto auto;
 }
 
 .cogita-live-finished-column--secondary {
@@ -1982,7 +1982,7 @@
 
 .cogita-live-finished-review {
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
 }
 
 .cogita-live-round-review-item {
@@ -2402,9 +2402,19 @@
   overflow: hidden;
 }
 
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-library-panel {
   max-height: 100%;
   overflow: auto;
+}
+
+.cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel {
+  max-height: none;
+  overflow: visible;
 }
 
 .cogita-live-layout-shell[data-layout='fullscreen'] .cogita-live-fullscreen-panel {
@@ -3496,15 +3506,6 @@
 }
 
 @media (max-width: 1460px) {
-  .cogita-live-finished-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-  }
-
-  .cogita-live-finished-column--primary {
-    grid-template-rows: auto auto;
-  }
-
   .cogita-live-session-layout[data-stage='finished'] {
     overflow-y: auto;
     overflow-x: hidden;
