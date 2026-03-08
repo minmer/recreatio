@@ -278,6 +278,223 @@ const defaultContactForm: ContactFormState = {
   message: ''
 };
 
+type StoneTone = 'coral' | 'yellow' | 'orange' | 'green' | 'greenDark';
+type StoneFacetTone = 'red' | 'orange' | 'green';
+type StoneVariant = 'cutA' | 'cutB' | 'cutC' | 'cutD' | 'cutE' | 'cutF';
+
+type StoneCell = {
+  col: number;
+  row: number;
+  tone: StoneTone;
+  variant: StoneVariant;
+  facet?: StoneFacetTone;
+};
+
+const STONE_MAIN_COLORS: Record<StoneTone, string> = {
+  coral: '#F45741',
+  yellow: '#FCE960',
+  orange: '#FB9926',
+  green: '#88C529',
+  greenDark: '#6D8F1E'
+};
+
+const STONE_FACET_COLORS: Record<StoneFacetTone, string> = {
+  red: '#93260E',
+  orange: '#FB9926',
+  green: '#6D8F1E'
+};
+
+const STONE_VARIANTS: Record<StoneVariant, { main: Array<[number, number]>; facet: Array<[number, number]> }> = {
+  cutA: {
+    main: [[0.08, 0.1], [0.86, 0.04], [0.96, 0.66], [0.74, 0.94], [0.06, 0.82]],
+    facet: [[0.7, 0.12], [0.9, 0.06], [0.94, 0.66], [0.76, 0.88]]
+  },
+  cutB: {
+    main: [[0.06, 0.2], [0.38, 0.05], [0.92, 0.12], [0.96, 0.84], [0.52, 0.95], [0.1, 0.72]],
+    facet: [[0.58, 0.14], [0.9, 0.12], [0.94, 0.78], [0.66, 0.86]]
+  },
+  cutC: {
+    main: [[0.14, 0.04], [0.9, 0.18], [0.84, 0.9], [0.12, 0.96], [0.02, 0.36]],
+    facet: [[0.72, 0.2], [0.88, 0.24], [0.82, 0.84], [0.68, 0.86]]
+  },
+  cutD: {
+    main: [[0.08, 0.08], [0.66, 0.02], [0.95, 0.32], [0.84, 0.9], [0.4, 0.96], [0.16, 0.78], [0.02, 0.36]],
+    facet: [[0.66, 0.1], [0.9, 0.32], [0.8, 0.82], [0.62, 0.76]]
+  },
+  cutE: {
+    main: [[0.04, 0.14], [0.88, 0.06], [0.96, 0.86], [0.14, 0.94]],
+    facet: [[0.72, 0.08], [0.9, 0.06], [0.94, 0.82], [0.78, 0.84]]
+  },
+  cutF: {
+    main: [[0.04, 0.3], [0.22, 0.06], [0.84, 0.04], [0.96, 0.48], [0.76, 0.94], [0.1, 0.86]],
+    facet: [[0.74, 0.08], [0.9, 0.44], [0.74, 0.9], [0.64, 0.76]]
+  }
+};
+
+const STONE_COLUMNS = 5;
+const STONE_ROWS = 4;
+const STONE_VIEWBOX_WIDTH = 1600;
+const STONE_VIEWBOX_HEIGHT = 960;
+const STONE_GUTTER_UNITS = 24;
+
+const START_HERO_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'coral', variant: 'cutD', facet: 'red' },
+  { col: 1, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
+  { col: 2, row: 0, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 3, row: 0, tone: 'green', variant: 'cutC', facet: 'green' },
+  { col: 4, row: 0, tone: 'greenDark', variant: 'cutE', facet: 'green' },
+  { col: 0, row: 1, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 1, row: 1, tone: 'green', variant: 'cutF', facet: 'green' },
+  { col: 3, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 4, row: 1, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 0, row: 2, tone: 'orange', variant: 'cutD', facet: 'orange' },
+  { col: 1, row: 2, tone: 'greenDark', variant: 'cutC', facet: 'green' },
+  { col: 3, row: 2, tone: 'yellow', variant: 'cutF', facet: 'orange' },
+  { col: 4, row: 2, tone: 'coral', variant: 'cutA', facet: 'red' },
+  { col: 0, row: 3, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 1, row: 3, tone: 'yellow', variant: 'cutE', facet: 'orange' },
+  { col: 2, row: 3, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
+  { col: 4, row: 3, tone: 'greenDark', variant: 'cutC', facet: 'green' }
+];
+
+const START_ROUTE_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'yellow', variant: 'cutE', facet: 'orange' },
+  { col: 1, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 2, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
+  { col: 3, row: 0, tone: 'coral', variant: 'cutA', facet: 'red' },
+  { col: 4, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
+  { col: 1, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 2, row: 1, tone: 'yellow', variant: 'cutD', facet: 'orange' },
+  { col: 4, row: 1, tone: 'orange', variant: 'cutE', facet: 'orange' },
+  { col: 0, row: 2, tone: 'orange', variant: 'cutA', facet: 'orange' },
+  { col: 1, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 2, row: 2, tone: 'green', variant: 'cutF', facet: 'green' },
+  { col: 4, row: 2, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 0, row: 3, tone: 'coral', variant: 'cutE', facet: 'red' },
+  { col: 1, row: 3, tone: 'greenDark', variant: 'cutD', facet: 'green' },
+  { col: 2, row: 3, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 3, row: 3, tone: 'orange', variant: 'cutC', facet: 'orange' },
+  { col: 4, row: 3, tone: 'green', variant: 'cutF', facet: 'green' }
+];
+
+const START_SCHEDULE_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'green', variant: 'cutA', facet: 'green' },
+  { col: 1, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 2, row: 0, tone: 'coral', variant: 'cutE', facet: 'red' },
+  { col: 3, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
+  { col: 4, row: 0, tone: 'greenDark', variant: 'cutD', facet: 'green' },
+  { col: 2, row: 1, tone: 'coral', variant: 'cutF', facet: 'red' },
+  { col: 3, row: 1, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 4, row: 1, tone: 'green', variant: 'cutC', facet: 'green' },
+  { col: 0, row: 2, tone: 'orange', variant: 'cutB', facet: 'orange' },
+  { col: 2, row: 2, tone: 'greenDark', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 2, tone: 'coral', variant: 'cutE', facet: 'red' },
+  { col: 4, row: 2, tone: 'yellow', variant: 'cutF', facet: 'orange' },
+  { col: 0, row: 3, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 1, row: 3, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 2, row: 3, tone: 'orange', variant: 'cutC', facet: 'orange' },
+  { col: 3, row: 3, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 4, row: 3, tone: 'greenDark', variant: 'cutE', facet: 'green' }
+];
+
+const START_REGISTRATION_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 1, row: 0, tone: 'yellow', variant: 'cutE', facet: 'orange' },
+  { col: 2, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 0, tone: 'orange', variant: 'cutA', facet: 'orange' },
+  { col: 4, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
+  { col: 1, row: 1, tone: 'coral', variant: 'cutA', facet: 'red' },
+  { col: 2, row: 1, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 0, row: 2, tone: 'orange', variant: 'cutD', facet: 'orange' },
+  { col: 1, row: 2, tone: 'green', variant: 'cutE', facet: 'green' },
+  { col: 2, row: 2, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 0, row: 3, tone: 'yellow', variant: 'cutF', facet: 'orange' },
+  { col: 1, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
+  { col: 2, row: 3, tone: 'greenDark', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 3, tone: 'coral', variant: 'cutC', facet: 'red' },
+  { col: 4, row: 3, tone: 'yellow', variant: 'cutE', facet: 'orange' }
+];
+
+const START_FAQ_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'yellow', variant: 'cutD', facet: 'orange' },
+  { col: 1, row: 0, tone: 'greenDark', variant: 'cutA', facet: 'green' },
+  { col: 2, row: 0, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 3, row: 0, tone: 'orange', variant: 'cutF', facet: 'orange' },
+  { col: 4, row: 0, tone: 'green', variant: 'cutC', facet: 'green' },
+  { col: 2, row: 1, tone: 'yellow', variant: 'cutE', facet: 'orange' },
+  { col: 3, row: 1, tone: 'coral', variant: 'cutA', facet: 'red' },
+  { col: 4, row: 1, tone: 'orange', variant: 'cutD', facet: 'orange' },
+  { col: 1, row: 2, tone: 'green', variant: 'cutF', facet: 'green' },
+  { col: 2, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 3, row: 2, tone: 'greenDark', variant: 'cutB', facet: 'green' },
+  { col: 4, row: 2, tone: 'coral', variant: 'cutE', facet: 'red' },
+  { col: 0, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
+  { col: 1, row: 3, tone: 'yellow', variant: 'cutD', facet: 'orange' },
+  { col: 2, row: 3, tone: 'coral', variant: 'cutF', facet: 'red' },
+  { col: 3, row: 3, tone: 'green', variant: 'cutC', facet: 'green' },
+  { col: 4, row: 3, tone: 'greenDark', variant: 'cutB', facet: 'green' }
+];
+
+const START_CONTACT_STONES: StoneCell[] = [
+  { col: 0, row: 0, tone: 'coral', variant: 'cutE', facet: 'red' },
+  { col: 1, row: 0, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 2, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 0, tone: 'orange', variant: 'cutC', facet: 'orange' },
+  { col: 4, row: 0, tone: 'yellow', variant: 'cutB', facet: 'orange' },
+  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
+  { col: 1, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
+  { col: 3, row: 1, tone: 'green', variant: 'cutA', facet: 'green' },
+  { col: 4, row: 1, tone: 'orange', variant: 'cutE', facet: 'orange' },
+  { col: 0, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 1, row: 2, tone: 'green', variant: 'cutD', facet: 'green' },
+  { col: 3, row: 2, tone: 'coral', variant: 'cutF', facet: 'red' },
+  { col: 4, row: 2, tone: 'yellow', variant: 'cutA', facet: 'orange' },
+  { col: 0, row: 3, tone: 'orange', variant: 'cutB', facet: 'orange' },
+  { col: 1, row: 3, tone: 'greenDark', variant: 'cutE', facet: 'green' },
+  { col: 2, row: 3, tone: 'coral', variant: 'cutD', facet: 'red' },
+  { col: 3, row: 3, tone: 'yellow', variant: 'cutC', facet: 'orange' },
+  { col: 4, row: 3, tone: 'green', variant: 'cutF', facet: 'green' }
+];
+
+function buildStonePoints(points: Array<[number, number]>, col: number, row: number): string {
+  const cellWidth = STONE_VIEWBOX_WIDTH / STONE_COLUMNS;
+  const cellHeight = STONE_VIEWBOX_HEIGHT / STONE_ROWS;
+  const x1 = col * cellWidth + STONE_GUTTER_UNITS / 2;
+  const y1 = row * cellHeight + STONE_GUTTER_UNITS / 2;
+  const width = cellWidth - STONE_GUTTER_UNITS;
+  const height = cellHeight - STONE_GUTTER_UNITS;
+  return points.map(([x, y]) => `${(x1 + x * width).toFixed(2)},${(y1 + y * height).toFixed(2)}`).join(' ');
+}
+
+function PilgrimageStoneMap({ cells }: { cells: StoneCell[] }) {
+  return (
+    <svg
+      className="stone-map"
+      viewBox={`0 0 ${STONE_VIEWBOX_WIDTH} ${STONE_VIEWBOX_HEIGHT}`}
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect width={STONE_VIEWBOX_WIDTH} height={STONE_VIEWBOX_HEIGHT} fill="#F1FDE8" />
+      {cells.map((cell) => {
+        const variant = STONE_VARIANTS[cell.variant];
+        const mainPoints = buildStonePoints(variant.main, cell.col, cell.row);
+        const facetPoints = buildStonePoints(variant.facet, cell.col, cell.row);
+        return (
+          <g key={`${cell.col}-${cell.row}`}>
+            <polygon points={mainPoints} fill={STONE_MAIN_COLORS[cell.tone]} />
+            {cell.facet ? <polygon points={facetPoints} fill={STONE_FACET_COLORS[cell.facet]} /> : null}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function PilgrimageSectionBlock({ section }: { section: PilgrimageSection }) {
   return (
     <section className="pilgrimage-section-block" id={`kal-${section.id}`}>
@@ -893,86 +1110,104 @@ function Kal26EventPage({
     const legalSection = sectionById('formalnosci');
 
     if (page.slug === 'start') {
+      const startSections: Array<{
+        id: 'trasa' | 'program' | 'zapisy' | 'faq' | 'kontakt';
+        title: string;
+        headline: string;
+        body: string;
+        linkLabel: string;
+        align: 'left' | 'right';
+        stones: StoneCell[];
+      }> = [
+        {
+          id: 'trasa',
+          title: 'Trasa',
+          headline: 'Etapy pielgrzymki',
+          body: 'Droga podzielona jest na etapy z postojami i punktami wsparcia. Uklad kamieni prowadzi ruchem do przodu, jak szlak pielgrzymki.',
+          linkLabel: 'Zobacz trase',
+          align: 'right',
+          stones: START_ROUTE_STONES
+        },
+        {
+          id: 'program',
+          title: 'Program',
+          headline: 'Plan dnia i liturgia',
+          body: 'Harmonogram obejmuje wymarsz, modlitwe w drodze, postoje, nocleg i wejscie do celu. Sekcja pozostawia spokojna strefe na czytelny plan dnia.',
+          linkLabel: 'Przejdz do programu',
+          align: 'left',
+          stones: START_SCHEDULE_STONES
+        },
+        {
+          id: 'zapisy',
+          title: 'Rejestracja',
+          headline: 'Zapisy krok po kroku',
+          body: 'Zapis obejmuje dane uczestnika, wariant udzialu i zgody formalne. Tlo utrzymuje te sama siec szczelin i duzych poligonow bez nakladania.',
+          linkLabel: 'Zapisz sie online',
+          align: 'right',
+          stones: START_REGISTRATION_STONES
+        },
+        {
+          id: 'faq',
+          title: 'FAQ',
+          headline: 'Najczestsze pytania',
+          body: 'Najwazniejsze informacje o przygotowaniu, noclegu, bagazu i bezpieczenstwie. Uklad kamieni porzadkuje tresc i zachowuje ciaglosc kompozycji.',
+          linkLabel: 'Otworz FAQ',
+          align: 'left',
+          stones: START_FAQ_STONES
+        },
+        {
+          id: 'kontakt',
+          title: 'Kontakt',
+          headline: 'Zespol organizatora',
+          body: 'Dane organizatorow i szybki kanal do pytan. Koncowa partia tla dalej pracuje w tym samym systemie teselacji, domykajac sciezke strony.',
+          linkLabel: 'Skontaktuj sie',
+          align: 'right',
+          stones: START_CONTACT_STONES
+        }
+      ];
+
       return (
         <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
-          <div className="pilgrimage-stones">
-            <span className="stone stone-a tone-coral" />
-            <span className="stone stone-b tone-amber" />
-            <span className="stone stone-c tone-yellow" />
-            <span className="stone stone-d tone-green" />
-            <span className="stone stone-e tone-green-dark" />
-            <span className="stone stone-f tone-coral" />
-            <span className="stone stone-g tone-yellow" />
-            <span className="stone stone-h tone-amber" />
-            <span className="stone stone-i tone-coral" />
-            <span className="stone stone-j tone-green-dark" />
-            <span className="stone stone-k tone-yellow" />
-            <span className="stone stone-l tone-amber" />
-            <span className="stone stone-m tone-coral" />
-            <span className="stone stone-n tone-green" />
-            <span className="stone stone-o tone-yellow" />
-            <span className="stone stone-p tone-green-dark" />
-            <span className="stone stone-q tone-coral" />
-            <span className="stone stone-r tone-amber" />
-            <span className="stone stone-s tone-yellow" />
-            <span className="stone stone-t tone-green" />
-            <span className="stone stone-u tone-coral" />
-            <span className="stone stone-v tone-amber" />
-            <span className="stone stone-w tone-green-dark" />
-            <span className="stone stone-x tone-yellow" />
-          </div>
-          <div className="hero-center">
-            <svg
-              className="center-mark"
-              viewBox="25 25 175 245"
-              xmlns="http://www.w3.org/2000/svg"
-              role="img"
-              aria-label="Wielkanocna Kalwaria"
-            >
-              <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
-              <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
-              <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
-              <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
-              <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
-              <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
-              <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
-              <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
-            </svg>
-          </div>
-          <div className="pilgrimage-start-links">
-            <a className="stone-link tone-green" href={`/#/event/${event.slug}/zapisy`}><span>Zapisy online</span></a>
-            <a className="stone-link tone-yellow" href={`/#/event/${event.slug}/program`}><span>Program</span></a>
-            <a className="stone-link tone-coral" href={`/#/event/${event.slug}/trasa`}><span>Trasa i etapy</span></a>
-            <a className="stone-link tone-amber" href={`/#/event/${event.slug}/faq`}><span>FAQ i informacje</span></a>
-            <a className="stone-link tone-green-dark" href={`/#/event/${event.slug}/kontakt`}><span>Kontakt</span></a>
-          </div>
-          <div className="pilgrimage-start-sections">
-            <section className="stone-zone tone-yellow">
-              <h3>Program</h3>
-              <p>Sobota i niedziela: wymarsz, postoje, nocleg, wejscie do celu.</p>
-              <a href={`/#/event/${event.slug}/program`}>Przejdz do programu</a>
+          <section className="pilgrimage-stone-panel pilgrimage-stone-panel--hero">
+            <PilgrimageStoneMap cells={START_HERO_STONES} />
+            <div className="hero-center">
+              <svg
+                className="center-mark"
+                viewBox="25 25 175 245"
+                xmlns="http://www.w3.org/2000/svg"
+                role="img"
+                aria-label="Wielkanocna Kalwaria"
+              >
+                <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
+                <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
+                <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
+                <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
+                <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
+                <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
+                <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
+                <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
+              </svg>
+              <nav className="start-jump-links" aria-label="Start shortcuts">
+                <a href={`/#/event/${event.slug}/trasa`}>Trasa</a>
+                <a href={`/#/event/${event.slug}/program`}>Program</a>
+                <a href={`/#/event/${event.slug}/zapisy`}>Zapisy</a>
+                <a href={`/#/event/${event.slug}/faq`}>FAQ</a>
+                <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
+              </nav>
+            </div>
+          </section>
+
+          {startSections.map((section) => (
+            <section key={section.id} className={`pilgrimage-stone-panel pilgrimage-stone-panel--${section.id}`} id={`kal-start-${section.id}`}>
+              <PilgrimageStoneMap cells={section.stones} />
+              <div className={`stone-copy ${section.align === 'right' ? 'stone-copy--right' : 'stone-copy--left'}`}>
+                <p className="stone-copy-kicker">{section.title}</p>
+                <h2>{section.headline}</h2>
+                <p>{section.body}</p>
+                <a href={`/#/event/${event.slug}/${section.id}`}>{section.linkLabel}</a>
+              </div>
             </section>
-            <section className="stone-zone tone-amber">
-              <h3>Trasa</h3>
-              <p>Etapy, orientacyjne kilometry i miejsca odpoczynku.</p>
-              <a href={`/#/event/${event.slug}/trasa`}>Zobacz trase</a>
-            </section>
-            <section className="stone-zone tone-green">
-              <h3>Rejestracja</h3>
-              <p>Zapisy online i dostep do strefy uczestnika przez link SMS.</p>
-              <a href={`/#/event/${event.slug}/zapisy`}>Zapisz sie</a>
-            </section>
-            <section className="stone-zone tone-coral">
-              <h3>FAQ</h3>
-              <p>Najczesciej zadawane pytania: nocleg, oplaty, bezpieczenstwo.</p>
-              <a href={`/#/event/${event.slug}/faq`}>Przejdz do FAQ</a>
-            </section>
-            <section className="stone-zone tone-green-dark">
-              <h3>Kontakt</h3>
-              <p>Numery organizatorow i kanal szybkiego kontaktu awaryjnego.</p>
-              <a href={`/#/event/${event.slug}/kontakt`}>Skontaktuj sie</a>
-            </section>
-          </div>
+          ))}
         </section>
       );
     }
