@@ -280,14 +280,12 @@ const defaultContactForm: ContactFormState = {
 
 type StoneTone = 'coral' | 'yellow' | 'orange' | 'green' | 'greenDark';
 type StoneFacetTone = 'red' | 'orange' | 'green';
-type StoneVariant = 'cutA' | 'cutB' | 'cutC' | 'cutD' | 'cutE' | 'cutF';
-
-type StoneCell = {
-  col: number;
-  row: number;
+type StonePolygon = {
+  id: string;
   tone: StoneTone;
-  variant: StoneVariant;
-  facet?: StoneFacetTone;
+  points: string;
+  facetPoints?: string;
+  facetTone?: StoneFacetTone;
 };
 
 const STONE_MAIN_COLORS: Record<StoneTone, string> = {
@@ -304,172 +302,144 @@ const STONE_FACET_COLORS: Record<StoneFacetTone, string> = {
   green: '#6D8F1E'
 };
 
-const STONE_VARIANTS: Record<StoneVariant, { main: Array<[number, number]>; facet: Array<[number, number]> }> = {
-  cutA: {
-    main: [[0.08, 0.1], [0.86, 0.04], [0.96, 0.66], [0.74, 0.94], [0.06, 0.82]],
-    facet: [[0.7, 0.12], [0.9, 0.06], [0.94, 0.66], [0.76, 0.88]]
-  },
-  cutB: {
-    main: [[0.06, 0.2], [0.38, 0.05], [0.92, 0.12], [0.96, 0.84], [0.52, 0.95], [0.1, 0.72]],
-    facet: [[0.58, 0.14], [0.9, 0.12], [0.94, 0.78], [0.66, 0.86]]
-  },
-  cutC: {
-    main: [[0.14, 0.04], [0.9, 0.18], [0.84, 0.9], [0.12, 0.96], [0.02, 0.36]],
-    facet: [[0.72, 0.2], [0.88, 0.24], [0.82, 0.84], [0.68, 0.86]]
-  },
-  cutD: {
-    main: [[0.08, 0.08], [0.66, 0.02], [0.95, 0.32], [0.84, 0.9], [0.4, 0.96], [0.16, 0.78], [0.02, 0.36]],
-    facet: [[0.66, 0.1], [0.9, 0.32], [0.8, 0.82], [0.62, 0.76]]
-  },
-  cutE: {
-    main: [[0.04, 0.14], [0.88, 0.06], [0.96, 0.86], [0.14, 0.94]],
-    facet: [[0.72, 0.08], [0.9, 0.06], [0.94, 0.82], [0.78, 0.84]]
-  },
-  cutF: {
-    main: [[0.04, 0.3], [0.22, 0.06], [0.84, 0.04], [0.96, 0.48], [0.76, 0.94], [0.1, 0.86]],
-    facet: [[0.74, 0.08], [0.9, 0.44], [0.74, 0.9], [0.64, 0.76]]
-  }
+type MosaicShapeDef = {
+  id: string;
+  points: string;
+  facetPoints?: string;
 };
 
-const STONE_COLUMNS = 5;
-const STONE_ROWS = 4;
 const STONE_VIEWBOX_WIDTH = 1600;
 const STONE_VIEWBOX_HEIGHT = 960;
-const STONE_GUTTER_UNITS = 24;
-
-const START_HERO_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'coral', variant: 'cutD', facet: 'red' },
-  { col: 1, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
-  { col: 2, row: 0, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 3, row: 0, tone: 'green', variant: 'cutC', facet: 'green' },
-  { col: 4, row: 0, tone: 'greenDark', variant: 'cutE', facet: 'green' },
-  { col: 0, row: 1, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 1, row: 1, tone: 'green', variant: 'cutF', facet: 'green' },
-  { col: 3, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 4, row: 1, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 0, row: 2, tone: 'orange', variant: 'cutD', facet: 'orange' },
-  { col: 1, row: 2, tone: 'greenDark', variant: 'cutC', facet: 'green' },
-  { col: 3, row: 2, tone: 'yellow', variant: 'cutF', facet: 'orange' },
-  { col: 4, row: 2, tone: 'coral', variant: 'cutA', facet: 'red' },
-  { col: 0, row: 3, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 1, row: 3, tone: 'yellow', variant: 'cutE', facet: 'orange' },
-  { col: 2, row: 3, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
-  { col: 4, row: 3, tone: 'greenDark', variant: 'cutC', facet: 'green' }
+const HERO_SHAPES: MosaicShapeDef[] = [
+  { id: 'h1', points: '18,26 438,34 520,178 396,336 112,304 20,170', facetPoints: '304,54 438,66 394,246 284,228' },
+  { id: 'h2', points: '468,24 882,20 830,214 560,246 500,166', facetPoints: '702,36 872,28 822,198 674,206' },
+  { id: 'h3', points: '904,24 1328,34 1246,220 984,252 850,152', facetPoints: '1112,40 1320,44 1240,200 1060,214' },
+  { id: 'h4', points: '1344,34 1582,64 1572,272 1324,248 1258,124', facetPoints: '1452,74 1570,88 1562,244 1436,224' },
+  { id: 'h5', points: '28,338 332,330 466,508 344,708 42,628', facetPoints: '278,350 438,520 330,682 238,560' },
+  { id: 'h6', points: '1184,322 1580,304 1578,620 1326,706 1118,542', facetPoints: '1316,346 1572,334 1568,584 1368,654' },
+  { id: 'h7', points: '42,652 344,736 302,952 18,952', facetPoints: '220,700 334,734 296,934 190,920' },
+  { id: 'h8', points: '362,734 568,760 626,952 322,952 294,858', facetPoints: '518,766 614,946 460,946 430,816' },
+  { id: 'h9', points: '996,764 1262,724 1384,952 982,952', facetPoints: '1162,740 1368,948 1088,948 1048,812' },
+  { id: 'h10', points: '1402,736 1582,760 1582,952 1448,952 1364,860', facetPoints: '1490,770 1580,782 1580,952 1490,952' },
+  { id: 'h11', points: '516,272 642,260 620,364 500,382 470,322', facetPoints: '580,266 638,262 616,350 566,356' },
+  { id: 'h12', points: '978,272 1122,254 1162,362 1018,402 938,332', facetPoints: '1080,260 1148,354 1032,390 1004,312' },
+  { id: 'h13', points: '498,622 642,590 704,702 584,760 468,704', facetPoints: '584,602 696,698 594,748 550,688' },
+  { id: 'h14', points: '942,602 1084,562 1164,704 1022,762 900,702', facetPoints: '1050,578 1152,694 1032,748 998,682' },
+  { id: 'h15', points: '702,870 892,840 952,952 648,952', facetPoints: '820,848 944,950 770,950 748,902' },
+  { id: 'h16', points: '652,40 746,18 824,70 782,150 674,132 628,76', facetPoints: '742,24 812,72 780,140 726,114' }
 ];
 
-const START_ROUTE_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'yellow', variant: 'cutE', facet: 'orange' },
-  { col: 1, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 2, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
-  { col: 3, row: 0, tone: 'coral', variant: 'cutA', facet: 'red' },
-  { col: 4, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
-  { col: 1, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 2, row: 1, tone: 'yellow', variant: 'cutD', facet: 'orange' },
-  { col: 4, row: 1, tone: 'orange', variant: 'cutE', facet: 'orange' },
-  { col: 0, row: 2, tone: 'orange', variant: 'cutA', facet: 'orange' },
-  { col: 1, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 2, row: 2, tone: 'green', variant: 'cutF', facet: 'green' },
-  { col: 4, row: 2, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 0, row: 3, tone: 'coral', variant: 'cutE', facet: 'red' },
-  { col: 1, row: 3, tone: 'greenDark', variant: 'cutD', facet: 'green' },
-  { col: 2, row: 3, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 3, row: 3, tone: 'orange', variant: 'cutC', facet: 'orange' },
-  { col: 4, row: 3, tone: 'green', variant: 'cutF', facet: 'green' }
+const RIGHT_CALM_SHAPES: MosaicShapeDef[] = [
+  { id: 'r1', points: '20,30 420,20 510,170 390,340 40,300', facetPoints: '288,44 482,164 378,312 238,236' },
+  { id: 'r2', points: '450,40 840,20 760,220 520,250', facetPoints: '676,36 824,28 752,198 644,208' },
+  { id: 'r3', points: '860,30 1220,40 1100,180 900,210', facetPoints: '1020,40 1200,46 1088,170 980,182' },
+  { id: 'r4', points: '1240,40 1580,30 1570,250 1320,260 1160,180', facetPoints: '1390,44 1572,38 1562,228 1388,236' },
+  { id: 'r5', points: '30,330 380,360 470,560 330,760 20,700', facetPoints: '274,370 446,550 320,734 214,620' },
+  { id: 'r6', points: '400,300 760,250 820,430 640,620 420,560', facetPoints: '628,270 802,422 636,596 556,476' },
+  { id: 'r7', points: '1200,250 1570,230 1570,420 1300,430 1140,340', facetPoints: '1328,252 1562,238 1562,404 1356,412' },
+  { id: 'r8', points: '20,730 300,800 260,950 20,950', facetPoints: '170,774 286,804 252,944 148,942' },
+  { id: 'r9', points: '320,780 620,700 760,900 520,950 300,930', facetPoints: '496,724 746,894 526,944 450,860' },
+  { id: 'r10', points: '780,760 1120,720 1180,940 820,950', facetPoints: '976,734 1168,934 874,944 890,808' },
+  { id: 'r11', points: '1200,760 1570,700 1570,950 1280,950 1140,860', facetPoints: '1320,742 1562,706 1562,944 1338,944' },
+  { id: 'r12', points: '820,470 940,430 980,560 860,620 760,560', facetPoints: '900,446 972,552 872,604 844,530' },
+  { id: 'r13', points: '980,220 1140,210 1180,320 1040,370 930,300', facetPoints: '1082,218 1172,314 1048,356 1012,286' },
+  { id: 'r14', points: '980,620 1110,590 1160,700 1030,760 920,710', facetPoints: '1062,604 1152,696 1038,748 1002,678' }
 ];
 
-const START_SCHEDULE_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'green', variant: 'cutA', facet: 'green' },
-  { col: 1, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 2, row: 0, tone: 'coral', variant: 'cutE', facet: 'red' },
-  { col: 3, row: 0, tone: 'orange', variant: 'cutB', facet: 'orange' },
-  { col: 4, row: 0, tone: 'greenDark', variant: 'cutD', facet: 'green' },
-  { col: 2, row: 1, tone: 'coral', variant: 'cutF', facet: 'red' },
-  { col: 3, row: 1, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 4, row: 1, tone: 'green', variant: 'cutC', facet: 'green' },
-  { col: 0, row: 2, tone: 'orange', variant: 'cutB', facet: 'orange' },
-  { col: 2, row: 2, tone: 'greenDark', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 2, tone: 'coral', variant: 'cutE', facet: 'red' },
-  { col: 4, row: 2, tone: 'yellow', variant: 'cutF', facet: 'orange' },
-  { col: 0, row: 3, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 1, row: 3, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 2, row: 3, tone: 'orange', variant: 'cutC', facet: 'orange' },
-  { col: 3, row: 3, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 4, row: 3, tone: 'greenDark', variant: 'cutE', facet: 'green' }
+const LEFT_CALM_SHAPES: MosaicShapeDef[] = [
+  { id: 'l1', points: '20,40 360,30 300,220 40,260', facetPoints: '218,46 348,38 292,206 204,196' },
+  { id: 'l2', points: '380,20 780,40 700,210 430,240', facetPoints: '614,30 768,42 694,196 584,208' },
+  { id: 'l3', points: '810,20 1200,30 1120,210 860,230', facetPoints: '1040,28 1188,36 1114,194 1002,206' },
+  { id: 'l4', points: '1220,30 1580,40 1570,260 1320,300 1140,210', facetPoints: '1398,40 1572,50 1562,242 1402,280' },
+  { id: 'l5', points: '1080,250 1570,280 1570,680 1260,760 1040,560', facetPoints: '1266,282 1560,300 1560,660 1290,728' },
+  { id: 'l6', points: '760,250 1060,220 1140,430 980,620 760,550', facetPoints: '942,236 1128,420 984,594 896,478' },
+  { id: 'l7', points: '20,280 180,300 220,440 20,500', facetPoints: '122,304 210,432 84,468 40,362' },
+  { id: 'l8', points: '20,740 280,700 300,950 20,950', facetPoints: '150,720 288,710 294,944 174,944' },
+  { id: 'l9', points: '320,760 640,700 760,900 520,950 290,900', facetPoints: '486,722 744,890 526,944 432,850' },
+  { id: 'l10', points: '780,760 1120,740 1220,950 840,950', facetPoints: '976,744 1204,944 860,944 888,832' },
+  { id: 'l11', points: '1240,770 1580,730 1580,950 1290,950', facetPoints: '1418,746 1572,734 1572,944 1428,944' },
+  { id: 'l12', points: '680,430 820,380 890,510 760,620 650,540', facetPoints: '784,394 882,506 768,604 742,518' },
+  { id: 'l13', points: '700,620 850,600 920,730 760,800 650,730', facetPoints: '814,610 908,724 768,786 748,698' },
+  { id: 'l14', points: '660,240 810,220 860,320 720,370 620,300', facetPoints: '760,226 850,312 726,356 696,288' }
 ];
 
-const START_REGISTRATION_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 1, row: 0, tone: 'yellow', variant: 'cutE', facet: 'orange' },
-  { col: 2, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 0, tone: 'orange', variant: 'cutA', facet: 'orange' },
-  { col: 4, row: 0, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
-  { col: 1, row: 1, tone: 'coral', variant: 'cutA', facet: 'red' },
-  { col: 2, row: 1, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 0, row: 2, tone: 'orange', variant: 'cutD', facet: 'orange' },
-  { col: 1, row: 2, tone: 'green', variant: 'cutE', facet: 'green' },
-  { col: 2, row: 2, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 0, row: 3, tone: 'yellow', variant: 'cutF', facet: 'orange' },
-  { col: 1, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
-  { col: 2, row: 3, tone: 'greenDark', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 3, tone: 'coral', variant: 'cutC', facet: 'red' },
-  { col: 4, row: 3, tone: 'yellow', variant: 'cutE', facet: 'orange' }
-];
+type StoneColorPlan = { tone: StoneTone; facetTone?: StoneFacetTone };
 
-const START_FAQ_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'yellow', variant: 'cutD', facet: 'orange' },
-  { col: 1, row: 0, tone: 'greenDark', variant: 'cutA', facet: 'green' },
-  { col: 2, row: 0, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 3, row: 0, tone: 'orange', variant: 'cutF', facet: 'orange' },
-  { col: 4, row: 0, tone: 'green', variant: 'cutC', facet: 'green' },
-  { col: 2, row: 1, tone: 'yellow', variant: 'cutE', facet: 'orange' },
-  { col: 3, row: 1, tone: 'coral', variant: 'cutA', facet: 'red' },
-  { col: 4, row: 1, tone: 'orange', variant: 'cutD', facet: 'orange' },
-  { col: 1, row: 2, tone: 'green', variant: 'cutF', facet: 'green' },
-  { col: 2, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 3, row: 2, tone: 'greenDark', variant: 'cutB', facet: 'green' },
-  { col: 4, row: 2, tone: 'coral', variant: 'cutE', facet: 'red' },
-  { col: 0, row: 3, tone: 'orange', variant: 'cutA', facet: 'orange' },
-  { col: 1, row: 3, tone: 'yellow', variant: 'cutD', facet: 'orange' },
-  { col: 2, row: 3, tone: 'coral', variant: 'cutF', facet: 'red' },
-  { col: 3, row: 3, tone: 'green', variant: 'cutC', facet: 'green' },
-  { col: 4, row: 3, tone: 'greenDark', variant: 'cutB', facet: 'green' }
-];
-
-const START_CONTACT_STONES: StoneCell[] = [
-  { col: 0, row: 0, tone: 'coral', variant: 'cutE', facet: 'red' },
-  { col: 1, row: 0, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 2, row: 0, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 0, tone: 'orange', variant: 'cutC', facet: 'orange' },
-  { col: 4, row: 0, tone: 'yellow', variant: 'cutB', facet: 'orange' },
-  { col: 0, row: 1, tone: 'greenDark', variant: 'cutF', facet: 'green' },
-  { col: 1, row: 1, tone: 'coral', variant: 'cutB', facet: 'red' },
-  { col: 3, row: 1, tone: 'green', variant: 'cutA', facet: 'green' },
-  { col: 4, row: 1, tone: 'orange', variant: 'cutE', facet: 'orange' },
-  { col: 0, row: 2, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 1, row: 2, tone: 'green', variant: 'cutD', facet: 'green' },
-  { col: 3, row: 2, tone: 'coral', variant: 'cutF', facet: 'red' },
-  { col: 4, row: 2, tone: 'yellow', variant: 'cutA', facet: 'orange' },
-  { col: 0, row: 3, tone: 'orange', variant: 'cutB', facet: 'orange' },
-  { col: 1, row: 3, tone: 'greenDark', variant: 'cutE', facet: 'green' },
-  { col: 2, row: 3, tone: 'coral', variant: 'cutD', facet: 'red' },
-  { col: 3, row: 3, tone: 'yellow', variant: 'cutC', facet: 'orange' },
-  { col: 4, row: 3, tone: 'green', variant: 'cutF', facet: 'green' }
-];
-
-function buildStonePoints(points: Array<[number, number]>, col: number, row: number): string {
-  const cellWidth = STONE_VIEWBOX_WIDTH / STONE_COLUMNS;
-  const cellHeight = STONE_VIEWBOX_HEIGHT / STONE_ROWS;
-  const x1 = col * cellWidth + STONE_GUTTER_UNITS / 2;
-  const y1 = row * cellHeight + STONE_GUTTER_UNITS / 2;
-  const width = cellWidth - STONE_GUTTER_UNITS;
-  const height = cellHeight - STONE_GUTTER_UNITS;
-  return points.map(([x, y]) => `${(x1 + x * width).toFixed(2)},${(y1 + y * height).toFixed(2)}`).join(' ');
+function defaultFacetTone(tone: StoneTone): StoneFacetTone {
+  if (tone === 'coral') return 'red';
+  if (tone === 'green' || tone === 'greenDark') return 'green';
+  return 'orange';
 }
 
-function PilgrimageStoneMap({ cells }: { cells: StoneCell[] }) {
+function composeMosaic(shapes: MosaicShapeDef[], colorPlan: StoneColorPlan[]): StonePolygon[] {
+  return shapes.map((shape, index) => {
+    const plan = colorPlan[index % colorPlan.length];
+    return {
+      id: shape.id,
+      points: shape.points,
+      tone: plan.tone,
+      facetPoints: shape.facetPoints,
+      facetTone: shape.facetPoints ? plan.facetTone ?? defaultFacetTone(plan.tone) : undefined
+    };
+  });
+}
+
+const HERO_COLORS: StoneColorPlan[] = [
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'green', facetTone: 'green' },
+  { tone: 'greenDark', facetTone: 'green' }
+];
+
+const RIGHT_COLORS_A: StoneColorPlan[] = [
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'green', facetTone: 'green' },
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'greenDark', facetTone: 'green' }
+];
+
+const LEFT_COLORS_A: StoneColorPlan[] = [
+  { tone: 'green', facetTone: 'green' },
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'greenDark', facetTone: 'green' }
+];
+
+const RIGHT_COLORS_B: StoneColorPlan[] = [
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'green', facetTone: 'green' },
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'greenDark', facetTone: 'green' }
+];
+
+const LEFT_COLORS_B: StoneColorPlan[] = [
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'greenDark', facetTone: 'green' },
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'green', facetTone: 'green' }
+];
+
+const RIGHT_COLORS_C: StoneColorPlan[] = [
+  { tone: 'orange', facetTone: 'orange' },
+  { tone: 'greenDark', facetTone: 'green' },
+  { tone: 'coral', facetTone: 'red' },
+  { tone: 'yellow', facetTone: 'orange' },
+  { tone: 'green', facetTone: 'green' }
+];
+
+const START_HERO_STONES = composeMosaic(HERO_SHAPES, HERO_COLORS);
+const START_ROUTE_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_A);
+const START_SCHEDULE_STONES = composeMosaic(LEFT_CALM_SHAPES, LEFT_COLORS_A);
+const START_REGISTRATION_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_B);
+const START_FAQ_STONES = composeMosaic(LEFT_CALM_SHAPES, LEFT_COLORS_B);
+const START_CONTACT_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_C);
+
+function PilgrimageStoneMap({ stones }: { stones: StonePolygon[] }) {
   return (
     <svg
       className="stone-map"
@@ -480,17 +450,14 @@ function PilgrimageStoneMap({ cells }: { cells: StoneCell[] }) {
       focusable="false"
     >
       <rect width={STONE_VIEWBOX_WIDTH} height={STONE_VIEWBOX_HEIGHT} fill="#F1FDE8" />
-      {cells.map((cell) => {
-        const variant = STONE_VARIANTS[cell.variant];
-        const mainPoints = buildStonePoints(variant.main, cell.col, cell.row);
-        const facetPoints = buildStonePoints(variant.facet, cell.col, cell.row);
-        return (
-          <g key={`${cell.col}-${cell.row}`}>
-            <polygon points={mainPoints} fill={STONE_MAIN_COLORS[cell.tone]} />
-            {cell.facet ? <polygon points={facetPoints} fill={STONE_FACET_COLORS[cell.facet]} /> : null}
-          </g>
-        );
-      })}
+      {stones.map((stone) => (
+        <g key={stone.id}>
+          <polygon points={stone.points} fill={STONE_MAIN_COLORS[stone.tone]} />
+          {stone.facetPoints && stone.facetTone ? (
+            <polygon points={stone.facetPoints} fill={STONE_FACET_COLORS[stone.facetTone]} />
+          ) : null}
+        </g>
+      ))}
     </svg>
   );
 }
@@ -1117,7 +1084,7 @@ function Kal26EventPage({
         body: string;
         linkLabel: string;
         align: 'left' | 'right';
-        stones: StoneCell[];
+        stones: StonePolygon[];
       }> = [
         {
           id: 'trasa',
@@ -1169,7 +1136,7 @@ function Kal26EventPage({
       return (
         <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
           <section className="pilgrimage-stone-panel pilgrimage-stone-panel--hero">
-            <PilgrimageStoneMap cells={START_HERO_STONES} />
+            <PilgrimageStoneMap stones={START_HERO_STONES} />
             <div className="hero-center">
               <svg
                 className="center-mark"
@@ -1199,7 +1166,7 @@ function Kal26EventPage({
 
           {startSections.map((section) => (
             <section key={section.id} className={`pilgrimage-stone-panel pilgrimage-stone-panel--${section.id}`} id={`kal-start-${section.id}`}>
-              <PilgrimageStoneMap cells={section.stones} />
+              <PilgrimageStoneMap stones={section.stones} />
               <div className={`stone-copy ${section.align === 'right' ? 'stone-copy--right' : 'stone-copy--left'}`}>
                 <p className="stone-copy-kicker">{section.title}</p>
                 <h2>{section.headline}</h2>
