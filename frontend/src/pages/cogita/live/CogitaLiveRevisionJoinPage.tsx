@@ -1619,6 +1619,22 @@ export function CogitaLiveRevisionJoinPage(props: {
     liveRules.speedBonus.enabled,
     liveRules.speedBonus.maxPoints
   ]);
+  const selfRoundDisplayRows = useMemo(() => {
+    if (!selfRoundBreakdown) return [];
+    const byKey = new Map(selfRoundBreakdown.rows.map((row) => [row.key, row]));
+    return configuredBonusRows
+      .map((baseRow) => {
+        const actual = byKey.get(baseRow.key);
+        if (!actual || actual.points === 0) return null;
+        return {
+          key: baseRow.key,
+          label: baseRow.label,
+          points: actual.points,
+          reason: actual.reason
+        };
+      })
+      .filter((row): row is { key: string; label: string; points: number; reason: string } => Boolean(row));
+  }, [configuredBonusRows, selfRoundBreakdown]);
 
   const acknowledgeIntro = () => {
     setIntroAcknowledged(true);
@@ -2006,35 +2022,17 @@ export function CogitaLiveRevisionJoinPage(props: {
                         <p className="cogita-user-kicker">{liveCopy.roundGainTitle}</p>
                         <p className="cogita-detail-title">{`${formatPoints(selfRoundBreakdown.total)} ${liveCopy.scoreUnit}`}</p>
                         <div className="cogita-live-round-gain-list">
-                          <div className="cogita-live-round-gain-row">
-                            <span>{liveCopy.factorBaseLabel}</span>
-                            <strong>
-                              {`${formatPoints(selfRoundBreakdown.rows.find((row) => row.key === 'base')?.points ?? 0)} ${liveCopy.scoreUnit}`}
-                            </strong>
-                          </div>
-                          <div className="cogita-live-round-gain-row">
-                            <span>{`${liveCopy.factorFirstLabel} + ${liveCopy.factorSpeedLabel} + ${liveCopy.factorStreakLabel}`}</span>
-                            <strong>{`${formatPoints(selfRoundBreakdown.bonusTotal)} ${liveCopy.scoreUnit}`}</strong>
-                          </div>
-                          <div className="cogita-live-round-gain-row">
-                            <span>{`${liveCopy.factorWrongLabel} + ${liveCopy.factorFirstWrongLabel}`}</span>
-                            <strong>{`${formatPoints(-selfRoundBreakdown.penaltyTotal)} ${liveCopy.scoreUnit}`}</strong>
-                          </div>
-                        </div>
-                        <div className="cogita-live-round-gain-list">
-                          {selfRoundBreakdown.rows.map((row) => (
+                          {selfRoundDisplayRows.length > 0 ? selfRoundDisplayRows.map((row) => (
                             <div className="cogita-live-round-gain-row" key={`gain:${row.key}`}>
                               <span>{`${row.label}: ${formatPoints(row.points)} ${liveCopy.scoreUnit}.${row.reason ? ` ${row.reason}.` : ''}`}</span>
                               <strong>{`${formatPoints(row.points)} ${liveCopy.scoreUnit}`}</strong>
                             </div>
-                          ))}
-                        </div>
-                        <div className="cogita-live-factor-badges">
-                          {(Array.isArray(selfRoundScoring.factors) ? selfRoundScoring.factors : []).map((factor) => (
-                            <span key={`self-factor:${factor}`} className="cogita-live-factor-badge">
-                              {factorIcon(factor)}
-                            </span>
-                          ))}
+                          )) : (
+                            <div className="cogita-live-round-gain-row">
+                              <span>{liveCopy.waitingForRevealLabel}</span>
+                              <strong>{`0 ${liveCopy.scoreUnit}`}</strong>
+                            </div>
+                          )}
                         </div>
                         {Number(selfRoundScoring.streak ?? 0) > 1 ? (
                           <p className="cogita-help">{`${liveCopy.streakLabel} ${Math.round(Number(selfRoundScoring.streak ?? 0))}`}</p>
