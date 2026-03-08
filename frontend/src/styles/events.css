@@ -364,6 +364,119 @@
   gap: 1rem;
 }
 
+.pilgrimage-start-poster {
+  border: 1px solid rgba(34, 84, 46, 0.22);
+  border-radius: 20px;
+  padding: 2.2rem 1.4rem 1.5rem;
+  background: linear-gradient(165deg, rgba(247, 247, 247, 0.98), rgba(238, 238, 238, 0.98));
+  display: grid;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+.pilgrimage-start-poster-head {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.pilgrimage-start-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.78rem;
+  color: #cb7b1a;
+  font-weight: 700;
+}
+
+.pilgrimage-start-poster h2 {
+  margin: 0;
+  font-size: clamp(2.2rem, 8vw, 5rem);
+  line-height: 0.95;
+  color: #575757;
+}
+
+.pilgrimage-start-date {
+  margin: 0;
+  font-size: clamp(1.4rem, 4vw, 3rem);
+  color: #b6b6b6;
+  font-weight: 700;
+}
+
+.pilgrimage-start-route {
+  margin: 0;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  color: #334455;
+}
+
+.pilgrimage-start-poster-cta {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.pilgrimage-start-counter {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.pilgrimage-start-counter article {
+  border: 1px solid rgba(203, 123, 26, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.55rem 0.35rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.pilgrimage-start-counter small {
+  color: #91622e;
+  font-weight: 600;
+}
+
+.pilgrimage-start-counter strong {
+  color: #cf7c17;
+  font-size: clamp(1.5rem, 4vw, 2.7rem);
+  line-height: 1;
+}
+
+.pilgrimage-scroll-reveal {
+  position: relative;
+  height: 165vh;
+}
+
+.pilgrimage-scroll-reveal-sticky {
+  position: sticky;
+  top: 1rem;
+  min-height: calc(100vh - 2rem);
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(34, 84, 46, 0.24);
+  background:
+    linear-gradient(115deg, rgba(23, 30, 24, 0.42), rgba(23, 30, 24, 0.2)),
+    url('/parish/trip.jpg') center / cover no-repeat;
+  display: grid;
+  align-items: end;
+  padding: 1.2rem;
+}
+
+.pilgrimage-scroll-reveal-overlay {
+  max-width: 620px;
+  background: rgba(18, 27, 21, 0.56);
+  border: 1px solid rgba(235, 245, 238, 0.35);
+  border-radius: 14px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pilgrimage-scroll-reveal-overlay h3,
+.pilgrimage-scroll-reveal-overlay p {
+  margin: 0;
+  color: #f3f8f4;
+}
+
 .pilgrimage-hero {
   display: grid;
   gap: 1rem;
@@ -882,6 +995,24 @@
 
   .pilgrimage-hero {
     grid-template-columns: 1fr;
+  }
+
+  .pilgrimage-start-poster {
+    padding: 1.35rem 0.9rem 1rem;
+  }
+
+  .pilgrimage-start-counter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pilgrimage-scroll-reveal {
+    height: 125vh;
+  }
+
+  .pilgrimage-scroll-reveal-sticky {
+    top: 0.6rem;
+    min-height: calc(100vh - 1.2rem);
+    padding: 0.8rem;
   }
 
   .pilgrimage-hero-visual {

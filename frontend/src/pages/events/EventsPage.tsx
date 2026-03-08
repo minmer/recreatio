@@ -869,6 +869,38 @@ function Kal26EventPage({
     if (page.slug === 'start') {
       return (
         <>
+          <section className="pilgrimage-start-poster">
+            <div className="pilgrimage-start-poster-head">
+              <p className="pilgrimage-start-kicker">Piesza Pielgrzymka</p>
+              <h2>{site?.name ?? event.title}</h2>
+              <p className="pilgrimage-start-date">{site?.site.public.dateLabel ?? event.date}</p>
+              <p className="pilgrimage-start-route">{site?.site.public.routeLabel ?? event.location}</p>
+            </div>
+            <div className="pilgrimage-start-poster-cta">
+              <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zarejestruj sie teraz</a>
+              <a className="ghost" href={`/#/event/${event.slug}/program`}>Zobacz program</a>
+            </div>
+            <div className="pilgrimage-start-counter">
+              <article><small>Dni</small><strong>147</strong></article>
+              <article><small>Godzin</small><strong>08</strong></article>
+              <article><small>Minut</small><strong>35</strong></article>
+              <article><small>Sekund</small><strong>48</strong></article>
+            </div>
+          </section>
+
+          <section className="pilgrimage-scroll-reveal" aria-label="Pilgrimage route photo">
+            <div className="pilgrimage-scroll-reveal-sticky">
+              <div className="pilgrimage-scroll-reveal-overlay">
+                <h3>Kazdy uczestnik musi dokonac rejestracji</h3>
+                <p>
+                  Zgloszenia online przyjmujemy przez formularz. Po rejestracji uczestnik otrzymuje prywatny dostep
+                  SMS do strefy uczestnika.
+                </p>
+                <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zarejestruj sie teraz</a>
+              </div>
+            </div>
+          </section>
+
           {keyInfoSection ? (
             <section className="pilgrimage-section-block pilgrimage-layout-band">
               <header>
@@ -2256,44 +2288,48 @@ function Kal26EventPage({
           {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
           {!siteLoading && !siteError && site ? (
             <>
-              <section className="pilgrimage-hero">
-                <div className="pilgrimage-hero-main">
-                  <p className="pilgrimage-hero-kicker">Pilgrimage route</p>
-                  <h2>{site.site.public.heroTitle}</h2>
-                  <p>{site.site.public.heroSubtitle}</p>
-                  <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
-                  <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
-                  <div className="pilgrimage-quick-links">
-                    <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
-                    <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
-                    <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
-                  </div>
-                  {!site.isProvisioned ? (
-                    <p className="pilgrimage-warning">
-                      This event is in preview mode. To enable registrations and organizer dashboard, provision it via `POST /pilgrimage`.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="pilgrimage-hero-visual">
-                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--a" />
-                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--b" />
-                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--c" />
-                </div>
-              </section>
+              {page.slug !== 'start' ? (
+                <>
+                  <section className="pilgrimage-hero">
+                    <div className="pilgrimage-hero-main">
+                      <p className="pilgrimage-hero-kicker">Pilgrimage route</p>
+                      <h2>{site.site.public.heroTitle}</h2>
+                      <p>{site.site.public.heroSubtitle}</p>
+                      <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
+                      <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
+                      <div className="pilgrimage-quick-links">
+                        <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
+                        <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
+                        <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
+                      </div>
+                      {!site.isProvisioned ? (
+                        <p className="pilgrimage-warning">
+                          This event is in preview mode. To enable registrations and organizer dashboard, provision it via `POST /pilgrimage`.
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="pilgrimage-hero-visual">
+                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--a" />
+                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--b" />
+                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--c" />
+                    </div>
+                  </section>
 
-              <section className="pilgrimage-hero-facts">
-                {site.site.public.heroFacts.map((fact) => (
-                  <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
-                    <h3>{fact.title}</h3>
-                    <p>{fact.body}</p>
-                    {fact.meta ? <small>{fact.meta}</small> : null}
-                  </article>
-                ))}
-                <article className="pilgrimage-card pilgrimage-card--blue">
-                  <h3>Private participant access</h3>
-                  <p>After registration, each participant gets an individual SMS link to their zone.</p>
-                </article>
-              </section>
+                  <section className="pilgrimage-hero-facts">
+                    {site.site.public.heroFacts.map((fact) => (
+                      <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
+                        <h3>{fact.title}</h3>
+                        <p>{fact.body}</p>
+                        {fact.meta ? <small>{fact.meta}</small> : null}
+                      </article>
+                    ))}
+                    <article className="pilgrimage-card pilgrimage-card--blue">
+                      <h3>Private participant access</h3>
+                      <p>After registration, each participant gets an individual SMS link to their zone.</p>
+                    </article>
+                  </section>
+                </>
+              ) : null}
 
               {page.slug === 'uczestnik' ? renderParticipantPage() : null}
               {page.slug === 'organizator' ? renderOrganizerPage() : null}
