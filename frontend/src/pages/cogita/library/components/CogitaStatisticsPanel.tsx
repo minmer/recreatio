@@ -36,6 +36,8 @@ type ParticipantSeries = {
   averageDurationSeconds: number | null;
   averageCorrectDurationSeconds: number | null;
   averageWrongDurationSeconds: number | null;
+  totalCorrectDurationSeconds: number | null;
+  totalWrongDurationSeconds: number | null;
   averagePointsPerCorrectAnswer: number;
   averageBasePointsPerCorrectAnswer: number;
   averageFirstBonusPointsPerCorrectAnswer: number;
@@ -431,6 +433,20 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
             .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
           return durations.length > 0 ? mean(durations) : null;
         })(),
+        totalCorrectDurationSeconds: (() => {
+          const durations = points
+            .filter((point) => point.correctness !== null && point.correctness >= 0.5)
+            .map((point) => point.durationSeconds)
+            .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
+          return durations.length > 0 ? durations.reduce((sum, duration) => sum + duration, 0) : null;
+        })(),
+        totalWrongDurationSeconds: (() => {
+          const durations = points
+            .filter((point) => point.correctness !== null && point.correctness < 0.5)
+            .map((point) => point.durationSeconds)
+            .filter((duration): duration is number => typeof duration === 'number' && Number.isFinite(duration) && duration >= 0);
+          return durations.length > 0 ? durations.reduce((sum, duration) => sum + duration, 0) : null;
+        })(),
         averagePointsPerCorrectAnswer:
           (() => {
             if (typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer) && summary.averagePointsPerCorrectAnswer > 0) {
@@ -480,31 +496,63 @@ function makeStatisticsContext(response: CogitaStatisticsResponse): StatisticsCo
           return value;
         })(),
         averageSpeedBonusPointsPerCorrectAnswer: (() => {
-          const explicit = typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
+          const avgPoints =
+            typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
+              ? Math.max(0, summary.averagePointsPerCorrectAnswer)
+              : 0;
+          const avgBase =
+            typeof summary?.averageBasePointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageBasePointsPerCorrectAnswer)
+              : 0;
+          const first =
+            typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageFirstBonusPointsPerCorrectAnswer)
+              : 0;
+          const explicitSpeed =
+            typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
             Number.isFinite(summary.averageSpeedBonusPointsPerCorrectAnswer)
               ? Math.max(0, summary.averageSpeedBonusPointsPerCorrectAnswer)
               : 0;
-          if (explicit > 0) return explicit;
-          const avgPoints = typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
-            ? Math.max(0, summary.averagePointsPerCorrectAnswer)
-            : 0;
-          const avgBase = typeof summary?.averageBasePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
-            ? Math.max(0, summary.averageBasePointsPerCorrectAnswer)
-            : 0;
-          const first = typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
-            ? Math.max(0, summary.averageFirstBonusPointsPerCorrectAnswer)
-            : 0;
-          const streak = typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
-            ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
-            : 0;
-          const derived = avgPoints - avgBase - first - streak;
-          return derived > 0 ? derived : 0;
+          const explicitStreak =
+            typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
+              : 0;
+          if (explicitSpeed > 0) return explicitSpeed;
+          const residual = avgPoints - avgBase - first - explicitStreak;
+          return residual > 0 ? residual : 0;
         })(),
-        averageStreakBonusPointsPerCorrectAnswer:
-          typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' &&
-          Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
-            ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
-            : 0,
+        averageStreakBonusPointsPerCorrectAnswer: (() => {
+          const explicitStreak =
+            typeof summary?.averageStreakBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageStreakBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageStreakBonusPointsPerCorrectAnswer)
+              : 0;
+          if (explicitStreak > 0) return explicitStreak;
+          const avgPoints =
+            typeof summary?.averagePointsPerCorrectAnswer === 'number' && Number.isFinite(summary.averagePointsPerCorrectAnswer)
+              ? Math.max(0, summary.averagePointsPerCorrectAnswer)
+              : 0;
+          const avgBase =
+            typeof summary?.averageBasePointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageBasePointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageBasePointsPerCorrectAnswer)
+              : 0;
+          const first =
+            typeof summary?.averageFirstBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageFirstBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageFirstBonusPointsPerCorrectAnswer)
+              : 0;
+          const speed =
+            typeof summary?.averageSpeedBonusPointsPerCorrectAnswer === 'number' &&
+            Number.isFinite(summary.averageSpeedBonusPointsPerCorrectAnswer)
+              ? Math.max(0, summary.averageSpeedBonusPointsPerCorrectAnswer)
+              : 0;
+          const residual = avgPoints - avgBase - first - speed;
+          return residual > 0 ? residual : 0;
+        })(),
         answerCount: summary?.answerCount ?? points.filter((point) => point.correctness !== null).length,
         correctCount: summary?.correctCount ?? points.filter((point) => (point.correctness ?? 0) >= 0.5).length,
         points
@@ -1046,13 +1094,24 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   {
     id: 'response-time-pyramid',
     title: 'Response time pyramid',
-    subtitle: 'Overall average with per-participant split: correct vs wrong answers.',
-    isAvailable: (context) => context.participantSeries.some((participant) => participant.averageDurationSeconds !== null),
+    subtitle: 'Overall time split per participant: total time for correct vs wrong answers.',
+    isAvailable: (context) =>
+      context.participantSeries.some(
+        (participant) =>
+          participant.totalCorrectDurationSeconds !== null || participant.totalWrongDurationSeconds !== null
+      ),
     render: (context, controls) => {
       const ranked = getParticipantsInRenderOrder(
         context.participantSeries
-          .filter((participant) => participant.averageDurationSeconds !== null)
-          .sort((left, right) => (left.averageDurationSeconds ?? 0) - (right.averageDurationSeconds ?? 0)),
+          .filter(
+            (participant) =>
+              participant.totalCorrectDurationSeconds !== null || participant.totalWrongDurationSeconds !== null
+          )
+          .sort(
+            (left, right) =>
+              (left.totalDurationSeconds ?? Number.POSITIVE_INFINITY) -
+              (right.totalDurationSeconds ?? Number.POSITIVE_INFINITY)
+          ),
         controls.focusedParticipantKey
       );
       const maxSide = Math.max(
@@ -1060,23 +1119,27 @@ const STATISTICS_MODULES: StatisticsModule[] = [
         ...ranked.map((participant) =>
           Math.max(
             0,
-            participant.averageCorrectDurationSeconds ?? 0,
-            participant.averageWrongDurationSeconds ?? 0
+            participant.totalCorrectDurationSeconds ?? 0,
+            participant.totalWrongDurationSeconds ?? 0
           )
         )
       );
+      const totalDurationSeconds = ranked.reduce((sum, participant) => {
+        const value = participant.totalDurationSeconds;
+        return sum + (typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0);
+      }, 0);
       return (
         <div className="cogita-statistics-chart-card">
           <p className="cogita-help">
-            {context.averageDurationSeconds === null
-              ? 'Overall average response time: n/a'
-              : `Overall average response time: ${formatFloat(context.averageDurationSeconds, 2)} s`}
+            {totalDurationSeconds <= 0
+              ? 'Overall response time: n/a'
+              : `Overall response time: ${formatFloat(totalDurationSeconds, 2)} s`}
           </p>
           <div className="cogita-statistics-time-pyramid">
             {ranked.map((participant, index) => {
-              const total = Math.max(0, participant.averageDurationSeconds ?? 0);
-              const correct = Math.max(0, participant.averageCorrectDurationSeconds ?? 0);
-              const wrong = Math.max(0, participant.averageWrongDurationSeconds ?? 0);
+              const total = Math.max(0, participant.totalDurationSeconds ?? 0);
+              const correct = Math.max(0, participant.totalCorrectDurationSeconds ?? 0);
+              const wrong = Math.max(0, participant.totalWrongDurationSeconds ?? 0);
               const correctWidth = Math.max(0, Math.min(100, (correct / maxSide) * 100));
               const wrongWidth = Math.max(0, Math.min(100, (wrong / maxSide) * 100));
               return (
@@ -1098,7 +1161,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                         <span
                           className="cogita-statistics-time-pyramid-fill is-wrong-time"
                           style={{ width: `${wrongWidth}%` }}
-                          title={`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}
+                          title={`Wrong total ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}
                         />
                       </div>
                       <span className="cogita-statistics-time-pyramid-center" />
@@ -1106,13 +1169,13 @@ const STATISTICS_MODULES: StatisticsModule[] = [
                         <span
                           className="cogita-statistics-time-pyramid-fill is-correct-time"
                           style={{ width: `${correctWidth}%` }}
-                          title={`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}
+                          title={`Correct total ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}
                         />
                       </div>
                     </div>
                     <div className="cogita-statistics-pyramid-details cogita-statistics-time-pyramid-details">
-                      <small>{`Wrong ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
-                      <small>{`Correct ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
+                      <small>{`Wrong total ${wrong > 0 ? formatFloat(wrong, 2) : 'n/a'} s`}</small>
+                      <small>{`Correct total ${correct > 0 ? formatFloat(correct, 2) : 'n/a'} s`}</small>
                     </div>
                   </div>
                 </div>
@@ -1126,7 +1189,7 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   {
     id: 'response-time-split',
     title: 'Right vs wrong response time',
-    subtitle: 'Per participant split of average time for correct and wrong answers.',
+    subtitle: 'Per participant split of average time per correct and wrong answer.',
     isAvailable: (context) =>
       context.participantSeries.some(
         (participant) =>

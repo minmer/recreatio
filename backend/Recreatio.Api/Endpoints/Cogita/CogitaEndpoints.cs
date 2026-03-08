@@ -5927,6 +5927,23 @@ public static class CogitaEndpoints
                     .Distinct()
                     .ToListAsync(ct))
                 .ToHashSet();
+            var scoreByParticipant = participantIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : (await dbContext.CogitaStatisticEvents.AsNoTracking()
+                    .Where(x =>
+                        x.SessionId.HasValue &&
+                        sessionIds.Contains(x.SessionId.Value) &&
+                        x.ParticipantId.HasValue &&
+                        participantIds.Contains(x.ParticipantId.Value) &&
+                        x.EventType == "live_answer_scored")
+                    .Select(x => new
+                    {
+                        ParticipantId = x.ParticipantId!.Value,
+                        Points = x.PointsAwarded ?? 0
+                    })
+                    .ToListAsync(ct))
+                    .GroupBy(x => x.ParticipantId)
+                    .ToDictionary(x => x.Key, x => x.Sum(row => row.Points));
 
             var response = sessions.Select(session =>
             {
@@ -5946,7 +5963,7 @@ public static class CogitaEndpoints
                     session.UpdatedUtc,
                     meta.Title,
                     participantCountBySession.TryGetValue(session.Id, out var count) ? count : 0,
-                    participant.Score,
+                    scoreByParticipant.TryGetValue(participant.Id, out var participantScore) ? participantScore : 0,
                     participant.IsConnected,
                     participantStatus
                 );
@@ -6671,13 +6688,12 @@ public static class CogitaEndpoints
                     continue;
                 }
 
-                participant.Score += delta.PointsAwarded;
                 participant.UpdatedUtc = now;
 
                 if (answersByParticipant.TryGetValue(delta.ParticipantId, out var answer))
                 {
                     answer.IsCorrect = delta.IsCorrect;
-                    answer.PointsAwarded = delta.PointsAwarded;
+                    answer.PointsAwarded = 0;
                     answer.UpdatedUtc = now;
                     if (!roundScoringByParticipant.TryGetValue(delta.ParticipantId, out var participantScoringNode))
                     {
@@ -7760,6 +7776,15 @@ public static class CogitaEndpoints
                     .FirstOrDefaultAsync(ct);
                 if (answer is not null)
                 {
+                    var scoreEvent = await dbContext.CogitaStatisticEvents.AsNoTracking()
+                        .Where(x =>
+                            x.SessionId == session.Id &&
+                            x.ParticipantId == participant.Id &&
+                            x.RoundIndex == session.CurrentRoundIndex &&
+                            x.EventType == "live_answer_scored")
+                        .OrderByDescending(x => x.CreatedUtc)
+                        .FirstOrDefaultAsync(ct);
+                    var awardedPoints = scoreEvent?.PointsAwarded ?? 0;
                     try
                     {
                         var revealNode = syncRevealNode ?? (JsonNode.Parse(currentRevealPayload.Value.GetRawText()) as JsonObject);
@@ -7771,13 +7796,13 @@ public static class CogitaEndpoints
                             {
                                 revealNode["participantAnswer"] = JsonNode.Parse(participantAnswer.Value.GetRawText());
                             }
-                            if (answer.IsCorrect.HasValue || answer.PointsAwarded != 0)
+                            if (answer.IsCorrect.HasValue || awardedPoints != 0)
                             {
                                 var scoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
                                 scoring[participant.Id.ToString("D")] = new JsonObject
                                 {
                                     ["isCorrect"] = answer.IsCorrect == true,
-                                    ["points"] = answer.PointsAwarded,
+                                    ["points"] = awardedPoints,
                                     ["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
                                     ["factors"] = new JsonArray
                                     {
@@ -7898,7 +7923,8 @@ public static class CogitaEndpoints
                 if (answer is not null)
                 {
                     scoreEventByRoundAndCard.TryGetValue((round.RoundIndex, roundCardKey), out var scoreEvent);
-                    var scoreBreakdown = ParseStatisticScoreBreakdown(scoreEvent?.PayloadJson, answer.PointsAwarded, answer.IsCorrect == true);
+                    var awardedPoints = scoreEvent?.PointsAwarded ?? 0;
+                    var scoreBreakdown = ParseStatisticScoreBreakdown(scoreEvent?.PayloadJson, awardedPoints, answer.IsCorrect == true);
                     var factorList = new JsonArray();
                     if (answer.IsCorrect == true)
                     {
@@ -7907,7 +7933,7 @@ public static class CogitaEndpoints
                         if (scoreBreakdown.SpeedBonusPoints > 0) factorList.Add(JsonValue.Create("speed"));
                         if (scoreBreakdown.StreakBonusPoints > 0) factorList.Add(JsonValue.Create("streak"));
                     }
-                    else if (answer.PointsAwarded < 0)
+                    else if (awardedPoints < 0)
                     {
                         factorList.Add(JsonValue.Create("wrong"));
                     }
@@ -7916,7 +7942,7 @@ public static class CogitaEndpoints
                     roundScoring[participant.Id.ToString("D")] = new JsonObject
                     {
                         ["isCorrect"] = answer.IsCorrect == true,
-                        ["points"] = answer.PointsAwarded,
+                        ["points"] = awardedPoints,
                         ["factors"] = factorList,
                         ["basePoints"] = scoreBreakdown.BasePoints,
                         ["firstBonusPoints"] = scoreBreakdown.FirstBonusPoints,
@@ -8106,6 +8132,7 @@ public static class CogitaEndpoints
             participant.IsConnected = true;
             participant.UpdatedUtc = now;
             string? scorePayloadJson = null;
+            var computedPoints = 0;
 
             if (isAsyncSession)
             {
@@ -8214,9 +8241,9 @@ public static class CogitaEndpoints
                 }
 
                 answer.IsCorrect = isCorrect;
-                answer.PointsAwarded = Math.Max(-500000, Math.Min(500000, points));
+                computedPoints = Math.Max(-500000, Math.Min(500000, points));
+                answer.PointsAwarded = 0;
                 answer.UpdatedUtc = now;
-                participant.Score += answer.PointsAwarded;
                 participant.UpdatedUtc = now;
                 session.UpdatedUtc = now;
                 scorePayloadJson = JsonSerializer.Serialize(new
@@ -8255,7 +8282,7 @@ public static class CogitaEndpoints
                 CardKey = answer.CardKey,
                 IsCorrect = isAsyncSession ? answer.IsCorrect : null,
                 Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
-                PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
+                PointsAwarded = isAsyncSession ? computedPoints : null,
                 DurationMs = durationMs,
                 IsPersistent = false,
                 PayloadJson = isAsyncSession ? scorePayloadJson : null,
@@ -8294,7 +8321,7 @@ public static class CogitaEndpoints
                         CardKey = answer.CardKey,
                         IsCorrect = isAsyncSession ? answer.IsCorrect : null,
                         Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
-                        PointsAwarded = isAsyncSession ? answer.PointsAwarded : null,
+                        PointsAwarded = isAsyncSession ? computedPoints : null,
                         DurationMs = durationMs,
                         IsPersistent = true,
                         PayloadJson = isAsyncSession ? scorePayloadJson : null,
@@ -18730,6 +18757,130 @@ public static class CogitaEndpoints
         return Math.Max(0, Math.Min(500000, (int)Math.Round(maxBonus * scaled)));
     }
 
+    private sealed class AsyncParticipantBonusAggregate
+    {
+        public int CorrectCount { get; set; }
+        public double CorrectPointsSum { get; set; }
+        public double BasePointsSum { get; set; }
+        public double FirstBonusPointsSum { get; set; }
+        public double SpeedBonusPointsSum { get; set; }
+        public double StreakBonusPointsSum { get; set; }
+    }
+
+    private static async Task<Dictionary<Guid, AsyncParticipantBonusAggregate>> ComputeAsyncLiveBonusBreakdownByParticipantAsync(
+        CogitaLiveRevisionSession session,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var result = new Dictionary<Guid, AsyncParticipantBonusAggregate>();
+        var meta = ParseLiveSessionMeta(session.SessionMetaJson);
+        if (!string.Equals(meta.SessionMode, "asynchronous", StringComparison.Ordinal))
+        {
+            return result;
+        }
+
+        var scoringRules = ParseLiveSessionScoringRules(meta.SessionSettings);
+        var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
+            .Where(x => x.SessionId == session.Id)
+            .ToListAsync(ct);
+        if (participants.Count == 0)
+        {
+            return result;
+        }
+
+        var participantById = participants.ToDictionary(x => x.Id, x => x);
+        var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
+            .Where(x => x.SessionId == session.Id)
+            .OrderBy(x => x.ParticipantId)
+            .ThenBy(x => x.RoundIndex)
+            .ThenBy(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+
+        foreach (var group in answers.GroupBy(x => x.ParticipantId))
+        {
+            var aggregate = new AsyncParticipantBonusAggregate();
+            var streak = 0;
+            CogitaLiveRevisionAnswer? previousAnswer = null;
+
+            foreach (var answer in group.OrderBy(x => x.RoundIndex).ThenBy(x => x.UpdatedUtc))
+            {
+                if (answer.IsCorrect != true)
+                {
+                    streak = 0;
+                    previousAnswer = answer;
+                    continue;
+                }
+
+                var basePoints = Math.Max(0, Math.Min(500000, scoringRules.BaseCorrect));
+                var speedPoints = 0;
+
+                if (scoringRules.BonusTimerEnabled &&
+                    scoringRules.SpeedBonusEnabled &&
+                    scoringRules.SpeedBonusMaxPoints > 0)
+                {
+                    DateTimeOffset speedTimerStartUtc;
+                    if (string.Equals(scoringRules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal))
+                    {
+                        speedTimerStartUtc = answer.UpdatedUtc;
+                    }
+                    else if (previousAnswer is not null)
+                    {
+                        speedTimerStartUtc = previousAnswer.UpdatedUtc;
+                    }
+                    else if (session.StartedUtc.HasValue)
+                    {
+                        speedTimerStartUtc = session.StartedUtc.Value;
+                    }
+                    else if (participantById.TryGetValue(answer.ParticipantId, out var participant))
+                    {
+                        speedTimerStartUtc = participant.JoinedUtc;
+                    }
+                    else
+                    {
+                        speedTimerStartUtc = answer.SubmittedUtc;
+                    }
+
+                    var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, scoringRules.BonusTimerSeconds)));
+                    if (answer.UpdatedUtc <= speedTimerEndUtc)
+                    {
+                        var denominator = Math.Max(1d, (speedTimerEndUtc - speedTimerStartUtc).TotalMilliseconds);
+                        var ratio = Math.Max(0d, Math.Min(1d, (speedTimerEndUtc - answer.UpdatedUtc).TotalMilliseconds / denominator));
+                        var scaled = scoringRules.SpeedBonusGrowth switch
+                        {
+                            "exponential" => ratio * ratio,
+                            "limited" => Math.Min(1d, ratio * 1.6d),
+                            _ => ratio
+                        };
+                        speedPoints = Math.Max(0, Math.Min(500000, (int)Math.Round(scoringRules.SpeedBonusMaxPoints * scaled)));
+                    }
+                }
+
+                var nextStreak = streak + 1;
+                var streakPoints = ComputeAsyncStreakBonus(
+                    scoringRules.StreakGrowth,
+                    scoringRules.StreakBaseBonus,
+                    nextStreak,
+                    scoringRules.StreakLimit);
+
+                var pointsAwarded = Math.Max(0, basePoints + speedPoints + streakPoints);
+
+                aggregate.CorrectCount += 1;
+                aggregate.CorrectPointsSum += pointsAwarded;
+                aggregate.BasePointsSum += basePoints;
+                aggregate.FirstBonusPointsSum += 0;
+                aggregate.SpeedBonusPointsSum += speedPoints;
+                aggregate.StreakBonusPointsSum += streakPoints;
+
+                streak = nextStreak;
+                previousAnswer = answer;
+            }
+
+            result[group.Key] = aggregate;
+        }
+
+        return result;
+    }
+
     private static string? ProtectLiveSessionScopedJson(string? plainJson, IDataProtectionProvider dataProtectionProvider, Guid sessionId)
     {
         if (string.IsNullOrWhiteSpace(plainJson))
@@ -19108,6 +19259,14 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        // Scoring is resolved dynamically from raw answers and settings.
+        // Keep this method as no-op to avoid persisting materialized score snapshots.
+        var materializationEnabled = false;
+        if (!materializationEnabled)
+        {
+            return;
+        }
+
         CogitaLiveRevisionSession? session = sessionCandidate;
         var entry = dbContext.Entry(sessionCandidate);
         if (entry.State == EntityState.Detached)
@@ -19256,6 +19415,7 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        var scoreByParticipant = await BuildLiveParticipantScoreMapAsync(sessionId, dbContext, ct);
         var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
             .OrderBy(x => x.JoinedUtc)
@@ -19264,7 +19424,7 @@ public static class CogitaEndpoints
         return participants.Select(x => new CogitaLiveRevisionParticipantResponse(
             x.Id,
             ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
-            x.Score,
+            scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0,
             x.IsConnected,
             x.JoinedUtc)).ToList();
     }
@@ -19275,16 +19435,42 @@ public static class CogitaEndpoints
         RecreatioDbContext dbContext,
         CancellationToken ct)
     {
+        var scoreByParticipant = await BuildLiveParticipantScoreMapAsync(sessionId, dbContext, ct);
         var participants = await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
             .Where(x => x.SessionId == sessionId)
-            .OrderByDescending(x => x.Score)
-            .ThenBy(x => x.JoinedUtc)
+            .OrderBy(x => x.JoinedUtc)
             .ToListAsync(ct);
 
-        return participants.Select(x => new CogitaLiveRevisionParticipantScoreResponse(
-            x.Id,
-            ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
-            x.Score)).ToList();
+        return participants
+            .Select(x => new CogitaLiveRevisionParticipantScoreResponse(
+                x.Id,
+                ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
+                scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static async Task<Dictionary<Guid, int>> BuildLiveParticipantScoreMapAsync(
+        Guid sessionId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var scoredEvents = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x =>
+                x.SessionId == sessionId &&
+                x.ParticipantId.HasValue &&
+                x.EventType == "live_answer_scored")
+            .Select(x => new
+            {
+                ParticipantId = x.ParticipantId!.Value,
+                Points = x.PointsAwarded ?? 0
+            })
+            .ToListAsync(ct);
+
+        return scoredEvents
+            .GroupBy(x => x.ParticipantId)
+            .ToDictionary(group => group.Key, group => group.Sum(x => x.Points));
     }
 
     private static async Task<List<CogitaLiveRevisionScoreHistoryPointResponse>> BuildLiveRevisionScoreHistoryAsync(
@@ -19303,7 +19489,7 @@ public static class CogitaEndpoints
         }
 
         var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
-            .Where(x => x.SessionId == sessionId && (x.IsCorrect != null || x.PointsAwarded != 0))
+            .Where(x => x.SessionId == sessionId && x.IsCorrect != null)
             .OrderBy(x => x.RoundIndex)
             .ThenBy(x => x.SubmittedUtc)
             .ToListAsync(ct);
@@ -19311,6 +19497,20 @@ public static class CogitaEndpoints
         {
             return new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         }
+        var roundPointsByParticipant = await dbContext.CogitaStatisticEvents.AsNoTracking()
+            .Where(x =>
+                x.SessionId == sessionId &&
+                x.ParticipantId.HasValue &&
+                x.RoundIndex.HasValue &&
+                x.EventType == "live_answer_scored")
+            .OrderByDescending(x => x.CreatedUtc)
+            .ToListAsync(ct);
+        var pointsByRoundParticipant = roundPointsByParticipant
+            .GroupBy(x => (Round: x.RoundIndex!.Value, ParticipantId: x.ParticipantId!.Value))
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(x => x.CreatedUtc).First().PointsAwarded ?? 0);
+
         var scoreByParticipant = participants.ToDictionary(x => x.Id, _ => 0);
         var snapshots = new List<CogitaLiveRevisionScoreHistoryPointResponse>();
         foreach (var roundGroup in answers.GroupBy(x => x.RoundIndex).OrderBy(x => x.Key))
@@ -19321,7 +19521,9 @@ public static class CogitaEndpoints
                 {
                     continue;
                 }
-                scoreByParticipant[answer.ParticipantId] += answer.PointsAwarded;
+                scoreByParticipant[answer.ParticipantId] += pointsByRoundParticipant.TryGetValue((answer.RoundIndex, answer.ParticipantId), out var awarded)
+                    ? awarded
+                    : 0;
             }
 
             var roundScores = participants
@@ -19376,7 +19578,7 @@ public static class CogitaEndpoints
                 (x.EventType == "live_answer_scored" || x.EventType == "live_answer_submitted"))
             .OrderBy(x => x.CreatedUtc)
             .ToListAsync(ct);
-        var scoreByRoundAndParticipant = new Dictionary<(int RoundIndex, Guid ParticipantId), (int? DurationMs, StatisticScoreBreakdown Breakdown, int Priority, DateTimeOffset CreatedUtc)>();
+        var scoreByRoundAndParticipant = new Dictionary<(int RoundIndex, Guid ParticipantId), (int? DurationMs, int PointsAwarded, StatisticScoreBreakdown Breakdown, int Priority, DateTimeOffset CreatedUtc)>();
         foreach (var scoreEvent in scoreEvents)
         {
             var roundIndex = scoreEvent.RoundIndex!.Value;
@@ -19394,7 +19596,7 @@ public static class CogitaEndpoints
                 eventPriority > existing.Priority ||
                 (eventPriority == existing.Priority && scoreEvent.CreatedUtc >= existing.CreatedUtc))
             {
-                scoreByRoundAndParticipant[key] = (durationMs, breakdown, eventPriority, scoreEvent.CreatedUtc);
+                scoreByRoundAndParticipant[key] = (durationMs, totalPoints, breakdown, eventPriority, scoreEvent.CreatedUtc);
             }
         }
 
@@ -19410,9 +19612,10 @@ public static class CogitaEndpoints
                         ? resolved
                         : (
                             (int?)null,
+                            0,
                             ParseStatisticScoreBreakdown(
                                 null,
-                                Math.Max(0, answer.PointsAwarded),
+                                0,
                                 answer.IsCorrect == true),
                             0,
                             DateTimeOffset.MinValue
@@ -19423,13 +19626,13 @@ public static class CogitaEndpoints
                             ? participantName
                             : answer.ParticipantId.ToString("N")[..8],
                         answer.IsCorrect,
-                        answer.PointsAwarded,
+                        scoreDetails.Item2,
                         answer.SubmittedUtc,
                         scoreDetails.Item1 ?? fallbackDurationMs,
-                        scoreDetails.Item2.BasePoints,
-                        scoreDetails.Item2.FirstBonusPoints,
-                        scoreDetails.Item2.SpeedBonusPoints,
-                        scoreDetails.Item2.StreakBonusPoints);
+                        scoreDetails.Item3.BasePoints,
+                        scoreDetails.Item3.FirstBonusPoints,
+                        scoreDetails.Item3.SpeedBonusPoints,
+                        scoreDetails.Item3.StreakBonusPoints);
                 })
                 .ToList();
 

@@ -43,56 +43,11 @@ function introSeenStorageKey(code: string, participantRef: string) {
   return `cogita.live.join.intro.${code}.${participantRef}`;
 }
 
-function participantResetLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Wyczyść zapisane dane uczestnika';
-  if (language === 'de') return 'Gespeicherte Teilnehmerdaten löschen';
-  return 'Clear saved participant data';
-}
-
-function pauseTimerLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Wstrzymaj timer';
-  if (language === 'de') return 'Timer pausieren';
-  return 'Pause timer';
-}
-
-function resumeTimerLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Wznów timer';
-  if (language === 'de') return 'Timer fortsetzen';
-  return 'Resume timer';
-}
-
-function bonusListTitle(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Konfiguracja punktów i bonusów';
-  if (language === 'de') return 'Punkte- und Bonuskonfiguration';
-  return 'Configured points and bonuses';
-}
-
-function switchParticipantActionLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Zmień uczestnika';
-  if (language === 'de') return 'Teilnehmer wechseln';
-  return 'Switch participant';
-}
-
-function useExistingParticipantLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Użyj istniejącego uczestnika';
-  if (language === 'de') return 'Bestehenden Teilnehmer verwenden';
-  return 'Use existing participant';
-}
-
-function chooseDifferentNameLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Wybierz inną nazwę';
-  if (language === 'de') return 'Anderen Namen wählen';
-  return 'Choose different name';
-}
-
-function duplicateNameInfoLabel(language: 'pl' | 'en' | 'de', name: string) {
-  if (language === 'pl') {
-    return `Nazwa „${name}” jest już używana. Jeśli wybierzesz „Użyj istniejącego uczestnika”, przejmiesz jego aktualny wynik i postęp sesji.`;
-  }
-  if (language === 'de') {
-    return `Der Name „${name}” wird bereits verwendet. Wenn du „Bestehenden Teilnehmer verwenden“ wählst, übernimmst du dessen aktuellen Punktestand und Sitzungsfortschritt.`;
-  }
-  return `The name "${name}" is already in use. If you choose "Use existing participant", you will continue with that participant's current score and session progress.`;
+function formatTemplate(template: string, values: Record<string, string | number>) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+    template
+  );
 }
 
 function normalizeJoinResponse(raw: unknown): { participantToken: string; participantId?: string; name?: string } | null {
@@ -111,18 +66,6 @@ function normalizeJoinResponse(raw: unknown): { participantToken: string; partic
     participantId: typeof participantIdCandidate === 'string' && participantIdCandidate.trim() ? participantIdCandidate.trim() : undefined,
     name: typeof nameCandidate === 'string' && nameCandidate.trim() ? nameCandidate.trim() : undefined
   };
-}
-
-function previousQuestionLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Poprzednie pytanie';
-  if (language === 'de') return 'Vorherige Frage';
-  return 'Previous question';
-}
-
-function reviewTitleLabel(language: 'pl' | 'en' | 'de') {
-  if (language === 'pl') return 'Przegląd pytań';
-  if (language === 'de') return 'Fragenüberblick';
-  return 'Question review';
 }
 
 function evaluatePromptAnswer(prompt: LivePrompt | null, expected: unknown, answerValue: unknown) {
@@ -1252,35 +1195,23 @@ export function CogitaLiveRevisionJoinPage(props: {
     const answerDurationSeconds = Math.max(0, Math.round(Number((selfRoundScoring as { answerDurationSeconds?: number }).answerDurationSeconds ?? 0)));
     const pushReason = (key: string) => {
       if (key === 'base') {
-        if (props.language === 'pl') return 'za poprawną odpowiedź';
-        if (props.language === 'de') return 'für die richtige Antwort';
-        return 'for a correct answer';
+        return liveCopy.roundReasonBase;
       }
       if (key === 'speed') {
-        if (props.language === 'pl') return `za odpowiedź w ${answerDurationSeconds}s`;
-        if (props.language === 'de') return `für die Antwort in ${answerDurationSeconds}s`;
-        return `for answering in ${answerDurationSeconds}s`;
+        return formatTemplate(liveCopy.roundReasonSpeed, { seconds: answerDurationSeconds });
       }
       if (key === 'streak') {
         const streakCount = Math.max(0, Math.round(Number(selfRoundScoring.streak ?? 0)));
-        if (props.language === 'pl') return `za serię ${streakCount} poprawnych odpowiedzi`;
-        if (props.language === 'de') return `für eine Serie von ${streakCount} richtigen Antworten`;
-        return `for ${streakCount} correct answers in a row`;
+        return formatTemplate(liveCopy.roundReasonStreak, { count: streakCount });
       }
       if (key === 'first') {
-        if (props.language === 'pl') return 'za pierwszą poprawną odpowiedź';
-        if (props.language === 'de') return 'für die erste richtige Antwort';
-        return 'for the first correct answer';
+        return liveCopy.roundReasonFirst;
       }
       if (key === 'wrong') {
-        if (props.language === 'pl') return 'kara za błędną odpowiedź';
-        if (props.language === 'de') return 'Abzug für falsche Antwort';
-        return 'penalty for wrong answer';
+        return liveCopy.roundReasonWrong;
       }
       if (key === 'first-wrong') {
-        if (props.language === 'pl') return 'dodatkowa kara za pierwszą błędną odpowiedź';
-        if (props.language === 'de') return 'zusätzlicher Abzug für die erste falsche Antwort';
-        return 'extra penalty for first wrong answer';
+        return liveCopy.roundReasonFirstWrong;
       }
       return '';
     };
@@ -1361,7 +1292,7 @@ export function CogitaLiveRevisionJoinPage(props: {
       .filter((row) => row.key === 'wrong' || row.key === 'first-wrong')
       .reduce((sum, row) => sum + Math.abs(Math.min(0, row.points)), 0);
     return { total, rows, bonusTotal, penaltyTotal };
-  }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, props.language, selfRoundScoring]);
+  }, [liveCopy.factorBaseLabel, liveCopy.factorFirstLabel, liveCopy.factorFirstWrongLabel, liveCopy.factorSpeedLabel, liveCopy.factorStreakLabel, liveCopy.factorWrongLabel, liveCopy.roundReasonBase, liveCopy.roundReasonFirst, liveCopy.roundReasonFirstWrong, liveCopy.roundReasonSpeed, liveCopy.roundReasonStreak, liveCopy.roundReasonWrong, liveRules.scoring.baseCorrect, liveRules.scoring.firstCorrectBonus, liveRules.scoring.firstWrongPenalty, liveRules.scoring.streakBaseBonus, liveRules.scoring.streakGrowth, liveRules.scoring.streakLimit, liveRules.scoring.wrongAnswerPenalty, selfRoundScoring]);
   const formatPoints = (value: number) => (value > 0 ? `+${value}` : `${value}`);
   const asyncProgressByParticipant = useMemo(() => {
     const result = new Map<string, { answeredCount: number; cumulativeScores: number[]; roundsAnswered: number[] }>();
@@ -1519,35 +1450,23 @@ export function CogitaLiveRevisionJoinPage(props: {
 
     const reason = (key: string) => {
       if (key === 'base') {
-        if (props.language === 'pl') return 'za poprawną odpowiedź';
-        if (props.language === 'de') return 'für die richtige Antwort';
-        return 'for a correct answer';
+        return liveCopy.roundReasonBase;
       }
       if (key === 'first') {
-        if (props.language === 'pl') return 'za pierwszą poprawną odpowiedź';
-        if (props.language === 'de') return 'für die erste richtige Antwort';
-        return 'for the first correct answer';
+        return liveCopy.roundReasonFirst;
       }
       if (key === 'speed') {
-        if (props.language === 'pl') return `za odpowiedź w ${answerDurationSeconds}s`;
-        if (props.language === 'de') return `für die Antwort in ${answerDurationSeconds}s`;
-        return `for answering in ${answerDurationSeconds}s`;
+        return formatTemplate(liveCopy.roundReasonSpeed, { seconds: answerDurationSeconds });
       }
       if (key === 'streak') {
         const streakCount = Math.max(0, Math.round(Number(reviewRoundScoring?.streak ?? 0)));
-        if (props.language === 'pl') return `za serię ${streakCount} poprawnych odpowiedzi`;
-        if (props.language === 'de') return `für eine Serie von ${streakCount} richtigen Antworten`;
-        return `for ${streakCount} correct answers in a row`;
+        return formatTemplate(liveCopy.roundReasonStreak, { count: streakCount });
       }
       if (key === 'wrong') {
-        if (props.language === 'pl') return 'kara za błędną odpowiedź';
-        if (props.language === 'de') return 'Abzug für falsche Antwort';
-        return 'penalty for wrong answer';
+        return liveCopy.roundReasonWrong;
       }
       if (key === 'first-wrong') {
-        if (props.language === 'pl') return 'dodatkowa kara za pierwszą błędną odpowiedź';
-        if (props.language === 'de') return 'zusätzlicher Abzug für die erste falsche Antwort';
-        return 'extra penalty for first wrong answer';
+        return liveCopy.roundReasonFirstWrong;
       }
       return '';
     };
@@ -1614,6 +1533,12 @@ export function CogitaLiveRevisionJoinPage(props: {
     liveCopy.factorSpeedLabel,
     liveCopy.factorStreakLabel,
     liveCopy.factorWrongLabel,
+    liveCopy.roundReasonBase,
+    liveCopy.roundReasonFirst,
+    liveCopy.roundReasonFirstWrong,
+    liveCopy.roundReasonSpeed,
+    liveCopy.roundReasonStreak,
+    liveCopy.roundReasonWrong,
     liveCopy.streakLabel,
     liveRules.scoring.baseCorrect,
     liveRules.scoring.firstCorrectBonus,
@@ -1622,7 +1547,6 @@ export function CogitaLiveRevisionJoinPage(props: {
     liveRules.scoring.streakGrowth,
     liveRules.scoring.streakLimit,
     liveRules.scoring.wrongAnswerPenalty,
-    props.language
   ]);
   const reviewEvaluation = useMemo(
     () => evaluatePromptAnswer(reviewPrompt, reviewExpected, reviewAnswer),
@@ -1659,23 +1583,11 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [code, isSessionFinished, participantToken, state?.revealVersion]);
   const asyncScoreContextHelp = useMemo(() => {
     if (!isAsyncSession || selfProgressCount <= 0) return null;
-    if (props.language === 'pl') {
-      return `Porównanie pokazuje wyniki po ${selfProgressCount} odpowiedziach dla każdego uczestnika (Twój aktualny etap).`;
-    }
-    if (props.language === 'de') {
-      return `Der Vergleich zeigt die Punkte jedes Teilnehmenden nach ${selfProgressCount} beantworteten Fragen (dein aktueller Stand).`;
-    }
-    return `The comparison shows each participant's score after ${selfProgressCount} answered questions (your current progress).`;
-  }, [isAsyncSession, props.language, selfProgressCount]);
+    return formatTemplate(liveCopy.asyncScoreContextHelp, { count: selfProgressCount });
+  }, [isAsyncSession, liveCopy.asyncScoreContextHelp, selfProgressCount]);
   const bonusExplanation = useMemo(() => {
-    if (props.language === 'pl') {
-      return '✓ punkty bazowe za poprawną odpowiedź, ⚡ bonus za pierwszą poprawną odpowiedź, ⏱ bonus szybkości zależny od pozostałego czasu, 🔥 bonus za serię poprawnych odpowiedzi, ✖ kara za złą odpowiedź.';
-    }
-    if (props.language === 'de') {
-      return '✓ Basispunkte für richtige Antwort, ⚡ Bonus für die erste richtige Antwort, ⏱ Tempobonus abhängig von Restzeit, 🔥 Bonus für eine richtige Serie, ✖ Abzug für falsche Antwort.';
-    }
-    return '✓ base points for a correct answer, ⚡ first-correct bonus, ⏱ speed bonus based on remaining time, 🔥 streak bonus for consecutive correct answers, ✖ penalty for a wrong answer.';
-  }, [props.language]);
+    return liveCopy.bonusExplanation;
+  }, [liveCopy.bonusExplanation]);
   const configuredBonusRows = useMemo(() => {
     return [
       { key: 'base', label: liveCopy.factorBaseLabel, points: liveRules.scoring.baseCorrect },
@@ -1833,13 +1745,15 @@ export function CogitaLiveRevisionJoinPage(props: {
                   </label>
                   {duplicateNameCandidate ? (
                     <>
-                      <p className="cogita-help">{duplicateNameInfoLabel(props.language, duplicateNameCandidate)}</p>
+                      <p className="cogita-help">
+                        {formatTemplate(liveCopy.duplicateNameInfoLabel, { name: duplicateNameCandidate })}
+                      </p>
                       <div className="cogita-form-actions">
                         <button type="button" className="ghost" onClick={() => void handleJoin(true)} disabled={status === 'joining'}>
-                          {useExistingParticipantLabel(props.language)}
+                          {liveCopy.useExistingParticipantAction}
                         </button>
                         <button type="button" className="ghost" onClick={() => { setDuplicateJoinName(null); setJoinName(''); }}>
-                          {chooseDifferentNameLabel(props.language)}
+                          {liveCopy.chooseDifferentNameAction}
                         </button>
                       </div>
                     </>
@@ -1917,7 +1831,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                         <section className="cogita-library-panel">
                           <div className="cogita-detail-header">
                             <div>
-                              <p className="cogita-user-kicker">{reviewTitleLabel(props.language)}</p>
+                              <p className="cogita-user-kicker">{liveCopy.reviewQuestionsTitle}</p>
                               <h3 className="cogita-detail-title">
                                 {reviewRound ? `${reviewIndex + 1}/${reviewRounds.length}` : '0/0'}
                               </h3>
@@ -1929,7 +1843,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                                 onClick={() => setReviewIndex((value) => Math.max(0, value - 1))}
                                 disabled={reviewIndex <= 0}
                               >
-                                {previousQuestionLabel(props.language)}
+                                {liveCopy.previousQuestionAction}
                               </button>
                               <button
                                 type="button"
@@ -2161,12 +2075,12 @@ export function CogitaLiveRevisionJoinPage(props: {
                 ) : null}
                 {canToggleNextTimer ? (
                   <button type="button" className="ghost" onClick={toggleTimersPaused}>
-                    {timersPaused ? resumeTimerLabel(props.language) : pauseTimerLabel(props.language)}
+                    {timersPaused ? liveCopy.resumeTimerAction : liveCopy.pauseTimerAction}
                   </button>
                 ) : null}
                 {canSwitchParticipant ? (
                   <button type="button" className="ghost" onClick={() => void clearStoredParticipantData()}>
-                    {switchParticipantActionLabel(props.language)}
+                    {liveCopy.switchParticipantAction}
                   </button>
                 ) : null}
                 {canShowScoreButton ? (
@@ -2190,7 +2104,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                   {asyncScoreContextHelp ? <p className="cogita-help">{asyncScoreContextHelp}</p> : null}
                   {configuredBonusRows.length > 0 ? (
                     <div className="cogita-live-round-gain">
-                      <p className="cogita-user-kicker">{bonusListTitle(props.language)}</p>
+                      <p className="cogita-user-kicker">{liveCopy.roundGainDetailsTitle}</p>
                       <div className="cogita-live-round-gain-list">
                         {configuredBonusRows.map((row) => (
                           <div className="cogita-live-round-gain-row" key={`bonus-config:${row.key}`}>

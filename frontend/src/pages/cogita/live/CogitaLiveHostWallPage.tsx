@@ -649,11 +649,7 @@ export function CogitaLiveHostWallPage({
     return Math.max(0, rounds.length - askedSet.size);
   }, [currentRound?.cardKey, hasPublishedRound, promptRoot?.askedCardKeys, rounds.length]);
   const cardsLeftLabel =
-    language === 'pl'
-      ? `Pozostało kart: ${cardsLeftCount}`
-      : language === 'de'
-        ? `Verbleibende Karten: ${cardsLeftCount}`
-        : `Cards left: ${cardsLeftCount}`;
+    String(liveCopy.cardsLeftLabel ?? 'Cards left: {count}').replace('{count}', String(cardsLeftCount));
 
   useEffect(() => {
     const promptState =
@@ -866,17 +862,12 @@ export function CogitaLiveHostWallPage({
   }, [libraryId, liveCopy.selectMatchingPairPrompt, liveCopy.wordLanguagePromptPrefix, revisionId]);
 
   const preparingLabel =
-    language === 'pl'
-      ? `Przygotowywanie kart: ${preparedCount}`
-      : language === 'de'
-        ? `Karten werden vorbereitet: ${preparedCount}`
-        : `Preparing cards: ${preparedCount}`;
+    String(liveCopy.preparingCardsLabel ?? 'Preparing cards: {count}').replace('{count}', String(preparedCount));
   const preparedLabel =
-    language === 'pl'
-      ? `Przygotowane karty: ${Math.max(preparedCount, rounds.length)}`
-      : language === 'de'
-        ? `Vorbereitete Karten: ${Math.max(preparedCount, rounds.length)}`
-        : `Prepared cards: ${Math.max(preparedCount, rounds.length)}`;
+    String(liveCopy.preparedCardsLabel ?? 'Prepared cards: {count}').replace(
+      '{count}',
+      String(Math.max(preparedCount, rounds.length))
+    );
 
   useEffect(() => {
     if (timers.length === 0) return;
@@ -1478,12 +1469,9 @@ export function CogitaLiveHostWallPage({
     if (!session) return;
     const participant = session.participants.find((item) => item.participantId === participantId);
     if (!participant) return;
-    const confirmMessage =
-      language === 'pl'
-        ? `Usunąć uczestnika „${participant.displayName}” z tej sesji?`
-        : language === 'de'
-          ? `Teilnehmende Person „${participant.displayName}“ aus dieser Sitzung entfernen?`
-          : `Remove participant "${participant.displayName}" from this session?`;
+    const confirmMessage = String(
+      liveCopy.removeParticipantConfirmLabel ?? 'Remove participant "{name}" from this session?'
+    ).replace('{name}', participant.displayName);
     if (!window.confirm(confirmMessage)) return;
 
     await runHostMutation('remove', async () => {

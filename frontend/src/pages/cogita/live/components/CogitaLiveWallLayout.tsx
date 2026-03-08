@@ -21,7 +21,7 @@ export function CogitaLiveWallLayout({
     <section className="cogita-live-wall">
       <header className="cogita-live-wall-header">
         <div>
-          <p className="cogita-user-kicker">{subtitle ?? 'COGITA LIVE'}</p>
+          {subtitle ? <p className="cogita-user-kicker">{subtitle}</p> : null}
           <h1 className="cogita-detail-title">{title}</h1>
         </div>
         {actions ? <div className="cogita-live-wall-actions">{actions}</div> : null}

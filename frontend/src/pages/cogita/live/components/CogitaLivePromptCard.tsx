@@ -58,18 +58,18 @@ export type LivePromptLabels = {
 };
 
 const defaultLabels: LivePromptLabels = {
-  answerLabel: 'Answer',
-  correctAnswerLabel: 'Correct answer',
-  trueLabel: 'True',
-  falseLabel: 'False',
-  fragmentLabel: 'Fragment',
-  correctFragmentLabel: 'Correct fragment',
+  answerLabel: '',
+  correctAnswerLabel: '',
+  trueLabel: '',
+  falseLabel: '',
+  fragmentLabel: '',
+  correctFragmentLabel: '',
   participantAnswerPlaceholder: '',
-  unsupportedPromptType: 'Unsupported prompt type',
-  waitingForReveal: 'Waiting for reveal.',
-  selectedPaths: 'Selected paths',
-  removePath: 'Remove',
-  columnPrefix: 'Column'
+  unsupportedPromptType: '',
+  waitingForReveal: '',
+  selectedPaths: '',
+  removePath: '',
+  columnPrefix: ''
 };
 
 export function CogitaLivePromptCard({
