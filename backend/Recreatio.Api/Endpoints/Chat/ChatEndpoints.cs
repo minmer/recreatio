@@ -124,7 +124,7 @@ public static class ChatEndpoints
             }
 
             var readStates = await dbContext.ChatConversationReadStates.AsNoTracking()
-                .Where(state => state.UserId == userContext.UserId && conversationIds.Contains(state.ConversationId))
+                .Where(state => state.UserId == resolvedUser.UserId && conversationIds.Contains(state.ConversationId))
                 .ToListAsync(ct);
             var readStateByConversation = readStates.ToDictionary(state => state.ConversationId, state => state.LastReadSequence);
 
@@ -352,7 +352,7 @@ public static class ChatEndpoints
                 CanRespondPublic = participant.CanRespondPublic || participant.CanManage,
                 MinReadableSequence = 0,
                 JoinedUtc = now,
-                AddedByUserId = userContext.UserId
+                AddedByUserId = resolvedUser.UserId
             }).ToList();
 
             dbContext.ChatConversations.Add(conversation);
@@ -897,7 +897,7 @@ public static class ChatEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
-            var expiresUtc = request.ExpiresInHours is > 0
+            DateTimeOffset? expiresUtc = request.ExpiresInHours is > 0
                 ? now.AddHours(Math.Clamp(request.ExpiresInHours.Value, 1, 24 * 365))
                 : null;
             var code = chatCryptoService.CreatePublicCode();
