@@ -421,7 +421,10 @@ export function CogitaLiveRevisionJoinPage(props: {
   // Do not auto-force participant rejoin on transient polling mismatch.
   // A joined participant should remain in-session unless they explicitly switch participant.
   const showJoinPanel = !participantToken;
-  const showIntroPanel = !showJoinPanel && sessionStage === 'active' && !introAcknowledged;
+  const showIntroPanel =
+    !showJoinPanel &&
+    sessionStage !== 'finished' &&
+    (isAsyncSession ? !introAcknowledged : sessionStage === 'lobby');
   const isFirstLogin = !participantToken;
   const sessionTitle = useMemo(() => {
     const rawTitle = (state as { title?: unknown } | null)?.title;
@@ -1768,7 +1771,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                 </div>
               </div>
               ) : null}
-              {!isFirstLogin && sessionStage !== 'lobby' ? (
+              {!isFirstLogin ? (
               <div className="cogita-library-panel cogita-live-fullscreen-panel">
                 {showIntroPanel ? (
                   <>
@@ -1779,11 +1782,15 @@ export function CogitaLiveRevisionJoinPage(props: {
                         <p key={`intro:${line}`}>{line}</p>
                       ))}
                     </div>
-                    <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={acknowledgeIntro}>
-                        {revisionCopy.start}
-                      </button>
-                    </div>
+                    {isAsyncSession ? (
+                      <div className="cogita-form-actions">
+                        <button type="button" className="cta" onClick={acknowledgeIntro}>
+                          {revisionCopy.start}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="cogita-help">{liveCopy.waitingForHostQuestion}</p>
+                    )}
                   </>
                 ) : (
                   <>
