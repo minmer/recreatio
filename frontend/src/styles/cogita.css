@@ -3504,6 +3504,21 @@
   .cogita-live-finished-column--primary {
     grid-template-rows: auto auto;
   }
+
+  .cogita-live-session-layout[data-stage='finished'] {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
+
+  .cogita-live-session-layout[data-stage='finished'] > .cogita-library-panel {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .cogita-live-finished-review {
+    overflow: visible;
+  }
 }
 
 .cogita-details-grid-head {

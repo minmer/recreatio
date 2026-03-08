@@ -17642,94 +17642,69 @@ public static class CogitaEndpoints
         string? currentRevealJson,
         int currentRoundIndex)
     {
-        var promptByRound = new Dictionary<int, JsonObject>();
-        var revealByRound = new Dictionary<int, JsonObject>();
-        var cardKeyByRound = new Dictionary<int, string>();
-
-        foreach (var statisticEvent in roundEvents.OrderBy(x => x.CreatedUtc))
-        {
-            if (!statisticEvent.RoundIndex.HasValue)
-            {
-                continue;
-            }
-
-            var roundIndex = Math.Max(0, statisticEvent.RoundIndex.Value);
-            if (string.Equals(statisticEvent.EventType, "live_round_published", StringComparison.Ordinal))
-            {
-                var promptNode = ParseJsonObjectSafe(statisticEvent.PayloadJson);
-                if (promptNode is not null)
-                {
-                    promptByRound[roundIndex] = promptNode;
-                    var promptCardKey = promptNode["cardKey"]?.GetValue<string>()?.Trim();
-                    if (!string.IsNullOrWhiteSpace(promptCardKey))
-                    {
-                        cardKeyByRound[roundIndex] = promptCardKey;
-                    }
-                }
-                else if (!string.IsNullOrWhiteSpace(statisticEvent.CardKey))
-                {
-                    cardKeyByRound[roundIndex] = statisticEvent.CardKey.Trim();
-                }
-
-                continue;
-            }
-
-            if (string.Equals(statisticEvent.EventType, "live_round_revealed", StringComparison.Ordinal))
-            {
-                var revealNode = ParseJsonObjectSafe(statisticEvent.PayloadJson);
-                if (revealNode is not null)
-                {
-                    revealByRound[roundIndex] = revealNode;
-                }
-            }
-        }
-
-        var currentPromptNode = ParseJsonObjectSafe(currentPromptJson);
-        if (currentPromptNode is not null)
-        {
-            promptByRound[currentRoundIndex] = currentPromptNode;
-            var currentCardKey = currentPromptNode["cardKey"]?.GetValue<string>()?.Trim();
-            if (!string.IsNullOrWhiteSpace(currentCardKey))
-            {
-                cardKeyByRound[currentRoundIndex] = currentCardKey;
-            }
-        }
-
-        var currentRevealNode = ParseJsonObjectSafe(currentRevealJson);
-        if (currentRevealNode is not null)
-        {
-            revealByRound[currentRoundIndex] = currentRevealNode;
-        }
-
-        var roundIndexes = promptByRound.Keys
-            .Concat(revealByRound.Keys)
-            .Concat(cardKeyByRound.Keys)
-            .Distinct()
-            .OrderBy(x => x)
+        var orderedEvents = roundEvents
+            .OrderBy(x => x.CreatedUtc)
+            .ThenBy(x => x.Id)
+            .ToList();
+        var publishedEvents = orderedEvents
+            .Where(x => string.Equals(x.EventType, "live_round_published", StringComparison.Ordinal))
+            .ToList();
+        var revealedEvents = orderedEvents
+            .Where(x => string.Equals(x.EventType, "live_round_revealed", StringComparison.Ordinal))
             .ToList();
 
-        var result = new List<LiveSyncRoundPayload>(roundIndexes.Count);
-        foreach (var roundIndex in roundIndexes)
+        var usedRevealIds = new HashSet<Guid>();
+        var result = new List<LiveSyncRoundPayload>(publishedEvents.Count + 1);
+
+        for (var sequenceIndex = 0; sequenceIndex < publishedEvents.Count; sequenceIndex++)
         {
-            if (!promptByRound.TryGetValue(roundIndex, out var promptNode))
+            var publishEvent = publishedEvents[sequenceIndex];
+            var promptNode = ParseJsonObjectSafe(publishEvent.PayloadJson);
+            if (promptNode is null)
             {
                 continue;
             }
 
+            var eventRoundIndex = publishEvent.RoundIndex.HasValue
+                ? Math.Max(0, publishEvent.RoundIndex.Value)
+                : sequenceIndex;
+
+            // Keep event round index if it is monotonic; otherwise preserve chronological order.
+            var roundIndex = result.Count == 0
+                ? eventRoundIndex
+                : Math.Max(eventRoundIndex, result[result.Count - 1].RoundIndex + 1);
+
             var cardKey = promptNode["cardKey"]?.GetValue<string>()?.Trim();
-            if (string.IsNullOrWhiteSpace(cardKey) &&
-                cardKeyByRound.TryGetValue(roundIndex, out var fallbackCardKey) &&
-                !string.IsNullOrWhiteSpace(fallbackCardKey))
+            if (string.IsNullOrWhiteSpace(cardKey) && !string.IsNullOrWhiteSpace(publishEvent.CardKey))
             {
-                cardKey = fallbackCardKey;
-                promptNode["cardKey"] = fallbackCardKey;
+                cardKey = publishEvent.CardKey.Trim();
+                promptNode["cardKey"] = cardKey;
             }
             cardKey ??= $"round-{roundIndex}";
 
-            if (!revealByRound.TryGetValue(roundIndex, out var revealNode))
+            // Prefer reveal with same round index and created after publish; fallback to next chronological reveal.
+            CogitaStatisticEvent? matchedRevealEvent = revealedEvents
+                .FirstOrDefault(x =>
+                    !usedRevealIds.Contains(x.Id) &&
+                    x.RoundIndex.HasValue &&
+                    publishEvent.RoundIndex.HasValue &&
+                    x.RoundIndex.Value == publishEvent.RoundIndex.Value &&
+                    x.CreatedUtc >= publishEvent.CreatedUtc);
+
+            matchedRevealEvent ??= revealedEvents
+                .FirstOrDefault(x => !usedRevealIds.Contains(x.Id) && x.CreatedUtc >= publishEvent.CreatedUtc);
+
+            JsonObject revealNode;
+            if (matchedRevealEvent is not null)
+            {
+                usedRevealIds.Add(matchedRevealEvent.Id);
+                revealNode = ParseJsonObjectSafe(matchedRevealEvent.PayloadJson) ?? new JsonObject();
+            }
+            else
             {
                 revealNode = new JsonObject();
             }
+
             revealNode["cardKey"] = cardKey;
             if (revealNode["kind"] is null && promptNode["kind"] is not null)
             {
@@ -17747,6 +17722,34 @@ public static class CogitaEndpoints
                 cardKey,
                 CloneJsonObject(promptNode),
                 CloneJsonObject(revealNode)));
+        }
+
+        // Fallback only when no published rounds were reconstructed.
+        if (result.Count == 0)
+        {
+            var currentPromptNode = ParseJsonObjectSafe(currentPromptJson);
+            if (currentPromptNode is not null)
+            {
+                var currentCardKey = currentPromptNode["cardKey"]?.GetValue<string>()?.Trim();
+                currentCardKey ??= $"round-{Math.Max(0, currentRoundIndex)}";
+                var currentRevealNode = ParseJsonObjectSafe(currentRevealJson) ?? new JsonObject();
+                currentRevealNode["cardKey"] = currentCardKey;
+                if (currentRevealNode["kind"] is null && currentPromptNode["kind"] is not null)
+                {
+                    currentRevealNode["kind"] = JsonNode.Parse(currentPromptNode["kind"]!.ToJsonString());
+                }
+                if (currentRevealNode["expected"] is null)
+                {
+                    currentRevealNode["expected"] = currentPromptNode["expected"] is not null
+                        ? JsonNode.Parse(currentPromptNode["expected"]!.ToJsonString())
+                        : JsonValue.Create(string.Empty);
+                }
+                result.Add(new LiveSyncRoundPayload(
+                    Math.Max(0, currentRoundIndex),
+                    currentCardKey,
+                    CloneJsonObject(currentPromptNode),
+                    CloneJsonObject(currentRevealNode)));
+            }
         }
 
         return result;
