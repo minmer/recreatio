@@ -238,7 +238,20 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(239, 247, 239, 0.92);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(34, 84, 46, 0.2);
+  transition: padding 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+}
+
+.kal-header.is-compact {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  background: rgba(238, 246, 238, 0.98);
+  box-shadow: 0 10px 28px rgba(27, 62, 38, 0.14);
 }
 
 .kal-kicker {
@@ -264,6 +277,33 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
+}
+
+.kal-top-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.kal-top-nav a {
+  text-decoration: none;
+  color: #20472e;
+  border: 1px solid rgba(34, 84, 46, 0.22);
+  border-radius: 999px;
+  padding: 0.42rem 0.68rem;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.kal-top-nav a.active {
+  background: #214c30;
+  color: #ffffff;
+}
+
+.kal-header-cta {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .kal-main {
@@ -326,11 +366,15 @@
 
 .pilgrimage-hero {
   display: grid;
-  gap: 0.7rem;
+  gap: 1rem;
+  grid-template-columns: 1.1fr 0.9fr;
   border: 1px solid rgba(34, 84, 46, 0.22);
-  border-radius: 14px;
-  padding: 0.95rem;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(249, 245, 236, 0.95));
+  border-radius: 20px;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(255, 190, 132, 0.23), transparent 45%),
+    radial-gradient(circle at 90% 20%, rgba(99, 140, 200, 0.18), transparent 45%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(249, 245, 236, 0.98));
 }
 
 .pilgrimage-hero h2 {
@@ -340,6 +384,69 @@
 .pilgrimage-hero p {
   margin: 0;
   color: #35583f;
+}
+
+.pilgrimage-hero-main {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.pilgrimage-hero-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.77rem;
+  font-weight: 700;
+  color: #8d4f25;
+}
+
+.pilgrimage-hero-route {
+  font-weight: 700;
+  color: #1d3f78;
+}
+
+.pilgrimage-hero-date {
+  display: inline-flex;
+  width: fit-content;
+  background: rgba(28, 76, 46, 0.1);
+  border: 1px solid rgba(28, 76, 46, 0.2);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-weight: 600;
+}
+
+.pilgrimage-hero-visual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 150px 150px;
+  gap: 0.7rem;
+}
+
+.pilgrimage-hero-photo {
+  border-radius: 14px;
+  border: 1px solid rgba(33, 76, 48, 0.2);
+  min-height: 140px;
+  background-size: cover;
+  background-position: center;
+}
+
+.pilgrimage-hero-photo--a {
+  grid-row: 1 / 3;
+  background:
+    linear-gradient(165deg, rgba(26, 63, 34, 0.55), rgba(22, 41, 79, 0.38)),
+    linear-gradient(130deg, #c8dcc6 0%, #89ad86 45%, #6f8fca 100%);
+}
+
+.pilgrimage-hero-photo--b {
+  background:
+    linear-gradient(150deg, rgba(102, 56, 26, 0.45), rgba(35, 79, 45, 0.24)),
+    linear-gradient(125deg, #efd4b8 0%, #dca575 50%, #adc9ec 100%);
+}
+
+.pilgrimage-hero-photo--c {
+  background:
+    linear-gradient(150deg, rgba(25, 69, 46, 0.42), rgba(24, 44, 84, 0.28)),
+    linear-gradient(125deg, #d0e4c9 0%, #99c18d 52%, #8ba5d6 100%);
 }
 
 .pilgrimage-warning {
@@ -356,6 +463,123 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
+}
+
+.pilgrimage-layout-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.pilgrimage-layout-band {
+  border: 1px solid rgba(33, 76, 48, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 1rem;
+}
+
+.pilgrimage-layout-split {
+  grid-template-columns: 1fr 1fr;
+  gap: 0.95rem;
+}
+
+.pilgrimage-layout-split-text,
+.pilgrimage-layout-split-cards,
+.pilgrimage-route-map {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.pilgrimage-map-placeholder {
+  border: 1px dashed rgba(33, 76, 48, 0.3);
+  border-radius: 14px;
+  padding: 1rem;
+  min-height: 180px;
+  display: grid;
+  gap: 0.45rem;
+  align-content: center;
+  text-align: center;
+  background:
+    linear-gradient(155deg, rgba(226, 244, 232, 0.7), rgba(234, 241, 252, 0.72));
+}
+
+.pilgrimage-timeline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.pilgrimage-timeline-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.pilgrimage-timeline-card::before {
+  content: '';
+  position: absolute;
+  left: 0.7rem;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  width: 3px;
+  border-radius: 999px;
+  background: rgba(34, 84, 46, 0.22);
+}
+
+.pilgrimage-timeline-card > * {
+  padding-left: 0.7rem;
+}
+
+.pilgrimage-signup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.pilgrimage-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.pilgrimage-gallery-item {
+  border-radius: 14px;
+  overflow: hidden;
+  min-height: 180px;
+  border: 1px solid rgba(33, 76, 48, 0.25);
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  transform: translateZ(0) scale(1);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.pilgrimage-gallery-item:hover {
+  transform: translateZ(0) scale(1.02);
+  box-shadow: 0 16px 26px rgba(27, 62, 38, 0.22);
+}
+
+.pilgrimage-gallery-item--1 { background: linear-gradient(145deg, #ccdfc7 0%, #85b57f 46%, #6f93c8 100%); }
+.pilgrimage-gallery-item--2 { background: linear-gradient(145deg, #f3d8ba 0%, #dca070 46%, #9ebae0 100%); }
+.pilgrimage-gallery-item--3 { background: linear-gradient(145deg, #d1e7cb 0%, #92be8d 46%, #89a5d6 100%); }
+.pilgrimage-gallery-item--4 { background: linear-gradient(145deg, #e6d2bd 0%, #d39a77 46%, #8fabd2 100%); }
+.pilgrimage-gallery-item--5 { background: linear-gradient(145deg, #d6e4cb 0%, #8eb890 46%, #809fce 100%); }
+.pilgrimage-gallery-item--6 { background: linear-gradient(145deg, #eedac5 0%, #d2a480 46%, #8ba7ce 100%); }
+
+.pilgrimage-gallery-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: end;
+  gap: 0.35rem;
+  padding: 0.85rem;
+  color: #f6f9f6;
+  background: linear-gradient(to top, rgba(22, 35, 31, 0.72), rgba(22, 35, 31, 0.1) 65%);
+}
+
+.pilgrimage-gallery-overlay h3,
+.pilgrimage-gallery-overlay p,
+.pilgrimage-gallery-overlay small {
+  margin: 0;
 }
 
 .pilgrimage-section-block {
@@ -597,6 +821,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   padding: 0.9rem 6vw;
   background: #214c30;
   color: #ecf6ef;
@@ -606,6 +831,19 @@
   color: #ecf6ef;
   text-decoration: none;
   font-weight: 700;
+}
+
+.kal-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.kal-footer-links a {
+  color: #ecf6ef;
+  text-decoration: none;
+  opacity: 0.95;
 }
 
 .pilgrimage-mobile-sticky {
@@ -630,6 +868,37 @@
 
   .pilgrimage-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .kal-top-nav {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.15rem;
+  }
+
+  .kal-top-nav a {
+    white-space: nowrap;
+  }
+
+  .pilgrimage-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .pilgrimage-hero-visual {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 120px 120px;
+  }
+
+  .pilgrimage-layout-grid-3,
+  .pilgrimage-layout-split,
+  .pilgrimage-timeline-grid,
+  .pilgrimage-signup-steps,
+  .pilgrimage-gallery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pilgrimage-timeline-card > * {
+    padding-left: 0.5rem;
   }
 
   .pilgrimage-participant-token-row {

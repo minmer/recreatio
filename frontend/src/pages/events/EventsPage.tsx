@@ -79,6 +79,7 @@ const EVENTS: EventDefinition[] = [
       { slug: 'program', title: 'Program' },
       { slug: 'trasa', title: 'Trasa' },
       { slug: 'zapisy', title: 'Zapisy' },
+      { slug: 'galeria', title: 'Galeria' },
       { slug: 'niezbednik', title: 'Niezbednik' },
       { slug: 'faq', title: 'FAQ' },
       { slug: 'kontakt', title: 'Kontakt' },
@@ -381,10 +382,21 @@ function Kal26EventPage({
   const [contactPending, setContactPending] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
   const [contactSuccess, setContactSuccess] = useState<string | null>(null);
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false);
 
   useEffect(() => {
     setParticipantToken(queryToken);
   }, [queryToken]);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsHeaderCompact(window.scrollY > 24);
+    };
+
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -524,13 +536,6 @@ function Kal26EventPage({
   const publicSections = site?.site.public.sections ?? [];
   const sectionById = (id: string) => publicSections.find((section) => section.id === id) ?? null;
 
-  const startSections = useMemo(() => {
-    const order = ['najwazniejsze', 'jak-wyglada', 'program'];
-    return order
-      .map((id) => sectionById(id))
-      .filter((section): section is PilgrimageSection => section !== null);
-  }, [publicSections]);
-
   const aboutSections = useMemo(() => {
     const order = ['jak-wyglada', 'najwazniejsze'];
     return order
@@ -577,6 +582,9 @@ function Kal26EventPage({
   ]);
 
   const signupSection = sectionById('zapisy');
+  const headerMenuPages = event.pages.filter((item) =>
+    ['start', 'o-pielgrzymce', 'program', 'trasa', 'zapisy', 'faq', 'galeria', 'kontakt'].includes(item.slug)
+  );
 
   const handleRegistrationSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
@@ -846,18 +854,214 @@ function Kal26EventPage({
   };
 
   const renderPublicPage = () => {
+    const keyInfoSection = sectionById('najwazniejsze');
+    const aboutSection = sectionById('jak-wyglada');
     const programSection = sectionById('program');
     const routeSection = sectionById('trasa');
+    const signupSectionPublic = sectionById('zapisy');
+    const participantTeaserCards = (site?.site.participant.sections ?? []).flatMap((section) => section.cards).slice(0, 6);
+    const gallerySection = sectionById('foto');
     const checklistSection = sectionById('niezbednik');
     const faqSection = sectionById('faq');
+    const contactSection = sectionById('kontakt');
     const legalSection = sectionById('formalnosci');
 
     if (page.slug === 'start') {
-      const photoSection = sectionById('foto');
       return (
         <>
-          {startSections.map((section) => <PilgrimageSectionBlock key={section.id} section={section} />)}
-          {photoSection ? <PilgrimageSectionBlock section={photoSection} /> : null}
+          {keyInfoSection ? (
+            <section className="pilgrimage-section-block pilgrimage-layout-band">
+              <header>
+                <h2>{keyInfoSection.title}</h2>
+                {keyInfoSection.lead ? <p>{keyInfoSection.lead}</p> : null}
+              </header>
+              <div className="pilgrimage-layout-grid-3">
+                {keyInfoSection.cards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {aboutSection ? (
+            <section className="pilgrimage-section-block pilgrimage-layout-split">
+              <div className="pilgrimage-layout-split-text">
+                <header>
+                  <h2>O pielgrzymce</h2>
+                  {aboutSection.lead ? <p>{aboutSection.lead}</p> : null}
+                </header>
+                <p>
+                  This pilgrimage is built as a clear two-day route: shared prayer, common walking rhythm, practical
+                  logistics, and a strong community experience from Krakow through Tyniec to Kalwaria.
+                </p>
+                <div className="pilgrimage-quick-links">
+                  <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up now</a>
+                  <a className="ghost" href={`/#/event/${event.slug}/program`}>See full program</a>
+                </div>
+              </div>
+              <div className="pilgrimage-layout-split-cards">
+                {aboutSection.cards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {programSection ? (
+            <section className="pilgrimage-section-block">
+              <header>
+                <h2>{programSection.title}</h2>
+                {programSection.lead ? <p>{programSection.lead}</p> : null}
+              </header>
+              <div className="pilgrimage-timeline-grid">
+                {programSection.cards.map((card, index) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-timeline-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <small>Day {index % 2 === 0 ? '1' : '2'}</small>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {routeSection ? (
+            <section className="pilgrimage-section-block pilgrimage-layout-split">
+              <div className="pilgrimage-route-map">
+                <header>
+                  <h2>{routeSection.title}</h2>
+                  {routeSection.lead ? <p>{routeSection.lead}</p> : null}
+                </header>
+                <div className="pilgrimage-map-placeholder">
+                  <p>Krakow -&gt; Tyniec -&gt; Kalwaria Zebrzydowska</p>
+                  <small>Map module with stages, stops, and key logistics points</small>
+                </div>
+                <div className="pilgrimage-quick-links">
+                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>PDF map (in preparation)</a>
+                  <a className="ghost" href="https://maps.google.com" target="_blank" rel="noreferrer">Open map</a>
+                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>GPX file (in preparation)</a>
+                </div>
+              </div>
+              <div className="pilgrimage-layout-split-cards">
+                {routeSection.cards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {signupSectionPublic ? (
+            <section className="pilgrimage-section-block pilgrimage-layout-band">
+              <header>
+                <h2>How to register</h2>
+                <p>Three simple steps from form submission to participant zone access.</p>
+              </header>
+              <div className="pilgrimage-signup-steps">
+                <article className="pilgrimage-card"><h3>1. Fill the form</h3><p>Complete registration in clear steps.</p></article>
+                <article className="pilgrimage-card"><h3>2. Receive confirmation</h3><p>You get participant access by SMS link/token.</p></article>
+                <article className="pilgrimage-card"><h3>3. Follow participant updates</h3><p>Use your private zone for latest instructions.</p></article>
+              </div>
+              <div className="pilgrimage-layout-grid-3">
+                {signupSectionPublic.cards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {participantTeaserCards.length > 0 ? (
+            <section className="pilgrimage-section-block">
+              <header>
+                <h2>Participant zone preview</h2>
+                <p>After registration, participants get practical tools for schedule, logistics, and emergency contact.</p>
+              </header>
+              <div className="pilgrimage-layout-grid-3">
+                {participantTeaserCards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {gallerySection ? (
+            <section className="pilgrimage-section-block">
+              <header>
+                <h2>Gallery</h2>
+                <p>Photos from previous years that show the full journey of the pilgrimage.</p>
+              </header>
+              <div className="pilgrimage-gallery-grid">
+                {gallerySection.cards.map((card, index) => (
+                  <article key={card.id} className={`pilgrimage-gallery-item pilgrimage-gallery-item--${(index % 6) + 1}`}>
+                    <div className="pilgrimage-gallery-overlay">
+                      <h3>{card.title}</h3>
+                      <p>{card.body}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <div className="pilgrimage-quick-links">
+                <a className="ghost" href={`/#/event/${event.slug}/galeria`}>Show more photos</a>
+              </div>
+            </section>
+          ) : null}
+
+          {faqSection ? (
+            <section className="pilgrimage-section-block" id={`kal-${faqSection.id}`}>
+              <header>
+                <h2>{faqSection.title}</h2>
+                {faqSection.lead ? <p>{faqSection.lead}</p> : null}
+              </header>
+              <div className="pilgrimage-accordion">
+                {faqSection.cards.map((card) => (
+                  <details key={card.id} className="pilgrimage-accordion-item">
+                    <summary>{card.title}</summary>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </details>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {contactSection ? (
+            <section className="pilgrimage-section-block">
+              <header>
+                <h2>{contactSection.title}</h2>
+                {contactSection.lead ? <p>{contactSection.lead}</p> : null}
+              </header>
+              <div className="pilgrimage-layout-grid-3">
+                {contactSection.cards.map((card) => (
+                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+                    <h3>{card.title}</h3>
+                    <p>{card.body}</p>
+                    {card.meta ? <small>{card.meta}</small> : null}
+                  </article>
+                ))}
+              </div>
+              <div className="pilgrimage-quick-links">
+                <a className="cta" href={`/#/event/${event.slug}/kontakt`}>Contact organizers</a>
+              </div>
+            </section>
+          ) : null}
         </>
       );
     }
@@ -888,6 +1092,31 @@ function Kal26EventPage({
 
     if (page.slug === 'niezbednik' && checklistSection) {
       return <PilgrimageSectionBlock section={checklistSection} />;
+    }
+
+    if (page.slug === 'galeria' && gallerySection) {
+      return (
+        <section className="pilgrimage-section-block">
+          <header>
+            <h2>Galeria</h2>
+            <p>A curated visual story: departure, route, prayer, rest, and arrival.</p>
+          </header>
+          <div className="pilgrimage-gallery-grid">
+            {gallerySection.cards.map((card, index) => (
+              <article key={card.id} className={`pilgrimage-gallery-item pilgrimage-gallery-item--${(index % 6) + 1}`}>
+                <div className="pilgrimage-gallery-overlay">
+                  <h3>{card.title}</h3>
+                  <p>{card.body}</p>
+                  {card.meta ? <small>{card.meta}</small> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="pilgrimage-quick-links">
+            <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Send more photos to organizers</a>
+          </div>
+        </section>
+      );
     }
 
     if (page.slug === 'faq' && faqSection) {
@@ -1237,6 +1466,14 @@ function Kal26EventPage({
                 Grupa: {participantZone.participant.groupName || 'nieprzypisana'} | Kontakt awaryjny:{' '}
                 {participantZone.participant.emergencyContactName} ({participantZone.participant.emergencyContactPhone})
               </p>
+              {(participantZone.announcements.find((entry) => entry.isCritical) ?? participantZone.announcements[0]) ? (
+                <p className="pilgrimage-warning">
+                  Nearest update:{' '}
+                  <strong>
+                    {(participantZone.announcements.find((entry) => entry.isCritical) ?? participantZone.announcements[0])?.title}
+                  </strong>
+                </p>
+              ) : null}
               <div className="pilgrimage-quick-links">
                 <a className="ghost" href="#kal-participant-schedule">Harmonogram</a>
                 <a className="ghost" href="#kal-participant-checklist">Co zabrac</a>
@@ -1338,6 +1575,13 @@ function Kal26EventPage({
             <article className="pilgrimage-card"><h3>Otwarte zadania</h3><p>{organizerDashboard.stats.openTasks}</p></article>
             <article className="pilgrimage-card"><h3>Krytyczne komunikaty</h3><p>{organizerDashboard.stats.criticalAnnouncements}</p></article>
           </div>
+          <div className="pilgrimage-quick-links">
+            <a className="ghost" href="#kal-org-participants">Uczestnicy</a>
+            <a className="ghost" href="#kal-org-tasks">Zadania</a>
+            <a className="ghost" href="#kal-org-announcements">Komunikaty</a>
+            <a className="ghost" href="#kal-org-issues">Zgloszenia</a>
+            <a className="ghost" href="#kal-org-inquiries">Zapytania</a>
+          </div>
         </section>
 
         {organizerDashboard.zone.sections.map((section) => (
@@ -1417,7 +1661,7 @@ function Kal26EventPage({
           </form>
         </section>
 
-        <section className="pilgrimage-organizer-participants">
+        <section className="pilgrimage-organizer-participants" id="kal-org-participants">
           <h3>Uczestnicy</h3>
           {site?.id ? (
             <div className="pilgrimage-quick-links">
@@ -1654,7 +1898,7 @@ function Kal26EventPage({
           </div>
         </section>
 
-        <section className="pilgrimage-organizer-kanban">
+        <section className="pilgrimage-organizer-kanban" id="kal-org-tasks">
           <h3>Zadania</h3>
           <div className="pilgrimage-card-grid">
             {organizerDashboard.tasks.map((task) => (
@@ -1851,7 +2095,7 @@ function Kal26EventPage({
           </div>
         </section>
 
-        <section className="pilgrimage-announcements">
+        <section className="pilgrimage-announcements" id="kal-org-announcements">
           <h3>Komunikaty</h3>
           <div className="pilgrimage-announcement-list">
             {organizerDashboard.announcements.map((entry) => (
@@ -1866,7 +2110,7 @@ function Kal26EventPage({
           </div>
         </section>
 
-        <section className="pilgrimage-organizer-kanban">
+        <section className="pilgrimage-organizer-kanban" id="kal-org-issues">
           <h3>Zgloszenia uczestnikow</h3>
           <div className="pilgrimage-card-grid">
             {organizerDashboard.issues.map((issue) => (
@@ -1920,7 +2164,7 @@ function Kal26EventPage({
           </div>
         </section>
 
-        <section className="pilgrimage-announcements">
+        <section className="pilgrimage-announcements" id="kal-org-inquiries">
           <h3>Zapytania kontaktowe (publiczne)</h3>
           <div className="pilgrimage-announcement-list">
             {organizerDashboard.inquiries.map((entry) => (
@@ -1963,14 +2207,22 @@ function Kal26EventPage({
 
   return (
     <div className="event-page kal-page">
-      <header className="kal-header">
+      <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}`}>
         <div>
           <p className="kal-kicker">Pielgrzymka</p>
           <h1>{site?.name ?? event.title}</h1>
           <p>{site ? `${site.startDate} - ${site.endDate}` : event.date}</p>
           <p>{site?.site.public.routeLabel ?? event.location}</p>
         </div>
+        <nav className="kal-top-nav" aria-label="Pilgrimage sections">
+          {headerMenuPages.map((item) => (
+            <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+              {item.title}
+            </a>
+          ))}
+        </nav>
         <div className="kal-tools">
+          <a className="cta kal-header-cta" href={`/#/event/${event.slug}/zapisy`}>Zapisz sie</a>
           <LanguageSelect value={language} onChange={onLanguageChange} />
           <AuthAction
             copy={copy}
@@ -2005,27 +2257,42 @@ function Kal26EventPage({
           {!siteLoading && !siteError && site ? (
             <>
               <section className="pilgrimage-hero">
-                <h2>{site.site.public.heroTitle}</h2>
-                <p>{site.site.public.heroSubtitle}</p>
-                <div className="pilgrimage-quick-links">
-                  <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zapisz sie</a>
-                  <a className="ghost" href={`/#/event/${event.slug}/program`}>Zobacz program</a>
-                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Mam pytanie do organizatorow</a>
+                <div className="pilgrimage-hero-main">
+                  <p className="pilgrimage-hero-kicker">Pilgrimage route</p>
+                  <h2>{site.site.public.heroTitle}</h2>
+                  <p>{site.site.public.heroSubtitle}</p>
+                  <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
+                  <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
+                  <div className="pilgrimage-quick-links">
+                    <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
+                    <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
+                    <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
+                  </div>
+                  {!site.isProvisioned ? (
+                    <p className="pilgrimage-warning">
+                      This event is in preview mode. To enable registrations and organizer dashboard, provision it via `POST /pilgrimage`.
+                    </p>
+                  ) : null}
                 </div>
-                {!site.isProvisioned ? (
-                  <p className="pilgrimage-warning">
-                    Wydarzenie dziala w trybie podgladu. Aby aktywowac zapisy i panel, utworz rekord przez API `POST /pilgrimage`.
-                  </p>
-                ) : null}
-                <div className="pilgrimage-hero-facts">
-                  {site.site.public.heroFacts.map((fact) => (
-                    <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
-                      <h3>{fact.title}</h3>
-                      <p>{fact.body}</p>
-                      {fact.meta ? <small>{fact.meta}</small> : null}
-                    </article>
-                  ))}
+                <div className="pilgrimage-hero-visual">
+                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--a" />
+                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--b" />
+                  <div className="pilgrimage-hero-photo pilgrimage-hero-photo--c" />
                 </div>
+              </section>
+
+              <section className="pilgrimage-hero-facts">
+                {site.site.public.heroFacts.map((fact) => (
+                  <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
+                    <h3>{fact.title}</h3>
+                    <p>{fact.body}</p>
+                    {fact.meta ? <small>{fact.meta}</small> : null}
+                  </article>
+                ))}
+                <article className="pilgrimage-card pilgrimage-card--blue">
+                  <h3>Private participant access</h3>
+                  <p>After registration, each participant gets an individual SMS link to their zone.</p>
+                </article>
               </section>
 
               {page.slug === 'uczestnik' ? renderParticipantPage() : null}
@@ -2043,6 +2310,13 @@ function Kal26EventPage({
 
       <footer className="kal-footer">
         <a href="/#/" className="kal-logo">Recreatio</a>
+        <nav className="kal-footer-links" aria-label="Footer navigation">
+          <a href={`/#/event/${event.slug}/start`}>Start</a>
+          <a href={`/#/event/${event.slug}/program`}>Program</a>
+          <a href={`/#/event/${event.slug}/zapisy`}>Zapisy</a>
+          <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
+          <a href={`/#/event/${event.slug}/formalnosci`}>Regulamin i RODO</a>
+        </nav>
         <a className="ghost" href="/#/section-1" onClick={() => onNavigate('home')}>{copy.nav.home}</a>
       </footer>
     </div>
