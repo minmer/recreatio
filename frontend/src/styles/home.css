@@ -3,6 +3,55 @@
   height: 100vh;
   height: 100svh;
   overflow: hidden;
+  --home-header-bg: rgba(247, 244, 239, 0.92);
+  --home-header-line: rgba(19, 19, 17, 0.12);
+  --home-header-link: #4b4b47;
+  --home-header-chip-bg: rgba(255, 255, 255, 0.92);
+  --home-header-chip-line: rgba(19, 19, 17, 0.12);
+  --home-header-menu-bg: rgba(255, 255, 255, 0.96);
+}
+
+.home[data-slide='1'] {
+  --home-header-bg: rgba(254, 246, 238, 0.94);
+  --home-header-line: rgba(94, 56, 29, 0.2);
+  --home-header-link: #5a4030;
+}
+
+.home[data-slide='2'] {
+  --home-header-bg: rgba(243, 247, 242, 0.94);
+  --home-header-line: rgba(35, 79, 45, 0.2);
+  --home-header-link: #24442e;
+}
+
+.home[data-slide='3'] {
+  --home-header-bg: rgba(247, 241, 230, 0.94);
+  --home-header-line: rgba(95, 67, 35, 0.2);
+  --home-header-link: #5a4027;
+}
+
+.home[data-slide='4'] {
+  --home-header-bg: rgba(244, 242, 247, 0.94);
+  --home-header-line: rgba(73, 63, 95, 0.2);
+  --home-header-link: #45395c;
+}
+
+.home[data-slide='5'] {
+  --home-header-bg: rgba(254, 245, 239, 0.94);
+  --home-header-line: rgba(92, 57, 39, 0.2);
+  --home-header-link: #563a2b;
+}
+
+.home[data-slide='6'] {
+  --home-header-bg: rgba(242, 244, 241, 0.94);
+  --home-header-line: rgba(45, 67, 58, 0.2);
+  --home-header-link: #2e4f44;
+}
+
+.home[data-slide='7'],
+.home[data-slide='8'] {
+  --home-header-bg: rgba(247, 240, 235, 0.94);
+  --home-header-line: rgba(74, 58, 45, 0.2);
+  --home-header-link: #4a3a2d;
 }
 
 .home-header {
@@ -14,10 +63,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6vw;
-  background: rgba(247, 244, 239, 0.92);
+  padding: 0 7vw;
+  background: var(--home-header-bg);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--home-header-line);
+  transition: background-color 320ms ease, border-color 320ms ease;
   z-index: 10;
 }
 
@@ -38,27 +88,29 @@
 
 .home-nav {
   display: flex;
-  gap: 0.8rem;
+  gap: 1.05rem;
   flex-wrap: wrap;
 }
 
 .home-menu-toggle {
   display: none;
-  border: 1px solid var(--line);
-  background: white;
+  border: 1px solid var(--home-header-chip-line);
+  background: var(--home-header-chip-bg);
   border-radius: 999px;
   padding: 0.42rem 0.85rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background-color 320ms ease, border-color 320ms ease;
 }
 
 .home-nav a {
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--home-header-link);
   cursor: pointer;
   font-size: 0.95rem;
   text-decoration: none;
+  transition: color 320ms ease;
 }
 
 .home-actions {
@@ -72,13 +124,13 @@
 }
 
 .lang-button {
-  border: 1px solid var(--line);
-  background: white;
+  border: 1px solid var(--home-header-chip-line);
+  background: var(--home-header-chip-bg);
   border-radius: 999px;
   padding: 0.45rem 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: box-shadow 160ms ease, transform 160ms ease;
+  transition: box-shadow 160ms ease, transform 160ms ease, background-color 320ms ease, border-color 320ms ease;
 }
 
 .lang-button:hover,

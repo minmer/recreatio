@@ -1,18 +1,18 @@
-@media (max-width: 900px), (orientation: portrait) {
+@media (max-width: 1160px), (orientation: portrait) {
   .home-header {
-    padding: 0 4vw;
+    padding: 0 5vw;
   }
 
   .home-nav {
     display: none;
     position: absolute;
     top: calc(var(--header-h) - 2px);
-    left: 4vw;
-    right: 4vw;
+    left: 5vw;
+    right: 5vw;
     padding: 0.6rem;
     border-radius: 14px;
-    border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid var(--home-header-chip-line);
+    background: var(--home-header-menu-bg);
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.12);
     z-index: 11;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -25,9 +25,9 @@
 
   .home-nav a {
     padding: 0.45rem 0.55rem;
-    border: 1px solid var(--line);
+    border: 1px solid var(--home-header-chip-line);
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--home-header-chip-bg);
   }
 
   .home-menu-toggle {
@@ -39,11 +39,11 @@
   }
 
   .home-footer {
-    padding: 0 4vw;
+    padding: 0 5vw;
   }
 
   .home-dots {
-    right: 4vw;
+    right: 5vw;
   }
 
   .portal-header {

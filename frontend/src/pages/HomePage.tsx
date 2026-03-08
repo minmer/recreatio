@@ -221,7 +221,7 @@ export function HomePage({
   }, [activeIndex, panelOpen, slides.length]);
 
   return (
-    <div className={`home ${panelOpen ? 'home-panel-open' : ''}`}>
+    <div className={`home ${panelOpen ? 'home-panel-open' : ''}`} data-slide={activeIndex + 1}>
       <header className="home-header">
         <a className="brand" href="/#/section-1">
           <img src="/logo_new.svg" alt={copy.loginCard.title} />
