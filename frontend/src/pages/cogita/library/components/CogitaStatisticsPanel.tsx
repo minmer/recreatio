@@ -128,6 +128,17 @@ type StatisticsRenderControls = {
   onToggleParticipantVisibility: (participantKey: string) => void;
   onHoverParticipant: (participantKey: string | null) => void;
   onToggleParticipantFocus: (participantKey: string) => void;
+  timePyramidSortKey: 'name' | 'total' | 'left' | 'right';
+  timePyramidSortDirection: 'asc' | 'desc';
+  setTimePyramidSort: (key: 'name' | 'total' | 'left' | 'right') => void;
+  labels: {
+    participant: string;
+    total: string;
+    left: string;
+    right: string;
+    asc: string;
+    desc: string;
+  };
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -182,6 +193,9 @@ function getStatisticsUiText() {
       loadFailed: 'Nie udało się wczytać statystyk.',
       participantsTable: 'Tabela uczestników',
       participantsTableHint: 'Sortuj po punktach, poprawności, czasie łącznym, czasie średnim lub liczbie odpowiedzi.',
+      total: 'Łącznie',
+      wrong: 'Błędne',
+      correct: 'Poprawne',
       participant: 'Uczestnik',
       score: 'Punkty',
       correctness: 'Poprawność',
@@ -211,6 +225,9 @@ function getStatisticsUiText() {
       loadFailed: 'Statistiken konnten nicht geladen werden.',
       participantsTable: 'Teilnehmertabelle',
       participantsTableHint: 'Nach Punkten, Korrektheit, Gesamtzeit, Durchschnittszeit oder Antwortanzahl sortieren.',
+      total: 'Gesamt',
+      wrong: 'Falsch',
+      correct: 'Korrekt',
       participant: 'Teilnehmer',
       score: 'Punkte',
       correctness: 'Korrektheit',
@@ -239,6 +256,9 @@ function getStatisticsUiText() {
     loadFailed: 'Failed to load statistics.',
     participantsTable: 'Participants table',
     participantsTableHint: 'Sort by score, correctness, total time, average time, or answer count.',
+    total: 'Total',
+    wrong: 'Wrong',
+    correct: 'Correct',
     participant: 'Participant',
     score: 'Score',
     correctness: 'Correctness',
@@ -763,6 +783,50 @@ function getStreamBandsInRenderOrder(bands: StreamBand[], focusedParticipantKey:
   return bands;
 }
 
+function sortParticipantsForTimePyramid(
+  participants: ParticipantSeries[],
+  mode: 'total' | 'average',
+  sortKey: 'name' | 'total' | 'left' | 'right',
+  sortDirection: 'asc' | 'desc'
+) {
+  const direction = sortDirection === 'asc' ? 1 : -1;
+  const withValues = participants.map((participant) => {
+    const leftValue = mode === 'total'
+      ? toSafeNonNegative(participant.totalWrongDurationSeconds)
+      : toSafeNonNegative(participant.averageWrongDurationSeconds);
+    const rightValue = mode === 'total'
+      ? toSafeNonNegative(participant.totalCorrectDurationSeconds)
+      : toSafeNonNegative(participant.averageCorrectDurationSeconds);
+    const totalValue = leftValue + rightValue;
+    return { participant, leftValue, rightValue, totalValue };
+  });
+
+  withValues.sort((left, right) => {
+    let compare = 0;
+    switch (sortKey) {
+      case 'left':
+        compare = left.leftValue - right.leftValue;
+        break;
+      case 'right':
+        compare = left.rightValue - right.rightValue;
+        break;
+      case 'total':
+        compare = left.totalValue - right.totalValue;
+        break;
+      case 'name':
+      default:
+        compare = left.participant.label.localeCompare(right.participant.label);
+        break;
+    }
+    if (compare === 0) {
+      compare = left.participant.label.localeCompare(right.participant.label);
+    }
+    return compare * direction;
+  });
+
+  return withValues.map((entry) => entry.participant);
+}
+
 function renderLineChartModule(
   context: StatisticsContext,
   controls: StatisticsRenderControls,
@@ -1139,12 +1203,12 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       ),
     render: (context, controls) => {
       const ranked = getParticipantsInRenderOrder(
-        context.participantSeries
-          .sort(
-            (left, right) =>
-              (left.totalDurationSeconds ?? Number.POSITIVE_INFINITY) -
-              (right.totalDurationSeconds ?? Number.POSITIVE_INFINITY)
-          ),
+        sortParticipantsForTimePyramid(
+          context.participantSeries,
+          'total',
+          controls.timePyramidSortKey,
+          controls.timePyramidSortDirection
+        ),
         controls.focusedParticipantKey
       );
       const maxSide = Math.max(
@@ -1163,6 +1227,16 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       }, 0);
       return (
         <div className="cogita-statistics-chart-card">
+          <div className="cogita-statistics-table-grid cogita-statistics-table-grid--head">
+            <span>#</span>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'name' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('name')}>{controls.labels.participant}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'total' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('total')}>{controls.labels.total}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'left' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('left')}>{controls.labels.left}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'right' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('right')}>{controls.labels.right}</button>
+            <span>{controls.timePyramidSortDirection === 'asc' ? controls.labels.asc : controls.labels.desc}</span>
+            <span />
+            <span />
+          </div>
           <p className="cogita-help">
             {totalDurationSeconds <= 0
               ? 'Overall response time: n/a'
@@ -1230,8 +1304,12 @@ const STATISTICS_MODULES: StatisticsModule[] = [
       ),
     render: (context, controls) => {
       const participants = getParticipantsInRenderOrder(
-        context.participantSeries
-          .sort((left, right) => left.label.localeCompare(right.label)),
+        sortParticipantsForTimePyramid(
+          context.participantSeries,
+          'average',
+          controls.timePyramidSortKey,
+          controls.timePyramidSortDirection
+        ),
         controls.focusedParticipantKey
       );
       const durationValues = participants.flatMap((participant) => [
@@ -1239,23 +1317,26 @@ const STATISTICS_MODULES: StatisticsModule[] = [
         toSafeNonNegative(participant.averageWrongDurationSeconds)
       ]);
       const finiteDurations = durationValues.filter((value) => Number.isFinite(value) && value > 0);
-      const robustMax = finiteDurations.length > 0 ? percentile(finiteDurations, 90) : 0;
-      const absoluteMax = finiteDurations.length > 0 ? Math.max(...finiteDurations) : 0;
-      const maxValue = Math.max(1, robustMax > 0 ? robustMax : absoluteMax);
+      const maxValue = Math.max(1, finiteDurations.length > 0 ? Math.max(...finiteDurations) : 0);
 
       return (
         <div className="cogita-statistics-chart-card">
+          <div className="cogita-statistics-table-grid cogita-statistics-table-grid--head">
+            <span>#</span>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'name' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('name')}>{controls.labels.participant}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'total' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('total')}>{controls.labels.total}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'left' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('left')}>{controls.labels.left}</button>
+            <button type="button" className={`cogita-statistics-sort ${controls.timePyramidSortKey === 'right' ? 'active' : ''}`} onClick={() => controls.setTimePyramidSort('right')}>{controls.labels.right}</button>
+            <span>{controls.timePyramidSortDirection === 'asc' ? controls.labels.asc : controls.labels.desc}</span>
+            <span />
+            <span />
+          </div>
           <div className="cogita-statistics-time-split">
             {participants.map((participant) => {
               const correct = toSafeNonNegative(participant.averageCorrectDurationSeconds);
               const wrong = toSafeNonNegative(participant.averageWrongDurationSeconds);
-              const correctRatio = maxValue > 0 ? Math.max(0, Math.min(1, correct / maxValue)) : 0;
-              const wrongRatio = maxValue > 0 ? Math.max(0, Math.min(1, wrong / maxValue)) : 0;
-              // Use perceptual scaling so low-but-valid values remain visible despite outliers.
-              const correctWidthRaw = Math.sqrt(correctRatio) * 100;
-              const wrongWidthRaw = Math.sqrt(wrongRatio) * 100;
-              const correctWidth = correct > 0 ? Math.max(8, correctWidthRaw) : 0;
-              const wrongWidth = wrong > 0 ? Math.max(8, wrongWidthRaw) : 0;
+              const correctWidth = maxValue > 0 ? Math.max(0, Math.min(100, (correct / maxValue) * 100)) : 0;
+              const wrongWidth = maxValue > 0 ? Math.max(0, Math.min(100, (wrong / maxValue) * 100)) : 0;
               return (
                 <div
                   key={`time-split-${participant.key}`}
@@ -1704,6 +1785,8 @@ export function CogitaStatisticsPanel({
   const [slideIndex, setSlideIndex] = useState(0);
   const [scoreboardSortKey, setScoreboardSortKey] = useState<ScoreboardSortKey>('score');
   const [scoreboardSortDirection, setScoreboardSortDirection] = useState<ScoreboardSortDirection>('desc');
+  const [timePyramidSortKey, setTimePyramidSortKey] = useState<'name' | 'total' | 'left' | 'right'>('total');
+  const [timePyramidSortDirection, setTimePyramidSortDirection] = useState<'asc' | 'desc'>('desc');
   const [visibleParticipantKeys, setVisibleParticipantKeys] = useState<Set<string>>(new Set());
   const [hoveredParticipantKey, setHoveredParticipantKey] = useState<string | null>(null);
   const [pinnedParticipantKey, setPinnedParticipantKey] = useState<string | null>(null);
@@ -1833,6 +1916,14 @@ export function CogitaStatisticsPanel({
     setScoreboardSortDirection(nextKey === 'name' || nextKey === 'totalTime' || nextKey === 'avgTime' ? 'asc' : 'desc');
   };
   const scoreSortLabel = scoreboardSortDirection === 'asc' ? 'ascending' : 'descending';
+  const setTimePyramidSort = (key: 'name' | 'total' | 'left' | 'right') => {
+    if (timePyramidSortKey === key) {
+      setTimePyramidSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setTimePyramidSortKey(key);
+    setTimePyramidSortDirection(key === 'name' ? 'asc' : 'desc');
+  };
 
   const modules = useMemo(() => {
     if (!filteredStatisticsContext) return [] as StatisticsModule[];
@@ -1952,7 +2043,18 @@ export function CogitaStatisticsPanel({
                     },
                     onHoverParticipant: (participantKey) => setHoveredParticipantKey(participantKey),
                     onToggleParticipantFocus: (participantKey) =>
-                      setPinnedParticipantKey((current) => (current === participantKey ? null : participantKey))
+                      setPinnedParticipantKey((current) => (current === participantKey ? null : participantKey)),
+                    timePyramidSortKey,
+                    timePyramidSortDirection,
+                    setTimePyramidSort,
+                    labels: {
+                      participant: ui.participant,
+                      total: ui.total,
+                      left: ui.wrong,
+                      right: ui.correct,
+                      asc: ui.ascending,
+                      desc: ui.descending
+                    }
                   })}
                 </article>
               </div>
