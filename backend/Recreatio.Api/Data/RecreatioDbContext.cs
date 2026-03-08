@@ -38,6 +38,15 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Parish.ParishConfirmationCandidate> ParishConfirmationCandidates => Set<Data.Parish.ParishConfirmationCandidate>();
     public DbSet<Data.Parish.ParishConfirmationPhoneVerification> ParishConfirmationPhoneVerifications =>
         Set<Data.Parish.ParishConfirmationPhoneVerification>();
+    public DbSet<Data.Pilgrimage.PilgrimageEvent> PilgrimageEvents => Set<Data.Pilgrimage.PilgrimageEvent>();
+    public DbSet<Data.Pilgrimage.PilgrimageSiteConfig> PilgrimageSiteConfigs => Set<Data.Pilgrimage.PilgrimageSiteConfig>();
+    public DbSet<Data.Pilgrimage.PilgrimageParticipant> PilgrimageParticipants => Set<Data.Pilgrimage.PilgrimageParticipant>();
+    public DbSet<Data.Pilgrimage.PilgrimageParticipantAccessToken> PilgrimageParticipantAccessTokens =>
+        Set<Data.Pilgrimage.PilgrimageParticipantAccessToken>();
+    public DbSet<Data.Pilgrimage.PilgrimageAnnouncement> PilgrimageAnnouncements => Set<Data.Pilgrimage.PilgrimageAnnouncement>();
+    public DbSet<Data.Pilgrimage.PilgrimageTask> PilgrimageTasks => Set<Data.Pilgrimage.PilgrimageTask>();
+    public DbSet<Data.Pilgrimage.PilgrimageParticipantIssue> PilgrimageParticipantIssues => Set<Data.Pilgrimage.PilgrimageParticipantIssue>();
+    public DbSet<Data.Pilgrimage.PilgrimageContactInquiry> PilgrimageContactInquiries => Set<Data.Pilgrimage.PilgrimageContactInquiry>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -86,6 +95,12 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaLiveRevisionAnswer> CogitaLiveRevisionAnswers => Set<Data.Cogita.CogitaLiveRevisionAnswer>();
     public DbSet<Data.Cogita.CogitaLiveRevisionReloginRequest> CogitaLiveRevisionReloginRequests => Set<Data.Cogita.CogitaLiveRevisionReloginRequest>();
     public DbSet<Data.Cogita.CogitaItemDependency> CogitaItemDependencies => Set<Data.Cogita.CogitaItemDependency>();
+    public DbSet<Data.Chat.ChatConversation> ChatConversations => Set<Data.Chat.ChatConversation>();
+    public DbSet<Data.Chat.ChatConversationParticipant> ChatConversationParticipants => Set<Data.Chat.ChatConversationParticipant>();
+    public DbSet<Data.Chat.ChatConversationKeyVersion> ChatConversationKeyVersions => Set<Data.Chat.ChatConversationKeyVersion>();
+    public DbSet<Data.Chat.ChatMessage> ChatMessages => Set<Data.Chat.ChatMessage>();
+    public DbSet<Data.Chat.ChatConversationReadState> ChatConversationReadStates => Set<Data.Chat.ChatConversationReadState>();
+    public DbSet<Data.Chat.ChatPublicLink> ChatPublicLinks => Set<Data.Chat.ChatPublicLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -141,6 +156,39 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.CandidateId, x.PhoneIndex })
             .IsUnique();
 
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageSiteConfig>()
+            .HasIndex(x => x.EventId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageParticipant>()
+            .HasIndex(x => new { x.EventId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageParticipantAccessToken>()
+            .HasIndex(x => x.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageParticipantAccessToken>()
+            .HasIndex(x => new { x.EventId, x.ParticipantId });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageAnnouncement>()
+            .HasIndex(x => new { x.EventId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageTask>()
+            .HasIndex(x => new { x.EventId, x.Status, x.UpdatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageParticipantIssue>()
+            .HasIndex(x => new { x.EventId, x.Status, x.UpdatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageParticipantIssue>()
+            .HasIndex(x => new { x.EventId, x.ParticipantId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PilgrimageContactInquiry>()
+            .HasIndex(x => new { x.EventId, x.Status, x.UpdatedUtc });
+
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.KeyEntryId);
         modelBuilder.Entity<KeyEntryBinding>()
@@ -160,6 +208,61 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<RoleRecoveryShare>()
             .HasIndex(x => new { x.TargetRoleId, x.SharedWithRoleId })
             .IsUnique();
+
+        modelBuilder.Entity<Data.Chat.ChatConversation>()
+            .HasIndex(x => x.UpdatedUtc);
+        modelBuilder.Entity<Data.Chat.ChatConversation>()
+            .HasIndex(x => new { x.ScopeType, x.ScopeId, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Chat.ChatConversation>()
+            .HasIndex(x => x.PublicCodeHash)
+            .HasFilter("[PublicCodeHash] IS NOT NULL");
+
+        modelBuilder.Entity<Data.Chat.ChatConversationParticipant>()
+            .HasIndex(x => new { x.ConversationId, x.RemovedUtc });
+        modelBuilder.Entity<Data.Chat.ChatConversationParticipant>()
+            .HasIndex(x => new { x.ConversationId, x.SubjectType, x.SubjectId, x.RemovedUtc });
+        modelBuilder.Entity<Data.Chat.ChatConversationParticipant>()
+            .HasOne<Data.Chat.ChatConversation>()
+            .WithMany()
+            .HasForeignKey(x => x.ConversationId);
+
+        modelBuilder.Entity<Data.Chat.ChatConversationKeyVersion>()
+            .HasIndex(x => new { x.ConversationId, x.Version })
+            .IsUnique();
+        modelBuilder.Entity<Data.Chat.ChatConversationKeyVersion>()
+            .HasOne<Data.Chat.ChatConversation>()
+            .WithMany()
+            .HasForeignKey(x => x.ConversationId);
+
+        modelBuilder.Entity<Data.Chat.ChatMessage>()
+            .HasIndex(x => new { x.ConversationId, x.Sequence })
+            .IsUnique();
+        modelBuilder.Entity<Data.Chat.ChatMessage>()
+            .HasIndex(x => new { x.ConversationId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Chat.ChatMessage>()
+            .HasIndex(x => new { x.ConversationId, x.Visibility, x.Sequence });
+        modelBuilder.Entity<Data.Chat.ChatMessage>()
+            .HasOne<Data.Chat.ChatConversation>()
+            .WithMany()
+            .HasForeignKey(x => x.ConversationId);
+
+        modelBuilder.Entity<Data.Chat.ChatConversationReadState>()
+            .HasIndex(x => new { x.ConversationId, x.UserId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Chat.ChatConversationReadState>()
+            .HasOne<Data.Chat.ChatConversation>()
+            .WithMany()
+            .HasForeignKey(x => x.ConversationId);
+
+        modelBuilder.Entity<Data.Chat.ChatPublicLink>()
+            .HasIndex(x => x.CodeHash)
+            .IsUnique();
+        modelBuilder.Entity<Data.Chat.ChatPublicLink>()
+            .HasIndex(x => new { x.ConversationId, x.IsActive, x.RevokedUtc, x.ExpiresUtc });
+        modelBuilder.Entity<Data.Chat.ChatPublicLink>()
+            .HasOne<Data.Chat.ChatConversation>()
+            .WithMany()
+            .HasForeignKey(x => x.ConversationId);
 
 
         modelBuilder.Entity<RoleRecoveryApproval>()

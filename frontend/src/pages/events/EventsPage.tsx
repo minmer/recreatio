@@ -1,9 +1,29 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
+import {
+  ApiError,
+  createPilgrimageAnnouncement,
+  createPilgrimageContactInquiry,
+  createPilgrimageParticipantIssue,
+  createPilgrimageRegistration,
+  createPilgrimageTask,
+  getPilgrimageExportUrl,
+  getPilgrimageOrganizerDashboard,
+  getPilgrimageParticipantZone,
+  getPilgrimageSite,
+  updatePilgrimageIssue,
+  updatePilgrimageInquiry,
+  updatePilgrimageParticipant,
+  updatePilgrimageTask,
+  type PilgrimageOrganizerDashboard,
+  type PilgrimageParticipantZone,
+  type PilgrimageSection,
+  type PilgrimageSite
+} from '../../lib/api';
 import '../../styles/events.css';
 
 type EventInnerPage = {
@@ -50,13 +70,21 @@ const EVENTS: EventDefinition[] = [
   {
     slug: 'kal26',
     title: '5. piesza pielgrzymka z Krakowa do Kalwarii Zebrzydowskiej',
-    summary: 'Wspolna pielgrzymka piesza z codzienna modlitwa i liturgia w drodze.',
-    date: '01.05.2026-03.05.2026',
+    summary: 'Pelny serwis wydarzenia: publiczny, uczestnika i organizatora.',
+    date: '17.04.2026-18.04.2026',
     location: 'Krakow - Kalwaria Zebrzydowska',
     pages: [
-      { slug: 'opis', title: 'Opis' },
+      { slug: 'start', title: 'Start' },
+      { slug: 'o-pielgrzymce', title: 'O pielgrzymce' },
+      { slug: 'program', title: 'Program' },
       { slug: 'trasa', title: 'Trasa' },
-      { slug: 'uczestnictwo', title: 'Uczestnictwo' }
+      { slug: 'zapisy', title: 'Zapisy' },
+      { slug: 'niezbednik', title: 'Niezbednik' },
+      { slug: 'faq', title: 'FAQ' },
+      { slug: 'kontakt', title: 'Kontakt' },
+      { slug: 'formalnosci', title: 'Formalnosci' },
+      { slug: 'uczestnik', title: 'Strefa uczestnika' },
+      { slug: 'organizator', title: 'Panel organizatora' }
     ]
   }
 ];
@@ -120,9 +148,7 @@ function WarsztatyBody({ pageSlug }: { pageSlug: string }) {
         Celem warsztatow jest zachwyt nad Bogiem przez liturgie i muzyke. Pracujemy nad spiewem wieloglosowym SATB, a
         zwienczeniem sa Msze Swiete, podczas ktorych wykonamy przygotowane utwory.
       </p>
-      <p>
-        Tematyka: wielkopostna i eucharystyczna. Po Mszy przewidziany jest czas adoracji.
-      </p>
+      <p>Tematyka: wielkopostna i eucharystyczna. Po Mszy przewidziany jest czas adoracji.</p>
       <h3>Dla kogo?</h3>
       <p>
         Dla pasjonatow, poczatkujacych i doswiadczonych. Mozna zaczac takze bez formalnego przygotowania, jesli
@@ -197,32 +223,77 @@ function WarsztatyEventPage({
   );
 }
 
-function Kal26Body({ pageSlug }: { pageSlug: string }) {
-  if (pageSlug === 'trasa') {
-    return (
-      <>
-        <h2>Trasa</h2>
-        <p>Dzien 1: wyjscie z Krakowa i dojscie do punktu noclegowego.</p>
-        <p>Dzien 2-3: dalsza droga i wejscie do Kalwarii Zebrzydowskiej.</p>
-      </>
-    );
-  }
+type RegistrationFormState = {
+  fullName: string;
+  phone: string;
+  email: string;
+  parish: string;
+  birthDate: string;
+  isMinor: boolean;
+  participationVariant: string;
+  needsLodging: boolean;
+  needsBaggageTransport: boolean;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  healthNotes: string;
+  dietNotes: string;
+  acceptedTerms: boolean;
+  acceptedRodo: boolean;
+  acceptedImageConsent: boolean;
+};
 
-  if (pageSlug === 'uczestnictwo') {
-    return (
-      <>
-        <h2>Uczestnictwo</h2>
-        <p>Zapisy przez formularz wydarzenia oraz punkt parafialny.</p>
-        <p>Wymagane jest potwierdzenie regulaminu i danych kontaktowych.</p>
-      </>
-    );
-  }
+const defaultRegistrationForm: RegistrationFormState = {
+  fullName: '',
+  phone: '',
+  email: '',
+  parish: '',
+  birthDate: '',
+  isMinor: false,
+  participationVariant: 'full',
+  needsLodging: true,
+  needsBaggageTransport: true,
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  healthNotes: '',
+  dietNotes: '',
+  acceptedTerms: false,
+  acceptedRodo: false,
+  acceptedImageConsent: false
+};
 
+type ContactFormState = {
+  name: string;
+  phone: string;
+  email: string;
+  topic: string;
+  message: string;
+};
+
+const defaultContactForm: ContactFormState = {
+  name: '',
+  phone: '',
+  email: '',
+  topic: 'Pytanie organizacyjne',
+  message: ''
+};
+
+function PilgrimageSectionBlock({ section }: { section: PilgrimageSection }) {
   return (
-    <>
-      <h2>Opis</h2>
-      <p>Wspolna droga modlitwy i budowania wspolnoty na trasie Krakow - Kalwaria Zebrzydowska.</p>
-    </>
+    <section className="pilgrimage-section-block" id={`kal-${section.id}`}>
+      <header>
+        <h2>{section.title}</h2>
+        {section.lead ? <p>{section.lead}</p> : null}
+      </header>
+      <div className="pilgrimage-card-grid">
+        {section.cards.map((card) => (
+          <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
+            <h3>{card.title}</h3>
+            <p>{card.body}</p>
+            {card.meta ? <small>{card.meta}</small> : null}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -241,13 +312,1663 @@ function Kal26EventPage({
   page,
   event
 }: SharedEventPageProps & { page: EventInnerPage; event: EventDefinition }) {
+  const location = useLocation();
+  const queryToken = useMemo(() => new URLSearchParams(location.search).get('token') ?? '', [location.search]);
+  const [site, setSite] = useState<PilgrimageSite | null>(null);
+  const [siteLoading, setSiteLoading] = useState(true);
+  const [siteError, setSiteError] = useState<string | null>(null);
+
+  const [registrationForm, setRegistrationForm] = useState<RegistrationFormState>(defaultRegistrationForm);
+  const [registrationPending, setRegistrationPending] = useState(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [registrationResult, setRegistrationResult] = useState<{ link: string; token: string } | null>(null);
+  const [registrationStep, setRegistrationStep] = useState<1 | 2 | 3 | 4>(1);
+
+  const [participantToken, setParticipantToken] = useState(queryToken);
+  const [participantPending, setParticipantPending] = useState(false);
+  const [participantError, setParticipantError] = useState<string | null>(null);
+  const [participantZone, setParticipantZone] = useState<PilgrimageParticipantZone | null>(null);
+  const [participantIssueKind, setParticipantIssueKind] = useState('problem');
+  const [participantIssueMessage, setParticipantIssueMessage] = useState('');
+  const [participantIssuePending, setParticipantIssuePending] = useState(false);
+  const [participantIssueStatus, setParticipantIssueStatus] = useState<string | null>(null);
+
+  const [organizerPending, setOrganizerPending] = useState(false);
+  const [organizerError, setOrganizerError] = useState<string | null>(null);
+  const [organizerDashboard, setOrganizerDashboard] = useState<PilgrimageOrganizerDashboard | null>(null);
+  const [participantDrafts, setParticipantDrafts] = useState<
+    Record<string, {
+      registrationStatus: string;
+      paymentStatus: string;
+      attendanceStatus: string;
+      groupName: string;
+      needsLodging: boolean;
+      needsBaggageTransport: boolean;
+    }>
+  >({});
+  const [issueDrafts, setIssueDrafts] = useState<Record<string, { status: string; resolutionNote: string }>>({});
+  const [taskDrafts, setTaskDrafts] = useState<
+    Record<string, {
+      title: string;
+      description: string;
+      status: string;
+      priority: string;
+      assignee: string;
+      comments: string;
+      attachments: string;
+      dueUtc: string;
+    }>
+  >({});
+  const [inquiryDrafts, setInquiryDrafts] = useState<Record<string, { status: string }>>({});
+  const [participantSearch, setParticipantSearch] = useState('');
+  const [participantStatusFilter, setParticipantStatusFilter] = useState('all');
+  const [participantPaymentFilter, setParticipantPaymentFilter] = useState('all');
+  const [participantVariantFilter, setParticipantVariantFilter] = useState('all');
+  const [organizerActionError, setOrganizerActionError] = useState<string | null>(null);
+  const [organizerSavingId, setOrganizerSavingId] = useState<string | null>(null);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementBody, setAnnouncementBody] = useState('');
+  const [announcementAudience, setAnnouncementAudience] = useState('participant');
+  const [announcementCritical, setAnnouncementCritical] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskAssignee, setTaskAssignee] = useState('');
+  const [taskComments, setTaskComments] = useState('');
+  const [taskAttachments, setTaskAttachments] = useState('');
+  const [taskDueUtc, setTaskDueUtc] = useState('');
+
+  const [contactForm, setContactForm] = useState<ContactFormState>(defaultContactForm);
+  const [contactPending, setContactPending] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [contactSuccess, setContactSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    setParticipantToken(queryToken);
+  }, [queryToken]);
+
+  useEffect(() => {
+    let active = true;
+    setSiteLoading(true);
+    setSiteError(null);
+    getPilgrimageSite(event.slug)
+      .then((response) => {
+        if (!active) return;
+        setSite(response);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setSiteError(error instanceof Error ? error.message : 'Nie udalo sie pobrac strony pielgrzymki.');
+      })
+      .finally(() => {
+        if (!active) return;
+        setSiteLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [event.slug]);
+
+  useEffect(() => {
+    if (page.slug !== 'uczestnik') return;
+    if (!participantToken || participantToken.trim().length === 0) return;
+    if (participantZone || participantPending) return;
+
+    setParticipantPending(true);
+    setParticipantError(null);
+    getPilgrimageParticipantZone(event.slug, participantToken.trim())
+      .then((zone) => {
+        setParticipantZone(zone);
+      })
+      .catch((error: unknown) => {
+        setParticipantError(error instanceof Error ? error.message : 'Nie udalo sie zaladowac strefy uczestnika.');
+      })
+      .finally(() => {
+        setParticipantPending(false);
+      });
+  }, [event.slug, page.slug, participantPending, participantToken, participantZone]);
+
+  const loadOrganizerDashboard = async () => {
+    if (!showProfileMenu) {
+      setOrganizerDashboard(null);
+      return;
+    }
+    if (!site?.id) {
+      setOrganizerError('Panel organizatora wymaga skonfigurowanego wydarzenia w bazie.');
+      return;
+    }
+
+    setOrganizerPending(true);
+    setOrganizerError(null);
+    try {
+      const dashboard = await getPilgrimageOrganizerDashboard(site.id);
+      setOrganizerDashboard(dashboard);
+    } catch (error: unknown) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        setOrganizerError('Brak dostepu do panelu organizatora dla aktualnych rol.');
+      } else {
+        setOrganizerError(error instanceof Error ? error.message : 'Nie udalo sie pobrac panelu organizatora.');
+      }
+    } finally {
+      setOrganizerPending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (page.slug !== 'organizator') return;
+    void loadOrganizerDashboard();
+  }, [page.slug, showProfileMenu, site?.id]);
+
+  useEffect(() => {
+    if (!organizerDashboard) return;
+    const participantMap: Record<string, {
+      registrationStatus: string;
+      paymentStatus: string;
+      attendanceStatus: string;
+      groupName: string;
+      needsLodging: boolean;
+      needsBaggageTransport: boolean;
+    }> = {};
+    organizerDashboard.participants.forEach((entry) => {
+      participantMap[entry.id] = {
+        registrationStatus: entry.registrationStatus,
+        paymentStatus: entry.paymentStatus,
+        attendanceStatus: entry.attendanceStatus,
+        groupName: entry.groupName ?? '',
+        needsLodging: entry.needsLodging,
+        needsBaggageTransport: entry.needsBaggageTransport
+      };
+    });
+    setParticipantDrafts(participantMap);
+
+    const issueMap: Record<string, { status: string; resolutionNote: string }> = {};
+    organizerDashboard.issues.forEach((issue) => {
+      issueMap[issue.id] = {
+        status: issue.status,
+        resolutionNote: issue.resolutionNote ?? ''
+      };
+    });
+    setIssueDrafts(issueMap);
+
+    const taskMap: Record<string, {
+      title: string;
+      description: string;
+      status: string;
+      priority: string;
+      assignee: string;
+      comments: string;
+      attachments: string;
+      dueUtc: string;
+    }> = {};
+    organizerDashboard.tasks.forEach((task) => {
+      taskMap[task.id] = {
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        assignee: task.assignee,
+        comments: task.comments ?? '',
+        attachments: task.attachments ?? '',
+        dueUtc: task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : ''
+      };
+    });
+    setTaskDrafts(taskMap);
+
+    const inquiryMap: Record<string, { status: string }> = {};
+    organizerDashboard.inquiries.forEach((inquiry) => {
+      inquiryMap[inquiry.id] = { status: inquiry.status };
+    });
+    setInquiryDrafts(inquiryMap);
+  }, [organizerDashboard]);
+
+  const publicSections = site?.site.public.sections ?? [];
+  const sectionById = (id: string) => publicSections.find((section) => section.id === id) ?? null;
+
+  const startSections = useMemo(() => {
+    const order = ['najwazniejsze', 'jak-wyglada', 'program'];
+    return order
+      .map((id) => sectionById(id))
+      .filter((section): section is PilgrimageSection => section !== null);
+  }, [publicSections]);
+
+  const aboutSections = useMemo(() => {
+    const order = ['jak-wyglada', 'najwazniejsze'];
+    return order
+      .map((id) => sectionById(id))
+      .filter((section): section is PilgrimageSection => section !== null);
+  }, [publicSections]);
+
+  const contactSections = useMemo(() => {
+    const order = ['kontakt'];
+    return order
+      .map((id) => sectionById(id))
+      .filter((section): section is PilgrimageSection => section !== null);
+  }, [publicSections]);
+
+  const filteredParticipants = useMemo(() => {
+    if (!organizerDashboard) {
+      return [];
+    }
+
+    const normalizedSearch = participantSearch.trim().toLowerCase();
+    return organizerDashboard.participants.filter((row) => {
+      if (participantStatusFilter !== 'all' && row.registrationStatus !== participantStatusFilter) {
+        return false;
+      }
+      if (participantPaymentFilter !== 'all' && row.paymentStatus !== participantPaymentFilter) {
+        return false;
+      }
+      if (participantVariantFilter !== 'all' && row.participationVariant !== participantVariantFilter) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const haystack = `${row.fullName} ${row.phone} ${row.email ?? ''} ${row.groupName ?? ''}`.toLowerCase();
+      return haystack.includes(normalizedSearch);
+    });
+  }, [
+    organizerDashboard,
+    participantPaymentFilter,
+    participantSearch,
+    participantStatusFilter,
+    participantVariantFilter
+  ]);
+
+  const signupSection = sectionById('zapisy');
+
+  const handleRegistrationSubmit = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    if (registrationStep < 4) {
+      goToNextRegistrationStep();
+      return;
+    }
+
+    setRegistrationPending(true);
+    setRegistrationError(null);
+    setRegistrationResult(null);
+
+    try {
+      const response = await createPilgrimageRegistration(event.slug, {
+        fullName: registrationForm.fullName,
+        phone: registrationForm.phone,
+        email: registrationForm.email || null,
+        parish: registrationForm.parish || null,
+        birthDate: registrationForm.birthDate || null,
+        isMinor: registrationForm.isMinor,
+        participationVariant: registrationForm.participationVariant,
+        needsLodging: registrationForm.needsLodging,
+        needsBaggageTransport: registrationForm.needsBaggageTransport,
+        emergencyContactName: registrationForm.emergencyContactName,
+        emergencyContactPhone: registrationForm.emergencyContactPhone,
+        healthNotes: registrationForm.healthNotes || null,
+        dietNotes: registrationForm.dietNotes || null,
+        acceptedTerms: registrationForm.acceptedTerms,
+        acceptedRodo: registrationForm.acceptedRodo,
+        acceptedImageConsent: registrationForm.acceptedImageConsent
+      });
+      setRegistrationResult({ link: response.accessLink, token: response.accessToken });
+      setParticipantToken(response.accessToken);
+      setRegistrationForm(defaultRegistrationForm);
+      setRegistrationStep(1);
+    } catch (error: unknown) {
+      setRegistrationError(error instanceof Error ? error.message : 'Nie udalo sie zapisac uczestnika.');
+    } finally {
+      setRegistrationPending(false);
+    }
+  };
+
+  const goToNextRegistrationStep = () => {
+    setRegistrationError(null);
+    if (registrationStep === 1) {
+      if (!registrationForm.fullName.trim() || !registrationForm.phone.trim()) {
+        setRegistrationError('W kroku 1 uzupelnij imie i nazwisko oraz telefon.');
+        return;
+      }
+    }
+
+    if (registrationStep === 3) {
+      if (!registrationForm.emergencyContactName.trim() || !registrationForm.emergencyContactPhone.trim()) {
+        setRegistrationError('W kroku 3 uzupelnij kontakt awaryjny.');
+        return;
+      }
+    }
+
+    setRegistrationStep((previous) => (previous + 1) as 1 | 2 | 3 | 4);
+  };
+
+  const loadParticipantZone = async () => {
+    if (!participantToken.trim()) {
+      setParticipantError('Podaj token z SMS.');
+      return;
+    }
+
+    setParticipantPending(true);
+    setParticipantError(null);
+    try {
+      const zone = await getPilgrimageParticipantZone(event.slug, participantToken.trim());
+      setParticipantZone(zone);
+    } catch (error: unknown) {
+      setParticipantError(error instanceof Error ? error.message : 'Nie udalo sie zaladowac strefy uczestnika.');
+    } finally {
+      setParticipantPending(false);
+    }
+  };
+
+  const handleParticipantIssueSubmit = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    if (!participantToken.trim()) {
+      setParticipantIssueStatus('Podaj token uczestnika.');
+      return;
+    }
+    if (!participantIssueMessage.trim()) {
+      setParticipantIssueStatus('Wpisz tresc zgloszenia.');
+      return;
+    }
+
+    setParticipantIssuePending(true);
+    setParticipantIssueStatus(null);
+    try {
+      await createPilgrimageParticipantIssue(event.slug, participantToken.trim(), {
+        kind: participantIssueKind,
+        message: participantIssueMessage.trim()
+      });
+      setParticipantIssueMessage('');
+      setParticipantIssueStatus('Zgloszenie wyslane do organizatorow.');
+    } catch (error: unknown) {
+      setParticipantIssueStatus(error instanceof Error ? error.message : 'Nie udalo sie wyslac zgloszenia.');
+    } finally {
+      setParticipantIssuePending(false);
+    }
+  };
+
+  const handleContactSubmit = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    setContactPending(true);
+    setContactError(null);
+    setContactSuccess(null);
+    try {
+      await createPilgrimageContactInquiry(event.slug, {
+        name: contactForm.name,
+        phone: contactForm.phone || null,
+        email: contactForm.email || null,
+        topic: contactForm.topic,
+        message: contactForm.message
+      });
+      setContactSuccess('Wiadomosc zostala wyslana.');
+      setContactForm(defaultContactForm);
+    } catch (error: unknown) {
+      setContactError(error instanceof Error ? error.message : 'Nie udalo sie wyslac wiadomosci.');
+    } finally {
+      setContactPending(false);
+    }
+  };
+
+  const handleParticipantUpdate = async (participantId: string) => {
+    if (!site?.id) return;
+    const draft = participantDrafts[participantId];
+    if (!draft) return;
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`participant:${participantId}`);
+    try {
+      await updatePilgrimageParticipant(site.id, participantId, {
+        registrationStatus: draft.registrationStatus,
+        paymentStatus: draft.paymentStatus,
+        attendanceStatus: draft.attendanceStatus,
+        groupName: draft.groupName || null,
+        needsLodging: draft.needsLodging,
+        needsBaggageTransport: draft.needsBaggageTransport
+      });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac uczestnika.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleIssueUpdate = async (issueId: string) => {
+    if (!site?.id) return;
+    const draft = issueDrafts[issueId];
+    if (!draft) return;
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`issue:${issueId}`);
+    try {
+      await updatePilgrimageIssue(site.id, issueId, {
+        status: draft.status,
+        resolutionNote: draft.resolutionNote || null
+      });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac zgloszenia.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleTaskUpdate = async (taskId: string) => {
+    if (!site?.id) return;
+    const draft = taskDrafts[taskId];
+    if (!draft) return;
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`task:${taskId}`);
+    try {
+      await updatePilgrimageTask(site.id, taskId, {
+        title: draft.title,
+        description: draft.description,
+        status: draft.status,
+        priority: draft.priority,
+        assignee: draft.assignee,
+        comments: draft.comments || null,
+        attachments: draft.attachments || null,
+        dueUtc: draft.dueUtc ? new Date(draft.dueUtc).toISOString() : null
+      });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac zadania.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleInquiryUpdate = async (inquiryId: string) => {
+    if (!site?.id) return;
+    const draft = inquiryDrafts[inquiryId];
+    if (!draft) return;
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`inquiry:${inquiryId}`);
+    try {
+      await updatePilgrimageInquiry(site.id, inquiryId, { status: draft.status });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac zapytania.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleAnnouncementCreate = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    if (!site?.id) return;
+    setOrganizerActionError(null);
+    setOrganizerSavingId('announcement:create');
+    try {
+      await createPilgrimageAnnouncement(site.id, {
+        audience: announcementAudience,
+        title: announcementTitle,
+        body: announcementBody,
+        isCritical: announcementCritical
+      });
+      setAnnouncementTitle('');
+      setAnnouncementBody('');
+      setAnnouncementCritical(false);
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie dodac komunikatu.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleTaskCreate = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    if (!site?.id) return;
+    setOrganizerActionError(null);
+    setOrganizerSavingId('task:create');
+    try {
+      await createPilgrimageTask(site.id, {
+        title: taskTitle,
+        description: taskDescription,
+        status: 'todo',
+        priority: 'normal',
+        assignee: taskAssignee || undefined,
+        comments: taskComments || null,
+        attachments: taskAttachments || null,
+        dueUtc: taskDueUtc ? new Date(taskDueUtc).toISOString() : null
+      });
+      setTaskTitle('');
+      setTaskDescription('');
+      setTaskAssignee('');
+      setTaskComments('');
+      setTaskAttachments('');
+      setTaskDueUtc('');
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie dodac zadania.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const renderPublicPage = () => {
+    const programSection = sectionById('program');
+    const routeSection = sectionById('trasa');
+    const checklistSection = sectionById('niezbednik');
+    const faqSection = sectionById('faq');
+    const legalSection = sectionById('formalnosci');
+
+    if (page.slug === 'start') {
+      const photoSection = sectionById('foto');
+      return (
+        <>
+          {startSections.map((section) => <PilgrimageSectionBlock key={section.id} section={section} />)}
+          {photoSection ? <PilgrimageSectionBlock section={photoSection} /> : null}
+        </>
+      );
+    }
+
+    if (page.slug === 'o-pielgrzymce') {
+      return <>{aboutSections.map((section) => <PilgrimageSectionBlock key={section.id} section={section} />)}</>;
+    }
+
+    if (page.slug === 'program' && programSection) {
+      return <PilgrimageSectionBlock section={programSection} />;
+    }
+
+    if (page.slug === 'trasa' && routeSection) {
+      return (
+        <>
+          <PilgrimageSectionBlock section={routeSection} />
+          <section className="pilgrimage-signup-form">
+            <h3>Mapa i pliki trasy</h3>
+            <div className="pilgrimage-quick-links">
+              <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Pobierz mape PDF (w przygotowaniu)</a>
+              <a className="ghost" href="https://maps.google.com" target="_blank" rel="noreferrer">Otworz trase w Google Maps</a>
+              <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Pobierz plik GPX (w przygotowaniu)</a>
+            </div>
+          </section>
+        </>
+      );
+    }
+
+    if (page.slug === 'niezbednik' && checklistSection) {
+      return <PilgrimageSectionBlock section={checklistSection} />;
+    }
+
+    if (page.slug === 'faq' && faqSection) {
+      return (
+        <section className="pilgrimage-section-block" id={`kal-${faqSection.id}`}>
+          <header>
+            <h2>{faqSection.title}</h2>
+            {faqSection.lead ? <p>{faqSection.lead}</p> : null}
+          </header>
+          <div className="pilgrimage-accordion">
+            {faqSection.cards.map((card) => (
+              <details key={card.id} className="pilgrimage-accordion-item">
+                <summary>{card.title}</summary>
+                <p>{card.body}</p>
+                {card.meta ? <small>{card.meta}</small> : null}
+              </details>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    if (page.slug === 'formalnosci' && legalSection) {
+      return <PilgrimageSectionBlock section={legalSection} />;
+    }
+
+    if (page.slug === 'kontakt') {
+      return (
+        <>
+          {contactSections.map((section) => <PilgrimageSectionBlock key={section.id} section={section} />)}
+          <section className="pilgrimage-signup-form">
+            <h2>Formularz kontaktowy</h2>
+            <form onSubmit={handleContactSubmit}>
+              <div className="pilgrimage-form-grid">
+                <label>
+                  Imie i nazwisko
+                  <input
+                    value={contactForm.name}
+                    onChange={(eventInput) => setContactForm((previous) => ({ ...previous, name: eventInput.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Telefon
+                  <input
+                    value={contactForm.phone}
+                    onChange={(eventInput) => setContactForm((previous) => ({ ...previous, phone: eventInput.target.value }))}
+                  />
+                </label>
+                <label>
+                  E-mail
+                  <input
+                    value={contactForm.email}
+                    onChange={(eventInput) => setContactForm((previous) => ({ ...previous, email: eventInput.target.value }))}
+                  />
+                </label>
+                <label>
+                  Temat
+                  <input
+                    value={contactForm.topic}
+                    onChange={(eventInput) => setContactForm((previous) => ({ ...previous, topic: eventInput.target.value }))}
+                    required
+                  />
+                </label>
+                <label className="full-width">
+                  Wiadomosc
+                  <textarea
+                    value={contactForm.message}
+                    onChange={(eventInput) => setContactForm((previous) => ({ ...previous, message: eventInput.target.value }))}
+                    required
+                  />
+                </label>
+              </div>
+              <button className="cta" type="submit" disabled={contactPending}>
+                {contactPending ? 'Wysylanie...' : 'Wyslij'}
+              </button>
+              {contactError ? <p className="pilgrimage-error">{contactError}</p> : null}
+              {contactSuccess ? <p className="pilgrimage-success">{contactSuccess}</p> : null}
+            </form>
+          </section>
+        </>
+      );
+    }
+
+    if (page.slug === 'zapisy') {
+      return (
+        <>
+          {signupSection ? <PilgrimageSectionBlock section={signupSection} /> : null}
+          <section className="pilgrimage-signup-form">
+            <h2>Formularz zapisow (4 kroki)</h2>
+            <form onSubmit={handleRegistrationSubmit}>
+              <p>Krok {registrationStep} z 4</p>
+              {registrationStep === 1 ? (
+                <div className="pilgrimage-form-grid">
+                  <label>
+                    Imie i nazwisko
+                    <input
+                      value={registrationForm.fullName}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, fullName: eventInput.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Telefon
+                    <input
+                      value={registrationForm.phone}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, phone: eventInput.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    E-mail
+                    <input
+                      value={registrationForm.email}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, email: eventInput.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Parafia / wspolnota
+                    <input
+                      value={registrationForm.parish}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, parish: eventInput.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Data urodzenia
+                    <input
+                      type="date"
+                      value={registrationForm.birthDate}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, birthDate: eventInput.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.isMinor}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, isMinor: eventInput.target.checked }))
+                      }
+                    />
+                    Uczestnik niepelnoletni
+                  </label>
+                </div>
+              ) : null}
+
+              {registrationStep === 2 ? (
+                <div className="pilgrimage-form-grid">
+                  <label>
+                    Wariant udzialu
+                    <select
+                      value={registrationForm.participationVariant}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, participationVariant: eventInput.target.value }))
+                      }
+                    >
+                      <option value="full">Calosc</option>
+                      <option value="saturday">Tylko sobota</option>
+                      <option value="without-lodging">Bez noclegu</option>
+                      <option value="with-lodging">Z noclegiem</option>
+                    </select>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.needsLodging}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, needsLodging: eventInput.target.checked }))
+                      }
+                    />
+                    Potrzebuje noclegu
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.needsBaggageTransport}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, needsBaggageTransport: eventInput.target.checked }))
+                      }
+                    />
+                    Potrzebuje transportu bagazu
+                  </label>
+                </div>
+              ) : null}
+
+              {registrationStep === 3 ? (
+                <div className="pilgrimage-form-grid">
+                  <label>
+                    Kontakt awaryjny (imie i nazwisko)
+                    <input
+                      value={registrationForm.emergencyContactName}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, emergencyContactName: eventInput.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Telefon awaryjny
+                    <input
+                      value={registrationForm.emergencyContactPhone}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, emergencyContactPhone: eventInput.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label className="full-width">
+                    Uwagi zdrowotne
+                    <textarea
+                      value={registrationForm.healthNotes}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, healthNotes: eventInput.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="full-width">
+                    Dieta i preferencje
+                    <textarea
+                      value={registrationForm.dietNotes}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, dietNotes: eventInput.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
+
+              {registrationStep === 4 ? (
+                <div className="pilgrimage-form-checks">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.acceptedTerms}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, acceptedTerms: eventInput.target.checked }))
+                      }
+                      required
+                    />
+                    Akceptuje regulamin
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.acceptedRodo}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, acceptedRodo: eventInput.target.checked }))
+                      }
+                      required
+                    />
+                    Akceptuje RODO
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={registrationForm.acceptedImageConsent}
+                      onChange={(eventInput) =>
+                        setRegistrationForm((previous) => ({ ...previous, acceptedImageConsent: eventInput.target.checked }))
+                      }
+                    />
+                    Zgoda na wykorzystanie wizerunku
+                  </label>
+                </div>
+              ) : null}
+
+              <div className="pilgrimage-quick-links">
+                {registrationStep > 1 ? (
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setRegistrationError(null);
+                      setRegistrationStep((previous) => (previous - 1) as 1 | 2 | 3 | 4);
+                    }}
+                  >
+                    Wstecz
+                  </button>
+                ) : null}
+                {registrationStep < 4 ? (
+                  <button className="cta" type="button" onClick={goToNextRegistrationStep}>
+                    Dalej
+                  </button>
+                ) : (
+                  <button className="cta" type="submit" disabled={registrationPending}>
+                    {registrationPending ? 'Zapisywanie...' : 'Wyslij zapis'}
+                  </button>
+                )}
+              </div>
+              {registrationError ? <p className="pilgrimage-error">{registrationError}</p> : null}
+              {registrationResult ? (
+                <p className="pilgrimage-success">
+                  Zapisano. Link uczestnika: <a href={registrationResult.link}>{registrationResult.link}</a>
+                </p>
+              ) : null}
+            </form>
+          </section>
+        </>
+      );
+    }
+
+    return <p>Brak tresci dla wybranej sekcji.</p>;
+  };
+
+  const renderParticipantPage = () => {
+    return (
+      <>
+        <section className="pilgrimage-participant-access">
+          <h2>Strefa uczestnika</h2>
+          <p>Dostep przez unikalny link wysylany SMS po zapisie.</p>
+          <div className="pilgrimage-participant-token-row">
+            <input
+              placeholder="Wklej token z SMS"
+              value={participantToken}
+              onChange={(eventInput) => setParticipantToken(eventInput.target.value)}
+            />
+            <button className="cta" onClick={loadParticipantZone} disabled={participantPending}>
+              {participantPending ? 'Ladowanie...' : 'Otworz'}
+            </button>
+          </div>
+          {participantError ? <p className="pilgrimage-error">{participantError}</p> : null}
+        </section>
+
+        {participantZone ? (
+          <>
+            <section className="pilgrimage-participant-profile">
+              <h3>{participantZone.participant.fullName}</h3>
+              <p>
+                Status: <strong>{participantZone.participant.registrationStatus}</strong> | Platnosc:{' '}
+                <strong>{participantZone.participant.paymentStatus}</strong> | Obecnosc:{' '}
+                <strong>{participantZone.participant.attendanceStatus}</strong>
+              </p>
+              <p>
+                Wariant: {participantZone.participant.participationVariant} | Nocleg:{' '}
+                {participantZone.participant.needsLodging ? 'tak' : 'nie'} | Bagaz:{' '}
+                {participantZone.participant.needsBaggageTransport ? 'tak' : 'nie'}
+              </p>
+              <p>
+                Grupa: {participantZone.participant.groupName || 'nieprzypisana'} | Kontakt awaryjny:{' '}
+                {participantZone.participant.emergencyContactName} ({participantZone.participant.emergencyContactPhone})
+              </p>
+              <div className="pilgrimage-quick-links">
+                <a className="ghost" href="#kal-participant-schedule">Harmonogram</a>
+                <a className="ghost" href="#kal-participant-checklist">Co zabrac</a>
+                <a className="ghost" href="#kal-participant-emergency">Kontakt awaryjny</a>
+                <a className="ghost" href={`/#/event/${event.slug}/trasa`}>Mapa trasy</a>
+              </div>
+            </section>
+
+            {participantZone.zone.sections.map((section) => (
+              <PilgrimageSectionBlock key={section.id} section={section} />
+            ))}
+
+            <section className="pilgrimage-announcements">
+              <h3>Komunikaty</h3>
+              <div className="pilgrimage-announcement-list">
+                {participantZone.announcements.map((entry) => (
+                  <article key={entry.id} className={entry.isCritical ? 'critical' : ''}>
+                    <h4>{entry.title}</h4>
+                    <p>{entry.body}</p>
+                    <small>{new Date(entry.createdUtc).toLocaleString()}</small>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="pilgrimage-signup-form">
+              <h3>Zglos problem / potrzebe odbioru</h3>
+              <div className="pilgrimage-quick-links">
+                <a className="ghost" href={`tel:${participantZone.participant.emergencyContactPhone}`}>Zadzwon awaryjnie</a>
+                <a className="ghost" href={`sms:${participantZone.participant.emergencyContactPhone}`}>Wyslij SMS</a>
+              </div>
+              <form onSubmit={handleParticipantIssueSubmit}>
+                <div className="pilgrimage-form-grid">
+                  <label>
+                    Typ zgloszenia
+                    <select value={participantIssueKind} onChange={(eventInput) => setParticipantIssueKind(eventInput.target.value)}>
+                      <option value="problem">Problem na trasie</option>
+                      <option value="pickup">Potrzeba odbioru</option>
+                      <option value="resignation">Rezygnacja</option>
+                      <option value="health-alert">Alert zdrowotny</option>
+                      <option value="question">Pytanie</option>
+                    </select>
+                  </label>
+                  <label className="full-width">
+                    Opis
+                    <textarea
+                      value={participantIssueMessage}
+                      onChange={(eventInput) => setParticipantIssueMessage(eventInput.target.value)}
+                      required
+                    />
+                  </label>
+                </div>
+                <button className="cta" type="submit" disabled={participantIssuePending}>
+                  {participantIssuePending ? 'Wysylanie...' : 'Wyslij zgloszenie'}
+                </button>
+                {participantIssueStatus ? <p className="pilgrimage-success">{participantIssueStatus}</p> : null}
+              </form>
+            </section>
+          </>
+        ) : null}
+      </>
+    );
+  };
+
+  const renderOrganizerPage = () => {
+    if (!showProfileMenu) {
+      return (
+        <section className="pilgrimage-organizer-locked">
+          <h2>Panel organizatora</h2>
+          <p>Zaloguj sie, aby przejsc do panelu z danymi uczestnikow, zadaniami i komunikatami.</p>
+          <button className="cta" onClick={onAuthAction}>Zaloguj</button>
+        </section>
+      );
+    }
+
+    if (organizerPending) {
+      return <p>Ladowanie panelu organizatora...</p>;
+    }
+
+    if (organizerError) {
+      return <p className="pilgrimage-error">{organizerError}</p>;
+    }
+
+    if (!organizerDashboard) {
+      return <p>Brak danych panelu organizatora.</p>;
+    }
+
+    return (
+      <>
+        <section className="pilgrimage-organizer-stats">
+          <h2>Dashboard</h2>
+          <div className="pilgrimage-card-grid">
+            <article className="pilgrimage-card"><h3>Zgloszenia</h3><p>{organizerDashboard.stats.registrations}</p></article>
+            <article className="pilgrimage-card"><h3>Potwierdzone</h3><p>{organizerDashboard.stats.confirmed}</p></article>
+            <article className="pilgrimage-card"><h3>Oplaceni</h3><p>{organizerDashboard.stats.paid}</p></article>
+            <article className="pilgrimage-card"><h3>Nocleg</h3><p>{organizerDashboard.stats.withLodging}</p></article>
+            <article className="pilgrimage-card"><h3>Jednodniowi</h3><p>{organizerDashboard.stats.oneDay}</p></article>
+            <article className="pilgrimage-card"><h3>Niepelnoletni</h3><p>{organizerDashboard.stats.minors}</p></article>
+            <article className="pilgrimage-card"><h3>Otwarte zadania</h3><p>{organizerDashboard.stats.openTasks}</p></article>
+            <article className="pilgrimage-card"><h3>Krytyczne komunikaty</h3><p>{organizerDashboard.stats.criticalAnnouncements}</p></article>
+          </div>
+        </section>
+
+        {organizerDashboard.zone.sections.map((section) => (
+          <PilgrimageSectionBlock key={section.id} section={section} />
+        ))}
+
+        {organizerActionError ? <p className="pilgrimage-error">{organizerActionError}</p> : null}
+
+        <section className="pilgrimage-signup-form">
+          <h3>Nowy komunikat</h3>
+          <form onSubmit={handleAnnouncementCreate}>
+            <div className="pilgrimage-form-grid">
+              <label>
+                Odbiorcy
+                <select value={announcementAudience} onChange={(eventInput) => setAnnouncementAudience(eventInput.target.value)}>
+                  <option value="participant">participant</option>
+                  <option value="public">public</option>
+                  <option value="organizer">organizer</option>
+                  <option value="all">all</option>
+                </select>
+              </label>
+              <label>
+                Tytul
+                <input value={announcementTitle} onChange={(eventInput) => setAnnouncementTitle(eventInput.target.value)} required />
+              </label>
+              <label className="full-width">
+                Tresc
+                <textarea value={announcementBody} onChange={(eventInput) => setAnnouncementBody(eventInput.target.value)} required />
+              </label>
+            </div>
+            <label>
+              <input
+                type="checkbox"
+                checked={announcementCritical}
+                onChange={(eventInput) => setAnnouncementCritical(eventInput.target.checked)}
+              />
+              Krytyczny komunikat
+            </label>
+            <button className="cta" type="submit" disabled={organizerSavingId === 'announcement:create'}>
+              {organizerSavingId === 'announcement:create' ? 'Zapisywanie...' : 'Dodaj komunikat'}
+            </button>
+          </form>
+        </section>
+
+        <section className="pilgrimage-signup-form">
+          <h3>Nowe zadanie</h3>
+          <form onSubmit={handleTaskCreate}>
+            <div className="pilgrimage-form-grid">
+              <label>
+                Tytul
+                <input value={taskTitle} onChange={(eventInput) => setTaskTitle(eventInput.target.value)} required />
+              </label>
+              <label>
+                Odpowiedzialny
+                <input value={taskAssignee} onChange={(eventInput) => setTaskAssignee(eventInput.target.value)} />
+              </label>
+              <label>
+                Termin
+                <input type="datetime-local" value={taskDueUtc} onChange={(eventInput) => setTaskDueUtc(eventInput.target.value)} />
+              </label>
+              <label className="full-width">
+                Opis
+                <textarea value={taskDescription} onChange={(eventInput) => setTaskDescription(eventInput.target.value)} required />
+              </label>
+              <label className="full-width">
+                Komentarze
+                <textarea value={taskComments} onChange={(eventInput) => setTaskComments(eventInput.target.value)} />
+              </label>
+              <label className="full-width">
+                Zalaczniki (linki)
+                <input value={taskAttachments} onChange={(eventInput) => setTaskAttachments(eventInput.target.value)} />
+              </label>
+            </div>
+            <button className="cta" type="submit" disabled={organizerSavingId === 'task:create'}>
+              {organizerSavingId === 'task:create' ? 'Zapisywanie...' : 'Dodaj zadanie'}
+            </button>
+          </form>
+        </section>
+
+        <section className="pilgrimage-organizer-participants">
+          <h3>Uczestnicy</h3>
+          {site?.id ? (
+            <div className="pilgrimage-quick-links">
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'participants')} target="_blank" rel="noreferrer">
+                CSV uczestnicy
+              </a>
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'lodging')} target="_blank" rel="noreferrer">
+                CSV nocleg
+              </a>
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'payments')} target="_blank" rel="noreferrer">
+                CSV oplaty
+              </a>
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'contacts')} target="_blank" rel="noreferrer">
+                CSV kontakty
+              </a>
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'groups')} target="_blank" rel="noreferrer">
+                CSV grupy
+              </a>
+              <a className="ghost" href={getPilgrimageExportUrl(site.id, 'attendance')} target="_blank" rel="noreferrer">
+                CSV obecnosc
+              </a>
+            </div>
+          ) : null}
+          <div className="pilgrimage-form-grid">
+            <label>
+              Szukaj
+              <input
+                value={participantSearch}
+                onChange={(eventInput) => setParticipantSearch(eventInput.target.value)}
+                placeholder="Imie, telefon, email, grupa"
+              />
+            </label>
+            <label>
+              Status zgloszenia
+              <select value={participantStatusFilter} onChange={(eventInput) => setParticipantStatusFilter(eventInput.target.value)}>
+                <option value="all">all</option>
+                <option value="pending">pending</option>
+                <option value="confirmed">confirmed</option>
+                <option value="cancelled">cancelled</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </label>
+            <label>
+              Status platnosci
+              <select value={participantPaymentFilter} onChange={(eventInput) => setParticipantPaymentFilter(eventInput.target.value)}>
+                <option value="all">all</option>
+                <option value="pending">pending</option>
+                <option value="paid">paid</option>
+                <option value="waived">waived</option>
+                <option value="refunded">refunded</option>
+              </select>
+            </label>
+            <label>
+              Wariant
+              <select value={participantVariantFilter} onChange={(eventInput) => setParticipantVariantFilter(eventInput.target.value)}>
+                <option value="all">all</option>
+                <option value="full">full</option>
+                <option value="saturday">saturday</option>
+                <option value="without-lodging">without-lodging</option>
+                <option value="with-lodging">with-lodging</option>
+              </select>
+            </label>
+          </div>
+          <div className="pilgrimage-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Imie i nazwisko</th>
+                  <th>Telefon</th>
+                  <th>E-mail</th>
+                  <th>Wariant</th>
+                  <th>Grupa</th>
+                  <th>Nocleg</th>
+                  <th>Bagaz</th>
+                  <th>Platnosc</th>
+                  <th>Status</th>
+                  <th>Obecnosc</th>
+                  <th>Awaryjny</th>
+                  <th>Zdrowie / dieta</th>
+                  <th>Akcja</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredParticipants.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.fullName}</td>
+                    <td>{row.phone}</td>
+                    <td>{row.email || '-'}</td>
+                    <td>{row.participationVariant}</td>
+                    <td>
+                      <input
+                        value={participantDrafts[row.id]?.groupName ?? ''}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: previous[row.id]?.registrationStatus ?? row.registrationStatus,
+                              paymentStatus: previous[row.id]?.paymentStatus ?? row.paymentStatus,
+                              attendanceStatus: previous[row.id]?.attendanceStatus ?? row.attendanceStatus,
+                              groupName: eventInput.target.value,
+                              needsLodging: previous[row.id]?.needsLodging ?? row.needsLodging,
+                              needsBaggageTransport: previous[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport
+                            }
+                          }))
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={participantDrafts[row.id]?.needsLodging ?? row.needsLodging}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: previous[row.id]?.registrationStatus ?? row.registrationStatus,
+                              paymentStatus: previous[row.id]?.paymentStatus ?? row.paymentStatus,
+                              attendanceStatus: previous[row.id]?.attendanceStatus ?? row.attendanceStatus,
+                              groupName: previous[row.id]?.groupName ?? row.groupName ?? '',
+                              needsLodging: eventInput.target.checked,
+                              needsBaggageTransport: previous[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport
+                            }
+                          }))
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={participantDrafts[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: previous[row.id]?.registrationStatus ?? row.registrationStatus,
+                              paymentStatus: previous[row.id]?.paymentStatus ?? row.paymentStatus,
+                              attendanceStatus: previous[row.id]?.attendanceStatus ?? row.attendanceStatus,
+                              groupName: previous[row.id]?.groupName ?? row.groupName ?? '',
+                              needsLodging: previous[row.id]?.needsLodging ?? row.needsLodging,
+                              needsBaggageTransport: eventInput.target.checked
+                            }
+                          }))
+                        }
+                      />
+                    </td>
+                    <td>
+                      <select
+                        value={participantDrafts[row.id]?.paymentStatus ?? row.paymentStatus}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: previous[row.id]?.registrationStatus ?? row.registrationStatus,
+                              paymentStatus: eventInput.target.value,
+                              attendanceStatus: previous[row.id]?.attendanceStatus ?? row.attendanceStatus,
+                              groupName: previous[row.id]?.groupName ?? row.groupName ?? '',
+                              needsLodging: previous[row.id]?.needsLodging ?? row.needsLodging,
+                              needsBaggageTransport: previous[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport
+                            }
+                          }))
+                        }
+                      >
+                        <option value="pending">pending</option>
+                        <option value="paid">paid</option>
+                        <option value="waived">waived</option>
+                        <option value="refunded">refunded</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={participantDrafts[row.id]?.registrationStatus ?? row.registrationStatus}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: eventInput.target.value,
+                              paymentStatus: previous[row.id]?.paymentStatus ?? row.paymentStatus,
+                              attendanceStatus: previous[row.id]?.attendanceStatus ?? row.attendanceStatus,
+                              groupName: previous[row.id]?.groupName ?? row.groupName ?? '',
+                              needsLodging: previous[row.id]?.needsLodging ?? row.needsLodging,
+                              needsBaggageTransport: previous[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport
+                            }
+                          }))
+                        }
+                      >
+                        <option value="pending">pending</option>
+                        <option value="confirmed">confirmed</option>
+                        <option value="cancelled">cancelled</option>
+                        <option value="rejected">rejected</option>
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        value={participantDrafts[row.id]?.attendanceStatus ?? row.attendanceStatus}
+                        onChange={(eventInput) =>
+                          setParticipantDrafts((previous) => ({
+                            ...previous,
+                            [row.id]: {
+                              registrationStatus: previous[row.id]?.registrationStatus ?? row.registrationStatus,
+                              paymentStatus: previous[row.id]?.paymentStatus ?? row.paymentStatus,
+                              attendanceStatus: eventInput.target.value,
+                              groupName: previous[row.id]?.groupName ?? row.groupName ?? '',
+                              needsLodging: previous[row.id]?.needsLodging ?? row.needsLodging,
+                              needsBaggageTransport: previous[row.id]?.needsBaggageTransport ?? row.needsBaggageTransport
+                            }
+                          }))
+                        }
+                      >
+                        <option value="not-checked-in">not-checked-in</option>
+                        <option value="checked-in">checked-in</option>
+                        <option value="absent">absent</option>
+                      </select>
+                    </td>
+                    <td>{row.emergencyContactName} / {row.emergencyContactPhone}</td>
+                    <td>{row.healthNotes || '-'} / {row.dietNotes || '-'}</td>
+                    <td>
+                      <button
+                        className="ghost"
+                        onClick={() => void handleParticipantUpdate(row.id)}
+                        disabled={organizerSavingId === `participant:${row.id}`}
+                      >
+                        {organizerSavingId === `participant:${row.id}` ? 'Zapisywanie...' : 'Zapisz'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredParticipants.length === 0 ? (
+                  <tr>
+                    <td colSpan={13}>Brak uczestnikow pasujacych do filtrow.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="pilgrimage-organizer-kanban">
+          <h3>Zadania</h3>
+          <div className="pilgrimage-card-grid">
+            {organizerDashboard.tasks.map((task) => (
+              <article key={task.id} className="pilgrimage-card">
+                <label>
+                  Tytul
+                  <input
+                    value={taskDrafts[task.id]?.title ?? task.title}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: eventInput.target.value,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Opis
+                  <textarea
+                    value={taskDrafts[task.id]?.description ?? task.description}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: eventInput.target.value,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Status
+                  <select
+                    value={taskDrafts[task.id]?.status ?? task.status}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: eventInput.target.value,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  >
+                    <option value="todo">todo</option>
+                    <option value="doing">doing</option>
+                    <option value="done">done</option>
+                    <option value="urgent">urgent</option>
+                  </select>
+                </label>
+                <label>
+                  Priorytet
+                  <select
+                    value={taskDrafts[task.id]?.priority ?? task.priority}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: eventInput.target.value,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  >
+                    <option value="low">low</option>
+                    <option value="normal">normal</option>
+                    <option value="high">high</option>
+                    <option value="critical">critical</option>
+                  </select>
+                </label>
+                <label>
+                  Odpowiedzialny
+                  <input
+                    value={taskDrafts[task.id]?.assignee ?? task.assignee}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: eventInput.target.value,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Komentarze
+                  <textarea
+                    value={taskDrafts[task.id]?.comments ?? task.comments ?? ''}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: eventInput.target.value,
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Zalaczniki (linki)
+                  <input
+                    value={taskDrafts[task.id]?.attachments ?? task.attachments ?? ''}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: eventInput.target.value,
+                          dueUtc: previous[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  Termin
+                  <input
+                    type="datetime-local"
+                    value={taskDrafts[task.id]?.dueUtc ?? (task.dueUtc ? new Date(task.dueUtc).toISOString().slice(0, 16) : '')}
+                    onChange={(eventInput) =>
+                      setTaskDrafts((previous) => ({
+                        ...previous,
+                        [task.id]: {
+                          title: previous[task.id]?.title ?? task.title,
+                          description: previous[task.id]?.description ?? task.description,
+                          status: previous[task.id]?.status ?? task.status,
+                          priority: previous[task.id]?.priority ?? task.priority,
+                          assignee: previous[task.id]?.assignee ?? task.assignee,
+                          comments: previous[task.id]?.comments ?? task.comments ?? '',
+                          attachments: previous[task.id]?.attachments ?? task.attachments ?? '',
+                          dueUtc: eventInput.target.value
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <small>Utworzono: {new Date(task.createdUtc).toLocaleString()}</small>
+                <button
+                  className="ghost"
+                  onClick={() => void handleTaskUpdate(task.id)}
+                  disabled={organizerSavingId === `task:${task.id}`}
+                >
+                  {organizerSavingId === `task:${task.id}` ? 'Zapisywanie...' : 'Zapisz zadanie'}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="pilgrimage-announcements">
+          <h3>Komunikaty</h3>
+          <div className="pilgrimage-announcement-list">
+            {organizerDashboard.announcements.map((entry) => (
+              <article key={entry.id} className={entry.isCritical ? 'critical' : ''}>
+                <h4>{entry.title}</h4>
+                <p>{entry.body}</p>
+                <small>
+                  {entry.audience} | {new Date(entry.createdUtc).toLocaleString()}
+                </small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="pilgrimage-organizer-kanban">
+          <h3>Zgloszenia uczestnikow</h3>
+          <div className="pilgrimage-card-grid">
+            {organizerDashboard.issues.map((issue) => (
+              <article key={issue.id} className="pilgrimage-card">
+                <h4>{issue.participantName}</h4>
+                <p><strong>{issue.kind}</strong>: {issue.message}</p>
+                <label>
+                  Status
+                  <select
+                    value={issueDrafts[issue.id]?.status ?? issue.status}
+                    onChange={(eventInput) =>
+                      setIssueDrafts((previous) => ({
+                        ...previous,
+                        [issue.id]: {
+                          status: eventInput.target.value,
+                          resolutionNote: previous[issue.id]?.resolutionNote ?? issue.resolutionNote ?? ''
+                        }
+                      }))
+                    }
+                  >
+                    <option value="open">open</option>
+                    <option value="in-progress">in-progress</option>
+                    <option value="resolved">resolved</option>
+                    <option value="closed">closed</option>
+                  </select>
+                </label>
+                <label>
+                  Notatka
+                  <textarea
+                    value={issueDrafts[issue.id]?.resolutionNote ?? issue.resolutionNote ?? ''}
+                    onChange={(eventInput) =>
+                      setIssueDrafts((previous) => ({
+                        ...previous,
+                        [issue.id]: {
+                          status: previous[issue.id]?.status ?? issue.status,
+                          resolutionNote: eventInput.target.value
+                        }
+                      }))
+                    }
+                  />
+                </label>
+                <button
+                  className="ghost"
+                  onClick={() => void handleIssueUpdate(issue.id)}
+                  disabled={organizerSavingId === `issue:${issue.id}`}
+                >
+                  {organizerSavingId === `issue:${issue.id}` ? 'Zapisywanie...' : 'Zapisz status'}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="pilgrimage-announcements">
+          <h3>Zapytania kontaktowe (publiczne)</h3>
+          <div className="pilgrimage-announcement-list">
+            {organizerDashboard.inquiries.map((entry) => (
+              <article key={entry.id}>
+                <h4>{entry.topic} - {entry.name}</h4>
+                <p>{entry.message}</p>
+                <small>{entry.phone || '-'} | {entry.email || '-'}</small>
+                <label>
+                  Status
+                  <select
+                    value={inquiryDrafts[entry.id]?.status ?? entry.status}
+                    onChange={(eventInput) =>
+                      setInquiryDrafts((previous) => ({
+                        ...previous,
+                        [entry.id]: { status: eventInput.target.value }
+                      }))
+                    }
+                  >
+                    <option value="new">new</option>
+                    <option value="in-progress">in-progress</option>
+                    <option value="resolved">resolved</option>
+                    <option value="closed">closed</option>
+                  </select>
+                </label>
+                <button
+                  className="ghost"
+                  onClick={() => void handleInquiryUpdate(entry.id)}
+                  disabled={organizerSavingId === `inquiry:${entry.id}`}
+                >
+                  {organizerSavingId === `inquiry:${entry.id}` ? 'Zapisywanie...' : 'Zapisz status'}
+                </button>
+              </article>
+            ))}
+            {organizerDashboard.inquiries.length === 0 ? <p>Brak zapytan kontaktowych.</p> : null}
+          </div>
+        </section>
+      </>
+    );
+  };
+
   return (
     <div className="event-page kal-page">
       <header className="kal-header">
         <div>
           <p className="kal-kicker">Pielgrzymka</p>
-          <h1>{event.title}</h1>
-          <p>{event.date}</p>
+          <h1>{site?.name ?? event.title}</h1>
+          <p>{site ? `${site.startDate} - ${site.endDate}` : event.date}</p>
+          <p>{site?.site.public.routeLabel ?? event.location}</p>
         </div>
         <div className="kal-tools">
           <LanguageSelect value={language} onChange={onLanguageChange} />
@@ -268,7 +1989,7 @@ function Kal26EventPage({
       <main className="kal-main">
         <aside className="kal-sidebar">
           <a href="/#/event" className="ghost">{copy.events.backToEvents}</a>
-          <p>{event.location}</p>
+          <p>{site?.motto || 'Droga, wspolnota i modlitwa'}</p>
           <div className="kal-page-links">
             {event.pages.map((item) => (
               <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
@@ -278,8 +1999,45 @@ function Kal26EventPage({
           </div>
         </aside>
 
-        <section className="kal-content">
-          <Kal26Body pageSlug={page.slug} />
+        <section className="kal-content pilgrimage-content">
+          {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
+          {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
+          {!siteLoading && !siteError && site ? (
+            <>
+              <section className="pilgrimage-hero">
+                <h2>{site.site.public.heroTitle}</h2>
+                <p>{site.site.public.heroSubtitle}</p>
+                <div className="pilgrimage-quick-links">
+                  <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zapisz sie</a>
+                  <a className="ghost" href={`/#/event/${event.slug}/program`}>Zobacz program</a>
+                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>Mam pytanie do organizatorow</a>
+                </div>
+                {!site.isProvisioned ? (
+                  <p className="pilgrimage-warning">
+                    Wydarzenie dziala w trybie podgladu. Aby aktywowac zapisy i panel, utworz rekord przez API `POST /pilgrimage`.
+                  </p>
+                ) : null}
+                <div className="pilgrimage-hero-facts">
+                  {site.site.public.heroFacts.map((fact) => (
+                    <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
+                      <h3>{fact.title}</h3>
+                      <p>{fact.body}</p>
+                      {fact.meta ? <small>{fact.meta}</small> : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              {page.slug === 'uczestnik' ? renderParticipantPage() : null}
+              {page.slug === 'organizator' ? renderOrganizerPage() : null}
+              {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
+              {!['uczestnik', 'organizator'].includes(page.slug) ? (
+                <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
+                  Zapisz sie
+                </a>
+              ) : null}
+            </>
+          ) : null}
         </section>
       </main>
 
@@ -303,7 +2061,7 @@ export function EventsPage(props: SharedEventPageProps) {
   const defaultPage = selectedEvent?.pages[0] ?? null;
   const selectedInnerPage =
     selectedEvent && selectedPageSlug
-      ? selectedEvent.pages.find((page) => page.slug === selectedPageSlug) ?? null
+      ? selectedEvent.pages.find((eventPage) => eventPage.slug === selectedPageSlug) ?? null
       : defaultPage;
 
   useEffect(() => {

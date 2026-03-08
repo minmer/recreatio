@@ -74,6 +74,8 @@ export function LoginCard({
         ? copy.limanowa.title
       : context === 'cogita'
         ? copy.cogita.title
+        : context === 'chat'
+          ? copy.chat.title
         : context === 'account'
           ? copy.account.title
         : copy.loginCard.contextDefault;

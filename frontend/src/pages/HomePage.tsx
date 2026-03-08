@@ -100,6 +100,13 @@ export function HomePage({
       },
       {
         id: 'section-6',
+        title: copy.chat.slideTitle,
+        text: copy.chat.slideSubtitle,
+        ctaLabel: copy.nav.chat,
+        ctaAction: () => onNavigate('chat')
+      },
+      {
+        id: 'section-7',
         title: copy.faq.title,
         text: faqText,
         ctaLabel: copy.nav.faq,
@@ -107,7 +114,7 @@ export function HomePage({
         variant: 'secondary'
       },
       {
-        id: 'section-7',
+        id: 'section-8',
         title: copy.legal.title,
         text: legalText,
         ctaLabel: copy.nav.legal,
@@ -240,6 +247,9 @@ export function HomePage({
           </a>
           <a href="/#/cogita" onClick={() => setMenuOpen(false)}>
             {copy.nav.cogita}
+          </a>
+          <a href="/#/chat" onClick={() => setMenuOpen(false)}>
+            {copy.nav.chat}
           </a>
           <a href="/#/faq" onClick={() => setMenuOpen(false)}>
             {copy.nav.faq}

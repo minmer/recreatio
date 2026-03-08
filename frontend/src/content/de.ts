@@ -7,6 +7,7 @@ export const de: Copy = {
     events: 'Ereignisse',
     limanowa: 'Limanowa',
     cogita: 'Cogita',
+    chat: 'Chat',
     faq: 'FAQ',
     legal: 'DSGVO und Regeln',
     login: 'Anmelden',
@@ -134,6 +135,13 @@ export const de: Copy = {
     subtitle: 'Dieser Bereich wird Informationen uber Limanowa, regionale Attraktionen und Freizeitangebote enthalten.',
     inBuildTitle: 'Im Aufbau',
     inBuildText: 'Die Limanowa-Seite ist im Aufbau und wird in einem spateren Update erganzt.'
+  },
+  chat: {
+    slideTitle: 'Recreatio Chat',
+    slideSubtitle: 'Vereinte Gesprache fur Pfarrei, Ereignisse, Limanowa und Cogita mit rollenbasierter Sicherheit.',
+    title: 'Recreatio Chat',
+    subtitle: 'Ein gemeinsamer Posteingang fur alle Plattformteile inklusive offentlicher Frage-Links.',
+    loginCta: 'Anmelden, um Chats zu offnen'
   },
   cogita: {
     title: 'Cogita Portal',

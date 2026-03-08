@@ -14,6 +14,8 @@ const ParishPage = lazy(() => import('./pages/parish/ParishPage').then((module) 
 const EventsPage = lazy(() => import('./pages/events/EventsPage').then((module) => ({ default: module.EventsPage })));
 const LimanowaPage = lazy(() => import('./pages/limanowa/LimanowaPage').then((module) => ({ default: module.LimanowaPage })));
 const CogitaPage = lazy(() => import('./pages/cogita/CogitaPage').then((module) => ({ default: module.CogitaPage })));
+const ChatPage = lazy(() => import('./pages/chat/ChatPage').then((module) => ({ default: module.ChatPage })));
+const ChatPublicPage = lazy(() => import('./pages/chat/ChatPublicPage').then((module) => ({ default: module.ChatPublicPage })));
 const CogitaWorkspacePage = lazy(() =>
   import('./pages/cogita/CogitaWorkspacePage').then((module) => ({ default: module.CogitaWorkspacePage }))
 );
@@ -77,6 +79,8 @@ export default function App() {
   const isCogitaPath = pathname.startsWith('/cogita');
   const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
   const isLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
+  const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
+  const isChatPublicPath = pathname.startsWith('/chat/public/');
   const isCogitaSharePath = pathname.startsWith('/cogita/public/revision');
   const isCogitaLiveJoinPath = pathname.startsWith('/cogita/public/live-revision/');
   const isCogitaLiveWallLoginPath = pathname.startsWith('/cogita/live-wall/login/');
@@ -84,6 +88,7 @@ export default function App() {
   const isCogitaLiveWallHostPath = pathname.startsWith('/cogita/live-wall/host/');
   const isCogitaLiveSessionsPath = pathname.startsWith('/cogita/live-sessions/');
   const shareSegments = pathname.split('/').filter(Boolean);
+  const chatPublicCode = isChatPublicPath ? shareSegments[2] : undefined;
   const shareId = isCogitaSharePath ? shareSegments[3] : undefined;
   const liveJoinCode = isCogitaLiveJoinPath ? pathname.split('/')[4] : undefined;
   const liveWallLoginCode = isCogitaLiveWallLoginPath ? pathname.split('/')[4] : undefined;
@@ -123,6 +128,7 @@ export default function App() {
       else if (next === 'events') navigate('/event');
       else if (next === 'limanowa') navigate('/limanowa');
       else if (next === 'cogita') navigate('/cogita');
+      else if (next === 'chat') navigate('/chat');
       else if (next === 'faq') navigate('/faq');
       else if (next === 'legal') navigate('/legal');
       else if (next === 'login') navigate('/login');
@@ -452,6 +458,52 @@ export default function App() {
           />
         </Suspense>
       )}
+      {isChatPublicPath && chatPublicCode ? (
+        <Suspense fallback={lazyFallback}>
+          <ChatPublicPage
+            copy={t}
+            code={decodeURIComponent(chatPublicCode)}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'chat');
+              } else {
+                openLoginCard('chat');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'chat')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        </Suspense>
+      ) : isChatPath ? (
+        <Suspense fallback={lazyFallback}>
+          <ChatPage
+            copy={t}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'chat');
+              } else {
+                openLoginCard('chat');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.chat.loginCta}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'chat')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        </Suspense>
+      ) : null}
       {isCogitaLiveWallLoginPath && liveWallLoginCode ? (
         <Suspense fallback={lazyFallback}>
           <CogitaLiveLoginWallPage

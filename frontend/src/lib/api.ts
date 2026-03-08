@@ -2711,3 +2711,657 @@ export function applyParishMassRule(
     })
   });
 }
+
+export type PilgrimageCard = {
+  id: string;
+  title: string;
+  body: string;
+  meta?: string | null;
+  accent?: string | null;
+};
+
+export type PilgrimageSection = {
+  id: string;
+  title: string;
+  lead?: string | null;
+  cards: PilgrimageCard[];
+};
+
+export type PilgrimagePublicConfig = {
+  heroTitle: string;
+  heroSubtitle: string;
+  dateLabel: string;
+  routeLabel: string;
+  heroFacts: PilgrimageCard[];
+  sections: PilgrimageSection[];
+};
+
+export type PilgrimageZoneConfig = {
+  sections: PilgrimageSection[];
+};
+
+export type PilgrimageSiteDocument = {
+  public: PilgrimagePublicConfig;
+  participant: PilgrimageZoneConfig;
+  organizer: PilgrimageZoneConfig;
+};
+
+export type PilgrimageSite = {
+  id?: string | null;
+  slug: string;
+  name: string;
+  motto: string;
+  startDate: string;
+  endDate: string;
+  startLocation: string;
+  endLocation: string;
+  distanceKm?: number | null;
+  theme: string;
+  site: PilgrimageSiteDocument;
+  isProvisioned: boolean;
+};
+
+export type PilgrimageRegistrationRequest = {
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  parish?: string | null;
+  birthDate?: string | null;
+  isMinor: boolean;
+  participationVariant: string;
+  needsLodging: boolean;
+  needsBaggageTransport: boolean;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  healthNotes?: string | null;
+  dietNotes?: string | null;
+  acceptedTerms: boolean;
+  acceptedRodo: boolean;
+  acceptedImageConsent: boolean;
+};
+
+export type PilgrimageRegistrationResponse = {
+  participantId: string;
+  accessToken: string;
+  accessLink: string;
+  expiresUtc: string;
+};
+
+export type PilgrimageParticipantProfile = {
+  participantId: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  parish?: string | null;
+  birthDate?: string | null;
+  isMinor: boolean;
+  participationVariant: string;
+  groupName?: string | null;
+  needsLodging: boolean;
+  needsBaggageTransport: boolean;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  healthNotes?: string | null;
+  dietNotes?: string | null;
+  registrationStatus: string;
+  paymentStatus: string;
+  attendanceStatus: string;
+  createdUtc: string;
+};
+
+export type PilgrimageAnnouncement = {
+  id: string;
+  audience: string;
+  title: string;
+  body: string;
+  isCritical: boolean;
+  createdUtc: string;
+};
+
+export type PilgrimageParticipantZone = {
+  participant: PilgrimageParticipantProfile;
+  zone: PilgrimageZoneConfig;
+  announcements: PilgrimageAnnouncement[];
+};
+
+export type PilgrimageOrganizerStats = {
+  registrations: number;
+  confirmed: number;
+  paid: number;
+  withLodging: number;
+  oneDay: number;
+  minors: number;
+  openTasks: number;
+  criticalAnnouncements: number;
+};
+
+export type PilgrimageOrganizerParticipantRow = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  participationVariant: string;
+  groupName?: string | null;
+  needsLodging: boolean;
+  needsBaggageTransport: boolean;
+  isMinor: boolean;
+  registrationStatus: string;
+  paymentStatus: string;
+  attendanceStatus: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  healthNotes?: string | null;
+  dietNotes?: string | null;
+  createdUtc: string;
+};
+
+export type PilgrimageTask = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  assignee: string;
+  comments?: string | null;
+  attachments?: string | null;
+  dueUtc?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type PilgrimageParticipantIssue = {
+  id: string;
+  participantId: string;
+  participantName: string;
+  kind: string;
+  message: string;
+  status: string;
+  resolutionNote?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type PilgrimageContactInquiry = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  topic: string;
+  message: string;
+  status: string;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type PilgrimageOrganizerDashboard = {
+  stats: PilgrimageOrganizerStats;
+  participants: PilgrimageOrganizerParticipantRow[];
+  announcements: PilgrimageAnnouncement[];
+  tasks: PilgrimageTask[];
+  issues: PilgrimageParticipantIssue[];
+  inquiries: PilgrimageContactInquiry[];
+  zone: PilgrimageZoneConfig;
+};
+
+export function getPilgrimageSite(slug: string) {
+  return request<PilgrimageSite>(`/pilgrimage/${slug}`, {
+    method: 'GET'
+  });
+}
+
+export function createPilgrimageRegistration(slug: string, payload: PilgrimageRegistrationRequest) {
+  return request<PilgrimageRegistrationResponse>(`/pilgrimage/${slug}/public/registrations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      email: payload.email ?? null,
+      parish: payload.parish ?? null,
+      birthDate: payload.birthDate ?? null,
+      isMinor: payload.isMinor,
+      participationVariant: payload.participationVariant,
+      needsLodging: payload.needsLodging,
+      needsBaggageTransport: payload.needsBaggageTransport,
+      emergencyContactName: payload.emergencyContactName,
+      emergencyContactPhone: payload.emergencyContactPhone,
+      healthNotes: payload.healthNotes ?? null,
+      dietNotes: payload.dietNotes ?? null,
+      acceptedTerms: payload.acceptedTerms,
+      acceptedRodo: payload.acceptedRodo,
+      acceptedImageConsent: payload.acceptedImageConsent
+    })
+  });
+}
+
+export function getPilgrimageParticipantZone(slug: string, token: string) {
+  const query = new URLSearchParams({ token });
+  return request<PilgrimageParticipantZone>(`/pilgrimage/${slug}/participant-zone?${query.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function createPilgrimageParticipantIssue(
+  slug: string,
+  token: string,
+  payload: { kind?: string; message: string }
+) {
+  const query = new URLSearchParams({ token });
+  return request<string>(`/pilgrimage/${slug}/participant-zone/issues?${query.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      kind: payload.kind ?? 'problem',
+      message: payload.message
+    })
+  });
+}
+
+export function createPilgrimageContactInquiry(
+  slug: string,
+  payload: { name: string; phone?: string | null; email?: string | null; topic: string; message: string }
+) {
+  return request<string>(`/pilgrimage/${slug}/public/contact`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      phone: payload.phone ?? null,
+      email: payload.email ?? null,
+      topic: payload.topic,
+      message: payload.message
+    })
+  });
+}
+
+export function getPilgrimageOrganizerDashboard(eventId: string) {
+  return request<PilgrimageOrganizerDashboard>(`/pilgrimage/${eventId}/organizer/dashboard`, {
+    method: 'GET'
+  });
+}
+
+export function createPilgrimageAnnouncement(
+  eventId: string,
+  payload: { audience: string; title: string; body: string; isCritical?: boolean }
+) {
+  return request<string>(`/pilgrimage/${eventId}/organizer/announcements`, {
+    method: 'POST',
+    body: JSON.stringify({
+      audience: payload.audience,
+      title: payload.title,
+      body: payload.body,
+      isCritical: payload.isCritical ?? false
+    })
+  });
+}
+
+export function createPilgrimageTask(
+  eventId: string,
+  payload: {
+    title: string;
+    description: string;
+    status?: string;
+    priority?: string;
+    assignee?: string;
+    comments?: string | null;
+    attachments?: string | null;
+    dueUtc?: string | null;
+  }
+) {
+  return request<string>(`/pilgrimage/${eventId}/organizer/tasks`, {
+    method: 'POST',
+    body: JSON.stringify({
+      title: payload.title,
+      description: payload.description,
+      status: payload.status ?? 'todo',
+      priority: payload.priority ?? 'normal',
+      assignee: payload.assignee ?? '',
+      comments: payload.comments ?? null,
+      attachments: payload.attachments ?? null,
+      dueUtc: payload.dueUtc ?? null
+    })
+  });
+}
+
+export function updatePilgrimageTask(
+  eventId: string,
+  taskId: string,
+  payload: {
+    title: string;
+    description: string;
+    status?: string;
+    priority?: string;
+    assignee?: string;
+    comments?: string | null;
+    attachments?: string | null;
+    dueUtc?: string | null;
+  }
+) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/tasks/${taskId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      title: payload.title,
+      description: payload.description,
+      status: payload.status ?? 'todo',
+      priority: payload.priority ?? 'normal',
+      assignee: payload.assignee ?? '',
+      comments: payload.comments ?? null,
+      attachments: payload.attachments ?? null,
+      dueUtc: payload.dueUtc ?? null
+    })
+  });
+}
+
+export function updatePilgrimageParticipant(
+  eventId: string,
+  participantId: string,
+  payload: {
+    registrationStatus: string;
+    paymentStatus: string;
+    attendanceStatus: string;
+    groupName?: string | null;
+    needsLodging?: boolean;
+    needsBaggageTransport?: boolean;
+  }
+) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/participants/${participantId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      registrationStatus: payload.registrationStatus,
+      paymentStatus: payload.paymentStatus,
+      attendanceStatus: payload.attendanceStatus,
+      groupName: payload.groupName ?? null,
+      needsLodging: payload.needsLodging ?? null,
+      needsBaggageTransport: payload.needsBaggageTransport ?? null
+    })
+  });
+}
+
+export function updatePilgrimageIssue(
+  eventId: string,
+  issueId: string,
+  payload: { status: string; resolutionNote?: string | null }
+) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/issues/${issueId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      status: payload.status,
+      resolutionNote: payload.resolutionNote ?? null
+    })
+  });
+}
+
+export function updatePilgrimageInquiry(
+  eventId: string,
+  inquiryId: string,
+  payload: { status: string }
+) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/inquiries/${inquiryId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      status: payload.status
+    })
+  });
+}
+
+export type PilgrimageExportKind =
+  | 'participants'
+  | 'lodging'
+  | 'payments'
+  | 'contacts'
+  | 'groups'
+  | 'attendance';
+
+export function getPilgrimageExportUrl(eventId: string, kind: PilgrimageExportKind) {
+  return `${apiBase}/pilgrimage/${eventId}/organizer/exports/${kind}.csv`;
+}
+
+export function getPilgrimageParticipantsExportUrl(eventId: string) {
+  return getPilgrimageExportUrl(eventId, 'participants');
+}
+
+export type ChatParticipant = {
+  participantId: string;
+  subjectType: 'role' | 'user';
+  subjectId: string;
+  displayLabel?: string | null;
+  canRead: boolean;
+  canWrite: boolean;
+  canManage: boolean;
+  canRespondPublic: boolean;
+  joinedUtc: string;
+  removedUtc?: string | null;
+};
+
+export type ChatSummary = {
+  conversationId: string;
+  chatType: 'group' | 'direct' | 'public-board';
+  scopeType: 'global' | 'parish' | 'event' | 'limanowa' | 'cogita';
+  scopeId?: string | null;
+  title: string;
+  description?: string | null;
+  isPublic: boolean;
+  publicReadEnabled: boolean;
+  publicQuestionEnabled: boolean;
+  lastMessageSequence: number;
+  lastReadSequence: number;
+  unreadCount: number;
+  updatedUtc: string;
+  canRead: boolean;
+  canWrite: boolean;
+  canManage: boolean;
+  canRespondPublic: boolean;
+  hasActivePublicLink: boolean;
+};
+
+export type ChatDetail = {
+  summary: ChatSummary;
+  participants: ChatParticipant[];
+};
+
+export type ChatMessage = {
+  messageId: string;
+  conversationId: string;
+  sequence: number;
+  senderUserId?: string | null;
+  senderRoleId?: string | null;
+  senderDisplay: string;
+  messageType: 'text' | 'question' | 'answer' | 'system';
+  visibility: 'internal' | 'public';
+  text: string;
+  clientMessageId?: string | null;
+  createdUtc: string;
+  editedUtc?: string | null;
+  deletedUtc?: string | null;
+};
+
+export type ChatMessagesResponse = {
+  conversationId: string;
+  lastSequence: number;
+  messages: ChatMessage[];
+};
+
+export type ChatPublicConversation = {
+  conversationId: string;
+  title: string;
+  scopeType: string;
+  scopeId?: string | null;
+  messages: ChatMessagesResponse;
+};
+
+export type ChatPublicLinkResponse = {
+  linkId: string;
+  code: string;
+  label: string;
+  createdUtc: string;
+  expiresUtc?: string | null;
+  isActive: boolean;
+};
+
+export function listChatConversations(payload?: { scopeType?: string; scopeId?: string }) {
+  const params = new URLSearchParams();
+  if (payload?.scopeType) params.set('scopeType', payload.scopeType);
+  if (payload?.scopeId) params.set('scopeId', payload.scopeId);
+  const query = params.toString();
+  return request<ChatSummary[]>(`/chat/conversations${query ? `?${query}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function createChatConversation(payload: {
+  chatType: 'group' | 'direct' | 'public-board';
+  scopeType: 'global' | 'parish' | 'event' | 'limanowa' | 'cogita';
+  scopeId?: string | null;
+  title: string;
+  description?: string | null;
+  isPublic?: boolean;
+  publicReadEnabled?: boolean;
+  publicQuestionEnabled?: boolean;
+  createdByRoleId?: string | null;
+  participants: Array<{
+    subjectType: 'role' | 'user';
+    subjectId: string;
+    canRead: boolean;
+    canWrite: boolean;
+    canManage: boolean;
+    canRespondPublic: boolean;
+  }>;
+}) {
+  return request<ChatDetail>('/chat/conversations', {
+    method: 'POST',
+    body: JSON.stringify({
+      chatType: payload.chatType,
+      scopeType: payload.scopeType,
+      scopeId: payload.scopeId ?? null,
+      title: payload.title,
+      description: payload.description ?? null,
+      isPublic: payload.isPublic ?? false,
+      publicReadEnabled: payload.publicReadEnabled ?? false,
+      publicQuestionEnabled: payload.publicQuestionEnabled ?? false,
+      createdByRoleId: payload.createdByRoleId ?? null,
+      participants: payload.participants
+    })
+  });
+}
+
+export function getChatConversation(conversationId: string) {
+  return request<ChatDetail>(`/chat/conversations/${conversationId}`, {
+    method: 'GET'
+  });
+}
+
+export function getChatMessages(payload: { conversationId: string; afterSequence?: number; take?: number }) {
+  const params = new URLSearchParams();
+  if (typeof payload.afterSequence === 'number') params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatMessagesResponse>(
+    `/chat/conversations/${payload.conversationId}/messages${params.toString() ? `?${params.toString()}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function pollChatMessages(payload: { conversationId: string; afterSequence: number; waitSeconds?: number; take?: number }) {
+  const params = new URLSearchParams();
+  params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.waitSeconds === 'number') params.set('waitSeconds', String(payload.waitSeconds));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatMessagesResponse>(`/chat/conversations/${payload.conversationId}/messages/poll?${params.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function sendChatMessage(
+  conversationId: string,
+  payload: {
+    text: string;
+    visibility?: 'internal' | 'public';
+    messageType?: 'text' | 'question' | 'answer' | 'system';
+    clientMessageId?: string | null;
+    senderRoleId?: string | null;
+  }
+) {
+  return request<ChatMessage>(`/chat/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      text: payload.text,
+      visibility: payload.visibility ?? null,
+      messageType: payload.messageType ?? null,
+      clientMessageId: payload.clientMessageId ?? null,
+      senderRoleId: payload.senderRoleId ?? null
+    })
+  });
+}
+
+export function markChatConversationRead(conversationId: string, lastReadSequence: number) {
+  return request<{ conversationId: string; lastReadSequence: number }>(`/chat/conversations/${conversationId}/read`, {
+    method: 'POST',
+    body: JSON.stringify({ lastReadSequence })
+  });
+}
+
+export function addChatParticipants(
+  conversationId: string,
+  payload: {
+    includeHistory?: boolean;
+    participants: Array<{
+      subjectType: 'role' | 'user';
+      subjectId: string;
+      canRead: boolean;
+      canWrite: boolean;
+      canManage: boolean;
+      canRespondPublic: boolean;
+    }>;
+  }
+) {
+  return request<ChatParticipant[]>(`/chat/conversations/${conversationId}/participants`, {
+    method: 'POST',
+    body: JSON.stringify({
+      includeHistory: payload.includeHistory ?? true,
+      participants: payload.participants
+    })
+  });
+}
+
+export function removeChatParticipant(conversationId: string, participantId: string) {
+  return request<{ removed: boolean }>(`/chat/conversations/${conversationId}/participants/${participantId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+export function createChatPublicLink(conversationId: string, payload?: { label?: string; expiresInHours?: number }) {
+  return request<ChatPublicLinkResponse>(`/chat/conversations/${conversationId}/public-links`, {
+    method: 'POST',
+    body: JSON.stringify({
+      label: payload?.label ?? null,
+      expiresInHours: payload?.expiresInHours ?? null
+    })
+  });
+}
+
+export function getPublicChatConversation(payload: { code: string; afterSequence?: number; take?: number }) {
+  const params = new URLSearchParams();
+  if (typeof payload.afterSequence === 'number') params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatPublicConversation>(`/chat/public/${encodeURIComponent(payload.code)}${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function pollPublicChatConversation(payload: { code: string; afterSequence: number; waitSeconds?: number; take?: number }) {
+  const params = new URLSearchParams();
+  params.set('afterSequence', String(payload.afterSequence));
+  if (typeof payload.waitSeconds === 'number') params.set('waitSeconds', String(payload.waitSeconds));
+  if (typeof payload.take === 'number') params.set('take', String(payload.take));
+  return request<ChatPublicConversation>(`/chat/public/${encodeURIComponent(payload.code)}/poll?${params.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function askPublicChatQuestion(payload: { code: string; text: string; displayName?: string; clientMessageId?: string }) {
+  return request<ChatMessage>(`/chat/public/${encodeURIComponent(payload.code)}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({
+      text: payload.text,
+      displayName: payload.displayName ?? null,
+      clientMessageId: payload.clientMessageId ?? null
+    })
+  });
+}

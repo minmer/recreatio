@@ -7,6 +7,7 @@ export const pl: Copy = {
     events: 'Wydarzenia',
     limanowa: 'Limanowa',
     cogita: 'Cogita',
+    chat: 'Chat',
     faq: 'FAQ',
     legal: 'RODO i regulamin',
     login: 'Zaloguj się',
@@ -134,6 +135,13 @@ export const pl: Copy = {
     subtitle: 'Ta czesc bedzie prezentowac informacje o Limanowej, atrakcjach regionu i mozliwosciach wypoczynku.',
     inBuildTitle: 'W budowie',
     inBuildText: 'Strona Limanowej jest w przygotowaniu i zostanie dodana w kolejnej aktualizacji.'
+  },
+  chat: {
+    slideTitle: 'Chat REcreatio',
+    slideSubtitle: 'Wspolne rozmowy dla parafii, wydarzen, Limanowej i Cogita z kontrola dostepu oparta o role.',
+    title: 'Chat REcreatio',
+    subtitle: 'Jedna skrzynka rozmow dla calej platformy, takze z publicznymi linkami do pytan i odpowiedzi.',
+    loginCta: 'Zaloguj sie, aby otworzyc chaty'
   },
   cogita: {
     title: 'Portal Cogita',

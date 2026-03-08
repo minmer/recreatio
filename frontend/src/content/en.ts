@@ -7,6 +7,7 @@ export const en: Copy = {
     events: 'Events',
     limanowa: 'Limanowa',
     cogita: 'Cogita',
+    chat: 'Chat',
     faq: 'FAQ',
     legal: 'Privacy & Terms',
     login: 'Sign in',
@@ -134,6 +135,13 @@ export const en: Copy = {
     subtitle: 'This section will present local information about Limanowa, nearby attractions, and recreation options.',
     inBuildTitle: 'In build',
     inBuildText: 'The Limanowa page is under construction and will be added in a future update.'
+  },
+  chat: {
+    slideTitle: 'Recreatio Chat',
+    slideSubtitle: 'Unified conversations across parish, events, Limanowa, and Cogita with role-aware access.',
+    title: 'Recreatio Chat',
+    subtitle: 'One inbox for all platform parts, with role conversations and public Q&A links.',
+    loginCta: 'Sign in to open chats'
   },
   cogita: {
     title: 'Cogita portal',

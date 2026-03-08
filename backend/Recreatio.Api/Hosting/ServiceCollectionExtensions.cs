@@ -9,6 +9,7 @@ using Recreatio.Api.Data;
 using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
+using Recreatio.Api.Services.Chat;
 
 namespace Recreatio.Api.Hosting;
 
@@ -212,6 +213,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ICsrfService, CsrfService>();
+        services.AddScoped<IChatCryptoService, ChatCryptoService>();
 
         return services;
     }
