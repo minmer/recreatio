@@ -1165,7 +1165,19 @@ export function CogitaLiveRevisionJoinPage(props: {
   const scoringByParticipant = useMemo(
     () =>
       reveal && typeof reveal === 'object'
-        ? ((reveal.roundScoring as Record<string, { isCorrect?: boolean; points?: number; factors?: string[]; streak?: number }> | undefined) ?? null)
+        ? ((reveal.roundScoring as Record<string, {
+            isCorrect?: boolean;
+            points?: number;
+            factors?: string[];
+            streak?: number;
+            basePoints?: number;
+            firstBonusPoints?: number;
+            speedPoints?: number;
+            streakPoints?: number;
+            wrongPenaltyPoints?: number;
+            firstWrongPenaltyPoints?: number;
+            answerDurationSeconds?: number;
+          }> | undefined) ?? null)
         : null,
     [reveal]
   );
@@ -1360,6 +1372,8 @@ export function CogitaLiveRevisionJoinPage(props: {
         firstBonusPoints?: number;
         speedPoints?: number;
         streakPoints?: number;
+        wrongPenaltyPoints?: number;
+        firstWrongPenaltyPoints?: number;
         answerDurationSeconds?: number;
       }> | undefined) ?? null;
     return roundScoring ? roundScoring[selfParticipantId] ?? null : null;

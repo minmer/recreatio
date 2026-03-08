@@ -95,6 +95,8 @@ export function computeLiveRoundBreakdown(options: {
   const serverFirst = readScorePart(source, ['firstBonusPoints', 'firstPoints']);
   const serverSpeed = readScorePart(source, ['speedBonusPoints', 'speedPoints', 'timeBonusPoints']);
   const serverStreak = readScorePart(source, ['streakBonusPoints', 'streakPoints']);
+  const serverWrongPenalty = readScorePart(source, ['wrongPenaltyPoints', 'wrongPoints']);
+  const serverFirstWrongPenalty = readScorePart(source, ['firstWrongPenaltyPoints', 'firstWrongPoints']);
 
   let basePoints =
     Number.isFinite(serverBase)
@@ -119,8 +121,14 @@ export function computeLiveRoundBreakdown(options: {
             rules.scoring.streakGrowth
           )
         : 0);
-  let wrongPoints = factors.has('wrong') ? -Math.round(rules.scoring.wrongAnswerPenalty) : 0;
-  let firstWrongPoints = factors.has('first-wrong') ? -Math.round(rules.scoring.firstWrongPenalty) : 0;
+  let wrongPoints =
+    Number.isFinite(serverWrongPenalty)
+      ? -Math.abs(Math.round(serverWrongPenalty))
+      : (factors.has('wrong') ? -Math.round(rules.scoring.wrongAnswerPenalty) : 0);
+  let firstWrongPoints =
+    Number.isFinite(serverFirstWrongPenalty)
+      ? -Math.abs(Math.round(serverFirstWrongPenalty))
+      : (factors.has('first-wrong') ? -Math.round(rules.scoring.firstWrongPenalty) : 0);
 
   if (isCorrect && total > 0 && basePoints >= total && total > Math.round(rules.scoring.baseCorrect)) {
     const allBonusesUnknown =
@@ -166,4 +174,3 @@ export function computeLiveRoundBreakdown(options: {
 
   return { total, rows, bonusTotal, penaltyTotal };
 }
-

@@ -268,8 +268,10 @@ export function CogitaLivePublicWallPage({
     timerRemainingMs == null || promptTimerTotalSeconds <= 0
       ? 0
       : Math.max(0, Math.min(1, timerRemainingMs / (promptTimerTotalSeconds * 1000)));
+  const isAsyncSession = state?.sessionMode === 'asynchronous';
   const showPromptTimer = Boolean(
-    prompt &&
+    isAsyncSession &&
+      prompt &&
       (typeof prompt.firstAnswerAction === 'string' ? prompt.firstAnswerAction === 'start_timer' : true) &&
       prompt.actionTimerEnabled &&
       promptTimerEndMs != null &&
@@ -284,8 +286,7 @@ export function CogitaLivePublicWallPage({
     [reveal]
   );
   const isSessionFinished = state?.status === 'finished' || state?.status === 'closed';
-  const isAsyncSession = state?.sessionMode === 'asynchronous';
-  const hideSessionDescription = !isAsyncSession && state?.status === 'running';
+  const showSessionDescription = isAsyncSession || state?.status === 'lobby';
   const showStatisticsWindow = isSessionFinished || isAsyncSession;
   const showPodiumOnPublicScreen = !isAsyncSession && isSessionFinished;
   const showRightScoreboard = !isAsyncSession && !isSessionFinished;
@@ -393,7 +394,7 @@ export function CogitaLivePublicWallPage({
         subtitle={liveCopy.hostKicker}
         left={
           <div className="cogita-live-wall-stack">
-            {sessionDescriptionLines.length > 0 && !hideSessionDescription ? (
+            {sessionDescriptionLines.length > 0 && showSessionDescription ? (
               <section className="cogita-library-panel">
                 <p className="cogita-user-kicker">{liveCopy.sessionSettingsLabel}</p>
                 <div className="cogita-detail-body">

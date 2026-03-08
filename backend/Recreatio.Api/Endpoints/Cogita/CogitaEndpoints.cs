@@ -6780,6 +6780,14 @@ public static class CogitaEndpoints
                 .ThenBy(x => x!.UpdatedUtc)
                 .Select(x => x!.ParticipantId)
                 .FirstOrDefault();
+            var firstWrongParticipantId = scoreItems
+                .Where(x => x.IsCorrect == false)
+                .Select(x => answersByParticipant.TryGetValue(x.ParticipantId, out var answer) ? answer : null)
+                .Where(x => x is not null)
+                .OrderBy(x => x!.SubmittedUtc)
+                .ThenBy(x => x!.UpdatedUtc)
+                .Select(x => x!.ParticipantId)
+                .FirstOrDefault();
 
             var now = DateTimeOffset.UtcNow;
             foreach (var delta in scoreItems)
@@ -6808,6 +6816,8 @@ public static class CogitaEndpoints
                         var firstBonusPoints = 0;
                         var speedPoints = 0;
                         var streakPoints = 0;
+                        var wrongPenaltyPoints = 0;
+                        var firstWrongPenaltyPoints = 0;
                         var streakCount = 0;
                         if (delta.IsCorrect == true)
                         {
@@ -6854,7 +6864,24 @@ public static class CogitaEndpoints
                         }
                         else if (delta.PointsAwarded < 0)
                         {
-                            synthesizedFactors.Add(JsonValue.Create("wrong"));
+                            wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
+                            if (wrongPenaltyPoints > 0)
+                            {
+                                synthesizedFactors.Add(JsonValue.Create("wrong"));
+                            }
+                            if (firstWrongParticipantId != Guid.Empty && delta.ParticipantId == firstWrongParticipantId)
+                            {
+                                firstWrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.FirstWrongPenalty));
+                                if (firstWrongPenaltyPoints > 0)
+                                {
+                                    synthesizedFactors.Add(JsonValue.Create("first-wrong"));
+                                }
+                            }
+                            var knownPenalty = wrongPenaltyPoints + firstWrongPenaltyPoints;
+                            if (knownPenalty <= 0)
+                            {
+                                wrongPenaltyPoints = Math.Abs(delta.PointsAwarded);
+                            }
                         }
 
                         synthesizedScoringNode["factors"] = synthesizedFactors;
@@ -6862,6 +6889,8 @@ public static class CogitaEndpoints
                         synthesizedScoringNode["firstBonusPoints"] = firstBonusPoints;
                         synthesizedScoringNode["speedPoints"] = speedPoints;
                         synthesizedScoringNode["streakPoints"] = streakPoints;
+                        synthesizedScoringNode["wrongPenaltyPoints"] = wrongPenaltyPoints;
+                        synthesizedScoringNode["firstWrongPenaltyPoints"] = firstWrongPenaltyPoints;
                         synthesizedScoringNode["streak"] = streakCount;
                         synthesizedScoringNode["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds));
                         participantScoringNode = synthesizedScoringNode;
@@ -7744,36 +7773,14 @@ public static class CogitaEndpoints
                                     (effectiveRoundIndex, participantId.Value),
                                     out var detail);
                                 var awardedPoints = hasDetail ? detail.Points : 0;
-                                var factorList = new JsonArray();
-                                if (asyncState.Answer.IsCorrect == true)
-                                {
-                                    if (hasDetail && detail.BasePoints > 0) factorList.Add(JsonValue.Create("base"));
-                                    if (hasDetail && detail.FirstBonusPoints > 0) factorList.Add(JsonValue.Create("first"));
-                                    if (hasDetail && detail.SpeedBonusPoints > 0) factorList.Add(JsonValue.Create("speed"));
-                                    if (hasDetail && detail.StreakBonusPoints > 0) factorList.Add(JsonValue.Create("streak"));
-                                }
-                                else if (awardedPoints < 0)
-                                {
-                                    factorList.Add(JsonValue.Create("wrong"));
-                                }
                                 var answerDurationSeconds = Math.Max(
                                     0,
                                     (int)Math.Round((asyncState.Answer.UpdatedUtc - asyncState.RoundStartedUtc).TotalSeconds));
-                                var participantScoring = new JsonObject
-                                {
-                                    ["isCorrect"] = asyncState.Answer.IsCorrect == true,
-                                    ["points"] = awardedPoints,
-                                    ["factors"] = factorList,
-                                    ["basePoints"] = hasDetail ? detail.BasePoints : 0,
-                                    ["firstBonusPoints"] = hasDetail ? detail.FirstBonusPoints : 0,
-                                    ["speedPoints"] = hasDetail ? detail.SpeedBonusPoints : 0,
-                                    ["streakPoints"] = hasDetail ? detail.StreakBonusPoints : 0,
-                                    ["answerDurationSeconds"] = answerDurationSeconds,
-                                    ["factorsLegacy"] = new JsonArray
-                                    {
-                                        JsonValue.Create(asyncState.Answer.IsCorrect == true ? "base" : "wrong")
-                                    }
-                                };
+                                var participantScoring = BuildLiveRoundScoringNode(
+                                    asyncState.Answer.IsCorrect == true,
+                                    awardedPoints,
+                                    answerDurationSeconds,
+                                    hasDetail ? detail : null);
                                 revealNode["roundScoring"] = new JsonObject
                                 {
                                     [participantId.Value.ToString("D")] = participantScoring
@@ -7872,16 +7879,14 @@ public static class CogitaEndpoints
                             if (answer.IsCorrect.HasValue || awardedPoints != 0)
                             {
                                 var scoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
-                                scoring[participant.Id.ToString("D")] = new JsonObject
-                                {
-                                    ["isCorrect"] = answer.IsCorrect == true,
-                                    ["points"] = awardedPoints,
-                                    ["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
-                                    ["factors"] = new JsonArray
-                                    {
-                                        JsonValue.Create(answer.IsCorrect == true ? "base" : "wrong")
-                                    }
-                                };
+                                var hasDetail = computedScores.DetailByRoundParticipant.TryGetValue(
+                                    (session.CurrentRoundIndex, participant.Id),
+                                    out var participantRoundDetail);
+                                scoring[participant.Id.ToString("D")] = BuildLiveRoundScoringNode(
+                                    answer.IsCorrect == true,
+                                    awardedPoints,
+                                    Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
+                                    hasDetail ? participantRoundDetail : null);
                                 revealNode["roundScoring"] = scoring;
                             }
                             currentRevealPayload = JsonNodeToJsonElement(revealNode);
@@ -7987,31 +7992,12 @@ public static class CogitaEndpoints
                 {
                     var hasDetail = computedScores.DetailByRoundParticipant.TryGetValue((round.RoundIndex, participant.Id), out var detail);
                     var awardedPoints = hasDetail ? detail.Points : 0;
-                    var factorList = new JsonArray();
-                    if (answer.IsCorrect == true)
-                    {
-                        if (hasDetail && detail.BasePoints > 0) factorList.Add(JsonValue.Create("base"));
-                        if (hasDetail && detail.FirstBonusPoints > 0) factorList.Add(JsonValue.Create("first"));
-                        if (hasDetail && detail.SpeedBonusPoints > 0) factorList.Add(JsonValue.Create("speed"));
-                        if (hasDetail && detail.StreakBonusPoints > 0) factorList.Add(JsonValue.Create("streak"));
-                    }
-                    else if (awardedPoints < 0)
-                    {
-                        factorList.Add(JsonValue.Create("wrong"));
-                    }
-
                     var roundScoring = revealNode["roundScoring"] as JsonObject ?? new JsonObject();
-                    roundScoring[participant.Id.ToString("D")] = new JsonObject
-                    {
-                        ["isCorrect"] = answer.IsCorrect == true,
-                        ["points"] = awardedPoints,
-                        ["factors"] = factorList,
-                        ["basePoints"] = hasDetail ? detail.BasePoints : 0,
-                        ["firstBonusPoints"] = hasDetail ? detail.FirstBonusPoints : 0,
-                        ["speedPoints"] = hasDetail ? detail.SpeedBonusPoints : 0,
-                        ["streakPoints"] = hasDetail ? detail.StreakBonusPoints : 0,
-                        ["answerDurationSeconds"] = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds))
-                    };
+                    roundScoring[participant.Id.ToString("D")] = BuildLiveRoundScoringNode(
+                        answer.IsCorrect == true,
+                        awardedPoints,
+                        Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalSeconds)),
+                        hasDetail ? detail : null);
                     revealNode["roundScoring"] = roundScoring;
                 }
                 response.Add(new CogitaLiveRevisionReviewRoundResponse(
@@ -18301,6 +18287,61 @@ public static class CogitaEndpoints
         int SpeedBonusPoints,
         int StreakBonusPoints);
 
+    private static JsonObject BuildLiveRoundScoringNode(
+        bool isCorrect,
+        int totalPoints,
+        int answerDurationSeconds,
+        LiveComputedScoreDetail? detail = null)
+    {
+        var basePoints = Math.Max(0, detail?.BasePoints ?? 0);
+        var firstBonusPoints = Math.Max(0, detail?.FirstBonusPoints ?? 0);
+        var speedPoints = Math.Max(0, detail?.SpeedBonusPoints ?? 0);
+        var streakPoints = Math.Max(0, detail?.StreakBonusPoints ?? 0);
+        var wrongPenaltyPoints = Math.Max(0, detail?.WrongPenaltyPoints ?? 0);
+        var firstWrongPenaltyPoints = Math.Max(0, detail?.FirstWrongPenaltyPoints ?? 0);
+        var streakCount = Math.Max(0, detail?.StreakCount ?? 0);
+
+        if (!isCorrect)
+        {
+            if (wrongPenaltyPoints == 0 && firstWrongPenaltyPoints == 0 && totalPoints < 0)
+            {
+                wrongPenaltyPoints = Math.Abs(totalPoints);
+            }
+            basePoints = 0;
+            firstBonusPoints = 0;
+            speedPoints = 0;
+            streakPoints = 0;
+            streakCount = 0;
+        }
+        else if (basePoints + firstBonusPoints + speedPoints + streakPoints == 0 && totalPoints > 0)
+        {
+            basePoints = totalPoints;
+        }
+
+        var factors = new JsonArray();
+        if (basePoints > 0) factors.Add(JsonValue.Create("base"));
+        if (firstBonusPoints > 0) factors.Add(JsonValue.Create("first"));
+        if (speedPoints > 0) factors.Add(JsonValue.Create("speed"));
+        if (streakPoints > 0) factors.Add(JsonValue.Create("streak"));
+        if (wrongPenaltyPoints > 0) factors.Add(JsonValue.Create("wrong"));
+        if (firstWrongPenaltyPoints > 0) factors.Add(JsonValue.Create("first-wrong"));
+
+        return new JsonObject
+        {
+            ["isCorrect"] = isCorrect,
+            ["points"] = totalPoints,
+            ["factors"] = factors,
+            ["basePoints"] = basePoints,
+            ["firstBonusPoints"] = firstBonusPoints,
+            ["speedPoints"] = speedPoints,
+            ["streakPoints"] = streakPoints,
+            ["wrongPenaltyPoints"] = wrongPenaltyPoints,
+            ["firstWrongPenaltyPoints"] = firstWrongPenaltyPoints,
+            ["streak"] = streakCount,
+            ["answerDurationSeconds"] = Math.Max(0, answerDurationSeconds)
+        };
+    }
+
     private static StatisticScoreBreakdown ParseStatisticScoreBreakdown(string? payloadJson, int totalPoints, bool isCorrect)
     {
         if (!isCorrect)
@@ -18363,6 +18404,16 @@ public static class CogitaEndpoints
         int pointsAwarded,
         bool? isCorrect)
     {
+        static int ReadInt(JsonObject root, string key)
+        {
+            if (root[key] is JsonValue value)
+            {
+                if (value.TryGetValue<int>(out var intValue)) return intValue;
+                if (value.TryGetValue<double>(out var doubleValue)) return (int)Math.Round(doubleValue);
+            }
+            return 0;
+        }
+
         if (isCorrect != true)
         {
             return JsonSerializer.Serialize(new
@@ -18370,7 +18421,9 @@ public static class CogitaEndpoints
                 basePoints = 0,
                 firstBonusPoints = 0,
                 speedPoints = 0,
-                streakPoints = 0
+                streakPoints = 0,
+                wrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongPenaltyPoints")),
+                firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints"))
             });
         }
 
@@ -18381,16 +18434,6 @@ public static class CogitaEndpoints
 
         if (participantScoringNode is not null)
         {
-            static int ReadInt(JsonObject root, string key)
-            {
-                if (root[key] is JsonValue value)
-                {
-                    if (value.TryGetValue<int>(out var intValue)) return intValue;
-                    if (value.TryGetValue<double>(out var doubleValue)) return (int)Math.Round(doubleValue);
-                }
-                return 0;
-            }
-
             var factors = (participantScoringNode["factors"] as JsonArray)
                 ?.Select(item => item?.GetValue<string>() ?? string.Empty)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -18421,7 +18464,9 @@ public static class CogitaEndpoints
             basePoints,
             firstBonusPoints,
             speedPoints,
-            streakPoints
+            streakPoints,
+            wrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "wrongPenaltyPoints")),
+            firstWrongPenaltyPoints = Math.Max(0, ReadInt(participantScoringNode ?? new JsonObject(), "firstWrongPenaltyPoints"))
         });
     }
 
@@ -18957,6 +19002,9 @@ public static class CogitaEndpoints
         int FirstBonusPoints,
         int SpeedBonusPoints,
         int StreakBonusPoints,
+        int WrongPenaltyPoints,
+        int FirstWrongPenaltyPoints,
+        int StreakCount,
         int DurationMs,
         DateTimeOffset AnsweredUtc);
 
@@ -19029,6 +19077,9 @@ public static class CogitaEndpoints
                     var firstBonusPoints = 0;
                     var speedPoints = 0;
                     var streakPoints = 0;
+                    var wrongPenaltyPoints = 0;
+                    var firstWrongPenaltyPoints = 0;
+                    var streakCount = 0;
                     var points = 0;
                     var isCorrect = answer.IsCorrect == true;
                     var durationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
@@ -19068,11 +19119,12 @@ public static class CogitaEndpoints
                             scoringRules.StreakLimit);
                         points += streakPoints;
                         streakByParticipant[answer.ParticipantId] = nextStreak;
+                        streakCount = nextStreak;
                     }
                     else
                     {
-                        var wrongPenalty = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
-                        points -= wrongPenalty;
+                        wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
+                        points -= wrongPenaltyPoints;
                         streakByParticipant[answer.ParticipantId] = 0;
                     }
 
@@ -19088,6 +19140,9 @@ public static class CogitaEndpoints
                         firstBonusPoints,
                         speedPoints,
                         streakPoints,
+                        wrongPenaltyPoints,
+                        firstWrongPenaltyPoints,
+                        streakCount,
                         durationMs,
                         answer.UpdatedUtc);
                     previousAnswerUtc = answer.UpdatedUtc;
@@ -19136,6 +19191,8 @@ public static class CogitaEndpoints
                 var firstBonusPoints = 0;
                 var speedPoints = 0;
                 var streakPoints = 0;
+                var wrongPenaltyPoints = 0;
+                var firstWrongPenaltyPoints = 0;
                 var points = 0;
                 var isCorrect = answer.IsCorrect == true;
                 var durationMs = Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds));
@@ -19168,8 +19225,8 @@ public static class CogitaEndpoints
                         }
                     }
 
-                    var previousStreak = streakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedStreak)
-                        ? resolvedStreak
+                    var previousStreak = streakByParticipant.TryGetValue(answer.ParticipantId, out var currentStreak)
+                        ? currentStreak
                         : 0;
                     var nextStreak = previousStreak + 1;
                     streakPoints = ComputeAsyncStreakBonus(
@@ -19182,11 +19239,11 @@ public static class CogitaEndpoints
                 }
                 else
                 {
-                    var wrongPenalty = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
-                    var firstWrongPenalty = hasFirstWrong && answer.ParticipantId == firstWrongParticipantId
+                    wrongPenaltyPoints = Math.Max(0, Math.Min(500000, scoringRules.WrongAnswerPenalty));
+                    firstWrongPenaltyPoints = hasFirstWrong && answer.ParticipantId == firstWrongParticipantId
                         ? Math.Max(0, Math.Min(500000, scoringRules.FirstWrongPenalty))
                         : 0;
-                    points -= wrongPenalty + firstWrongPenalty;
+                    points -= wrongPenaltyPoints + firstWrongPenaltyPoints;
                     streakByParticipant[answer.ParticipantId] = 0;
                 }
 
@@ -19202,6 +19259,9 @@ public static class CogitaEndpoints
                     firstBonusPoints,
                     speedPoints,
                     streakPoints,
+                    wrongPenaltyPoints,
+                    firstWrongPenaltyPoints,
+                    isCorrect ? (streakByParticipant.TryGetValue(answer.ParticipantId, out var resolvedStreak) ? resolvedStreak : 0) : 0,
                     durationMs,
                     answer.UpdatedUtc);
             }

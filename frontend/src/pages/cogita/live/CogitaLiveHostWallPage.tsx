@@ -84,6 +84,8 @@ type RoundGain = {
   firstBonusPoints?: number;
   speedPoints?: number;
   streakPoints?: number;
+  wrongPenaltyPoints?: number;
+  firstWrongPenaltyPoints?: number;
 };
 
 function parseWordPair(label: string) {
@@ -1173,7 +1175,9 @@ export function CogitaLiveHostWallPage({
             basePoints: 0,
             firstBonusPoints: 0,
             speedPoints: 0,
-            streakPoints: 0
+            streakPoints: 0,
+            wrongPenaltyPoints: wrongPenalty,
+            firstWrongPenaltyPoints: firstWrongPenalty
           };
           return { participantId: row.participantId, isCorrect: false, pointsAwarded };
         }
@@ -1232,7 +1236,9 @@ export function CogitaLiveHostWallPage({
           basePoints,
           firstBonusPoints,
           speedPoints,
-          streakPoints
+          streakPoints,
+          wrongPenaltyPoints: 0,
+          firstWrongPenaltyPoints: 0
         };
         return { participantId: row.participantId, isCorrect: true, pointsAwarded: safePoints };
       });
