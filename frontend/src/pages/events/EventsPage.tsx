@@ -2271,13 +2271,17 @@ function Kal26EventPage({
   return (
     <div className="event-page kal-page">
       <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}`}>
-        <div>
-          <p className="kal-kicker">Pielgrzymka</p>
-          <h1>{site?.name ?? event.title}</h1>
-          <p>{site ? `${site.startDate} - ${site.endDate}` : event.date}</p>
-          <p>{site?.site.public.routeLabel ?? event.location}</p>
-        </div>
-        <div className="kal-top-nav">
+        <a className={`kal-header-logo${page.slug === 'start' ? ' active' : ''}`} href={`/#/event/${event.slug}/start`}>
+          <PilgrimageKalwariaLogo />
+        </a>
+        <nav className="kal-top-nav kal-top-nav--desktop" aria-label="Pilgrimage sections">
+          {headerMenuPages.map((item) => (
+            <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <div className="kal-top-nav kal-top-nav--mobile">
           <button
             type="button"
             className="kal-hamburger"
@@ -2291,9 +2295,6 @@ function Kal26EventPage({
           </button>
           {isMenuOpen ? (
             <nav className="kal-menu-dropdown" aria-label="Pilgrimage sections">
-              <a className={`kal-logo-menu-item${page.slug === 'start' ? ' active' : ''}`} href={`/#/event/${event.slug}/start`}>
-                <PilgrimageKalwariaLogo />
-              </a>
               {headerMenuPages.map((item) => (
                 <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
                   {item.label}

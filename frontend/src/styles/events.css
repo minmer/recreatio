@@ -237,7 +237,7 @@
 .kal-header {
   padding: 1.4rem 6vw;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   position: sticky;
@@ -256,33 +256,56 @@
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
 }
 
-.kal-kicker {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: #245535;
-  font-size: 0.78rem;
-}
-
-.kal-header h1 {
-  margin: 0.35rem 0 0.45rem;
-  font-size: clamp(1.2rem, 2.4vw, 1.9rem);
-  color: #1f3f29;
-}
-
-.kal-header p {
-  margin: 0;
-  color: #35583f;
-}
-
 .kal-tools {
   display: flex;
   align-items: center;
   gap: 0.7rem;
 }
 
+.kal-header-logo {
+  display: block;
+  width: min(270px, 28vw);
+  min-width: 190px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.kal-header-logo svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 .kal-top-nav {
   position: relative;
+}
+
+.kal-top-nav--desktop {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.kal-top-nav--desktop a {
+  text-decoration: none;
+  color: #1f2731;
+  padding: 0.42rem 0.56rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+  transition: color 180ms ease, border-color 180ms ease;
+}
+
+.kal-top-nav--desktop a.active {
+  color: #111922;
+  border-bottom-color: #d0872c;
+}
+
+.kal-top-nav--mobile {
+  display: none;
 }
 
 .kal-hamburger {
@@ -337,18 +360,6 @@
 .kal-menu-dropdown a.active {
   background: rgba(208, 135, 44, 0.14);
   color: #111922;
-}
-
-.kal-logo-menu-item {
-  display: block;
-  padding: 0.35rem 0.4rem;
-  background: rgba(216, 216, 216, 0.45);
-}
-
-.kal-logo-menu-item svg {
-  width: 100%;
-  height: auto;
-  display: block;
 }
 
 .kal-main {
@@ -1086,5 +1097,20 @@
     bottom: 0.8rem;
     justify-self: start;
     z-index: 5;
+  }
+}
+
+@media (max-width: 1220px) {
+  .kal-top-nav--desktop {
+    display: none;
+  }
+
+  .kal-top-nav--mobile {
+    display: block;
+  }
+
+  .kal-header-logo {
+    width: min(250px, 52vw);
+    min-width: 160px;
   }
 }
