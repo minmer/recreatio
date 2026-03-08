@@ -369,6 +369,11 @@
   gap: 1rem;
 }
 
+.kal-main--start {
+  display: block;
+  padding: 0;
+}
+
 .kal-sidebar {
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(34, 84, 46, 0.22);
@@ -414,122 +419,76 @@
   margin-top: 0;
 }
 
+.pilgrimage-content--start {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
 .pilgrimage-content {
   display: grid;
   gap: 1rem;
 }
 
-.pilgrimage-start-poster {
-  border: 1px solid rgba(34, 84, 46, 0.22);
-  border-radius: 20px;
-  padding: 2.2rem 1.4rem 1.5rem;
-  background: linear-gradient(165deg, rgba(247, 247, 247, 0.98), rgba(238, 238, 238, 0.98));
-  display: grid;
-  gap: 1.25rem;
-  text-align: center;
-}
-
-.pilgrimage-start-poster-head {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.pilgrimage-start-kicker {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.78rem;
-  color: #cb7b1a;
-  font-weight: 700;
-}
-
-.pilgrimage-start-poster h2 {
-  margin: 0;
-  font-size: clamp(2.2rem, 8vw, 5rem);
-  line-height: 0.95;
-  color: #575757;
-}
-
-.pilgrimage-start-date {
-  margin: 0;
-  font-size: clamp(1.4rem, 4vw, 3rem);
-  color: #b6b6b6;
-  font-weight: 700;
-}
-
-.pilgrimage-start-route {
-  margin: 0;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  color: #334455;
-}
-
-.pilgrimage-start-poster-cta {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
-.pilgrimage-start-counter {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.7rem;
-}
-
-.pilgrimage-start-counter article {
-  border: 1px solid rgba(203, 123, 26, 0.25);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 0.55rem 0.35rem;
-  display: grid;
-  gap: 0.2rem;
-}
-
-.pilgrimage-start-counter small {
-  color: #91622e;
-  font-weight: 600;
-}
-
-.pilgrimage-start-counter strong {
-  color: #cf7c17;
-  font-size: clamp(1.5rem, 4vw, 2.7rem);
-  line-height: 1;
-}
-
-.pilgrimage-scroll-reveal {
+.pilgrimage-start-stage {
   position: relative;
-  height: 165vh;
-}
-
-.pilgrimage-scroll-reveal-sticky {
-  position: sticky;
-  top: 1rem;
-  min-height: calc(100vh - 2rem);
-  border-radius: 20px;
+  min-height: 100vh;
+  width: 100%;
   overflow: hidden;
-  border: 1px solid rgba(34, 84, 46, 0.24);
-  background:
-    linear-gradient(115deg, rgba(23, 30, 24, 0.42), rgba(23, 30, 24, 0.2)),
-    url('/parish/trip.jpg') center / cover no-repeat;
-  display: grid;
-  align-items: end;
-  padding: 1.2rem;
+  background: #f2ebd8;
 }
 
-.pilgrimage-scroll-reveal-overlay {
-  max-width: 620px;
-  background: rgba(18, 27, 21, 0.56);
-  border: 1px solid rgba(235, 245, 238, 0.35);
-  border-radius: 14px;
-  padding: 1rem;
-  display: grid;
-  gap: 0.65rem;
+.pilgrimage-start-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 52% 52%, rgba(247, 240, 220, 0.9) 0%, rgba(247, 240, 220, 0.45) 18%, rgba(247, 240, 220, 0) 42%);
+  z-index: 1;
 }
 
-.pilgrimage-scroll-reveal-overlay h3,
-.pilgrimage-scroll-reveal-overlay p {
-  margin: 0;
-  color: #f3f8f4;
+.pilgrimage-stones {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.stone {
+  position: absolute;
+  inset: auto;
+}
+
+.stone-a { left: -6vw; top: -12vh; width: 38vw; height: 45vh; background: linear-gradient(150deg, #f65f44 0 76%, #b53d29 76% 100%); clip-path: polygon(0 0, 82% 12%, 56% 74%, 6% 100%); }
+.stone-b { left: 24vw; top: -16vh; width: 30vw; height: 40vh; background: linear-gradient(132deg, #fb9109 0 70%, #c96602 70% 100%); clip-path: polygon(12% 0, 100% 0, 76% 88%, 22% 72%); }
+.stone-c { right: -9vw; top: -10vh; width: 36vw; height: 46vh; background: linear-gradient(148deg, #2e63df 0 72%, #1c3fa3 72% 100%); clip-path: polygon(10% 12%, 100% 0, 100% 100%, 30% 72%); }
+.stone-d { left: -4vw; top: 28vh; width: 34vw; height: 34vh; background: linear-gradient(144deg, #fab75e 0 74%, #d8933c 74% 100%); clip-path: polygon(0 30%, 62% 0, 100% 60%, 18% 100%); }
+.stone-e { left: 18vw; top: 36vh; width: 24vw; height: 28vh; background: linear-gradient(142deg, #6fa52a 0 73%, #4f7a1c 73% 100%); clip-path: polygon(12% 10%, 88% 0, 100% 74%, 24% 100%, 0 45%); }
+.stone-f { left: 39vw; top: 20vh; width: 24vw; height: 30vh; background: linear-gradient(140deg, #3f74eb 0 72%, #194fbf 72% 100%); clip-path: polygon(8% 0, 92% 14%, 72% 96%, 0 82%); }
+.stone-g { right: 24vw; top: 36vh; width: 22vw; height: 30vh; background: linear-gradient(138deg, #f06f39 0 70%, #bc4820 70% 100%); clip-path: polygon(20% 0, 100% 22%, 70% 100%, 0 82%, 6% 28%); }
+.stone-h { right: -3vw; top: 28vh; width: 34vw; height: 38vh; background: linear-gradient(146deg, #2a56c7 0 72%, #133992 72% 100%); clip-path: polygon(14% 0, 100% 18%, 100% 100%, 28% 82%, 4% 30%); }
+.stone-i { left: -6vw; bottom: 18vh; width: 28vw; height: 32vh; background: linear-gradient(140deg, #fb9109 0 76%, #cc6a05 76% 100%); clip-path: polygon(0 12%, 82% 0, 66% 100%, 6% 82%); }
+.stone-j { left: 16vw; bottom: 2vh; width: 26vw; height: 34vh; background: linear-gradient(138deg, #f65f44 0 72%, #a93f2f 72% 100%); clip-path: polygon(16% 0, 100% 24%, 82% 88%, 0 100%, 8% 34%); }
+.stone-k { left: 42vw; bottom: -12vh; width: 20vw; height: 32vh; background: linear-gradient(136deg, #f8c34a 0 74%, #ce9722 74% 100%); clip-path: polygon(20% 0, 100% 8%, 82% 100%, 0 74%); }
+.stone-l { right: 32vw; bottom: 14vh; width: 22vw; height: 26vh; background: linear-gradient(140deg, #6d9a2f 0 74%, #4f7325 74% 100%); clip-path: polygon(4% 0, 100% 18%, 72% 100%, 0 82%); }
+.stone-m { right: 16vw; bottom: 2vh; width: 28vw; height: 34vh; background: linear-gradient(138deg, #4678ea 0 72%, #1a4fbe 72% 100%); clip-path: polygon(20% 0, 100% 24%, 88% 100%, 0 88%, 8% 24%); }
+.stone-n { right: -5vw; bottom: 10vh; width: 30vw; height: 34vh; background: linear-gradient(146deg, #f39c33 0 70%, #c87218 70% 100%); clip-path: polygon(12% 0, 100% 22%, 100% 100%, 30% 88%, 0 34%); }
+.stone-o { left: 30vw; top: 54vh; width: 14vw; height: 16vh; background: linear-gradient(140deg, #9eb23a 0 72%, #73842c 72% 100%); clip-path: polygon(18% 0, 100% 10%, 76% 100%, 0 82%); }
+.stone-p { right: 36vw; top: 54vh; width: 14vw; height: 16vh; background: linear-gradient(140deg, #e77241 0 72%, #b84d2c 72% 100%); clip-path: polygon(14% 0, 100% 20%, 70% 100%, 0 76%); }
+
+.hero-center {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 7rem 1rem 5.5rem;
+}
+
+.center-mark {
+  width: min(430px, 46vw);
+  height: auto;
+  display: block;
 }
 
 .pilgrimage-hero {
@@ -995,6 +954,32 @@
   color: #ecf6ef;
 }
 
+.kal-header--overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  background: rgba(255, 255, 255, 0.78);
+  border-bottom-color: rgba(13, 22, 36, 0.14);
+}
+
+.kal-footer--overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.78);
+  border-top: 1px solid rgba(13, 22, 36, 0.14);
+  color: #0f1c2f;
+}
+
+.kal-footer--overlay .kal-logo,
+.kal-footer--overlay .kal-footer-links a,
+.kal-footer--overlay .ghost {
+  color: #0f1c2f;
+}
+
 .kal-logo {
   color: #ecf6ef;
   text-decoration: none;
@@ -1053,24 +1038,6 @@
     grid-template-columns: 1fr;
   }
 
-  .pilgrimage-start-poster {
-    padding: 1.35rem 0.9rem 1rem;
-  }
-
-  .pilgrimage-start-counter {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pilgrimage-scroll-reveal {
-    height: 125vh;
-  }
-
-  .pilgrimage-scroll-reveal-sticky {
-    top: 0.6rem;
-    min-height: calc(100vh - 1.2rem);
-    padding: 0.8rem;
-  }
-
   .pilgrimage-hero-visual {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 120px 120px;
@@ -1127,5 +1094,23 @@
 
   .kal-tools {
     gap: 0.45rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .center-mark {
+    width: min(320px, 64vw);
+  }
+
+  .hero-center {
+    padding-top: 6.2rem;
+    padding-bottom: 4.8rem;
+  }
+
+  .stone-a,
+  .stone-c,
+  .stone-h,
+  .stone-n {
+    opacity: 0.88;
   }
 }

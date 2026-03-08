@@ -885,247 +885,53 @@ function Kal26EventPage({
   };
 
   const renderPublicPage = () => {
-    const keyInfoSection = sectionById('najwazniejsze');
-    const aboutSection = sectionById('jak-wyglada');
     const programSection = sectionById('program');
     const routeSection = sectionById('trasa');
-    const signupSectionPublic = sectionById('zapisy');
-    const participantTeaserCards = (site?.site.participant.sections ?? []).flatMap((section) => section.cards).slice(0, 6);
     const gallerySection = sectionById('foto');
     const checklistSection = sectionById('niezbednik');
     const faqSection = sectionById('faq');
-    const contactSection = sectionById('kontakt');
     const legalSection = sectionById('formalnosci');
 
     if (page.slug === 'start') {
       return (
-        <>
-          <section className="pilgrimage-start-poster">
-            <div className="pilgrimage-start-poster-head">
-              <p className="pilgrimage-start-kicker">Piesza Pielgrzymka</p>
-              <h2>{site?.name ?? event.title}</h2>
-              <p className="pilgrimage-start-date">{site?.site.public.dateLabel ?? event.date}</p>
-              <p className="pilgrimage-start-route">{site?.site.public.routeLabel ?? event.location}</p>
-            </div>
-            <div className="pilgrimage-start-poster-cta">
-              <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zarejestruj sie teraz</a>
-              <a className="ghost" href={`/#/event/${event.slug}/program`}>Zobacz program</a>
-            </div>
-            <div className="pilgrimage-start-counter">
-              <article><small>Dni</small><strong>147</strong></article>
-              <article><small>Godzin</small><strong>08</strong></article>
-              <article><small>Minut</small><strong>35</strong></article>
-              <article><small>Sekund</small><strong>48</strong></article>
-            </div>
-          </section>
-
-          <section className="pilgrimage-scroll-reveal" aria-label="Pilgrimage route photo">
-            <div className="pilgrimage-scroll-reveal-sticky">
-              <div className="pilgrimage-scroll-reveal-overlay">
-                <h3>Kazdy uczestnik musi dokonac rejestracji</h3>
-                <p>
-                  Zgloszenia online przyjmujemy przez formularz. Po rejestracji uczestnik otrzymuje prywatny dostep
-                  SMS do strefy uczestnika.
-                </p>
-                <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Zarejestruj sie teraz</a>
-              </div>
-            </div>
-          </section>
-
-          {keyInfoSection ? (
-            <section className="pilgrimage-section-block pilgrimage-layout-band">
-              <header>
-                <h2>{keyInfoSection.title}</h2>
-                {keyInfoSection.lead ? <p>{keyInfoSection.lead}</p> : null}
-              </header>
-              <div className="pilgrimage-layout-grid-3">
-                {keyInfoSection.cards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {aboutSection ? (
-            <section className="pilgrimage-section-block pilgrimage-layout-split">
-              <div className="pilgrimage-layout-split-text">
-                <header>
-                  <h2>O pielgrzymce</h2>
-                  {aboutSection.lead ? <p>{aboutSection.lead}</p> : null}
-                </header>
-                <p>
-                  This pilgrimage is built as a clear two-day route: shared prayer, common walking rhythm, practical
-                  logistics, and a strong community experience from Krakow through Tyniec to Kalwaria.
-                </p>
-                <div className="pilgrimage-quick-links">
-                  <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up now</a>
-                  <a className="ghost" href={`/#/event/${event.slug}/program`}>See full program</a>
-                </div>
-              </div>
-              <div className="pilgrimage-layout-split-cards">
-                {aboutSection.cards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {programSection ? (
-            <section className="pilgrimage-section-block">
-              <header>
-                <h2>{programSection.title}</h2>
-                {programSection.lead ? <p>{programSection.lead}</p> : null}
-              </header>
-              <div className="pilgrimage-timeline-grid">
-                {programSection.cards.map((card, index) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-timeline-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <small>Day {index % 2 === 0 ? '1' : '2'}</small>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {routeSection ? (
-            <section className="pilgrimage-section-block pilgrimage-layout-split">
-              <div className="pilgrimage-route-map">
-                <header>
-                  <h2>{routeSection.title}</h2>
-                  {routeSection.lead ? <p>{routeSection.lead}</p> : null}
-                </header>
-                <div className="pilgrimage-map-placeholder">
-                  <p>Krakow -&gt; Tyniec -&gt; Kalwaria Zebrzydowska</p>
-                  <small>Map module with stages, stops, and key logistics points</small>
-                </div>
-                <div className="pilgrimage-quick-links">
-                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>PDF map (in preparation)</a>
-                  <a className="ghost" href="https://maps.google.com" target="_blank" rel="noreferrer">Open map</a>
-                  <a className="ghost" href={`/#/event/${event.slug}/kontakt`}>GPX file (in preparation)</a>
-                </div>
-              </div>
-              <div className="pilgrimage-layout-split-cards">
-                {routeSection.cards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {signupSectionPublic ? (
-            <section className="pilgrimage-section-block pilgrimage-layout-band">
-              <header>
-                <h2>How to register</h2>
-                <p>Three simple steps from form submission to participant zone access.</p>
-              </header>
-              <div className="pilgrimage-signup-steps">
-                <article className="pilgrimage-card"><h3>1. Fill the form</h3><p>Complete registration in clear steps.</p></article>
-                <article className="pilgrimage-card"><h3>2. Receive confirmation</h3><p>You get participant access by SMS link/token.</p></article>
-                <article className="pilgrimage-card"><h3>3. Follow participant updates</h3><p>Use your private zone for latest instructions.</p></article>
-              </div>
-              <div className="pilgrimage-layout-grid-3">
-                {signupSectionPublic.cards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {participantTeaserCards.length > 0 ? (
-            <section className="pilgrimage-section-block">
-              <header>
-                <h2>Participant zone preview</h2>
-                <p>After registration, participants get practical tools for schedule, logistics, and emergency contact.</p>
-              </header>
-              <div className="pilgrimage-layout-grid-3">
-                {participantTeaserCards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {gallerySection ? (
-            <section className="pilgrimage-section-block">
-              <header>
-                <h2>Gallery</h2>
-                <p>Photos from previous years that show the full journey of the pilgrimage.</p>
-              </header>
-              <div className="pilgrimage-gallery-grid">
-                {gallerySection.cards.map((card, index) => (
-                  <article key={card.id} className={`pilgrimage-gallery-item pilgrimage-gallery-item--${(index % 6) + 1}`}>
-                    <div className="pilgrimage-gallery-overlay">
-                      <h3>{card.title}</h3>
-                      <p>{card.body}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              <div className="pilgrimage-quick-links">
-                <a className="ghost" href={`/#/event/${event.slug}/galeria`}>Show more photos</a>
-              </div>
-            </section>
-          ) : null}
-
-          {faqSection ? (
-            <section className="pilgrimage-section-block" id={`kal-${faqSection.id}`}>
-              <header>
-                <h2>{faqSection.title}</h2>
-                {faqSection.lead ? <p>{faqSection.lead}</p> : null}
-              </header>
-              <div className="pilgrimage-accordion">
-                {faqSection.cards.map((card) => (
-                  <details key={card.id} className="pilgrimage-accordion-item">
-                    <summary>{card.title}</summary>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </details>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {contactSection ? (
-            <section className="pilgrimage-section-block">
-              <header>
-                <h2>{contactSection.title}</h2>
-                {contactSection.lead ? <p>{contactSection.lead}</p> : null}
-              </header>
-              <div className="pilgrimage-layout-grid-3">
-                {contactSection.cards.map((card) => (
-                  <article key={card.id} className={`pilgrimage-card pilgrimage-card--${card.accent ?? 'default'}`}>
-                    <h3>{card.title}</h3>
-                    <p>{card.body}</p>
-                    {card.meta ? <small>{card.meta}</small> : null}
-                  </article>
-                ))}
-              </div>
-              <div className="pilgrimage-quick-links">
-                <a className="cta" href={`/#/event/${event.slug}/kontakt`}>Contact organizers</a>
-              </div>
-            </section>
-          ) : null}
-        </>
+        <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
+          <div className="pilgrimage-stones">
+            <span className="stone stone-a" />
+            <span className="stone stone-b" />
+            <span className="stone stone-c" />
+            <span className="stone stone-d" />
+            <span className="stone stone-e" />
+            <span className="stone stone-f" />
+            <span className="stone stone-g" />
+            <span className="stone stone-h" />
+            <span className="stone stone-i" />
+            <span className="stone stone-j" />
+            <span className="stone stone-k" />
+            <span className="stone stone-l" />
+            <span className="stone stone-m" />
+            <span className="stone stone-n" />
+            <span className="stone stone-o" />
+            <span className="stone stone-p" />
+          </div>
+          <div className="hero-center">
+            <svg
+              className="center-mark"
+              viewBox="25 25 175 245"
+              xmlns="http://www.w3.org/2000/svg"
+              role="img"
+              aria-label="Wielkanocna Kalwaria"
+            >
+              <path fill="#4172eb" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
+              <path fill="#fab75e" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
+              <path fill="#fb9109" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
+              <path fill="#f65f44" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
+              <path fill="#1441b6" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
+              <path fill="#9c1e07" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
+              <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#040d24">Wielkanocna</text>
+              <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#040d24">KALWARIA</text>
+            </svg>
+          </div>
+        </section>
       );
     }
 
@@ -2270,7 +2076,7 @@ function Kal26EventPage({
 
   return (
     <div className="event-page kal-page">
-      <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}`}>
+      <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}${page.slug === 'start' ? ' kal-header--overlay' : ''}`}>
         <a className={`kal-header-logo${page.slug === 'start' ? ' active' : ''}`} href={`/#/event/${event.slug}/start`}>
           <PilgrimageKalwariaLogo />
         </a>
@@ -2319,20 +2125,22 @@ function Kal26EventPage({
         </div>
       </header>
 
-      <main className="kal-main">
-        <aside className="kal-sidebar">
-          <a href="/#/event" className="ghost">{copy.events.backToEvents}</a>
-          <p>{site?.motto || 'Droga, wspolnota i modlitwa'}</p>
-          <div className="kal-page-links">
-            {event.pages.map((item) => (
-              <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
-                {item.title}
-              </a>
-            ))}
-          </div>
-        </aside>
+      <main className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}`}>
+        {page.slug !== 'start' ? (
+          <aside className="kal-sidebar">
+            <a href="/#/event" className="ghost">{copy.events.backToEvents}</a>
+            <p>{site?.motto || 'Droga, wspolnota i modlitwa'}</p>
+            <div className="kal-page-links">
+              {event.pages.map((item) => (
+                <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+                  {item.title}
+                </a>
+              ))}
+            </div>
+          </aside>
+        ) : null}
 
-        <section className="kal-content pilgrimage-content">
+        <section className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}`}>
           {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
           {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
           {!siteLoading && !siteError && site ? (
@@ -2383,7 +2191,7 @@ function Kal26EventPage({
               {page.slug === 'uczestnik' ? renderParticipantPage() : null}
               {page.slug === 'organizator' ? renderOrganizerPage() : null}
               {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
-              {!['uczestnik', 'organizator'].includes(page.slug) ? (
+              {!['uczestnik', 'organizator', 'start'].includes(page.slug) ? (
                 <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
                   Zapisz sie
                 </a>
@@ -2393,7 +2201,7 @@ function Kal26EventPage({
         </section>
       </main>
 
-      <footer className="kal-footer">
+      <footer className={`kal-footer${page.slug === 'start' ? ' kal-footer--overlay' : ''}`}>
         <a href="/#/" className="kal-logo">Recreatio</a>
         <nav className="kal-footer-links" aria-label="Footer navigation">
           <a href={`/#/event/${event.slug}/start`}>Start</a>
