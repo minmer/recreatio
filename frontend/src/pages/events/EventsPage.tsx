@@ -298,6 +298,25 @@ function PilgrimageSectionBlock({ section }: { section: PilgrimageSection }) {
   );
 }
 
+function PilgrimageKalwariaLogo() {
+  return (
+    <svg viewBox="260 20 700 255" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wielkanocna Kalwaria">
+      <path
+        fill="#f65f44"
+        d="m 367.24141,27.454415 -17.55436,20.805444 11.05221,21.455332 20.15554,7.801938 20.15556,-21.455333 -5.20157,-22.106037 z m -8.45264,57.214763 -61.11574,9.752425 -18.85495,63.067047 37.28126,-1.17615 -24.27776,106.50395 14.01209,6.51762 16.65151,-6.36714 15.49815,-73.61982 32.20737,22.85005 3.55183,52.30123 19.20071,1.05915 5.56275,-60.45561 -37.11603,-37.86086 3.90097,-33.15824 11.70291,15.60387 35.75942,-1.30059 1.89437,43.57032 10.68374,7.35133 -3.47557,-48.97116 7.80194,-21.45534 h -37.70992 z"
+      />
+      <path
+        fill="#9c1e07"
+        d="m 395.84879,33.95576 -10.50805,22.570476 -16.43597,16.349749 11.99003,4.641145 20.15556,-21.455333 z m -30.55786,100.12707 11.7029,15.60388 35.75944,-1.3006 1.89436,43.57032 5.20156,3.57886 -2.09689,-54.6461 -33.33149,-0.45956 z m -82.01309,8.48843 -4.45976,14.91738 37.28126,-1.17614 -24.27776,106.50396 14.01209,6.51761 28.70499,-125.22715 z m 57.46772,26.82201 -2.76224,19.95383 32.20738,22.85006 2.55959,37.69036 13.17283,-34.87665 z"
+      />
+      <text x="785.73004" y="116.91441" fill="#040d24" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif">
+        <tspan x="785.73004" y="116.91441" fontSize="121.275">Wielkanocna</tspan>
+        <tspan x="785.73004" y="256.28879" fontSize="176.4">Kalwaria</tspan>
+      </text>
+    </svg>
+  );
+}
+
 function Kal26EventPage({
   copy,
   language,
@@ -383,6 +402,7 @@ function Kal26EventPage({
   const [contactError, setContactError] = useState<string | null>(null);
   const [contactSuccess, setContactSuccess] = useState<string | null>(null);
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     setParticipantToken(queryToken);
@@ -583,7 +603,6 @@ function Kal26EventPage({
 
   const signupSection = sectionById('zapisy');
   const headerMenuPages = [
-    { slug: 'start', label: 'AKTUALNOSCI' },
     { slug: 'o-pielgrzymce', label: 'INFORMACJE' },
     { slug: 'program', label: 'PROGRAM' },
     { slug: 'zapisy', label: 'REJESTRACJA' },
@@ -593,6 +612,10 @@ function Kal26EventPage({
     { slug: 'galeria', label: 'HISTORIA' },
     { slug: 'kontakt', label: 'WSPARCIE' }
   ];
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [page.slug]);
 
   const handleRegistrationSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
@@ -2254,15 +2277,32 @@ function Kal26EventPage({
           <p>{site ? `${site.startDate} - ${site.endDate}` : event.date}</p>
           <p>{site?.site.public.routeLabel ?? event.location}</p>
         </div>
-        <nav className="kal-top-nav" aria-label="Pilgrimage sections">
-          {headerMenuPages.map((item) => (
-            <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
-              {item.label}
-            </a>
-          ))}
-        </nav>
+        <div className="kal-top-nav">
+          <button
+            type="button"
+            className="kal-hamburger"
+            aria-label="Open menu"
+            aria-expanded={isMenuOpen}
+            onClick={() => setIsMenuOpen((previous) => !previous)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+          {isMenuOpen ? (
+            <nav className="kal-menu-dropdown" aria-label="Pilgrimage sections">
+              <a className={`kal-logo-menu-item${page.slug === 'start' ? ' active' : ''}`} href={`/#/event/${event.slug}/start`}>
+                <PilgrimageKalwariaLogo />
+              </a>
+              {headerMenuPages.map((item) => (
+                <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          ) : null}
+        </div>
         <div className="kal-tools">
-          <a className="cta kal-header-cta" href={`/#/event/${event.slug}/zapisy`}>Zapisz sie</a>
           <LanguageSelect value={language} onChange={onLanguageChange} />
           <AuthAction
             copy={copy}
