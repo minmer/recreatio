@@ -4195,6 +4195,47 @@ public static class CogitaEndpoints
                     new List<CogitaStatisticsKnownessItemResponse>()));
             }
 
+            static bool IsAnswerEvent(CogitaStatisticEvent statisticEvent)
+            {
+                return statisticEvent.Correctness.HasValue || statisticEvent.IsCorrect.HasValue;
+            }
+
+            var effectiveDurationMsByEventId = new Dictionary<Guid, int?>(events.Count);
+            var answerEventsByParticipant = events
+                .Where(IsAnswerEvent)
+                .GroupBy(ResolveStatisticsParticipantRef, x => x, (participant, participantEvents) => new
+                {
+                    ParticipantKey = participant.Key,
+                    Events = participantEvents
+                        .OrderBy(x => x.CreatedUtc)
+                        .ThenBy(x => x.Id)
+                        .ToList()
+                })
+                .ToList();
+            foreach (var participantBucket in answerEventsByParticipant)
+            {
+                for (var i = 0; i < participantBucket.Events.Count; i += 1)
+                {
+                    var currentEvent = participantBucket.Events[i];
+                    int? effectiveDurationMs = null;
+                    if (currentEvent.DurationMs.HasValue && currentEvent.DurationMs.Value >= 0)
+                    {
+                        effectiveDurationMs = currentEvent.DurationMs.Value;
+                    }
+                    else if (i + 1 < participantBucket.Events.Count)
+                    {
+                        var nextEvent = participantBucket.Events[i + 1];
+                        var deltaMs = (int)Math.Round((nextEvent.CreatedUtc - currentEvent.CreatedUtc).TotalMilliseconds);
+                        if (deltaMs >= 0)
+                        {
+                            effectiveDurationMs = deltaMs;
+                        }
+                    }
+
+                    effectiveDurationMsByEventId[currentEvent.Id] = effectiveDurationMs;
+                }
+            }
+
             var participantStates = new Dictionary<string, StatisticsParticipantState>(StringComparer.Ordinal);
             var timeline = new List<CogitaStatisticsTimelinePointResponse>(events.Count);
             var liveRunningPointsByParticipant = new Dictionary<Guid, int>();
@@ -4230,6 +4271,9 @@ public static class CogitaEndpoints
 
                 if (eventCorrectness.HasValue)
                 {
+                    var effectiveDurationMs = effectiveDurationMsByEventId.TryGetValue(statisticEvent.Id, out var derivedDurationMs)
+                        ? derivedDurationMs
+                        : (statisticEvent.DurationMs.HasValue && statisticEvent.DurationMs.Value >= 0 ? statisticEvent.DurationMs : null);
                     state.AnswerCount += 1;
                     state.CorrectnessSum += eventCorrectness.Value;
                     if (eventCorrectness.Value >= 0.5d)
@@ -4262,9 +4306,9 @@ public static class CogitaEndpoints
                         }
                     }
                     state.KnownessEntries.Add(new TemporalKnownessEntry(eventCorrectness.Value, statisticEvent.CreatedUtc));
-                    if (statisticEvent.DurationMs.HasValue && statisticEvent.DurationMs.Value >= 0)
+                    if (effectiveDurationMs.HasValue && effectiveDurationMs.Value >= 0)
                     {
-                        state.DurationSumMs += statisticEvent.DurationMs.Value;
+                        state.DurationSumMs += effectiveDurationMs.Value;
                         state.DurationCount += 1;
                     }
                 }
@@ -4307,7 +4351,9 @@ public static class CogitaEndpoints
                     statisticEvent.IsCorrect,
                     eventCorrectness,
                     timelinePointsAwarded,
-                    statisticEvent.DurationMs,
+                    effectiveDurationMsByEventId.TryGetValue(statisticEvent.Id, out var timelineDurationMs)
+                        ? timelineDurationMs
+                        : (statisticEvent.DurationMs.HasValue && statisticEvent.DurationMs.Value >= 0 ? statisticEvent.DurationMs : null),
                     timelineRunningPoints,
                     knowness
                 ));
