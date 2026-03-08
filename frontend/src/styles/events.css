@@ -1107,6 +1107,11 @@
 }
 
 @media (max-width: 1220px) {
+  .kal-header {
+    padding: 0.58rem 3.2vw;
+    gap: 0.45rem;
+  }
+
   .kal-top-nav--desktop {
     display: none;
   }
@@ -1116,7 +1121,11 @@
   }
 
   .kal-header-logo {
-    width: min(320px, 56vw);
-    min-width: 180px;
+    width: min(260px, 43vw);
+    min-width: 140px;
+  }
+
+  .kal-tools {
+    gap: 0.45rem;
   }
 }
