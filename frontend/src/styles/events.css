@@ -484,21 +484,21 @@
 .start-graphic a:focus-visible #path14294,
 .start-graphic a:hover #path884,
 .start-graphic a:focus-visible #path884 {
-  filter: drop-shadow(0 0 4px rgba(255, 230, 64, 0.72)) drop-shadow(0 0 7px rgba(255, 230, 64, 0.48));
+  filter: drop-shadow(0 0 2px rgba(255, 230, 64, 0.7)) drop-shadow(0 0 4px rgba(255, 230, 64, 0.42));
 }
 
 .start-graphic a:hover #path15214,
 .start-graphic a:focus-visible #path15214,
 .start-graphic a:hover #path1064,
 .start-graphic a:focus-visible #path1064 {
-  filter: drop-shadow(0 0 4px rgba(136, 197, 41, 0.72)) drop-shadow(0 0 7px rgba(136, 197, 41, 0.48));
+  filter: drop-shadow(0 0 2px rgba(136, 197, 41, 0.7)) drop-shadow(0 0 4px rgba(136, 197, 41, 0.42));
 }
 
 .start-graphic a:hover #path14290,
 .start-graphic a:focus-visible #path14290,
 .start-graphic a:hover #path1066,
 .start-graphic a:focus-visible #path1066 {
-  filter: drop-shadow(0 0 4px rgba(244, 88, 66, 0.72)) drop-shadow(0 0 7px rgba(244, 88, 66, 0.48));
+  filter: drop-shadow(0 0 2px rgba(244, 88, 66, 0.7)) drop-shadow(0 0 4px rgba(244, 88, 66, 0.42));
 }
 
 .start-graphic #text80535:hover,
@@ -506,6 +506,10 @@
 .start-graphic #tspan91363:hover,
 .start-graphic #tspan123615:hover {
   filter: drop-shadow(0 0 3px rgba(26, 42, 2, 0.42));
+}
+
+.start-graphic #path6244.text-hover-glow {
+  filter: drop-shadow(0 0 2px rgba(255, 230, 64, 0.7)) drop-shadow(0 0 4px rgba(255, 230, 64, 0.42));
 }
 
 .pilgrimage-hero {

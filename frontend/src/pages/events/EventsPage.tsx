@@ -293,12 +293,18 @@ function PilgrimageStoneMap() {
     const jumpToClickableGroup = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
-      const target = root.querySelector<SVGGraphicsElement>('#path14294');
+      const target = root.querySelector<SVGGraphicsElement>('#path1064');
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
     const jumpIds = ['path6244', 'text80535', 'text123617', 'tspan91363', 'tspan123615'];
     const boundElements: Element[] = [];
+    const textIds = ['text80535', 'text123617', 'tspan91363', 'tspan123615'];
+    const textBoundElements: Element[] = [];
+    const headerPath = root.querySelector<SVGGraphicsElement>('#path6244');
+
+    const turnOnHeaderPathGlow = () => headerPath?.classList.add('text-hover-glow');
+    const turnOffHeaderPathGlow = () => headerPath?.classList.remove('text-hover-glow');
 
     for (const id of jumpIds) {
       const element = root.querySelector(`#${id}`);
@@ -310,9 +316,27 @@ function PilgrimageStoneMap() {
       boundElements.push(element);
     }
 
+    for (const id of textIds) {
+      const element = root.querySelector(`#${id}`);
+      if (!element) {
+        continue;
+      }
+      element.addEventListener('mouseenter', turnOnHeaderPathGlow);
+      element.addEventListener('mouseleave', turnOffHeaderPathGlow);
+      element.addEventListener('focus', turnOnHeaderPathGlow);
+      element.addEventListener('blur', turnOffHeaderPathGlow);
+      textBoundElements.push(element);
+    }
+
     return () => {
       for (const element of boundElements) {
         element.removeEventListener('click', jumpToClickableGroup);
+      }
+      for (const element of textBoundElements) {
+        element.removeEventListener('mouseenter', turnOnHeaderPathGlow);
+        element.removeEventListener('mouseleave', turnOffHeaderPathGlow);
+        element.removeEventListener('focus', turnOnHeaderPathGlow);
+        element.removeEventListener('blur', turnOffHeaderPathGlow);
       }
     };
   }, []);
