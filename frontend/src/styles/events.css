@@ -436,21 +436,25 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #cfcfcf;
+  background: #d9d9d9;
   padding: 0;
 }
 
 .start-graphic-wrap {
-  width: min(92vw, 520px);
-  background: #e6e6e6;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  width: min(92vw, 760px);
+  background: #f1fde8;
 }
 
 .start-graphic {
   width: 100%;
+  background: #f1fde8;
+}
+
+.start-graphic > svg {
+  width: 100%;
   height: auto;
   display: block;
-  background: #e6e6e6;
+  background: #f1fde8;
 }
 
 .pilgrimage-hero {
