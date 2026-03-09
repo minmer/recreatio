@@ -310,6 +310,7 @@ const PILGRIMAGE_START_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="210
 function PilgrimageStoneMap() {
   return <div className="start-graphic" dangerouslySetInnerHTML={{ __html: PILGRIMAGE_START_SVG }} />;
 }
+
 function PilgrimageSectionBlock({ section }: { section: PilgrimageSection }) {
   return (
     <section className="pilgrimage-section-block" id={`kal-${section.id}`}>
