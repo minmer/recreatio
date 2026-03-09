@@ -345,8 +345,14 @@ function PilgrimageStoneMap() {
       if (!textElement || !pathElement) {
         continue;
       }
-      const onEnter = () => pathElement.classList.add(glowClass);
-      const onLeave = () => pathElement.classList.remove(glowClass);
+      const onEnter = () => {
+        pathElement.classList.add(glowClass);
+        pathElement.classList.add('text-hover-scale');
+      };
+      const onLeave = () => {
+        pathElement.classList.remove(glowClass);
+        pathElement.classList.remove('text-hover-scale');
+      };
       textElement.addEventListener('mouseenter', onEnter);
       textElement.addEventListener('mouseleave', onLeave);
       textElement.addEventListener('focus', onEnter);
@@ -2272,7 +2278,6 @@ function Kal26EventPage({
           <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
           <a href={`/#/event/${event.slug}/formalnosci`}>Regulamin i RODO</a>
         </nav>
-        <a className="ghost" href="/#/section-1" onClick={() => onNavigate('home')}>{copy.nav.home}</a>
       </footer>
     </div>
   );
