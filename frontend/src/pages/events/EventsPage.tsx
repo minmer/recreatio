@@ -296,7 +296,11 @@ function PilgrimageStoneMap() {
       event.preventDefault();
       event.stopPropagation();
       const target = root.querySelector<SVGGraphicsElement>('#path1064');
-      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (!target) {
+        return;
+      }
+      const top = window.scrollY + target.getBoundingClientRect().top - 24;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     };
 
     const jumpIds = ['path6244', 'text80535', 'text123617', 'tspan91363', 'tspan123615'];
@@ -724,6 +728,10 @@ function Kal26EventPage({
   useEffect(() => {
     setIsMenuOpen(false);
   }, [page.slug]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [event.slug, page.slug]);
 
   const handleRegistrationSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
