@@ -461,23 +461,37 @@
 
 .start-graphic a path {
   cursor: pointer;
-  transition: filter 180ms ease, opacity 180ms ease;
+  transition: filter 110ms ease, opacity 110ms ease, transform 110ms ease;
+  transform-origin: center;
 }
 
 .start-graphic a:hover path,
 .start-graphic a:focus-visible path {
-  animation: pilgrimage-stone-glow 1.15s ease-in-out infinite alternate;
+  opacity: 0.98;
+  transform: translateZ(0) scale(1.01);
 }
 
-@keyframes pilgrimage-stone-glow {
-  from {
-    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
-    opacity: 1;
-  }
-  to {
-    filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 14px rgba(255, 229, 120, 0.85));
-    opacity: 0.94;
-  }
+.start-graphic a:hover #path6244,
+.start-graphic a:focus-visible #path6244,
+.start-graphic a:hover #path14294,
+.start-graphic a:focus-visible #path14294,
+.start-graphic a:hover #path884,
+.start-graphic a:focus-visible #path884 {
+  filter: drop-shadow(0 0 8px rgba(255, 230, 64, 0.95)) drop-shadow(0 0 14px rgba(255, 230, 64, 0.7));
+}
+
+.start-graphic a:hover #path15214,
+.start-graphic a:focus-visible #path15214,
+.start-graphic a:hover #path1064,
+.start-graphic a:focus-visible #path1064 {
+  filter: drop-shadow(0 0 8px rgba(136, 197, 41, 0.95)) drop-shadow(0 0 14px rgba(136, 197, 41, 0.7));
+}
+
+.start-graphic a:hover #path14290,
+.start-graphic a:focus-visible #path14290,
+.start-graphic a:hover #path1066,
+.start-graphic a:focus-visible #path1066 {
+  filter: drop-shadow(0 0 8px rgba(244, 88, 66, 0.95)) drop-shadow(0 0 14px rgba(244, 88, 66, 0.7));
 }
 
 .pilgrimage-hero {
