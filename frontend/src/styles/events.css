@@ -512,6 +512,18 @@
   filter: drop-shadow(0 0 2px rgba(255, 230, 64, 0.7)) drop-shadow(0 0 4px rgba(255, 230, 64, 0.42));
 }
 
+.start-graphic .text-hover-glow-yellow {
+  filter: drop-shadow(0 0 2px rgba(255, 230, 64, 0.7)) drop-shadow(0 0 4px rgba(255, 230, 64, 0.42));
+}
+
+.start-graphic .text-hover-glow-green {
+  filter: drop-shadow(0 0 2px rgba(136, 197, 41, 0.7)) drop-shadow(0 0 4px rgba(136, 197, 41, 0.42));
+}
+
+.start-graphic .text-hover-glow-red {
+  filter: drop-shadow(0 0 2px rgba(244, 88, 66, 0.7)) drop-shadow(0 0 4px rgba(244, 88, 66, 0.42));
+}
+
 .start-graphic text[id^='cta-'] {
   cursor: pointer;
   font-weight: 600;

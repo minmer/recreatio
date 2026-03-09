@@ -300,6 +300,19 @@ function PilgrimageStoneMap() {
     const textIds = ['text80535', 'text123617', 'tspan91363', 'tspan123615'];
     const textBoundElements: Element[] = [];
     const headerPath = root.querySelector<SVGGraphicsElement>('#path6244');
+    const ctaGlowConfig = [
+      { textId: 'cta-info', pathId: 'path1066', glowClass: 'text-hover-glow-red' },
+      { textId: 'cta-plan', pathId: 'path1064', glowClass: 'text-hover-glow-green' },
+      { textId: 'cta-zapisy', pathId: 'path884', glowClass: 'text-hover-glow-yellow' },
+      { textId: 'cta-faq', pathId: 'path15214', glowClass: 'text-hover-glow-green' },
+      { textId: 'cta-historia', pathId: 'path14290', glowClass: 'text-hover-glow-red' },
+      { textId: 'cta-galeria', pathId: 'path14294', glowClass: 'text-hover-glow-yellow' }
+    ] as const;
+    const ctaHoverBoundElements: Array<{
+      element: Element;
+      onEnter: () => void;
+      onLeave: () => void;
+    }> = [];
 
     const turnOnHeaderPathGlow = () => headerPath?.classList.add('text-hover-glow');
     const turnOffHeaderPathGlow = () => headerPath?.classList.remove('text-hover-glow');
@@ -326,6 +339,21 @@ function PilgrimageStoneMap() {
       textBoundElements.push(element);
     }
 
+    for (const { textId, pathId, glowClass } of ctaGlowConfig) {
+      const textElement = root.querySelector(`#${textId}`);
+      const pathElement = root.querySelector<SVGGraphicsElement>(`#${pathId}`);
+      if (!textElement || !pathElement) {
+        continue;
+      }
+      const onEnter = () => pathElement.classList.add(glowClass);
+      const onLeave = () => pathElement.classList.remove(glowClass);
+      textElement.addEventListener('mouseenter', onEnter);
+      textElement.addEventListener('mouseleave', onLeave);
+      textElement.addEventListener('focus', onEnter);
+      textElement.addEventListener('blur', onLeave);
+      ctaHoverBoundElements.push({ element: textElement, onEnter, onLeave });
+    }
+
     return () => {
       for (const element of boundElements) {
         element.removeEventListener('click', jumpToClickableGroup);
@@ -335,6 +363,12 @@ function PilgrimageStoneMap() {
         element.removeEventListener('mouseleave', turnOffHeaderPathGlow);
         element.removeEventListener('focus', turnOnHeaderPathGlow);
         element.removeEventListener('blur', turnOffHeaderPathGlow);
+      }
+      for (const { element, onEnter, onLeave } of ctaHoverBoundElements) {
+        element.removeEventListener('mouseenter', onEnter);
+        element.removeEventListener('mouseleave', onLeave);
+        element.removeEventListener('focus', onEnter);
+        element.removeEventListener('blur', onLeave);
       }
     };
   }, []);
