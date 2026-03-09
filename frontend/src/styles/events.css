@@ -441,7 +441,7 @@
 }
 
 .start-graphic-wrap {
-  width: min(92vw, 760px);
+  width: 100%;
   background: #f1fde8;
 }
 
