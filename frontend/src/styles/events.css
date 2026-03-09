@@ -459,6 +459,27 @@
   background: #f1fde8;
 }
 
+.start-graphic a path {
+  cursor: pointer;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+
+.start-graphic a:hover path,
+.start-graphic a:focus-visible path {
+  animation: pilgrimage-stone-glow 1.15s ease-in-out infinite alternate;
+}
+
+@keyframes pilgrimage-stone-glow {
+  from {
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
+    opacity: 1;
+  }
+  to {
+    filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 14px rgba(255, 229, 120, 0.85));
+    opacity: 0.94;
+  }
+}
+
 .pilgrimage-hero {
   display: grid;
   gap: 1rem;
