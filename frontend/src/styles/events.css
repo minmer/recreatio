@@ -436,12 +436,12 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #F1FDE8;
+  background: #e6e6e6;
   padding: 1rem;
 }
 
 .start-graphic-wrap {
-  width: min(94vw, 760px);
+  width: min(92vw, 520px);
 }
 
 .start-graphic {
