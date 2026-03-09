@@ -434,20 +434,9 @@
 
 .pilgrimage-start-stage {
   position: relative;
-  background: #F1FDE8;
-}
-
-.pilgrimage-stone-panel {
-  position: relative;
-  min-height: clamp(560px, 84vh, 920px);
-  display: flex;
-  align-items: center;
+  min-height: 100vh;
   overflow: hidden;
   background: #F1FDE8;
-}
-
-.pilgrimage-stone-panel--hero {
-  min-height: clamp(760px, 112vh, 1160px);
 }
 
 .stone-map {
@@ -458,48 +447,21 @@
   display: block;
 }
 
-.pilgrimage-stone-panel--trasa {
-  min-height: clamp(580px, 88vh, 980px);
+.pilgrimage-start-flow {
+  position: relative;
+  z-index: 2;
 }
 
-.pilgrimage-stone-panel--program {
-  min-height: clamp(620px, 92vh, 1020px);
+.start-hero-slot {
+  min-height: clamp(760px, 112vh, 1160px);
+  display: grid;
+  align-items: center;
 }
 
-.pilgrimage-stone-panel--zapisy {
-  min-height: clamp(590px, 86vh, 980px);
-}
-
-.pilgrimage-stone-panel--faq {
-  min-height: clamp(610px, 90vh, 1010px);
-}
-
-.pilgrimage-stone-panel--kontakt {
-  min-height: clamp(600px, 87vh, 990px);
-}
-
-.pilgrimage-stone-panel--hero .stone-map {
-  transform: scale(1.04);
-}
-
-.pilgrimage-stone-panel--trasa .stone-map {
-  transform: translate(-3%, -1%) scale(1.09);
-}
-
-.pilgrimage-stone-panel--program .stone-map {
-  transform: translate(2%, -2%) scale(1.12);
-}
-
-.pilgrimage-stone-panel--zapisy .stone-map {
-  transform: translate(-2%, 2%) scale(1.08);
-}
-
-.pilgrimage-stone-panel--faq .stone-map {
-  transform: translate(3%, -1%) scale(1.1);
-}
-
-.pilgrimage-stone-panel--kontakt .stone-map {
-  transform: translate(-1%, 2%) scale(1.09);
+.start-copy-slot {
+  min-height: clamp(560px, 88vh, 980px);
+  display: grid;
+  align-items: center;
 }
 
 .hero-center {
@@ -525,6 +487,8 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.9rem;
+  background: #F1FDE8;
+  padding: 0.72rem 0.95rem;
 }
 
 .start-jump-links a {
@@ -1295,11 +1259,11 @@
     transform: none;
   }
 
-  .pilgrimage-stone-panel {
+  .start-copy-slot {
     min-height: clamp(520px, 92vh, 760px);
   }
 
-  .pilgrimage-stone-panel--hero {
+  .start-hero-slot {
     min-height: clamp(720px, 118svh, 980px);
   }
 

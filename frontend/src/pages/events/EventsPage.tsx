@@ -439,17 +439,49 @@ const START_REGISTRATION_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_
 const START_FAQ_STONES = composeMosaic(LEFT_CALM_SHAPES, LEFT_COLORS_B);
 const START_CONTACT_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_C);
 
-function PilgrimageStoneMap({ stones }: { stones: StonePolygon[] }) {
+function offsetStonePoints(points: string, dx: number, dy: number): string {
+  return points
+    .trim()
+    .split(/\s+/)
+    .map((pair) => {
+      const [xRaw, yRaw] = pair.split(',');
+      const x = Number.parseFloat(xRaw);
+      const y = Number.parseFloat(yRaw);
+      return `${(x + dx).toFixed(2)},${(y + dy).toFixed(2)}`;
+    })
+    .join(' ');
+}
+
+function offsetMosaic(stones: StonePolygon[], prefix: string, dx: number, dy: number): StonePolygon[] {
+  return stones.map((stone) => ({
+    ...stone,
+    id: `${prefix}-${stone.id}`,
+    points: offsetStonePoints(stone.points, dx, dy),
+    facetPoints: stone.facetPoints ? offsetStonePoints(stone.facetPoints, dx, dy) : undefined
+  }));
+}
+
+const START_STAGE_VIEWBOX_HEIGHT = 4880;
+const START_BACKGROUND_STONES: StonePolygon[] = [
+  ...offsetMosaic(START_HERO_STONES, 'hero', 0, 0),
+  ...offsetMosaic(START_ROUTE_STONES, 'route', -56, 780),
+  ...offsetMosaic(START_SCHEDULE_STONES, 'schedule', 36, 1560),
+  ...offsetMosaic(START_REGISTRATION_STONES, 'registration', 18, 2340),
+  ...offsetMosaic(START_FAQ_STONES, 'faq', -42, 3120),
+  ...offsetMosaic(START_CONTACT_STONES, 'contact', 14, 3900)
+];
+
+function PilgrimageStoneMap({ stones, viewHeight = STONE_VIEWBOX_HEIGHT }: { stones: StonePolygon[]; viewHeight?: number }) {
   return (
     <svg
       className="stone-map"
-      viewBox={`0 0 ${STONE_VIEWBOX_WIDTH} ${STONE_VIEWBOX_HEIGHT}`}
+      viewBox={`0 0 ${STONE_VIEWBOX_WIDTH} ${viewHeight}`}
       xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMin slice"
       aria-hidden="true"
       focusable="false"
     >
-      <rect width={STONE_VIEWBOX_WIDTH} height={STONE_VIEWBOX_HEIGHT} fill="#F1FDE8" />
+      <rect width={STONE_VIEWBOX_WIDTH} height={viewHeight} fill="#F1FDE8" />
       {stones.map((stone) => (
         <g key={stone.id}>
           <polygon points={stone.points} fill={STONE_MAIN_COLORS[stone.tone]} />
@@ -1084,7 +1116,6 @@ function Kal26EventPage({
         body: string;
         linkLabel: string;
         align: 'left' | 'right';
-        stones: StonePolygon[];
       }> = [
         {
           id: 'trasa',
@@ -1092,8 +1123,7 @@ function Kal26EventPage({
           headline: 'Etapy pielgrzymki',
           body: 'Droga podzielona jest na etapy z postojami i punktami wsparcia. Uklad kamieni prowadzi ruchem do przodu, jak szlak pielgrzymki.',
           linkLabel: 'Zobacz trase',
-          align: 'right',
-          stones: START_ROUTE_STONES
+          align: 'right'
         },
         {
           id: 'program',
@@ -1101,8 +1131,7 @@ function Kal26EventPage({
           headline: 'Plan dnia i liturgia',
           body: 'Harmonogram obejmuje wymarsz, modlitwe w drodze, postoje, nocleg i wejscie do celu. Sekcja pozostawia spokojna strefe na czytelny plan dnia.',
           linkLabel: 'Przejdz do programu',
-          align: 'left',
-          stones: START_SCHEDULE_STONES
+          align: 'left'
         },
         {
           id: 'zapisy',
@@ -1110,8 +1139,7 @@ function Kal26EventPage({
           headline: 'Zapisy krok po kroku',
           body: 'Zapis obejmuje dane uczestnika, wariant udzialu i zgody formalne. Tlo utrzymuje te sama siec szczelin i duzych poligonow bez nakladania.',
           linkLabel: 'Zapisz sie online',
-          align: 'right',
-          stones: START_REGISTRATION_STONES
+          align: 'right'
         },
         {
           id: 'faq',
@@ -1119,8 +1147,7 @@ function Kal26EventPage({
           headline: 'Najczestsze pytania',
           body: 'Najwazniejsze informacje o przygotowaniu, noclegu, bagazu i bezpieczenstwie. Uklad kamieni porzadkuje tresc i zachowuje ciaglosc kompozycji.',
           linkLabel: 'Otworz FAQ',
-          align: 'left',
-          stones: START_FAQ_STONES
+          align: 'left'
         },
         {
           id: 'kontakt',
@@ -1128,53 +1155,52 @@ function Kal26EventPage({
           headline: 'Zespol organizatora',
           body: 'Dane organizatorow i szybki kanal do pytan. Koncowa partia tla dalej pracuje w tym samym systemie teselacji, domykajac sciezke strony.',
           linkLabel: 'Skontaktuj sie',
-          align: 'right',
-          stones: START_CONTACT_STONES
+          align: 'right'
         }
       ];
 
       return (
         <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
-          <section className="pilgrimage-stone-panel pilgrimage-stone-panel--hero">
-            <PilgrimageStoneMap stones={START_HERO_STONES} />
-            <div className="hero-center">
-              <svg
-                className="center-mark"
-                viewBox="25 25 175 245"
-                xmlns="http://www.w3.org/2000/svg"
-                role="img"
-                aria-label="Wielkanocna Kalwaria"
-              >
-                <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
-                <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
-                <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
-                <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
-                <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
-                <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
-                <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
-                <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
-              </svg>
-              <nav className="start-jump-links" aria-label="Start shortcuts">
-                <a href={`/#/event/${event.slug}/trasa`}>Trasa</a>
-                <a href={`/#/event/${event.slug}/program`}>Program</a>
-                <a href={`/#/event/${event.slug}/zapisy`}>Zapisy</a>
-                <a href={`/#/event/${event.slug}/faq`}>FAQ</a>
-                <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
-              </nav>
-            </div>
-          </section>
-
-          {startSections.map((section) => (
-            <section key={section.id} className={`pilgrimage-stone-panel pilgrimage-stone-panel--${section.id}`} id={`kal-start-${section.id}`}>
-              <PilgrimageStoneMap stones={section.stones} />
-              <div className={`stone-copy ${section.align === 'right' ? 'stone-copy--right' : 'stone-copy--left'}`}>
-                <p className="stone-copy-kicker">{section.title}</p>
-                <h2>{section.headline}</h2>
-                <p>{section.body}</p>
-                <a href={`/#/event/${event.slug}/${section.id}`}>{section.linkLabel}</a>
+          <PilgrimageStoneMap stones={START_BACKGROUND_STONES} viewHeight={START_STAGE_VIEWBOX_HEIGHT} />
+          <div className="pilgrimage-start-flow">
+            <section className="start-hero-slot">
+              <div className="hero-center">
+                <svg
+                  className="center-mark"
+                  viewBox="25 25 175 245"
+                  xmlns="http://www.w3.org/2000/svg"
+                  role="img"
+                  aria-label="Wielkanocna Kalwaria"
+                >
+                  <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
+                  <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
+                  <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
+                  <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
+                  <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
+                  <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
+                  <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
+                  <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
+                </svg>
+                <nav className="start-jump-links" aria-label="Start shortcuts">
+                  <a href={`/#/event/${event.slug}/trasa`}>Trasa</a>
+                  <a href={`/#/event/${event.slug}/program`}>Program</a>
+                  <a href={`/#/event/${event.slug}/zapisy`}>Zapisy</a>
+                  <a href={`/#/event/${event.slug}/faq`}>FAQ</a>
+                  <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
+                </nav>
               </div>
             </section>
-          ))}
+            {startSections.map((section) => (
+              <section key={section.id} className="start-copy-slot" id={`kal-start-${section.id}`}>
+                <div className={`stone-copy ${section.align === 'right' ? 'stone-copy--right' : 'stone-copy--left'}`}>
+                  <p className="stone-copy-kicker">{section.title}</p>
+                  <h2>{section.headline}</h2>
+                  <p>{section.body}</p>
+                  <a href={`/#/event/${event.slug}/${section.id}`}>{section.linkLabel}</a>
+                </div>
+              </section>
+            ))}
+          </div>
         </section>
       );
     }
