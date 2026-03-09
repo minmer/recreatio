@@ -302,186 +302,69 @@ const STONE_FACET_COLORS: Record<StoneFacetTone, string> = {
   green: '#6D8F1E'
 };
 
-type MosaicShapeDef = {
-  id: string;
-  points: string;
-  facetPoints?: string;
-};
-
 const STONE_VIEWBOX_WIDTH = 1600;
 const STONE_VIEWBOX_HEIGHT = 960;
-const BLACK_STONES_PATTERN_PATH = `M 0.00673123,285.86312 3.5870023,271.89142 22.012681,257.35185 42.735581,269.1843 22.324694,297 H 0.00181903 Z m 28.27118977,7.31999 18.154231,-23.373 72.334428,-3.97244 L 103.64199,297 H 25.5255 Z m 78.596579,3.74296 15.0194,-31.45748 59.10446,-0.36293 9.1151,31.71017 z m 86.07342,-1.02407 -6.30558,-22.53519 23.33968,10.33632 L 208.46078,297 h -15.19853 l -0.20934,-0.73124 v -10e-6 z m 16.17738,-15.318 -23.76406,-11.06699 6.90492,-15.76227 11.64063,-13.10386 5.99398,10.64357 -0.0756,29.59313 -0.69781,-0.30267 v 0 l -0.002,-9.1e-4 z M 0.00238066,260.93357 6.2309841,252.02589 18.426796,256.97358 0.00238066,271.95249 Z m 42.66519234,4.43719 -29.698318,-14.3969 9.449026,-32.46744 90.549439,0.71734 -6.19779,44.83623 -60.651489,3.3641 z m 67.344077,-2.52164 7.37651,-43.88057 62.16357,0.20605 19.34574,22.29575 -17.86242,20.81185 z M 8.9955388,250.03242 0.83356344,240.59274 8.6219262,228.63263 17.956355,224.406 10.564109,250.49211 Z m 189.5671212,-14.57276 -13.44181,-15.00623 20.887,-19.9963 3.92185,14.81326 0.0523,19.40149 -11.41937,0.78778 z M 0.00238066,217.95243 1.2053127,203.43548 l 11.3440033,-8.7009 8.676678,21.22248 -21.10784953,15.58117 z m 169.30133934,-1.7 -67.74151,-0.78447 8.49238,-47.71838 83.71322,3.45086 8.32135,28.32249 -17.56949,16.95699 z m -124.126428,-0.20238 -20.60564,-0.19756 -9.346155,-23.38392 22.426556,-25.24184 69.375747,0.40198 -8.62359,47.91008 z M 0.00238066,183.54283 v -17.91392 l 34.35073034,1.3206 -34.35073034,34.50726 z m 205.08460934,14.3554 -7.49219,-25.75665 12.38282,5.74481 -0.1002,17.73299 z m -1.37923,-26.31628 -10.82491,-8.16419 2.27144,-12.24292 9.71292,-6.91248 4.87857,17.77502 -2.19083,10.82162 z m -16.20859,-3.55238 -3.06354,-4.03483 z m -16.41774,-1.05584 -80.883751,-3.51591 12.777861,-42.61529 92.29842,6.54177 5.00889,12.59182 -19.6947,20.64462 z m -137.511577,-2.9046 -29.5937483,-1.1072 12.5063263,-33.45103 57.501461,-7.1855 25.869155,0.0661 -12.69232,41.31855 -53.590874,0.35907 z M 0.00238066,154.18122 4.7485231,141.70549 5.7679639,150.65371 1.4398002,162.3923 Z M 209.4898,144.27326 l -23.0652,-38.78462 23.55746,5.02311 -0.0997,34.23209 -0.39252,-0.47058 z M 0.05349361,124.63645 0.10692435,106.79046 52.550735,99.834087 67.909021,118.94465 15.79266,126.25668 0,142.48243 Z m 189.64167639,-0.50446 -35.81376,-3.33503 0.31054,-12.19491 27.08908,-4.69866 15.07925,20.76271 z m -39.94633,-3.79105 -43.50177,-1.72662 13.68972,-12.24617 4.70004,-12.030347 10.72742,-0.895616 13.66448,22.581383 z m -72.570432,-6.65291 16.148862,-5.35933 18.0313,2.93199 -15.730947,7.75855 H 72.131789 Z`;
-const HERO_SHAPES: MosaicShapeDef[] = [
-  { id: 'h1', points: '18,26 438,34 520,178 396,336 112,304 20,170', facetPoints: '304,54 438,66 394,246 284,228' },
-  { id: 'h2', points: '468,24 882,20 830,214 560,246 500,166', facetPoints: '702,36 872,28 822,198 674,206' },
-  { id: 'h3', points: '904,24 1328,34 1246,220 984,252 850,152', facetPoints: '1112,40 1320,44 1240,200 1060,214' },
-  { id: 'h4', points: '1344,34 1582,64 1572,272 1324,248 1258,124', facetPoints: '1452,74 1570,88 1562,244 1436,224' },
-  { id: 'h5', points: '28,338 332,330 466,508 344,708 42,628', facetPoints: '278,350 438,520 330,682 238,560' },
-  { id: 'h6', points: '1184,322 1580,304 1578,620 1326,706 1118,542', facetPoints: '1316,346 1572,334 1568,584 1368,654' },
-  { id: 'h7', points: '42,652 344,736 302,952 18,952', facetPoints: '220,700 334,734 296,934 190,920' },
-  { id: 'h8', points: '362,734 568,760 626,952 322,952 294,858', facetPoints: '518,766 614,946 460,946 430,816' },
-  { id: 'h9', points: '996,764 1262,724 1384,952 982,952', facetPoints: '1162,740 1368,948 1088,948 1048,812' },
-  { id: 'h10', points: '1402,736 1582,760 1582,952 1448,952 1364,860', facetPoints: '1490,770 1580,782 1580,952 1490,952' },
-  { id: 'h11', points: '516,272 642,260 620,364 500,382 470,322', facetPoints: '580,266 638,262 616,350 566,356' },
-  { id: 'h12', points: '978,272 1122,254 1162,362 1018,402 938,332', facetPoints: '1080,260 1148,354 1032,390 1004,312' },
-  { id: 'h13', points: '498,622 642,590 704,702 584,760 468,704', facetPoints: '584,602 696,698 594,748 550,688' },
-  { id: 'h14', points: '942,602 1084,562 1164,704 1022,762 900,702', facetPoints: '1050,578 1152,694 1032,748 998,682' },
-  { id: 'h15', points: '702,870 892,840 952,952 648,952', facetPoints: '820,848 944,950 770,950 748,902' },
-  { id: 'h16', points: '652,40 746,18 824,70 782,150 674,132 628,76', facetPoints: '742,24 812,72 780,140 726,114' }
-];
-
-const RIGHT_CALM_SHAPES: MosaicShapeDef[] = [
-  { id: 'r1', points: '20,30 420,20 510,170 390,340 40,300', facetPoints: '288,44 482,164 378,312 238,236' },
-  { id: 'r2', points: '450,40 840,20 760,220 520,250', facetPoints: '676,36 824,28 752,198 644,208' },
-  { id: 'r3', points: '860,30 1220,40 1100,180 900,210', facetPoints: '1020,40 1200,46 1088,170 980,182' },
-  { id: 'r4', points: '1240,40 1580,30 1570,250 1320,260 1160,180', facetPoints: '1390,44 1572,38 1562,228 1388,236' },
-  { id: 'r5', points: '30,330 380,360 470,560 330,760 20,700', facetPoints: '274,370 446,550 320,734 214,620' },
-  { id: 'r6', points: '400,300 760,250 820,430 640,620 420,560', facetPoints: '628,270 802,422 636,596 556,476' },
-  { id: 'r7', points: '1200,250 1570,230 1570,420 1300,430 1140,340', facetPoints: '1328,252 1562,238 1562,404 1356,412' },
-  { id: 'r8', points: '20,730 300,800 260,950 20,950', facetPoints: '170,774 286,804 252,944 148,942' },
-  { id: 'r9', points: '320,780 620,700 760,900 520,950 300,930', facetPoints: '496,724 746,894 526,944 450,860' },
-  { id: 'r10', points: '780,760 1120,720 1180,940 820,950', facetPoints: '976,734 1168,934 874,944 890,808' },
-  { id: 'r11', points: '1200,760 1570,700 1570,950 1280,950 1140,860', facetPoints: '1320,742 1562,706 1562,944 1338,944' },
-  { id: 'r12', points: '820,470 940,430 980,560 860,620 760,560', facetPoints: '900,446 972,552 872,604 844,530' },
-  { id: 'r13', points: '980,220 1140,210 1180,320 1040,370 930,300', facetPoints: '1082,218 1172,314 1048,356 1012,286' },
-  { id: 'r14', points: '980,620 1110,590 1160,700 1030,760 920,710', facetPoints: '1062,604 1152,696 1038,748 1002,678' }
-];
-
-const LEFT_CALM_SHAPES: MosaicShapeDef[] = [
-  { id: 'l1', points: '20,40 360,30 300,220 40,260', facetPoints: '218,46 348,38 292,206 204,196' },
-  { id: 'l2', points: '380,20 780,40 700,210 430,240', facetPoints: '614,30 768,42 694,196 584,208' },
-  { id: 'l3', points: '810,20 1200,30 1120,210 860,230', facetPoints: '1040,28 1188,36 1114,194 1002,206' },
-  { id: 'l4', points: '1220,30 1580,40 1570,260 1320,300 1140,210', facetPoints: '1398,40 1572,50 1562,242 1402,280' },
-  { id: 'l5', points: '1080,250 1570,280 1570,680 1260,760 1040,560', facetPoints: '1266,282 1560,300 1560,660 1290,728' },
-  { id: 'l6', points: '760,250 1060,220 1140,430 980,620 760,550', facetPoints: '942,236 1128,420 984,594 896,478' },
-  { id: 'l7', points: '20,280 180,300 220,440 20,500', facetPoints: '122,304 210,432 84,468 40,362' },
-  { id: 'l8', points: '20,740 280,700 300,950 20,950', facetPoints: '150,720 288,710 294,944 174,944' },
-  { id: 'l9', points: '320,760 640,700 760,900 520,950 290,900', facetPoints: '486,722 744,890 526,944 432,850' },
-  { id: 'l10', points: '780,760 1120,740 1220,950 840,950', facetPoints: '976,744 1204,944 860,944 888,832' },
-  { id: 'l11', points: '1240,770 1580,730 1580,950 1290,950', facetPoints: '1418,746 1572,734 1572,944 1428,944' },
-  { id: 'l12', points: '680,430 820,380 890,510 760,620 650,540', facetPoints: '784,394 882,506 768,604 742,518' },
-  { id: 'l13', points: '700,620 850,600 920,730 760,800 650,730', facetPoints: '814,610 908,724 768,786 748,698' },
-  { id: 'l14', points: '660,240 810,220 860,320 720,370 620,300', facetPoints: '760,226 850,312 726,356 696,288' }
-];
-
-type StoneColorPlan = { tone: StoneTone; facetTone?: StoneFacetTone };
-
-function defaultFacetTone(tone: StoneTone): StoneFacetTone {
-  if (tone === 'coral') return 'red';
-  if (tone === 'green' || tone === 'greenDark') return 'green';
-  return 'orange';
-}
-
-function composeMosaic(shapes: MosaicShapeDef[], colorPlan: StoneColorPlan[]): StonePolygon[] {
-  return shapes.map((shape, index) => {
-    const plan = colorPlan[index % colorPlan.length];
-    return {
-      id: shape.id,
-      points: shape.points,
-      tone: plan.tone,
-      facetPoints: shape.facetPoints,
-      facetTone: shape.facetPoints ? plan.facetTone ?? defaultFacetTone(plan.tone) : undefined
-    };
-  });
-}
-
-const HERO_COLORS: StoneColorPlan[] = [
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'green', facetTone: 'green' },
-  { tone: 'greenDark', facetTone: 'green' }
-];
-
-const RIGHT_COLORS_A: StoneColorPlan[] = [
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'green', facetTone: 'green' },
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'greenDark', facetTone: 'green' }
-];
-
-const LEFT_COLORS_A: StoneColorPlan[] = [
-  { tone: 'green', facetTone: 'green' },
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'greenDark', facetTone: 'green' }
-];
-
-const RIGHT_COLORS_B: StoneColorPlan[] = [
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'green', facetTone: 'green' },
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'greenDark', facetTone: 'green' }
-];
-
-const LEFT_COLORS_B: StoneColorPlan[] = [
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'greenDark', facetTone: 'green' },
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'green', facetTone: 'green' }
-];
-
-const RIGHT_COLORS_C: StoneColorPlan[] = [
-  { tone: 'orange', facetTone: 'orange' },
-  { tone: 'greenDark', facetTone: 'green' },
-  { tone: 'coral', facetTone: 'red' },
-  { tone: 'yellow', facetTone: 'orange' },
-  { tone: 'green', facetTone: 'green' }
-];
-
-const START_HERO_STONES = composeMosaic(HERO_SHAPES, HERO_COLORS);
-const START_ROUTE_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_A);
-const START_SCHEDULE_STONES = composeMosaic(LEFT_CALM_SHAPES, LEFT_COLORS_A);
-const START_REGISTRATION_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_B);
-const START_FAQ_STONES = composeMosaic(LEFT_CALM_SHAPES, LEFT_COLORS_B);
-const START_CONTACT_STONES = composeMosaic(RIGHT_CALM_SHAPES, RIGHT_COLORS_C);
-
-function offsetStonePoints(points: string, dx: number, dy: number): string {
-  return points
-    .trim()
-    .split(/\s+/)
-    .map((pair) => {
-      const [xRaw, yRaw] = pair.split(',');
-      const x = Number.parseFloat(xRaw);
-      const y = Number.parseFloat(yRaw);
-      return `${(x + dx).toFixed(2)},${(y + dy).toFixed(2)}`;
-    })
-    .join(' ');
-}
-
-function offsetMosaic(stones: StonePolygon[], prefix: string, dx: number, dy: number): StonePolygon[] {
-  return stones.map((stone) => ({
-    ...stone,
-    id: `${prefix}-${stone.id}`,
-    points: offsetStonePoints(stone.points, dx, dy),
-    facetPoints: stone.facetPoints ? offsetStonePoints(stone.facetPoints, dx, dy) : undefined
-  }));
-}
-
-const START_STAGE_VIEWBOX_HEIGHT = 4880;
+const START_STAGE_VIEWBOX_HEIGHT = 5200;
 const START_BACKGROUND_STONES: StonePolygon[] = [
-  ...offsetMosaic(START_HERO_STONES, 'hero', 0, 0),
-  ...offsetMosaic(START_ROUTE_STONES, 'route', -56, 780),
-  ...offsetMosaic(START_SCHEDULE_STONES, 'schedule', 36, 1560),
-  ...offsetMosaic(START_REGISTRATION_STONES, 'registration', 18, 2340),
-  ...offsetMosaic(START_FAQ_STONES, 'faq', -42, 3120),
-  ...offsetMosaic(START_CONTACT_STONES, 'contact', 14, 3900)
+  { id: 's1', tone: 'yellow', points: '24,34 338,24 416,186 294,332 36,274', facetPoints: '244,40 394,182 294,314 212,208', facetTone: 'orange' },
+  { id: 's2', tone: 'orange', points: '366,30 736,24 808,186 628,304 432,234', facetPoints: '582,34 782,178 638,292 556,192', facetTone: 'orange' },
+  { id: 's3', tone: 'green', points: '770,32 1158,24 1266,208 1042,286 820,198', facetPoints: '1006,36 1246,206 1054,278 954,196', facetTone: 'green' },
+  { id: 's4', tone: 'coral', points: '1190,38 1574,56 1570,282 1320,336 1164,182', facetPoints: '1360,66 1562,78 1556,262 1382,308', facetTone: 'red' },
+  { id: 's5', tone: 'greenDark', points: '26,312 266,372 296,598 32,692', facetPoints: '158,382 284,592 62,662 94,504', facetTone: 'green' },
+  { id: 's6', tone: 'orange', points: '302,356 532,330 564,564 346,706 250,542', facetPoints: '436,342 552,556 356,692 328,552', facetTone: 'orange' },
+  { id: 's7', tone: 'yellow', points: '1094,356 1386,330 1572,490 1570,758 1264,826 1058,626', facetPoints: '1312,346 1560,498 1558,734 1338,786', facetTone: 'orange' },
+  { id: 's8', tone: 'green', points: '1218,836 1572,786 1574,1096 1342,1216 1132,1030', facetPoints: '1368,804 1560,792 1560,1088 1376,1182', facetTone: 'green' },
+  { id: 's9', tone: 'coral', points: '24,734 232,710 334,892 262,1124 30,1054', facetPoints: '168,724 322,886 254,1112 156,982', facetTone: 'red' },
+  { id: 's10', tone: 'yellow', points: '268,728 522,700 614,920 478,1128 248,1066', facetPoints: '442,714 600,916 486,1112 382,962', facetTone: 'orange' },
+  { id: 's11', tone: 'orange', points: '548,712 844,668 930,890 792,1114 536,1042', facetPoints: '748,690 918,882 802,1098 694,940', facetTone: 'orange' },
+  { id: 's12', tone: 'greenDark', points: '864,662 1120,632 1218,846 1084,1042 846,948', facetPoints: '1034,642 1208,838 1088,1028 1004,888', facetTone: 'green' },
+  { id: 's13', tone: 'green', points: '28,1112 312,1172 364,1412 212,1600 22,1504', facetPoints: '192,1190 350,1404 220,1586 134,1454', facetTone: 'green' },
+  { id: 's14', tone: 'coral', points: '340,1158 618,1120 744,1322 612,1558 328,1480', facetPoints: '536,1134 734,1316 620,1544 496,1374', facetTone: 'red' },
+  { id: 's15', tone: 'yellow', points: '768,1120 1080,1080 1204,1294 1022,1548 742,1448', facetPoints: '990,1102 1192,1288 1028,1536 890,1364', facetTone: 'orange' },
+  { id: 's16', tone: 'orange', points: '1128,1216 1572,1162 1574,1466 1324,1622 1078,1464', facetPoints: '1304,1186 1560,1172 1560,1456 1368,1578', facetTone: 'orange' },
+  { id: 's17', tone: 'greenDark', points: '32,1542 214,1622 280,1868 88,2048 20,1836', facetPoints: '118,1638 266,1854 102,2028 64,1862', facetTone: 'green' },
+  { id: 's18', tone: 'orange', points: '302,1582 548,1546 688,1772 560,1994 274,1910', facetPoints: '498,1562 674,1766 568,1980 448,1824', facetTone: 'orange' },
+  { id: 's19', tone: 'green', points: '718,1564 986,1520 1130,1766 958,1988 688,1892', facetPoints: '908,1542 1118,1758 966,1972 836,1820', facetTone: 'green' },
+  { id: 's20', tone: 'coral', points: '1160,1642 1572,1568 1572,1912 1338,2068 1106,1898', facetPoints: '1332,1602 1560,1582 1560,1888 1370,2028', facetTone: 'red' },
+  { id: 's21', tone: 'yellow', points: '26,2078 292,2026 428,2258 260,2498 22,2388', facetPoints: '204,2052 418,2248 272,2484 138,2328', facetTone: 'orange' },
+  { id: 's22', tone: 'green', points: '316,2012 666,1984 760,2240 616,2484 286,2398', facetPoints: '560,1992 748,2234 626,2472 500,2318', facetTone: 'green' },
+  { id: 's23', tone: 'orange', points: '784,1998 1028,1950 1178,2190 1032,2416 756,2338', facetPoints: '964,1972 1168,2182 1040,2400 914,2248', facetTone: 'orange' },
+  { id: 's24', tone: 'greenDark', points: '1202,2074 1572,1988 1574,2310 1322,2480 1140,2316', facetPoints: '1362,2022 1562,2002 1562,2288 1366,2438', facetTone: 'green' },
+  { id: 's25', tone: 'coral', points: '24,2418 236,2512 274,2746 42,2872', facetPoints: '138,2522 262,2736 54,2858 80,2694', facetTone: 'red' },
+  { id: 's26', tone: 'yellow', points: '266,2506 522,2460 638,2688 510,2932 252,2858', facetPoints: '438,2478 626,2680 518,2914 410,2764', facetTone: 'orange' },
+  { id: 's27', tone: 'green', points: '664,2446 978,2400 1106,2648 932,2894 636,2788', facetPoints: '882,2420 1094,2640 940,2878 804,2716', facetTone: 'green' },
+  { id: 's28', tone: 'orange', points: '1130,2510 1572,2402 1572,2726 1326,2912 1084,2762', facetPoints: '1308,2436 1560,2416 1560,2712 1354,2870', facetTone: 'orange' },
+  { id: 's29', tone: 'greenDark', points: '32,2898 334,2948 402,3178 208,3390 22,3264', facetPoints: '206,2962 390,3170 220,3374 126,3220', facetTone: 'green' },
+  { id: 's30', tone: 'coral', points: '360,2950 660,2898 814,3138 674,3386 336,3282', facetPoints: '572,2920 802,3128 684,3368 544,3218', facetTone: 'red' },
+  { id: 's31', tone: 'yellow', points: '846,2924 1168,2862 1302,3118 1122,3386 806,3276', facetPoints: '1076,2892 1290,3110 1132,3372 978,3212', facetTone: 'orange' },
+  { id: 's32', tone: 'green', points: '1228,2952 1572,2894 1572,3208 1362,3408 1188,3232', facetPoints: '1388,2918 1560,2904 1560,3198 1402,3376', facetTone: 'green' },
+  { id: 's33', tone: 'orange', points: '20,3340 212,3422 250,3688 44,3828', facetPoints: '118,3442 238,3678 54,3814 82,3648', facetTone: 'orange' },
+  { id: 's34', tone: 'green', points: '236,3428 488,3378 642,3608 494,3868 216,3768', facetPoints: '430,3402 630,3598 504,3850 388,3702', facetTone: 'green' },
+  { id: 's35', tone: 'coral', points: '668,3386 986,3340 1132,3594 972,3852 640,3744', facetPoints: '886,3360 1120,3582 982,3836 838,3684', facetTone: 'red' },
+  { id: 's36', tone: 'yellow', points: '1160,3440 1570,3358 1574,3706 1332,3888 1128,3712', facetPoints: '1330,3390 1560,3372 1560,3690 1360,3848', facetTone: 'orange' },
+  { id: 's37', tone: 'greenDark', points: '26,3864 306,3820 402,4094 202,4318 18,4178', facetPoints: '192,3842 390,4082 212,4302 110,4148', facetTone: 'green' },
+  { id: 's38', tone: 'orange', points: '332,3888 706,3828 826,4084 658,4334 300,4236', facetPoints: '576,3850 812,4074 666,4318 526,4168', facetTone: 'orange' },
+  { id: 's39', tone: 'yellow', points: '850,3854 1142,3802 1316,4046 1136,4318 814,4224', facetPoints: '1060,3822 1304,4036 1146,4302 1012,4148', facetTone: 'orange' },
+  { id: 's40', tone: 'green', points: '1340,3898 1574,3836 1574,4166 1410,4366 1294,4194', facetPoints: '1442,3868 1562,3848 1562,4148 1428,4332', facetTone: 'green' },
+  { id: 's41', tone: 'coral', points: '24,4346 266,4388 306,4626 40,4760', facetPoints: '158,4404 292,4612 50,4746 90,4592', facetTone: 'red' },
+  { id: 's42', tone: 'greenDark', points: '292,4396 638,4342 760,4572 610,4806 260,4722', facetPoints: '528,4368 748,4560 620,4790 486,4654', facetTone: 'green' },
+  { id: 's43', tone: 'orange', points: '788,4362 1128,4300 1288,4550 1120,4792 758,4704', facetPoints: '1020,4326 1278,4540 1130,4774 980,4628', facetTone: 'orange' },
+  { id: 's44', tone: 'yellow', points: '1316,4394 1572,4340 1572,4672 1398,4878 1260,4688', facetPoints: '1424,4362 1560,4352 1560,4658 1410,4848', facetTone: 'orange' },
+  { id: 's45', tone: 'green', points: '22,4782 248,4874 214,5192 20,5192', facetPoints: '148,4894 236,5180 74,5180', facetTone: 'green' },
+  { id: 's46', tone: 'coral', points: '282,4832 638,4786 758,5192 264,5192', facetPoints: '520,4812 744,5180 404,5180', facetTone: 'red' },
+  { id: 's47', tone: 'yellow', points: '786,4788 1172,4728 1332,5192 766,5192', facetPoints: '1048,4762 1320,5180 916,5180', facetTone: 'orange' },
+  { id: 's48', tone: 'greenDark', points: '1362,4744 1574,4692 1574,5192 1328,5192', facetPoints: '1452,4724 1562,4702 1562,5180 1428,5180', facetTone: 'green' }
 ];
 
-function PilgrimageStoneMap({ stones, viewHeight = STONE_VIEWBOX_HEIGHT }: { stones: StonePolygon[]; viewHeight?: number }) {
-  const patternBands = [
-    { key: 'p0', x: -40, y: 220, scale: 7.4, main: '#88C529', side: '#6D8F1E' },
-    { key: 'p1', x: 20, y: 980, scale: 7.1, main: '#FB9926', side: '#93260E' },
-    { key: 'p2', x: -30, y: 1740, scale: 7.25, main: '#FCE960', side: '#FB9926' },
-    { key: 'p3', x: 10, y: 2520, scale: 7.35, main: '#F45741', side: '#93260E' },
-    { key: 'p4', x: -20, y: 3300, scale: 7.2, main: '#88C529', side: '#6D8F1E' },
-    { key: 'p5', x: 0, y: 4080, scale: 7.3, main: '#FCE960', side: '#FB9926' }
-  ] as const;
-
+function PilgrimageStoneMap({
+  stones,
+  viewHeight = STONE_VIEWBOX_HEIGHT,
+  includeEmblem = false
+}: {
+  stones: StonePolygon[];
+  viewHeight?: number;
+  includeEmblem?: boolean;
+}) {
   return (
     <svg
       className="stone-map"
@@ -492,12 +375,6 @@ function PilgrimageStoneMap({ stones, viewHeight = STONE_VIEWBOX_HEIGHT }: { sto
       focusable="false"
     >
       <rect width={STONE_VIEWBOX_WIDTH} height={viewHeight} fill="#F1FDE8" />
-      {patternBands.map((band) => (
-        <g key={band.key} transform={`translate(${band.x} ${band.y}) scale(${band.scale})`}>
-          <path d={BLACK_STONES_PATTERN_PATH} fill={band.side} transform="translate(1.4 1.8)" />
-          <path d={BLACK_STONES_PATTERN_PATH} fill={band.main} />
-        </g>
-      ))}
       {stones.map((stone) => (
         <g key={stone.id}>
           <polygon points={stone.points} fill={STONE_MAIN_COLORS[stone.tone]} />
@@ -506,6 +383,18 @@ function PilgrimageStoneMap({ stones, viewHeight = STONE_VIEWBOX_HEIGHT }: { sto
           ) : null}
         </g>
       ))}
+      {includeEmblem ? (
+        <g transform="translate(548 190) scale(2.78)">
+          <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
+          <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
+          <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
+          <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
+          <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
+          <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
+          <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
+          <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
+        </g>
+      ) : null}
     </svg>
   );
 }
@@ -1125,98 +1014,10 @@ function Kal26EventPage({
     const legalSection = sectionById('formalnosci');
 
     if (page.slug === 'start') {
-      const startSections: Array<{
-        id: 'trasa' | 'program' | 'zapisy' | 'faq' | 'kontakt';
-        title: string;
-        headline: string;
-        body: string;
-        linkLabel: string;
-        align: 'left' | 'right';
-      }> = [
-        {
-          id: 'trasa',
-          title: 'Trasa',
-          headline: 'Etapy pielgrzymki',
-          body: 'Droga podzielona jest na etapy z postojami i punktami wsparcia. Uklad kamieni prowadzi ruchem do przodu, jak szlak pielgrzymki.',
-          linkLabel: 'Zobacz trase',
-          align: 'right'
-        },
-        {
-          id: 'program',
-          title: 'Program',
-          headline: 'Plan dnia i liturgia',
-          body: 'Harmonogram obejmuje wymarsz, modlitwe w drodze, postoje, nocleg i wejscie do celu. Sekcja pozostawia spokojna strefe na czytelny plan dnia.',
-          linkLabel: 'Przejdz do programu',
-          align: 'left'
-        },
-        {
-          id: 'zapisy',
-          title: 'Rejestracja',
-          headline: 'Zapisy krok po kroku',
-          body: 'Zapis obejmuje dane uczestnika, wariant udzialu i zgody formalne. Tlo utrzymuje te sama siec szczelin i duzych poligonow bez nakladania.',
-          linkLabel: 'Zapisz sie online',
-          align: 'right'
-        },
-        {
-          id: 'faq',
-          title: 'FAQ',
-          headline: 'Najczestsze pytania',
-          body: 'Najwazniejsze informacje o przygotowaniu, noclegu, bagazu i bezpieczenstwie. Uklad kamieni porzadkuje tresc i zachowuje ciaglosc kompozycji.',
-          linkLabel: 'Otworz FAQ',
-          align: 'left'
-        },
-        {
-          id: 'kontakt',
-          title: 'Kontakt',
-          headline: 'Zespol organizatora',
-          body: 'Dane organizatorow i szybki kanal do pytan. Koncowa partia tla dalej pracuje w tym samym systemie teselacji, domykajac sciezke strony.',
-          linkLabel: 'Skontaktuj sie',
-          align: 'right'
-        }
-      ];
-
       return (
         <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
-          <PilgrimageStoneMap stones={START_BACKGROUND_STONES} viewHeight={START_STAGE_VIEWBOX_HEIGHT} />
-          <div className="pilgrimage-start-flow">
-            <section className="start-hero-slot">
-              <div className="hero-center">
-                <svg
-                  className="center-mark"
-                  viewBox="25 25 175 245"
-                  xmlns="http://www.w3.org/2000/svg"
-                  role="img"
-                  aria-label="Wielkanocna Kalwaria"
-                >
-                  <path fill="#88C529" d="m 35.7858,173.32382 73.23581,-4.81363 0.34384,-45.04173 90.77114,71.51666 -91.80263,71.86049 -1.0315,-46.07323 -81.487734,-7.22044 z" />
-                  <path fill="#FCE960" d="m 95.268459,150.63086 -59.482642,22.69285 73.235903,-4.81369 z m -69.453696,62.92117 68.422216,26.13095 13.065481,-18.91063 z" />
-                  <path fill="#FB9926" d="m 109.3654,123.46844 -14.096941,27.16242 13.753261,17.87916 z m -2.06294,97.30391 -13.065481,18.91063 14.096951,27.16243 z" />
-                  <path fill="#F45741" d="m 88.391819,28.915275 -9.283258,11.002527 5.844728,11.346208 10.65885,4.125892 10.658841,-11.346207 -2.75074,-11.690319 z M 83.921817,59.172115 51.60203,64.329483 41.630976,97.681179 61.3464,97.059199 48.507609,153.3816 l 7.410006,3.44671 8.805806,-3.36713 8.195871,-38.93232 14.097377,11.00253 3.73189,17.00038 11.544071,-22.14613 -0.14754,-1.38677 -16.847691,-16.16033 2.06295,-17.535047 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 5.64987,3.8876 -1.83798,-25.897391 4.12589,-11.346204 h -19.9421 z" />
-                  <path fill="#6D8F1E" d="m 108.33396,266.84561 56.85311,-70.4817 -55.82163,-72.89545 90.77115,71.51666 z" />
-                  <path fill="#93260E" d="m 103.52024,32.353376 -5.556961,11.935929 -8.69182,8.646225 6.34068,2.454373 10.658841,-11.346208 z m -16.159891,52.950117 6.18884,8.251786 18.910631,-0.68779 1.0018,23.041261 2.75074,1.89261 -1.1089,-28.898463 -17.626671,-0.243029 z m -43.37092,4.488932 -2.358453,7.888754 19.715424,-0.62199 -12.83879,56.322421 7.410005,3.4467 15.180037,-66.223783 z m 30.390614,14.184265 -1.460752,10.55217 14.097378,11.00253 3.73189,17.00038 7.5227,-14.43116 z" />
-                  <text x="96.974197" y="193.02968" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="17.6614" fill="#111111">Wielkanocna</text>
-                  <text x="96.246361" y="208.53749" textAnchor="middle" fontFamily="'Reem Kufi', sans-serif" fontSize="19.7448" fill="#111111">KALWARIA</text>
-                </svg>
-                <nav className="start-jump-links" aria-label="Start shortcuts">
-                  <a href={`/#/event/${event.slug}/trasa`}>Trasa</a>
-                  <a href={`/#/event/${event.slug}/program`}>Program</a>
-                  <a href={`/#/event/${event.slug}/zapisy`}>Zapisy</a>
-                  <a href={`/#/event/${event.slug}/faq`}>FAQ</a>
-                  <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
-                </nav>
-              </div>
-            </section>
-            {startSections.map((section) => (
-              <section key={section.id} className="start-copy-slot" id={`kal-start-${section.id}`}>
-                <div className={`stone-copy ${section.align === 'right' ? 'stone-copy--right' : 'stone-copy--left'}`}>
-                  <p className="stone-copy-kicker">{section.title}</p>
-                  <h2>{section.headline}</h2>
-                  <p>{section.body}</p>
-                  <a href={`/#/event/${event.slug}/${section.id}`}>{section.linkLabel}</a>
-                </div>
-              </section>
-            ))}
-          </div>
+          <PilgrimageStoneMap stones={START_BACKGROUND_STONES} viewHeight={START_STAGE_VIEWBOX_HEIGHT} includeEmblem />
+          <div className="start-blank-height" />
         </section>
       );
     }
