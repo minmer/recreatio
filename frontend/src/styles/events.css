@@ -434,18 +434,19 @@
 
 .pilgrimage-start-stage {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
+  display: block;
   background: #e6e6e6;
-  padding: 1rem;
+  padding: 0;
+  overflow-x: hidden;
 }
 
 .start-graphic-wrap {
-  width: min(92vw, 520px);
+  width: 100vw;
+  max-width: none;
 }
 
 .start-graphic {
-  width: 100%;
+  width: 100vw;
   height: auto;
   display: block;
 }
