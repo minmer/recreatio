@@ -459,7 +459,12 @@
   background: #f1fde8;
 }
 
-.start-graphic a path {
+.start-graphic a path,
+.start-graphic #path6244,
+.start-graphic #text80535,
+.start-graphic #text123617,
+.start-graphic #tspan91363,
+.start-graphic #tspan123615 {
   cursor: pointer;
   transition: filter 110ms ease, opacity 110ms ease, transform 110ms ease;
   transform-origin: center;
@@ -473,25 +478,34 @@
 
 .start-graphic a:hover #path6244,
 .start-graphic a:focus-visible #path6244,
+.start-graphic #path6244:hover,
+.start-graphic #path6244:focus-visible,
 .start-graphic a:hover #path14294,
 .start-graphic a:focus-visible #path14294,
 .start-graphic a:hover #path884,
 .start-graphic a:focus-visible #path884 {
-  filter: drop-shadow(0 0 8px rgba(255, 230, 64, 0.95)) drop-shadow(0 0 14px rgba(255, 230, 64, 0.7));
+  filter: drop-shadow(0 0 4px rgba(255, 230, 64, 0.72)) drop-shadow(0 0 7px rgba(255, 230, 64, 0.48));
 }
 
 .start-graphic a:hover #path15214,
 .start-graphic a:focus-visible #path15214,
 .start-graphic a:hover #path1064,
 .start-graphic a:focus-visible #path1064 {
-  filter: drop-shadow(0 0 8px rgba(136, 197, 41, 0.95)) drop-shadow(0 0 14px rgba(136, 197, 41, 0.7));
+  filter: drop-shadow(0 0 4px rgba(136, 197, 41, 0.72)) drop-shadow(0 0 7px rgba(136, 197, 41, 0.48));
 }
 
 .start-graphic a:hover #path14290,
 .start-graphic a:focus-visible #path14290,
 .start-graphic a:hover #path1066,
 .start-graphic a:focus-visible #path1066 {
-  filter: drop-shadow(0 0 8px rgba(244, 88, 66, 0.95)) drop-shadow(0 0 14px rgba(244, 88, 66, 0.7));
+  filter: drop-shadow(0 0 4px rgba(244, 88, 66, 0.72)) drop-shadow(0 0 7px rgba(244, 88, 66, 0.48));
+}
+
+.start-graphic #text80535:hover,
+.start-graphic #text123617:hover,
+.start-graphic #tspan91363:hover,
+.start-graphic #tspan123615:hover {
+  filter: drop-shadow(0 0 3px rgba(26, 42, 2, 0.42));
 }
 
 .pilgrimage-hero {
