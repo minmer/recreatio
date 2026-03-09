@@ -512,6 +512,11 @@
   filter: drop-shadow(0 0 2px rgba(255, 230, 64, 0.7)) drop-shadow(0 0 4px rgba(255, 230, 64, 0.42));
 }
 
+.start-graphic text[id^='cta-'] {
+  cursor: pointer;
+  font-weight: 600;
+}
+
 .pilgrimage-hero {
   display: grid;
   gap: 1rem;
