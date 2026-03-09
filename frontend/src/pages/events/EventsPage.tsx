@@ -287,6 +287,10 @@ function PilgrimageStoneMap() {
     if (!root) {
       return;
     }
+    const svgElement = root.querySelector('svg');
+    if (svgElement) {
+      svgElement.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+    }
 
     const jumpToClickableGroup = (event: Event) => {
       event.preventDefault();
