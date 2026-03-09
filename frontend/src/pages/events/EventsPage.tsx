@@ -278,13 +278,8 @@ const defaultContactForm: ContactFormState = {
   message: ''
 };
 
-const PILGRIMAGE_START_SVG = `<svg
-  viewBox="0 0 210 301"
-  xmlns="http://www.w3.org/2000/svg"
-  role="img"
-  aria-label="Wielkanocna Kalwaria"
->
-  <g transform="translate(0,4.000004)">
+const PILGRIMAGE_START_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="210mm" height="301mm" viewBox="0 0 210 301" version="1.1">
+  <g id="layer1" transform="translate(0,4.000004)">
     <path fill="#ffe640" d="m 91.448037,72.677154 28.129673,-1.848906 0.13208,-17.300405 34.86494,27.469357 -35.26114,27.60142 -0.3962,-17.696605 -31.299221,-2.773349 z" />
     <path fill="#88c529" d="m 114.29516,63.960848 -22.847123,8.716266 28.129713,-1.848926 z m -26.676976,24.167848 26.280786,10.036829 5.01842,-7.26352 z" />
     <path fill="#578d04" d="m 119.70976,53.527834 -5.4146,10.433014 5.28259,6.86734 z m -0.79237,37.374171 -5.01842,7.26352 5.41461,10.433015 z" />
