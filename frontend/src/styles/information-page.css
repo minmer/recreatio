@@ -158,13 +158,13 @@
 
 .kal-plan-table-wrap {
   margin-top: 0.95rem;
-  overflow-x: auto;
+  width: 100%;
 }
 
 .kal-plan-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 760px;
+  min-width: 0;
 }
 
 .kal-plan-table th {
@@ -174,15 +174,12 @@
   text-transform: uppercase;
   color: #6a6057;
   font-weight: 700;
-  padding: 0.7rem 0.45rem;
-  border-top: 1px solid #e4ddd2;
-  border-bottom: 1px solid #e4ddd2;
+  padding: 0.3rem 0.35rem 0.8rem;
 }
 
 .kal-plan-table td {
   vertical-align: top;
-  padding: 0.8rem 0.45rem 0.9rem;
-  border-bottom: 1px solid #e9e2d8;
+  padding: 0.65rem 0.35rem 0.9rem;
   color: #3e3731;
   line-height: 1.6;
 }
@@ -206,6 +203,16 @@
   margin: 0.3rem 0 0;
   color: #4e4640;
   line-height: 1.65;
+}
+
+@media (max-width: 900px) {
+  .kal-plan-table-wrap {
+    overflow-x: auto;
+  }
+
+  .kal-plan-table {
+    min-width: 760px;
+  }
 }
 
 @media (min-width: 1024px) {
