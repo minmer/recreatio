@@ -505,6 +505,184 @@ function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
   );
 }
 
+function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
+  const friday = [
+    {
+      date: '17.04.2026',
+      time: '15:30',
+      place: 'Kościół św. Józefa, Kraków Podgórze',
+      title: 'Msza Święta na rozpoczęcie pielgrzymki',
+      description:
+        'Naszą drogę rozpoczynamy wspólną Mszą Świętą w kościele św. Józefa na krakowskim Podgórzu. To moment powierzenia pielgrzymki Panu Bogu i spokojnego wejścia w rytm wspólnej drogi.'
+    },
+    {
+      date: '17.04.2026',
+      time: 'po Mszy Świętej',
+      place: 'Kraków Podgórze',
+      title: 'Wyjście na trasę',
+      description:
+        'Po zakończeniu Mszy Świętej wyruszamy pieszo w drogę do Tyńca. Pierwszy etap prowadzi nas z Krakowa wzdłuż Wisły.'
+    },
+    {
+      date: '17.04.2026',
+      time: 'po południu / wieczorem',
+      place: 'Trasa Kraków – Tyniec',
+      title: 'Przejście pierwszego etapu pielgrzymki',
+      description:
+        'Pierwszego dnia idziemy wspólnie z Krakowa do Tyńca. To czas wejścia w pielgrzymkę, modlitwy, skupienia i spokojnego rytmu drogi.'
+    },
+    {
+      date: '17.04.2026',
+      time: 'wieczorem',
+      place: 'Tyniec',
+      title: 'Przyjście do Tyńca',
+      description: 'Pod koniec dnia docieramy do Tyńca, gdzie kończy się pierwszy etap pielgrzymki.'
+    },
+    {
+      date: '17.04.2026',
+      time: 'po przyjściu',
+      place: 'Tyniec',
+      title: 'Nocleg',
+      description: 'Po dojściu do Tyńca przewidziany jest nocleg i odpoczynek przed drugim dniem drogi.'
+    }
+  ] as const;
+
+  const saturday = [
+    {
+      date: '18.04.2026',
+      time: '7:30',
+      place: 'Tyniec',
+      title: 'Wyjście na trasę',
+      description:
+        'Drugiego dnia rano wyruszamy z Tyńca w stronę Kalwarii Zebrzydowskiej. Ten układ godzin odpowiada planowi sobotniego przejścia z poprzedniej edycji.'
+    },
+    {
+      date: '18.04.2026',
+      time: '9:45',
+      place: 'Kopanka',
+      title: 'Przyjście na pierwszy postój',
+      description:
+        'O tej porze planowane jest dojście do Kopanki, gdzie przewidziany jest pierwszy dłuższy odpoczynek.'
+    },
+    {
+      date: '18.04.2026',
+      time: '9:45–10:45',
+      place: 'Kopanka – miejsce rekreacyjne / pętla',
+      title: 'Postój',
+      description: 'Czas na odpoczynek, zebranie sił i przygotowanie do dalszej drogi.'
+    },
+    {
+      date: '18.04.2026',
+      time: '10:45',
+      place: 'Kopanka',
+      title: 'Wyjście z postoju',
+      description: 'Po odpoczynku ruszamy dalej w kierunku Sosnowic.'
+    },
+    {
+      date: '18.04.2026',
+      time: '12:15',
+      place: 'Sosnowice',
+      title: 'Przyjście na drugi postój',
+      description:
+        'Około południa docieramy do Sosnowic. W poprzednim planie właśnie tutaj przewidziany był dłuższy postój i ciepły posiłek.'
+    },
+    {
+      date: '18.04.2026',
+      time: '12:15–13:15',
+      place: 'Sosnowice – Szkoła Podstawowa im. Marii Konopnickiej',
+      title: 'Postój i ciepły posiłek',
+      description: 'To moment na odpoczynek, posiłek i krótką regenerację przed dalszą częścią trasy.'
+    },
+    {
+      date: '18.04.2026',
+      time: '13:15',
+      place: 'Sosnowice',
+      title: 'Wyjście z postoju',
+      description: 'Po odpoczynku wyruszamy dalej w stronę Przytkowic.'
+    },
+    {
+      date: '18.04.2026',
+      time: '14:45',
+      place: 'Przytkowice',
+      title: 'Przyjście na trzeci postój',
+      description:
+        'Po kolejnym etapie drogi docieramy do Przytkowic, gdzie przewidziany jest ostatni dłuższy postój przed dojściem do celu.'
+    },
+    {
+      date: '18.04.2026',
+      time: '14:45–15:45',
+      place: 'Przytkowice – przystanek kolejowy',
+      title: 'Postój',
+      description: 'Ostatni większy odpoczynek przed końcowym odcinkiem pielgrzymki.'
+    },
+    {
+      date: '18.04.2026',
+      time: '15:45',
+      place: 'Przytkowice',
+      title: 'Wyjście z postoju',
+      description: 'Ruszamy na ostatni etap drogi do Kalwarii Zebrzydowskiej.'
+    },
+    {
+      date: '18.04.2026',
+      time: '17:00',
+      place: 'Kalwaria Zebrzydowska',
+      title: 'Przyjście do celu pielgrzymki',
+      description:
+        'Planowane dojście do Kalwarii Zebrzydowskiej i zakończenie wspólnej drogi. W poprzednich materiałach ten moment był przewidziany właśnie na około 17:00.'
+    }
+  ] as const;
+
+  return (
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <h1>Plan pielgrzymki</h1>
+        <p>Harmonogram wspólnej drogi z Krakowa do Kalwarii Zebrzydowskiej.</p>
+        <ul>
+          <li>Piątek: 17 kwietnia 2026</li>
+          <li>Sobota: 18 kwietnia 2026</li>
+          <li>Trasa: Kraków – Tyniec – Kalwaria Zebrzydowska</li>
+        </ul>
+        <div className="kal-text-actions">
+          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event/${eventSlug}/informacje`}>Informacje</a>
+        </div>
+      </aside>
+
+      <div className="kal-text-content">
+        <section className="kal-text-section">
+          <h2>Piątek, 17 kwietnia 2026</h2>
+          <div className="kal-plan-list">
+            {friday.map((item) => (
+              <article key={`${item.date}-${item.time}-${item.title}`} className="kal-plan-item">
+                <p><strong>Data:</strong> {item.date}</p>
+                <p><strong>Godzina:</strong> {item.time}</p>
+                <p><strong>Miejsce:</strong> {item.place}</p>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="kal-text-section">
+          <h2>Sobota, 18 kwietnia 2026</h2>
+          <div className="kal-plan-list">
+            {saturday.map((item) => (
+              <article key={`${item.date}-${item.time}-${item.title}`} className="kal-plan-item">
+                <p><strong>Data:</strong> {item.date}</p>
+                <p><strong>Godzina:</strong> {item.time}</p>
+                <p><strong>Miejsce:</strong> {item.place}</p>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export function Kal26EventPage({
   copy,
   language,
@@ -2339,6 +2517,7 @@ export function Kal26EventPage({
             </section>
           ) : null}
           {page.slug === 'niezbednik' ? <InformationPage eventSlug={event.slug} /> : null}
+          {page.slug === 'program' ? <Kal26PlanPage eventSlug={event.slug} /> : null}
           {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
           {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
           <div style={{ display: 'none' }} aria-hidden="true">

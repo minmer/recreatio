@@ -63,7 +63,7 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
   return (
     <div className="kal-text-layout">
       <aside className="kal-text-sidebar">
-        <h1>Information</h1>
+        <h1>Informacje</h1>
         <p>
           Najważniejsze informacje o pielgrzymce w jednym miejscu. Układ strony prowadzi od podstawowych faktów do
           szczegółów organizacyjnych.
@@ -74,8 +74,8 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
           ))}
         </ul>
         <div className="kal-text-actions">
-          <a className="cta" href={`/#/event/${eventSlug}/register`}>Register now</a>
-          <a className="ghost" href={`/#/event/${eventSlug}/plan`}>See the plan</a>
+          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
         </div>
       </aside>
 
@@ -83,7 +83,7 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
         <section className="kal-text-section kal-text-hero-visual" aria-label="Baner pielgrzymkowy" />
 
         <section className="kal-text-section">
-          <h2>The most important information</h2>
+          <h2>Najważniejsze informacje</h2>
           <div className="kal-text-list">
             {quickInfo.map((item) => (
               <p key={item}>{item}</p>
@@ -92,7 +92,7 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
         </section>
 
         <section className="kal-text-section">
-          <h2>Important details</h2>
+          <h2>Ważne szczegóły</h2>
           {detailBlocks.map((block) => (
             <div key={block.title} className="kal-text-detail">
               <h3>{block.title}</h3>
@@ -102,25 +102,25 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
         </section>
 
         <section className="kal-text-section kal-text-highlight">
-          <h2>Every participant must register</h2>
+          <h2>Każdy uczestnik musi się zarejestrować</h2>
           <p>
             Rejestracja jest obowiązkowa. Umożliwia przygotowanie grupy, komunikacji i wsparcia organizacyjnego na całej
             trasie.
           </p>
-          <a className="cta" href={`/#/event/${eventSlug}/register`}>Go to registration</a>
+          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Przejdź do zapisów</a>
         </section>
 
         <section className="kal-text-section">
-          <h2>Spiritual pilgrim</h2>
+          <h2>Pielgrzym duchowy</h2>
           <p>
             Nie możesz uczestniczyć fizycznie? Możesz towarzyszyć duchowo, włączając się w intencje i modlitwę
             pielgrzymki.
           </p>
-          <a className="ghost" href={`/#/event/${eventSlug}/contact`}>Spiritual participation</a>
+          <a className="ghost" href={`/#/event/${eventSlug}/kontakt`}>Udział duchowy</a>
         </section>
 
         <section className="kal-text-section">
-          <h2>Contact the organizers</h2>
+          <h2>Kontakt z organizatorami</h2>
           <div className="kal-text-contact-grid">
             {contacts.map((person) => (
               <div key={person.email} className="kal-text-contact">

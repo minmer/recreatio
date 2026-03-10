@@ -156,6 +156,33 @@
   line-height: 1.7;
 }
 
+.kal-plan-list {
+  margin-top: 0.9rem;
+}
+
+.kal-plan-item {
+  border-bottom: 1px solid #e4ddd2;
+  padding: 0.95rem 0 1.05rem;
+}
+
+.kal-plan-item:first-child {
+  border-top: 1px solid #e4ddd2;
+}
+
+.kal-plan-item p {
+  margin: 0.2rem 0;
+  color: #4e4640;
+  line-height: 1.65;
+}
+
+.kal-plan-item h3 {
+  margin: 0.7rem 0 0.35rem;
+  font-size: 1.18rem;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.35;
+  color: #1f1a16;
+}
+
 @media (min-width: 1024px) {
   .kal-text-layout {
     grid-template-columns: minmax(280px, 0.9fr) minmax(0, 2.6fr);
