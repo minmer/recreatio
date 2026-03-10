@@ -24,6 +24,7 @@ import {
 } from '../../lib/api';
 import { PILGRIMAGE_START_SVG } from './pilgrimageStartSvg';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
+import { InformationPage } from './InformationPage';
 type RegistrationFormState = {
   fullName: string;
   phone: string;
@@ -225,228 +226,6 @@ function PilgrimageKalwariaLogo() {
         <tspan x="785.73004" y="256.28879" fontSize="176.4">Kalwaria</tspan>
       </text>
     </svg>
-  );
-}
-
-function Kal26InformationPage({ eventSlug }: { eventSlug: string }) {
-  const heroFacts = [
-    'Start: piątek, 17.04.2026',
-    'Msza Święta: 15:30, św. Józef, Kraków Podgórze',
-    'Nocleg: Tyniec',
-    'Meta: Kalwaria Zebrzydowska'
-  ];
-
-  const pillars = [
-    {
-      title: 'Tradycja',
-      body:
-        'Chcemy odkrywać stare zwyczaje Kościoła i ożywiać je na nowo — nie jako pamiątkę przeszłości, ale jako drogę do osobistego spotkania z żywym Chrystusem. Dlatego pielęgnujemy tradycyjne śpiewy, modlitwy, prostotę drogi i skromność pielgrzymowania.'
-    },
-    {
-      title: 'Cisza',
-      body:
-        'Na tej pielgrzymce cisza nie jest dodatkiem, ale przestrzenią spotkania z Bogiem. Chcemy oderwać się od codziennego hałasu, obowiązków i nieustannej dostępności. Obok wspólnej modlitwy i śpiewu jest też czas na milczenie, skupienie i drogę przeżywaną wewnętrznie.'
-    },
-    {
-      title: 'Liturgia',
-      body:
-        'Centralnym punktem pielgrzymki jest liturgia. Jej szczytem jest Msza Święta, ale ważne miejsce zajmuje także wspólna modlitwa Kościoła, śpiew i Liturgia Godzin. Wszystko na tej drodze ma do liturgii prowadzić i z niej wypływać.'
-    }
-  ];
-
-  const infoBlocks = [
-    { title: 'Termin', body: '17–18 kwietnia 2026' },
-    {
-      title: 'Start',
-      body: 'Piątek, 17.04.2026, godz. 15:30\nMsza Święta w kościele św. Józefa w Krakowie na Podgórzu'
-    },
-    { title: 'Trasa', body: 'Kraków – Tyniec – Kalwaria Zebrzydowska' },
-    { title: 'Nocleg', body: 'Tyniec' },
-    { title: 'Zapisy', body: 'Przez formularz internetowy' },
-    {
-      title: 'Dla zapisanych',
-      body: 'Szczegółowe informacje organizacyjne będą udostępniane w prywatnej strefie uczestnika'
-    }
-  ];
-
-  return (
-    <>
-      <section className="pilgrimage-hero">
-        <div className="pilgrimage-hero-main">
-          <h2>Kalwaria Zebrzydowska na Wielkanoc</h2>
-          <p>Dwudniowa piesza pielgrzymka z Krakowa do Matki Bożej Kalwaryjskiej</p>
-          <p className="pilgrimage-hero-route">17–18 kwietnia 2026</p>
-          <p className="pilgrimage-hero-date">Kraków – Tyniec – Kalwaria Zebrzydowska</p>
-          <p>
-            Pielgrzymka zrodzona z potrzeby ciszy, modlitwy i życia Tradycją Kościoła. Dwa dni drogi, wspólna
-            liturgia, nocleg w Tyńcu i droga do Kalwarii Zebrzydowskiej w czasie wielkanocnym.
-          </p>
-          <div className="pilgrimage-quick-links">
-            <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-            <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
-          </div>
-        </div>
-      </section>
-
-      <section className="pilgrimage-hero-facts">
-        {heroFacts.map((fact) => (
-          <article key={fact} className="pilgrimage-card">
-            <p>{fact}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Czym jest ta pielgrzymka?</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Kalwaria Zebrzydowska na Wielkanoc to dwudniowa piesza pielgrzymka z Krakowa do Matki Bożej
-              Kalwaryjskiej. Powstała z oddolnej potrzeby ludzi, którzy pragnęli przeżyć drogę pielgrzymią w skupieniu,
-              ciszy i modlitwie.
-            </p>
-            <p>
-              Nie buduje się wokół pośpiechu, atrakcji i nadmiaru bodźców, ale wokół tego, co najważniejsze: drogi,
-              wspólnej modlitwy, liturgii i wewnętrznego spotkania z Bogiem. To pielgrzymka prosta w formie, skromna w
-              organizacji i głęboko zakorzeniona w życiu Kościoła.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Tradycja, Cisza, Liturgia</h2>
-          <p>
-            Charakter tej pielgrzymki koncentruje się wokół trzech głównych myśli. To one nadają jej rytm, styl i
-            duchowy kierunek.
-          </p>
-        </header>
-        <div className="pilgrimage-card-grid">
-          {pillars.map((pillar) => (
-            <article key={pillar.title} className="pilgrimage-card">
-              <h3>{pillar.title}</h3>
-              <p>{pillar.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Jak wygląda nasza droga?</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Pielgrzymka trwa dwa dni. Pierwszego dnia spotykamy się na wspólnej Mszy Świętej w Krakowie, a następnie
-              wyruszamy w stronę Tyńca. Tam przewidziany jest nocleg. Drugiego dnia rano podejmujemy dalszą drogę do
-              Kalwarii Zebrzydowskiej.
-            </p>
-            <p>
-              W czasie drogi towarzyszą nam wspólna modlitwa, śpiew, konferencje i momenty ciszy. Zależy nam na
-              prostocie i skupieniu — tak, aby pielgrzymka była rzeczywiście czasem odejścia od codzienności i wejścia
-              w przestrzeń modlitwy.
-            </p>
-            <p>
-              To nie jest wydarzenie turystyczne ani marsz sportowy. To droga przeżywana wspólnie, ale z dużym
-              szacunkiem dla ciszy, modlitwy i wewnętrznego rytmu pielgrzymowania.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Dla kogo?</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Dla osób, które pragną przeżyć drogę w duchu modlitwy, skupienia i prostoty. Dla tych, którzy szukają
-              miejsca na ciszę. Dla tych, którzy chcą pielgrzymować we wspólnocie, ale bez nadmiaru zewnętrznych
-              rozproszeń. Dla tych, którym bliskie są tradycyjne śpiewy, liturgia i duch Kościoła.
-            </p>
-            <p>
-              Nie trzeba mieć wcześniejszego doświadczenia pielgrzymkowego. Potrzeba przede wszystkim gotowości do
-              drogi, otwartości na charakter tej pielgrzymki i zgody na jej prosty, modlitewny rytm.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Najważniejsze informacje</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          {infoBlocks.map((item) => (
-            <article key={item.title} className="pilgrimage-card">
-              <h3>{item.title}</h3>
-              {item.body.split('\n').map((line) => (
-                <p key={`${item.title}-${line}`}>{line}</p>
-              ))}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Droga prosta, wspólna i skupiona</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Zależy nam na tym, aby pielgrzymka zachowała swój prosty i modlitewny charakter. Chcemy iść bez pośpiechu,
-              z szacunkiem dla ciszy, z troską o piękno wspólnej modlitwy oraz liturgii. Staramy się wracać do dawnych
-              zwyczajów, pielęgnować tradycyjne śpiewy i dbać o skromność zarówno w drodze, jak i podczas noclegu.
-            </p>
-            <p>To właśnie ta prostota sprawia, że łatwiej usłyszeć to, co najważniejsze.</p>
-          </article>
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Ta pielgrzymka powstaje dzięki ludziom</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Kalwaria Zebrzydowska na Wielkanoc nie jest projektem budowanym odgórnie. Żyje dzięki ludziom, którzy
-              chcą włączyć się w jej przygotowanie: organizacyjnie, technicznie, muzycznie, logistycznie i modlitewnie.
-            </p>
-            <p>
-              Jeśli chcesz pomóc w tworzeniu tej pielgrzymki, skontaktuj się z nami. Jesteśmy otwarci na
-              zaangażowanie, własne pomysły i konkretną pomoc.
-            </p>
-            <div className="pilgrimage-quick-links">
-              <a className="ghost" href={`/#/event/${eventSlug}/kontakt`}>Zobacz kontakt</a>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section className="pilgrimage-section-block">
-        <header>
-          <h2>Chcesz wyruszyć z nami?</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Zapoznaj się z planem pielgrzymki, przeczytaj najważniejsze informacje i zapisz się na najbliższą edycję.
-            </p>
-            <div className="pilgrimage-quick-links">
-              <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Przejdź do zapisów</a>
-              <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
-            </div>
-          </article>
-        </div>
-      </section>
-    </>
   );
 }
 
@@ -2525,6 +2304,10 @@ export function Kal26EventPage({
     );
   };
 
+  if (page.slug === 'niezbednik') {
+    return <InformationPage eventSlug={event.slug} />;
+  }
+
   return (
     <div className="event-page kal-page">
       <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}${page.slug === 'start' ? ' kal-header--overlay' : ''}`}>
@@ -2593,7 +2376,6 @@ export function Kal26EventPage({
               </div>
             </section>
           ) : null}
-          {page.slug === 'niezbednik' ? <Kal26InformationPage eventSlug={event.slug} /> : null}
           {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
           {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
           <div style={{ display: 'none' }} aria-hidden="true">
