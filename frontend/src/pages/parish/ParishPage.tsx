@@ -2187,6 +2187,19 @@ export function ParishPage({
     navigate(`/parish/${parishSlug}/confirmation/${nextSection}${location.search}`, { replace: true });
   }, [isConfirmationSubpage, parishSlug, confirmationPathSection, location.search, navigate]);
 
+  const parishMockNotice = (
+    <section className="parish-section parish-mock-notice-section">
+      <article className="parish-card parish-mock-notice" role="status" aria-live="polite">
+        <p className="tag">Ważne</p>
+        <h2>Treści demonstracyjne (MOCK)</h2>
+        <p>
+          Wszystkie widoczne tutaj informacje mają charakter demonstracyjny i są w budowie. Nie należy traktować ich
+          jako aktualnych informacji parafialnych.
+        </p>
+      </article>
+    </section>
+  );
+
   useEffect(() => {
     setMassRuleConflicts([]);
     setMassRuleValidation([]);
@@ -3779,6 +3792,7 @@ export function ParishPage({
             </div>
           </header>
           <main className="parish-main">
+            {parishMockNotice}
             <section className="parish-chooser">
               <div className="chooser-card">
                 <div>
@@ -3860,6 +3874,7 @@ export function ParishPage({
             </div>
           </header>
           <main className="parish-main">
+            {parishMockNotice}
             <section className="parish-builder">
               <div className="builder-card">
                 <div className="builder-intro">
@@ -4178,6 +4193,7 @@ export function ParishPage({
             </div>
           </header>
           <main className="parish-main">
+            {parishMockNotice}
             <section className="parish-section">
               <article className="parish-card">
                 <p className="muted">Nie znaleziono strony parafii.</p>
@@ -4308,6 +4324,7 @@ export function ParishPage({
             </div>
           </header>
           <main className="parish-main">
+            {parishMockNotice}
             {activePage === 'start' && (
               <section className="parish-section home-grid-section">
                 {editMode && (
