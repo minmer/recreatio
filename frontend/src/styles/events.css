@@ -369,6 +369,15 @@
   gap: 1rem;
 }
 
+.kal-main--text {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1700px;
+  width: 100%;
+  margin: 0 auto;
+  padding-left: 2.2vw;
+  padding-right: 2.2vw;
+}
+
 .kal-main--start {
   display: block;
   padding: 0;
@@ -420,6 +429,9 @@
   border: 0;
   border-radius: 0;
   padding: 0;
+  max-width: 1650px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .kal-content h2 {

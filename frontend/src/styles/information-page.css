@@ -1,9 +1,9 @@
 .kal-text-layout {
-  width: 100%;
-  margin: 0;
+  width: min(1600px, 100%);
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 2.5rem;
   color: #1f1a16;
   background: #ffffff;
 }
@@ -158,8 +158,8 @@
 
 @media (min-width: 1024px) {
   .kal-text-layout {
-    grid-template-columns: minmax(220px, 0.7fr) minmax(0, 2.3fr);
-    gap: 3rem;
+    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 2.6fr);
+    gap: 4rem;
     align-items: start;
   }
 
