@@ -1563,7 +1563,7 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
+                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
                 });
             }
 
@@ -12688,7 +12688,7 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql on the API database."
+                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema.sql on the API database."
                 });
             }
 
@@ -12718,14 +12718,14 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
+                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
                 });
             }
             catch (DbUpdateException ex) when (LooksLikeUnsupportedInfoTypeSchema(ex, infoType))
             {
                 return Results.BadRequest(new
                 {
-                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql on the API database."
+                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema.sql on the API database."
                 });
             }
 

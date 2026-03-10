@@ -216,7 +216,14 @@ public static class CogitaCoreEndpoints
                 .ToListAsync(ct);
 
             var mode = CogitaRunSelectionCore.NormalizeMode(run.RunScope);
-            var remainingIndexes = CogitaRunSelectionCore.OrderRemainingRoundIndexes(cards.Count, answeredRoundIndexes, mode, request.ParticipantSeed);
+            var answeredRoundIndexSet = answeredRoundIndexes.ToHashSet();
+            var remainingRoundIndexes = Enumerable.Range(0, cards.Count)
+                .Where(index => !answeredRoundIndexSet.Contains(index));
+            var remainingIndexes = CogitaRunSelectionCore.OrderRemainingRoundIndexes(
+                remainingRoundIndexes,
+                request.ParticipantSeed,
+                mode,
+                knownessByRound: null);
             if (remainingIndexes.Count == 0)
             {
                 return Results.Ok(new { cardKey = (string?)null, reason = "finished" });
@@ -340,5 +347,5 @@ public static class CogitaCoreEndpoints
 
     public sealed record NextCardRequest(
         [property: JsonPropertyName("participantId")] Guid ParticipantId,
-        [property: JsonPropertyName("participantSeed")] int ParticipantSeed);
+        [property: JsonPropertyName("participantSeed")] Guid ParticipantSeed);
 }

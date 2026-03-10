@@ -19,6 +19,20 @@ IF OBJECT_ID(N'dbo.RoleRecoveryRequests', N'U') IS NOT NULL DROP TABLE dbo.RoleR
 IF OBJECT_ID(N'dbo.RoleRecoveryKeys', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryKeys;
 IF OBJECT_ID(N'dbo.RoleRecoveryShares', N'U') IS NOT NULL DROP TABLE dbo.RoleRecoveryShares;
 IF OBJECT_ID(N'dbo.RoleFields', N'U') IS NOT NULL DROP TABLE dbo.RoleFields;
+IF OBJECT_ID(N'chat.ChatConversationReadStates', N'U') IS NOT NULL DROP TABLE chat.ChatConversationReadStates;
+IF OBJECT_ID(N'chat.ChatPublicLinks', N'U') IS NOT NULL DROP TABLE chat.ChatPublicLinks;
+IF OBJECT_ID(N'chat.ChatMessages', N'U') IS NOT NULL DROP TABLE chat.ChatMessages;
+IF OBJECT_ID(N'chat.ChatConversationKeyVersions', N'U') IS NOT NULL DROP TABLE chat.ChatConversationKeyVersions;
+IF OBJECT_ID(N'chat.ChatConversationParticipants', N'U') IS NOT NULL DROP TABLE chat.ChatConversationParticipants;
+IF OBJECT_ID(N'chat.ChatConversations', N'U') IS NOT NULL DROP TABLE chat.ChatConversations;
+IF OBJECT_ID(N'pilgrimage.PilgrimageContactInquiries', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageContactInquiries;
+IF OBJECT_ID(N'pilgrimage.PilgrimageParticipantIssues', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageParticipantIssues;
+IF OBJECT_ID(N'pilgrimage.PilgrimageTasks', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageTasks;
+IF OBJECT_ID(N'pilgrimage.PilgrimageAnnouncements', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageAnnouncements;
+IF OBJECT_ID(N'pilgrimage.PilgrimageParticipantAccessTokens', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageParticipantAccessTokens;
+IF OBJECT_ID(N'pilgrimage.PilgrimageParticipants', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageParticipants;
+IF OBJECT_ID(N'pilgrimage.PilgrimageSiteConfigs', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageSiteConfigs;
+IF OBJECT_ID(N'pilgrimage.PilgrimageEvents', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageEvents;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkMultis;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkSingles;
 IF OBJECT_ID(N'dbo.CogitaCollectionGraphEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaCollectionGraphEdges;
@@ -1751,5 +1765,807 @@ BEGIN
     INNER JOIN dbo.CogitaLiveRevisionParticipants p ON p.Id = se.ParticipantId
     WHERE se.SourceType = N'live-session-person'
       AND se.SessionId IS NULL;
+END
+GO
+
+/*
+  -----------------------------------------------------------------
+  Integrated module schemas
+  (previously maintained as standalone patch scripts)
+  -----------------------------------------------------------------
+*/
+/*
+  Cogita rebuild schema (no compatibility layer)
+  Canonical base for knowledge, checkcards, runs, answers, knowness snapshots, and statistics.
+*/
+
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
+IF OBJECT_ID(N'dbo.CogitaRunEvents', N'U') IS NOT NULL DROP TABLE dbo.CogitaRunEvents;
+IF OBJECT_ID(N'dbo.CogitaKnownessSnapshots', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnownessSnapshots;
+IF OBJECT_ID(N'dbo.CogitaRunExposures', N'U') IS NOT NULL DROP TABLE dbo.CogitaRunExposures;
+IF OBJECT_ID(N'dbo.CogitaRunAttempts', N'U') IS NOT NULL DROP TABLE dbo.CogitaRunAttempts;
+IF OBJECT_ID(N'dbo.CogitaRunParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaRunParticipants;
+IF OBJECT_ID(N'dbo.CogitaRevisionRuns', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionRuns;
+IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
+IF OBJECT_ID(N'dbo.CogitaRevisionPatterns', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionPatterns;
+IF OBJECT_ID(N'dbo.CogitaCreationProjects', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationProjects;
+IF OBJECT_ID(N'dbo.CogitaDependencyEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaDependencyEdges;
+IF OBJECT_ID(N'dbo.CogitaCheckcardDefinitions', N'U') IS NOT NULL DROP TABLE dbo.CogitaCheckcardDefinitions;
+IF OBJECT_ID(N'dbo.CogitaKnowledgeLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeLinkMultis;
+IF OBJECT_ID(N'dbo.CogitaKnowledgeLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeLinkSingles;
+IF OBJECT_ID(N'dbo.CogitaKnowledgeItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeItems;
+IF OBJECT_ID(N'dbo.CogitaKnowledgeTypeSpecs', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeTypeSpecs;
+GO
+
+CREATE TABLE dbo.CogitaKnowledgeTypeSpecs
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnowledgeTypeSpecs PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    TypeKey NVARCHAR(96) NOT NULL,
+    Version INT NOT NULL,
+    DisplayName NVARCHAR(256) NOT NULL,
+    SpecJson NVARCHAR(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT UX_CogitaKnowledgeTypeSpecs_LibraryTypeVersion UNIQUE (LibraryId, TypeKey, Version)
+);
+GO
+
+CREATE TABLE dbo.CogitaKnowledgeItems
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnowledgeItems PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    TypeSpecId UNIQUEIDENTIFIER NOT NULL,
+    TypeKey NVARCHAR(96) NOT NULL,
+    Title NVARCHAR(512) NOT NULL,
+    SearchText NVARCHAR(MAX) NOT NULL,
+    PayloadJson NVARCHAR(MAX) NOT NULL,
+    IsExcludedFromKnowness BIT NOT NULL CONSTRAINT DF_CogitaKnowledgeItems_IsExcludedFromKnowness DEFAULT (0),
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaKnowledgeItems_TypeSpec FOREIGN KEY (TypeSpecId) REFERENCES dbo.CogitaKnowledgeTypeSpecs(Id),
+    CONSTRAINT FK_CogitaKnowledgeItems_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaKnowledgeItems_Library ON dbo.CogitaKnowledgeItems (LibraryId, UpdatedUtc DESC);
+CREATE INDEX IX_CogitaKnowledgeItems_Type ON dbo.CogitaKnowledgeItems (LibraryId, TypeKey, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaCreationProjects
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCreationProjects PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    ProjectType NVARCHAR(32) NOT NULL,
+    Name NVARCHAR(256) NOT NULL,
+    ContentJson NVARCHAR(MAX) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL
+);
+GO
+
+CREATE INDEX IX_CogitaCreationProjects_LibraryTypeUpdated ON dbo.CogitaCreationProjects (LibraryId, ProjectType, UpdatedUtc DESC, Id);
+CREATE INDEX IX_CogitaCreationProjects_LibraryTypeName ON dbo.CogitaCreationProjects (LibraryId, ProjectType, Name);
+GO
+
+CREATE TABLE dbo.CogitaKnowledgeLinkSingles
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnowledgeLinkSingles PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    SourceItemId UNIQUEIDENTIFIER NOT NULL,
+    FieldKey NVARCHAR(64) NOT NULL,
+    TargetItemId UNIQUEIDENTIFIER NOT NULL,
+    IsRequired BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaKnowledgeItems(Id),
+    CONSTRAINT UX_CogitaKnowledgeLinkSingles_SourceField UNIQUE (SourceItemId, FieldKey)
+);
+GO
+
+CREATE TABLE dbo.CogitaKnowledgeLinkMultis
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnowledgeLinkMultis PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    SourceItemId UNIQUEIDENTIFIER NOT NULL,
+    FieldKey NVARCHAR(64) NOT NULL,
+    TargetItemId UNIQUEIDENTIFIER NOT NULL,
+    SortOrder INT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaKnowledgeItems(Id),
+    CONSTRAINT UX_CogitaKnowledgeLinkMultis_SourceFieldTarget UNIQUE (SourceItemId, FieldKey, TargetItemId)
+);
+GO
+
+CREATE INDEX IX_CogitaKnowledgeLinkMultis_SourceFieldOrder ON dbo.CogitaKnowledgeLinkMultis (SourceItemId, FieldKey, SortOrder);
+GO
+
+CREATE TABLE dbo.CogitaCheckcardDefinitions
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCheckcardDefinitions PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    SourceItemId UNIQUEIDENTIFIER NOT NULL,
+    CardKey NVARCHAR(256) NOT NULL,
+    CardType NVARCHAR(64) NOT NULL,
+    Direction INT NOT NULL,
+    PromptJson NVARCHAR(MAX) NOT NULL,
+    RevealJson NVARCHAR(MAX) NOT NULL,
+    IsActive BIT NOT NULL CONSTRAINT DF_CogitaCheckcardDefinitions_IsActive DEFAULT (1),
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaCheckcardDefinitions_Item FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
+    CONSTRAINT UX_CogitaCheckcardDefinitions_CardKey UNIQUE (LibraryId, CardKey)
+);
+GO
+
+CREATE INDEX IX_CogitaCheckcardDefinitions_Item ON dbo.CogitaCheckcardDefinitions (SourceItemId, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaDependencyEdges
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDependencyEdges PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    ParentCardId UNIQUEIDENTIFIER NOT NULL,
+    ChildCardId UNIQUEIDENTIFIER NOT NULL,
+    ParentKnownessWeightPct DECIMAL(9,4) NOT NULL,
+    ThresholdPct DECIMAL(9,4) NOT NULL,
+    IsHardBlock BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaDependencyEdges_ParentCard FOREIGN KEY (ParentCardId) REFERENCES dbo.CogitaCheckcardDefinitions(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaDependencyEdges_ChildCard FOREIGN KEY (ChildCardId) REFERENCES dbo.CogitaCheckcardDefinitions(Id) ON DELETE CASCADE,
+    CONSTRAINT UX_CogitaDependencyEdges_Link UNIQUE (ParentCardId, ChildCardId)
+);
+GO
+
+CREATE INDEX IX_CogitaDependencyEdges_Child ON dbo.CogitaDependencyEdges (ChildCardId, ParentCardId);
+GO
+
+CREATE TABLE dbo.CogitaRevisionPatterns
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRevisionPatterns PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    RoleId UNIQUEIDENTIFIER NOT NULL,
+    Name NVARCHAR(256) NOT NULL,
+    Mode NVARCHAR(32) NOT NULL,
+    SettingsJson NVARCHAR(MAX) NOT NULL,
+    CollectionScopeJson NVARCHAR(MAX) NOT NULL,
+    IsArchived BIT NOT NULL CONSTRAINT DF_CogitaRevisionPatterns_IsArchived DEFAULT (0),
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRevisionPatterns_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaRevisionPatterns_Library ON dbo.CogitaRevisionPatterns (LibraryId, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaRevisionShares
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRevisionShares PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    RevisionPatternId UNIQUEIDENTIFIER NOT NULL,
+    ShareCodeHash VARBINARY(32) NOT NULL,
+    ShareCodeCipher NVARCHAR(512) NOT NULL,
+    IsEnabled BIT NOT NULL,
+    SettingsJson NVARCHAR(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRevisionShares_Pattern FOREIGN KEY (RevisionPatternId) REFERENCES dbo.CogitaRevisionPatterns(Id) ON DELETE CASCADE,
+    CONSTRAINT UX_CogitaRevisionShares_Pattern UNIQUE (RevisionPatternId),
+    CONSTRAINT UX_CogitaRevisionShares_CodeHash UNIQUE (ShareCodeHash)
+);
+GO
+
+CREATE TABLE dbo.CogitaRevisionRuns
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRevisionRuns PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    RevisionPatternId UNIQUEIDENTIFIER NOT NULL,
+    RunScope NVARCHAR(32) NOT NULL, /* solo|shared|group_sync|group_async */
+    Title NVARCHAR(256) NULL,
+    Status NVARCHAR(32) NOT NULL,
+    SessionCodeHash VARBINARY(32) NULL,
+    SessionCodeCipher NVARCHAR(512) NULL,
+    SettingsJson NVARCHAR(MAX) NOT NULL,
+    PromptBundleJson NVARCHAR(MAX) NULL,
+    StartedUtc DATETIMEOFFSET NULL,
+    FinishedUtc DATETIMEOFFSET NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRevisionRuns_Pattern FOREIGN KEY (RevisionPatternId) REFERENCES dbo.CogitaRevisionPatterns(Id) ON DELETE CASCADE,
+    CONSTRAINT UX_CogitaRevisionRuns_CodeHash UNIQUE (SessionCodeHash)
+);
+GO
+
+CREATE INDEX IX_CogitaRevisionRuns_LibraryStatus ON dbo.CogitaRevisionRuns (LibraryId, Status, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaRunParticipants
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRunParticipants PRIMARY KEY,
+    RunId UNIQUEIDENTIFIER NOT NULL,
+    PersonRoleId UNIQUEIDENTIFIER NULL,
+    DisplayNameCipher NVARCHAR(512) NOT NULL,
+    AccessTokenHash VARBINARY(32) NULL,
+    AccessTokenCipher NVARCHAR(512) NULL,
+    IsHost BIT NOT NULL,
+    IsConnected BIT NOT NULL,
+    JoinedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRunParticipants_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaRunParticipants_PersonRole FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaRunParticipants_Run ON dbo.CogitaRunParticipants (RunId, JoinedUtc);
+CREATE INDEX IX_CogitaRunParticipants_RunRole ON dbo.CogitaRunParticipants (RunId, PersonRoleId);
+GO
+
+CREATE TABLE dbo.CogitaRunAttempts
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRunAttempts PRIMARY KEY,
+    RunId UNIQUEIDENTIFIER NOT NULL,
+    ParticipantId UNIQUEIDENTIFIER NOT NULL,
+    RoundIndex INT NOT NULL,
+    CardKey NVARCHAR(256) NOT NULL,
+    AnswerCipher NVARCHAR(MAX) NULL,
+    IsAnswered BIT NOT NULL,
+    IsCorrect BIT NULL,
+    CorrectnessPct DECIMAL(9,4) NULL,
+    SubmittedUtc DATETIMEOFFSET NOT NULL,
+    RevealedUtc DATETIMEOFFSET NULL,
+    ResponseDurationMs INT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRunAttempts_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaRunAttempts_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id) ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_CogitaRunAttempts_RunParticipantRound ON dbo.CogitaRunAttempts (RunId, ParticipantId, RoundIndex, UpdatedUtc DESC);
+CREATE INDEX IX_CogitaRunAttempts_RunCard ON dbo.CogitaRunAttempts (RunId, CardKey, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaRunExposures
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRunExposures PRIMARY KEY,
+    RunId UNIQUEIDENTIFIER NOT NULL,
+    ParticipantId UNIQUEIDENTIFIER NOT NULL,
+    RoundIndex INT NOT NULL,
+    CardKey NVARCHAR(256) NOT NULL,
+    PromptShownUtc DATETIMEOFFSET NOT NULL,
+    RevealShownUtc DATETIMEOFFSET NULL,
+    WasSkipped BIT NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRunExposures_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaRunExposures_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id) ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_CogitaRunExposures_RunParticipant ON dbo.CogitaRunExposures (RunId, ParticipantId, RoundIndex);
+GO
+
+CREATE TABLE dbo.CogitaKnownessSnapshots
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnownessSnapshots PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    PersonRoleId UNIQUEIDENTIFIER NOT NULL,
+    CardKey NVARCHAR(256) NOT NULL,
+    SnapshotUtc DATETIMEOFFSET NOT NULL,
+    KnownessPct DECIMAL(9,4) NOT NULL,
+    CorrectCount INT NOT NULL,
+    WrongCount INT NOT NULL,
+    UnansweredCount INT NOT NULL,
+    LastSeenUtc DATETIMEOFFSET NULL,
+    SourceRunId UNIQUEIDENTIFIER NULL,
+    SourceParticipantId UNIQUEIDENTIFIER NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaKnownessSnapshots_PersonRole FOREIGN KEY (PersonRoleId) REFERENCES dbo.Roles(Id),
+    CONSTRAINT FK_CogitaKnownessSnapshots_Run FOREIGN KEY (SourceRunId) REFERENCES dbo.CogitaRevisionRuns(Id),
+    CONSTRAINT FK_CogitaKnownessSnapshots_RunParticipant FOREIGN KEY (SourceParticipantId) REFERENCES dbo.CogitaRunParticipants(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaKnownessSnapshots_LibraryPersonCardUtc ON dbo.CogitaKnownessSnapshots (LibraryId, PersonRoleId, CardKey, SnapshotUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaRunEvents
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaRunEvents PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    RunId UNIQUEIDENTIFIER NOT NULL,
+    ParticipantId UNIQUEIDENTIFIER NULL,
+    EventType NVARCHAR(64) NOT NULL,
+    RoundIndex INT NULL,
+    PayloadJson NVARCHAR(MAX) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaRunEvents_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaRunEvents_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaRunEvents_RunCreated ON dbo.CogitaRunEvents (RunId, CreatedUtc);
+CREATE INDEX IX_CogitaRunEvents_ParticipantCreated ON dbo.CogitaRunEvents (ParticipantId, CreatedUtc);
+GO
+
+-- Chat module
+-- Adds dedicated chat tables in separate [chat] schema.
+-- Existing tables are not modified.
+
+SET NOCOUNT ON;
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'chat')
+BEGIN
+    EXEC('CREATE SCHEMA chat AUTHORIZATION dbo;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatConversations' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatConversations
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ChatType NVARCHAR(32) NOT NULL,
+        ScopeType NVARCHAR(32) NOT NULL,
+        ScopeId NVARCHAR(128) NULL,
+        Title NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(2000) NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedByRoleId UNIQUEIDENTIFIER NULL,
+        IsArchived BIT NOT NULL,
+        IsPublic BIT NOT NULL,
+        PublicReadEnabled BIT NOT NULL,
+        PublicQuestionEnabled BIT NOT NULL,
+        PublicCodeHash VARBINARY(32) NULL,
+        ActiveKeyVersion INT NOT NULL,
+        LastMessageSequence BIGINT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_ChatConversations_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT FK_ChatConversations_CreatedByRole FOREIGN KEY (CreatedByRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatConversations_UpdatedUtc' AND object_id = OBJECT_ID('chat.ChatConversations'))
+BEGIN
+    CREATE INDEX IX_ChatConversations_UpdatedUtc ON chat.ChatConversations(UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatConversations_ScopeUpdated' AND object_id = OBJECT_ID('chat.ChatConversations'))
+BEGIN
+    CREATE INDEX IX_ChatConversations_ScopeUpdated ON chat.ChatConversations(ScopeType, ScopeId, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatConversations_PublicCodeHash' AND object_id = OBJECT_ID('chat.ChatConversations'))
+BEGIN
+    CREATE INDEX IX_ChatConversations_PublicCodeHash ON chat.ChatConversations(PublicCodeHash)
+    WHERE PublicCodeHash IS NOT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatConversationParticipants' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatConversationParticipants
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ConversationId UNIQUEIDENTIFIER NOT NULL,
+        SubjectType NVARCHAR(16) NOT NULL,
+        SubjectId UNIQUEIDENTIFIER NOT NULL,
+        DisplayLabel NVARCHAR(120) NULL,
+        CanRead BIT NOT NULL,
+        CanWrite BIT NOT NULL,
+        CanManage BIT NOT NULL,
+        CanRespondPublic BIT NOT NULL,
+        MinReadableSequence BIGINT NOT NULL,
+        JoinedUtc DATETIMEOFFSET NOT NULL,
+        RemovedUtc DATETIMEOFFSET NULL,
+        AddedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CONSTRAINT FK_ChatConversationParticipants_Conversation FOREIGN KEY (ConversationId) REFERENCES chat.ChatConversations(Id),
+        CONSTRAINT FK_ChatConversationParticipants_AddedByUser FOREIGN KEY (AddedByUserId) REFERENCES dbo.UserAccounts(Id)
+    );
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatConversationParticipants' AND schema_id = SCHEMA_ID('chat'))
+    AND NOT EXISTS (
+        SELECT 1
+        FROM sys.columns
+        WHERE object_id = OBJECT_ID('chat.ChatConversationParticipants')
+          AND name = 'MinReadableSequence')
+BEGIN
+    ALTER TABLE chat.ChatConversationParticipants
+        ADD MinReadableSequence BIGINT NOT NULL
+            CONSTRAINT DF_ChatConversationParticipants_MinReadableSequence DEFAULT (0);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatConversationParticipants_ConversationRemoved' AND object_id = OBJECT_ID('chat.ChatConversationParticipants'))
+BEGIN
+    CREATE INDEX IX_ChatConversationParticipants_ConversationRemoved
+        ON chat.ChatConversationParticipants(ConversationId, RemovedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatConversationParticipants_Subject' AND object_id = OBJECT_ID('chat.ChatConversationParticipants'))
+BEGIN
+    CREATE INDEX IX_ChatConversationParticipants_Subject
+        ON chat.ChatConversationParticipants(ConversationId, SubjectType, SubjectId, RemovedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatConversationKeyVersions' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatConversationKeyVersions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ConversationId UNIQUEIDENTIFIER NOT NULL,
+        Version INT NOT NULL,
+        EncryptedKeyBlob VARBINARY(MAX) NOT NULL,
+        Reason NVARCHAR(64) NOT NULL,
+        RotatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_ChatConversationKeyVersions_Conversation FOREIGN KEY (ConversationId) REFERENCES chat.ChatConversations(Id),
+        CONSTRAINT FK_ChatConversationKeyVersions_RotatedByUser FOREIGN KEY (RotatedByUserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT UX_ChatConversationKeyVersions_ConversationVersion UNIQUE (ConversationId, Version)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatMessages' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatMessages
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ConversationId UNIQUEIDENTIFIER NOT NULL,
+        Sequence BIGINT NOT NULL,
+        SenderUserId UNIQUEIDENTIFIER NULL,
+        SenderRoleId UNIQUEIDENTIFIER NULL,
+        SenderDisplay NVARCHAR(120) NOT NULL,
+        MessageType NVARCHAR(24) NOT NULL,
+        Visibility NVARCHAR(24) NOT NULL,
+        ClientMessageId NVARCHAR(64) NULL,
+        KeyVersion INT NOT NULL,
+        Ciphertext VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        EditedUtc DATETIMEOFFSET NULL,
+        DeletedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_ChatMessages_Conversation FOREIGN KEY (ConversationId) REFERENCES chat.ChatConversations(Id),
+        CONSTRAINT FK_ChatMessages_SenderUser FOREIGN KEY (SenderUserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT FK_ChatMessages_SenderRole FOREIGN KEY (SenderRoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT UX_ChatMessages_ConversationSequence UNIQUE (ConversationId, Sequence)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatMessages_ConversationCreated' AND object_id = OBJECT_ID('chat.ChatMessages'))
+BEGIN
+    CREATE INDEX IX_ChatMessages_ConversationCreated
+        ON chat.ChatMessages(ConversationId, CreatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatMessages_ConversationVisibilitySequence' AND object_id = OBJECT_ID('chat.ChatMessages'))
+BEGIN
+    CREATE INDEX IX_ChatMessages_ConversationVisibilitySequence
+        ON chat.ChatMessages(ConversationId, Visibility, Sequence);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatConversationReadStates' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatConversationReadStates
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ConversationId UNIQUEIDENTIFIER NOT NULL,
+        UserId UNIQUEIDENTIFIER NOT NULL,
+        LastReadSequence BIGINT NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_ChatConversationReadStates_Conversation FOREIGN KEY (ConversationId) REFERENCES chat.ChatConversations(Id),
+        CONSTRAINT FK_ChatConversationReadStates_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT UX_ChatConversationReadStates_ConversationUser UNIQUE (ConversationId, UserId)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ChatPublicLinks' AND schema_id = SCHEMA_ID('chat'))
+BEGIN
+    CREATE TABLE chat.ChatPublicLinks
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ConversationId UNIQUEIDENTIFIER NOT NULL,
+        CodeHash VARBINARY(32) NOT NULL,
+        Label NVARCHAR(120) NOT NULL,
+        IsActive BIT NOT NULL,
+        ExpiresUtc DATETIMEOFFSET NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        LastUsedUtc DATETIMEOFFSET NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_ChatPublicLinks_Conversation FOREIGN KEY (ConversationId) REFERENCES chat.ChatConversations(Id),
+        CONSTRAINT FK_ChatPublicLinks_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT UX_ChatPublicLinks_CodeHash UNIQUE (CodeHash)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ChatPublicLinks_ConversationActive' AND object_id = OBJECT_ID('chat.ChatPublicLinks'))
+BEGIN
+    CREATE INDEX IX_ChatPublicLinks_ConversationActive
+        ON chat.ChatPublicLinks(ConversationId, IsActive, RevokedUtc, ExpiresUtc);
+END
+GO
+
+-- Pilgrimage event module
+-- Adds dedicated event tables in separate [pilgrimage] schema.
+-- Existing tables are not modified.
+
+SET NOCOUNT ON;
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'pilgrimage')
+BEGIN
+    EXEC('CREATE SCHEMA pilgrimage AUTHORIZATION dbo;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageEvents' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageEvents
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        Slug NVARCHAR(80) NOT NULL,
+        Name NVARCHAR(200) NOT NULL,
+        Motto NVARCHAR(180) NOT NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        StartLocation NVARCHAR(160) NOT NULL,
+        EndLocation NVARCHAR(160) NOT NULL,
+        Theme NVARCHAR(32) NOT NULL,
+        DistanceKm DECIMAL(7, 2) NULL,
+        RoleId UNIQUEIDENTIFIER NOT NULL,
+        OrganizerRoleId UNIQUEIDENTIFIER NOT NULL,
+        LogisticsRoleId UNIQUEIDENTIFIER NOT NULL,
+        MedicalRoleId UNIQUEIDENTIFIER NOT NULL,
+        PublicRoleId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantDataItemId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantDataKeyId UNIQUEIDENTIFIER NOT NULL,
+        EmergencyDataItemId UNIQUEIDENTIFIER NOT NULL,
+        EmergencyDataKeyId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantDataKeyServerEnc VARBINARY(MAX) NOT NULL,
+        EmergencyDataKeyServerEnc VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_PilgrimageEvents_Slug UNIQUE (Slug),
+        CONSTRAINT FK_PilgrimageEvents_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_PilgrimageEvents_OrganizerRole FOREIGN KEY (OrganizerRoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_PilgrimageEvents_LogisticsRole FOREIGN KEY (LogisticsRoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_PilgrimageEvents_MedicalRole FOREIGN KEY (MedicalRoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_PilgrimageEvents_PublicRole FOREIGN KEY (PublicRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageSiteConfigs' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageSiteConfigs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        PublicConfigJson NVARCHAR(MAX) NOT NULL,
+        ParticipantConfigJson NVARCHAR(MAX) NOT NULL,
+        OrganizerConfigJson NVARCHAR(MAX) NOT NULL,
+        IsPublished BIT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_PilgrimageSiteConfigs_Event UNIQUE (EventId),
+        CONSTRAINT FK_PilgrimageSiteConfigs_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageParticipants' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageParticipants
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ParticipationVariant NVARCHAR(32) NOT NULL,
+        GroupName NVARCHAR(120) NULL,
+        RegistrationStatus NVARCHAR(32) NOT NULL,
+        PaymentStatus NVARCHAR(32) NOT NULL,
+        AttendanceStatus NVARCHAR(32) NOT NULL,
+        NeedsLodging BIT NOT NULL,
+        NeedsBaggageTransport BIT NOT NULL,
+        IsMinor BIT NOT NULL,
+        AcceptedTerms BIT NOT NULL,
+        AcceptedRodo BIT NOT NULL,
+        IdentityDigest VARBINARY(32) NOT NULL,
+        PayloadEnc VARBINARY(MAX) NOT NULL,
+        PayloadDataKeyId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageParticipants_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id)
+    );
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageParticipants', 'GroupName') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageParticipants ADD GroupName NVARCHAR(120) NULL;
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageParticipants', 'AttendanceStatus') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageParticipants ADD AttendanceStatus NVARCHAR(32) NOT NULL CONSTRAINT DF_PilgrimageParticipants_AttendanceStatus DEFAULT 'not-checked-in';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageParticipants_EventCreated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageParticipants'))
+BEGIN
+    CREATE INDEX IX_PilgrimageParticipants_EventCreated ON pilgrimage.PilgrimageParticipants(EventId, CreatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageParticipantAccessTokens' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageParticipantAccessTokens
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        TokenHash VARBINARY(32) NOT NULL,
+        ExpiresUtc DATETIMEOFFSET NOT NULL,
+        LastUsedUtc DATETIMEOFFSET NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageParticipantAccessTokens_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id),
+        CONSTRAINT FK_PilgrimageParticipantAccessTokens_Participant FOREIGN KEY (ParticipantId) REFERENCES pilgrimage.PilgrimageParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_PilgrimageParticipantAccessTokens_TokenHash' AND object_id = OBJECT_ID('pilgrimage.PilgrimageParticipantAccessTokens'))
+BEGIN
+    CREATE UNIQUE INDEX UX_PilgrimageParticipantAccessTokens_TokenHash
+        ON pilgrimage.PilgrimageParticipantAccessTokens(TokenHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageParticipantAccessTokens_EventParticipant' AND object_id = OBJECT_ID('pilgrimage.PilgrimageParticipantAccessTokens'))
+BEGIN
+    CREATE INDEX IX_PilgrimageParticipantAccessTokens_EventParticipant
+        ON pilgrimage.PilgrimageParticipantAccessTokens(EventId, ParticipantId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageAnnouncements' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageAnnouncements
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        Audience NVARCHAR(24) NOT NULL,
+        Title NVARCHAR(180) NOT NULL,
+        Body NVARCHAR(2400) NOT NULL,
+        IsCritical BIT NOT NULL,
+        CreatedByRoleId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageAnnouncements_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id),
+        CONSTRAINT FK_PilgrimageAnnouncements_CreatedByRole FOREIGN KEY (CreatedByRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageAnnouncements_EventCreated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageAnnouncements'))
+BEGIN
+    CREATE INDEX IX_PilgrimageAnnouncements_EventCreated ON pilgrimage.PilgrimageAnnouncements(EventId, CreatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageTasks' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageTasks
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        Title NVARCHAR(180) NOT NULL,
+        Description NVARCHAR(2400) NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        Priority NVARCHAR(24) NOT NULL,
+        Assignee NVARCHAR(160) NOT NULL,
+        Comments NVARCHAR(4000) NULL,
+        Attachments NVARCHAR(2000) NULL,
+        DueUtc DATETIMEOFFSET NULL,
+        CreatedByRoleId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageTasks_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id),
+        CONSTRAINT FK_PilgrimageTasks_CreatedByRole FOREIGN KEY (CreatedByRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageTasks', 'Comments') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageTasks ADD Comments NVARCHAR(4000) NULL;
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageTasks', 'Attachments') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageTasks ADD Attachments NVARCHAR(2000) NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageTasks_EventStatusUpdated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageTasks'))
+BEGIN
+    CREATE INDEX IX_PilgrimageTasks_EventStatusUpdated ON pilgrimage.PilgrimageTasks(EventId, Status, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageParticipantIssues' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageParticipantIssues
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        Kind NVARCHAR(32) NOT NULL,
+        Message NVARCHAR(2400) NOT NULL,
+        Status NVARCHAR(32) NOT NULL,
+        ResolutionNote NVARCHAR(1200) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageParticipantIssues_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id),
+        CONSTRAINT FK_PilgrimageParticipantIssues_Participant FOREIGN KEY (ParticipantId) REFERENCES pilgrimage.PilgrimageParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageParticipantIssues_EventStatusUpdated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageParticipantIssues'))
+BEGIN
+    CREATE INDEX IX_PilgrimageParticipantIssues_EventStatusUpdated ON pilgrimage.PilgrimageParticipantIssues(EventId, Status, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageParticipantIssues_EventParticipantCreated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageParticipantIssues'))
+BEGIN
+    CREATE INDEX IX_PilgrimageParticipantIssues_EventParticipantCreated ON pilgrimage.PilgrimageParticipantIssues(EventId, ParticipantId, CreatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PilgrimageContactInquiries' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PilgrimageContactInquiries
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        Name NVARCHAR(180) NOT NULL,
+        Phone NVARCHAR(80) NULL,
+        Email NVARCHAR(180) NULL,
+        Topic NVARCHAR(120) NOT NULL,
+        Message NVARCHAR(2400) NOT NULL,
+        Status NVARCHAR(32) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_PilgrimageContactInquiries_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageContactInquiries_EventStatusUpdated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageContactInquiries'))
+BEGIN
+    CREATE INDEX IX_PilgrimageContactInquiries_EventStatusUpdated ON pilgrimage.PilgrimageContactInquiries(EventId, Status, UpdatedUtc);
 END
 GO

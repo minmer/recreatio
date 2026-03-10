@@ -959,16 +959,16 @@ function renderLineChartModule(
 const STATISTICS_MODULES: StatisticsModule[] = [
   {
     id: 'score-line',
-    title: 'Score graph',
-    subtitle: 'Running points timeline per participant.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
     render: (context, controls) =>
       renderLineChartModule(context, controls, 'runningPoints', 'Running points show cumulative score progression in this scope.')
   },
   {
     id: 'knowness-words',
-    title: 'Knowness words',
-    subtitle: 'Best and worst known words for the current scope.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.bestKnownWords.length > 0 || context.worstKnownWords.length > 0,
     render: (context) => (
       <div className="cogita-statistics-chart-card">
@@ -1015,16 +1015,16 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'knowness-line',
-    title: 'Knowness graph',
-    subtitle: 'Temporal knowness trend per participant.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.points.length > 0),
     render: (context, controls) =>
       renderLineChartModule(context, controls, 'knowness', 'Knowness values are computed over time by the shared temporal algorithm.')
   },
   {
     id: 'round-score-line',
-    title: 'Round score gain',
-    subtitle: 'Points gained in each round per participant.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) =>
       context.rounds.length > 0 &&
       context.participantSeries.some((participant) =>
@@ -1158,8 +1158,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'response-time-participants',
-    title: 'Response time comparison',
-    subtitle: 'Average response time per participant.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.averageDurationSeconds !== null),
     render: (context, controls) => {
       const chartWidth = 940;
@@ -1229,8 +1229,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'response-time-pyramid',
-    title: 'Response time pyramid',
-    subtitle: 'Overall time split per participant: total time for correct vs wrong answers.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) =>
       context.participantSeries.some(
         (participant) =>
@@ -1330,8 +1330,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'response-time-split',
-    title: 'Right vs wrong response time',
-    subtitle: 'Per participant split of average time per correct and wrong answer.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) =>
       context.participantSeries.some(
         (participant) =>
@@ -1419,8 +1419,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'participant-bars',
-    title: 'Bar chart',
-    subtitle: 'Total points per participant.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.participantSeries.length > 0,
     render: (context, controls) => {
       const chartWidth = 940;
@@ -1483,8 +1483,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'pyramid',
-    title: 'Pyramid ranking',
-    subtitle: 'Average points per correct answer split into base and bonus parts.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.participantSeries.some((participant) => participant.correctCount > 0),
     render: (context, controls) => {
       const ranked = getParticipantsInRenderOrder(
@@ -1555,8 +1555,8 @@ const STATISTICS_MODULES: StatisticsModule[] = [
   },
   {
     id: 'metrics',
-    title: 'Numbered metrics',
-    subtitle: 'Key indicators collected from the current scope.',
+    title: '',
+    subtitle: '',
     isAvailable: (context) => context.numberedStats.length > 0,
     render: (context) => (
       <div className="cogita-statistics-chart-card">
