@@ -632,6 +632,42 @@ function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
     }
   ] as const;
 
+  const renderPlanTable = (
+    rows: ReadonlyArray<{
+      date: string;
+      time: string;
+      place: string;
+      title: string;
+      description: string;
+    }>
+  ) => (
+    <div className="kal-plan-table-wrap">
+      <table className="kal-plan-table">
+        <thead>
+          <tr>
+            <th scope="col">Data</th>
+            <th scope="col">Godzina</th>
+            <th scope="col">Miejsce</th>
+            <th scope="col">Wydarzenie</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item) => (
+            <tr key={`${item.date}-${item.time}-${item.title}`}>
+              <td>{item.date}</td>
+              <td>{item.time}</td>
+              <td>{item.place}</td>
+              <td>
+                <h3>{item.title}</h3>
+                <p>{item.description}</p>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div className="kal-text-layout">
       <aside className="kal-text-sidebar">
@@ -651,32 +687,12 @@ function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
       <div className="kal-text-content">
         <section className="kal-text-section">
           <h2>Piątek, 17 kwietnia 2026</h2>
-          <div className="kal-plan-list">
-            {friday.map((item) => (
-              <article key={`${item.date}-${item.time}-${item.title}`} className="kal-plan-item">
-                <p><strong>Data:</strong> {item.date}</p>
-                <p><strong>Godzina:</strong> {item.time}</p>
-                <p><strong>Miejsce:</strong> {item.place}</p>
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-              </article>
-            ))}
-          </div>
+          {renderPlanTable(friday)}
         </section>
 
         <section className="kal-text-section">
           <h2>Sobota, 18 kwietnia 2026</h2>
-          <div className="kal-plan-list">
-            {saturday.map((item) => (
-              <article key={`${item.date}-${item.time}-${item.title}`} className="kal-plan-item">
-                <p><strong>Data:</strong> {item.date}</p>
-                <p><strong>Godzina:</strong> {item.time}</p>
-                <p><strong>Miejsce:</strong> {item.place}</p>
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-              </article>
-            ))}
-          </div>
+          {renderPlanTable(saturday)}
         </section>
       </div>
     </div>
