@@ -161,6 +161,10 @@
   width: 100%;
 }
 
+.kal-plan-mobile-list {
+  display: none;
+}
+
 .kal-plan-table {
   width: 100%;
   border-collapse: collapse;
@@ -213,12 +217,58 @@
 }
 
 @media (max-width: 900px) {
-  .kal-plan-table-wrap {
-    overflow-x: auto;
+  .kal-plan-desktop-wrap {
+    display: none;
   }
 
-  .kal-plan-table {
-    min-width: 760px;
+  .kal-plan-mobile-list {
+    display: grid;
+    margin-top: 0.95rem;
+  }
+
+  .kal-plan-mobile-item {
+    border-bottom: 1px solid #e8e0d6;
+    padding: 0.2rem 0;
+  }
+
+  .kal-plan-mobile-item:first-child {
+    border-top: 1px solid #e8e0d6;
+  }
+
+  .kal-plan-mobile-item summary {
+    list-style: none;
+    cursor: pointer;
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.55rem 0;
+  }
+
+  .kal-plan-mobile-item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .kal-plan-mobile-meta {
+    color: #4e4640;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .kal-plan-mobile-title {
+    color: #1f1a16;
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 1.08rem;
+    line-height: 1.35;
+    margin-top: 0.2rem;
+  }
+
+  .kal-plan-mobile-description {
+    padding: 0 0 0.6rem;
+  }
+
+  .kal-plan-mobile-description p {
+    margin: 0;
+    color: #4e4640;
+    line-height: 1.65;
   }
 }
 

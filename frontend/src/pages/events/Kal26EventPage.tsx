@@ -641,31 +641,55 @@ function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
       description: string;
     }>
   ) => (
-    <div className="kal-plan-table-wrap">
-      <table className="kal-plan-table">
-        <thead>
-          <tr>
-            <th scope="col">Data</th>
-            <th scope="col">Godzina</th>
-            <th scope="col">Miejsce</th>
-            <th scope="col">Wydarzenie</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((item) => (
-            <tr key={`${item.date}-${item.time}-${item.title}`}>
-              <td>{item.date}</td>
-              <td>{item.time}</td>
-              <td>{item.place}</td>
-              <td>
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-              </td>
+    <>
+      <div className="kal-plan-table-wrap kal-plan-desktop-wrap">
+        <table className="kal-plan-table">
+          <thead>
+            <tr>
+              <th scope="col">Data</th>
+              <th scope="col">Godzina</th>
+              <th scope="col">Miejsce</th>
+              <th scope="col">Wydarzenie</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((item) => (
+              <tr key={`${item.date}-${item.time}-${item.title}`}>
+                <td>{item.date}</td>
+                <td>{item.time}</td>
+                <td>{item.place}</td>
+                <td>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="kal-plan-mobile-list">
+        {rows.map((item) => (
+          <details key={`mobile-${item.date}-${item.time}-${item.title}`} className="kal-plan-mobile-item">
+            <summary>
+              <span className="kal-plan-mobile-meta">
+                <strong>Data:</strong> {item.date}
+              </span>
+              <span className="kal-plan-mobile-meta">
+                <strong>Godzina:</strong> {item.time}
+              </span>
+              <span className="kal-plan-mobile-meta">
+                <strong>Miejsce:</strong> {item.place}
+              </span>
+              <span className="kal-plan-mobile-title">{item.title}</span>
+            </summary>
+            <div className="kal-plan-mobile-description">
+              <p>{item.description}</p>
+            </div>
+          </details>
+        ))}
+      </div>
+    </>
   );
 
   return (
