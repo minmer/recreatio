@@ -714,7 +714,8 @@ export function Kal26EventPage({
   page,
   event
 }: SharedEventPageProps & { page: EventInnerPage; event: EventDefinition }) {
-  const isTextPage = page.slug === 'niezbednik' || page.slug === 'faq' || page.slug === 'o-pielgrzymce';
+  const isTextPage =
+    page.slug === 'niezbednik' || page.slug === 'program' || page.slug === 'faq' || page.slug === 'o-pielgrzymce';
   const location = useLocation();
   const navigate = useNavigate();
   const queryToken = useMemo(() => new URLSearchParams(location.search).get('token') ?? '', [location.search]);

@@ -175,13 +175,20 @@
   color: #6a6057;
   font-weight: 700;
   padding: 0.3rem 0.35rem 0.8rem;
+  border-bottom: 1px solid #ddd4c8;
 }
 
 .kal-plan-table td {
   vertical-align: top;
   padding: 0.65rem 0.35rem 0.9rem;
+  border-bottom: 1px solid #e8e0d6;
   color: #3e3731;
   line-height: 1.6;
+}
+
+.kal-plan-table th + th,
+.kal-plan-table td + td {
+  border-left: 1px solid #eee7dc;
 }
 
 .kal-plan-table td:nth-child(1),
