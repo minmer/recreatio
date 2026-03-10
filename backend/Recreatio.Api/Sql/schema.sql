@@ -265,7 +265,8 @@ CREATE TABLE dbo.ParishConfirmationCandidates
     AcceptedRodo BIT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_ParishConfirmationCandidates_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+    CONSTRAINT FK_ParishConfirmationCandidates_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT CK_ParishConfirmationCandidates_AcceptedRodo CHECK (AcceptedRodo = 1)
 );
 GO
 
@@ -282,7 +283,8 @@ CREATE TABLE dbo.ParishConfirmationPhoneVerifications
     VerifiedUtc DATETIMEOFFSET NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationPhoneVerifications_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
-    CONSTRAINT FK_ParishConfirmationPhoneVerifications_Candidate FOREIGN KEY (CandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id)
+    CONSTRAINT FK_ParishConfirmationPhoneVerifications_Candidate FOREIGN KEY (CandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
+    CONSTRAINT CK_ParishConfirmationPhoneVerifications_PhoneIndex CHECK (PhoneIndex >= 0 AND PhoneIndex < 6)
 );
 GO
 
@@ -290,6 +292,10 @@ CREATE UNIQUE INDEX UX_ParishConfirmationPhoneVerifications_Token ON dbo.ParishC
 GO
 
 CREATE UNIQUE INDEX UX_ParishConfirmationPhoneVerifications_CandidatePhone ON dbo.ParishConfirmationPhoneVerifications(CandidateId, PhoneIndex);
+GO
+
+CREATE INDEX IX_ParishConfirmationPhoneVerifications_ParishCandidate
+    ON dbo.ParishConfirmationPhoneVerifications(ParishId, CandidateId);
 GO
 
 CREATE TABLE dbo.ParishMasses

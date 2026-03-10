@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -845,7 +846,7 @@ public static class ParishEndpoints
 
         group.MapPost("/{parishId:guid}/confirmation-candidates/import", async (
             Guid parishId,
-            ParishConfirmationImportRequest request,
+            JsonElement requestPayload,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
@@ -872,7 +873,12 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
-            var sourceCandidates = request.Candidates ?? [];
+            if (!TryParseConfirmationImportRequest(requestPayload, out var request, out var parseError))
+            {
+                return Results.BadRequest(new { error = parseError ?? "Invalid import payload." });
+            }
+
+            var sourceCandidates = request.Candidates;
             if (sourceCandidates.Count == 0 && !request.ReplaceExisting)
             {
                 return Results.BadRequest(new { error = "Import payload is empty." });
@@ -950,7 +956,6 @@ public static class ParishEndpoints
                 var updatedUtc = sourceCandidate.UpdatedUtc is { } updated && updated >= createdUtc
                     ? updated
                     : createdUtc;
-                var acceptedRodo = sourceCandidate.AcceptedRodo;
                 var phoneNumbers = phones.Select(x => x.Number).ToList();
                 var payload = new ParishConfirmationPayload(
                     name,
@@ -958,7 +963,7 @@ public static class ParishEndpoints
                     phoneNumbers,
                     address,
                     schoolShort,
-                    acceptedRodo);
+                    true);
                 var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
                 var payloadEnc = protector.Protect(payloadJson);
                 var candidateId = Guid.NewGuid();
@@ -968,7 +973,7 @@ public static class ParishEndpoints
                     Id = candidateId,
                     ParishId = parishId,
                     PayloadEnc = payloadEnc,
-                    AcceptedRodo = acceptedRodo,
+                    AcceptedRodo = true,
                     CreatedUtc = createdUtc,
                     UpdatedUtc = updatedUtc
                 });
@@ -2146,6 +2151,248 @@ public static class ParishEndpoints
         }
 
         return result;
+    }
+
+    private static bool TryParseConfirmationImportRequest(
+        JsonElement payload,
+        out ParishConfirmationImportRequest request,
+        out string? error)
+    {
+        request = new ParishConfirmationImportRequest(Array.Empty<ParishConfirmationImportCandidateRequest>(), false);
+        error = null;
+
+        var replaceExisting = false;
+        JsonElement candidatesElement;
+
+        if (payload.ValueKind == JsonValueKind.Array)
+        {
+            candidatesElement = payload;
+        }
+        else if (payload.ValueKind == JsonValueKind.Object)
+        {
+            if (TryGetJsonProperty(payload, "replaceExisting", out var replaceValue))
+            {
+                var parsedReplace = GetJsonBooleanValue(replaceValue);
+                if (parsedReplace is not null)
+                {
+                    replaceExisting = parsedReplace.Value;
+                }
+            }
+
+            if (TryGetJsonProperty(payload, "candidates", out var explicitCandidates))
+            {
+                candidatesElement = explicitCandidates;
+            }
+            else if (TryGetJsonProperty(payload, "items", out var legacyItems))
+            {
+                candidatesElement = legacyItems;
+            }
+            else
+            {
+                error = "Import payload must contain candidates.";
+                return false;
+            }
+        }
+        else
+        {
+            error = "Import payload must be a JSON object or array.";
+            return false;
+        }
+
+        if (candidatesElement.ValueKind != JsonValueKind.Array)
+        {
+            error = "Candidates must be an array.";
+            return false;
+        }
+
+        var candidates = new List<ParishConfirmationImportCandidateRequest>();
+        foreach (var candidateElement in candidatesElement.EnumerateArray())
+        {
+            if (candidateElement.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var name = GetJsonString(candidateElement, "name")
+                ?? GetJsonString(candidateElement, "firstName")
+                ?? string.Empty;
+            var surname = GetJsonString(candidateElement, "surname")
+                ?? GetJsonString(candidateElement, "lastName")
+                ?? string.Empty;
+            var address = GetJsonString(candidateElement, "address") ?? string.Empty;
+            var schoolShort = GetJsonString(candidateElement, "schoolShort")
+                ?? GetJsonString(candidateElement, "school")
+                ?? string.Empty;
+            var acceptedRodo = GetJsonBoolean(candidateElement, "acceptedRodo") ?? true;
+            var createdUtc = GetJsonDateTimeOffset(candidateElement, "createdUtc");
+            var updatedUtc = GetJsonDateTimeOffset(candidateElement, "updatedUtc");
+            var phones = ParseConfirmationImportPhoneRequests(candidateElement);
+
+            candidates.Add(new ParishConfirmationImportCandidateRequest(
+                name,
+                surname,
+                phones,
+                address,
+                schoolShort,
+                acceptedRodo,
+                createdUtc,
+                updatedUtc));
+        }
+
+        request = new ParishConfirmationImportRequest(candidates, replaceExisting);
+        return true;
+    }
+
+    private static List<ParishConfirmationImportPhoneRequest> ParseConfirmationImportPhoneRequests(JsonElement candidateElement)
+    {
+        JsonElement phoneElement;
+        if (!TryGetJsonProperty(candidateElement, "phoneNumbers", out phoneElement) &&
+            !TryGetJsonProperty(candidateElement, "phones", out phoneElement))
+        {
+            return [];
+        }
+
+        if (phoneElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var phones = new List<ParishConfirmationImportPhoneRequest>();
+        foreach (var item in phoneElement.EnumerateArray())
+        {
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                phones.Add(new ParishConfirmationImportPhoneRequest(
+                    item.GetString() ?? string.Empty,
+                    null,
+                    null,
+                    null));
+                continue;
+            }
+
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var number = GetJsonString(item, "number")
+                ?? GetJsonString(item, "phone")
+                ?? string.Empty;
+            var token = GetJsonString(item, "verificationToken")
+                ?? GetJsonString(item, "token");
+            var createdUtc = GetJsonDateTimeOffset(item, "createdUtc");
+            var verifiedUtc = GetJsonDateTimeOffset(item, "verifiedUtc");
+            var isVerified = GetJsonBoolean(item, "isVerified") ?? false;
+            if (verifiedUtc is null && isVerified)
+            {
+                verifiedUtc = createdUtc ?? DateTimeOffset.UtcNow;
+            }
+
+            phones.Add(new ParishConfirmationImportPhoneRequest(
+                number,
+                token,
+                verifiedUtc,
+                createdUtc));
+        }
+
+        return phones;
+    }
+
+    private static bool TryGetJsonProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? GetJsonString(JsonElement element, string propertyName)
+    {
+        if (!TryGetJsonProperty(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return value.GetString();
+        }
+
+        if (value.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.ToString();
+        }
+
+        return null;
+    }
+
+    private static bool? GetJsonBoolean(JsonElement element, string propertyName)
+    {
+        if (!TryGetJsonProperty(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        return GetJsonBooleanValue(value);
+    }
+
+    private static bool? GetJsonBooleanValue(JsonElement value)
+    {
+        if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            return value.GetBoolean();
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            bool.TryParse(value.GetString(), out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static DateTimeOffset? GetJsonDateTimeOffset(JsonElement element, string propertyName)
+    {
+        if (!TryGetJsonProperty(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(
+                value.GetString(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind | DateTimeStyles.AllowWhiteSpaces,
+                out var parsed))
+        {
+            return parsed;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number &&
+            value.TryGetInt64(out var unixSeconds))
+        {
+            try
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     private static async Task<List<ParishConfirmationCandidateView>> LoadParishConfirmationCandidateViewsAsync(
