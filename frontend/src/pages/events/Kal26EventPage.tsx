@@ -2586,6 +2586,13 @@ export function Kal26EventPage({
 
       <main className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}`}>
         <section className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}`}>
+          {page.slug === 'start' ? (
+            <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
+              <div className="start-graphic-wrap">
+                <PilgrimageStoneMap />
+              </div>
+            </section>
+          ) : null}
           {page.slug === 'niezbednik' ? <Kal26InformationPage eventSlug={event.slug} /> : null}
           {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
           {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
