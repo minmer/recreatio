@@ -763,60 +763,267 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
-            var candidates = await dbContext.ParishConfirmationCandidates.AsNoTracking()
-                .Where(x => x.ParishId == parishId)
-                .OrderByDescending(x => x.CreatedUtc)
-                .ToListAsync(ct);
-            var candidateIds = candidates.Select(x => x.Id).ToList();
-            var verifications = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
-                .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
-                .ToListAsync(ct);
-            var verificationsByCandidate = verifications
-                .GroupBy(x => x.CandidateId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.OrderBy(x => x.PhoneIndex).ToList());
+            var candidates = await LoadParishConfirmationCandidateViewsAsync(
+                parishId,
+                dbContext,
+                dataProtectionProvider,
+                ct);
+            var responses = candidates.Select(candidate => new ParishConfirmationCandidateResponse(
+                    candidate.CandidateId,
+                    candidate.Name,
+                    candidate.Surname,
+                    candidate.PhoneNumbers.Select(phone => new ParishConfirmationPhoneResponse(
+                        phone.Index,
+                        phone.Number,
+                        phone.IsVerified,
+                        phone.VerifiedUtc,
+                        phone.VerificationToken)).ToList(),
+                    candidate.Address,
+                    candidate.SchoolShort,
+                    candidate.AcceptedRodo,
+                    candidate.CreatedUtc))
+                .ToList();
+
+            return Results.Ok(responses);
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-candidates/export", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidates = await LoadParishConfirmationCandidateViewsAsync(
+                parishId,
+                dbContext,
+                dataProtectionProvider,
+                ct);
+            var response = new ParishConfirmationExportResponse(
+                1,
+                parishId,
+                DateTimeOffset.UtcNow,
+                candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
+                        candidate.Name,
+                        candidate.Surname,
+                        candidate.PhoneNumbers.Select(phone => new ParishConfirmationExportPhoneResponse(
+                            phone.Index,
+                            phone.Number,
+                            phone.IsVerified,
+                            phone.VerifiedUtc,
+                            phone.VerificationToken,
+                            phone.CreatedUtc)).ToList(),
+                        candidate.Address,
+                        candidate.SchoolShort,
+                        candidate.AcceptedRodo,
+                        candidate.CreatedUtc,
+                        candidate.UpdatedUtc))
+                    .ToList());
+
+            return Results.Ok(response);
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-candidates/import", async (
+            Guid parishId,
+            ParishConfirmationImportRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var sourceCandidates = request.Candidates ?? [];
+            if (sourceCandidates.Count == 0 && !request.ReplaceExisting)
+            {
+                return Results.BadRequest(new { error = "Import payload is empty." });
+            }
+
+            if (request.ReplaceExisting)
+            {
+                var existingVerifications = await dbContext.ParishConfirmationPhoneVerifications
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingVerifications.Count > 0)
+                {
+                    dbContext.ParishConfirmationPhoneVerifications.RemoveRange(existingVerifications);
+                }
+
+                var existingCandidates = await dbContext.ParishConfirmationCandidates
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingCandidates.Count > 0)
+                {
+                    dbContext.ParishConfirmationCandidates.RemoveRange(existingCandidates);
+                }
+
+                if (existingVerifications.Count > 0 || existingCandidates.Count > 0)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                }
+            }
 
             var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
-            var responses = new List<ParishConfirmationCandidateResponse>();
-            foreach (var candidate in candidates)
+            var sourceTokens = sourceCandidates
+                .SelectMany(candidate => candidate.PhoneNumbers ?? [])
+                .Select(phone => NormalizeConfirmationToken(phone.VerificationToken))
+                .Where(token => token is not null)
+                .Distinct(StringComparer.Ordinal)
+                .Cast<string>()
+                .ToList();
+            HashSet<string> existingTokens;
+            if (sourceTokens.Count == 0)
             {
-                var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
-                if (payload is null)
+                existingTokens = new HashSet<string>(StringComparer.Ordinal);
+            }
+            else
+            {
+                var existingTokenRows = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                    .Where(x => sourceTokens.Contains(x.VerificationToken))
+                    .Select(x => x.VerificationToken)
+                    .ToListAsync(ct);
+                existingTokens = new HashSet<string>(existingTokenRows, StringComparer.Ordinal);
+            }
+            var usedTokens = new HashSet<string>(StringComparer.Ordinal);
+
+            var importedCandidates = 0;
+            var importedPhoneNumbers = 0;
+            var skippedCandidates = 0;
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var sourceCandidate in sourceCandidates)
+            {
+                var name = NormalizeConfirmationText(sourceCandidate.Name, 120);
+                var surname = NormalizeConfirmationText(sourceCandidate.Surname, 120);
+                var address = NormalizeConfirmationText(sourceCandidate.Address, 260);
+                var schoolShort = NormalizeConfirmationText(sourceCandidate.SchoolShort, 140);
+                var phones = NormalizeConfirmationImportPhones(sourceCandidate.PhoneNumbers);
+
+                if (name is null || surname is null || address is null || schoolShort is null || phones.Count == 0)
                 {
+                    skippedCandidates += 1;
                     continue;
                 }
 
-                var candidateVerificationRows = verificationsByCandidate.GetValueOrDefault(candidate.Id) ?? [];
-                var verificationByIndex = candidateVerificationRows
-                    .GroupBy(x => x.PhoneIndex)
-                    .ToDictionary(group => group.Key, group => group.First());
+                var createdUtc = sourceCandidate.CreatedUtc is { } created && created.Year >= 2000
+                    ? created
+                    : now;
+                var updatedUtc = sourceCandidate.UpdatedUtc is { } updated && updated >= createdUtc
+                    ? updated
+                    : createdUtc;
+                var acceptedRodo = sourceCandidate.AcceptedRodo;
+                var phoneNumbers = phones.Select(x => x.Number).ToList();
+                var payload = new ParishConfirmationPayload(
+                    name,
+                    surname,
+                    phoneNumbers,
+                    address,
+                    schoolShort,
+                    acceptedRodo);
+                var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
+                var payloadEnc = protector.Protect(payloadJson);
+                var candidateId = Guid.NewGuid();
 
-                var phones = payload.PhoneNumbers
-                    .Select((number, index) =>
+                dbContext.ParishConfirmationCandidates.Add(new ParishConfirmationCandidate
+                {
+                    Id = candidateId,
+                    ParishId = parishId,
+                    PayloadEnc = payloadEnc,
+                    AcceptedRodo = acceptedRodo,
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = updatedUtc
+                });
+
+                for (var index = 0; index < phones.Count; index += 1)
+                {
+                    var phone = phones[index];
+                    var token = phone.VerificationToken;
+                    if (string.IsNullOrWhiteSpace(token) || existingTokens.Contains(token) || usedTokens.Contains(token))
                     {
-                        var row = verificationByIndex.GetValueOrDefault(index);
-                        return new ParishConfirmationPhoneResponse(
-                            index,
-                            number,
-                            row?.VerifiedUtc is not null,
-                            row?.VerifiedUtc,
-                            row?.VerificationToken ?? string.Empty);
-                    })
-                    .ToList();
+                        token = CreatePhoneVerificationToken();
+                        while (existingTokens.Contains(token) || usedTokens.Contains(token))
+                        {
+                            token = CreatePhoneVerificationToken();
+                        }
+                    }
 
-                responses.Add(new ParishConfirmationCandidateResponse(
-                    candidate.Id,
-                    payload.Name,
-                    payload.Surname,
-                    phones,
-                    payload.Address,
-                    payload.SchoolShort,
-                    payload.AcceptedRodo,
-                    candidate.CreatedUtc));
+                    usedTokens.Add(token);
+                    importedPhoneNumbers += 1;
+
+                    dbContext.ParishConfirmationPhoneVerifications.Add(new ParishConfirmationPhoneVerification
+                    {
+                        Id = Guid.NewGuid(),
+                        ParishId = parishId,
+                        CandidateId = candidateId,
+                        PhoneIndex = index,
+                        VerificationToken = token,
+                        VerifiedUtc = phone.VerifiedUtc,
+                        CreatedUtc = phone.CreatedUtc ?? createdUtc
+                    });
+                }
+
+                importedCandidates += 1;
             }
 
-            return Results.Ok(responses);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidatesImported",
+                userId.ToString(),
+                JsonSerializer.Serialize(new
+                {
+                    importedCandidates,
+                    importedPhoneNumbers,
+                    skippedCandidates,
+                    request.ReplaceExisting
+                }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationImportResponse(
+                importedCandidates,
+                importedPhoneNumbers,
+                skippedCandidates,
+                request.ReplaceExisting));
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/intentions", async (
@@ -1890,6 +2097,126 @@ public static class ParishEndpoints
         return result;
     }
 
+    private static string? NormalizeConfirmationToken(string? token)
+    {
+        var normalized = (token ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        if (normalized.Length > 128)
+        {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private static List<ParishConfirmationImportPhone> NormalizeConfirmationImportPhones(
+        IReadOnlyList<ParishConfirmationImportPhoneRequest>? phoneNumbers)
+    {
+        if (phoneNumbers is null || phoneNumbers.Count == 0)
+        {
+            return new List<ParishConfirmationImportPhone>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var result = new List<ParishConfirmationImportPhone>();
+        foreach (var item in phoneNumbers)
+        {
+            var number = NormalizeConfirmationText(item.Number, 40);
+            if (number is null)
+            {
+                continue;
+            }
+
+            if (!seen.Add(number))
+            {
+                continue;
+            }
+
+            var token = NormalizeConfirmationToken(item.VerificationToken);
+            result.Add(new ParishConfirmationImportPhone(number, token, item.VerifiedUtc, item.CreatedUtc));
+
+            if (result.Count >= ConfirmationPhoneLimit)
+            {
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private static async Task<List<ParishConfirmationCandidateView>> LoadParishConfirmationCandidateViewsAsync(
+        Guid parishId,
+        RecreatioDbContext dbContext,
+        IDataProtectionProvider dataProtectionProvider,
+        CancellationToken ct)
+    {
+        var candidateRows = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+            .Where(x => x.ParishId == parishId)
+            .OrderByDescending(x => x.CreatedUtc)
+            .ToListAsync(ct);
+
+        if (candidateRows.Count == 0)
+        {
+            return new List<ParishConfirmationCandidateView>();
+        }
+
+        var candidateIds = candidateRows.Select(x => x.Id).ToList();
+        var verificationRows = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+            .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
+            .ToListAsync(ct);
+        var verificationsByCandidate = verificationRows
+            .GroupBy(x => x.CandidateId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(x => x.PhoneIndex).ToList());
+        var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+        var results = new List<ParishConfirmationCandidateView>();
+
+        foreach (var candidate in candidateRows)
+        {
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                continue;
+            }
+
+            var candidateVerificationRows = verificationsByCandidate.GetValueOrDefault(candidate.Id) ?? [];
+            var verificationByIndex = candidateVerificationRows
+                .GroupBy(x => x.PhoneIndex)
+                .ToDictionary(group => group.Key, group => group.First());
+            var phones = payload.PhoneNumbers
+                .Select((number, index) =>
+                {
+                    var verification = verificationByIndex.GetValueOrDefault(index);
+                    return new ParishConfirmationPhoneView(
+                        index,
+                        number,
+                        verification?.VerifiedUtc is not null,
+                        verification?.VerifiedUtc,
+                        verification?.VerificationToken ?? string.Empty,
+                        verification?.CreatedUtc);
+                })
+                .ToList();
+
+            results.Add(new ParishConfirmationCandidateView(
+                candidate.Id,
+                payload.Name,
+                payload.Surname,
+                phones,
+                payload.Address,
+                payload.SchoolShort,
+                payload.AcceptedRodo,
+                candidate.CreatedUtc,
+                candidate.UpdatedUtc));
+        }
+
+        return results;
+    }
+
     private static IDataProtector CreateParishConfirmationProtector(IDataProtectionProvider dataProtectionProvider, Guid parishId)
     {
         return dataProtectionProvider.CreateProtector("parish", "confirmation-candidate", parishId.ToString("N"));
@@ -1931,6 +2258,31 @@ public static class ParishEndpoints
     private sealed record RoleBundle(Guid RoleId, byte[] ReadKey, byte[] WriteKey, byte[] OwnerKey);
 
     private sealed record DataKeyBundle(Guid DataItemId, Guid DataKeyId, byte[] DataKey);
+
+    private sealed record ParishConfirmationPhoneView(
+        int Index,
+        string Number,
+        bool IsVerified,
+        DateTimeOffset? VerifiedUtc,
+        string VerificationToken,
+        DateTimeOffset? CreatedUtc);
+
+    private sealed record ParishConfirmationCandidateView(
+        Guid CandidateId,
+        string Name,
+        string Surname,
+        IReadOnlyList<ParishConfirmationPhoneView> PhoneNumbers,
+        string Address,
+        string SchoolShort,
+        bool AcceptedRodo,
+        DateTimeOffset CreatedUtc,
+        DateTimeOffset UpdatedUtc);
+
+    private sealed record ParishConfirmationImportPhone(
+        string Number,
+        string? VerificationToken,
+        DateTimeOffset? VerifiedUtc,
+        DateTimeOffset? CreatedUtc);
 
     private sealed record ParishConfirmationPayload(
         string Name,

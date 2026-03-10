@@ -1,4 +1,5 @@
-import { clampInt, type LiveRules } from './liveSessionRules';
+import type { LiveRules } from './liveSessionRules';
+import { computeStreakContribution } from '../../../cogita/revision/runCore';
 
 export type LiveBreakdownRowKey = 'base' | 'first' | 'speed' | 'streak' | 'wrong' | 'first-wrong' | 'wrong-streak';
 
@@ -31,22 +32,6 @@ export type LiveBreakdownLabels = {
   roundReasonWrong: string;
   roundReasonFirstWrong: string;
   roundReasonWrongStreak: string;
-};
-
-const growthRatio = (mode: string, ratio: number) => {
-  const clamped = Math.max(0, Math.min(1, ratio));
-  if (mode === 'exponential') return clamped * clamped;
-  if (mode === 'limited') return Math.min(1, clamped * 1.6);
-  return clamped;
-};
-
-const computeStreakBonus = (base: number, streak: number, limit: number, growth: string) => {
-  const maxBonus = Math.max(0, base);
-  const extraCount = Math.max(0, streak - 1);
-  if (maxBonus === 0 || extraCount === 0) return 0;
-  const fullAfter = Math.max(1, limit);
-  const progress = Math.max(0, Math.min(1, extraCount / fullAfter));
-  return clampInt(growthRatio(growth, progress) * maxBonus, 0, 500000);
 };
 
 const readScorePart = (source: unknown, keys: string[]) => {
@@ -121,12 +106,12 @@ export function computeLiveRoundBreakdown(options: {
     Number.isFinite(serverStreak)
       ? Math.round(serverStreak)
       : (factors.has('streak')
-        ? computeStreakBonus(
-            rules.scoring.streakBaseBonus,
-            Math.max(0, Math.round(Number(source.streak ?? 0))),
-            rules.scoring.streakLimit,
-            rules.scoring.streakGrowth
-          )
+        ? computeStreakContribution({
+            streakBaseValue: rules.scoring.streakBaseBonus,
+            streakCount: Math.max(0, Math.round(Number(source.streak ?? 0))),
+            streakLimit: rules.scoring.streakLimit,
+            growthMode: rules.scoring.streakGrowth
+          })
         : 0);
   let wrongPoints =
     Number.isFinite(serverWrongPenalty)
@@ -140,12 +125,12 @@ export function computeLiveRoundBreakdown(options: {
     Number.isFinite(serverWrongStreakPenalty)
       ? -Math.abs(Math.round(serverWrongStreakPenalty))
       : (factors.has('wrong-streak')
-        ? -computeStreakBonus(
-            rules.scoring.wrongStreakBasePenalty,
-            Math.max(0, Math.round(Number(source.wrongStreak ?? 0))),
-            rules.scoring.wrongStreakLimit,
-            rules.scoring.wrongStreakGrowth
-          )
+        ? -computeStreakContribution({
+            streakBaseValue: rules.scoring.wrongStreakBasePenalty,
+            streakCount: Math.max(0, Math.round(Number(source.wrongStreak ?? 0))),
+            streakLimit: rules.scoring.wrongStreakLimit,
+            growthMode: rules.scoring.wrongStreakGrowth
+          })
         : 0);
 
   if (isCorrect && total > 0 && basePoints >= total && total > Math.round(rules.scoring.baseCorrect)) {

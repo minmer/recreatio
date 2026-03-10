@@ -24,6 +24,7 @@ public static class ApplicationBuilderExtensions
         app.MapRoleEndpoints();
         app.MapChatEndpoints();
         app.MapCogitaEndpoints();
+        app.MapCogitaCoreEndpoints();
         app.MapParishEndpoints();
         app.MapPilgrimageEndpoints();
 

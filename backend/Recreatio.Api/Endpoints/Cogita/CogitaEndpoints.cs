@@ -11,6 +11,7 @@ using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Data.Cogita;
 using Recreatio.Api.Domain;
+using Recreatio.Api.Domain.Cogita;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 
@@ -22,6 +23,10 @@ public static class CogitaEndpoints
 
     private static readonly HashSet<string> SupportedConnectionTypes = new(CogitaTypeRegistry.SupportedConnectionTypes, StringComparer.Ordinal);
 
+    private static readonly HashSet<string> SupportedCreationProjectTypes = new(
+        new[] { "storyboard", "text" },
+        StringComparer.Ordinal);
+
     private static readonly string[] SupportedCollectionGraphNodeTypes =
     {
         "source.translation",
@@ -32,6 +37,35 @@ public static class CogitaEndpoints
         "logic.or",
         "output.collection"
     };
+
+    private static string NormalizeCreationProjectType(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "storyboards" => "storyboard",
+            "texts" => "text",
+            _ => normalized
+        };
+    }
+
+    private static JsonElement? ParseOptionalJson(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.Clone();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     public static void MapCogitaEndpoints(this WebApplication app)
     {
@@ -438,6 +472,262 @@ public static class CogitaEndpoints
                 totalSentences,
                 totalTopics
             ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/creation-projects", async (
+            Guid libraryId,
+            string? projectType,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var hasRead = keyRing.TryGetReadKey(library.RoleId, out _);
+            var hasWrite = keyRing.TryGetWriteKey(library.RoleId, out _);
+            if (!hasRead && !hasWrite)
+            {
+                return Results.Forbid();
+            }
+
+            string? normalizedType = null;
+            if (!string.IsNullOrWhiteSpace(projectType))
+            {
+                normalizedType = NormalizeCreationProjectType(projectType);
+                if (!SupportedCreationProjectTypes.Contains(normalizedType))
+                {
+                    return Results.BadRequest(new { error = "Unsupported project type." });
+                }
+            }
+
+            var query = dbContext.CogitaCreationProjects.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId);
+            if (!string.IsNullOrWhiteSpace(normalizedType))
+            {
+                query = query.Where(x => x.ProjectType == normalizedType);
+            }
+
+            var rows = await query
+                .OrderByDescending(x => x.UpdatedUtc)
+                .ThenByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+
+            var response = rows.Select(row => new CogitaCreationProjectResponse(
+                row.Id,
+                row.ProjectType,
+                row.Name,
+                ParseOptionalJson(row.ContentJson),
+                row.CreatedUtc,
+                row.UpdatedUtc))
+                .ToList();
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/creation-projects", async (
+            Guid libraryId,
+            CogitaCreationProjectCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var normalizedType = NormalizeCreationProjectType(request.ProjectType);
+            if (!SupportedCreationProjectTypes.Contains(normalizedType))
+            {
+                return Results.BadRequest(new { error = "Unsupported project type." });
+            }
+
+            var name = string.IsNullOrWhiteSpace(request.Name) ? normalizedType : request.Name.Trim();
+            if (name.Length > 256)
+            {
+                name = name[..256];
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var row = new CogitaCreationProject
+            {
+                Id = Guid.NewGuid(),
+                LibraryId = libraryId,
+                ProjectType = normalizedType,
+                Name = name,
+                ContentJson = request.Content.HasValue ? request.Content.Value.GetRawText() : null,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+
+            dbContext.CogitaCreationProjects.Add(row);
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaCreationProjectResponse(
+                row.Id,
+                row.ProjectType,
+                row.Name,
+                ParseOptionalJson(row.ContentJson),
+                row.CreatedUtc,
+                row.UpdatedUtc));
+        });
+
+        group.MapPut("/libraries/{libraryId:guid}/creation-projects/{projectId:guid}", async (
+            Guid libraryId,
+            Guid projectId,
+            CogitaCreationProjectUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var row = await dbContext.CogitaCreationProjects
+                .FirstOrDefaultAsync(x => x.Id == projectId && x.LibraryId == libraryId, ct);
+            if (row is null)
+            {
+                return Results.NotFound();
+            }
+
+            var name = string.IsNullOrWhiteSpace(request.Name) ? row.Name : request.Name.Trim();
+            if (name.Length > 256)
+            {
+                name = name[..256];
+            }
+
+            row.Name = name;
+            row.ContentJson = request.Content.HasValue ? request.Content.Value.GetRawText() : null;
+            row.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaCreationProjectResponse(
+                row.Id,
+                row.ProjectType,
+                row.Name,
+                ParseOptionalJson(row.ContentJson),
+                row.CreatedUtc,
+                row.UpdatedUtc));
+        });
+
+        group.MapDelete("/libraries/{libraryId:guid}/creation-projects/{projectId:guid}", async (
+            Guid libraryId,
+            Guid projectId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetWriteKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var row = await dbContext.CogitaCreationProjects
+                .FirstOrDefaultAsync(x => x.Id == projectId && x.LibraryId == libraryId, ct);
+            if (row is null)
+            {
+                return Results.NotFound();
+            }
+
+            dbContext.CogitaCreationProjects.Remove(row);
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new { deleted = true });
         });
 
         group.MapGet("/libraries/{libraryId:guid}/info-types/specification", async (
@@ -1273,7 +1563,7 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = "Database schema for Cogita info links is outdated. Apply the latest schema.sql on the API database (CogitaInfoLinkSingles/CogitaInfoLinkMultis)."
+                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
                 });
             }
 
@@ -4254,10 +4544,6 @@ public static class CogitaEndpoints
 
                 state.EventCount += 1;
                 state.LastActivityUtc = statisticEvent.CreatedUtc;
-                if (statisticEvent.PointsAwarded.HasValue && liveComputedScores is null)
-                {
-                    state.TotalPoints += statisticEvent.PointsAwarded.Value;
-                }
 
                 double? eventCorrectness = null;
                 if (statisticEvent.Correctness.HasValue)
@@ -4267,6 +4553,24 @@ public static class CogitaEndpoints
                 else if (statisticEvent.IsCorrect.HasValue)
                 {
                     eventCorrectness = statisticEvent.IsCorrect.Value ? 1d : 0d;
+                }
+
+                var parsedScorePayload = ParseStatisticScorePayload(
+                    statisticEvent.PayloadJson,
+                    eventCorrectness.HasValue && eventCorrectness.Value >= 0.5d);
+                var payloadPointsAwarded = parsedScorePayload?.TotalPoints;
+                var isLiveSource = statisticEvent.SourceType.StartsWith("live-session", StringComparison.OrdinalIgnoreCase);
+
+                if (liveComputedScores is null)
+                {
+                    if (payloadPointsAwarded.HasValue)
+                    {
+                        state.TotalPoints += payloadPointsAwarded.Value;
+                    }
+                    else if (!isLiveSource && statisticEvent.PointsAwarded.HasValue)
+                    {
+                        state.TotalPoints += statisticEvent.PointsAwarded.Value;
+                    }
                 }
 
                 if (eventCorrectness.HasValue)
@@ -4292,17 +4596,18 @@ public static class CogitaEndpoints
                             state.SpeedBonusPointsSum += computedDetail.SpeedBonusPoints;
                             state.StreakBonusPointsSum += computedDetail.StreakBonusPoints;
                         }
-                        else if (statisticEvent.PointsAwarded.HasValue)
+                        else if (parsedScorePayload.HasValue)
                         {
-                            var scoreBreakdown = ParseStatisticScoreBreakdown(
-                                statisticEvent.PayloadJson,
-                                statisticEvent.PointsAwarded.Value,
-                                eventCorrectness.Value >= 0.5d);
-                            state.CorrectAnswerPointsSum += statisticEvent.PointsAwarded.Value;
+                            var scoreBreakdown = parsedScorePayload.Value;
+                            state.CorrectAnswerPointsSum += scoreBreakdown.TotalPoints;
                             state.BasePointsSum += scoreBreakdown.BasePoints;
                             state.FirstBonusPointsSum += scoreBreakdown.FirstBonusPoints;
                             state.SpeedBonusPointsSum += scoreBreakdown.SpeedBonusPoints;
                             state.StreakBonusPointsSum += scoreBreakdown.StreakBonusPoints;
+                        }
+                        else if (!isLiveSource && statisticEvent.PointsAwarded.HasValue)
+                        {
+                            state.CorrectAnswerPointsSum += statisticEvent.PointsAwarded.Value;
                         }
                     }
                     state.KnownessEntries.Add(new TemporalKnownessEntry(eventCorrectness.Value, statisticEvent.CreatedUtc));
@@ -4316,7 +4621,7 @@ public static class CogitaEndpoints
                 var knowness = state.KnownessEntries.Count == 0
                     ? 0d
                     : ComputeKnownessSummary(state.KnownessEntries, statisticEvent.CreatedUtc).Score;
-                var timelinePointsAwarded = statisticEvent.PointsAwarded;
+                var timelinePointsAwarded = payloadPointsAwarded ?? (isLiveSource ? null : statisticEvent.PointsAwarded);
                 var timelineRunningPoints = state.TotalPoints;
                 if (liveComputedScores is not null &&
                     participantRef.ParticipantId.HasValue &&
@@ -6814,8 +7119,19 @@ public static class CogitaEndpoints
                 .ThenBy(x => x!.UpdatedUtc)
                 .Select(x => x!.ParticipantId)
                 .FirstOrDefault();
+            var firstAnsweredUtc = answersByParticipant.Values
+                .OrderBy(x => x.SubmittedUtc)
+                .ThenBy(x => x.UpdatedUtc)
+                .Select(x => x.SubmittedUtc)
+                .FirstOrDefault();
+            var roundStartUtc = ResolvePromptStartUtc(liveSession.CurrentPromptJson) ?? firstAnsweredUtc;
+            var speedTimerStartUtc = string.Equals(scoringRules.BonusTimerStartMode, "first_answer", StringComparison.Ordinal)
+                ? firstAnsweredUtc
+                : roundStartUtc;
+            var speedTimerEndUtc = speedTimerStartUtc.AddSeconds(Math.Max(1, Math.Min(600, scoringRules.BonusTimerSeconds)));
 
             var now = DateTimeOffset.UtcNow;
+            var roundPointsSum = 0;
             foreach (var delta in scoreItems)
             {
                 if (!participantById.TryGetValue(delta.ParticipantId, out var participant))
@@ -6828,14 +7144,13 @@ public static class CogitaEndpoints
                 if (answersByParticipant.TryGetValue(delta.ParticipantId, out var answer))
                 {
                     answer.IsCorrect = delta.IsCorrect;
-                    answer.PointsAwarded = 0;
                     answer.UpdatedUtc = now;
                     if (!roundScoringByParticipant.TryGetValue(delta.ParticipantId, out var participantScoringNode))
                     {
                         var synthesizedScoringNode = new JsonObject
                         {
                             ["isCorrect"] = delta.IsCorrect == true,
-                            ["points"] = delta.PointsAwarded
+                            ["points"] = 0
                         };
                         var synthesizedFactors = new JsonArray();
                         var basePoints = 0;
@@ -6882,16 +7197,24 @@ public static class CogitaEndpoints
                                 synthesizedFactors.Add(JsonValue.Create("streak"));
                             }
 
-                            speedPoints = Math.Max(0, delta.PointsAwarded - basePoints - firstBonusPoints - streakPoints);
-                            if (speedPoints > 0)
+                            if (scoringRules.BonusTimerEnabled &&
+                                scoringRules.SpeedBonusEnabled &&
+                                scoringRules.SpeedBonusMaxPoints > 0 &&
+                                answer.UpdatedUtc <= speedTimerEndUtc)
                             {
-                                synthesizedFactors.Add(JsonValue.Create("speed"));
-                            }
-
-                            var knownSum = basePoints + firstBonusPoints + speedPoints + streakPoints;
-                            if (knownSum != delta.PointsAwarded && delta.PointsAwarded > 0)
-                            {
-                                basePoints = Math.Max(0, delta.PointsAwarded - firstBonusPoints - speedPoints - streakPoints);
+                                var denominator = Math.Max(1d, (speedTimerEndUtc - speedTimerStartUtc).TotalMilliseconds);
+                                var ratio = Math.Max(0d, Math.Min(1d, (speedTimerEndUtc - answer.UpdatedUtc).TotalMilliseconds / denominator));
+                                var scaled = scoringRules.SpeedBonusGrowth switch
+                                {
+                                    "exponential" => ratio * ratio,
+                                    "limited" => Math.Min(1d, ratio * 1.6d),
+                                    _ => ratio
+                                };
+                                speedPoints = Math.Max(0, Math.Min(500000, (int)Math.Round(scoringRules.SpeedBonusMaxPoints * scaled)));
+                                if (speedPoints > 0)
+                                {
+                                    synthesizedFactors.Add(JsonValue.Create("speed"));
+                                }
                             }
                         }
                         else
@@ -6929,13 +7252,12 @@ public static class CogitaEndpoints
                             {
                                 synthesizedFactors.Add(JsonValue.Create("wrong-streak"));
                             }
-                            var knownPenalty = wrongPenaltyPoints + firstWrongPenaltyPoints + wrongStreakPenaltyPoints;
-                            if (knownPenalty <= 0)
-                            {
-                                wrongPenaltyPoints = Math.Abs(delta.PointsAwarded);
-                            }
                         }
+                        var synthesizedPoints = delta.IsCorrect == true
+                            ? Math.Max(0, Math.Min(500000, basePoints + firstBonusPoints + speedPoints + streakPoints))
+                            : -Math.Max(0, Math.Min(500000, wrongPenaltyPoints + firstWrongPenaltyPoints + wrongStreakPenaltyPoints));
 
+                        synthesizedScoringNode["points"] = synthesizedPoints;
                         synthesizedScoringNode["factors"] = synthesizedFactors;
                         synthesizedScoringNode["basePoints"] = basePoints;
                         synthesizedScoringNode["firstBonusPoints"] = firstBonusPoints;
@@ -6950,10 +7272,30 @@ public static class CogitaEndpoints
                         participantScoringNode = synthesizedScoringNode;
                         roundScoringByParticipant[delta.ParticipantId] = synthesizedScoringNode;
                     }
+                    static int ReadScoringInt(JsonObject root, string key)
+                    {
+                        if (root[key] is JsonValue value)
+                        {
+                            if (value.TryGetValue<int>(out var intValue)) return intValue;
+                            if (value.TryGetValue<double>(out var doubleValue)) return (int)Math.Round(doubleValue);
+                        }
+                        return 0;
+                    }
+                    var computedPoints = delta.IsCorrect == true
+                        ? Math.Max(0, Math.Min(500000,
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "basePoints")) +
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "firstBonusPoints")) +
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "speedPoints")) +
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "streakPoints"))))
+                        : -Math.Max(0, Math.Min(500000,
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "wrongPenaltyPoints")) +
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "firstWrongPenaltyPoints")) +
+                            Math.Max(0, ReadScoringInt(participantScoringNode, "wrongStreakPenaltyPoints"))));
+                    participantScoringNode["points"] = computedPoints;
+                    roundPointsSum += computedPoints;
                     var payloadJson = BuildLiveScoreBreakdownPayload(
                         participantScoringNode,
                         scoringRules,
-                        delta.PointsAwarded,
                         delta.IsCorrect);
 
                     var (itemType, itemId, checkType, direction) = ParseCardIdentityFromCardKey(answer.CardKey);
@@ -6977,7 +7319,7 @@ public static class CogitaEndpoints
                         CardKey = answer.CardKey,
                         IsCorrect = delta.IsCorrect,
                         Correctness = delta.IsCorrect.HasValue ? (delta.IsCorrect.Value ? 1d : 0d) : null,
-                        PointsAwarded = delta.PointsAwarded,
+                        PointsAwarded = null,
                         DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
                         IsPersistent = false,
                         PayloadJson = payloadJson,
@@ -7010,7 +7352,7 @@ public static class CogitaEndpoints
                             CardKey = answer.CardKey,
                             IsCorrect = delta.IsCorrect,
                             Correctness = delta.IsCorrect.HasValue ? (delta.IsCorrect.Value ? 1d : 0d) : null,
-                            PointsAwarded = delta.PointsAwarded,
+                            PointsAwarded = null,
                             DurationMs = (int?)Math.Max(0, (int)Math.Round((answer.UpdatedUtc - answer.SubmittedUtc).TotalMilliseconds)),
                             IsPersistent = true,
                             PayloadJson = payloadJson,
@@ -7081,7 +7423,7 @@ public static class CogitaEndpoints
                 RoundIndex = roundIndex,
                 IsCorrect = null,
                 Correctness = knownessSampleSize > 0 ? knownessCorrectCount / (double)knownessSampleSize : null,
-                PointsAwarded = scoreItems.Sum(x => x.PointsAwarded),
+                PointsAwarded = null,
                 IsPersistent = false,
                 PayloadJson = JsonSerializer.Serialize(new
                 {
@@ -7418,6 +7760,7 @@ public static class CogitaEndpoints
                     var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                     if (rounds.Count > 0)
                     {
+                        var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
                         var flowRules = ParseLiveSessionFlowRules(sessionMeta.SessionSettings);
                         var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                             .Where(x => x.SessionId == session.Id && x.ParticipantId == existingParticipant.Id)
@@ -7428,6 +7771,8 @@ public static class CogitaEndpoints
                         var reconnectState = BuildLiveAsyncParticipantState(
                             rounds,
                             participantAnswers,
+                            existingParticipant.Id,
+                            revisionMode,
                             timerEvents,
                             existingParticipant.JoinedUtc,
                             session.StartedUtc,
@@ -7675,6 +8020,7 @@ public static class CogitaEndpoints
                 if (participant is not null)
                 {
                     var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                    var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
                     var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
                         .OrderBy(x => x.RoundIndex)
@@ -7684,6 +8030,8 @@ public static class CogitaEndpoints
                     var asyncState = BuildLiveAsyncParticipantState(
                         rounds,
                         participantAnswers,
+                        participant.Id,
+                        revisionMode,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -7724,6 +8072,8 @@ public static class CogitaEndpoints
                             asyncState = BuildLiveAsyncParticipantState(
                                 rounds,
                                 participantAnswers,
+                                participant.Id,
+                                revisionMode,
                                 timerEvents,
                                 participant.JoinedUtc,
                                 session.StartedUtc,
@@ -7753,6 +8103,8 @@ public static class CogitaEndpoints
                             asyncState = BuildLiveAsyncParticipantState(
                                 rounds,
                                 participantAnswers,
+                                participant.Id,
+                                revisionMode,
                                 timerEvents,
                                 participant.JoinedUtc,
                                 session.StartedUtc,
@@ -8007,6 +8359,7 @@ public static class CogitaEndpoints
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                 if (rounds.Count > 0)
                 {
+                    var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
                     var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                     var participantAnswersForPhase = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
@@ -8017,6 +8370,8 @@ public static class CogitaEndpoints
                     var asyncState = BuildLiveAsyncParticipantState(
                         rounds,
                         participantAnswersForPhase,
+                        participant.Id,
+                        revisionMode,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -8320,6 +8675,7 @@ public static class CogitaEndpoints
             if (isAsyncSession)
             {
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+                var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
                 if (rounds.Count == 0)
                 {
                     return Results.BadRequest(new { error = "Live session has no prepared rounds." });
@@ -8335,6 +8691,8 @@ public static class CogitaEndpoints
                 var asyncState = BuildLiveAsyncParticipantState(
                     rounds,
                     participantAnswers,
+                    participant.Id,
+                    revisionMode,
                     timerEvents,
                     participant.JoinedUtc,
                     session.StartedUtc,
@@ -8429,7 +8787,6 @@ public static class CogitaEndpoints
                     CardKey = normalizedCardKey,
                     AnswerJson = protectedAnswerJson,
                     IsCorrect = null,
-                    PointsAwarded = 0,
                     SubmittedUtc = now,
                     UpdatedUtc = now
                 };
@@ -8613,7 +8970,6 @@ public static class CogitaEndpoints
 
                 answer.IsCorrect = isCorrect;
                 computedPoints = Math.Max(-500000, Math.Min(500000, points));
-                answer.PointsAwarded = 0;
                 answer.UpdatedUtc = now;
                 participant.UpdatedUtc = now;
                 session.UpdatedUtc = now;
@@ -8657,7 +9013,7 @@ public static class CogitaEndpoints
                 CardKey = answer.CardKey,
                 IsCorrect = isAsyncSession ? answer.IsCorrect : null,
                 Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
-                PointsAwarded = isAsyncSession ? computedPoints : null,
+                PointsAwarded = null,
                 DurationMs = durationMs,
                 IsPersistent = false,
                 PayloadJson = isAsyncSession ? scorePayloadJson : null,
@@ -8696,7 +9052,7 @@ public static class CogitaEndpoints
                         CardKey = answer.CardKey,
                         IsCorrect = isAsyncSession ? answer.IsCorrect : null,
                         Correctness = isAsyncSession && answer.IsCorrect.HasValue ? (answer.IsCorrect.Value ? 1d : 0d) : null,
-                        PointsAwarded = isAsyncSession ? computedPoints : null,
+                        PointsAwarded = null,
                         DurationMs = durationMs,
                         IsPersistent = true,
                         PayloadJson = isAsyncSession ? scorePayloadJson : null,
@@ -8753,6 +9109,7 @@ public static class CogitaEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
+            var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
             if (rounds.Count == 0)
             {
                 return Results.BadRequest(new { error = "Live session has no prepared rounds." });
@@ -8768,6 +9125,8 @@ public static class CogitaEndpoints
             var asyncState = BuildLiveAsyncParticipantState(
                 rounds,
                 participantAnswers,
+                participant.Id,
+                revisionMode,
                 timerEvents,
                 participant.JoinedUtc,
                 session.StartedUtc,
@@ -8869,6 +9228,7 @@ public static class CogitaEndpoints
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                 if (rounds.Count > 0)
                 {
+                    var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
                     var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                     var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
@@ -8879,6 +9239,8 @@ public static class CogitaEndpoints
                     var asyncState = BuildLiveAsyncParticipantState(
                         rounds,
                         participantAnswers,
+                        participant.Id,
+                        revisionMode,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -12326,7 +12688,7 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = $"Database schema does not support info type '{infoType}' yet. Apply the latest schema.sql on the API database."
+                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql on the API database."
                 });
             }
 
@@ -12356,14 +12718,14 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new
                 {
-                    error = "Database schema for Cogita info links is outdated. Apply the latest schema.sql on the API database (CogitaInfoLinkSingles/CogitaInfoLinkMultis)."
+                    error = "Database schema for Cogita links is outdated. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql (CogitaKnowledgeLinkSingles/CogitaKnowledgeLinkMultis)."
                 });
             }
             catch (DbUpdateException ex) when (LooksLikeUnsupportedInfoTypeSchema(ex, infoType))
             {
                 return Results.BadRequest(new
                 {
-                    error = $"Database schema does not support info type '{infoType}' yet. Apply the latest schema.sql on the API database."
+                    error = $"Database schema does not support info type '{infoType}' yet. Apply backend/Recreatio.Api/Sql/schema_cogita_rebuild.sql on the API database."
                 });
             }
 
@@ -13510,7 +13872,9 @@ public static class CogitaEndpoints
     {
         var text = ex.ToString();
         return text.Contains("CogitaInfoLinkSingles", StringComparison.OrdinalIgnoreCase) ||
-               text.Contains("CogitaInfoLinkMultis", StringComparison.OrdinalIgnoreCase);
+               text.Contains("CogitaInfoLinkMultis", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("CogitaKnowledgeLinkSingles", StringComparison.OrdinalIgnoreCase) ||
+               text.Contains("CogitaKnowledgeLinkMultis", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record InfoSnapshot(
@@ -14266,7 +14630,10 @@ public static class CogitaEndpoints
         var mentionsCogitaInfoTables =
             text.Contains("CogitaInfos", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("CogitaInfoSearchIndexes", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("CogitaEntitySearchDocuments", StringComparison.OrdinalIgnoreCase);
+            text.Contains("CogitaEntitySearchDocuments", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("CogitaKnowledgeItems", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("CogitaKnowledgeTypeSpecs", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("CogitaCheckcardDefinitions", StringComparison.OrdinalIgnoreCase);
         var looksLikeConstraint =
             text.Contains("CHECK constraint", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("constraint", StringComparison.OrdinalIgnoreCase) ||
@@ -17766,6 +18133,25 @@ public static class CogitaEndpoints
         }
     }
 
+    private static string ParseLiveAsyncRevisionMode(string? promptJson)
+    {
+        if (string.IsNullOrWhiteSpace(promptJson))
+        {
+            return "random";
+        }
+
+        try
+        {
+            var root = JsonNode.Parse(promptJson) as JsonObject;
+            var mode = root?["revisionMode"]?.GetValue<string>()?.Trim().ToLowerInvariant();
+            return string.IsNullOrWhiteSpace(mode) ? "random" : mode;
+        }
+        catch
+        {
+            return "random";
+        }
+    }
+
     private static JsonObject? ParseJsonObjectSafe(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -18284,6 +18670,8 @@ public static class CogitaEndpoints
     private static LiveAsyncParticipantState BuildLiveAsyncParticipantState(
         List<LiveAsyncRoundPayload> rounds,
         List<CogitaLiveRevisionAnswer> participantAnswers,
+        Guid participantId,
+        string revisionMode,
         List<LiveAsyncTimerControlEvent> timerEvents,
         DateTimeOffset participantJoinedUtc,
         DateTimeOffset? sessionStartedUtc,
@@ -18509,10 +18897,37 @@ public static class CogitaEndpoints
                     .ThenByDescending(item => item.SubmittedUtc)
                     .First());
 
+        var answeredRoundIndexes = latestByRound.Values
+            .Where(x => x.IsCorrect.HasValue)
+            .OrderBy(x => x.UpdatedUtc)
+            .ThenBy(x => x.SubmittedUtc)
+            .Select(x => x.RoundIndex)
+            .Distinct()
+            .ToList();
+        var answeredRoundIndexSet = answeredRoundIndexes.ToHashSet();
+        var remainingRoundIndexes = Enumerable.Range(0, rounds.Count)
+            .Where(index => !answeredRoundIndexSet.Contains(index))
+            .ToList();
+        var orderedRoundIndexes = new List<int>(rounds.Count);
+        orderedRoundIndexes.AddRange(answeredRoundIndexes);
+        var normalizedMode = CogitaRunSelectionCore.NormalizeMode(revisionMode);
+        var knownessByRound = latestByRound.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.IsCorrect.HasValue
+                ? (pair.Value.IsCorrect.Value ? 100d : 0d)
+                : 0d);
+        var orderedRemainingRoundIndexes = CogitaRunSelectionCore.OrderRemainingRoundIndexes(
+            remainingRoundIndexes,
+            participantId,
+            normalizedMode,
+            knownessByRound);
+        orderedRoundIndexes.AddRange(orderedRemainingRoundIndexes);
+
         var roundCursorUtc = sessionStartUtc;
         var sessionElapsedSeconds = 0d;
-        for (var index = 0; index < rounds.Count; index++)
+        for (var orderIndex = 0; orderIndex < orderedRoundIndexes.Count; orderIndex++)
         {
+            var index = orderedRoundIndexes[orderIndex];
             if (!latestByRound.TryGetValue(index, out var answerRow) ||
                 !answerRow.IsCorrect.HasValue)
             {
@@ -18646,7 +19061,7 @@ public static class CogitaEndpoints
         }
 
         return new LiveAsyncParticipantState(
-            rounds.Count,
+            orderedRoundIndexes.Count,
             "finished",
             sessionStartUtc,
             roundCursorUtc,
@@ -18700,7 +19115,6 @@ public static class CogitaEndpoints
                 }
 
                 existing.IsCorrect = false;
-                existing.PointsAwarded = 0;
                 existing.UpdatedUtc = nowUtc > existing.SubmittedUtc
                     ? nowUtc
                     : existing.SubmittedUtc.AddMilliseconds(1);
@@ -18717,7 +19131,6 @@ public static class CogitaEndpoints
                 CardKey = rounds[roundIndex].CardKey,
                 AnswerJson = null,
                 IsCorrect = false,
-                PointsAwarded = 0,
                 SubmittedUtc = nowUtc,
                 UpdatedUtc = nowUtc
             });
@@ -18772,7 +19185,8 @@ public static class CogitaEndpoints
         return null;
     }
 
-    private readonly record struct StatisticScoreBreakdown(
+    private readonly record struct StatisticScorePayload(
+        int TotalPoints,
         int BasePoints,
         int FirstBonusPoints,
         int SpeedBonusPoints,
@@ -18796,19 +19210,11 @@ public static class CogitaEndpoints
 
         if (!isCorrect)
         {
-            if (wrongPenaltyPoints == 0 && firstWrongPenaltyPoints == 0 && wrongStreakPenaltyPoints == 0 && totalPoints < 0)
-            {
-                wrongPenaltyPoints = Math.Abs(totalPoints);
-            }
             basePoints = 0;
             firstBonusPoints = 0;
             speedPoints = 0;
             streakPoints = 0;
             streakCount = 0;
-        }
-        else if (basePoints + firstBonusPoints + speedPoints + streakPoints == 0 && totalPoints > 0)
-        {
-            basePoints = totalPoints;
         }
 
         var factors = new JsonArray();
@@ -18838,16 +19244,11 @@ public static class CogitaEndpoints
         };
     }
 
-    private static StatisticScoreBreakdown ParseStatisticScoreBreakdown(string? payloadJson, int totalPoints, bool isCorrect)
+    private static StatisticScorePayload? ParseStatisticScorePayload(string? payloadJson, bool isCorrect)
     {
-        if (!isCorrect)
-        {
-            return new StatisticScoreBreakdown(0, 0, 0, 0);
-        }
-
         if (string.IsNullOrWhiteSpace(payloadJson))
         {
-            return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+            return null;
         }
 
         try
@@ -18855,7 +19256,7 @@ public static class CogitaEndpoints
             var node = JsonNode.Parse(payloadJson) as JsonObject;
             if (node is null)
             {
-                return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+                return null;
             }
 
             static int ReadInt(JsonObject root, string key)
@@ -18872,32 +19273,28 @@ public static class CogitaEndpoints
             var firstBonusPoints = Math.Max(0, ReadInt(node, "firstBonusPoints"));
             var speedBonusPoints = Math.Max(0, ReadInt(node, "speedPoints"));
             var streakBonusPoints = Math.Max(0, ReadInt(node, "streakPoints"));
+            var wrongPenaltyPoints = Math.Max(0, ReadInt(node, "wrongPenaltyPoints"));
+            var firstWrongPenaltyPoints = Math.Max(0, ReadInt(node, "firstWrongPenaltyPoints"));
+            var wrongStreakPenaltyPoints = Math.Max(0, ReadInt(node, "wrongStreakPenaltyPoints"));
             if (firstBonusPoints <= 0)
             {
                 firstBonusPoints = Math.Max(0, ReadInt(node, "firstPoints"));
             }
-            var knownSum = basePoints + firstBonusPoints + speedBonusPoints + streakBonusPoints;
-            if (knownSum <= 0)
-            {
-                basePoints = Math.Max(0, totalPoints);
-            }
-            else if (knownSum != totalPoints && totalPoints > 0)
-            {
-                basePoints = Math.Max(0, totalPoints - firstBonusPoints - speedBonusPoints - streakBonusPoints);
-            }
 
-            return new StatisticScoreBreakdown(basePoints, firstBonusPoints, speedBonusPoints, streakBonusPoints);
+            var totalPoints = isCorrect
+                ? Math.Max(0, Math.Min(500000, basePoints + firstBonusPoints + speedBonusPoints + streakBonusPoints))
+                : -Math.Max(0, Math.Min(500000, wrongPenaltyPoints + firstWrongPenaltyPoints + wrongStreakPenaltyPoints));
+            return new StatisticScorePayload(totalPoints, basePoints, firstBonusPoints, speedBonusPoints, streakBonusPoints);
         }
         catch
         {
-            return new StatisticScoreBreakdown(Math.Max(0, totalPoints), 0, 0, 0);
+            return null;
         }
     }
 
     private static string? BuildLiveScoreBreakdownPayload(
         JsonObject? participantScoringNode,
         LiveSessionScoringRules scoringRules,
-        int pointsAwarded,
         bool? isCorrect)
     {
         static int ReadInt(JsonObject root, string key)
@@ -18948,12 +19345,6 @@ public static class CogitaEndpoints
             {
                 basePoints = explicitBase;
             }
-        }
-
-        var knownSum = basePoints + firstBonusPoints + speedPoints + streakPoints;
-        if (knownSum != pointsAwarded && pointsAwarded > 0)
-        {
-            basePoints = Math.Max(0, pointsAwarded - firstBonusPoints - speedPoints - streakPoints);
         }
 
         return JsonSerializer.Serialize(new
@@ -19476,22 +19867,7 @@ public static class CogitaEndpoints
 
     private static int ComputeAsyncStreakBonus(string growthMode, int streakBaseBonus, int streakCount, int streakLimit)
     {
-        var maxBonus = Math.Max(0, streakBaseBonus);
-        var extraCount = Math.Max(0, streakCount - 1);
-        if (maxBonus == 0 || extraCount == 0)
-        {
-            return 0;
-        }
-
-        var fullAfter = Math.Max(1, streakLimit);
-        var progress = Math.Max(0d, Math.Min(1d, extraCount / (double)fullAfter));
-        var scaled = growthMode switch
-        {
-            "exponential" => progress * progress,
-            "limited" => Math.Min(1d, progress * 1.6d),
-            _ => progress
-        };
-        return Math.Max(0, Math.Min(500000, (int)Math.Round(maxBonus * scaled)));
+        return CogitaRunScoringCore.ComputeStreakContribution(growthMode, streakBaseBonus, streakCount, streakLimit);
     }
 
     private readonly record struct LiveComputedScoreDetail(
@@ -20225,50 +20601,10 @@ public static class CogitaEndpoints
 
     private static TemporalKnownessSummary ComputeKnownessSummary(IEnumerable<TemporalKnownessEntry> rawEntries, DateTimeOffset nowUtc)
     {
-        var entries = rawEntries
-            .OrderBy(x => x.CreatedUtc)
-            .TakeLast(5)
-            .ToList();
-        if (entries.Count == 0)
-        {
-            return new TemporalKnownessSummary(0d, null);
-        }
-
-        var avgCorrectness = entries.Average(x => Math.Clamp(x.Correctness, 0d, 1d));
-        const double tauMinutes = 5d;
-        const double scale = 2d;
-        const double correctBonus = 0.15d;
-        var timeScore = 0d;
-        var bonus = 0d;
-        for (var i = 0; i < entries.Count; i++)
-        {
-            var start = entries[i].CreatedUtc;
-            var end = i == entries.Count - 1 ? nowUtc : entries[i + 1].CreatedUtc;
-            var deltaMinutes = Math.Max(0d, (end - start).TotalMinutes);
-            var timeFactor = 1d - Math.Exp(-deltaMinutes / tauMinutes);
-            timeScore += timeFactor;
-            if (entries[i].Correctness > 0.5d)
-            {
-                bonus += correctBonus;
-            }
-        }
-
-        var knowness = avgCorrectness * timeScore * scale + bonus;
-        var lastReviewed = entries[^1].CreatedUtc;
-        var minutesSinceLast = Math.Max(0d, (nowUtc - lastReviewed).TotalMinutes);
-        const double decayTauMinutes = 60d;
-        var decay = 1d / (1d + Math.Log(1d + (minutesSinceLast / decayTauMinutes)));
-        knowness *= decay;
-
-        const double shortBoostTauMinutes = 2d;
-        const double shortBoostAmount = 5.44d;
-        if (entries.Count == 1 && entries[0].Correctness > 0.5d)
-        {
-            knowness += shortBoostAmount * Math.Exp(-minutesSinceLast / shortBoostTauMinutes);
-        }
-
-        var score = Math.Round(Math.Clamp(knowness * 100d, 0d, 100d), 2);
-        return new TemporalKnownessSummary(score, lastReviewed);
+        var summary = CogitaKnownessCore.ComputeSummary(
+            rawEntries.Select(x => new KnownessEntry(x.Correctness, x.CreatedUtc)),
+            nowUtc);
+        return new TemporalKnownessSummary(summary.Score, summary.LastReviewedUtc);
     }
 
     private readonly record struct StatisticsParticipantRef(

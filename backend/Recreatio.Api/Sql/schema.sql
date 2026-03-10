@@ -62,6 +62,7 @@ IF OBJECT_ID(N'dbo.CogitaLiveRevisionReloginRequests', N'U') IS NOT NULL DROP TA
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionSessions', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionSessions;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.CogitaRevisions', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisions;
+IF OBJECT_ID(N'dbo.CogitaCreationProjects', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationProjects;
 IF OBJECT_ID(N'dbo.CogitaItemDependencies', N'U') IS NOT NULL DROP TABLE dbo.CogitaItemDependencies;
 IF OBJECT_ID(N'dbo.PendingDataShares', N'U') IS NOT NULL DROP TABLE dbo.PendingDataShares;
 IF OBJECT_ID(N'dbo.DataKeyGrants', N'U') IS NOT NULL DROP TABLE dbo.DataKeyGrants;
@@ -1478,6 +1479,36 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaCreationProjects' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaCreationProjects
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        ProjectType NVARCHAR(32) NOT NULL,
+        Name NVARCHAR(256) NOT NULL,
+        ContentJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaCreationProjects_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCreationProjects_LibraryTypeUpdated' AND object_id = OBJECT_ID('dbo.CogitaCreationProjects'))
+BEGIN
+    CREATE INDEX IX_CogitaCreationProjects_LibraryTypeUpdated
+        ON dbo.CogitaCreationProjects(LibraryId, ProjectType, UpdatedUtc DESC, Id);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaCreationProjects_LibraryTypeName' AND object_id = OBJECT_ID('dbo.CogitaCreationProjects'))
+BEGIN
+    CREATE INDEX IX_CogitaCreationProjects_LibraryTypeName
+        ON dbo.CogitaCreationProjects(LibraryId, ProjectType, Name);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisionShares' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaRevisionShares
@@ -1649,7 +1680,6 @@ BEGIN
         CardKey NVARCHAR(256) NULL,
         AnswerJson NVARCHAR(MAX) NULL,
         IsCorrect BIT NULL,
-        PointsAwarded INT NOT NULL CONSTRAINT DF_CogitaLiveRevisionAnswers_Points DEFAULT (0),
         SubmittedUtc DATETIMEOFFSET NOT NULL,
         UpdatedUtc DATETIMEOFFSET NOT NULL,
         CONSTRAINT FK_CogitaLiveRevisionAnswers_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaLiveRevisionSessions(Id),

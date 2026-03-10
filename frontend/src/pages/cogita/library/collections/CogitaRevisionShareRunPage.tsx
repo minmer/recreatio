@@ -46,7 +46,11 @@ import {
   type CompareAlgorithmId
 } from '../../../../cogita/revision/compare';
 import { loadCogitaGlobalSettings } from '../../../../cogita/globalSettings';
-import { getNextCardSelection } from '../../../../cogita/revision/nextCard';
+import {
+  applyRevisionOutcomeAndPrimeNext,
+  getLinearNextIndex,
+  resolveDependencyFallback
+} from '../../../../cogita/revision/runCore';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../../../cogita/revision/quote';
 import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 import {
@@ -470,18 +474,21 @@ export function CogitaRevisionShareRunPage({
     []
   );
   const applyOutcomeToSession = (correct: boolean, correctness?: number) => {
-    const nextState = revisionType.applyOutcome(
-      { queue, meta: revisionMeta },
+    const nextState = applyRevisionOutcomeAndPrimeNext({
+      revisionType,
+      queue,
+      meta: revisionMeta,
       currentCard,
+      currentIndex,
       limit,
-      revisionSettings,
-      { correct, correctness, createdUtc: new Date().toISOString() }
-    );
+      settings: revisionSettings,
+      correct,
+      correctness
+    });
     setQueue(nextState.queue);
     setRevisionMeta(nextState.meta);
-    const selection = getNextCardSelection(nextState.queue, currentIndex);
-    if (selection.nextCard) {
-      void resolveCard(selection.nextCard, selection.nextIndex);
+    if (nextState.nextCard) {
+      void resolveCard(nextState.nextCard, nextState.nextIndex);
     }
   };
 
@@ -621,50 +628,35 @@ export function CogitaRevisionShareRunPage({
   }, [queue, itemDependencies, considerDependencies, dependencyThreshold, shareInfo?.collectionId]);
 
   useEffect(() => {
-    if (!currentCard || !considerDependencies) {
-      setDependencyBlocked(false);
-      return;
-    }
-    if (currentCard.cardType !== 'info' || eligibleKeys.has(getCardKey(currentCard))) {
-      setDependencyBlocked(false);
-      return;
-    }
-    const nextIndex = getNextEligibleIndex(currentIndex + 1);
-    if (nextIndex >= 0) {
-      setDependencyBlocked(false);
-      setCurrentIndex(nextIndex);
-      return;
-    }
-    if (revisionType.id === 'temporal' || revisionType.id === 'levels') {
-      const preserved = queue.slice(0, currentIndex + 1);
-      const futureEligible = queue.slice(currentIndex + 1).filter(isCardEligibleForRevision);
-      const nextQueue = preserved.concat(futureEligible);
-      const existingKeys = new Set(nextQueue.map(getCardKey));
-      const fallback = findEligibleFallbackCard(existingKeys);
-      if (fallback) {
-        const fallbackKey = getCardKey(fallback);
-        if (!existingKeys.has(fallbackKey)) {
-          nextQueue.push(fallback);
-          existingKeys.add(fallbackKey);
-          setRevisionMeta((prev) => {
-            const typed = prev as { queued?: Set<string> };
-            const queued = new Set<string>(typed.queued ?? []);
-            queued.add(fallbackKey);
-            return { ...typed, queued };
-          });
-        }
+    const resolution = resolveDependencyFallback({
+      currentCard,
+      dependenciesEnabled: considerDependencies,
+      isInfoCard: (card) => card.cardType === 'info',
+      isEligibleCard: isCardEligibleForRevision,
+      queue,
+      currentIndex,
+      nextEligibleIndexFrom: getNextEligibleIndex,
+      fallbackModeEnabled: revisionType.id === 'temporal' || revisionType.id === 'levels',
+      findFallbackCard: findEligibleFallbackCard,
+      getCardKey,
+      meta: revisionMeta as { queued?: Set<string> },
+      addQueuedKeyToMeta: (meta, key) => {
+        const typed = meta as { queued?: Set<string> };
+        const queued = new Set<string>(typed.queued ?? []);
+        queued.add(key);
+        return { ...typed, queued };
       }
-      const fallbackIndex = nextQueue.findIndex(
-        (card, index) => index !== currentIndex && isCardEligibleForRevision(card)
-      );
-      if (fallbackIndex >= 0) {
-        setQueue(nextQueue);
-        setCurrentIndex(fallbackIndex);
-        setDependencyBlocked(false);
-        return;
-      }
+    });
+    if (resolution.nextQueue) {
+      setQueue(resolution.nextQueue);
     }
-    setDependencyBlocked(true);
+    if (resolution.nextMeta) {
+      setRevisionMeta(resolution.nextMeta);
+    }
+    if (typeof resolution.nextIndex === 'number') {
+      setCurrentIndex(resolution.nextIndex);
+    }
+    setDependencyBlocked(resolution.dependencyBlocked);
   }, [currentCard, eligibleKeys, considerDependencies, currentIndex, queue, revisionMeta, revisionType.id]);
 
   useEffect(() => {
@@ -1145,7 +1137,7 @@ export function CogitaRevisionShareRunPage({
     setCanAdvance(false);
     setAnswerMask(null);
     setAttempts(0);
-    setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
+    setCurrentIndex((prev) => getLinearNextIndex(queue.length, prev));
   };
 
   const submitReview = (options: {
@@ -1546,9 +1538,10 @@ export function CogitaRevisionShareRunPage({
   };
 
   const preloadNextCard = () => {
-    const selection = getNextCardSelection(queue, currentIndex);
-    if (!selection.nextCard) return;
-    void resolveCard(selection.nextCard, selection.nextIndex);
+    const nextIndex = getLinearNextIndex(queue.length, currentIndex);
+    const nextCard = queue[nextIndex];
+    if (!nextCard) return;
+    void resolveCard(nextCard, nextIndex);
   };
 
   const handleCheckAnswer = () => {
@@ -1935,7 +1928,7 @@ export function CogitaRevisionShareRunPage({
       setCanAdvance(false);
       setAnswerMask(null);
       setAttempts(0);
-      setCurrentIndex((prev) => getNextCardSelection(queue, prev).nextIndex);
+      setCurrentIndex((prev) => getLinearNextIndex(queue.length, prev));
       return;
     }
     advanceCard();

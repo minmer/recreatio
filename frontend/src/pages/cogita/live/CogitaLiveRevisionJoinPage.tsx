@@ -22,6 +22,7 @@ import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
 import { buildLiveStatisticsResponse } from './liveStatistics';
 import { computeLiveRoundBreakdown } from './liveScoring';
+import { resolveLiveRunStage } from '../../../cogita/revision/runCore';
 
 function readJoinNameFromHash() {
   if (typeof window === 'undefined') return '';
@@ -409,14 +410,11 @@ export function CogitaLiveRevisionJoinPage(props: {
   const revealExpected = reveal?.expected;
   const isAsyncSession = state?.sessionMode === 'asynchronous';
   const liveRules = useMemo(() => parseLiveRules(state?.sessionSettings), [state?.sessionSettings]);
-  const sessionStage =
-    state?.status === 'finished' || state?.status === 'closed'
-      ? 'finished'
-      : isAsyncSession && Boolean(participantToken)
-        ? 'active'
-      : state?.status && state.status !== 'lobby'
-        ? 'active'
-        : 'lobby';
+  const sessionStage = resolveLiveRunStage({
+    status: state?.status,
+    sessionMode: state?.sessionMode,
+    hasParticipantToken: Boolean(participantToken)
+  });
   const hasStoredTokenMismatch = Boolean(participantToken && state && !state.participantId);
   // Do not auto-force participant rejoin on transient polling mismatch.
   // A joined participant should remain in-session unless they explicitly switch participant.

@@ -12,7 +12,6 @@ public sealed class CogitaLiveRevisionAnswer
     public string? CardKey { get; set; }
     public string? AnswerJson { get; set; }
     public bool? IsCorrect { get; set; }
-    public int PointsAwarded { get; set; }
     public DateTimeOffset SubmittedUtc { get; set; }
     public DateTimeOffset UpdatedUtc { get; set; }
 }

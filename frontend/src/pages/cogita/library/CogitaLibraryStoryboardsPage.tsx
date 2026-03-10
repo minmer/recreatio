@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+import { createCogitaCreationProject, getCogitaCreationProjects, type CogitaCreationProject } from '../../../lib/api';
 
 export function CogitaLibraryStoryboardsPage({
   copy,
@@ -31,8 +32,53 @@ export function CogitaLibraryStoryboardsPage({
 }) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const [name, setName] = useState('');
-  const [items, setItems] = useState<Array<{ id: string; name: string }>>([]);
-  const createLocalId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const [items, setItems] = useState<CogitaCreationProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadFailed(false);
+    getCogitaCreationProjects({ libraryId, projectType: 'storyboard' })
+      .then((projects) => {
+        if (cancelled) return;
+        setItems(projects);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setItems([]);
+        setLoadFailed(true);
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryId]);
+
+  const handleCreate = async () => {
+    const trimmed = name.trim();
+    if (!trimmed || saving) return;
+    setSaveFailed(false);
+    setSaving(true);
+    try {
+      const created = await createCogitaCreationProject({
+        libraryId,
+        projectType: 'storyboard',
+        name: trimmed,
+        content: null
+      });
+      setItems((current) => [created, ...current]);
+      setName('');
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <CogitaShell
@@ -75,12 +121,8 @@ export function CogitaLibraryStoryboardsPage({
                     <button
                       type="button"
                       className="cta"
-                      onClick={() => {
-                        const trimmed = name.trim();
-                        if (!trimmed) return;
-                        setItems((current) => [{ id: createLocalId(), name: trimmed }, ...current]);
-                        setName('');
-                      }}
+                      onClick={handleCreate}
+                      disabled={saving}
                     >
                       {copy.cogita.library.modules.storyboardsCreate}
                     </button>
@@ -93,9 +135,12 @@ export function CogitaLibraryStoryboardsPage({
                   <h3 className="cogita-detail-title">{copy.cogita.library.modules.storyboardsExisting}</h3>
                 </div>
                 <div className="cogita-detail-body">
-                  {items.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
+                  {loading ? <p>{copy.cogita.library.modules.loading}</p> : null}
+                  {!loading && loadFailed ? <p>{copy.cogita.library.modules.loadFailed}</p> : null}
+                  {!loading && !loadFailed && items.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
+                  {saveFailed ? <p>{copy.cogita.library.modules.createFailed}</p> : null}
                   {items.map((item) => (
-                    <button key={item.id} type="button" className="ghost">
+                    <button key={item.projectId} type="button" className="ghost">
                       {item.name}
                     </button>
                   ))}

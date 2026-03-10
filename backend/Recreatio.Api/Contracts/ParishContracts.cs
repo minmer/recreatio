@@ -200,3 +200,53 @@ public sealed record ParishConfirmationCandidateResponse(
     string SchoolShort,
     bool AcceptedRodo,
     DateTimeOffset CreatedUtc);
+
+public sealed record ParishConfirmationExportPhoneResponse(
+    int Index,
+    string Number,
+    bool IsVerified,
+    DateTimeOffset? VerifiedUtc,
+    string VerificationToken,
+    DateTimeOffset? CreatedUtc);
+
+public sealed record ParishConfirmationExportCandidateResponse(
+    string Name,
+    string Surname,
+    IReadOnlyList<ParishConfirmationExportPhoneResponse> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    bool AcceptedRodo,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishConfirmationExportResponse(
+    int Version,
+    Guid ParishId,
+    DateTimeOffset ExportedUtc,
+    IReadOnlyList<ParishConfirmationExportCandidateResponse> Candidates);
+
+public sealed record ParishConfirmationImportPhoneRequest(
+    string Number,
+    string? VerificationToken,
+    DateTimeOffset? VerifiedUtc,
+    DateTimeOffset? CreatedUtc);
+
+public sealed record ParishConfirmationImportCandidateRequest(
+    string Name,
+    string Surname,
+    IReadOnlyList<ParishConfirmationImportPhoneRequest> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    bool AcceptedRodo,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? UpdatedUtc);
+
+public sealed record ParishConfirmationImportRequest(
+    IReadOnlyList<ParishConfirmationImportCandidateRequest> Candidates,
+    bool ReplaceExisting);
+
+public sealed record ParishConfirmationImportResponse(
+    int ImportedCandidates,
+    int ImportedPhoneNumbers,
+    int SkippedCandidates,
+    bool ReplaceExisting);

@@ -554,6 +554,15 @@ export type CogitaLibraryStats = {
   totalTopics: number;
 };
 
+export type CogitaCreationProject = {
+  projectId: string;
+  projectType: 'storyboard' | 'text' | string;
+  name: string;
+  content?: unknown | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
 export type CogitaInfoSearchResult = {
   infoId: string;
   infoType: string;
@@ -1110,6 +1119,62 @@ export function getCogitaLibraryStats(libraryId: string) {
   return request<CogitaLibraryStats>(`/cogita/libraries/${libraryId}/stats`, {
     method: 'GET'
   });
+}
+
+export function getCogitaCreationProjects(payload: { libraryId: string; projectType?: 'storyboard' | 'text' | string }) {
+  const params = new URLSearchParams();
+  if (payload.projectType) {
+    params.set('projectType', payload.projectType);
+  }
+  const qs = params.toString();
+  return request<CogitaCreationProject[]>(
+    `/cogita/libraries/${payload.libraryId}/creation-projects${qs ? `?${qs}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function createCogitaCreationProject(payload: {
+  libraryId: string;
+  projectType: 'storyboard' | 'text' | string;
+  name: string;
+  content?: unknown | null;
+}) {
+  return request<CogitaCreationProject>(
+    `/cogita/libraries/${payload.libraryId}/creation-projects`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        projectType: payload.projectType,
+        name: payload.name,
+        content: payload.content ?? null
+      })
+    }
+  );
+}
+
+export function updateCogitaCreationProject(payload: {
+  libraryId: string;
+  projectId: string;
+  name: string;
+  content?: unknown | null;
+}) {
+  return request<CogitaCreationProject>(
+    `/cogita/libraries/${payload.libraryId}/creation-projects/${payload.projectId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: payload.name,
+        content: payload.content ?? null
+      })
+    }
+  );
+}
+
+export function deleteCogitaCreationProject(payload: { libraryId: string; projectId: string }) {
+  return request<{ deleted: boolean }>(
+    `/cogita/libraries/${payload.libraryId}/creation-projects/${payload.projectId}`,
+    { method: 'DELETE' }
+  );
 }
 
 export function searchCogitaInfos(payload: {
@@ -2452,6 +2517,45 @@ export type ParishConfirmationCandidate = {
   createdUtc: string;
 };
 
+export type ParishConfirmationExportPhone = {
+  index: number;
+  number: string;
+  isVerified: boolean;
+  verifiedUtc?: string | null;
+  verificationToken: string;
+  createdUtc?: string | null;
+};
+
+export type ParishConfirmationExportCandidate = {
+  name: string;
+  surname: string;
+  phoneNumbers: ParishConfirmationExportPhone[];
+  address: string;
+  schoolShort: string;
+  acceptedRodo: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationExport = {
+  version: number;
+  parishId: string;
+  exportedUtc: string;
+  candidates: ParishConfirmationExportCandidate[];
+};
+
+export type ParishConfirmationImport = {
+  candidates: ParishConfirmationExportCandidate[];
+  replaceExisting: boolean;
+};
+
+export type ParishConfirmationImportResponse = {
+  importedCandidates: number;
+  importedPhoneNumbers: number;
+  skippedCandidates: number;
+  replaceExisting: boolean;
+};
+
 export type ParishMassRuleNode = {
   id: string;
   type: string;
@@ -2561,6 +2665,22 @@ export function verifyParishConfirmationPhone(slug: string, token: string) {
 export function listParishConfirmationCandidates(parishId: string) {
   return request<ParishConfirmationCandidate[]>(`/parish/${parishId}/confirmation-candidates`, {
     method: 'GET'
+  });
+}
+
+export function exportParishConfirmationCandidates(parishId: string) {
+  return request<ParishConfirmationExport>(`/parish/${parishId}/confirmation-candidates/export`, {
+    method: 'GET'
+  });
+}
+
+export function importParishConfirmationCandidates(parishId: string, payload: ParishConfirmationImport) {
+  return request<ParishConfirmationImportResponse>(`/parish/${parishId}/confirmation-candidates/import`, {
+    method: 'POST',
+    body: JSON.stringify({
+      candidates: payload.candidates,
+      replaceExisting: payload.replaceExisting
+    })
   });
 }
 

@@ -25,6 +25,26 @@ public sealed record CogitaLibraryStatsResponse(
     int TotalTopics
 );
 
+public sealed record CogitaCreationProjectCreateRequest(
+    string ProjectType,
+    string Name,
+    JsonElement? Content = null
+);
+
+public sealed record CogitaCreationProjectUpdateRequest(
+    string Name,
+    JsonElement? Content = null
+);
+
+public sealed record CogitaCreationProjectResponse(
+    Guid ProjectId,
+    string ProjectType,
+    string Name,
+    JsonElement? Content,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
 public sealed record CogitaInfoSearchResponse(
     Guid InfoId,
     string InfoType,

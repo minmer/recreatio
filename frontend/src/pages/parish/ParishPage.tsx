@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, Dispatch, SetStateAction, PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, Dispatch, SetStateAction, PointerEvent as ReactPointerEvent, ChangeEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import '../../styles/parish.css';
 import { AuthAction } from '../../components/AuthAction';
@@ -46,12 +46,15 @@ import {
   listParishes,
   applyParishMassRule,
   createParishConfirmationCandidate,
+  exportParishConfirmationCandidates,
+  importParishConfirmationCandidates,
   simulateParishMassRule,
   listParishConfirmationCandidates,
   updateParishMassRule,
   updateParishSite,
   verifyParishConfirmationPhone,
   type ParishConfirmationCandidate,
+  type ParishConfirmationExportCandidate,
   type ParishHomepageConfig,
   type ParishLayoutItem,
   type ParishMassRule,
@@ -1776,6 +1779,10 @@ export function ParishPage({
   const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
+  const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
+  const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
+  const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
+  const [confirmationImportReplaceExisting, setConfirmationImportReplaceExisting] = useState(false);
   const [sacramentParishEditTitle, setSacramentParishEditTitle] = useState('');
   const [sacramentParishEditLead, setSacramentParishEditLead] = useState('');
   const [sacramentParishEditNotice, setSacramentParishEditNotice] = useState('');
@@ -1800,6 +1807,7 @@ export function ParishPage({
   const [gridRowHeight, setGridRowHeight] = useState(90);
   const homeGridRef = useRef<HTMLDivElement | null>(null);
   const editorGridRef = useRef<HTMLDivElement | null>(null);
+  const confirmationImportFileRef = useRef<HTMLInputElement | null>(null);
   const [selectedBuilderId, setSelectedBuilderId] = useState<string | null>(null);
   const [selectedEditId, setSelectedEditId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{
@@ -2053,6 +2061,78 @@ export function ParishPage({
     } catch {
       setConfirmationCandidates([]);
       setConfirmationCandidatesError('Nie udało się pobrać zgłoszeń do bierzmowania.');
+    }
+  };
+
+  const parseConfirmationImportCandidates = (value: unknown): ParishConfirmationExportCandidate[] | null => {
+    if (Array.isArray(value)) {
+      return value as ParishConfirmationExportCandidate[];
+    }
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const withCandidates = value as { candidates?: unknown };
+    if (!Array.isArray(withCandidates.candidates)) {
+      return null;
+    }
+    return withCandidates.candidates as ParishConfirmationExportCandidate[];
+  };
+
+  const handleExportConfirmationCandidates = async () => {
+    if (!parish) return;
+    setConfirmationTransferBusy(true);
+    setConfirmationTransferError(null);
+    setConfirmationTransferInfo(null);
+    try {
+      const exportPayload = await exportParishConfirmationCandidates(parish.id);
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `confirmation-candidates-${parish.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setConfirmationTransferInfo(`Wyeksportowano ${exportPayload.candidates.length} zgłoszeń.`);
+    } catch {
+      setConfirmationTransferError('Nie udało się wyeksportować zgłoszeń.');
+    } finally {
+      setConfirmationTransferBusy(false);
+    }
+  };
+
+  const handleImportConfirmationCandidates = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (!parish) return;
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setConfirmationTransferBusy(true);
+    setConfirmationTransferError(null);
+    setConfirmationTransferInfo(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as unknown;
+      const candidates = parseConfirmationImportCandidates(parsed);
+      if (!candidates) {
+        setConfirmationTransferError('Plik importu ma nieprawidłowy format JSON.');
+        return;
+      }
+
+      const result = await importParishConfirmationCandidates(parish.id, {
+        candidates,
+        replaceExisting: confirmationImportReplaceExisting
+      });
+      setConfirmationTransferInfo(
+        `Import zakończony: ${result.importedCandidates} zgłoszeń, ${result.importedPhoneNumbers} numerów, pominięto ${result.skippedCandidates}.`
+      );
+      await loadConfirmationCandidates();
+    } catch {
+      setConfirmationTransferError('Nie udało się zaimportować zgłoszeń.');
+    } finally {
+      if (confirmationImportFileRef.current) {
+        confirmationImportFileRef.current.value = '';
+      }
+      setConfirmationTransferBusy(false);
     }
   };
 
@@ -6322,6 +6402,42 @@ export function ParishPage({
                             Odśwież
                           </button>
                         </div>
+                        <div className="confirmation-admin-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={confirmationTransferBusy}
+                            onClick={() => void handleExportConfirmationCandidates()}
+                          >
+                            {confirmationTransferBusy ? 'Przetwarzanie...' : 'Eksportuj JSON'}
+                          </button>
+                          <label className="ghost">
+                            Importuj JSON
+                            <input
+                              ref={confirmationImportFileRef}
+                              type="file"
+                              accept="application/json"
+                              disabled={confirmationTransferBusy}
+                              onChange={(event) => void handleImportConfirmationCandidates(event)}
+                              hidden
+                            />
+                          </label>
+                          <label className="mass-require-intentions">
+                            <input
+                              type="checkbox"
+                              checked={confirmationImportReplaceExisting}
+                              disabled={confirmationTransferBusy}
+                              onChange={(event) => setConfirmationImportReplaceExisting(event.target.checked)}
+                            />
+                            <span>Zastąp obecne zgłoszenia przy imporcie</span>
+                          </label>
+                        </div>
+                        {confirmationTransferError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationTransferError}</p>
+                        ) : null}
+                        {confirmationTransferInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationTransferInfo}</p>
+                        ) : null}
                         {confirmationCandidatesError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
                         ) : null}
