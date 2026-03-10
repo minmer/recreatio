@@ -37,6 +37,8 @@ const EVENTS: EventDefinition[] = [
       { slug: 'faq', title: 'FAQ' },
       { slug: 'kontakt', title: 'Kontakt' },
       { slug: 'formalnosci', title: 'Formalnosci' },
+      { slug: 'registered', title: 'Registered' },
+      { slug: 'contributors', title: 'Contributors' },
       { slug: 'uczestnik', title: 'Strefa uczestnika' },
       { slug: 'organizator', title: 'Panel organizatora' }
     ]

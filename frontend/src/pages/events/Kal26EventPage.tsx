@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
 import {
@@ -228,6 +228,541 @@ function PilgrimageKalwariaLogo() {
   );
 }
 
+function Kal26InformationPage({ eventSlug }: { eventSlug: string }) {
+  const heroFacts = [
+    'Start: piątek, 17.04.2026',
+    'Msza Święta: 15:30, św. Józef, Kraków Podgórze',
+    'Nocleg: Tyniec',
+    'Meta: Kalwaria Zebrzydowska'
+  ];
+
+  const pillars = [
+    {
+      title: 'Tradycja',
+      body:
+        'Chcemy odkrywać stare zwyczaje Kościoła i ożywiać je na nowo — nie jako pamiątkę przeszłości, ale jako drogę do osobistego spotkania z żywym Chrystusem. Dlatego pielęgnujemy tradycyjne śpiewy, modlitwy, prostotę drogi i skromność pielgrzymowania.'
+    },
+    {
+      title: 'Cisza',
+      body:
+        'Na tej pielgrzymce cisza nie jest dodatkiem, ale przestrzenią spotkania z Bogiem. Chcemy oderwać się od codziennego hałasu, obowiązków i nieustannej dostępności. Obok wspólnej modlitwy i śpiewu jest też czas na milczenie, skupienie i drogę przeżywaną wewnętrznie.'
+    },
+    {
+      title: 'Liturgia',
+      body:
+        'Centralnym punktem pielgrzymki jest liturgia. Jej szczytem jest Msza Święta, ale ważne miejsce zajmuje także wspólna modlitwa Kościoła, śpiew i Liturgia Godzin. Wszystko na tej drodze ma do liturgii prowadzić i z niej wypływać.'
+    }
+  ];
+
+  const infoBlocks = [
+    { title: 'Termin', body: '17–18 kwietnia 2026' },
+    {
+      title: 'Start',
+      body: 'Piątek, 17.04.2026, godz. 15:30\nMsza Święta w kościele św. Józefa w Krakowie na Podgórzu'
+    },
+    { title: 'Trasa', body: 'Kraków – Tyniec – Kalwaria Zebrzydowska' },
+    { title: 'Nocleg', body: 'Tyniec' },
+    { title: 'Zapisy', body: 'Przez formularz internetowy' },
+    {
+      title: 'Dla zapisanych',
+      body: 'Szczegółowe informacje organizacyjne będą udostępniane w prywatnej strefie uczestnika'
+    }
+  ];
+
+  return (
+    <>
+      <section className="pilgrimage-hero">
+        <div className="pilgrimage-hero-main">
+          <h2>Kalwaria Zebrzydowska na Wielkanoc</h2>
+          <p>Dwudniowa piesza pielgrzymka z Krakowa do Matki Bożej Kalwaryjskiej</p>
+          <p className="pilgrimage-hero-route">17–18 kwietnia 2026</p>
+          <p className="pilgrimage-hero-date">Kraków – Tyniec – Kalwaria Zebrzydowska</p>
+          <p>
+            Pielgrzymka zrodzona z potrzeby ciszy, modlitwy i życia Tradycją Kościoła. Dwa dni drogi, wspólna
+            liturgia, nocleg w Tyńcu i droga do Kalwarii Zebrzydowskiej w czasie wielkanocnym.
+          </p>
+          <div className="pilgrimage-quick-links">
+            <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+            <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+          </div>
+        </div>
+      </section>
+
+      <section className="pilgrimage-hero-facts">
+        {heroFacts.map((fact) => (
+          <article key={fact} className="pilgrimage-card">
+            <p>{fact}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Czym jest ta pielgrzymka?</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Kalwaria Zebrzydowska na Wielkanoc to dwudniowa piesza pielgrzymka z Krakowa do Matki Bożej
+              Kalwaryjskiej. Powstała z oddolnej potrzeby ludzi, którzy pragnęli przeżyć drogę pielgrzymią w skupieniu,
+              ciszy i modlitwie.
+            </p>
+            <p>
+              Nie buduje się wokół pośpiechu, atrakcji i nadmiaru bodźców, ale wokół tego, co najważniejsze: drogi,
+              wspólnej modlitwy, liturgii i wewnętrznego spotkania z Bogiem. To pielgrzymka prosta w formie, skromna w
+              organizacji i głęboko zakorzeniona w życiu Kościoła.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Tradycja, Cisza, Liturgia</h2>
+          <p>
+            Charakter tej pielgrzymki koncentruje się wokół trzech głównych myśli. To one nadają jej rytm, styl i
+            duchowy kierunek.
+          </p>
+        </header>
+        <div className="pilgrimage-card-grid">
+          {pillars.map((pillar) => (
+            <article key={pillar.title} className="pilgrimage-card">
+              <h3>{pillar.title}</h3>
+              <p>{pillar.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Jak wygląda nasza droga?</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Pielgrzymka trwa dwa dni. Pierwszego dnia spotykamy się na wspólnej Mszy Świętej w Krakowie, a następnie
+              wyruszamy w stronę Tyńca. Tam przewidziany jest nocleg. Drugiego dnia rano podejmujemy dalszą drogę do
+              Kalwarii Zebrzydowskiej.
+            </p>
+            <p>
+              W czasie drogi towarzyszą nam wspólna modlitwa, śpiew, konferencje i momenty ciszy. Zależy nam na
+              prostocie i skupieniu — tak, aby pielgrzymka była rzeczywiście czasem odejścia od codzienności i wejścia
+              w przestrzeń modlitwy.
+            </p>
+            <p>
+              To nie jest wydarzenie turystyczne ani marsz sportowy. To droga przeżywana wspólnie, ale z dużym
+              szacunkiem dla ciszy, modlitwy i wewnętrznego rytmu pielgrzymowania.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Dla kogo?</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Dla osób, które pragną przeżyć drogę w duchu modlitwy, skupienia i prostoty. Dla tych, którzy szukają
+              miejsca na ciszę. Dla tych, którzy chcą pielgrzymować we wspólnocie, ale bez nadmiaru zewnętrznych
+              rozproszeń. Dla tych, którym bliskie są tradycyjne śpiewy, liturgia i duch Kościoła.
+            </p>
+            <p>
+              Nie trzeba mieć wcześniejszego doświadczenia pielgrzymkowego. Potrzeba przede wszystkim gotowości do
+              drogi, otwartości na charakter tej pielgrzymki i zgody na jej prosty, modlitewny rytm.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Najważniejsze informacje</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          {infoBlocks.map((item) => (
+            <article key={item.title} className="pilgrimage-card">
+              <h3>{item.title}</h3>
+              {item.body.split('\n').map((line) => (
+                <p key={`${item.title}-${line}`}>{line}</p>
+              ))}
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Droga prosta, wspólna i skupiona</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Zależy nam na tym, aby pielgrzymka zachowała swój prosty i modlitewny charakter. Chcemy iść bez pośpiechu,
+              z szacunkiem dla ciszy, z troską o piękno wspólnej modlitwy oraz liturgii. Staramy się wracać do dawnych
+              zwyczajów, pielęgnować tradycyjne śpiewy i dbać o skromność zarówno w drodze, jak i podczas noclegu.
+            </p>
+            <p>To właśnie ta prostota sprawia, że łatwiej usłyszeć to, co najważniejsze.</p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Ta pielgrzymka powstaje dzięki ludziom</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Kalwaria Zebrzydowska na Wielkanoc nie jest projektem budowanym odgórnie. Żyje dzięki ludziom, którzy
+              chcą włączyć się w jej przygotowanie: organizacyjnie, technicznie, muzycznie, logistycznie i modlitewnie.
+            </p>
+            <p>
+              Jeśli chcesz pomóc w tworzeniu tej pielgrzymki, skontaktuj się z nami. Jesteśmy otwarci na
+              zaangażowanie, własne pomysły i konkretną pomoc.
+            </p>
+            <div className="pilgrimage-quick-links">
+              <a className="ghost" href={`/#/event/${eventSlug}/kontakt`}>Zobacz kontakt</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Chcesz wyruszyć z nami?</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Zapoznaj się z planem pielgrzymki, przeczytaj najważniejsze informacje i zapisz się na najbliższą edycję.
+            </p>
+            <div className="pilgrimage-quick-links">
+              <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Przejdź do zapisów</a>
+              <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+            </div>
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Kal26FaqPage({ eventSlug }: { eventSlug: string }) {
+  const items: Array<{ question: string; answers: string[] }> = [
+    {
+      question: 'Czym jest ta pielgrzymka?',
+      answers: [
+        'Kalwaria Zebrzydowska na Wielkanoc to dwudniowa piesza pielgrzymka z Krakowa do Matki Bożej Kalwaryjskiej. Ma charakter modlitewny, wspólnotowy i skupiony. Jej centrum stanowią Tradycja, Cisza i Liturgia.'
+      ]
+    },
+    {
+      question: 'Kiedy odbywa się pielgrzymka?',
+      answers: ['Pielgrzymka odbędzie się w dniach 17–18 kwietnia 2026.']
+    },
+    {
+      question: 'Skąd wyruszamy?',
+      answers: [
+        'Pielgrzymkę rozpoczynamy w piątek o 15:30 Mszą Świętą w kościele św. Józefa w Krakowie na Podgórzu.'
+      ]
+    },
+    {
+      question: 'Dokąd idziemy pierwszego dnia?',
+      answers: ['Pierwszego dnia idziemy z Krakowa do Tyńca. Tam przewidziany jest nocleg.']
+    },
+    {
+      question: 'Dokąd idziemy drugiego dnia?',
+      answers: ['Drugiego dnia wychodzimy z Tyńca i idziemy do Kalwarii Zebrzydowskiej.']
+    },
+    {
+      question: 'Czy trzeba mieć doświadczenie pielgrzymkowe?',
+      answers: [
+        'Nie. Nie trzeba mieć wcześniejszego doświadczenia, ale trzeba być gotowym na pieszą drogę, prostsze warunki i modlitewny charakter pielgrzymki.'
+      ]
+    },
+    {
+      question: 'Czy to jest pielgrzymka dla każdego?',
+      answers: [
+        'Jest to pielgrzymka dla osób, które chcą wejść w jej duch: ciszy, modlitwy, prostoty i wspólnej drogi. To dobra propozycja dla tych, którzy szukają bardziej skupionej formy pielgrzymowania.'
+      ]
+    },
+    {
+      question: 'Jak wygląda nocleg?',
+      answers: [
+        'Nocleg przewidziany jest w Tyńcu. Szczegółowe informacje o jego formie oraz o tym, co trzeba ze sobą zabrać, będą przekazane zapisanym uczestnikom.'
+      ]
+    },
+    {
+      question: 'Co trzeba zabrać?',
+      answers: [
+        'Na pewno potrzebne będą: wygodne obuwie, ubranie odpowiednie do pogody, rzeczy osobiste, coś do siedzenia na postoju, a w przypadku noclegu także wyposażenie potrzebne na noc. Szczegółowa lista zostanie podana osobom zapisanym.'
+      ]
+    },
+    {
+      question: 'Czy będzie możliwość przewozu bagażu?',
+      answers: [
+        'W miarę możliwości organizacyjnych planowany jest przewóz części bagaży [do doprecyzowania zakres i zasady]. Dokładne informacje zostaną przekazane uczestnikom.'
+      ]
+    },
+    {
+      question: 'Czy udział jest płatny?',
+      answers: [
+        'Informacje o ewentualnych kosztach i składce organizacyjnej zostaną podane w aktualnej edycji zapisów [do uzupełnienia].'
+      ]
+    },
+    {
+      question: 'Czy można dołączyć tylko na część trasy?',
+      answers: [
+        'To zależy od zasad przyjętych na daną edycję. Jeśli chcesz dołączyć tylko na część drogi, skontaktuj się wcześniej z organizatorami.'
+      ]
+    },
+    {
+      question: 'Czy można wziąć udział tylko jednego dnia?',
+      answers: [
+        'To również zależy od organizacji konkretnej edycji. Najlepiej skontaktować się wcześniej z organizatorami.'
+      ]
+    },
+    {
+      question: 'Czy osoby niepełnoletnie mogą uczestniczyć?',
+      answers: ['To wymaga dodatkowych ustaleń oraz spełnienia warunków organizacyjnych [do doprecyzowania].']
+    },
+    {
+      question: 'Co jeśli pogoda będzie zła?',
+      answers: [
+        'Pielgrzymka odbywa się niezależnie od zwykłych warunków pogodowych, dlatego warto przygotować odpowiednie ubranie i zabezpieczenie przed deszczem lub chłodem. W przypadku wyjątkowych sytuacji organizatorzy przekażą uczestnikom odpowiednie informacje.'
+      ]
+    },
+    {
+      question: 'Czy podczas drogi jest czas na ciszę?',
+      answers: [
+        'Tak. Cisza jest jednym z ważnych elementów tej pielgrzymki. Obok wspólnej modlitwy i śpiewu przewidziany jest również czas na milczenie i modlitwę osobistą.'
+      ]
+    },
+    {
+      question: 'Czy na pielgrzymce jest tylko cisza?',
+      answers: [
+        'Nie. Pielgrzymka nie polega na całkowitym milczeniu. Są momenty wspólnej modlitwy, śpiewu, konferencji i rozmowy, ale jest też wyraźnie chroniona przestrzeń ciszy i skupienia.'
+      ]
+    },
+    {
+      question: 'Jak wygląda liturgia podczas pielgrzymki?',
+      answers: [
+        'Liturgia zajmuje centralne miejsce w całej pielgrzymce. Jej szczytem jest Msza Święta, a ważną częścią drogi są także wspólna modlitwa, śpiew i, w miarę możliwości, Liturgia Godzin.'
+      ]
+    },
+    {
+      question: 'Czy mogę pomóc w organizacji pielgrzymki?',
+      answers: [
+        'Tak. Pielgrzymka żyje dzięki zaangażowaniu ludzi. Jeśli chcesz pomóc organizacyjnie, technicznie, muzycznie, logistycznie lub w inny sposób, skontaktuj się z organizatorami.'
+      ]
+    },
+    {
+      question: 'Gdzie mogę zadać dodatkowe pytania?',
+      answers: ['Najprościej przez stronę kontaktową. Organizatorzy odpowiedzą na pytania dotyczące udziału i organizacji.']
+    }
+  ];
+
+  return (
+    <>
+      <section className="pilgrimage-hero">
+        <div className="pilgrimage-hero-main">
+          <h2>Najczęściej zadawane pytania</h2>
+          <p>Najważniejsze informacje o pielgrzymce w jednym miejscu</p>
+          <p>
+            Jeśli zastanawiasz się nad udziałem albo chcesz upewnić się, jak wygląda organizacja pielgrzymki, zacznij od
+            tej strony.
+          </p>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Pytania i odpowiedzi</h2>
+          <p>Kliknij pytanie, aby rozwinąć odpowiedź.</p>
+        </header>
+        <div className="pilgrimage-accordion">
+          {items.map((item) => (
+            <details key={item.question} className="pilgrimage-accordion-item">
+              <summary>{item.question}</summary>
+              {item.answers.map((answer) => (
+                <p key={`${item.question}-${answer}`}>{answer}</p>
+              ))}
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Nie znalazłeś odpowiedzi?</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>Jeśli Twoje pytanie nie pojawia się powyżej, napisz do nas. Chętnie pomożemy.</p>
+            <div className="pilgrimage-quick-links">
+              <a className="cta" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
+            </div>
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
+  return (
+    <>
+      <section className="pilgrimage-hero">
+        <div className="pilgrimage-hero-main">
+          <h2>Historia pielgrzymki</h2>
+          <p>Jak zrodziła się droga do Kalwarii Zebrzydowskiej na Wielkanoc</p>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Początek w roku 2020</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Historia tej pielgrzymki zaczyna się w roku 2020. Obostrzenia pandemiczne i związane z nimi trudności
+              sprawiły, że wiele osób nie mogło uczestniczyć w pielgrzymce krakowskiej. Sama potrzeba drogi, modlitwy i
+              pielgrzymowania jednak nie zniknęła.
+            </p>
+            <p>
+              Po kilku spotkaniach zrodziła się inicjatywa, aby pójść pieszo na Jasną Górę. Nie była to klasyczna
+              pielgrzymka, ale raczej prosty pielgrzymkowy spacer: w małych grupach, dwójkami i trójkami, z wyznaczonymi
+              miejscami spotkań. Było w tym dużo ciszy, dużo modlitwy osobistej i dużo wzajemnego wsparcia w drodze.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Od pragnienia drogi do konkretnej inicjatywy</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Kiedy wyruszaliśmy na ostatni odcinek tamtej drogi, zrodziło się pragnienie, aby także w przyszłości
+              organizować taki pielgrzymkowy spacer. Rzucony mimochodem termin — sobota po Niedzieli Miłosierdzia
+              Bożego — stał się początkiem pielgrzymki do Kalwarii Zebrzydowskiej.
+            </p>
+            <p>
+              Nie była to inicjatywa odgórna. Powstała z potrzeby ludzi, którzy pragnęli ciszy. W ciągu jednego tygodnia
+              zorganizowała się grupa 10 osób z parafii św. Maksymiliana. I tak, 17 kwietnia 2021 roku, wyruszyli oni z
+              Tyńca do Matki Bożej Kalwaryjskiej.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Pierwsze pielgrzymowanie</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Pierwsza pielgrzymka zakończyła się Mszą Świętą w kaplicy III Upadku. W kolejnych latach dołączali
+              pielgrzymi z następnych parafii, a sama droga zaczęła się rozwijać. Część uczestników wyruszała już z
+              centrum Krakowa — z Wawelu — a część z Tyńca, by razem iść do Kalwarii Zebrzydowskiej.
+            </p>
+            <p>
+              Z czasem rozeznaliśmy, że dłuższą trasę warto podzielić na dwa dni, aby pielgrzymka mogła zachować swój
+              modlitewny charakter i rytm. Tak ukształtowała się obecna forma: pierwszy dzień z Krakowa do Tyńca, drugi
+              dzień z Tyńca do Kalwarii Zebrzydowskiej.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Pielgrzymka, która wyrasta z potrzeby ciszy</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Ta pielgrzymka od początku nie była budowana wokół rozmachu, liczby atrakcji czy dużej oprawy. Powstała
+              oddolnie i do dziś zachowuje ten sam duch: prostotę, skupienie, modlitwę i otwartość na to, co naprawdę
+              istotne.
+            </p>
+            <p>
+              Jest próbą odzyskiwania przestrzeni na ciszę, na liturgię przeżywaną z uwagą, na drogę przeżywaną razem,
+              ale bez nadmiaru bodźców. To właśnie ten duch sprawia, że pielgrzymka pozostaje żywa i potrzebna.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>To, co kształtuje tę drogę</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>Od początku pielgrzymka koncentruje się wokół trzech słów: Tradycja, Cisza, Liturgia.</p>
+            <p>
+              Tradycja oznacza dla nas nie tylko pamięć o dawnych zwyczajach, ale żywe wejście w dziedzictwo Kościoła —
+              przez śpiew, modlitwę, prostotę i sposób przeżywania drogi.
+            </p>
+            <p>
+              Cisza oznacza pragnienie wewnętrznego skupienia i uwolnienia się od codziennego hałasu. Nie chodzi tylko o
+              brak słów, ale o stworzenie przestrzeni, w której człowiek może naprawdę być przed Bogiem.
+            </p>
+            <p>
+              Liturgia zajmuje miejsce centralne. Wszystko ma do niej prowadzić i z niej wypływać. To właśnie wokół niej
+              układa się sens tej pielgrzymki.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Patrzymy dalej</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Na razie pielgrzymka ma formę dwóch dni drogi połączonych noclegiem w Tyńcu. W kolejnych latach
+              chcielibyśmy rozwijać także część wieczorną: spotkania, warsztaty muzyczno-liturgiczne oraz wspólną
+              adorację Najświętszego Sakramentu — na tyle, na ile będzie to możliwe.
+            </p>
+            <p>
+              Zależy nam, aby pielgrzymka była nie tylko drogą do celu, ale także przestrzenią odkrywania piękna
+              modlitwy, liturgii i wspólnoty Kościoła.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="pilgrimage-section-block">
+        <header>
+          <h2>Ta historia wciąż się pisze</h2>
+        </header>
+        <div className="pilgrimage-card-grid">
+          <article className="pilgrimage-card">
+            <p>
+              Każda kolejna edycja pielgrzymki dopisuje do tej historii nowe osoby, nowe doświadczenia i nowe
+              świadectwa. Jeśli chcesz wyruszyć z nami, zapraszamy do wspólnej drogi.
+            </p>
+            <div className="pilgrimage-quick-links">
+              <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+              <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+            </div>
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
 export function Kal26EventPage({
   copy,
   language,
@@ -244,6 +779,7 @@ export function Kal26EventPage({
   event
 }: SharedEventPageProps & { page: EventInnerPage; event: EventDefinition }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const queryToken = useMemo(() => new URLSearchParams(location.search).get('token') ?? '', [location.search]);
   const [site, setSite] = useState<PilgrimageSite | null>(null);
   const [siteLoading, setSiteLoading] = useState(true);
@@ -555,6 +1091,11 @@ export function Kal26EventPage({
   useEffect(() => {
     setIsMenuOpen(false);
   }, [page.slug]);
+
+  useEffect(() => {
+    if (page.slug !== 'formalnosci') return;
+    navigate('/legal', { replace: true });
+  }, [navigate, page.slug]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -2044,78 +2585,69 @@ export function Kal26EventPage({
       </header>
 
       <main className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}`}>
-        {page.slug !== 'start' ? (
-          <aside className="kal-sidebar">
-            <a href="/#/event" className="ghost">{copy.events.backToEvents}</a>
-            <p>{site?.motto || 'Droga, wspolnota i modlitwa'}</p>
-            <div className="kal-page-links">
-              {event.pages.map((item) => (
-                <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
-                  {item.title}
-                </a>
-              ))}
-            </div>
-          </aside>
-        ) : null}
-
         <section className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}`}>
-          {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
-          {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
-          {!siteLoading && !siteError && site ? (
-            <>
-              {page.slug !== 'start' ? (
-                <>
-                  <section className="pilgrimage-hero">
-                    <div className="pilgrimage-hero-main">
-                      <p className="pilgrimage-hero-kicker">Pilgrimage route</p>
-                      <h2>{site.site.public.heroTitle}</h2>
-                      <p>{site.site.public.heroSubtitle}</p>
-                      <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
-                      <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
-                      <div className="pilgrimage-quick-links">
-                        <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
-                        <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
-                        <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
+          {page.slug === 'niezbednik' ? <Kal26InformationPage eventSlug={event.slug} /> : null}
+          {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
+          {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
+          <div style={{ display: 'none' }} aria-hidden="true">
+            {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
+            {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
+            {!siteLoading && !siteError && site ? (
+              <>
+                {page.slug !== 'start' ? (
+                  <>
+                    <section className="pilgrimage-hero">
+                      <div className="pilgrimage-hero-main">
+                        <p className="pilgrimage-hero-kicker">Pilgrimage route</p>
+                        <h2>{site.site.public.heroTitle}</h2>
+                        <p>{site.site.public.heroSubtitle}</p>
+                        <p className="pilgrimage-hero-route">{site.site.public.routeLabel}</p>
+                        <p className="pilgrimage-hero-date">{site.site.public.dateLabel}</p>
+                        <div className="pilgrimage-quick-links">
+                          <a className="cta" href={`/#/event/${event.slug}/zapisy`}>Sign up</a>
+                          <a className="ghost" href={`/#/event/${event.slug}/program`}>Program</a>
+                          <a className="ghost" href={`/#/event/${event.slug}/uczestnik`}>Participant zone</a>
+                        </div>
+                        {!site.isProvisioned ? (
+                          <p className="pilgrimage-warning">
+                            This event is in preview mode. To enable registrations and organizer dashboard, provision it via `POST /pilgrimage`.
+                          </p>
+                        ) : null}
                       </div>
-                      {!site.isProvisioned ? (
-                        <p className="pilgrimage-warning">
-                          This event is in preview mode. To enable registrations and organizer dashboard, provision it via `POST /pilgrimage`.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="pilgrimage-hero-visual">
-                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--a" />
-                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--b" />
-                      <div className="pilgrimage-hero-photo pilgrimage-hero-photo--c" />
-                    </div>
-                  </section>
+                      <div className="pilgrimage-hero-visual">
+                        <div className="pilgrimage-hero-photo pilgrimage-hero-photo--a" />
+                        <div className="pilgrimage-hero-photo pilgrimage-hero-photo--b" />
+                        <div className="pilgrimage-hero-photo pilgrimage-hero-photo--c" />
+                      </div>
+                    </section>
 
-                  <section className="pilgrimage-hero-facts">
-                    {site.site.public.heroFacts.map((fact) => (
-                      <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
-                        <h3>{fact.title}</h3>
-                        <p>{fact.body}</p>
-                        {fact.meta ? <small>{fact.meta}</small> : null}
+                    <section className="pilgrimage-hero-facts">
+                      {site.site.public.heroFacts.map((fact) => (
+                        <article key={fact.id} className={`pilgrimage-card pilgrimage-card--${fact.accent ?? 'default'}`}>
+                          <h3>{fact.title}</h3>
+                          <p>{fact.body}</p>
+                          {fact.meta ? <small>{fact.meta}</small> : null}
+                        </article>
+                      ))}
+                      <article className="pilgrimage-card pilgrimage-card--blue">
+                        <h3>Private participant access</h3>
+                        <p>After registration, each participant gets an individual SMS link to their zone.</p>
                       </article>
-                    ))}
-                    <article className="pilgrimage-card pilgrimage-card--blue">
-                      <h3>Private participant access</h3>
-                      <p>After registration, each participant gets an individual SMS link to their zone.</p>
-                    </article>
-                  </section>
-                </>
-              ) : null}
+                    </section>
+                  </>
+                ) : null}
 
-              {page.slug === 'uczestnik' ? renderParticipantPage() : null}
-              {page.slug === 'organizator' ? renderOrganizerPage() : null}
-              {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
-              {!['uczestnik', 'organizator', 'start'].includes(page.slug) ? (
-                <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
-                  Zapisz sie
-                </a>
-              ) : null}
-            </>
-          ) : null}
+                {page.slug === 'uczestnik' ? renderParticipantPage() : null}
+                {page.slug === 'organizator' ? renderOrganizerPage() : null}
+                {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
+                {!['uczestnik', 'organizator', 'start'].includes(page.slug) ? (
+                  <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
+                    Zapisz sie
+                  </a>
+                ) : null}
+              </>
+            ) : null}
+          </div>
         </section>
       </main>
 
@@ -2123,7 +2655,7 @@ export function Kal26EventPage({
         <a href="/#/" className="kal-logo">Recreatio</a>
         <nav className="kal-footer-links" aria-label="Footer navigation">
           <a href={`/#/event/${event.slug}/kontakt`}>Kontakt</a>
-          <a href={`/#/event/${event.slug}/formalnosci`}>Regulamin i RODO</a>
+          <a href="/#/legal">Regulamin i RODO</a>
         </nav>
       </footer>
     </div>
