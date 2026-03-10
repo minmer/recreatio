@@ -344,201 +344,174 @@ function Kal26FaqPage({ eventSlug }: { eventSlug: string }) {
   ];
 
   return (
-    <>
-      <section className="pilgrimage-hero">
-        <div className="pilgrimage-hero-main">
-          <h2>Najczęściej zadawane pytania</h2>
-          <p>Najważniejsze informacje o pielgrzymce w jednym miejscu</p>
-          <p>
-            Jeśli zastanawiasz się nad udziałem albo chcesz upewnić się, jak wygląda organizacja pielgrzymki, zacznij od
-            tej strony.
-          </p>
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <p className="kal-text-breadcrumb">
+          <a href="/#/">Home</a>
+          <span>/</span>
+          <strong>FAQ</strong>
+        </p>
+        <h1>FAQ</h1>
+        <p>Najczęściej zadawane pytania i odpowiedzi dotyczące udziału, organizacji i charakteru pielgrzymki.</p>
+        <ul>
+          <li>20 odpowiedzi na najczęstsze pytania</li>
+          <li>Informacje praktyczne przed zapisem</li>
+          <li>Szybki kontakt z organizatorami</li>
+        </ul>
+        <div className="kal-text-actions">
+          <a className="ghost" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
         </div>
-      </section>
+      </aside>
 
-      <section className="pilgrimage-section-block">
-        <header>
+      <div className="kal-text-content">
+        <section className="kal-text-section">
           <h2>Pytania i odpowiedzi</h2>
           <p>Kliknij pytanie, aby rozwinąć odpowiedź.</p>
-        </header>
-        <div className="pilgrimage-accordion">
-          {items.map((item) => (
-            <details key={item.question} className="pilgrimage-accordion-item">
-              <summary>{item.question}</summary>
-              {item.answers.map((answer) => (
-                <p key={`${item.question}-${answer}`}>{answer}</p>
-              ))}
-            </details>
-          ))}
-        </div>
-      </section>
+          <div className="kal-text-faq">
+            {items.map((item) => (
+              <details key={item.question}>
+                <summary>{item.question}</summary>
+                {item.answers.map((answer) => (
+                  <p key={`${item.question}-${answer}`}>{answer}</p>
+                ))}
+              </details>
+            ))}
+          </div>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Nie znalazłeś odpowiedzi?</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>Jeśli Twoje pytanie nie pojawia się powyżej, napisz do nas. Chętnie pomożemy.</p>
-            <div className="pilgrimage-quick-links">
-              <a className="cta" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
-            </div>
-          </article>
-        </div>
-      </section>
-    </>
+          <p>Jeśli Twoje pytanie nie pojawia się powyżej, napisz do nas. Chętnie pomożemy.</p>
+          <div className="kal-text-actions">
+            <a className="cta" href={`/#/event/${eventSlug}/kontakt`}>Skontaktuj się z nami</a>
+          </div>
+        </section>
+      </div>
+    </div>
   );
 }
 
 function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
   return (
-    <>
-      <section className="pilgrimage-hero">
-        <div className="pilgrimage-hero-main">
-          <h2>Historia pielgrzymki</h2>
-          <p>Jak zrodziła się droga do Kalwarii Zebrzydowskiej na Wielkanoc</p>
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <p className="kal-text-breadcrumb">
+          <a href="/#/">Home</a>
+          <span>/</span>
+          <strong>History</strong>
+        </p>
+        <h1>Historia pielgrzymki</h1>
+        <p>Jak zrodziła się droga do Kalwarii Zebrzydowskiej na Wielkanoc i jak dojrzewała jej obecna forma.</p>
+        <ul>
+          <li>Początek: rok 2020</li>
+          <li>Pierwsza edycja: 17.04.2021</li>
+          <li>Duch drogi: Tradycja, Cisza, Liturgia</li>
+        </ul>
+        <div className="kal-text-actions">
+          <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+          <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
         </div>
-      </section>
+      </aside>
 
-      <section className="pilgrimage-section-block">
-        <header>
+      <div className="kal-text-content">
+        <section className="kal-text-section">
           <h2>Początek w roku 2020</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Historia tej pielgrzymki zaczyna się w roku 2020. Obostrzenia pandemiczne i związane z nimi trudności
-              sprawiły, że wiele osób nie mogło uczestniczyć w pielgrzymce krakowskiej. Sama potrzeba drogi, modlitwy i
-              pielgrzymowania jednak nie zniknęła.
-            </p>
-            <p>
-              Po kilku spotkaniach zrodziła się inicjatywa, aby pójść pieszo na Jasną Górę. Nie była to klasyczna
-              pielgrzymka, ale raczej prosty pielgrzymkowy spacer: w małych grupach, dwójkami i trójkami, z wyznaczonymi
-              miejscami spotkań. Było w tym dużo ciszy, dużo modlitwy osobistej i dużo wzajemnego wsparcia w drodze.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>
+            Historia tej pielgrzymki zaczyna się w roku 2020. Obostrzenia pandemiczne i związane z nimi trudności
+            sprawiły, że wiele osób nie mogło uczestniczyć w pielgrzymce krakowskiej. Sama potrzeba drogi, modlitwy i
+            pielgrzymowania jednak nie zniknęła.
+          </p>
+          <p>
+            Po kilku spotkaniach zrodziła się inicjatywa, aby pójść pieszo na Jasną Górę. Nie była to klasyczna
+            pielgrzymka, ale raczej prosty pielgrzymkowy spacer: w małych grupach, dwójkami i trójkami, z wyznaczonymi
+            miejscami spotkań. Było w tym dużo ciszy, dużo modlitwy osobistej i dużo wzajemnego wsparcia w drodze.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Od pragnienia drogi do konkretnej inicjatywy</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Kiedy wyruszaliśmy na ostatni odcinek tamtej drogi, zrodziło się pragnienie, aby także w przyszłości
-              organizować taki pielgrzymkowy spacer. Rzucony mimochodem termin — sobota po Niedzieli Miłosierdzia
-              Bożego — stał się początkiem pielgrzymki do Kalwarii Zebrzydowskiej.
-            </p>
-            <p>
-              Nie była to inicjatywa odgórna. Powstała z potrzeby ludzi, którzy pragnęli ciszy. W ciągu jednego tygodnia
-              zorganizowała się grupa 10 osób z parafii św. Maksymiliana. I tak, 17 kwietnia 2021 roku, wyruszyli oni z
-              Tyńca do Matki Bożej Kalwaryjskiej.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>
+            Kiedy wyruszaliśmy na ostatni odcinek tamtej drogi, zrodziło się pragnienie, aby także w przyszłości
+            organizować taki pielgrzymkowy spacer. Rzucony mimochodem termin — sobota po Niedzieli Miłosierdzia Bożego —
+            stał się początkiem pielgrzymki do Kalwarii Zebrzydowskiej.
+          </p>
+          <p>
+            Nie była to inicjatywa odgórna. Powstała z potrzeby ludzi, którzy pragnęli ciszy. W ciągu jednego tygodnia
+            zorganizowała się grupa 10 osób z parafii św. Maksymiliana. I tak, 17 kwietnia 2021 roku, wyruszyli oni z
+            Tyńca do Matki Bożej Kalwaryjskiej.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Pierwsze pielgrzymowanie</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Pierwsza pielgrzymka zakończyła się Mszą Świętą w kaplicy III Upadku. W kolejnych latach dołączali
-              pielgrzymi z następnych parafii, a sama droga zaczęła się rozwijać. Część uczestników wyruszała już z
-              centrum Krakowa — z Wawelu — a część z Tyńca, by razem iść do Kalwarii Zebrzydowskiej.
-            </p>
-            <p>
-              Z czasem rozeznaliśmy, że dłuższą trasę warto podzielić na dwa dni, aby pielgrzymka mogła zachować swój
-              modlitewny charakter i rytm. Tak ukształtowała się obecna forma: pierwszy dzień z Krakowa do Tyńca, drugi
-              dzień z Tyńca do Kalwarii Zebrzydowskiej.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>
+            Pierwsza pielgrzymka zakończyła się Mszą Świętą w kaplicy III Upadku. W kolejnych latach dołączali pielgrzymi
+            z następnych parafii, a sama droga zaczęła się rozwijać. Część uczestników wyruszała już z centrum Krakowa —
+            z Wawelu — a część z Tyńca, by razem iść do Kalwarii Zebrzydowskiej.
+          </p>
+          <p>
+            Z czasem rozeznaliśmy, że dłuższą trasę warto podzielić na dwa dni, aby pielgrzymka mogła zachować swój
+            modlitewny charakter i rytm. Tak ukształtowała się obecna forma: pierwszy dzień z Krakowa do Tyńca, drugi
+            dzień z Tyńca do Kalwarii Zebrzydowskiej.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Pielgrzymka, która wyrasta z potrzeby ciszy</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Ta pielgrzymka od początku nie była budowana wokół rozmachu, liczby atrakcji czy dużej oprawy. Powstała
-              oddolnie i do dziś zachowuje ten sam duch: prostotę, skupienie, modlitwę i otwartość na to, co naprawdę
-              istotne.
-            </p>
-            <p>
-              Jest próbą odzyskiwania przestrzeni na ciszę, na liturgię przeżywaną z uwagą, na drogę przeżywaną razem,
-              ale bez nadmiaru bodźców. To właśnie ten duch sprawia, że pielgrzymka pozostaje żywa i potrzebna.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>
+            Ta pielgrzymka od początku nie była budowana wokół rozmachu, liczby atrakcji czy dużej oprawy. Powstała
+            oddolnie i do dziś zachowuje ten sam duch: prostotę, skupienie, modlitwę i otwartość na to, co naprawdę
+            istotne.
+          </p>
+          <p>
+            Jest próbą odzyskiwania przestrzeni na ciszę, na liturgię przeżywaną z uwagą, na drogę przeżywaną razem, ale
+            bez nadmiaru bodźców. To właśnie ten duch sprawia, że pielgrzymka pozostaje żywa i potrzebna.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>To, co kształtuje tę drogę</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>Od początku pielgrzymka koncentruje się wokół trzech słów: Tradycja, Cisza, Liturgia.</p>
-            <p>
-              Tradycja oznacza dla nas nie tylko pamięć o dawnych zwyczajach, ale żywe wejście w dziedzictwo Kościoła —
-              przez śpiew, modlitwę, prostotę i sposób przeżywania drogi.
-            </p>
-            <p>
-              Cisza oznacza pragnienie wewnętrznego skupienia i uwolnienia się od codziennego hałasu. Nie chodzi tylko o
-              brak słów, ale o stworzenie przestrzeni, w której człowiek może naprawdę być przed Bogiem.
-            </p>
-            <p>
-              Liturgia zajmuje miejsce centralne. Wszystko ma do niej prowadzić i z niej wypływać. To właśnie wokół niej
-              układa się sens tej pielgrzymki.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>Od początku pielgrzymka koncentruje się wokół trzech słów: Tradycja, Cisza, Liturgia.</p>
+          <p>
+            Tradycja oznacza dla nas nie tylko pamięć o dawnych zwyczajach, ale żywe wejście w dziedzictwo Kościoła —
+            przez śpiew, modlitwę, prostotę i sposób przeżywania drogi.
+          </p>
+          <p>
+            Cisza oznacza pragnienie wewnętrznego skupienia i uwolnienia się od codziennego hałasu. Nie chodzi tylko o
+            brak słów, ale o stworzenie przestrzeni, w której człowiek może naprawdę być przed Bogiem.
+          </p>
+          <p>
+            Liturgia zajmuje miejsce centralne. Wszystko ma do niej prowadzić i z niej wypływać. To właśnie wokół niej
+            układa się sens tej pielgrzymki.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Patrzymy dalej</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Na razie pielgrzymka ma formę dwóch dni drogi połączonych noclegiem w Tyńcu. W kolejnych latach
-              chcielibyśmy rozwijać także część wieczorną: spotkania, warsztaty muzyczno-liturgiczne oraz wspólną
-              adorację Najświętszego Sakramentu — na tyle, na ile będzie to możliwe.
-            </p>
-            <p>
-              Zależy nam, aby pielgrzymka była nie tylko drogą do celu, ale także przestrzenią odkrywania piękna
-              modlitwy, liturgii i wspólnoty Kościoła.
-            </p>
-          </article>
-        </div>
-      </section>
+          <p>
+            Na razie pielgrzymka ma formę dwóch dni drogi połączonych noclegiem w Tyńcu. W kolejnych latach chcielibyśmy
+            rozwijać także część wieczorną: spotkania, warsztaty muzyczno-liturgiczne oraz wspólną adorację Najświętszego
+            Sakramentu — na tyle, na ile będzie to możliwe.
+          </p>
+          <p>
+            Zależy nam, aby pielgrzymka była nie tylko drogą do celu, ale także przestrzenią odkrywania piękna modlitwy,
+            liturgii i wspólnoty Kościoła.
+          </p>
+        </section>
 
-      <section className="pilgrimage-section-block">
-        <header>
+        <section className="kal-text-section">
           <h2>Ta historia wciąż się pisze</h2>
-        </header>
-        <div className="pilgrimage-card-grid">
-          <article className="pilgrimage-card">
-            <p>
-              Każda kolejna edycja pielgrzymki dopisuje do tej historii nowe osoby, nowe doświadczenia i nowe
-              świadectwa. Jeśli chcesz wyruszyć z nami, zapraszamy do wspólnej drogi.
-            </p>
-            <div className="pilgrimage-quick-links">
-              <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
-              <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
-            </div>
-          </article>
-        </div>
-      </section>
-    </>
+          <p>
+            Każda kolejna edycja pielgrzymki dopisuje do tej historii nowe osoby, nowe doświadczenia i nowe świadectwa.
+            Jeśli chcesz wyruszyć z nami, zapraszamy do wspólnej drogi.
+          </p>
+          <div className="kal-text-actions">
+            <a className="cta" href={`/#/event/${eventSlug}/zapisy`}>Zapisz się</a>
+            <a className="ghost" href={`/#/event/${eventSlug}/plan`}>Zobacz plan</a>
+          </div>
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -2304,10 +2277,6 @@ export function Kal26EventPage({
     );
   };
 
-  if (page.slug === 'niezbednik') {
-    return <InformationPage eventSlug={event.slug} />;
-  }
-
   return (
     <div className="event-page kal-page">
       <header className={`kal-header${isHeaderCompact ? ' is-compact' : ''}${page.slug === 'start' ? ' kal-header--overlay' : ''}`}>
@@ -2376,6 +2345,7 @@ export function Kal26EventPage({
               </div>
             </section>
           ) : null}
+          {page.slug === 'niezbednik' ? <InformationPage eventSlug={event.slug} /> : null}
           {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
           {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
           <div style={{ display: 'none' }} aria-hidden="true">
