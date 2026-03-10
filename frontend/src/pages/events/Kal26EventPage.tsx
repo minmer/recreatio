@@ -346,11 +346,6 @@ function Kal26FaqPage({ eventSlug }: { eventSlug: string }) {
   return (
     <div className="kal-text-layout">
       <aside className="kal-text-sidebar">
-        <p className="kal-text-breadcrumb">
-          <a href="/#/">Home</a>
-          <span>/</span>
-          <strong>FAQ</strong>
-        </p>
         <h1>FAQ</h1>
         <p>Najczęściej zadawane pytania i odpowiedzi dotyczące udziału, organizacji i charakteru pielgrzymki.</p>
         <ul>
@@ -395,11 +390,6 @@ function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
   return (
     <div className="kal-text-layout">
       <aside className="kal-text-sidebar">
-        <p className="kal-text-breadcrumb">
-          <a href="/#/">Home</a>
-          <span>/</span>
-          <strong>History</strong>
-        </p>
         <h1>Historia pielgrzymki</h1>
         <p>Jak zrodziła się droga do Kalwarii Zebrzydowskiej na Wielkanoc i jak dojrzewała jej obecna forma.</p>
         <ul>
@@ -530,6 +520,7 @@ export function Kal26EventPage({
   page,
   event
 }: SharedEventPageProps & { page: EventInnerPage; event: EventDefinition }) {
+  const isTextPage = page.slug === 'niezbednik' || page.slug === 'faq' || page.slug === 'o-pielgrzymce';
   const location = useLocation();
   const navigate = useNavigate();
   const queryToken = useMemo(() => new URLSearchParams(location.search).get('token') ?? '', [location.search]);
@@ -2337,7 +2328,9 @@ export function Kal26EventPage({
       </header>
 
       <main className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}`}>
-        <section className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}`}>
+        <section
+          className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}${isTextPage ? ' kal-content--plain' : ''}`}
+        >
           {page.slug === 'start' ? (
             <section className="pilgrimage-start-stage" aria-label="Wielkanocna Kalwaria background">
               <div className="start-graphic-wrap">

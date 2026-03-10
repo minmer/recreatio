@@ -231,7 +231,7 @@
 }
 
 .kal-page {
-  background: linear-gradient(180deg, #eff7ef 0%, #e3efe0 52%, #dae9df 100%);
+  background: #ffffff;
 }
 
 .kal-header {
@@ -413,6 +413,13 @@
   border-radius: 16px;
   padding: 1rem;
   line-height: 1.62;
+}
+
+.kal-content--plain {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .kal-content h2 {

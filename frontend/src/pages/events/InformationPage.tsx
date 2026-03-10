@@ -63,11 +63,6 @@ export function InformationPage({ eventSlug }: { eventSlug: string }) {
   return (
     <div className="kal-text-layout">
       <aside className="kal-text-sidebar">
-        <p className="kal-text-breadcrumb">
-          <a href="/#/">Home</a>
-          <span>/</span>
-          <strong>Information</strong>
-        </p>
         <h1>Information</h1>
         <p>
           Najważniejsze informacje o pielgrzymce w jednym miejscu. Układ strony prowadzi od podstawowych faktów do
