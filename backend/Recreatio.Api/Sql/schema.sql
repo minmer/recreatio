@@ -1121,9 +1121,6 @@ CREATE TABLE dbo.CogitaDependencyGraphs
 );
 GO
 
-CREATE INDEX IX_CogitaDependencyGraphs_Library ON dbo.CogitaDependencyGraphs(LibraryId, IsActive, UpdatedUtc DESC);
-GO
-
 IF COL_LENGTH('dbo.CogitaDependencyGraphs', 'Name') IS NULL
 BEGIN
     ALTER TABLE dbo.CogitaDependencyGraphs ADD Name NVARCHAR(200) NOT NULL CONSTRAINT DF_CogitaDependencyGraphs_Name_Migrate DEFAULT (N'Dependency graph');
@@ -1926,7 +1923,7 @@ CREATE TABLE dbo.CogitaDependencyEdges
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaDependencyEdges_ParentCard FOREIGN KEY (ParentCardId) REFERENCES dbo.CogitaCheckcardDefinitions(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaDependencyEdges_ChildCard FOREIGN KEY (ChildCardId) REFERENCES dbo.CogitaCheckcardDefinitions(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaDependencyEdges_ChildCard FOREIGN KEY (ChildCardId) REFERENCES dbo.CogitaCheckcardDefinitions(Id),
     CONSTRAINT UX_CogitaDependencyEdges_Link UNIQUE (ParentCardId, ChildCardId)
 );
 GO
@@ -2032,7 +2029,7 @@ CREATE TABLE dbo.CogitaRunAttempts
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaRunAttempts_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaRunAttempts_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id) ON DELETE CASCADE
+    CONSTRAINT FK_CogitaRunAttempts_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id)
 );
 GO
 
@@ -2052,7 +2049,7 @@ CREATE TABLE dbo.CogitaRunExposures
     WasSkipped BIT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaRunExposures_Run FOREIGN KEY (RunId) REFERENCES dbo.CogitaRevisionRuns(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaRunExposures_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id) ON DELETE CASCADE
+    CONSTRAINT FK_CogitaRunExposures_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaRunParticipants(Id)
 );
 GO
 

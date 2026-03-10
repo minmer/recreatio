@@ -126,7 +126,16 @@ export const en: Copy = {
     openEvent: 'Open event',
     backToEvents: 'All events',
     unknownEvent: 'Event not found.',
-    unknownPage: 'This inner page does not exist for the selected event.'
+    unknownPage: 'This inner page does not exist for the selected event.',
+    kal26Header: {
+      information: 'INFORMATION',
+      plan: 'PLAN',
+      register: 'REGISTER',
+      faq: 'FAQ',
+      history: 'HISTORY',
+      gallery: 'GALLERY',
+      contact: 'CONTACT'
+    }
   },
   limanowa: {
     slideTitle: 'Limanowa region',

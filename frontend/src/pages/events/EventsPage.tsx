@@ -43,6 +43,32 @@ const EVENTS: EventDefinition[] = [
   }
 ];
 
+const KAL26_ROUTE_ALIASES: Record<string, string> = {
+  // Information
+  informacje: 'niezbednik',
+  information: 'niezbednik',
+  informationen: 'niezbednik',
+  // Plan
+  plan: 'program',
+  // Register
+  zapisy: 'zapisy',
+  register: 'zapisy',
+  anmeldung: 'zapisy',
+  // FAQ
+  faq: 'faq',
+  // History
+  historia: 'o-pielgrzymce',
+  history: 'o-pielgrzymce',
+  geschichte: 'o-pielgrzymce',
+  // Gallery
+  galeria: 'galeria',
+  gallery: 'galeria',
+  galerie: 'galeria',
+  // Contact
+  kontakt: 'kontakt',
+  contact: 'kontakt'
+};
+
 type EventPageRendererProps = SharedEventPageProps & { event: EventDefinition; page: EventInnerPage };
 
 const EVENT_PAGE_RENDERERS: Record<
@@ -64,11 +90,7 @@ export function EventsPage(props: SharedEventPageProps) {
   const selectedEvent = selectedEventSlug ? EVENTS.find((entry) => entry.slug === selectedEventSlug) ?? null : null;
   const selectedPageSlug =
     selectedEvent?.slug === 'kal26'
-      ? ({
-          informacje: 'niezbednik',
-          plan: 'program',
-          historia: 'o-pielgrzymce'
-        }[selectedPageSlugRaw ?? ''] ?? selectedPageSlugRaw)
+      ? (KAL26_ROUTE_ALIASES[selectedPageSlugRaw ?? ''] ?? selectedPageSlugRaw)
       : selectedPageSlugRaw;
   const defaultPage = selectedEvent?.pages[0] ?? null;
   const selectedInnerPage =

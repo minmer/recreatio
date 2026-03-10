@@ -126,7 +126,16 @@ export const de: Copy = {
     openEvent: 'Ereignis öffnen',
     backToEvents: 'Alle Ereignisse',
     unknownEvent: 'Ereignis wurde nicht gefunden.',
-    unknownPage: 'Diese Unterseite existiert für das gewählte Ereignis nicht.'
+    unknownPage: 'Diese Unterseite existiert für das gewählte Ereignis nicht.',
+    kal26Header: {
+      information: 'INFORMATIONEN',
+      plan: 'PLAN',
+      register: 'ANMELDUNG',
+      faq: 'FAQ',
+      history: 'GESCHICHTE',
+      gallery: 'GALERIE',
+      contact: 'KONTAKT'
+    }
   },
   limanowa: {
     slideTitle: 'Region Limanowa',

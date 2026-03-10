@@ -126,7 +126,16 @@ export const pl: Copy = {
     openEvent: 'Otwórz wydarzenie',
     backToEvents: 'Wszystkie wydarzenia',
     unknownEvent: 'Nie znaleziono wydarzenia.',
-    unknownPage: 'Ta podstrona nie istnieje dla wybranego wydarzenia.'
+    unknownPage: 'Ta podstrona nie istnieje dla wybranego wydarzenia.',
+    kal26Header: {
+      information: 'INFORMACJE',
+      plan: 'PLAN',
+      register: 'ZAPISY',
+      faq: 'FAQ',
+      history: 'HISTORIA',
+      gallery: 'GALERIA',
+      contact: 'KONTAKT'
+    }
   },
   limanowa: {
     slideTitle: 'Region Limanowej',

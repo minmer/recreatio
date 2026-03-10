@@ -88,6 +88,15 @@ export type Copy = {
     backToEvents: string;
     unknownEvent: string;
     unknownPage: string;
+    kal26Header: {
+      information: string;
+      plan: string;
+      register: string;
+      faq: string;
+      history: string;
+      gallery: string;
+      contact: string;
+    };
   };
   limanowa: {
     slideTitle: string;

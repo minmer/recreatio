@@ -513,16 +513,44 @@ export function Kal26EventPage({
   ]);
 
   const signupSection = sectionById('zapisy');
+  const kal26HeaderCopy = copy.events.kal26Header;
   const headerMenuPages = [
-    { slug: 'o-pielgrzymce', label: 'INFORMACJE' },
-    { slug: 'program', label: 'PROGRAM' },
-    { slug: 'zapisy', label: 'REJESTRACJA' },
-    { slug: 'uczestnik', label: 'GRUPY' },
-    { slug: 'faq', label: 'FAQ' },
-    { slug: 'formalnosci', label: 'POBIERZ' },
-    { slug: 'galeria', label: 'HISTORIA' },
-    { slug: 'kontakt', label: 'WSPARCIE' }
-  ];
+    {
+      targetSlug: 'niezbednik',
+      localizedSlug: { pl: 'informacje', en: 'information', de: 'informationen' },
+      label: kal26HeaderCopy.information
+    },
+    {
+      targetSlug: 'program',
+      localizedSlug: { pl: 'plan', en: 'plan', de: 'plan' },
+      label: kal26HeaderCopy.plan
+    },
+    {
+      targetSlug: 'zapisy',
+      localizedSlug: { pl: 'zapisy', en: 'register', de: 'anmeldung' },
+      label: kal26HeaderCopy.register
+    },
+    {
+      targetSlug: 'faq',
+      localizedSlug: { pl: 'faq', en: 'faq', de: 'faq' },
+      label: kal26HeaderCopy.faq
+    },
+    {
+      targetSlug: 'o-pielgrzymce',
+      localizedSlug: { pl: 'historia', en: 'history', de: 'geschichte' },
+      label: kal26HeaderCopy.history
+    },
+    {
+      targetSlug: 'galeria',
+      localizedSlug: { pl: 'galeria', en: 'gallery', de: 'galerie' },
+      label: kal26HeaderCopy.gallery
+    },
+    {
+      targetSlug: 'kontakt',
+      localizedSlug: { pl: 'kontakt', en: 'contact', de: 'kontakt' },
+      label: kal26HeaderCopy.contact
+    }
+  ] as const;
 
   useEffect(() => {
     setIsMenuOpen(false);
@@ -1964,7 +1992,11 @@ export function Kal26EventPage({
         </a>
         <nav className="kal-top-nav kal-top-nav--desktop" aria-label="Pilgrimage sections">
           {headerMenuPages.map((item) => (
-            <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+            <a
+              key={item.targetSlug}
+              href={`/#/event/${event.slug}/${item.localizedSlug[language]}`}
+              className={item.targetSlug === page.slug ? 'active' : ''}
+            >
               {item.label}
             </a>
           ))}
@@ -1984,7 +2016,11 @@ export function Kal26EventPage({
           {isMenuOpen ? (
             <nav className="kal-menu-dropdown" aria-label="Pilgrimage sections">
               {headerMenuPages.map((item) => (
-                <a key={item.slug} href={`/#/event/${event.slug}/${item.slug}`} className={item.slug === page.slug ? 'active' : ''}>
+                <a
+                  key={item.targetSlug}
+                  href={`/#/event/${event.slug}/${item.localizedSlug[language]}`}
+                  className={item.targetSlug === page.slug ? 'active' : ''}
+                >
                   {item.label}
                 </a>
               ))}
