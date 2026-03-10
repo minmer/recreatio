@@ -1775,6 +1775,7 @@ export function ParishPage({
   const [confirmationFormError, setConfirmationFormError] = useState<string | null>(null);
   const [confirmationFormSuccess, setConfirmationFormSuccess] = useState<string | null>(null);
   const [confirmationVerifyInfo, setConfirmationVerifyInfo] = useState<string | null>(null);
+  const [confirmationVerifyTone, setConfirmationVerifyTone] = useState<'success' | 'error' | 'notice'>('success');
   const [confirmationSubmitting, setConfirmationSubmitting] = useState(false);
   const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
@@ -2148,20 +2149,28 @@ export function ParishPage({
     verifyParishConfirmationPhone(parishSlug, token)
       .then((result) => {
         if (result.status === 'verified') {
-          setConfirmationVerifyInfo('Numer telefonu został potwierdzony.');
+          setConfirmationVerifyTone('success');
+          setConfirmationVerifyInfo(
+            'Numer telefonu został potwierdzony. Dziękujemy. Nie wysyłaj ponownie formularza zgłoszeniowego dla tej samej osoby.'
+          );
         } else if (result.status === 'already-verified') {
-          setConfirmationVerifyInfo('Ten numer telefonu był już wcześniej potwierdzony.');
+          setConfirmationVerifyTone('notice');
+          setConfirmationVerifyInfo(
+            'Ten numer telefonu był już wcześniej potwierdzony. Nie wysyłaj ponownie formularza zgłoszeniowego, aby uniknąć duplikatów.'
+          );
         } else {
-          setConfirmationVerifyInfo('Link weryfikacyjny jest nieprawidłowy.');
+          setConfirmationVerifyTone('error');
+          setConfirmationVerifyInfo('Link weryfikacyjny jest nieprawidłowy. Skontaktuj się z parafią, aby otrzymać nowy link.');
         }
       })
       .catch(() => {
-        setConfirmationVerifyInfo('Nie udało się potwierdzić numeru telefonu.');
+        setConfirmationVerifyTone('error');
+        setConfirmationVerifyInfo('Nie udało się potwierdzić numeru telefonu. Spróbuj ponownie później lub skontaktuj się z parafią.');
       })
       .finally(() => {
-        navigate(location.pathname, { replace: true });
+        navigate(`/parish/${parishSlug}/confirmation/overall`, { replace: true });
       });
-  }, [isConfirmationSubpage, confirmationPathSection, parishSlug, location.pathname, location.search, navigate]);
+  }, [isConfirmationSubpage, confirmationPathSection, parishSlug, location.search, navigate]);
 
   useEffect(() => {
     if (!isConfirmationSubpage || !isAuthenticated || !parish) {
@@ -2174,7 +2183,7 @@ export function ParishPage({
   useEffect(() => {
     if (!isConfirmationSubpage || !parishSlug) return;
     if (isKnownConfirmationSectionPath(confirmationPathSection)) return;
-    const nextSection = location.search.includes('verifyPhone=') ? 'form' : 'overall';
+    const nextSection = 'overall';
     navigate(`/parish/${parishSlug}/confirmation/${nextSection}${location.search}`, { replace: true });
   }, [isConfirmationSubpage, parishSlug, confirmationPathSection, location.search, navigate]);
 
@@ -6104,6 +6113,26 @@ export function ParishPage({
                     Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie formularz online jest dostępny dla bierzmowania.
                   </p>
                 </div>
+                {selectedSacrament.id === 'confirmation' && confirmationVerifyInfo ? (
+                  <div
+                    className={`parish-card confirmation-verify-banner ${
+                      confirmationVerifyTone === 'error'
+                        ? 'confirmation-verify-banner-error'
+                        : confirmationVerifyTone === 'notice'
+                        ? 'confirmation-verify-banner-notice'
+                        : 'confirmation-verify-banner-success'
+                    }`}
+                  >
+                    <h3>Weryfikacja numeru telefonu</h3>
+                    <p>{confirmationVerifyInfo}</p>
+                    <p className="note">
+                      Jeśli zgłoszenie zostało już wysłane, nie wysyłaj kolejnego formularza. W razie pomyłki skontaktuj się bezpośrednio z parafią.
+                    </p>
+                    <button type="button" className="ghost" onClick={() => openSacramentPanelSection('form')}>
+                      Przejdź do formularza tylko jeśli to nowe zgłoszenie
+                    </button>
+                  </div>
+                ) : null}
                 {activeSacramentPanelSection === 'overall' && (
                   <>
                     {selectedSacramentOverallPage ? (
@@ -6321,9 +6350,6 @@ export function ParishPage({
                         </div>
                         <span className="muted">Bez logowania. Zgłoszenia są jednokierunkowe.</span>
                       </div>
-                      {confirmationVerifyInfo ? (
-                        <p className="confirmation-info confirmation-info-success">{confirmationVerifyInfo}</p>
-                      ) : null}
                       <div className="admin-form-grid">
                         <label>
                           <span>Imię</span>

@@ -2051,6 +2051,34 @@
   align-items: center;
 }
 
+.confirmation-verify-banner {
+  margin-top: 14px;
+  border: 2px solid var(--parish-line);
+}
+
+.confirmation-verify-banner h3 {
+  margin: 0 0 8px;
+}
+
+.confirmation-verify-banner p {
+  margin: 0 0 10px;
+}
+
+.confirmation-verify-banner-success {
+  border-color: rgba(22, 163, 74, 0.45);
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.confirmation-verify-banner-notice {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.confirmation-verify-banner-error {
+  border-color: rgba(220, 38, 38, 0.45);
+  background: rgba(220, 38, 38, 0.08);
+}
+
 .confirmation-info {
   margin: 0 0 12px;
   padding: 10px 12px;
