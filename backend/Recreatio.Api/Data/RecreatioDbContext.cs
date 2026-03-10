@@ -102,19 +102,12 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaRunAttempt> CogitaRunAttempts => Set<Data.Cogita.CogitaRunAttempt>();
     public DbSet<Data.Cogita.CogitaRunExposure> CogitaRunExposures => Set<Data.Cogita.CogitaRunExposure>();
     public DbSet<Data.Cogita.CogitaKnownessSnapshot> CogitaKnownessSnapshots => Set<Data.Cogita.CogitaKnownessSnapshot>();
-    public DbSet<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore> CogitaKnowledgeTypeSpecsCore => Set<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore>();
-    public DbSet<Data.Cogita.Core.CogitaKnowledgeItemCore> CogitaKnowledgeItemsCore => Set<Data.Cogita.Core.CogitaKnowledgeItemCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore> CogitaKnowledgeLinkSinglesCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore> CogitaKnowledgeLinkMultisCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore>();
     public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
     public DbSet<Data.Cogita.Core.CogitaDependencyEdgeCore> CogitaDependencyEdgesCore => Set<Data.Cogita.Core.CogitaDependencyEdgeCore>();
     public DbSet<Data.Cogita.Core.CogitaRevisionPatternCore> CogitaRevisionPatternsCore => Set<Data.Cogita.Core.CogitaRevisionPatternCore>();
-    public DbSet<Data.Cogita.Core.CogitaRevisionShareCore> CogitaRevisionSharesCore => Set<Data.Cogita.Core.CogitaRevisionShareCore>();
-    public DbSet<Data.Cogita.Core.CogitaRevisionRunCore> CogitaRevisionRunsCore => Set<Data.Cogita.Core.CogitaRevisionRunCore>();
     public DbSet<Data.Cogita.Core.CogitaRunParticipantCore> CogitaRunParticipantsCore => Set<Data.Cogita.Core.CogitaRunParticipantCore>();
-    public DbSet<Data.Cogita.Core.CogitaRunAttemptCore> CogitaRunAttemptsCore => Set<Data.Cogita.Core.CogitaRunAttemptCore>();
-    public DbSet<Data.Cogita.Core.CogitaRunExposureCore> CogitaRunExposuresCore => Set<Data.Cogita.Core.CogitaRunExposureCore>();
-    public DbSet<Data.Cogita.Core.CogitaKnownessSnapshotCore> CogitaKnownessSnapshotsCore => Set<Data.Cogita.Core.CogitaKnownessSnapshotCore>();
     public DbSet<Data.Cogita.Core.CogitaRunEventCore> CogitaRunEventsCore => Set<Data.Cogita.Core.CogitaRunEventCore>();
     public DbSet<Data.Chat.ChatConversation> ChatConversations => Set<Data.Chat.ChatConversation>();
     public DbSet<Data.Chat.ChatConversationParticipant> ChatConversationParticipants => Set<Data.Chat.ChatConversationParticipant>();
@@ -301,13 +294,6 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaKnownessSnapshot>()
             .HasIndex(x => new { x.LibraryId, x.PersonRoleId, x.CardKey, x.SnapshotUtc });
 
-        modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore>()
-            .HasIndex(x => new { x.LibraryId, x.TypeKey, x.Version })
-            .IsUnique();
-        modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeItemCore>()
-            .HasIndex(x => new { x.LibraryId, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeItemCore>()
-            .HasIndex(x => new { x.LibraryId, x.TypeKey, x.UpdatedUtc });
         modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>()
             .HasIndex(x => new { x.SourceItemId, x.FieldKey })
             .IsUnique();
@@ -328,30 +314,10 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.ChildCardId, x.ParentCardId });
         modelBuilder.Entity<Data.Cogita.Core.CogitaRevisionPatternCore>()
             .HasIndex(x => new { x.LibraryId, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRevisionShareCore>()
-            .HasIndex(x => x.RevisionPatternId)
-            .IsUnique();
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRevisionShareCore>()
-            .HasIndex(x => x.ShareCodeHash)
-            .IsUnique();
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRevisionRunCore>()
-            .HasIndex(x => new { x.LibraryId, x.Status, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRevisionRunCore>()
-            .HasIndex(x => x.SessionCodeHash)
-            .IsUnique()
-            .HasFilter("[SessionCodeHash] IS NOT NULL");
         modelBuilder.Entity<Data.Cogita.Core.CogitaRunParticipantCore>()
             .HasIndex(x => new { x.RunId, x.JoinedUtc });
         modelBuilder.Entity<Data.Cogita.Core.CogitaRunParticipantCore>()
             .HasIndex(x => new { x.RunId, x.PersonRoleId });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRunAttemptCore>()
-            .HasIndex(x => new { x.RunId, x.ParticipantId, x.RoundIndex, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRunAttemptCore>()
-            .HasIndex(x => new { x.RunId, x.CardKey, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaRunExposureCore>()
-            .HasIndex(x => new { x.RunId, x.ParticipantId, x.RoundIndex });
-        modelBuilder.Entity<Data.Cogita.Core.CogitaKnownessSnapshotCore>()
-            .HasIndex(x => new { x.LibraryId, x.PersonRoleId, x.CardKey, x.SnapshotUtc });
         modelBuilder.Entity<Data.Cogita.Core.CogitaRunEventCore>()
             .HasIndex(x => new { x.RunId, x.CreatedUtc });
         modelBuilder.Entity<Data.Cogita.Core.CogitaRunEventCore>()
