@@ -118,6 +118,16 @@ public sealed class RecreatioDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // These Core entities map to the same tables as active runtime entities.
+        // Keep them out of the EF runtime model to avoid shared-table conflicts.
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaKnowledgeItemCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaRevisionShareCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaRevisionRunCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaRunAttemptCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaRunExposureCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaKnownessSnapshotCore>();
+
         modelBuilder.Entity<UserAccount>()
             .HasIndex(x => x.LoginId)
             .IsUnique();
