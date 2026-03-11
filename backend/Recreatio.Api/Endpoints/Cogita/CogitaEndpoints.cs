@@ -16008,35 +16008,54 @@ public static class CogitaEndpoints
             .ToDictionary(group => group.Key, group => group.Select(x => x.ConnectionId).Distinct().ToList());
 
         var infoIds = infos.Select(x => x.Id).ToList();
-        var singleLinks = infoIds.Count == 0
-            ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
-            : await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
+        var singleLinks = new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>();
+        var multiLinks = new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>();
+        if (infoIds.Count > 0)
+        {
+            var singleLinkRows = await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
-                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
+                .Select(x => new { x.SourceItemId, x.FieldKey, x.TargetItemId })
                 .ToListAsync(ct);
-        var multiLinks = infoIds.Count == 0
-            ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
-            : await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
+            singleLinks = singleLinkRows
+                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
+                .ToList();
+
+            var multiLinkRows = await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
                 .OrderBy(x => x.SortOrder)
-                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
+                .Select(x => new { x.SourceItemId, x.FieldKey, x.TargetItemId })
                 .ToListAsync(ct);
+            multiLinks = multiLinkRows
+                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
+                .ToList();
+        }
         if (singleLinks.Count == 0 && multiLinks.Count == 0)
         {
             // Compatibility fallback for data not migrated to knowledge-link tables yet.
-            singleLinks = infoIds.Count == 0
-                ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
-                : await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+            if (infoIds.Count == 0)
+            {
+                singleLinks = new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>();
+                multiLinks = new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>();
+            }
+            else
+            {
+                var legacySingleRows = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
-                    .Select(x => (SourceItemId: x.InfoId, FieldKey: x.FieldKey, TargetItemId: x.TargetInfoId))
+                    .Select(x => new { SourceItemId = x.InfoId, x.FieldKey, TargetItemId = x.TargetInfoId })
                     .ToListAsync(ct);
-            multiLinks = infoIds.Count == 0
-                ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
-                : await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                singleLinks = legacySingleRows
+                    .Select(x => (x.SourceItemId, x.FieldKey, x.TargetItemId))
+                    .ToList();
+
+                var legacyMultiRows = await dbContext.CogitaInfoLinkMultis.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
                     .OrderBy(x => x.SortOrder)
-                    .Select(x => (SourceItemId: x.InfoId, FieldKey: x.FieldKey, TargetItemId: x.TargetInfoId))
+                    .Select(x => new { SourceItemId = x.InfoId, x.FieldKey, TargetItemId = x.TargetInfoId })
                     .ToListAsync(ct);
+                multiLinks = legacyMultiRows
+                    .Select(x => (x.SourceItemId, x.FieldKey, x.TargetItemId))
+                    .ToList();
+            }
         }
         var linksByInfo = singleLinks
             .Concat(multiLinks)
