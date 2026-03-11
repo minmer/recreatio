@@ -269,7 +269,7 @@ async function buildLiveRounds(payload: {
     wordLanguagePromptPrefix?: string;
   };
   onPreparedCount?: (count: number) => void;
-}): Promise<{ rounds: LiveRound[]; revisionMode: string }> {
+}): Promise<{ rounds: LiveRound[]; revisionMode: string; revisionSettings: Record<string, number | string> }> {
   const revision = await getCogitaRevision({ libraryId: payload.libraryId, revisionId: payload.revisionId });
   const revisionType = getRevisionType(revision.revisionType ?? revision.mode);
   const revisionLimit = Math.max(1, Number(revision.limit ?? 20));
@@ -508,7 +508,8 @@ async function buildLiveRounds(payload: {
   notifyPreparedCount();
   return {
     rounds: preparedRounds,
-    revisionMode: String(revision.revisionType ?? revision.mode ?? 'random').toLowerCase()
+    revisionMode: String(revision.revisionType ?? revision.mode ?? 'random').toLowerCase(),
+    revisionSettings
   };
 }
 
@@ -551,7 +552,7 @@ export function CogitaLiveHostWallPage({
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const reattachPromiseRef = useRef<Promise<string | null> | null>(null);
   const initialAttachKeyRef = useRef<string>('');
-  const roundsLoadPromiseRef = useRef<Promise<{ rounds: LiveRound[]; revisionMode: string } | null> | null>(null);
+  const roundsLoadPromiseRef = useRef<Promise<{ rounds: LiveRound[]; revisionMode: string; revisionSettings: Record<string, number | string> } | null> | null>(null);
   const startInFlightRef = useRef(false);
   const mutationInFlightRef = useRef(false);
   const sessionRef = useRef<CogitaLiveRevisionSession | null>(null);
@@ -1487,6 +1488,7 @@ export function CogitaLiveHostWallPage({
         const asyncBundle = {
           kind: 'async-session',
           revisionMode: prepared.revisionMode || revisionMode,
+          revisionSettings: prepared.revisionSettings ?? null,
           publishedUtc: new Date().toISOString(),
           rounds: localRounds.map((round, index) => ({
             roundIndex: index,

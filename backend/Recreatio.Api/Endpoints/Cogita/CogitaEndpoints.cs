@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Data;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -19,6 +20,9 @@ namespace Recreatio.Api.Endpoints.Cogita;
 
 public static class CogitaEndpoints
 {
+    private const string CogitaRevisionShareSchemaError =
+        "Database schema for Cogita revision shares is outdated. Apply backend/Recreatio.Api/Sql/patch_cogita_revision_shares_runtime_compat.sql on the API database.";
+
     private static readonly HashSet<string> SupportedInfoTypes = new(CogitaTypeRegistry.SupportedInfoTypes, StringComparer.Ordinal);
 
     private static readonly HashSet<string> SupportedConnectionTypes = new(CogitaTypeRegistry.SupportedConnectionTypes, StringComparer.Ordinal);
@@ -5540,6 +5544,11 @@ public static class CogitaEndpoints
                 return Results.Unauthorized();
             }
 
+            if (!await HasCogitaRevisionShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaRevisionShareSchemaError });
+            }
+
             var revisionId = request.RevisionId;
             if (revisionId == Guid.Empty)
             {
@@ -5774,6 +5783,11 @@ public static class CogitaEndpoints
                 return Results.Unauthorized();
             }
 
+            if (!await HasCogitaRevisionShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaRevisionShareSchemaError });
+            }
+
             var library = await dbContext.CogitaLibraries.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
             if (library is null)
@@ -5910,6 +5924,11 @@ public static class CogitaEndpoints
                 !EndpointHelpers.TryGetSessionId(context, out var sessionId))
             {
                 return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaRevisionShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaRevisionShareSchemaError });
             }
 
             var library = await dbContext.CogitaLibraries.AsNoTracking()
@@ -7831,6 +7850,10 @@ public static class CogitaEndpoints
                     if (rounds.Count > 0)
                     {
                         var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+                        var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
+                        var dependencyEdges = considerDependencies
+                            ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                            : new List<LiveAsyncDependencyEdge>();
                         var flowRules = ParseLiveSessionFlowRules(sessionMeta.SessionSettings);
                         var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                             .Where(x => x.SessionId == session.Id && x.ParticipantId == existingParticipant.Id)
@@ -7843,6 +7866,9 @@ public static class CogitaEndpoints
                             participantAnswers,
                             existingParticipant.Id,
                             revisionMode,
+                            dependencyEdges,
+                            considerDependencies,
+                            dependencyThreshold,
                             timerEvents,
                             existingParticipant.JoinedUtc,
                             session.StartedUtc,
@@ -8091,6 +8117,10 @@ public static class CogitaEndpoints
                 {
                     var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                     var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+                    var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
+                    var dependencyEdges = considerDependencies
+                        ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                        : new List<LiveAsyncDependencyEdge>();
                     var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
                         .OrderBy(x => x.RoundIndex)
@@ -8102,6 +8132,9 @@ public static class CogitaEndpoints
                         participantAnswers,
                         participant.Id,
                         revisionMode,
+                        dependencyEdges,
+                        considerDependencies,
+                        dependencyThreshold,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -8144,6 +8177,9 @@ public static class CogitaEndpoints
                                 participantAnswers,
                                 participant.Id,
                                 revisionMode,
+                                dependencyEdges,
+                                considerDependencies,
+                                dependencyThreshold,
                                 timerEvents,
                                 participant.JoinedUtc,
                                 session.StartedUtc,
@@ -8175,6 +8211,9 @@ public static class CogitaEndpoints
                                 participantAnswers,
                                 participant.Id,
                                 revisionMode,
+                                dependencyEdges,
+                                considerDependencies,
+                                dependencyThreshold,
                                 timerEvents,
                                 participant.JoinedUtc,
                                 session.StartedUtc,
@@ -8430,6 +8469,10 @@ public static class CogitaEndpoints
                 if (rounds.Count > 0)
                 {
                     var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+                    var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
+                    var dependencyEdges = considerDependencies
+                        ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                        : new List<LiveAsyncDependencyEdge>();
                     var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                     var participantAnswersForPhase = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
@@ -8442,6 +8485,9 @@ public static class CogitaEndpoints
                         participantAnswersForPhase,
                         participant.Id,
                         revisionMode,
+                        dependencyEdges,
+                        considerDependencies,
+                        dependencyThreshold,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -8746,10 +8792,14 @@ public static class CogitaEndpoints
             {
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
                 var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+                var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
                 if (rounds.Count == 0)
                 {
                     return Results.BadRequest(new { error = "Live session has no prepared rounds." });
                 }
+                var dependencyEdges = considerDependencies
+                    ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                    : new List<LiveAsyncDependencyEdge>();
 
                 var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                 var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
@@ -8763,6 +8813,9 @@ public static class CogitaEndpoints
                     participantAnswers,
                     participant.Id,
                     revisionMode,
+                    dependencyEdges,
+                    considerDependencies,
+                    dependencyThreshold,
                     timerEvents,
                     participant.JoinedUtc,
                     session.StartedUtc,
@@ -9180,10 +9233,14 @@ public static class CogitaEndpoints
             var now = DateTimeOffset.UtcNow;
             var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
             var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+            var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
             if (rounds.Count == 0)
             {
                 return Results.BadRequest(new { error = "Live session has no prepared rounds." });
             }
+            var dependencyEdges = considerDependencies
+                ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                : new List<LiveAsyncDependencyEdge>();
 
             var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
             var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
@@ -9197,6 +9254,9 @@ public static class CogitaEndpoints
                 participantAnswers,
                 participant.Id,
                 revisionMode,
+                dependencyEdges,
+                considerDependencies,
+                dependencyThreshold,
                 timerEvents,
                 participant.JoinedUtc,
                 session.StartedUtc,
@@ -9299,6 +9359,10 @@ public static class CogitaEndpoints
                 if (rounds.Count > 0)
                 {
                     var revisionMode = ParseLiveAsyncRevisionMode(session.CurrentPromptJson);
+                    var (considerDependencies, dependencyThreshold) = ParseLiveAsyncDependencyOptions(session.CurrentPromptJson);
+                    var dependencyEdges = considerDependencies
+                        ? await BuildLiveAsyncDependencyEdgesAsync(session.LibraryId, rounds, dbContext, ct)
+                        : new List<LiveAsyncDependencyEdge>();
                     var flowRules = ParseLiveSessionFlowRules(meta.SessionSettings);
                     var participantAnswers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
                         .Where(x => x.SessionId == session.Id && x.ParticipantId == participant.Id)
@@ -9311,6 +9375,9 @@ public static class CogitaEndpoints
                         participantAnswers,
                         participant.Id,
                         revisionMode,
+                        dependencyEdges,
+                        considerDependencies,
+                        dependencyThreshold,
                         timerEvents,
                         participant.JoinedUtc,
                         session.StartedUtc,
@@ -18085,6 +18152,7 @@ public static class CogitaEndpoints
 
     private sealed record LiveAsyncRoundPayload(int RoundIndex, string CardKey, JsonObject Prompt, JsonObject Reveal);
     private sealed record LiveSyncRoundPayload(int RoundIndex, string CardKey, JsonObject Prompt, JsonObject Reveal);
+    private sealed record LiveAsyncDependencyEdge(int ParentRoundIndex, int ChildRoundIndex);
 
     private sealed record LiveSessionScoringRules(
         int BaseCorrect,
@@ -18231,6 +18299,195 @@ public static class CogitaEndpoints
         {
             return "random";
         }
+    }
+
+    private static (bool ConsiderDependencies, int DependencyThreshold) ParseLiveAsyncDependencyOptions(string? promptJson)
+    {
+        var considerDependencies = true;
+        var dependencyThreshold = 80;
+        if (string.IsNullOrWhiteSpace(promptJson))
+        {
+            return (considerDependencies, dependencyThreshold);
+        }
+
+        try
+        {
+            var root = JsonNode.Parse(promptJson) as JsonObject;
+            var settings = root?["revisionSettings"] as JsonObject;
+            if (settings is null)
+            {
+                return (considerDependencies, dependencyThreshold);
+            }
+
+            if (settings["considerDependencies"] is JsonValue considerValue)
+            {
+                if (considerValue.TryGetValue<bool>(out var boolValue))
+                {
+                    considerDependencies = boolValue;
+                }
+                else if (considerValue.TryGetValue<string>(out var stringValue))
+                {
+                    var normalized = stringValue.Trim().ToLowerInvariant();
+                    considerDependencies = normalized is not ("off" or "false" or "0" or "no");
+                }
+            }
+
+            if (settings["dependencyThreshold"] is JsonValue thresholdValue)
+            {
+                if (thresholdValue.TryGetValue<int>(out var intValue))
+                {
+                    dependencyThreshold = intValue;
+                }
+                else if (thresholdValue.TryGetValue<double>(out var doubleValue))
+                {
+                    dependencyThreshold = (int)Math.Round(doubleValue);
+                }
+                else if (thresholdValue.TryGetValue<string>(out var stringValue) &&
+                         int.TryParse(stringValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    dependencyThreshold = parsed;
+                }
+            }
+        }
+        catch
+        {
+            // Keep defaults on malformed payload.
+        }
+
+        dependencyThreshold = Math.Max(0, Math.Min(100, dependencyThreshold));
+        return (considerDependencies, dependencyThreshold);
+    }
+
+    private static string? NormalizeDependencyToken(string? value)
+    {
+        var trimmed = value?.Trim().ToLowerInvariant();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
+    }
+
+    private static bool MatchesRoundDependencyIdentity(
+        (string? ItemType, Guid? ItemId, string? CheckType, string? Direction) identity,
+        string itemType,
+        Guid itemId,
+        string? checkType,
+        string? direction)
+    {
+        if (!identity.ItemId.HasValue || identity.ItemId.Value != itemId)
+        {
+            return false;
+        }
+
+        var targetType = NormalizeDependencyToken(itemType);
+        var cardType = NormalizeDependencyToken(identity.ItemType);
+        if (targetType is not null && targetType != cardType)
+        {
+            return false;
+        }
+
+        var targetCheckType = NormalizeDependencyToken(checkType);
+        var targetDirection = NormalizeDependencyToken(direction);
+        var cardCheckType = NormalizeDependencyToken(identity.CheckType);
+        var cardDirection = NormalizeDependencyToken(identity.Direction);
+        if (targetCheckType is not null && targetCheckType != cardCheckType)
+        {
+            return false;
+        }
+        if (targetDirection is not null && targetDirection != cardDirection)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static async Task<List<LiveAsyncDependencyEdge>> BuildLiveAsyncDependencyEdgesAsync(
+        Guid libraryId,
+        List<LiveAsyncRoundPayload> rounds,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (rounds.Count == 0)
+        {
+            return new List<LiveAsyncDependencyEdge>();
+        }
+
+        var roundIdentities = rounds
+            .Select((round, index) => new
+            {
+                Index = index,
+                Identity = ParseCardIdentityFromCardKey(round.CardKey)
+            })
+            .Where(x => x.Identity.ItemId.HasValue && !string.IsNullOrWhiteSpace(x.Identity.ItemType))
+            .ToList();
+        if (roundIdentities.Count == 0)
+        {
+            return new List<LiveAsyncDependencyEdge>();
+        }
+
+        var activeGraphId = await ResolveActiveDependencyGraphIdAsync(libraryId, dbContext, ct);
+        var dependencies = await dbContext.CogitaItemDependencies.AsNoTracking()
+            .Where(x => x.LibraryId == libraryId &&
+                        (x.GraphId == null || (activeGraphId.HasValue && x.GraphId == activeGraphId.Value)))
+            .ToListAsync(ct);
+        if (dependencies.Count == 0)
+        {
+            return new List<LiveAsyncDependencyEdge>();
+        }
+
+        var result = new List<LiveAsyncDependencyEdge>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var dependency in dependencies)
+        {
+            var parentIndexes = roundIdentities
+                .Where(x => MatchesRoundDependencyIdentity(
+                    x.Identity,
+                    dependency.ParentItemType,
+                    dependency.ParentItemId,
+                    dependency.ParentCheckType,
+                    dependency.ParentDirection))
+                .Select(x => x.Index)
+                .Distinct()
+                .ToList();
+            if (parentIndexes.Count == 0)
+            {
+                continue;
+            }
+
+            var childIndexes = roundIdentities
+                .Where(x => MatchesRoundDependencyIdentity(
+                    x.Identity,
+                    dependency.ChildItemType,
+                    dependency.ChildItemId,
+                    dependency.ChildCheckType,
+                    dependency.ChildDirection))
+                .Select(x => x.Index)
+                .Distinct()
+                .ToList();
+            if (childIndexes.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var parentIndex in parentIndexes)
+            {
+                foreach (var childIndex in childIndexes)
+                {
+                    if (parentIndex == childIndex)
+                    {
+                        continue;
+                    }
+
+                    var key = $"{parentIndex}:{childIndex}";
+                    if (!seen.Add(key))
+                    {
+                        continue;
+                    }
+
+                    result.Add(new LiveAsyncDependencyEdge(parentIndex, childIndex));
+                }
+            }
+        }
+
+        return result;
     }
 
     private static JsonObject? ParseJsonObjectSafe(string? raw)
@@ -18753,6 +19010,9 @@ public static class CogitaEndpoints
         List<CogitaLiveRevisionAnswer> participantAnswers,
         Guid participantId,
         string revisionMode,
+        List<LiveAsyncDependencyEdge> dependencyEdges,
+        bool dependenciesEnabled,
+        int dependencyThreshold,
         List<LiveAsyncTimerControlEvent> timerEvents,
         DateTimeOffset participantJoinedUtc,
         DateTimeOffset? sessionStartedUtc,
@@ -18992,6 +19252,7 @@ public static class CogitaEndpoints
         var orderedRoundIndexes = new List<int>(rounds.Count);
         orderedRoundIndexes.AddRange(answeredRoundIndexes);
         var normalizedMode = CogitaRunSelectionCore.NormalizeMode(revisionMode);
+        var normalizedDependencyThreshold = Math.Max(0, Math.Min(100, dependencyThreshold));
         var knownessByRound = latestByRound.ToDictionary(
             pair => pair.Key,
             pair => pair.Value.IsCorrect.HasValue
@@ -19002,6 +19263,60 @@ public static class CogitaEndpoints
             participantId,
             normalizedMode,
             knownessByRound);
+        if (dependenciesEnabled &&
+            orderedRemainingRoundIndexes.Count > 0 &&
+            dependencyEdges.Count > 0)
+        {
+            var parentRoundIndexesByChild = new Dictionary<int, HashSet<int>>();
+            foreach (var dependencyEdge in dependencyEdges)
+            {
+                if (dependencyEdge.ParentRoundIndex < 0 || dependencyEdge.ParentRoundIndex >= rounds.Count)
+                {
+                    continue;
+                }
+                if (dependencyEdge.ChildRoundIndex < 0 || dependencyEdge.ChildRoundIndex >= rounds.Count)
+                {
+                    continue;
+                }
+                if (dependencyEdge.ParentRoundIndex == dependencyEdge.ChildRoundIndex)
+                {
+                    continue;
+                }
+
+                if (!parentRoundIndexesByChild.TryGetValue(dependencyEdge.ChildRoundIndex, out var parents))
+                {
+                    parents = new HashSet<int>();
+                    parentRoundIndexesByChild[dependencyEdge.ChildRoundIndex] = parents;
+                }
+                parents.Add(dependencyEdge.ParentRoundIndex);
+            }
+
+            if (parentRoundIndexesByChild.Count > 0)
+            {
+                orderedRemainingRoundIndexes = orderedRemainingRoundIndexes
+                    .Where(roundIndex =>
+                    {
+                        if (!parentRoundIndexesByChild.TryGetValue(roundIndex, out var parentRoundIndexes) ||
+                            parentRoundIndexes.Count == 0)
+                        {
+                            return true;
+                        }
+
+                        var parentScoreSum = 0d;
+                        foreach (var parentRoundIndex in parentRoundIndexes)
+                        {
+                            var parentScore = knownessByRound.TryGetValue(parentRoundIndex, out var knowness)
+                                ? knowness
+                                : 0d;
+                            parentScoreSum += parentScore;
+                        }
+
+                        var parentAverage = parentScoreSum / parentRoundIndexes.Count;
+                        return parentAverage >= normalizedDependencyThreshold;
+                    })
+                    .ToList();
+            }
+        }
         orderedRoundIndexes.AddRange(orderedRemainingRoundIndexes);
 
         var roundCursorUtc = sessionStartUtc;
@@ -20568,25 +20883,48 @@ public static class CogitaEndpoints
             return (null, null, null, null);
         }
 
-        var parts = cardKey.Split('|');
-        if (parts.Length == 0)
+        var colonParts = cardKey.Split(':');
+        if (colonParts.Length >= 2 &&
+            !string.IsNullOrWhiteSpace(colonParts[0]) &&
+            Guid.TryParse(colonParts[1], out var colonItemId))
+        {
+            var itemType = colonParts[0].Trim().ToLowerInvariant();
+            itemType = itemType switch
+            {
+                "vocab" => "connection",
+                "connection" => "connection",
+                "collection" => "collection",
+                _ => "info"
+            };
+
+            var checkType = colonParts.Length > 2 && !string.IsNullOrWhiteSpace(colonParts[2])
+                ? colonParts[2].Trim().ToLowerInvariant()
+                : null;
+            var direction = colonParts.Length > 3
+                ? string.Join(":", colonParts.Skip(3)).Trim().ToLowerInvariant()
+                : null;
+            if (string.IsNullOrWhiteSpace(direction))
+            {
+                direction = null;
+            }
+
+            return (itemType, colonItemId, checkType, direction);
+        }
+
+        var legacyParts = cardKey.Split('|');
+        if (legacyParts.Length == 0 || !Guid.TryParse(legacyParts[0], out var legacyItemId))
         {
             return (null, null, null, null);
         }
 
-        if (!Guid.TryParse(parts[0], out var itemId))
-        {
-            return (null, null, null, null);
-        }
-
-        var checkType = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])
-            ? parts[1].Trim().ToLowerInvariant()
+        var legacyCheckType = legacyParts.Length > 1 && !string.IsNullOrWhiteSpace(legacyParts[1])
+            ? legacyParts[1].Trim().ToLowerInvariant()
             : null;
-        var direction = parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2])
-            ? parts[2].Trim().ToLowerInvariant()
+        var legacyDirection = legacyParts.Length > 2 && !string.IsNullOrWhiteSpace(legacyParts[2])
+            ? legacyParts[2].Trim().ToLowerInvariant()
             : null;
-        var normalizedItemType = checkType == "connection" ? "connection" : "info";
-        return (normalizedItemType, itemId, checkType, direction);
+        var legacyItemType = legacyCheckType == "connection" ? "connection" : "info";
+        return (legacyItemType, legacyItemId, legacyCheckType, legacyDirection);
     }
 
     private static (string? ItemType, Guid? ItemId, string? CheckType, string? Direction, string? CardKey) ResolveCardIdentityFromPromptJson(string? promptJson)
@@ -21140,6 +21478,11 @@ public static class CogitaEndpoints
             return null;
         }
 
+        if (!await HasCogitaRevisionShareRuntimeSchemaAsync(dbContext, ct))
+        {
+            return null;
+        }
+
         code = code.Trim();
         if (code.Length < 6 || code.Length > 128)
         {
@@ -21209,5 +21552,56 @@ public static class CogitaEndpoints
         }
 
         return (share, library, libraryReadKey);
+    }
+
+    private static async Task<bool> HasCogitaRevisionShareRuntimeSchemaAsync(
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        const string sql = @"
+            SELECT CASE WHEN
+                OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'LibraryId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'RevisionId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'CollectionId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'OwnerRoleId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'SharedViewId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'PublicCodeHash') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'EncShareCode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'Mode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'CheckMode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'CardLimit') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'CreatedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaRevisionShares', 'RevokedUtc') IS NOT NULL
+            THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";
+
+        try
+        {
+            var connection = dbContext.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+            if (shouldClose)
+            {
+                await connection.OpenAsync(ct);
+            }
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                var scalar = await command.ExecuteScalarAsync(ct);
+                return scalar is bool value && value;
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

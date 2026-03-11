@@ -2664,3 +2664,78 @@ BEGIN
     CREATE UNIQUE INDEX UX_PortalAdminAssignments_ScopeKey ON pilgrimage.PortalAdminAssignments(ScopeKey);
 END
 GO
+
+/*
+  Runtime compatibility: force CogitaRevisionShares to the schema used by current API endpoints.
+  This block is intentionally placed at the end so it wins over any legacy earlier definitions.
+*/
+IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'PublicCodeHash') IS NULL
+BEGIN
+    DECLARE @legacyName SYSNAME =
+        N'CogitaRevisionShares_Legacy_' +
+        CONVERT(NVARCHAR(8), GETUTCDATE(), 112) +
+        REPLACE(CONVERT(NVARCHAR(8), GETUTCDATE(), 108), ':', '');
+    EXEC sp_rename N'dbo.CogitaRevisionShares', @legacyName;
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaRevisionShares
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        RevisionId UNIQUEIDENTIFIER NOT NULL,
+        CollectionId UNIQUEIDENTIFIER NOT NULL,
+        OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+        SharedViewId UNIQUEIDENTIFIER NOT NULL,
+        PublicCodeHash VARBINARY(64) NOT NULL,
+        EncShareCode VARBINARY(MAX) NOT NULL,
+        Mode NVARCHAR(32) NOT NULL,
+        CheckMode NVARCHAR(32) NOT NULL,
+        CardLimit INT NOT NULL,
+        RevisionType NVARCHAR(64) NULL,
+        RevisionSettingsJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        FOREIGN KEY (RevisionId) REFERENCES dbo.CogitaRevisions(Id),
+        FOREIGN KEY (CollectionId) REFERENCES dbo.CogitaInfos(Id),
+        FOREIGN KEY (SharedViewId) REFERENCES dbo.SharedViews(Id),
+        FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_Library_Revoked' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'LibraryId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaRevisionShares_Library_Revoked ON dbo.CogitaRevisionShares(LibraryId, RevokedUtc);');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_Library_Revision_Revoked' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'LibraryId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'RevisionId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaRevisionShares_Library_Revision_Revoked ON dbo.CogitaRevisionShares(LibraryId, RevisionId, RevokedUtc);');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaRevisionShares_ActiveRevision' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'RevisionId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX UX_CogitaRevisionShares_ActiveRevision ON dbo.CogitaRevisionShares(RevisionId) WHERE RevokedUtc IS NULL;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaRevisionShares'))
+   AND COL_LENGTH('dbo.CogitaRevisionShares', 'PublicCodeHash') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaRevisionShares_PublicCodeHash ON dbo.CogitaRevisionShares(PublicCodeHash);');
+END
+GO
