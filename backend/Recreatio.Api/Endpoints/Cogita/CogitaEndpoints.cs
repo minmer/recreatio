@@ -5068,6 +5068,12 @@ public static class CogitaEndpoints
 
             try
             {
+                var coreClientSequence = request.ClientSequence switch
+                {
+                    > int.MaxValue => int.MaxValue,
+                    < int.MinValue => int.MinValue,
+                    _ => (int)request.ClientSequence
+                };
                 _ = await CogitaCoreRuntimeEndpoints.SyncLegacyReviewOutcomesToCoreAsync(
                     dbContext,
                     libraryId,
@@ -5085,7 +5091,7 @@ public static class CogitaEndpoints
                             request.EvalType,
                             request.Correct,
                             request.ClientId,
-                            request.ClientSequence,
+                            coreClientSequence,
                             normalizedDurationMs,
                             reviewerRoleId)
                     },
@@ -5402,7 +5408,12 @@ public static class CogitaEndpoints
                     outcome.EvalType,
                     outcome.Correct,
                     outcome.ClientId,
-                    outcome.ClientSequence,
+                    outcome.ClientSequence switch
+                    {
+                        > int.MaxValue => int.MaxValue,
+                        < int.MinValue => int.MinValue,
+                        _ => (int)outcome.ClientSequence
+                    },
                     normalizedDurationMs,
                     reviewerRoleId));
 
