@@ -592,13 +592,6 @@ function Kal26ContactPage({
                 </select>
               </label>
               <label>
-                E-mail
-                <input
-                  value={contactForm.email}
-                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, email: eventInput.target.value }))}
-                />
-              </label>
-              <label>
                 Temat
                 <input
                   value={contactForm.topic}
@@ -751,6 +744,7 @@ function Kal26RegisterPage({
   handleSimpleRegistrationSubmit,
   registrationPending,
   registrationError,
+  registrationNotice,
   registrationResult
 }: {
   registrationForm: RegistrationFormState;
@@ -758,6 +752,7 @@ function Kal26RegisterPage({
   handleSimpleRegistrationSubmit: (eventForm: FormEvent) => Promise<void>;
   registrationPending: boolean;
   registrationError: string | null;
+  registrationNotice: string | null;
   registrationResult: { link: string; token: string } | null;
 }) {
   return (
@@ -826,45 +821,21 @@ function Kal26RegisterPage({
             </div>
 
             <div className="pilgrimage-form-checks">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={registrationForm.acceptedTerms}
-                  onChange={(eventInput) =>
-                    setRegistrationForm((previous) => ({ ...previous, acceptedTerms: eventInput.target.checked }))
-                  }
-                  required
-                />
-                Akceptuję regulamin pielgrzymki.
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={registrationForm.acceptedRodo}
-                  onChange={(eventInput) =>
-                    setRegistrationForm((previous) => ({ ...previous, acceptedRodo: eventInput.target.checked }))
-                  }
-                  required
-                />
-                Akceptuję zasady RODO.
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={registrationForm.acceptedImageConsent}
-                  onChange={(eventInput) =>
-                    setRegistrationForm((previous) => ({ ...previous, acceptedImageConsent: eventInput.target.checked }))
-                  }
-                  required
-                />
-                Wyrażam zgodę na wykorzystanie zdjęć do celów promocyjnych pielgrzymki.
-              </label>
+              <p>
+                Zasady przetwarzania danych i formalności znajdziesz tutaj:{' '}
+                <a href="/#/legal">RODO i regulaminy Recreatio</a>.
+              </p>
+              <p>
+                Klikając przycisk zapisu, akceptujesz wymagane zgody formalne, w tym RODO i zgodę na wykorzystanie
+                materiałów zdjęciowych do celów promocyjnych pielgrzymki.
+              </p>
             </div>
 
             <button className="cta" type="submit" disabled={registrationPending}>
-              {registrationPending ? 'Wysyłanie...' : 'Zapisz się'}
+              {registrationPending ? 'Wysyłanie...' : 'Zapisz się i akceptuję zgody'}
             </button>
             {registrationError ? <p className="pilgrimage-error">{registrationError}</p> : null}
+            {registrationNotice ? <p className="pilgrimage-success">{registrationNotice}</p> : null}
             {registrationResult ? (
               <p className="pilgrimage-success">
                 Zapis został przyjęty. Link uczestnika: <a href={registrationResult.link}>{registrationResult.link}</a>
@@ -1129,6 +1100,7 @@ export function Kal26EventPage({
   const [registrationPending, setRegistrationPending] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [registrationResult, setRegistrationResult] = useState<{ link: string; token: string } | null>(null);
+  const [registrationNotice, setRegistrationNotice] = useState<string | null>(null);
   const [registrationStep, setRegistrationStep] = useState<1 | 2 | 3 | 4>(1);
 
   const [participantToken, setParticipantToken] = useState(queryToken);
@@ -1482,6 +1454,7 @@ export function Kal26EventPage({
     setRegistrationPending(true);
     setRegistrationError(null);
     setRegistrationResult(null);
+    setRegistrationNotice(null);
 
     try {
       const response = await createPilgrimageRegistration(event.slug, {
@@ -1517,6 +1490,7 @@ export function Kal26EventPage({
     eventForm.preventDefault();
     setRegistrationError(null);
     setRegistrationResult(null);
+    setRegistrationNotice(null);
 
     const fullName = registrationForm.fullName.trim();
     const phone = registrationForm.phone.trim();
@@ -1525,11 +1499,6 @@ export function Kal26EventPage({
       setRegistrationError('Uzupełnij imię i nazwisko, telefon oraz miejsce startu.');
       return;
     }
-    if (!registrationForm.acceptedTerms || !registrationForm.acceptedRodo || !registrationForm.acceptedImageConsent) {
-      setRegistrationError('Aby się zapisać, zaakceptuj wymagane zgody.');
-      return;
-    }
-
     const participationVariant = startPlace.toLowerCase().includes('tyniec') ? 'saturday' : 'full';
     const additionalInfo = registrationForm.healthNotes.trim();
     const mergedNotes = additionalInfo
@@ -1552,19 +1521,49 @@ export function Kal26EventPage({
         emergencyContactPhone: phone,
         healthNotes: mergedNotes,
         dietNotes: null,
-        acceptedTerms: registrationForm.acceptedTerms,
-        acceptedRodo: registrationForm.acceptedRodo,
-        acceptedImageConsent: registrationForm.acceptedImageConsent
+        acceptedTerms: true,
+        acceptedRodo: true,
+        acceptedImageConsent: true
       });
       setRegistrationResult({ link: response.accessLink, token: response.accessToken });
       setParticipantToken(response.accessToken);
+      setRegistrationNotice(null);
       setRegistrationForm({
         ...defaultRegistrationForm,
         needsLodging: false,
         needsBaggageTransport: false
       });
     } catch (error: unknown) {
-      setRegistrationError(error instanceof Error ? error.message : 'Nie udało się wysłać zapisu.');
+      if (error instanceof ApiError && error.status === 404) {
+        try {
+          await createPilgrimageContactInquiry(event.slug, {
+            name: fullName,
+            phone,
+            isPublicQuestion: false,
+            email: null,
+            topic: 'Zapis pielgrzymki (awaryjnie)',
+            message: mergedNotes
+          });
+          setRegistrationNotice(
+            'Wydarzenie nie jest jeszcze aktywne w systemie zapisów. Twoje zgłoszenie zostało zapisane awaryjnie i organizator skontaktuje się telefonicznie.'
+          );
+          setRegistrationError(null);
+          setRegistrationResult(null);
+          setRegistrationForm({
+            ...defaultRegistrationForm,
+            needsLodging: false,
+            needsBaggageTransport: false
+          });
+        } catch (fallbackError: unknown) {
+          setRegistrationError(
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : 'Nie udało się wysłać zapisu ani zgłoszenia awaryjnego.'
+          );
+        }
+      } else {
+        setRegistrationError(error instanceof Error ? error.message : 'Nie udało się wysłać zapisu.');
+      }
     } finally {
       setRegistrationPending(false);
     }
@@ -3045,6 +3044,7 @@ export function Kal26EventPage({
               handleSimpleRegistrationSubmit={handleSimpleRegistrationSubmit}
               registrationPending={registrationPending}
               registrationError={registrationError}
+              registrationNotice={registrationNotice}
               registrationResult={registrationResult}
             />
           ) : null}

@@ -91,7 +91,14 @@ public static class PilgrimageEndpoints
                 UserId = userId,
                 CreatedUtc = now
             });
-            await dbContext.SaveChangesAsync(ct);
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                return Results.Conflict(new { error = "Admin already assigned." });
+            }
 
             await ledgerService.AppendBusinessAsync(
                 "PortalAdminClaimed",
