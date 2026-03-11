@@ -1,70 +1,474 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  createCogitaCreationProject,
   getCogitaCreationProjects,
-  getCogitaLibraries,
-  searchCogitaInfos,
-  updateCogitaCreationProject,
-  type CogitaCreationProject,
-  type CogitaInfoSearchResult,
-  type CogitaLibrary
+  getCogitaPublicStoryboardShare,
+  type CogitaCreationProject
 } from '../../lib/api';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
 
-function parseStoryboardScript(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-  if (!content || typeof content !== 'object') {
-    return '';
-  }
-  const root = content as Record<string, unknown>;
-  if (typeof root.script === 'string') {
-    return root.script;
-  }
-  if (Array.isArray(root.steps)) {
-    const lines = root.steps.map((item) => String(item ?? '').trim()).filter((item) => item.length > 0);
-    return lines.join('\n\n');
-  }
-  if (typeof root.body === 'string') {
-    return root.body;
-  }
-  return '';
+type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
+type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
+type StoryboardCardDirection = 'front_to_back' | 'back_to_front';
+type StoryboardEdgeKind = 'path' | 'dependency' | 'card_right' | 'card_wrong';
+type StoryboardSourcePort = 'out-path' | 'out-right' | 'out-wrong';
+type StoryboardTargetPort = 'in-path' | 'in-dependency';
+type StoryboardEdgeDisplayMode = 'new_screen' | 'expand';
+
+type StoryboardGraphEdge = {
+  edgeId: string;
+  fromNodeId: string;
+  toNodeId: string;
+  kind: StoryboardEdgeKind;
+  sourcePort: StoryboardSourcePort;
+  targetPort: StoryboardTargetPort;
+  label: string;
+  displayMode: StoryboardEdgeDisplayMode;
+};
+
+type StoryboardNodeRecord = {
+  nodeId: string;
+  title: string;
+  kind: StoryboardNodeKind;
+  description: string;
+  position: { x: number; y: number };
+  staticType: StoryboardStaticType;
+  staticBody: string;
+  mediaUrl: string;
+  knowledgeItemId: string;
+  cardDirection: StoryboardCardDirection;
+  groupGraph?: StoryboardGraph;
+};
+
+type StoryboardGraph = {
+  startNodeId: string;
+  endNodeId: string;
+  nodes: StoryboardNodeRecord[];
+  edges: StoryboardGraphEdge[];
+};
+
+type StoryboardDocument = {
+  schema: 'cogita_storyboard_graph';
+  version: number;
+  description: string;
+  script: string;
+  steps: string[];
+  rootGraph: StoryboardGraph;
+};
+
+type RuntimeBlock = {
+  key: string;
+  kind: StoryboardNodeKind;
+  title: string;
+  description: string;
+  staticType: StoryboardStaticType;
+  staticBody: string;
+  mediaUrl: string;
+  knowledgeItemId: string;
+  cardDirection: StoryboardCardDirection;
+};
+
+type RuntimeFrame = {
+  parentGraph: StoryboardGraph;
+  parentGraphPath: string[];
+  parentGroupNodeId: string;
+};
+
+type RuntimeState = {
+  graph: StoryboardGraph;
+  graphPath: string[];
+  stack: RuntimeFrame[];
+  currentNodeId: string;
+  displayedBlocks: RuntimeBlock[];
+  visited: Record<string, boolean>;
+  completedGroups: Record<string, boolean>;
+  finished: boolean;
+};
+
+function toString(value: unknown) {
+  return typeof value === 'string' ? value : '';
 }
 
-function parseStoryboardSteps(script: string): string[] {
-  const normalized = script.replace(/\r\n/g, '\n').trim();
-  if (!normalized) return [];
-  const chunks = normalized
-    .split(/\n{2,}|\n---+\n/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-  return chunks.length > 0 ? chunks : [normalized];
+function toFinite(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function buildStoryboardContent(script: string, existingContent?: unknown) {
-  const cleanScript = script.trim();
-  const steps = parseStoryboardSteps(cleanScript);
-  const references = Array.from(new Set((cleanScript.match(/\[\[[^\]]+\]\]/g) ?? []).map((entry) => entry.slice(2, -2).trim())));
-  const base = {
-    script: cleanScript,
-    steps,
-    references
+function createId(prefix: string) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createStartNode(nodeId?: string): StoryboardNodeRecord {
+  return {
+    nodeId: nodeId ?? createId('start'),
+    title: 'Start',
+    kind: 'start',
+    description: '',
+    position: { x: 80, y: 220 },
+    staticType: 'text',
+    staticBody: '',
+    mediaUrl: '',
+    knowledgeItemId: '',
+    cardDirection: 'front_to_back'
   };
-  if (
-    existingContent &&
-    typeof existingContent === 'object' &&
-    (existingContent as { schema?: unknown }).schema === 'cogita_storyboard_graph'
-  ) {
+}
+
+function createEndNode(nodeId?: string): StoryboardNodeRecord {
+  return {
+    nodeId: nodeId ?? createId('end'),
+    title: 'End',
+    kind: 'end',
+    description: '',
+    position: { x: 820, y: 220 },
+    staticType: 'text',
+    staticBody: '',
+    mediaUrl: '',
+    knowledgeItemId: '',
+    cardDirection: 'front_to_back'
+  };
+}
+
+function createDefaultGraph(): StoryboardGraph {
+  const start = createStartNode();
+  const end = createEndNode();
+  return {
+    startNodeId: start.nodeId,
+    endNodeId: end.nodeId,
+    nodes: [start, end],
+    edges: [
+      {
+        edgeId: createId('edge'),
+        fromNodeId: start.nodeId,
+        toNodeId: end.nodeId,
+        sourcePort: 'out-path',
+        targetPort: 'in-path',
+        kind: 'path',
+        label: '',
+        displayMode: 'new_screen'
+      }
+    ]
+  };
+}
+
+function normalizeNodeKind(value: unknown): StoryboardNodeKind {
+  if (value === 'start' || value === 'end' || value === 'static' || value === 'card' || value === 'group') return value;
+  if (value === 'text' || value === 'video' || value === 'audio' || value === 'image' || value === 'revision') return 'static';
+  return 'static';
+}
+
+function normalizeStaticType(value: unknown): StoryboardStaticType {
+  if (value === 'text' || value === 'video' || value === 'audio' || value === 'image' || value === 'other') return value;
+  if (value === 'revision') return 'other';
+  return 'text';
+}
+
+function normalizeCardDirection(value: unknown): StoryboardCardDirection {
+  return value === 'back_to_front' ? 'back_to_front' : 'front_to_back';
+}
+
+function deriveEdgeKind(sourcePort: StoryboardSourcePort, targetPort: StoryboardTargetPort): StoryboardEdgeKind {
+  if (targetPort === 'in-dependency') return 'dependency';
+  if (sourcePort === 'out-right') return 'card_right';
+  if (sourcePort === 'out-wrong') return 'card_wrong';
+  return 'path';
+}
+
+function parseGraph(raw: unknown): StoryboardGraph {
+  const fallback = createDefaultGraph();
+  if (!raw || typeof raw !== 'object') return fallback;
+
+  const root = raw as Record<string, unknown>;
+  const rawNodes = Array.isArray(root.nodes) ? (root.nodes as Array<Record<string, unknown>>) : [];
+  const nodes: StoryboardNodeRecord[] = rawNodes.map((item, index) => {
+    const kind = normalizeNodeKind(item.kind ?? item.nodeType);
     return {
-      ...(existingContent as Record<string, unknown>),
-      ...base
+      nodeId: toString(item.nodeId).trim() || createId(`node-${index + 1}`),
+      title: toString(item.title).trim() || `Node ${index + 1}`,
+      kind,
+      description: toString(item.description),
+      position: {
+        x: toFinite((item.position as Record<string, unknown> | undefined)?.x, 120 + (index % 4) * 220),
+        y: toFinite((item.position as Record<string, unknown> | undefined)?.y, 100 + Math.floor(index / 4) * 160)
+      },
+      staticType: normalizeStaticType(item.staticType ?? item.nodeType),
+      staticBody: toString(item.staticBody ?? item.text),
+      mediaUrl: toString(item.mediaUrl ?? item.videoUrl),
+      knowledgeItemId: toString(item.knowledgeItemId),
+      cardDirection: normalizeCardDirection(item.cardDirection),
+      groupGraph: kind === 'group' && item.groupGraph ? parseGraph(item.groupGraph) : undefined
     };
+  });
+
+  const startNodeIdRaw = toString(root.startNodeId).trim();
+  const endNodeIdRaw = toString(root.endNodeId).trim();
+
+  const startNodeId =
+    (startNodeIdRaw && nodes.some((node) => node.nodeId === startNodeIdRaw && node.kind === 'start') ? startNodeIdRaw : '') ||
+    nodes.find((node) => node.kind === 'start')?.nodeId ||
+    createId('start');
+  const endNodeId =
+    (endNodeIdRaw && nodes.some((node) => node.nodeId === endNodeIdRaw && node.kind === 'end') ? endNodeIdRaw : '') ||
+    nodes.find((node) => node.kind === 'end')?.nodeId ||
+    createId('end');
+
+  const normalizedNodes = nodes
+    .filter((node) => {
+      if (node.kind === 'start') return node.nodeId === startNodeId;
+      if (node.kind === 'end') return node.nodeId === endNodeId;
+      return true;
+    })
+    .concat(nodes.some((node) => node.nodeId === endNodeId && node.kind === 'end') ? [] : [createEndNode(endNodeId)]);
+
+  if (!normalizedNodes.some((node) => node.nodeId === startNodeId && node.kind === 'start')) {
+    normalizedNodes.unshift(createStartNode(startNodeId));
   }
-  return base;
+
+  const nodeById = new Map(normalizedNodes.map((node) => [node.nodeId, node]));
+  const rawEdges = Array.isArray(root.edges) ? (root.edges as Array<Record<string, unknown>>) : [];
+
+  const edges: StoryboardGraphEdge[] = rawEdges
+    .map((edge) => {
+      const fromNodeId = toString(edge.fromNodeId).trim();
+      const toNodeId = toString(edge.toNodeId).trim();
+      if (!fromNodeId || !toNodeId) return null;
+      const sourcePortRaw = toString(edge.sourcePort).trim();
+      const targetPortRaw = toString(edge.targetPort).trim();
+      const kindRaw = toString(edge.kind).trim();
+      const sourcePort: StoryboardSourcePort =
+        sourcePortRaw === 'out-right' || sourcePortRaw === 'out-wrong' || sourcePortRaw === 'out-path'
+          ? sourcePortRaw
+          : kindRaw === 'card_right'
+            ? 'out-right'
+            : kindRaw === 'card_wrong'
+              ? 'out-wrong'
+              : 'out-path';
+      const targetPort: StoryboardTargetPort =
+        targetPortRaw === 'in-dependency' || targetPortRaw === 'in-path'
+          ? targetPortRaw
+          : kindRaw === 'dependency'
+            ? 'in-dependency'
+            : 'in-path';
+      return {
+        edgeId: toString(edge.edgeId).trim() || createId('edge'),
+        fromNodeId,
+        toNodeId,
+        sourcePort,
+        targetPort,
+        kind: deriveEdgeKind(sourcePort, targetPort),
+        label: toString(edge.label ?? edge.buttonLabel ?? edge.edgeLabel),
+        displayMode: edge.displayMode === 'expand' ? 'expand' : 'new_screen'
+      } satisfies StoryboardGraphEdge;
+    })
+    .filter((edge): edge is StoryboardGraphEdge => Boolean(edge))
+    .filter((edge) => nodeById.has(edge.fromNodeId) && nodeById.has(edge.toNodeId) && edge.fromNodeId !== edge.toNodeId);
+
+  return {
+    startNodeId,
+    endNodeId,
+    nodes: normalizedNodes,
+    edges:
+      edges.length > 0
+        ? edges
+        : [
+            {
+              edgeId: createId('edge'),
+              fromNodeId: startNodeId,
+              toNodeId: endNodeId,
+              sourcePort: 'out-path',
+              targetPort: 'in-path',
+              kind: 'path',
+              label: '',
+              displayMode: 'new_screen'
+            }
+          ]
+  };
+}
+
+function normalizeDocument(content: unknown): StoryboardDocument {
+  if (content && typeof content === 'object') {
+    const root = content as Record<string, unknown>;
+    if (root.schema === 'cogita_storyboard_graph' && root.rootGraph) {
+      return {
+        schema: 'cogita_storyboard_graph',
+        version: typeof root.version === 'number' ? root.version : 2,
+        description: toString(root.description),
+        script: toString(root.script),
+        steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
+        rootGraph: parseGraph(root.rootGraph)
+      };
+    }
+    if (root.schema === 'cogita_storyboard_graph' && Array.isArray(root.nodes)) {
+      return {
+        schema: 'cogita_storyboard_graph',
+        version: typeof root.version === 'number' ? root.version : 1,
+        description: toString(root.description),
+        script: toString(root.script),
+        steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
+        rootGraph: parseGraph(root)
+      };
+    }
+  }
+
+  return {
+    schema: 'cogita_storyboard_graph',
+    version: 2,
+    description: '',
+    script: '',
+    steps: [],
+    rootGraph: createDefaultGraph()
+  };
+}
+
+function buildNodeKey(graphPath: string[], nodeId: string) {
+  return `${graphPath.join('/') || 'root'}::${nodeId}`;
+}
+
+function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): RuntimeBlock {
+  return {
+    key: buildNodeKey(graphPath, node.nodeId),
+    kind: node.kind,
+    title: node.title,
+    description: node.description,
+    staticType: node.staticType,
+    staticBody: node.staticBody,
+    mediaUrl: node.mediaUrl,
+    knowledgeItemId: node.knowledgeItemId,
+    cardDirection: node.cardDirection
+  };
+}
+
+function findNode(graph: StoryboardGraph, nodeId: string) {
+  return graph.nodes.find((node) => node.nodeId === nodeId) ?? null;
+}
+
+function getDependencyEdges(graph: StoryboardGraph, targetNodeId: string) {
+  return graph.edges.filter((edge) => edge.toNodeId === targetNodeId && edge.targetPort === 'in-dependency');
+}
+
+function isNodeAvailable(graph: StoryboardGraph, graphPath: string[], targetNodeId: string, visited: Record<string, boolean>) {
+  const deps = getDependencyEdges(graph, targetNodeId);
+  return deps.every((edge) => visited[buildNodeKey(graphPath, edge.fromNodeId)] === true);
+}
+
+function getOutgoingEdges(
+  graph: StoryboardGraph,
+  graphPath: string[],
+  nodeId: string,
+  sourcePort: StoryboardSourcePort,
+  visited: Record<string, boolean>
+) {
+  return graph.edges.filter(
+    (edge) =>
+      edge.fromNodeId === nodeId &&
+      edge.sourcePort === sourcePort &&
+      isNodeAvailable(graph, graphPath, edge.toNodeId, visited)
+  );
+}
+
+function cloneState(state: RuntimeState): RuntimeState {
+  return {
+    graph: state.graph,
+    graphPath: [...state.graphPath],
+    stack: [...state.stack],
+    currentNodeId: state.currentNodeId,
+    displayedBlocks: [...state.displayedBlocks],
+    visited: { ...state.visited },
+    completedGroups: { ...state.completedGroups },
+    finished: state.finished
+  };
+}
+
+function advanceRuntime(
+  state: RuntimeState,
+  nextNodeId: string,
+  transition: StoryboardEdgeDisplayMode
+): RuntimeState {
+  const next = cloneState(state);
+  let nodeId = nextNodeId;
+  let displayMode = transition;
+  let guard = 0;
+
+  while (guard < 80) {
+    guard += 1;
+    const node = findNode(next.graph, nodeId);
+    if (!node) {
+      next.finished = true;
+      return next;
+    }
+
+    next.currentNodeId = node.nodeId;
+    next.visited[buildNodeKey(next.graphPath, node.nodeId)] = true;
+
+    if (node.kind === 'start') {
+      const options = getOutgoingEdges(next.graph, next.graphPath, node.nodeId, 'out-path', next.visited);
+      if (options.length === 0) {
+        next.finished = true;
+        return next;
+      }
+      if (options.length === 1) {
+        nodeId = options[0].toNodeId;
+        displayMode = options[0].displayMode;
+        continue;
+      }
+      next.displayedBlocks = [buildRuntimeBlock(next.graphPath, node)];
+      next.finished = false;
+      return next;
+    }
+
+    if (node.kind === 'end') {
+      if (next.stack.length === 0) {
+        next.finished = true;
+        return next;
+      }
+      const frame = next.stack.pop();
+      if (!frame) {
+        next.finished = true;
+        return next;
+      }
+      const groupKey = buildNodeKey(frame.parentGraphPath, frame.parentGroupNodeId);
+      next.completedGroups[groupKey] = true;
+      next.graph = frame.parentGraph;
+      next.graphPath = frame.parentGraphPath;
+      nodeId = frame.parentGroupNodeId;
+      displayMode = 'expand';
+      continue;
+    }
+
+    if (node.kind === 'group' && !next.completedGroups[buildNodeKey(next.graphPath, node.nodeId)] && node.groupGraph) {
+      next.stack.push({
+        parentGraph: next.graph,
+        parentGraphPath: [...next.graphPath],
+        parentGroupNodeId: node.nodeId
+      });
+      next.graph = node.groupGraph;
+      next.graphPath = [...next.graphPath, node.nodeId];
+      nodeId = node.groupGraph.startNodeId;
+      continue;
+    }
+
+    const block = buildRuntimeBlock(next.graphPath, node);
+    next.displayedBlocks = displayMode === 'expand' ? [...next.displayedBlocks, block] : [block];
+    next.finished = false;
+    return next;
+  }
+
+  next.finished = true;
+  return next;
+}
+
+function createInitialRuntime(rootGraph: StoryboardGraph): RuntimeState {
+  const base: RuntimeState = {
+    graph: rootGraph,
+    graphPath: [],
+    stack: [],
+    currentNodeId: rootGraph.startNodeId,
+    displayedBlocks: [],
+    visited: {},
+    completedGroups: {},
+    finished: false
+  };
+  return advanceRuntime(base, rootGraph.startNodeId, 'new_screen');
 }
 
 export function CogitaStoryboardRuntimePage({
@@ -79,7 +483,8 @@ export function CogitaStoryboardRuntimePage({
   language,
   onLanguageChange,
   libraryId,
-  projectId
+  projectId,
+  shareCode
 }: {
   copy: Copy;
   authLabel: string;
@@ -93,198 +498,140 @@ export function CogitaStoryboardRuntimePage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId?: string;
   projectId?: string;
+  shareCode?: string;
 }) {
   const navigate = useNavigate();
-  const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
-  const [selectedLibraryId, setSelectedLibraryId] = useState(libraryId ?? '');
-  const [projects, setProjects] = useState<CogitaCreationProject[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(projectId ?? '');
-  const [projectName, setProjectName] = useState('');
-  const [script, setScript] = useState('');
-  const [stepIndex, setStepIndex] = useState(0);
-  const [referenceQuery, setReferenceQuery] = useState('');
-  const [referenceResults, setReferenceResults] = useState<CogitaInfoSearchResult[]>([]);
+  const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
+  const [project, setProject] = useState<CogitaCreationProject | null>(null);
+  const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
+  const [runtime, setRuntime] = useState<RuntimeState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [searchingReferences, setSearchingReferences] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelectedLibraryId(libraryId ?? '');
-  }, [libraryId]);
-
-  useEffect(() => {
-    setSelectedProjectId(projectId ?? '');
-  }, [projectId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadLibraries = async () => {
+    if (shareCode) {
+      let cancelled = false;
       setLoading(true);
       setStatus(null);
-      try {
-        const list = await getCogitaLibraries();
+
+      getCogitaPublicStoryboardShare({ shareCode })
+        .then((share) => {
+          if (cancelled) return;
+          const normalized = normalizeDocument(share.content);
+          setProject({
+            projectId: share.projectId,
+            projectType: 'storyboard',
+            name: share.projectName,
+            content: share.content ?? null,
+            createdUtc: share.createdUtc,
+            updatedUtc: share.createdUtc
+          });
+          setDocumentState(normalized);
+          setRuntime(createInitialRuntime(normalized.rootGraph));
+          setLoading(false);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setStatus(err instanceof Error ? err.message : runtimeCopy.statusLoadSharedFailed);
+          setProject(null);
+          setDocumentState(null);
+          setRuntime(null);
+          setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!libraryId || !projectId) {
+      setLoading(false);
+      setStatus(runtimeCopy.statusMissingParams);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setStatus(null);
+
+    getCogitaCreationProjects({ libraryId, projectType: 'storyboard' })
+      .then((projects) => {
         if (cancelled) return;
-        setLibraries(list);
-        if (!selectedLibraryId && list.length > 0) {
-          const first = list[0].libraryId;
-          setSelectedLibraryId(first);
-          navigate(`/cogita/storyboard/${encodeURIComponent(first)}`, { replace: true });
+        const found = projects.find((item) => item.projectId === projectId) ?? null;
+        if (!found) {
+          setProject(null);
+          setDocumentState(null);
+          setRuntime(null);
+          setStatus(runtimeCopy.statusNotFound);
+          setLoading(false);
+          return;
         }
-      } catch (err) {
+
+        const normalized = normalizeDocument(found.content);
+        setProject(found);
+        setDocumentState(normalized);
+        setRuntime(createInitialRuntime(normalized.rootGraph));
+        setLoading(false);
+      })
+      .catch((err) => {
         if (cancelled) return;
-        setStatus(err instanceof Error ? err.message : 'Failed to load libraries.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void loadLibraries();
+        setStatus(err instanceof Error ? err.message : runtimeCopy.statusLoadFailed);
+        setProject(null);
+        setDocumentState(null);
+        setRuntime(null);
+        setLoading(false);
+      });
+
     return () => {
       cancelled = true;
     };
-  }, [navigate, selectedLibraryId]);
+  }, [libraryId, projectId, shareCode]);
 
-  useEffect(() => {
-    if (!selectedLibraryId) {
-      setProjects([]);
-      return;
-    }
-    let cancelled = false;
-    const loadProjects = async () => {
-      setLoading(true);
-      setStatus(null);
-      try {
-        const list = await getCogitaCreationProjects({ libraryId: selectedLibraryId, projectType: 'storyboard' });
-        if (cancelled) return;
-        setProjects(list);
-        if (list.length === 0) {
-          setSelectedProjectId('');
-          return;
-        }
-        const fromRoute = projectId && list.some((item) => item.projectId === projectId) ? projectId : null;
-        const nextId = fromRoute ?? selectedProjectId;
-        const exists = nextId && list.some((item) => item.projectId === nextId);
-        if (exists && nextId) {
-          setSelectedProjectId(nextId);
-          return;
-        }
-        setSelectedProjectId(list[0].projectId);
-      } catch (err) {
-        if (cancelled) return;
-        setProjects([]);
-        setStatus(err instanceof Error ? err.message : 'Failed to load storyboard projects.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void loadProjects();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, selectedLibraryId, selectedProjectId]);
+  const currentNode = useMemo(() => {
+    if (!runtime) return null;
+    return findNode(runtime.graph, runtime.currentNodeId);
+  }, [runtime]);
 
-  const selectedProject = useMemo(
-    () => projects.find((item) => item.projectId === selectedProjectId) ?? null,
-    [projects, selectedProjectId]
-  );
+  const pathChoices = useMemo(() => {
+    if (!runtime || !currentNode || currentNode.kind === 'card') return [];
+    return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited).map((edge) => {
+      const target = findNode(runtime.graph, edge.toNodeId);
+      return {
+        edge,
+        label: edge.label.trim() || target?.title || runtimeCopy.choiceFallback
+      };
+    });
+  }, [currentNode, runtime, runtimeCopy.choiceFallback]);
 
-  useEffect(() => {
-    if (!selectedProject) {
-      setProjectName('');
-      setScript('');
-      setStepIndex(0);
-      return;
-    }
-    setProjectName(selectedProject.name);
-    setScript(parseStoryboardScript(selectedProject.content));
-    setStepIndex(0);
-  }, [selectedProject]);
+  const cardRightEdge = useMemo(() => {
+    if (!runtime || !currentNode || currentNode.kind !== 'card') return null;
+    return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-right', runtime.visited)[0] ?? null;
+  }, [currentNode, runtime]);
 
-  const steps = useMemo(() => parseStoryboardSteps(script), [script]);
-  const currentStep = steps[stepIndex] ?? '';
-  const canGoPrev = stepIndex > 0;
-  const canGoNext = stepIndex < steps.length - 1;
+  const cardWrongEdge = useMemo(() => {
+    if (!runtime || !currentNode || currentNode.kind !== 'card') return null;
+    return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-wrong', runtime.visited)[0] ?? null;
+  }, [currentNode, runtime]);
 
-  const selectLibrary = (nextLibraryId: string) => {
-    setSelectedLibraryId(nextLibraryId);
-    setSelectedProjectId('');
-    setStatus(null);
-    navigate(`/cogita/storyboard/${encodeURIComponent(nextLibraryId)}`);
+  const chooseEdge = (edge: StoryboardGraphEdge) => {
+    setRuntime((current) => {
+      if (!current) return current;
+      return advanceRuntime(current, edge.toNodeId, edge.displayMode);
+    });
   };
 
-  const selectProject = (nextProjectId: string) => {
-    setSelectedProjectId(nextProjectId);
-    setStatus(null);
-    navigate(`/cogita/storyboard/${encodeURIComponent(selectedLibraryId)}/${encodeURIComponent(nextProjectId)}`);
+  const chooseCardOutcome = (edge: StoryboardGraphEdge | null) => {
+    if (!edge) return;
+    setRuntime((current) => {
+      if (!current) return current;
+      return advanceRuntime(current, edge.toNodeId, 'new_screen');
+    });
   };
 
-  const createProject = async () => {
-    if (!selectedLibraryId || saving) return;
-    setSaving(true);
+  const restart = () => {
+    if (!documentState) return;
+    setRuntime(createInitialRuntime(documentState.rootGraph));
     setStatus(null);
-    try {
-      const created = await createCogitaCreationProject({
-        libraryId: selectedLibraryId,
-        projectType: 'storyboard',
-        name: 'Storyboard draft',
-        content: { script: '', steps: [] }
-      });
-      setProjects((current) => [created, ...current]);
-      setSelectedProjectId(created.projectId);
-      navigate(`/cogita/storyboard/${encodeURIComponent(selectedLibraryId)}/${encodeURIComponent(created.projectId)}`);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'Failed to create storyboard project.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveProject = async () => {
-    if (!selectedLibraryId || !selectedProjectId || saving) return;
-    setSaving(true);
-    setStatus(null);
-    try {
-      const updated = await updateCogitaCreationProject({
-        libraryId: selectedLibraryId,
-        projectId: selectedProjectId,
-        name: projectName.trim() || 'Storyboard draft',
-        content: buildStoryboardContent(script, selectedProject?.content)
-      });
-      setProjects((current) =>
-        current.map((item) => (item.projectId === updated.projectId ? updated : item))
-      );
-      setStatus('Storyboard saved.');
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'Failed to save storyboard.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const searchReferences = async () => {
-    if (!selectedLibraryId || !referenceQuery.trim()) {
-      setReferenceResults([]);
-      return;
-    }
-    setSearchingReferences(true);
-    setStatus(null);
-    try {
-      const list = await searchCogitaInfos({
-        libraryId: selectedLibraryId,
-        query: referenceQuery.trim(),
-        limit: 8
-      });
-      setReferenceResults(list);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'Failed to search knowledge items.');
-    } finally {
-      setSearchingReferences(false);
-    }
-  };
-
-  const insertReference = (item: CogitaInfoSearchResult) => {
-    const token = `[[${item.label}]]`;
-    setScript((current) => (current.trim().length > 0 ? `${current}\n${token}` : token));
   };
 
   return (
@@ -300,140 +647,90 @@ export function CogitaStoryboardRuntimePage({
       language={language}
       onLanguageChange={onLanguageChange}
       headerExtra={
-        selectedLibraryId ? (
+        libraryId && !shareCode ? (
           <button
             type="button"
             className="ghost"
-            onClick={() => navigate(`/cogita/workspace/libraries/${encodeURIComponent(selectedLibraryId)}/storyboards`)}
+            onClick={() => navigate(`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/storyboards${projectId ? `/${encodeURIComponent(projectId)}` : ''}`)}
           >
-            Show in workspace
+            {runtimeCopy.backAction}
           </button>
         ) : null
       }
     >
-      <section className="cogita-section" style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+      <section className="cogita-section" style={{ maxWidth: 980, margin: '0 auto', width: '100%' }}>
         <header className="cogita-library-header" style={{ marginBottom: '1rem' }}>
           <div>
-            <p className="cogita-user-kicker">Storyboard Mode</p>
-            <h1 className="cogita-library-title" style={{ marginBottom: '0.35rem' }}>Storyboard Playback + Editor</h1>
-            <p className="cogita-library-subtitle">Standalone runtime and authoring surface with knowledge-item reference insertion.</p>
+            <p className="cogita-user-kicker">{runtimeCopy.kicker}</p>
+            <h1 className="cogita-library-title" style={{ marginBottom: '0.35rem' }}>{project?.name ?? runtimeCopy.titleFallback}</h1>
+            {documentState?.description ? <p className="cogita-library-subtitle">{documentState.description}</p> : null}
+          </div>
+          <div className="cogita-card-actions">
+            <button type="button" className="ghost" onClick={restart} disabled={!documentState || loading}>{runtimeCopy.restartAction}</button>
           </div>
         </header>
 
+        {loading ? <p>{runtimeCopy.loading}</p> : null}
         {status ? <p className="cogita-form-error">{status}</p> : null}
-        {loading ? <p className="cogita-library-subtitle">Loading storyboard surface...</p> : null}
 
-        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(240px, 320px) minmax(0, 1fr)' }}>
-          <aside className="cogita-pane" style={{ alignSelf: 'start' }}>
-            <h2 style={{ marginTop: 0 }}>Libraries</h2>
-            <div className="cogita-card-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-              {libraries.map((library) => (
-                <button
-                  key={library.libraryId}
-                  type="button"
-                  className="ghost"
-                  onClick={() => selectLibrary(library.libraryId)}
-                  style={selectedLibraryId === library.libraryId ? { borderColor: 'rgba(111, 214, 255, 0.75)' } : undefined}
-                >
-                  {library.name}
-                </button>
-              ))}
-            </div>
+        {!loading && runtime ? (
+          <div className="cogita-pane" style={{ display: 'grid', gap: '1rem' }}>
+            {runtime.displayedBlocks.map((block) => (
+              <article key={block.key} className="cogita-library-detail" style={{ margin: 0 }}>
+                <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
+                  <h3 className="cogita-detail-title" style={{ margin: 0 }}>{block.title || runtimeCopy.blockUntitled}</h3>
+                  {block.kind === 'static' ? (
+                    <>
+                      {block.staticBody ? <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{block.staticBody}</p> : null}
+                      {block.description ? <p className="cogita-help" style={{ margin: 0 }}>{block.description}</p> : null}
+                      {(block.staticType === 'video' || block.staticType === 'audio' || block.staticType === 'image') && block.mediaUrl ? (
+                        <a className="ghost" href={block.mediaUrl} target="_blank" rel="noreferrer">{runtimeCopy.openMediaAction}</a>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {block.kind === 'card' ? (
+                    <>
+                      <p style={{ margin: 0 }}>
+                        {runtimeCopy.knowledgeItemLabel}: <strong>{block.knowledgeItemId || runtimeCopy.knowledgeItemNotSet}</strong>
+                      </p>
+                      <p className="cogita-help" style={{ margin: 0 }}>
+                        {runtimeCopy.directionLabel}: {block.cardDirection === 'back_to_front' ? runtimeCopy.directionBackToFront : runtimeCopy.directionFrontToBack}
+                      </p>
+                    </>
+                  ) : null}
+                  {block.kind === 'group' ? (
+                    <p className="cogita-help" style={{ margin: 0 }}>{runtimeCopy.groupCompleted}</p>
+                  ) : null}
+                </div>
+              </article>
+            ))}
 
-            <div style={{ marginTop: '1rem' }}>
-              <h3 style={{ marginBottom: '0.45rem' }}>Storyboard projects</h3>
-              <div className="cogita-card-actions" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                {projects.map((item) => (
-                  <button
-                    key={item.projectId}
-                    type="button"
-                    className="ghost"
-                    onClick={() => selectProject(item.projectId)}
-                    style={selectedProjectId === item.projectId ? { borderColor: 'rgba(111, 214, 255, 0.75)' } : undefined}
-                  >
-                    {item.name}
+            {runtime.finished ? (
+              <div className="cogita-library-detail">
+                <div className="cogita-detail-body">
+                  <p>{runtimeCopy.finished}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {currentNode?.kind === 'card' && !runtime.finished ? (
+              <div className="cogita-card-actions">
+                <button type="button" className="cta" onClick={() => chooseCardOutcome(cardRightEdge)} disabled={!cardRightEdge}>{runtimeCopy.rightAction}</button>
+                <button type="button" className="ghost" onClick={() => chooseCardOutcome(cardWrongEdge)} disabled={!cardWrongEdge}>{runtimeCopy.wrongAction}</button>
+              </div>
+            ) : null}
+
+            {currentNode && currentNode.kind !== 'card' && !runtime.finished && pathChoices.length > 0 ? (
+              <div className="cogita-card-actions" style={{ flexWrap: 'wrap' }}>
+                {pathChoices.map((choice) => (
+                  <button key={choice.edge.edgeId} type="button" className="cta ghost" onClick={() => chooseEdge(choice.edge)}>
+                    {choice.label}
                   </button>
                 ))}
-                {projects.length === 0 ? <p className="cogita-library-subtitle">No storyboard projects yet.</p> : null}
               </div>
-              <button type="button" className="ghost" style={{ marginTop: '0.5rem' }} onClick={() => void createProject()} disabled={!selectedLibraryId || saving}>
-                New storyboard project
-              </button>
-            </div>
-          </aside>
-
-          <div style={{ display: 'grid', gap: '1rem' }}>
-            <article className="cogita-pane">
-              <p className="cogita-user-kicker">Playback</p>
-              <h2 style={{ marginTop: 0 }}>{projectName || 'Select a storyboard project'}</h2>
-              {steps.length === 0 ? (
-                <p className="cogita-library-subtitle">No storyboard steps yet. Add script blocks below.</p>
-              ) : (
-                <>
-                  <p className="cogita-card-type">Step {stepIndex + 1} / {steps.length}</p>
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{currentStep}</p>
-                  <div className="cogita-card-actions" style={{ marginTop: '0.75rem' }}>
-                    <button type="button" className="ghost" onClick={() => setStepIndex((current) => Math.max(0, current - 1))} disabled={!canGoPrev}>Previous</button>
-                    <button type="button" className="ghost" onClick={() => setStepIndex((current) => Math.min(steps.length - 1, current + 1))} disabled={!canGoNext}>Next</button>
-                  </div>
-                </>
-              )}
-            </article>
-
-            <article className="cogita-pane">
-              <p className="cogita-user-kicker">Authoring</p>
-              <label className="cogita-field full">
-                <span>Storyboard name</span>
-                <input type="text" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Storyboard title" />
-              </label>
-              <label className="cogita-field full" style={{ marginTop: '0.5rem' }}>
-                <span>Script blocks (separate steps with empty lines or ---)</span>
-                <textarea
-                  value={script}
-                  onChange={(event) => setScript(event.target.value)}
-                  rows={11}
-                  placeholder={'Step 1...\n\nStep 2...\n\n---\n\nStep 3...'}
-                />
-              </label>
-              <div className="cogita-form-actions" style={{ marginTop: '0.7rem' }}>
-                <button type="button" className="ghost" onClick={() => void saveProject()} disabled={!selectedLibraryId || !selectedProjectId || saving}>
-                  {saving ? 'Saving...' : 'Save storyboard'}
-                </button>
-              </div>
-            </article>
-
-            <article className="cogita-pane">
-              <p className="cogita-user-kicker">Knowledge references</p>
-              <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr auto' }}>
-                <input
-                  type="text"
-                  value={referenceQuery}
-                  onChange={(event) => setReferenceQuery(event.target.value)}
-                  placeholder="Search knowledge items"
-                />
-                <button type="button" className="ghost" onClick={() => void searchReferences()} disabled={searchingReferences || !selectedLibraryId}>
-                  {searchingReferences ? 'Searching...' : 'Search'}
-                </button>
-              </div>
-              <div className="cogita-card-list" data-view="list" style={{ marginTop: '0.75rem' }}>
-                {referenceResults.map((item) => (
-                  <div className="cogita-card-item" key={item.infoId}>
-                    <div>
-                      <p className="cogita-card-type">{item.infoType}</p>
-                      <h3 className="cogita-card-title">{item.label}</h3>
-                    </div>
-                    <div className="cogita-card-actions">
-                      <button type="button" className="ghost" onClick={() => insertReference(item)}>
-                        Insert reference
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {referenceResults.length === 0 ? <p className="cogita-library-subtitle">No reference results loaded.</p> : null}
-              </div>
-            </article>
+            ) : null}
           </div>
-        </div>
+        ) : null}
       </section>
     </CogitaShell>
   );

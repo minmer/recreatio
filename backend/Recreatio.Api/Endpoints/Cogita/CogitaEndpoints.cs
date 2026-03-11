@@ -23,6 +23,8 @@ public static class CogitaEndpoints
 {
     private const string CogitaRevisionShareSchemaError =
         "Database schema for Cogita revision shares is outdated. Apply backend/Recreatio.Api/Sql/patch_cogita_revision_shares_runtime_compat.sql on the API database.";
+    private const string CogitaStoryboardShareSchemaError =
+        "Database schema for Cogita storyboard shares is outdated. Apply backend/Recreatio.Api/Sql/schema.sql on the API database.";
 
     private static readonly HashSet<string> SupportedInfoTypes = new(CogitaTypeRegistry.SupportedInfoTypes, StringComparer.Ordinal);
 
@@ -877,9 +879,294 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
+            if (row.ProjectType == "storyboard" &&
+                await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                var hasActiveShares = await dbContext.CogitaStoryboardShares.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.ProjectId == projectId && x.RevokedUtc == null, ct);
+                if (hasActiveShares)
+                {
+                    return Results.BadRequest(new { error = "Cannot delete storyboard with active shared links.", blockers = new[] { "storyboard-shares" } });
+                }
+            }
+
             dbContext.CogitaCreationProjects.Remove(row);
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(new { deleted = true });
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/storyboard-shares", async (
+            Guid libraryId,
+            CogitaStoryboardShareCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardShareSchemaError });
+            }
+
+            var projectId = request.ProjectId;
+            if (projectId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "ProjectId is invalid." });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var project = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == projectId &&
+                    x.LibraryId == libraryId &&
+                    x.ProjectType == "storyboard", ct);
+            if (project is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            string shareCode;
+            byte[] shareCodeBytes;
+            byte[] secretHash;
+            var attempts = 0;
+            while (true)
+            {
+                shareCode = GenerateNumericShareCode(18);
+                shareCodeBytes = Encoding.UTF8.GetBytes(shareCode);
+                secretHash = hashingService.Hash(shareCodeBytes);
+                var exists = await dbContext.CogitaStoryboardShares.AsNoTracking()
+                    .AnyAsync(x => x.PublicCodeHash == secretHash, ct);
+                attempts++;
+                if (!exists || attempts >= 5)
+                {
+                    break;
+                }
+            }
+
+            if (attempts >= 5)
+            {
+                return Results.Problem("Unable to generate a unique storyboard share code.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+            var previousActiveShare = await dbContext.CogitaStoryboardShares
+                .FirstOrDefaultAsync(x =>
+                    x.LibraryId == libraryId &&
+                    x.ProjectId == projectId &&
+                    x.RevokedUtc == null, ct);
+            if (previousActiveShare is not null)
+            {
+                previousActiveShare.RevokedUtc = now;
+                await dbContext.SaveChangesAsync(ct);
+            }
+
+            var shareId = Guid.NewGuid();
+            var encShareCode = encryptionService.Encrypt(ownerKey, shareCodeBytes, shareId.ToByteArray());
+            dbContext.CogitaStoryboardShares.Add(new CogitaStoryboardShare
+            {
+                Id = shareId,
+                LibraryId = libraryId,
+                ProjectId = projectId,
+                OwnerRoleId = library.RoleId,
+                PublicCodeHash = secretHash,
+                EncShareCode = encShareCode,
+                CreatedUtc = now,
+                RevokedUtc = null
+            });
+
+            await dbContext.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+
+            return Results.Ok(new CogitaStoryboardShareCreateResponse(
+                shareId,
+                projectId,
+                project.Name,
+                shareCode,
+                now
+            ));
+        });
+
+        group.MapGet("/libraries/{libraryId:guid}/storyboard-shares", async (
+            Guid libraryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardShareSchemaError });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var shares = await dbContext.CogitaStoryboardShares.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId)
+                .OrderByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+            if (shares.Count == 0)
+            {
+                return Results.Ok(new List<CogitaStoryboardShareResponse>());
+            }
+
+            var projectIds = shares.Select(x => x.ProjectId).Distinct().ToList();
+            var projects = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .Where(x =>
+                    x.LibraryId == libraryId &&
+                    x.ProjectType == "storyboard" &&
+                    projectIds.Contains(x.Id))
+                .ToListAsync(ct);
+            var projectLookup = projects.ToDictionary(x => x.Id, x => x);
+
+            var response = new List<CogitaStoryboardShareResponse>();
+            foreach (var share in shares)
+            {
+                var shareCode = string.Empty;
+                if (share.EncShareCode.Length > 0)
+                {
+                    try
+                    {
+                        var plain = encryptionService.Decrypt(ownerKey, share.EncShareCode, share.Id.ToByteArray());
+                        shareCode = Encoding.UTF8.GetString(plain);
+                    }
+                    catch (CryptographicException)
+                    {
+                        shareCode = string.Empty;
+                    }
+                }
+
+                var projectName = projectLookup.TryGetValue(share.ProjectId, out var projectItem)
+                    ? projectItem.Name
+                    : "Storyboard";
+
+                response.Add(new CogitaStoryboardShareResponse(
+                    share.Id,
+                    share.ProjectId,
+                    projectName,
+                    shareCode,
+                    share.CreatedUtc,
+                    share.RevokedUtc
+                ));
+            }
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/libraries/{libraryId:guid}/storyboard-shares/{shareId:guid}/revoke", async (
+            Guid libraryId,
+            Guid shareId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardShareSchemaError });
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out _))
+            {
+                return Results.Forbid();
+            }
+
+            var share = await dbContext.CogitaStoryboardShares
+                .FirstOrDefaultAsync(x => x.Id == shareId && x.LibraryId == libraryId, ct);
+            if (share is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (share.RevokedUtc is not null)
+            {
+                return Results.Ok();
+            }
+
+            share.RevokedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok();
         });
 
         group.MapGet("/libraries/{libraryId:guid}/info-types/specification", async (
@@ -9732,6 +10019,66 @@ public static class CogitaEndpoints
                 revision.Mode,
                 revision.CheckMode,
                 revision.CardLimit
+            ));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard/{code}", async (
+            string code,
+            RecreatioDbContext dbContext,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            if (!await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+            {
+                return Results.BadRequest(new { error = CogitaStoryboardShareSchemaError });
+            }
+
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return Results.NotFound();
+            }
+
+            code = code.Trim();
+            if (code.Length < 6 || code.Length > 128)
+            {
+                return Results.NotFound();
+            }
+
+            var codeHash = hashingService.Hash(Encoding.UTF8.GetBytes(code));
+            var share = await dbContext.CogitaStoryboardShares.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.PublicCodeHash == codeHash && x.RevokedUtc == null, ct);
+            if (share is null)
+            {
+                return Results.NotFound();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == share.LibraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var project = await dbContext.CogitaCreationProjects.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Id == share.ProjectId &&
+                    x.LibraryId == share.LibraryId &&
+                    x.ProjectType == "storyboard", ct);
+            if (project is null)
+            {
+                return Results.NotFound();
+            }
+
+            var libraryName = "Cogita Library";
+
+            return Results.Ok(new CogitaPublicStoryboardShareResponse(
+                share.Id,
+                project.Id,
+                project.Name,
+                library.Id,
+                libraryName,
+                ParseOptionalJson(project.ContentJson),
+                share.CreatedUtc
             ));
         }).AllowAnonymous();
 
@@ -21872,6 +22219,52 @@ public static class CogitaEndpoints
                 COL_LENGTH('dbo.CogitaRevisionShares', 'CardLimit') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaRevisionShares', 'CreatedUtc') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaRevisionShares', 'RevokedUtc') IS NOT NULL
+            THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";
+
+        try
+        {
+            var connection = dbContext.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
+            if (shouldClose)
+            {
+                await connection.OpenAsync(ct);
+            }
+
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                var scalar = await command.ExecuteScalarAsync(ct);
+                return scalar is bool value && value;
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<bool> HasCogitaStoryboardShareRuntimeSchemaAsync(
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        const string sql = @"
+            SELECT CASE WHEN
+                OBJECT_ID(N'dbo.CogitaStoryboardShares', N'U') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'LibraryId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'ProjectId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'OwnerRoleId') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'PublicCodeHash') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'EncShareCode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'CreatedUtc') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";
 
         try

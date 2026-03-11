@@ -1526,6 +1526,54 @@ BEGIN
 END
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaStoryboardShares' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaStoryboardShares
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        ProjectId UNIQUEIDENTIFIER NOT NULL,
+        OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+        PublicCodeHash VARBINARY(64) NOT NULL,
+        EncShareCode VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CogitaStoryboardShares_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaStoryboardShares_Project FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id),
+        CONSTRAINT FK_CogitaStoryboardShares_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_Library_Revoked' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+BEGIN
+    CREATE INDEX IX_CogitaStoryboardShares_Library_Revoked
+        ON dbo.CogitaStoryboardShares(LibraryId, RevokedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_Library_Project_Revoked' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+BEGIN
+    CREATE INDEX IX_CogitaStoryboardShares_Library_Project_Revoked
+        ON dbo.CogitaStoryboardShares(LibraryId, ProjectId, RevokedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaStoryboardShares_ActiveProject' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaStoryboardShares_ActiveProject
+        ON dbo.CogitaStoryboardShares(ProjectId)
+        WHERE RevokedUtc IS NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+BEGIN
+    CREATE INDEX IX_CogitaStoryboardShares_PublicCodeHash
+        ON dbo.CogitaStoryboardShares(PublicCodeHash);
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaRevisionShares' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE dbo.CogitaRevisionShares
@@ -2759,5 +2807,59 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaRevisionShares_P
    AND COL_LENGTH('dbo.CogitaRevisionShares', 'PublicCodeHash') IS NOT NULL
 BEGIN
     EXEC(N'CREATE INDEX IX_CogitaRevisionShares_PublicCodeHash ON dbo.CogitaRevisionShares(PublicCodeHash);');
+END
+GO
+
+/*
+  Runtime compatibility: ensure CogitaStoryboardShares matches current API schema.
+*/
+IF OBJECT_ID(N'dbo.CogitaStoryboardShares', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaStoryboardShares
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        ProjectId UNIQUEIDENTIFIER NOT NULL,
+        OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+        PublicCodeHash VARBINARY(64) NOT NULL,
+        EncShareCode VARBINARY(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id),
+        FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_Library_Revoked' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'LibraryId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaStoryboardShares_Library_Revoked ON dbo.CogitaStoryboardShares(LibraryId, RevokedUtc);');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_Library_Project_Revoked' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'LibraryId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'ProjectId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaStoryboardShares_Library_Project_Revoked ON dbo.CogitaStoryboardShares(LibraryId, ProjectId, RevokedUtc);');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaStoryboardShares_ActiveProject' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'ProjectId') IS NOT NULL
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX UX_CogitaStoryboardShares_ActiveProject ON dbo.CogitaStoryboardShares(ProjectId) WHERE RevokedUtc IS NULL;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaStoryboardShares'))
+   AND COL_LENGTH('dbo.CogitaStoryboardShares', 'PublicCodeHash') IS NOT NULL
+BEGIN
+    EXEC(N'CREATE INDEX IX_CogitaStoryboardShares_PublicCodeHash ON dbo.CogitaStoryboardShares(PublicCodeHash);');
 END
 GO

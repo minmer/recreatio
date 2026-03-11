@@ -91,6 +91,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaStatisticEvent> CogitaStatisticEvents => Set<Data.Cogita.CogitaStatisticEvent>();
     public DbSet<Data.Cogita.CogitaRevision> CogitaRevisions => Set<Data.Cogita.CogitaRevision>();
     public DbSet<Data.Cogita.CogitaRevisionShare> CogitaRevisionShares => Set<Data.Cogita.CogitaRevisionShare>();
+    public DbSet<Data.Cogita.CogitaStoryboardShare> CogitaStoryboardShares => Set<Data.Cogita.CogitaStoryboardShare>();
     public DbSet<Data.Cogita.CogitaLiveRevisionSession> CogitaLiveRevisionSessions => Set<Data.Cogita.CogitaLiveRevisionSession>();
     public DbSet<Data.Cogita.CogitaLiveRevisionParticipant> CogitaLiveRevisionParticipants => Set<Data.Cogita.CogitaLiveRevisionParticipant>();
     public DbSet<Data.Cogita.CogitaLiveRevisionAnswer> CogitaLiveRevisionAnswers => Set<Data.Cogita.CogitaLiveRevisionAnswer>();
@@ -452,6 +453,16 @@ public sealed class RecreatioDbContext : DbContext
             .HasFilter("[RevokedUtc] IS NULL")
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaRevisionShare>()
+            .HasIndex(x => x.PublicCodeHash);
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardShare>()
+            .HasIndex(x => new { x.LibraryId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardShare>()
+            .HasIndex(x => new { x.LibraryId, x.ProjectId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardShare>()
+            .HasIndex(x => x.ProjectId)
+            .HasFilter("[RevokedUtc] IS NULL")
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaStoryboardShare>()
             .HasIndex(x => x.PublicCodeHash);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionSession>()
             .Property(x => x.Status)

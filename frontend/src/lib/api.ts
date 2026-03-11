@@ -899,6 +899,33 @@ export type CogitaRevisionShareCreateResponse = {
   createdUtc: string;
 };
 
+export type CogitaStoryboardShare = {
+  shareId: string;
+  projectId: string;
+  projectName: string;
+  shareCode: string;
+  createdUtc: string;
+  revokedUtc?: string | null;
+};
+
+export type CogitaStoryboardShareCreateResponse = {
+  shareId: string;
+  projectId: string;
+  projectName: string;
+  shareCode: string;
+  createdUtc: string;
+};
+
+export type CogitaPublicStoryboardShare = {
+  shareId: string;
+  projectId: string;
+  projectName: string;
+  libraryId: string;
+  libraryName: string;
+  content?: unknown | null;
+  createdUtc: string;
+};
+
 export type CogitaLiveRevisionParticipantScore = {
   participantId: string;
   displayName: string;
@@ -1567,6 +1594,33 @@ export function revokeCogitaRevisionShare(payload: { libraryId: string; shareId:
   });
 }
 
+export function createCogitaStoryboardShare(payload: {
+  libraryId: string;
+  projectId: string;
+  signatureBase64?: string | null;
+}) {
+  return request<CogitaStoryboardShareCreateResponse>(`/cogita/libraries/${payload.libraryId}/storyboard-shares`, {
+    method: 'POST',
+    body: JSON.stringify({
+      projectId: payload.projectId,
+      signatureBase64: payload.signatureBase64 ?? null
+    })
+  });
+}
+
+export function getCogitaStoryboardShares(payload: { libraryId: string }) {
+  return request<CogitaStoryboardShare[]>(`/cogita/libraries/${payload.libraryId}/storyboard-shares`, {
+    method: 'GET'
+  });
+}
+
+export function revokeCogitaStoryboardShare(payload: { libraryId: string; shareId: string }) {
+  return request<void>(`/cogita/libraries/${payload.libraryId}/storyboard-shares/${payload.shareId}/revoke`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
 export function createCogitaLiveRevisionSession(payload: {
   libraryId: string;
   revisionId: string;
@@ -1886,6 +1940,12 @@ export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: s
     `/cogita/public/revision/${encodeURIComponent(payload.shareId)}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
+}
+
+export function getCogitaPublicStoryboardShare(payload: { shareCode: string }) {
+  return request<CogitaPublicStoryboardShare>(`/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}`, {
+    method: 'GET'
+  });
 }
 
 export function getCogitaPublicRevisionInfos(payload: { shareId: string; key?: string; type?: string; query?: string }) {

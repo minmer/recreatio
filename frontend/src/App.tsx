@@ -145,7 +145,12 @@ export default function App() {
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
   const isCogitaPath = pathname.startsWith('/cogita');
   const isCogitaHomePath = pathname === '/cogita/home' || pathname === '/cogita/home/';
-  const isCogitaStoryboardPath = pathname === '/cogita/storyboard' || pathname.startsWith('/cogita/storyboard/');
+  const isCogitaStoryboardSharedPath = pathname.startsWith('/cogita/storyboard/shared/') && pathSegments.length >= 4;
+  const isCogitaStoryboardPath =
+    (pathname === '/cogita/storyboard' || pathname.startsWith('/cogita/storyboard/')) &&
+    !isCogitaStoryboardSharedPath;
+  const isCogitaStoryboardRuntimePath =
+    pathname.startsWith('/cogita/runtime/storyboard/') && pathSegments.length >= 5;
   const isCogitaWritingPath = pathname === '/cogita/writing' || pathname.startsWith('/cogita/writing/');
   const isCogitaWorkspacePath = pathname === '/cogita/workspace' || pathname.startsWith('/cogita/workspace/');
   const isCogitaRevisionHomePath = pathname === '/cogita/revision' || pathname === '/cogita/revision/';
@@ -197,6 +202,9 @@ export default function App() {
   const chatPublicCode = isChatPublicPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardLibraryId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardProjectId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[3]) : undefined;
+  const cogitaStoryboardRuntimeLibraryId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[3]) : undefined;
+  const cogitaStoryboardRuntimeProjectId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[4]) : undefined;
+  const cogitaStoryboardShareCode = isCogitaStoryboardSharedPath ? decodeRouteSegment(pathSegments[3]) : undefined;
   const cogitaWritingLibraryId = isCogitaWritingPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaWritingProjectId = isCogitaWritingPath ? decodeRouteSegment(pathSegments[3]) : undefined;
   const shareId = isCogitaSharePath ? decodeRouteSegment(pathSegments[3]) : undefined;
@@ -826,6 +834,55 @@ export default function App() {
               language={language}
               onLanguageChange={setLanguage}
               shareId={shareId}
+            />
+          ) : (
+            <CogitaPage
+              copy={t}
+              onAuthAction={() => openLoginCard('cogita')}
+              authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+              showProfileMenu={isAuthenticated}
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+            />
+          )}
+        </Suspense>
+      ) : isCogitaStoryboardSharedPath && cogitaStoryboardShareCode ? (
+        <Suspense fallback={lazyFallback}>
+          <CogitaStoryboardRuntimePage
+            copy={t}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+            shareCode={cogitaStoryboardShareCode}
+          />
+        </Suspense>
+      ) : isCogitaStoryboardRuntimePath ? (
+        <Suspense fallback={lazyFallback}>
+          {isAuthenticated ? (
+            <CogitaStoryboardRuntimePage
+              copy={t}
+              authLabel={t.nav.account}
+              showProfileMenu
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+              libraryId={cogitaStoryboardRuntimeLibraryId}
+              projectId={cogitaStoryboardRuntimeProjectId}
             />
           ) : (
             <CogitaPage

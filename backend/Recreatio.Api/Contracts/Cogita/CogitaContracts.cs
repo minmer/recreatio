@@ -417,6 +417,38 @@ public sealed record CogitaRevisionShareCreateRequest(
     string? SignatureBase64
 );
 
+public sealed record CogitaStoryboardShareCreateRequest(
+    Guid ProjectId,
+    string? SignatureBase64
+);
+
+public sealed record CogitaStoryboardShareCreateResponse(
+    Guid ShareId,
+    Guid ProjectId,
+    string ProjectName,
+    string ShareCode,
+    DateTimeOffset CreatedUtc
+);
+
+public sealed record CogitaStoryboardShareResponse(
+    Guid ShareId,
+    Guid ProjectId,
+    string ProjectName,
+    string ShareCode,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? RevokedUtc
+);
+
+public sealed record CogitaPublicStoryboardShareResponse(
+    Guid ShareId,
+    Guid ProjectId,
+    string ProjectName,
+    Guid LibraryId,
+    string LibraryName,
+    JsonElement? Content,
+    DateTimeOffset CreatedUtc
+);
+
 public sealed record CogitaRevisionShareCreateResponse(
     Guid ShareId,
     Guid RevisionId,

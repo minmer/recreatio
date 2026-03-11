@@ -461,7 +461,17 @@ export function CogitaDashboardPage({
                     Live sessions
                   </button>
                 ) : null}
-                <button type="button" className="ghost" onClick={() => navigate(defaultLibraryId ? `/cogita/storyboard/${encodeURIComponent(defaultLibraryId)}` : '/cogita/storyboard')}>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() =>
+                    navigate(
+                      defaultLibraryId
+                        ? `/cogita/workspace/libraries/${encodeURIComponent(defaultLibraryId)}/storyboards`
+                        : '/cogita/workspace'
+                    )
+                  }
+                >
                   Storyboard mode
                 </button>
                 <button type="button" className="ghost" onClick={() => navigate(defaultLibraryId ? `/cogita/writing/${encodeURIComponent(defaultLibraryId)}` : '/cogita/writing')}>
