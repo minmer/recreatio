@@ -16012,14 +16012,14 @@ public static class CogitaEndpoints
             ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
             : await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
-                .Select(x => new ValueTuple<Guid, string, Guid>(x.SourceItemId, x.FieldKey, x.TargetItemId))
+                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
                 .ToListAsync(ct);
         var multiLinks = infoIds.Count == 0
             ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
             : await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
                 .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
                 .OrderBy(x => x.SortOrder)
-                .Select(x => new ValueTuple<Guid, string, Guid>(x.SourceItemId, x.FieldKey, x.TargetItemId))
+                .Select(x => (SourceItemId: x.SourceItemId, FieldKey: x.FieldKey, TargetItemId: x.TargetItemId))
                 .ToListAsync(ct);
         if (singleLinks.Count == 0 && multiLinks.Count == 0)
         {
@@ -16028,14 +16028,14 @@ public static class CogitaEndpoints
                 ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
                 : await dbContext.CogitaInfoLinkSingles.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
-                    .Select(x => new ValueTuple<Guid, string, Guid>(x.InfoId, x.FieldKey, x.TargetInfoId))
+                    .Select(x => (SourceItemId: x.InfoId, FieldKey: x.FieldKey, TargetItemId: x.TargetInfoId))
                     .ToListAsync(ct);
             multiLinks = infoIds.Count == 0
                 ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
                 : await dbContext.CogitaInfoLinkMultis.AsNoTracking()
                     .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
                     .OrderBy(x => x.SortOrder)
-                    .Select(x => new ValueTuple<Guid, string, Guid>(x.InfoId, x.FieldKey, x.TargetInfoId))
+                    .Select(x => (SourceItemId: x.InfoId, FieldKey: x.FieldKey, TargetItemId: x.TargetInfoId))
                     .ToListAsync(ct);
         }
         var linksByInfo = singleLinks
