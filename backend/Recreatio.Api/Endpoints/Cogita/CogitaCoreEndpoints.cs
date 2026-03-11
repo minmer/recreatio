@@ -311,9 +311,11 @@ public static class CogitaCoreEndpoints
                 .ToListAsync(ct);
             return Results.Ok(rows);
         });
+
+        group.MapCogitaCoreRuntimeEndpoints();
     }
 
-    private static async Task<bool> HasLibraryAccess(HttpContext context, RecreatioDbContext dbContext, Guid libraryId, CancellationToken ct)
+    internal static async Task<bool> HasLibraryAccess(HttpContext context, RecreatioDbContext dbContext, Guid libraryId, CancellationToken ct)
     {
         if (!EndpointHelpers.TryGetUserId(context, out var userId))
         {

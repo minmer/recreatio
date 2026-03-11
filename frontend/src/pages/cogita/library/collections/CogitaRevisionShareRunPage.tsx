@@ -27,11 +27,7 @@ import { toBase64 } from '../../../../lib/crypto';
 import { buildTemporalEntries, computeKnowness, computeTemporalKnowness } from '../../../../cogita/revision/knowness';
 import { getCardKey, getOutcomeKey } from '../../../../cogita/revision/cards';
 import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../../cogita/revision/cardLoader';
-import {
-  getAllOutcomes,
-  recordOutcome,
-  type RevisionOutcomePayload
-} from '../../../../cogita/revision/outcomes';
+import type { RevisionOutcomePayload } from '../../../../cogita/revision/outcomes';
 import {
   getRevisionType,
   normalizeRevisionSettings,
@@ -66,6 +62,13 @@ import {
   type RevisionQuestionPrompt,
   parseQuoteFragmentDirection
 } from './revisionShared';
+
+const createEphemeralOutcomeClientId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `shared-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+};
 
 export function CogitaRevisionShareRunPage({
   copy,
@@ -147,6 +150,7 @@ export function CogitaRevisionShareRunPage({
   const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<{ score: number; total: number; correct: number; lastReviewedUtc?: string | null } | null>(null);
   const [reviewOutcomes, setReviewOutcomes] = useState<RevisionOutcomePayload[]>([]);
+  const [sessionOutcomes, setSessionOutcomes] = useState<RevisionOutcomePayload[]>([]);
   const [availabilityNotice, setAvailabilityNotice] = useState<string | null>(null);
   const previousEligibleCountRef = useRef<number | null>(null);
   const availabilityNoticeTimerRef = useRef<number | null>(null);
@@ -163,10 +167,22 @@ export function CogitaRevisionShareRunPage({
   const [itemDependencies, setItemDependencies] = useState<CogitaItemDependency[]>([]);
   const [eligibleKeys, setEligibleKeys] = useState<Set<string>>(new Set());
   const [dependencyBlocked, setDependencyBlocked] = useState(false);
+  const sessionOutcomesRef = useRef<RevisionOutcomePayload[]>([]);
+  const sessionOutcomeClientIdRef = useRef(createEphemeralOutcomeClientId());
+  const sessionOutcomeSequenceRef = useRef(0);
 
   const location = useLocation();
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const shareKey = useMemo(() => params.get('key') ?? '', [params]);
+
+  useEffect(() => {
+    sessionOutcomesRef.current = [];
+    setSessionOutcomes([]);
+    sessionOutcomeSequenceRef.current = 0;
+    setReviewOutcomes([]);
+    setReviewSummary(null);
+  }, [shareId, shareKey]);
+
   const mode = shareInfo?.mode ?? 'random';
   const check = shareInfo?.check ?? 'exact';
   const limit = shareInfo?.limit ?? 20;
@@ -246,15 +262,36 @@ export function CogitaRevisionShareRunPage({
 
   const getCurrentAnswerDurationMs = () => Math.max(0, Math.round(Date.now() - answerStartedAtRef.current));
 
-  const getSharedScopeOutcomes = async () => {
-    if (reviewOutcomes.length > 0) {
-      return reviewOutcomes;
+  useEffect(() => {
+    sessionOutcomesRef.current = sessionOutcomes;
+  }, [sessionOutcomes]);
+
+  const appendSessionOutcomes = (items: RevisionOutcomePayload[]) => {
+    if (items.length === 0) {
+      return sessionOutcomesRef.current;
     }
-    return getAllOutcomes();
+    const next = sessionOutcomesRef.current.concat(items);
+    sessionOutcomesRef.current = next;
+    setSessionOutcomes(next);
+    return next;
   };
 
-  const buildKnownessMaps = async () => {
-    const outcomes = await getSharedScopeOutcomes();
+  const createSessionOutcome = (payload: Omit<RevisionOutcomePayload, 'clientId' | 'clientSequence' | 'createdUtc'>) => {
+    sessionOutcomeSequenceRef.current += 1;
+    return {
+      ...payload,
+      createdUtc: new Date().toISOString(),
+      clientId: sessionOutcomeClientIdRef.current,
+      clientSequence: sessionOutcomeSequenceRef.current
+    };
+  };
+
+  const getSharedScopeOutcomes = async () => {
+    return sessionOutcomesRef.current;
+  };
+
+  const buildKnownessMaps = async (outcomesOverride?: RevisionOutcomePayload[]) => {
+    const outcomes = outcomesOverride ?? await getSharedScopeOutcomes();
     const itemGroups = new Map<string, typeof outcomes>();
     const cardGroups = new Map<string, typeof outcomes>();
     outcomes.forEach((entry) => {
@@ -272,7 +309,7 @@ export function CogitaRevisionShareRunPage({
     return { itemKnowness, cardKnowness };
   };
 
-  const recomputeEligibility = async (cards: CogitaCardSearchResult[]) => {
+  const recomputeEligibility = async (cards: CogitaCardSearchResult[], outcomesOverride?: RevisionOutcomePayload[]) => {
     const meta = revisionMeta as { pool?: CogitaCardSearchResult[]; active?: CogitaCardSearchResult[] };
     const evaluationCards = cards
       .concat(meta.active ?? [])
@@ -282,7 +319,7 @@ export function CogitaRevisionShareRunPage({
       setEligibleKeys(new Set(evaluationCards.map(getCardKey)));
       return;
     }
-    const { itemKnowness, cardKnowness } = await buildKnownessMaps();
+    const { itemKnowness, cardKnowness } = await buildKnownessMaps(outcomesOverride);
     const isInternalCardDependencySatisfied = (card: CogitaCardSearchResult) => {
       if (card.cardType !== 'info' || card.infoType !== 'citation' || card.checkType !== 'quote-fragment') return true;
       const parsed = parseQuoteFragmentDirection(card.direction);
@@ -625,7 +662,7 @@ export function CogitaRevisionShareRunPage({
 
   useEffect(() => {
     void recomputeEligibility(queue);
-  }, [queue, itemDependencies, considerDependencies, dependencyThreshold, shareInfo?.collectionId]);
+  }, [queue, itemDependencies, considerDependencies, dependencyThreshold, shareInfo?.collectionId, sessionOutcomes]);
 
   useEffect(() => {
     const resolution = resolveDependencyFallback({
@@ -966,10 +1003,14 @@ export function CogitaRevisionShareRunPage({
     itemType: 'info' | 'connection',
     itemId: string,
     checkType?: string | null,
-    direction?: string | null
+    direction?: string | null,
+    sourceOutcomes?: RevisionOutcomePayload[]
   ) => {
+    const loadOutcomes = sourceOutcomes
+      ? Promise.resolve(sourceOutcomes)
+      : getSharedScopeOutcomes();
     if (itemType === 'info' && checkType === 'quote-fragment') {
-      void getSharedScopeOutcomes()
+      void loadOutcomes
         .then((outcomes) => {
           const filtered = outcomes.filter(
             (entry) =>
@@ -986,7 +1027,7 @@ export function CogitaRevisionShareRunPage({
         });
       return;
     }
-    void getSharedScopeOutcomes()
+    void loadOutcomes
       .then((outcomes) =>
         setKnownessFromOutcomes(
           outcomes.filter(
@@ -1182,7 +1223,7 @@ export function CogitaRevisionShareRunPage({
     const checkType = options.overrideCheckType ?? currentCard.checkType ?? null;
     const direction = options.overrideDirection ?? currentCard.direction ?? null;
     const durationMs = getCurrentAnswerDurationMs();
-    void recordOutcome({
+    const outcome = createSessionOutcome({
       itemType,
       itemId: currentCard.cardId,
       checkType,
@@ -1193,14 +1234,10 @@ export function CogitaRevisionShareRunPage({
       durationMs,
       maskBase64: mask.length ? toBase64(mask) : null,
       payloadBase64: toBase64(payloadBytes)
-    })
-      .then(() => {
-        refreshKnowness(itemType, currentCard.cardId, checkType, direction);
-        void recomputeEligibility(queue);
-      })
-      .catch(() => {
-        // local store may be unavailable
-      });
+    });
+    const nextOutcomes = appendSessionOutcomes([outcome]);
+    refreshKnowness(itemType, currentCard.cardId, checkType, direction, nextOutcomes);
+    void recomputeEligibility(queue, nextOutcomes);
   };
 
   const fetchComputedSample = (
@@ -1600,38 +1637,32 @@ export function CogitaRevisionShareRunPage({
       applyOutcomeToSession(allCorrect, correctness);
       const itemType = 'connection';
       const durationMs = getCurrentAnswerDurationMs();
-      Promise.all(
-        matchState.pairs.map((pair) => {
-          const selected = matchState.selection[pair.leftId] ?? null;
-          const answerLabel = selected ? rightLabelById[selected] : '';
-          const payload = {
-            left: pair.leftLabel,
-            expected: pair.rightLabel,
-            answer: answerLabel,
-            checkType: 'translation-match'
-          };
-          const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-          return recordOutcome({
-            itemType,
-            itemId: pair.cardId,
-            checkType: 'translation-match',
-            direction: null,
-            revisionType: revisionType.id,
-            evalType: 'translation-match',
-            correct: selected === pair.rightId,
-            durationMs,
-            maskBase64: null,
-            payloadBase64: toBase64(payloadBytes)
-          });
-        })
-      )
-        .then(() => {
-          refreshKnowness(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction);
-          void recomputeEligibility(queue);
-        })
-        .catch(() => {
-          // local store may be unavailable
+      const outcomes = matchState.pairs.map((pair) => {
+        const selected = matchState.selection[pair.leftId] ?? null;
+        const answerLabel = selected ? rightLabelById[selected] : '';
+        const payload = {
+          left: pair.leftLabel,
+          expected: pair.rightLabel,
+          answer: answerLabel,
+          checkType: 'translation-match'
+        };
+        const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+        return createSessionOutcome({
+          itemType,
+          itemId: pair.cardId,
+          checkType: 'translation-match',
+          direction: null,
+          revisionType: revisionType.id,
+          evalType: 'translation-match',
+          correct: selected === pair.rightId,
+          durationMs,
+          maskBase64: null,
+          payloadBase64: toBase64(payloadBytes)
         });
+      });
+      const nextOutcomes = appendSessionOutcomes(outcomes);
+      refreshKnowness(itemType, currentCard.cardId, currentCard.checkType, currentCard.direction, nextOutcomes);
+      void recomputeEligibility(queue, nextOutcomes);
       return;
     }
     if (currentCard && currentCard.cardType === 'info' && currentCard.infoType === 'question' && questionPromptModel) {

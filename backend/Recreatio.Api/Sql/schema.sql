@@ -1794,6 +1794,8 @@ IF OBJECT_ID(N'dbo.CogitaRunParticipants', N'U') IS NOT NULL DROP TABLE dbo.Cogi
 IF OBJECT_ID(N'dbo.CogitaRevisionRuns', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionRuns;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.CogitaRevisionPatterns', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionPatterns;
+IF OBJECT_ID(N'dbo.CogitaReferenceCryptoFields', N'U') IS NOT NULL DROP TABLE dbo.CogitaReferenceCryptoFields;
+IF OBJECT_ID(N'dbo.CogitaCreationArtifacts', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationArtifacts;
 IF OBJECT_ID(N'dbo.CogitaCreationProjects', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationProjects;
 IF OBJECT_ID(N'dbo.CogitaDependencyEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaDependencyEdges;
 IF OBJECT_ID(N'dbo.CogitaCheckcardDefinitions', N'U') IS NOT NULL DROP TABLE dbo.CogitaCheckcardDefinitions;
@@ -1853,6 +1855,49 @@ GO
 
 CREATE INDEX IX_CogitaCreationProjects_LibraryTypeUpdated ON dbo.CogitaCreationProjects (LibraryId, ProjectType, UpdatedUtc DESC, Id);
 CREATE INDEX IX_CogitaCreationProjects_LibraryTypeName ON dbo.CogitaCreationProjects (LibraryId, ProjectType, Name);
+GO
+
+CREATE TABLE dbo.CogitaCreationArtifacts
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaCreationArtifacts PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    ProjectId UNIQUEIDENTIFIER NOT NULL,
+    ArtifactType NVARCHAR(48) NOT NULL,
+    Name NVARCHAR(256) NOT NULL,
+    ContentJson NVARCHAR(MAX) NOT NULL,
+    SourceItemId UNIQUEIDENTIFIER NULL,
+    SourceCardKey NVARCHAR(256) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_CogitaCreationArtifacts_Project FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaCreationArtifacts_SourceItem FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id)
+);
+GO
+
+CREATE INDEX IX_CogitaCreationArtifacts_ProjectUpdated ON dbo.CogitaCreationArtifacts (LibraryId, ProjectId, UpdatedUtc DESC);
+CREATE INDEX IX_CogitaCreationArtifacts_SourceItemUpdated ON dbo.CogitaCreationArtifacts (LibraryId, SourceItemId, UpdatedUtc DESC);
+GO
+
+CREATE TABLE dbo.CogitaReferenceCryptoFields
+(
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaReferenceCryptoFields PRIMARY KEY,
+    LibraryId UNIQUEIDENTIFIER NOT NULL,
+    OwnerEntity NVARCHAR(96) NOT NULL,
+    OwnerId UNIQUEIDENTIFIER NOT NULL,
+    FieldKey NVARCHAR(96) NOT NULL,
+    PolicyVersion NVARCHAR(64) NOT NULL,
+    ValueCipher NVARCHAR(2048) NOT NULL,
+    DeterministicHash VARBINARY(64) NOT NULL,
+    SignatureBase64 NVARCHAR(1024) NULL,
+    Signer NVARCHAR(128) NULL,
+    SignatureVersion NVARCHAR(64) NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT UX_CogitaReferenceCryptoFields_OwnerField UNIQUE (LibraryId, OwnerEntity, OwnerId, FieldKey)
+);
+GO
+
+CREATE INDEX IX_CogitaReferenceCryptoFields_FieldHash ON dbo.CogitaReferenceCryptoFields (LibraryId, FieldKey, DeterministicHash);
 GO
 
 CREATE TABLE dbo.CogitaKnowledgeLinkSingles
@@ -2020,6 +2065,7 @@ CREATE TABLE dbo.CogitaRunAttempts
     RoundIndex INT NOT NULL,
     CardKey NVARCHAR(256) NOT NULL,
     AnswerCipher NVARCHAR(MAX) NULL,
+    OutcomeClass NVARCHAR(32) NOT NULL,
     IsAnswered BIT NOT NULL,
     IsCorrect BIT NULL,
     CorrectnessPct DECIMAL(9,4) NULL,

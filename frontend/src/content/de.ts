@@ -283,6 +283,54 @@ export const de: Copy = {
         cogitaHome: 'Cogita Startseite'
       }
     },
+    core: {
+      home: {
+        title: 'Cogita Core',
+        subtitle: 'Kanonische Runtime-Engine mit kompatibler Legacy-Workspace-Anbindung während der Migration.',
+        libraryIdLabel: 'Bibliotheks-ID',
+        runIdLabel: 'Vorhandene Run-ID',
+        idPlaceholder: '00000000-0000-0000-0000-000000000000',
+        startNewRunAction: 'Neuen Core-Run starten',
+        openRunAction: 'Vorhandenen Run öffnen'
+      },
+      run: {
+        kicker: 'Cogita Core Runtime',
+        defaultRunTitle: 'Run',
+        generatedRunTitle: 'Core Runtime Run',
+        defaultParticipantName: 'Teilnehmer',
+        scopeLabel: 'Bereich',
+        statusLabel: 'Status',
+        participantLabel: 'Teilnehmer',
+        returnToRecreatio: 'Zurück zu REcreatio',
+        backToCogita: 'Zurück zu Cogita',
+        loading: 'Core-Run wird geladen...',
+        initFailed: 'Core-Run konnte nicht initialisiert werden.',
+        submitFailed: 'Versuch konnte nicht gespeichert werden.',
+        nextFailed: 'Nächste Karte konnte nicht geladen werden.',
+        currentPrompt: 'Aktueller Prompt',
+        answerLabel: 'Deine Antwort',
+        answerPlaceholder: 'Antwort eingeben und Ergebnis klassifizieren',
+        correctAction: 'Richtig',
+        wrongAction: 'Falsch',
+        blankTimeoutAction: 'Leer (Timeout)',
+        noCardSelected: 'Aktuell ist keine Karte ausgewählt.',
+        selectNextCardAction: 'Nächste Karte auswählen',
+        revealTitle: 'Auflösung',
+        correctAnswerLabel: 'Richtige Antwort',
+        participantAnswerLabel: 'Antwort des Teilnehmers',
+        distributionLabel: 'Verteilung',
+        scoreFactorsLabel: 'Punktefaktoren',
+        totalPointsLabel: 'Gesamtpunkte',
+        nextCardAction: 'Nächste Karte',
+        statsTitle: 'Ereignis-normalisierte Statistiken',
+        attemptsLabel: 'Versuche',
+        correctLabel: 'Richtig',
+        wrongLabel: 'Falsch',
+        blankLabel: 'Leer',
+        knownessLabel: 'Knowness',
+        pointsLabel: 'Punkte'
+      }
+    },
     introSlides: [
       {
         id: 'entry',

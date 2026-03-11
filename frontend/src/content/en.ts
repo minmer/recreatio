@@ -283,6 +283,54 @@ export const en: Copy = {
         cogitaHome: 'Cogita home'
       }
     },
+    core: {
+      home: {
+        title: 'Cogita Core',
+        subtitle: 'Canonical runtime engine with legacy workspace compatibility during migration.',
+        libraryIdLabel: 'Library ID',
+        runIdLabel: 'Existing Run ID',
+        idPlaceholder: '00000000-0000-0000-0000-000000000000',
+        startNewRunAction: 'Start New Core Run',
+        openRunAction: 'Open Existing Run'
+      },
+      run: {
+        kicker: 'Cogita Core Runtime',
+        defaultRunTitle: 'Run',
+        generatedRunTitle: 'Core runtime run',
+        defaultParticipantName: 'Runner',
+        scopeLabel: 'Scope',
+        statusLabel: 'Status',
+        participantLabel: 'Participant',
+        returnToRecreatio: 'Return To Recreatio',
+        backToCogita: 'Back To Cogita',
+        loading: 'Loading core run...',
+        initFailed: 'Failed to initialize core run.',
+        submitFailed: 'Failed to submit attempt.',
+        nextFailed: 'Failed to load next card.',
+        currentPrompt: 'Current Prompt',
+        answerLabel: 'Your answer',
+        answerPlaceholder: 'Type answer, then classify outcome',
+        correctAction: 'Correct',
+        wrongAction: 'Wrong',
+        blankTimeoutAction: 'Blank Timeout',
+        noCardSelected: 'No card is currently selected.',
+        selectNextCardAction: 'Select Next Card',
+        revealTitle: 'Reveal',
+        correctAnswerLabel: 'Correct answer',
+        participantAnswerLabel: 'Participant answer',
+        distributionLabel: 'Distribution',
+        scoreFactorsLabel: 'Score factors',
+        totalPointsLabel: 'Total points',
+        nextCardAction: 'Next Card',
+        statsTitle: 'Event-Normalized Statistics',
+        attemptsLabel: 'Attempts',
+        correctLabel: 'Correct',
+        wrongLabel: 'Wrong',
+        blankLabel: 'Blank',
+        knownessLabel: 'Knowness',
+        pointsLabel: 'Points'
+      }
+    },
     introSlides: [
       {
         id: 'entry',

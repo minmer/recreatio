@@ -14,6 +14,8 @@ public sealed class CogitaRunAttempt
     [MaxLength(256)]
     public string CardKey { get; set; } = string.Empty;
     public string? AnswerCipher { get; set; }
+    [MaxLength(32)]
+    public string OutcomeClass { get; set; } = "wrong";
     public bool IsAnswered { get; set; }
     public bool? IsCorrect { get; set; }
     [Column(TypeName = "decimal(9,4)")]

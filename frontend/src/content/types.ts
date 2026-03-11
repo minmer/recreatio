@@ -239,6 +239,54 @@ export type Copy = {
         cogitaHome: string;
       };
     };
+    core: {
+      home: {
+        title: string;
+        subtitle: string;
+        libraryIdLabel: string;
+        runIdLabel: string;
+        idPlaceholder: string;
+        startNewRunAction: string;
+        openRunAction: string;
+      };
+      run: {
+        kicker: string;
+        defaultRunTitle: string;
+        generatedRunTitle: string;
+        defaultParticipantName: string;
+        scopeLabel: string;
+        statusLabel: string;
+        participantLabel: string;
+        returnToRecreatio: string;
+        backToCogita: string;
+        loading: string;
+        initFailed: string;
+        submitFailed: string;
+        nextFailed: string;
+        currentPrompt: string;
+        answerLabel: string;
+        answerPlaceholder: string;
+        correctAction: string;
+        wrongAction: string;
+        blankTimeoutAction: string;
+        noCardSelected: string;
+        selectNextCardAction: string;
+        revealTitle: string;
+        correctAnswerLabel: string;
+        participantAnswerLabel: string;
+        distributionLabel: string;
+        scoreFactorsLabel: string;
+        totalPointsLabel: string;
+        nextCardAction: string;
+        statsTitle: string;
+        attemptsLabel: string;
+        correctLabel: string;
+        wrongLabel: string;
+        blankLabel: string;
+        knownessLabel: string;
+        pointsLabel: string;
+      };
+    };
     introSlides: Array<{
       id: string;
       title: string;

@@ -5066,6 +5066,36 @@ public static class CogitaEndpoints
 
             await dbContext.SaveChangesAsync(ct);
 
+            try
+            {
+                _ = await CogitaCoreRuntimeEndpoints.SyncLegacyReviewOutcomesToCoreAsync(
+                    dbContext,
+                    libraryId,
+                    library.RoleId,
+                    reviewerRoleId,
+                    new[] { reviewerRoleId },
+                    new[]
+                    {
+                        new CogitaCoreRuntimeEndpoints.LegacyReviewOutcomeSyncItem(
+                            itemType,
+                            request.ItemId,
+                            request.CheckType,
+                            request.Direction,
+                            request.RevisionType,
+                            request.EvalType,
+                            request.Correct,
+                            request.ClientId,
+                            request.ClientSequence,
+                            normalizedDurationMs,
+                            reviewerRoleId)
+                    },
+                    ct);
+            }
+            catch
+            {
+                // Keep legacy endpoint behavior even if core mirror sync is temporarily unavailable.
+            }
+
             return Results.Ok(new CogitaReviewOutcomeResponse(outcomeId, DateTimeOffset.UtcNow));
         });
 
@@ -5249,6 +5279,7 @@ public static class CogitaEndpoints
             }
 
             var stored = 0;
+            var coreSyncOutcomes = new List<CogitaCoreRuntimeEndpoints.LegacyReviewOutcomeSyncItem>();
             var batchSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var outcome in request.Outcomes)
             {
@@ -5362,12 +5393,40 @@ public static class CogitaEndpoints
                     CreatedUtc = createdUtc
                 });
 
+                coreSyncOutcomes.Add(new CogitaCoreRuntimeEndpoints.LegacyReviewOutcomeSyncItem(
+                    normalizedType,
+                    outcome.ItemId,
+                    outcome.CheckType,
+                    outcome.Direction,
+                    outcome.RevisionType,
+                    outcome.EvalType,
+                    outcome.Correct,
+                    outcome.ClientId,
+                    outcome.ClientSequence,
+                    normalizedDurationMs,
+                    reviewerRoleId));
+
                 stored += 1;
             }
 
             if (stored > 0)
             {
                 await dbContext.SaveChangesAsync(ct);
+                try
+                {
+                    _ = await CogitaCoreRuntimeEndpoints.SyncLegacyReviewOutcomesToCoreAsync(
+                        dbContext,
+                        libraryId,
+                        library.RoleId,
+                        reviewerRoleId,
+                        new[] { reviewerRoleId },
+                        coreSyncOutcomes,
+                        ct);
+                }
+                catch
+                {
+                    // Keep legacy endpoint behavior even if core mirror sync is temporarily unavailable.
+                }
             }
 
             return Results.Ok(new { stored });

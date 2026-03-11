@@ -5898,3 +5898,108 @@
     align-content: start;
   }
 }
+
+.cogita-core-run {
+  display: grid;
+  gap: 1rem;
+  width: min(960px, 100%);
+  margin: 0 auto;
+}
+
+.cogita-core-run-header,
+.cogita-core-run-card,
+.cogita-core-run-reveal,
+.cogita-core-run-stats {
+  border: 1px solid rgba(160, 190, 220, 0.24);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(7, 27, 47, 0.86), rgba(5, 19, 34, 0.9));
+  padding: 1rem;
+}
+
+.cogita-core-run-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.cogita-core-run-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.cogita-core-run-kicker {
+  margin: 0 0 0.35rem;
+  opacity: 0.74;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.cogita-core-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cogita-core-run-label {
+  display: block;
+  margin: 0.5rem 0;
+  font-size: 0.88rem;
+}
+
+.cogita-core-run textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(168, 196, 224, 0.35);
+  background: rgba(9, 26, 45, 0.72);
+  color: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.cogita-core-run-outcomes {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.cogita-core-run-trace {
+  margin-top: 0.25rem;
+  opacity: 0.85;
+  font-size: 0.86rem;
+}
+
+.cogita-core-run-error {
+  color: #ffb3b3;
+}
+
+.cogita-core-run-participants {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.cogita-core-run-participant-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+  border-bottom: 1px dashed rgba(170, 198, 226, 0.18);
+  padding-bottom: 0.35rem;
+}
+
+.cogita-core-run-participant-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .cogita-core-run-header {
+    flex-direction: column;
+  }
+
+  .cogita-core-run-participant-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

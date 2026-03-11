@@ -2429,6 +2429,351 @@ export function checkCogitaWordLanguage(payload: { libraryId: string; languageId
   );
 }
 
+export type CogitaCoreRunSummary = {
+  runId: string;
+  libraryId: string;
+  revisionPatternId: string;
+  runScope: 'solo' | 'shared' | 'group_async' | 'group_sync' | string;
+  title?: string | null;
+  status: 'draft' | 'lobby' | 'active' | 'paused' | 'finished' | 'archived' | string;
+  createdUtc: string;
+  updatedUtc: string;
+  participantCount: number;
+  totalCards: number;
+};
+
+export type CogitaCoreRunParticipant = {
+  participantId: string;
+  runId: string;
+  personRoleId?: string | null;
+  displayName: string;
+  isHost: boolean;
+  isConnected: boolean;
+  joinedUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaCoreRunState = {
+  run: CogitaCoreRunSummary;
+  participants: CogitaCoreRunParticipant[];
+  participantProgress: {
+    attemptCount: number;
+    correctCount: number;
+    wrongCount: number;
+    blankTimeoutCount: number;
+    completionPct: number;
+  };
+  totalAttempts: number;
+  totalEvents: number;
+};
+
+export type CogitaCoreNextCard = {
+  cardKey?: string | null;
+  roundIndex?: number | null;
+  reason: string;
+  reasonTrace: string[];
+  totalCards: number;
+  blockedCards: number;
+};
+
+export type CogitaCoreScoreFactor = {
+  factor: string;
+  points: number;
+};
+
+export type CogitaCoreReveal = {
+  runId: string;
+  participantId: string;
+  roundIndex: number;
+  cardKey: string;
+  correctAnswer?: string | null;
+  participantAnswer?: string | null;
+  pastAnswers: Array<{
+    roundIndex: number;
+    submittedUtc: string;
+    outcomeClass: string;
+    answer?: string | null;
+  }>;
+  outcomeDistribution: {
+    correctCount: number;
+    wrongCount: number;
+    blankTimeoutCount: number;
+    correctPct: number;
+    wrongPct: number;
+    blankTimeoutPct: number;
+  };
+  scoreFactors: CogitaCoreScoreFactor[];
+  totalPoints: number;
+};
+
+export type CogitaCoreRunAttemptResult = {
+  attemptId: string;
+  runId: string;
+  participantId: string;
+  roundIndex: number;
+  cardKey: string;
+  outcomeClass: string;
+  submittedUtc: string;
+  revealedUtc?: string | null;
+  responseDurationMs?: number | null;
+  totalPoints: number;
+  scoreFactors: CogitaCoreScoreFactor[];
+  reveal: CogitaCoreReveal;
+  knownessSnapshot?: {
+    snapshotId: string;
+    libraryId: string;
+    personRoleId: string;
+    cardKey: string;
+    knownessPct: number;
+    correctCount: number;
+    wrongCount: number;
+    unansweredCount: number;
+    snapshotUtc: string;
+    sourceRunId?: string | null;
+    sourceParticipantId?: string | null;
+  } | null;
+  knownessPropagation: Array<{
+    parentCardKey: string;
+    parentDirectKnowness: number;
+    childContribution: number;
+    parentKnowness: number;
+  }>;
+};
+
+export type CogitaCoreRunStatistics = {
+  runId: string;
+  runScope: string;
+  status: string;
+  totalAttempts: number;
+  totalCorrect: number;
+  totalWrong: number;
+  totalBlankTimeout: number;
+  knownessScore: number;
+  totalPoints: number;
+  participants: Array<{
+    participantId: string;
+    displayName: string;
+    attemptCount: number;
+    correctCount: number;
+    wrongCount: number;
+    blankTimeoutCount: number;
+    knownessScore: number;
+    totalPoints: number;
+    averageDurationMs: number;
+  }>;
+  timeline: Array<{
+    index: number;
+    createdUtc: string;
+    participantId: string;
+    participantLabel: string;
+    roundIndex?: number | null;
+    cardKey?: string | null;
+    outcomeClass: string;
+    points: number;
+    durationMs: number;
+  }>;
+};
+
+export function createCogitaCoreRun(payload: {
+  libraryId: string;
+  revisionPatternId?: string | null;
+  runScope: 'solo' | 'shared' | 'group_async' | 'group_sync' | string;
+  title?: string | null;
+  status?: 'draft' | 'lobby' | 'active' | 'paused' | 'finished' | 'archived' | string;
+  settingsJson?: string | null;
+  promptBundleJson?: string | null;
+}) {
+  return request<CogitaCoreRunSummary>(`/cogita/core/libraries/${payload.libraryId}/runs`, {
+    method: 'POST',
+    body: JSON.stringify({
+      revisionPatternId: payload.revisionPatternId ?? null,
+      runScope: payload.runScope,
+      title: payload.title ?? null,
+      status: payload.status ?? null,
+      settingsJson: payload.settingsJson ?? null,
+      promptBundleJson: payload.promptBundleJson ?? null
+    })
+  });
+}
+
+export function joinCogitaCoreRun(payload: {
+  libraryId: string;
+  runId: string;
+  personRoleId?: string | null;
+  displayName?: string | null;
+  isHost?: boolean;
+}) {
+  return request<CogitaCoreRunParticipant>(`/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/participants`, {
+    method: 'POST',
+    body: JSON.stringify({
+      personRoleId: payload.personRoleId ?? null,
+      displayName: payload.displayName ?? null,
+      isHost: Boolean(payload.isHost)
+    })
+  });
+}
+
+export function setCogitaCoreRunStatus(payload: {
+  libraryId: string;
+  runId: string;
+  status: 'draft' | 'lobby' | 'active' | 'paused' | 'finished' | 'archived' | string;
+  reason?: string | null;
+}) {
+  return request<{
+    runId: string;
+    status: string;
+    startedUtc?: string | null;
+    finishedUtc?: string | null;
+    updatedUtc: string;
+  }>(`/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/status`, {
+    method: 'POST',
+    body: JSON.stringify({
+      status: payload.status,
+      reason: payload.reason ?? null
+    })
+  });
+}
+
+export function getCogitaCoreRunState(payload: {
+  libraryId: string;
+  runId: string;
+  participantId?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (payload.participantId) params.set('participantId', payload.participantId);
+  return request<CogitaCoreRunState>(
+    `/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/state${params.toString() ? `?${params.toString()}` : ''}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function getCogitaCoreNextCard(payload: {
+  libraryId: string;
+  runId: string;
+  participantId: string;
+  participantSeed?: string | null;
+}) {
+  return request<CogitaCoreNextCard>(`/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/next-card`, {
+    method: 'POST',
+    body: JSON.stringify({
+      participantId: payload.participantId,
+      participantSeed: payload.participantSeed ?? payload.participantId
+    })
+  });
+}
+
+export function submitCogitaCoreRunAttempt(payload: {
+  libraryId: string;
+  runId: string;
+  participantId: string;
+  roundIndex: number;
+  cardKey: string;
+  answer?: string | null;
+  outcomeClass: 'correct' | 'wrong' | 'blank_timeout' | string;
+  responseDurationMs?: number | null;
+  promptShownUtc?: string | null;
+  revealedUtc?: string | null;
+}) {
+  return request<CogitaCoreRunAttemptResult>(`/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/attempt`, {
+    method: 'POST',
+    body: JSON.stringify({
+      participantId: payload.participantId,
+      roundIndex: payload.roundIndex,
+      cardKey: payload.cardKey,
+      answer: payload.answer ?? null,
+      outcomeClass: payload.outcomeClass,
+      responseDurationMs: payload.responseDurationMs ?? null,
+      promptShownUtc: payload.promptShownUtc ?? null,
+      revealedUtc: payload.revealedUtc ?? null
+    })
+  });
+}
+
+export function getCogitaCoreRunReveal(payload: {
+  libraryId: string;
+  runId: string;
+  participantId: string;
+  roundIndex: number;
+  cardKey?: string | null;
+}) {
+  const params = new URLSearchParams({
+    participantId: payload.participantId,
+    roundIndex: String(payload.roundIndex)
+  });
+  if (payload.cardKey) params.set('cardKey', payload.cardKey);
+  return request<CogitaCoreReveal>(
+    `/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/reveal?${params.toString()}`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function getCogitaCoreRunStatistics(payload: {
+  libraryId: string;
+  runId: string;
+}) {
+  return request<CogitaCoreRunStatistics>(
+    `/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/statistics`,
+    {
+      method: 'GET'
+    }
+  );
+}
+
+export function appendCogitaCoreRunEvent(payload: {
+  libraryId: string;
+  runId: string;
+  participantId?: string | null;
+  eventType: string;
+  roundIndex?: number | null;
+  payloadJson?: string | null;
+}) {
+  return request<{
+    eventId: string;
+    runId: string;
+    participantId?: string | null;
+    eventType: string;
+    roundIndex?: number | null;
+    payloadJson?: string | null;
+    createdUtc: string;
+  }>(`/cogita/core/libraries/${payload.libraryId}/runs/${payload.runId}/runtime/events`, {
+    method: 'POST',
+    body: JSON.stringify({
+      participantId: payload.participantId ?? null,
+      eventType: payload.eventType,
+      roundIndex: payload.roundIndex ?? null,
+      payloadJson: payload.payloadJson ?? null
+    })
+  });
+}
+
+export function syncCogitaLegacyReviewOutcomesToCore(payload: {
+  libraryId: string;
+  outcomes: Array<{
+    itemType: 'info' | 'connection' | string;
+    itemId: string;
+    checkType?: string | null;
+    direction?: string | null;
+    revisionType?: string | null;
+    evalType?: string | null;
+    correct: boolean;
+    clientId: string;
+    clientSequence: number;
+    durationMs?: number | null;
+    personRoleId?: string | null;
+  }>;
+}) {
+  return request<{ synced: number; skipped: number }>(`/cogita/core/libraries/${payload.libraryId}/legacy/review-outcomes/sync`, {
+    method: 'POST',
+    body: JSON.stringify({
+      outcomes: payload.outcomes
+    })
+  });
+}
+
 export type ParishLayoutFrame = {
   position: { row: number; col: number };
   size: { colSpan: number; rowSpan: number };

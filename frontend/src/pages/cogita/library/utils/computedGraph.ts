@@ -1,4 +1,4 @@
-import type { CogitaComputedSample } from '../../../lib/api';
+import type { CogitaComputedSample } from '../../../../lib/api';
 import type { ComputedGraphDefinition } from '../components/ComputedGraphEditor';
 
 type ComputedSample = {

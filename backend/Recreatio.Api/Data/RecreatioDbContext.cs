@@ -102,6 +102,8 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaRunAttempt> CogitaRunAttempts => Set<Data.Cogita.CogitaRunAttempt>();
     public DbSet<Data.Cogita.CogitaRunExposure> CogitaRunExposures => Set<Data.Cogita.CogitaRunExposure>();
     public DbSet<Data.Cogita.CogitaKnownessSnapshot> CogitaKnownessSnapshots => Set<Data.Cogita.CogitaKnownessSnapshot>();
+    public DbSet<Data.Cogita.CogitaCreationArtifact> CogitaCreationArtifacts => Set<Data.Cogita.CogitaCreationArtifact>();
+    public DbSet<Data.Cogita.CogitaReferenceCryptoField> CogitaReferenceCryptoFields => Set<Data.Cogita.CogitaReferenceCryptoField>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore> CogitaKnowledgeLinkSinglesCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore> CogitaKnowledgeLinkMultisCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore>();
     public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
@@ -303,6 +305,15 @@ public sealed class RecreatioDbContext : DbContext
             .HasIndex(x => new { x.RunId, x.ParticipantId, x.RoundIndex });
         modelBuilder.Entity<Data.Cogita.CogitaKnownessSnapshot>()
             .HasIndex(x => new { x.LibraryId, x.PersonRoleId, x.CardKey, x.SnapshotUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaCreationArtifact>()
+            .HasIndex(x => new { x.LibraryId, x.ProjectId, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaCreationArtifact>()
+            .HasIndex(x => new { x.LibraryId, x.SourceItemId, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaReferenceCryptoField>()
+            .HasIndex(x => new { x.LibraryId, x.OwnerEntity, x.OwnerId, x.FieldKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaReferenceCryptoField>()
+            .HasIndex(x => new { x.LibraryId, x.FieldKey, x.DeterministicHash });
 
         modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>()
             .HasIndex(x => new { x.SourceItemId, x.FieldKey })

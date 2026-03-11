@@ -7,6 +7,10 @@ public static class CogitaRunSelectionCore
         var mode = raw?.Trim().ToLowerInvariant();
         return mode switch
         {
+            "solo" => "random-once",
+            "shared" => "random-once",
+            "group_async" => "temporal",
+            "group_sync" => "levels",
             "random" => "random",
             "random-once" => "random-once",
             "levels" => "levels",
