@@ -156,6 +156,54 @@
   line-height: 1.7;
 }
 
+.kal-public-answers {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.9rem;
+}
+
+.kal-public-answer {
+  border-top: 1px solid #e8e0d6;
+  padding-top: 0.75rem;
+}
+
+.kal-public-answer h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.kal-public-answer p {
+  margin: 0.4rem 0 0;
+}
+
+.kal-public-answer small {
+  display: block;
+  margin-top: 0.45rem;
+  color: #6a6057;
+}
+
+.kal-contact-admin-list {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.kal-contact-admin-item {
+  border-top: 1px solid #e8e0d6;
+  padding-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.kal-contact-admin-item h3 {
+  margin: 0;
+  font-size: 1.04rem;
+}
+
+.kal-contact-admin-item p {
+  margin: 0;
+}
+
 .kal-plan-table-wrap {
   margin-top: 0.95rem;
   width: 100%;

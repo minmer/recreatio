@@ -17,6 +17,8 @@ public sealed class PilgrimageContactInquiry
     [MaxLength(80)]
     public string? Phone { get; set; }
 
+    public bool IsPublicQuestion { get; set; }
+
     [MaxLength(180)]
     public string? Email { get; set; }
 
@@ -28,6 +30,14 @@ public sealed class PilgrimageContactInquiry
 
     [MaxLength(32)]
     public string Status { get; set; } = "new";
+
+    [MaxLength(2400)]
+    public string? PublicAnswer { get; set; }
+
+    [MaxLength(180)]
+    public string? PublicAnsweredBy { get; set; }
+
+    public DateTimeOffset? PublicAnsweredUtc { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }
 

@@ -182,12 +182,26 @@ public sealed record PilgrimageContactInquiryResponse(
     Guid Id,
     string Name,
     string? Phone,
+    bool IsPublicQuestion,
     string? Email,
     string Topic,
     string Message,
     string Status,
+    string? PublicAnswer,
+    string? PublicAnsweredBy,
+    DateTimeOffset? PublicAnsweredUtc,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
+
+public sealed record PilgrimagePublicInquiryAnswerResponse(
+    Guid Id,
+    string Name,
+    string Topic,
+    string Message,
+    string PublicAnswer,
+    string? PublicAnsweredBy,
+    DateTimeOffset? PublicAnsweredUtc,
+    DateTimeOffset CreatedUtc);
 
 public sealed record PilgrimageOrganizerDashboardResponse(
     PilgrimageOrganizerStatsResponse Stats,
@@ -243,9 +257,11 @@ public sealed record PilgrimageParticipantIssueUpdateRequest(
 public sealed record PilgrimageContactInquiryCreateRequest(
     string Name,
     string? Phone,
+    bool IsPublicQuestion,
     string? Email,
     string Topic,
     string Message);
 
 public sealed record PilgrimageContactInquiryUpdateRequest(
-    string Status);
+    string Status,
+    string? PublicAnswer);

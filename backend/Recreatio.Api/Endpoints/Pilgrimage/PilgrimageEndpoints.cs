@@ -32,10 +32,75 @@ public static class PilgrimageEndpoints
     private static readonly string[] AllowedIssueKinds = ["problem", "resignation", "pickup", "health-alert", "question"];
     private static readonly string[] AllowedIssueStatuses = ["open", "in-progress", "resolved", "closed"];
     private static readonly string[] AllowedInquiryStatuses = ["new", "in-progress", "resolved", "closed"];
+    private const string GlobalEventsLimanowaAdminScope = "events-limanowa";
 
     public static void MapPilgrimageEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/pilgrimage");
+
+        group.MapGet("/admin/events-limanowa/status", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var assignment = await dbContext.PortalAdminAssignments.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ScopeKey == GlobalEventsLimanowaAdminScope, ct);
+
+            var hasAdmin = assignment is not null;
+            var isCurrentUserAdmin = false;
+            if (assignment is not null && EndpointHelpers.TryGetUserId(context, out var maybeUserId))
+            {
+                isCurrentUserAdmin = assignment.UserId == maybeUserId;
+            }
+
+            string? adminDisplayName = null;
+            if (assignment is not null)
+            {
+                adminDisplayName = await dbContext.UserAccounts.AsNoTracking()
+                    .Where(x => x.Id == assignment.UserId)
+                    .Select(x => x.DisplayName ?? x.LoginId)
+                    .FirstOrDefaultAsync(ct);
+            }
+
+            return Results.Ok(new { hasAdmin, isCurrentUserAdmin, adminDisplayName });
+        });
+
+        group.MapPost("/admin/events-limanowa/claim", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var existing = await dbContext.PortalAdminAssignments.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ScopeKey == GlobalEventsLimanowaAdminScope, ct);
+            if (existing is not null)
+            {
+                return Results.Conflict(new { error = "Admin already assigned." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            dbContext.PortalAdminAssignments.Add(new PortalAdminAssignment
+            {
+                Id = Guid.NewGuid(),
+                ScopeKey = GlobalEventsLimanowaAdminScope,
+                UserId = userId,
+                CreatedUtc = now
+            });
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendBusinessAsync(
+                "PortalAdminClaimed",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { scope = GlobalEventsLimanowaAdminScope, userId, createdUtc = now }),
+                ct);
+
+            return Results.Ok(new { claimed = true });
+        }).RequireAuthorization();
 
         group.MapGet("", async (RecreatioDbContext dbContext, CancellationToken ct) =>
         {
@@ -513,9 +578,15 @@ public static class PilgrimageEndpoints
             var name = NormalizeShort(request.Name, 180);
             var topic = NormalizeShort(request.Topic, 120);
             var message = NormalizeLong(request.Message, 2400);
+            var phone = NormalizeShort(request.Phone, 80);
+            var isPublicQuestion = request.IsPublicQuestion;
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(topic) || string.IsNullOrWhiteSpace(message))
             {
                 return Results.BadRequest(new { error = "Name, topic and message are required." });
+            }
+            if (!isPublicQuestion && string.IsNullOrWhiteSpace(phone))
+            {
+                return Results.BadRequest(new { error = "Phone is required for private answer." });
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -524,7 +595,8 @@ public static class PilgrimageEndpoints
                 Id = Guid.NewGuid(),
                 EventId = pilgrimage.Id,
                 Name = name,
-                Phone = NormalizeShort(request.Phone, 80),
+                Phone = phone,
+                IsPublicQuestion = isPublicQuestion,
                 Email = NormalizeShort(request.Email, 180),
                 Topic = topic,
                 Message = message,
@@ -543,6 +615,37 @@ public static class PilgrimageEndpoints
                 ct);
 
             return Results.Ok(entity.Id);
+        });
+
+        group.MapGet("/{slug}/public/contact/answers", async (
+            string slug,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
+            if (pilgrimage is null)
+            {
+                return Results.NotFound();
+            }
+
+            var answers = await dbContext.PilgrimageContactInquiries.AsNoTracking()
+                .Where(x => x.EventId == pilgrimage.Id && x.IsPublicQuestion && !string.IsNullOrEmpty(x.PublicAnswer))
+                .OrderByDescending(x => x.PublicAnsweredUtc ?? x.UpdatedUtc)
+                .ThenByDescending(x => x.CreatedUtc)
+                .Take(120)
+                .Select(x => new PilgrimagePublicInquiryAnswerResponse(
+                    x.Id,
+                    x.Name,
+                    x.Topic,
+                    x.Message,
+                    x.PublicAnswer ?? string.Empty,
+                    x.PublicAnsweredBy,
+                    x.PublicAnsweredUtc,
+                    x.CreatedUtc))
+                .ToListAsync(ct);
+
+            return Results.Ok(answers);
         });
 
         group.MapGet("/{slug}/participant-zone", async (
@@ -725,22 +828,27 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
 
-            var canReadHealthNotes = keyRing.ReadKeys.ContainsKey(pilgrimage.OrganizerRoleId)
+            var canReadHealthNotes = isGlobalAdmin
+                || keyRing.ReadKeys.ContainsKey(pilgrimage.OrganizerRoleId)
                 || keyRing.ReadKeys.ContainsKey(pilgrimage.MedicalRoleId);
 
             var participantKey = UnprotectEventDataKey(dataProtectionProvider, pilgrimage.Id, "participant", pilgrimage.ParticipantDataKeyServerEnc);
@@ -844,10 +952,14 @@ public static class PilgrimageEndpoints
                     x.Id,
                     x.Name,
                     x.Phone,
+                    x.IsPublicQuestion,
                     x.Email,
                     x.Topic,
                     x.Message,
                     x.Status,
+                    x.PublicAnswer,
+                    x.PublicAnsweredBy,
+                    x.PublicAnsweredUtc,
                     x.CreatedUtc,
                     x.UpdatedUtc))
                 .ToListAsync(ct);
@@ -897,17 +1009,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -920,7 +1036,7 @@ public static class PilgrimageEndpoints
             }
 
             var audience = NormalizeAudience(request.Audience);
-            var roleId = ResolveActorRoleId(keyRing, pilgrimage);
+            var roleId = isGlobalAdmin ? pilgrimage.OrganizerRoleId : ResolveActorRoleId(keyRing, pilgrimage);
             var now = DateTimeOffset.UtcNow;
             var entity = new PilgrimageAnnouncement
             {
@@ -967,17 +1083,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1002,7 +1122,7 @@ public static class PilgrimageEndpoints
                 Comments = NormalizeLong(request.Comments, 4000),
                 Attachments = NormalizeLong(request.Attachments, 2000),
                 DueUtc = request.DueUtc,
-                CreatedByRoleId = ResolveActorRoleId(keyRing, pilgrimage),
+                CreatedByRoleId = isGlobalAdmin ? pilgrimage.OrganizerRoleId : ResolveActorRoleId(keyRing, pilgrimage),
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -1041,17 +1161,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1113,17 +1237,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1181,17 +1309,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1239,17 +1371,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1261,14 +1397,30 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
+            var responder = await dbContext.UserAccounts.AsNoTracking()
+                .Where(x => x.Id == userId)
+                .Select(x => x.DisplayName ?? x.LoginId)
+                .FirstOrDefaultAsync(ct);
+            var publicAnswer = NormalizeLong(request.PublicAnswer, 2400);
             inquiry.Status = NormalizeInquiryStatus(request.Status);
+            inquiry.PublicAnswer = publicAnswer;
+            if (string.IsNullOrWhiteSpace(publicAnswer))
+            {
+                inquiry.PublicAnsweredBy = null;
+                inquiry.PublicAnsweredUtc = null;
+            }
+            else
+            {
+                inquiry.PublicAnsweredBy = responder ?? userId.ToString();
+                inquiry.PublicAnsweredUtc = DateTimeOffset.UtcNow;
+            }
             inquiry.UpdatedUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageContactInquiryUpdated",
                 userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, inquiryId = inquiry.Id, inquiry.Status }),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, inquiryId = inquiry.Id, inquiry.Status, inquiry.PublicAnsweredUtc }),
                 ct);
 
             return Results.Ok();
@@ -1296,17 +1448,21 @@ public static class PilgrimageEndpoints
                 return Results.NotFound();
             }
 
-            RoleKeyRing keyRing;
-            try
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
             {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
             }
 
-            if (!HasOrganizerAccess(keyRing, pilgrimage))
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
             {
                 return Results.Forbid();
             }
@@ -1716,6 +1872,15 @@ public static class PilgrimageEndpoints
         return keyRing.ReadKeys.ContainsKey(pilgrimage.OrganizerRoleId)
             || keyRing.ReadKeys.ContainsKey(pilgrimage.LogisticsRoleId)
             || keyRing.ReadKeys.ContainsKey(pilgrimage.MedicalRoleId);
+    }
+
+    private static Task<bool> IsGlobalEventsLimanowaAdminAsync(
+        RecreatioDbContext dbContext,
+        Guid userId,
+        CancellationToken ct)
+    {
+        return dbContext.PortalAdminAssignments.AsNoTracking()
+            .AnyAsync(x => x.ScopeKey == GlobalEventsLimanowaAdminScope && x.UserId == userId, ct);
     }
 
     private static Guid ResolveActorRoleId(RoleKeyRing keyRing, PilgrimageEvent pilgrimage)

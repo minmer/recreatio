@@ -54,6 +54,10 @@
   color: var(--muted);
 }
 
+.limanowa-build-card .cta {
+  margin-top: 0.9rem;
+}
+
 .limanowa-footer {
   margin-top: 1rem;
 }

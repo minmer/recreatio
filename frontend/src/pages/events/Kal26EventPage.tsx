@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
@@ -9,6 +9,7 @@ import {
   createPilgrimageParticipantIssue,
   createPilgrimageRegistration,
   createPilgrimageTask,
+  getPilgrimagePublicInquiryAnswers,
   getPilgrimageExportUrl,
   getPilgrimageOrganizerDashboard,
   getPilgrimageParticipantZone,
@@ -18,6 +19,7 @@ import {
   updatePilgrimageParticipant,
   updatePilgrimageTask,
   type PilgrimageOrganizerDashboard,
+  type PilgrimagePublicInquiryAnswer,
   type PilgrimageParticipantZone,
   type PilgrimageSection,
   type PilgrimageSite
@@ -66,6 +68,7 @@ const defaultRegistrationForm: RegistrationFormState = {
 type ContactFormState = {
   name: string;
   phone: string;
+  isPublicQuestion: boolean;
   email: string;
   topic: string;
   message: string;
@@ -74,6 +77,7 @@ type ContactFormState = {
 const defaultContactForm: ContactFormState = {
   name: '',
   phone: '',
+  isPublicQuestion: false,
   email: '',
   topic: 'Pytanie organizacyjne',
   message: ''
@@ -505,6 +509,374 @@ function Kal26HistoryPage({ eventSlug }: { eventSlug: string }) {
   );
 }
 
+function Kal26ContactPage({
+  eventSlug,
+  contactForm,
+  setContactForm,
+  handleContactSubmit,
+  contactPending,
+  contactError,
+  contactSuccess,
+  publicContactAnswers,
+  publicContactAnswersPending,
+  publicContactAnswersError,
+  showProfileMenu,
+  organizerDashboard,
+  inquiryDrafts,
+  setInquiryDrafts,
+  handleInquiryUpdate,
+  organizerSavingId,
+  organizerActionError
+}: {
+  eventSlug: string;
+  contactForm: ContactFormState;
+  setContactForm: Dispatch<SetStateAction<ContactFormState>>;
+  handleContactSubmit: (eventForm: FormEvent) => Promise<void>;
+  contactPending: boolean;
+  contactError: string | null;
+  contactSuccess: string | null;
+  publicContactAnswers: PilgrimagePublicInquiryAnswer[];
+  publicContactAnswersPending: boolean;
+  publicContactAnswersError: string | null;
+  showProfileMenu: boolean;
+  organizerDashboard: PilgrimageOrganizerDashboard | null;
+  inquiryDrafts: Record<string, { status: string; publicAnswer: string }>;
+  setInquiryDrafts: Dispatch<SetStateAction<Record<string, { status: string; publicAnswer: string }>>>;
+  handleInquiryUpdate: (inquiryId: string) => Promise<void>;
+  organizerSavingId: string | null;
+  organizerActionError: string | null;
+}) {
+  return (
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <h1>Kontakt</h1>
+        <p>Masz pytanie? Napisz do organizatorów pielgrzymki.</p>
+        <ul>
+          <li>Kontakt główny: ks. Michał Mleczek</li>
+          <li>Formularz działa także dla osób niezalogowanych</li>
+          <li>Odpowiedzi organizatorów publikowane są poniżej</li>
+        </ul>
+      </aside>
+
+      <div className="kal-text-content">
+        <section className="kal-text-section">
+          <h2>Napisz do nas</h2>
+          <form onSubmit={(eventForm) => void handleContactSubmit(eventForm)}>
+            <div className="pilgrimage-form-grid">
+              <label>
+                Imie i nazwisko
+                <input
+                  value={contactForm.name}
+                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, name: eventInput.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Telefon
+                <input
+                  value={contactForm.phone}
+                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, phone: eventInput.target.value }))}
+                  required={!contactForm.isPublicQuestion}
+                />
+              </label>
+              <label>
+                Rodzaj odpowiedzi
+                <select
+                  value={contactForm.isPublicQuestion ? 'public' : 'private'}
+                  onChange={(eventInput) =>
+                    setContactForm((previous) => ({ ...previous, isPublicQuestion: eventInput.target.value === 'public' }))
+                  }
+                >
+                  <option value="private">Odpowiedź prywatna (telefon wymagany)</option>
+                  <option value="public">Odpowiedź publiczna (pytanie może być opublikowane)</option>
+                </select>
+              </label>
+              <label>
+                E-mail
+                <input
+                  value={contactForm.email}
+                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, email: eventInput.target.value }))}
+                />
+              </label>
+              <label>
+                Temat
+                <input
+                  value={contactForm.topic}
+                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, topic: eventInput.target.value }))}
+                  required
+                />
+              </label>
+              <label className="full-width">
+                Wiadomosc
+                <textarea
+                  value={contactForm.message}
+                  onChange={(eventInput) => setContactForm((previous) => ({ ...previous, message: eventInput.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <button className="cta" type="submit" disabled={contactPending}>
+              {contactPending ? 'Wysylanie...' : 'Wyslij'}
+            </button>
+            {contactError ? <p className="pilgrimage-error">{contactError}</p> : null}
+            {contactSuccess ? <p className="pilgrimage-success">{contactSuccess}</p> : null}
+          </form>
+        </section>
+
+        <section className="kal-text-section">
+          <h2>Publiczne odpowiedzi organizatorów</h2>
+          {publicContactAnswersPending ? <p>Ladowanie odpowiedzi...</p> : null}
+          {publicContactAnswersError ? <p className="pilgrimage-error">{publicContactAnswersError}</p> : null}
+          {!publicContactAnswersPending && publicContactAnswers.length === 0 ? (
+            <p>Brak opublikowanych odpowiedzi.</p>
+          ) : null}
+          <div className="kal-public-answers">
+            {publicContactAnswers.map((answer) => (
+              <article key={answer.id} className="kal-public-answer">
+                <h3>{answer.topic}</h3>
+                <p><strong>Pytanie:</strong> {answer.message}</p>
+                <p><strong>Odpowiedz:</strong> {answer.publicAnswer}</p>
+                <small>
+                  {answer.publicAnsweredBy ?? 'Organizator'}{' '}
+                  {answer.publicAnsweredUtc ? `• ${new Date(answer.publicAnsweredUtc).toLocaleString()}` : ''}
+                </small>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {showProfileMenu && organizerDashboard ? (
+          <section className="kal-text-section">
+            <h2>Panel odpowiedzi (zalogowani)</h2>
+            {organizerActionError ? <p className="pilgrimage-error">{organizerActionError}</p> : null}
+            <div className="kal-contact-admin-list">
+              {organizerDashboard.inquiries.map((entry) => (
+                <article key={entry.id} className="kal-contact-admin-item">
+                  <h3>{entry.topic} - {entry.name}</h3>
+                  <p>{entry.message}</p>
+                  <small>{entry.isPublicQuestion ? 'Pytanie publiczne' : 'Pytanie prywatne'}</small>
+                  <label>
+                    Status
+                    <select
+                      value={inquiryDrafts[entry.id]?.status ?? entry.status}
+                      onChange={(eventInput) =>
+                        setInquiryDrafts((previous) => ({
+                          ...previous,
+                          [entry.id]: {
+                            status: eventInput.target.value,
+                            publicAnswer: previous[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                          }
+                        }))
+                      }
+                    >
+                      <option value="new">new</option>
+                      <option value="in-progress">in-progress</option>
+                      <option value="resolved">resolved</option>
+                      <option value="closed">closed</option>
+                    </select>
+                  </label>
+                  <label>
+                    Publiczna odpowiedz
+                    <textarea
+                      value={inquiryDrafts[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''}
+                      onChange={(eventInput) =>
+                        setInquiryDrafts((previous) => ({
+                          ...previous,
+                          [entry.id]: {
+                            status: previous[entry.id]?.status ?? entry.status,
+                            publicAnswer: eventInput.target.value
+                          }
+                        }))
+                      }
+                      placeholder="Ta odpowiedz bedzie widoczna publicznie na stronie kontaktu."
+                    />
+                  </label>
+                  <button
+                    className="ghost"
+                    onClick={() => void handleInquiryUpdate(entry.id)}
+                    disabled={organizerSavingId === `inquiry:${entry.id}`}
+                  >
+                    {organizerSavingId === `inquiry:${entry.id}` ? 'Zapisywanie...' : 'Zapisz odpowiedz'}
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="kal-text-section">
+          <h2>Kontakt bezpośredni</h2>
+          <p>Osoba kontaktowa: ks. Michał Mleczek.</p>
+          <div className="kal-text-actions">
+            <a className="ghost" href={`/#/event/${eventSlug}/faq`}>Zobacz FAQ</a>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Kal26GalleryPage() {
+  return (
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <h1>Galeria</h1>
+        <p>Podstrona w budowie.</p>
+        <ul>
+          <li>Zdjęcia z trasy</li>
+          <li>Nagrania śpiewu i modlitwy</li>
+          <li>Materiały z kolejnych edycji</li>
+        </ul>
+      </aside>
+
+      <div className="kal-text-content">
+        <section className="kal-text-section">
+          <h2>Co będzie tutaj?</h2>
+          <p>
+            W tej sekcji pojawi się galeria zdjęć i materiałów z pielgrzymki: wyjście z Krakowa, droga do Tyńca, nocleg,
+            sobotni etap oraz dojście do Kalwarii Zebrzydowskiej.
+          </p>
+          <p>
+            Na ten moment podstrona jest przygotowana jako miejsce docelowe pod materiały archiwalne i bieżące relacje.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function Kal26RegisterPage({
+  registrationForm,
+  setRegistrationForm,
+  handleSimpleRegistrationSubmit,
+  registrationPending,
+  registrationError,
+  registrationResult
+}: {
+  registrationForm: RegistrationFormState;
+  setRegistrationForm: Dispatch<SetStateAction<RegistrationFormState>>;
+  handleSimpleRegistrationSubmit: (eventForm: FormEvent) => Promise<void>;
+  registrationPending: boolean;
+  registrationError: string | null;
+  registrationResult: { link: string; token: string } | null;
+}) {
+  return (
+    <div className="kal-text-layout">
+      <aside className="kal-text-sidebar">
+        <h1>Zapisy</h1>
+        <p>Wypełnij formularz i zapisz się na pielgrzymkę.</p>
+        <ul>
+          <li>Imię i nazwisko</li>
+          <li>Numer telefonu</li>
+          <li>Miejsce rozpoczęcia drogi</li>
+          <li>Zgody formalne</li>
+        </ul>
+      </aside>
+
+      <div className="kal-text-content">
+        <section className="kal-text-section">
+          <h2>Formularz zapisów</h2>
+          <form onSubmit={(eventForm) => void handleSimpleRegistrationSubmit(eventForm)}>
+            <div className="pilgrimage-form-grid">
+              <label>
+                Imię i nazwisko
+                <input
+                  value={registrationForm.fullName}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, fullName: eventInput.target.value }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Numer telefonu
+                <input
+                  value={registrationForm.phone}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, phone: eventInput.target.value }))
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Gdzie chcesz rozpocząć pielgrzymkę?
+                <select
+                  value={registrationForm.parish}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, parish: eventInput.target.value }))
+                  }
+                  required
+                >
+                  <option value="">Wybierz miejsce startu</option>
+                  <option value="Kraków Podgórze (kościół św. Józefa, 15:30)">Kraków Podgórze (kościół św. Józefa)</option>
+                  <option value="Tyniec (start drugiego dnia)">Tyniec (start drugiego dnia)</option>
+                  <option value="Dołączenie po drodze (do uzgodnienia)">Dołączenie po drodze (do uzgodnienia)</option>
+                </select>
+              </label>
+              <label className="full-width">
+                Dodatkowe informacje
+                <textarea
+                  value={registrationForm.healthNotes}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, healthNotes: eventInput.target.value }))
+                  }
+                  placeholder="Np. ważne informacje organizacyjne, pytania lub uwagi."
+                />
+              </label>
+            </div>
+
+            <div className="pilgrimage-form-checks">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={registrationForm.acceptedTerms}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, acceptedTerms: eventInput.target.checked }))
+                  }
+                  required
+                />
+                Akceptuję regulamin pielgrzymki.
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={registrationForm.acceptedRodo}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, acceptedRodo: eventInput.target.checked }))
+                  }
+                  required
+                />
+                Akceptuję zasady RODO.
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={registrationForm.acceptedImageConsent}
+                  onChange={(eventInput) =>
+                    setRegistrationForm((previous) => ({ ...previous, acceptedImageConsent: eventInput.target.checked }))
+                  }
+                  required
+                />
+                Wyrażam zgodę na wykorzystanie zdjęć do celów promocyjnych pielgrzymki.
+              </label>
+            </div>
+
+            <button className="cta" type="submit" disabled={registrationPending}>
+              {registrationPending ? 'Wysyłanie...' : 'Zapisz się'}
+            </button>
+            {registrationError ? <p className="pilgrimage-error">{registrationError}</p> : null}
+            {registrationResult ? (
+              <p className="pilgrimage-success">
+                Zapis został przyjęty. Link uczestnika: <a href={registrationResult.link}>{registrationResult.link}</a>
+              </p>
+            ) : null}
+          </form>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function Kal26PlanPage({ eventSlug }: { eventSlug: string }) {
   const friday = [
     {
@@ -739,7 +1111,13 @@ export function Kal26EventPage({
   event
 }: SharedEventPageProps & { page: EventInnerPage; event: EventDefinition }) {
   const isTextPage =
-    page.slug === 'niezbednik' || page.slug === 'program' || page.slug === 'faq' || page.slug === 'o-pielgrzymce';
+    page.slug === 'niezbednik' ||
+    page.slug === 'program' ||
+    page.slug === 'zapisy' ||
+    page.slug === 'faq' ||
+    page.slug === 'o-pielgrzymce' ||
+    page.slug === 'kontakt' ||
+    page.slug === 'galeria';
   const location = useLocation();
   const navigate = useNavigate();
   const queryToken = useMemo(() => new URLSearchParams(location.search).get('token') ?? '', [location.search]);
@@ -788,7 +1166,7 @@ export function Kal26EventPage({
       dueUtc: string;
     }>
   >({});
-  const [inquiryDrafts, setInquiryDrafts] = useState<Record<string, { status: string }>>({});
+  const [inquiryDrafts, setInquiryDrafts] = useState<Record<string, { status: string; publicAnswer: string }>>({});
   const [participantSearch, setParticipantSearch] = useState('');
   const [participantStatusFilter, setParticipantStatusFilter] = useState('all');
   const [participantPaymentFilter, setParticipantPaymentFilter] = useState('all');
@@ -810,6 +1188,9 @@ export function Kal26EventPage({
   const [contactPending, setContactPending] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
   const [contactSuccess, setContactSuccess] = useState<string | null>(null);
+  const [publicContactAnswers, setPublicContactAnswers] = useState<PilgrimagePublicInquiryAnswer[]>([]);
+  const [publicContactAnswersPending, setPublicContactAnswersPending] = useState(false);
+  const [publicContactAnswersError, setPublicContactAnswersError] = useState<string | null>(null);
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -901,6 +1282,34 @@ export function Kal26EventPage({
   }, [page.slug, showProfileMenu, site?.id]);
 
   useEffect(() => {
+    if (page.slug !== 'kontakt') return;
+    let active = true;
+    setPublicContactAnswersPending(true);
+    setPublicContactAnswersError(null);
+    getPilgrimagePublicInquiryAnswers(event.slug)
+      .then((answers) => {
+        if (!active) return;
+        setPublicContactAnswers(answers);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setPublicContactAnswersError(error instanceof Error ? error.message : 'Nie udalo sie pobrac odpowiedzi.');
+      })
+      .finally(() => {
+        if (!active) return;
+        setPublicContactAnswersPending(false);
+      });
+
+    if (showProfileMenu) {
+      void loadOrganizerDashboard();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [event.slug, page.slug, showProfileMenu, site?.id]);
+
+  useEffect(() => {
     if (!organizerDashboard) return;
     const participantMap: Record<string, {
       registrationStatus: string;
@@ -955,9 +1364,9 @@ export function Kal26EventPage({
     });
     setTaskDrafts(taskMap);
 
-    const inquiryMap: Record<string, { status: string }> = {};
+    const inquiryMap: Record<string, { status: string; publicAnswer: string }> = {};
     organizerDashboard.inquiries.forEach((inquiry) => {
-      inquiryMap[inquiry.id] = { status: inquiry.status };
+      inquiryMap[inquiry.id] = { status: inquiry.status, publicAnswer: inquiry.publicAnswer ?? '' };
     });
     setInquiryDrafts(inquiryMap);
   }, [organizerDashboard]);
@@ -1104,6 +1513,63 @@ export function Kal26EventPage({
     }
   };
 
+  const handleSimpleRegistrationSubmit = async (eventForm: FormEvent) => {
+    eventForm.preventDefault();
+    setRegistrationError(null);
+    setRegistrationResult(null);
+
+    const fullName = registrationForm.fullName.trim();
+    const phone = registrationForm.phone.trim();
+    const startPlace = registrationForm.parish.trim();
+    if (!fullName || !phone || !startPlace) {
+      setRegistrationError('Uzupełnij imię i nazwisko, telefon oraz miejsce startu.');
+      return;
+    }
+    if (!registrationForm.acceptedTerms || !registrationForm.acceptedRodo || !registrationForm.acceptedImageConsent) {
+      setRegistrationError('Aby się zapisać, zaakceptuj wymagane zgody.');
+      return;
+    }
+
+    const participationVariant = startPlace.toLowerCase().includes('tyniec') ? 'saturday' : 'full';
+    const additionalInfo = registrationForm.healthNotes.trim();
+    const mergedNotes = additionalInfo
+      ? `Miejsce startu: ${startPlace}\n${additionalInfo}`
+      : `Miejsce startu: ${startPlace}`;
+
+    setRegistrationPending(true);
+    try {
+      const response = await createPilgrimageRegistration(event.slug, {
+        fullName,
+        phone,
+        email: null,
+        parish: startPlace,
+        birthDate: null,
+        isMinor: false,
+        participationVariant,
+        needsLodging: false,
+        needsBaggageTransport: false,
+        emergencyContactName: fullName,
+        emergencyContactPhone: phone,
+        healthNotes: mergedNotes,
+        dietNotes: null,
+        acceptedTerms: registrationForm.acceptedTerms,
+        acceptedRodo: registrationForm.acceptedRodo,
+        acceptedImageConsent: registrationForm.acceptedImageConsent
+      });
+      setRegistrationResult({ link: response.accessLink, token: response.accessToken });
+      setParticipantToken(response.accessToken);
+      setRegistrationForm({
+        ...defaultRegistrationForm,
+        needsLodging: false,
+        needsBaggageTransport: false
+      });
+    } catch (error: unknown) {
+      setRegistrationError(error instanceof Error ? error.message : 'Nie udało się wysłać zapisu.');
+    } finally {
+      setRegistrationPending(false);
+    }
+  };
+
   const goToNextRegistrationStep = () => {
     setRegistrationError(null);
     if (registrationStep === 1) {
@@ -1170,6 +1636,10 @@ export function Kal26EventPage({
 
   const handleContactSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
+    if (!contactForm.isPublicQuestion && !contactForm.phone.trim()) {
+      setContactError('Dla odpowiedzi prywatnej podaj numer telefonu.');
+      return;
+    }
     setContactPending(true);
     setContactError(null);
     setContactSuccess(null);
@@ -1177,6 +1647,7 @@ export function Kal26EventPage({
       await createPilgrimageContactInquiry(event.slug, {
         name: contactForm.name,
         phone: contactForm.phone || null,
+        isPublicQuestion: contactForm.isPublicQuestion,
         email: contactForm.email || null,
         topic: contactForm.topic,
         message: contactForm.message
@@ -1268,8 +1739,13 @@ export function Kal26EventPage({
     setOrganizerActionError(null);
     setOrganizerSavingId(`inquiry:${inquiryId}`);
     try {
-      await updatePilgrimageInquiry(site.id, inquiryId, { status: draft.status });
+      await updatePilgrimageInquiry(site.id, inquiryId, {
+        status: draft.status,
+        publicAnswer: draft.publicAnswer || null
+      });
       await loadOrganizerDashboard();
+      const answers = await getPilgrimagePublicInquiryAnswers(event.slug);
+      setPublicContactAnswers(answers);
     } catch (error: unknown) {
       setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac zapytania.');
     } finally {
@@ -2461,7 +2937,10 @@ export function Kal26EventPage({
                     onChange={(eventInput) =>
                       setInquiryDrafts((previous) => ({
                         ...previous,
-                        [entry.id]: { status: eventInput.target.value }
+                        [entry.id]: {
+                          status: eventInput.target.value,
+                          publicAnswer: previous[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                        }
                       }))
                     }
                   >
@@ -2559,8 +3038,40 @@ export function Kal26EventPage({
           ) : null}
           {page.slug === 'niezbednik' ? <InformationPage eventSlug={event.slug} /> : null}
           {page.slug === 'program' ? <Kal26PlanPage eventSlug={event.slug} /> : null}
+          {page.slug === 'zapisy' ? (
+            <Kal26RegisterPage
+              registrationForm={registrationForm}
+              setRegistrationForm={setRegistrationForm}
+              handleSimpleRegistrationSubmit={handleSimpleRegistrationSubmit}
+              registrationPending={registrationPending}
+              registrationError={registrationError}
+              registrationResult={registrationResult}
+            />
+          ) : null}
           {page.slug === 'faq' ? <Kal26FaqPage eventSlug={event.slug} /> : null}
           {page.slug === 'o-pielgrzymce' ? <Kal26HistoryPage eventSlug={event.slug} /> : null}
+          {page.slug === 'kontakt' ? (
+            <Kal26ContactPage
+              eventSlug={event.slug}
+              contactForm={contactForm}
+              setContactForm={setContactForm}
+              handleContactSubmit={handleContactSubmit}
+              contactPending={contactPending}
+              contactError={contactError}
+              contactSuccess={contactSuccess}
+              publicContactAnswers={publicContactAnswers}
+              publicContactAnswersPending={publicContactAnswersPending}
+              publicContactAnswersError={publicContactAnswersError}
+              showProfileMenu={showProfileMenu}
+              organizerDashboard={organizerDashboard}
+              inquiryDrafts={inquiryDrafts}
+              setInquiryDrafts={setInquiryDrafts}
+              handleInquiryUpdate={handleInquiryUpdate}
+              organizerSavingId={organizerSavingId}
+              organizerActionError={organizerActionError}
+            />
+          ) : null}
+          {page.slug === 'galeria' ? <Kal26GalleryPage /> : null}
           <div style={{ display: 'none' }} aria-hidden="true">
             {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
             {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}

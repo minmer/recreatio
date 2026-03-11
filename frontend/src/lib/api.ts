@@ -3350,12 +3350,27 @@ export type PilgrimageContactInquiry = {
   id: string;
   name: string;
   phone?: string | null;
+  isPublicQuestion: boolean;
   email?: string | null;
   topic: string;
   message: string;
   status: string;
+  publicAnswer?: string | null;
+  publicAnsweredBy?: string | null;
+  publicAnsweredUtc?: string | null;
   createdUtc: string;
   updatedUtc: string;
+};
+
+export type PilgrimagePublicInquiryAnswer = {
+  id: string;
+  name: string;
+  topic: string;
+  message: string;
+  publicAnswer: string;
+  publicAnsweredBy?: string | null;
+  publicAnsweredUtc?: string | null;
+  createdUtc: string;
 };
 
 export type PilgrimageOrganizerDashboard = {
@@ -3422,17 +3437,43 @@ export function createPilgrimageParticipantIssue(
 
 export function createPilgrimageContactInquiry(
   slug: string,
-  payload: { name: string; phone?: string | null; email?: string | null; topic: string; message: string }
+  payload: { name: string; phone?: string | null; isPublicQuestion: boolean; email?: string | null; topic: string; message: string }
 ) {
   return request<string>(`/pilgrimage/${slug}/public/contact`, {
     method: 'POST',
     body: JSON.stringify({
       name: payload.name,
       phone: payload.phone ?? null,
+      isPublicQuestion: payload.isPublicQuestion,
       email: payload.email ?? null,
       topic: payload.topic,
       message: payload.message
     })
+  });
+}
+
+export type EventsLimanowaAdminStatus = {
+  hasAdmin: boolean;
+  isCurrentUserAdmin: boolean;
+  adminDisplayName?: string | null;
+};
+
+export function getEventsLimanowaAdminStatus() {
+  return request<EventsLimanowaAdminStatus>('/pilgrimage/admin/events-limanowa/status', {
+    method: 'GET'
+  });
+}
+
+export function claimEventsLimanowaAdmin() {
+  return request<{ claimed: boolean }>('/pilgrimage/admin/events-limanowa/claim', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getPilgrimagePublicInquiryAnswers(slug: string) {
+  return request<PilgrimagePublicInquiryAnswer[]>(`/pilgrimage/${slug}/public/contact/answers`, {
+    method: 'GET'
   });
 }
 
@@ -3556,12 +3597,13 @@ export function updatePilgrimageIssue(
 export function updatePilgrimageInquiry(
   eventId: string,
   inquiryId: string,
-  payload: { status: string }
+  payload: { status: string; publicAnswer?: string | null }
 ) {
   return request<void>(`/pilgrimage/${eventId}/organizer/inquiries/${inquiryId}`, {
     method: 'PUT',
     body: JSON.stringify({
-      status: payload.status
+      status: payload.status,
+      publicAnswer: payload.publicAnswer ?? null
     })
   });
 }

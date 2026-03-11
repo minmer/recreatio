@@ -47,6 +47,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Pilgrimage.PilgrimageTask> PilgrimageTasks => Set<Data.Pilgrimage.PilgrimageTask>();
     public DbSet<Data.Pilgrimage.PilgrimageParticipantIssue> PilgrimageParticipantIssues => Set<Data.Pilgrimage.PilgrimageParticipantIssue>();
     public DbSet<Data.Pilgrimage.PilgrimageContactInquiry> PilgrimageContactInquiries => Set<Data.Pilgrimage.PilgrimageContactInquiry>();
+    public DbSet<Data.Pilgrimage.PortalAdminAssignment> PortalAdminAssignments => Set<Data.Pilgrimage.PortalAdminAssignment>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -214,6 +215,10 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Pilgrimage.PilgrimageContactInquiry>()
             .HasIndex(x => new { x.EventId, x.Status, x.UpdatedUtc });
+
+        modelBuilder.Entity<Data.Pilgrimage.PortalAdminAssignment>()
+            .HasIndex(x => x.ScopeKey)
+            .IsUnique();
 
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.KeyEntryId);

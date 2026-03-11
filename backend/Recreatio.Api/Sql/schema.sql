@@ -2602,10 +2602,14 @@ BEGIN
         EventId UNIQUEIDENTIFIER NOT NULL,
         Name NVARCHAR(180) NOT NULL,
         Phone NVARCHAR(80) NULL,
+        IsPublicQuestion BIT NOT NULL CONSTRAINT DF_PilgrimageContactInquiries_IsPublicQuestion DEFAULT(0),
         Email NVARCHAR(180) NULL,
         Topic NVARCHAR(120) NOT NULL,
         Message NVARCHAR(2400) NOT NULL,
         Status NVARCHAR(32) NOT NULL,
+        PublicAnswer NVARCHAR(2400) NULL,
+        PublicAnsweredBy NVARCHAR(180) NULL,
+        PublicAnsweredUtc DATETIMEOFFSET NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         UpdatedUtc DATETIMEOFFSET NOT NULL,
         CONSTRAINT FK_PilgrimageContactInquiries_Event FOREIGN KEY (EventId) REFERENCES pilgrimage.PilgrimageEvents(Id)
@@ -2613,8 +2617,50 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('pilgrimage.PilgrimageContactInquiries', 'PublicAnswer') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageContactInquiries ADD PublicAnswer NVARCHAR(2400) NULL;
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageContactInquiries', 'IsPublicQuestion') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageContactInquiries ADD IsPublicQuestion BIT NOT NULL CONSTRAINT DF_PilgrimageContactInquiries_IsPublicQuestion DEFAULT(0);
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageContactInquiries', 'PublicAnsweredBy') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageContactInquiries ADD PublicAnsweredBy NVARCHAR(180) NULL;
+END
+GO
+
+IF COL_LENGTH('pilgrimage.PilgrimageContactInquiries', 'PublicAnsweredUtc') IS NULL
+BEGIN
+    ALTER TABLE pilgrimage.PilgrimageContactInquiries ADD PublicAnsweredUtc DATETIMEOFFSET NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PilgrimageContactInquiries_EventStatusUpdated' AND object_id = OBJECT_ID('pilgrimage.PilgrimageContactInquiries'))
 BEGIN
     CREATE INDEX IX_PilgrimageContactInquiries_EventStatusUpdated ON pilgrimage.PilgrimageContactInquiries(EventId, Status, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PortalAdminAssignments' AND schema_id = SCHEMA_ID('pilgrimage'))
+BEGIN
+    CREATE TABLE pilgrimage.PortalAdminAssignments
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ScopeKey NVARCHAR(64) NOT NULL,
+        UserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_PortalAdminAssignments_ScopeKey' AND object_id = OBJECT_ID('pilgrimage.PortalAdminAssignments'))
+BEGIN
+    CREATE UNIQUE INDEX UX_PortalAdminAssignments_ScopeKey ON pilgrimage.PortalAdminAssignments(ScopeKey);
 END
 GO

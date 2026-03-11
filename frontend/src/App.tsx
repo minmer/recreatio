@@ -466,6 +466,7 @@ export default function App() {
           <LimanowaPage
             copy={t}
             onNavigate={navigateRoute}
+            showProfileMenu={isAuthenticated}
           />
         </Suspense>
       )}
