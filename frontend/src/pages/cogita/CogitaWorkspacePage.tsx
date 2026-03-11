@@ -38,6 +38,7 @@ import { CogitaPersonsPage } from './CogitaPersonsPage';
 import { CogitaLibraryTransferPage } from './library/CogitaLibraryTransferPage';
 import { CogitaLibraryStoryboardsPage } from './library/CogitaLibraryStoryboardsPage';
 import { CogitaLibraryTextsPage } from './library/CogitaLibraryTextsPage';
+import type { StoryboardWorkspaceMode } from './library/CogitaLibraryStoryboardsPage';
 import { CogitaCollectionListPage } from './library/collections/CogitaCollectionListPage';
 import { CogitaCollectionDetailPage } from './library/collections/CogitaCollectionDetailPage';
 import { CogitaCollectionCreatePage } from './library/collections/CogitaCollectionCreatePage';
@@ -53,6 +54,7 @@ import { createWorkspaceTransfer } from '../../cogita/workspace/transfer';
 type RevisionView = 'detail' | 'graph' | 'settings' | 'live' | 'new';
 type LiveSessionView = 'list' | 'new' | 'detail' | 'edit';
 type DependencyView = 'search' | 'create' | 'overview' | 'edit';
+type StoryboardView = 'search' | 'create' | 'overview' | 'edit';
 type CogitaTarget =
   | 'library_overview'
   | 'all_cards'
@@ -76,6 +78,8 @@ type CogitaPreferences = {
 type ParsedCogitaPath = {
   libraryId?: string;
   target?: CogitaTarget;
+  storyboardId?: string;
+  storyboardView?: StoryboardView;
   collectionId?: string;
   filterCollectionId?: string;
   revisionId?: string;
@@ -113,6 +117,7 @@ type CollectionMode = 'search' | 'create' | 'selected';
 type RevisionMode = 'search' | 'create' | 'selected' | 'live_sessions';
 type LiveSessionMode = 'search' | 'create' | 'selected';
 type DependencyMode = 'search' | 'create' | 'selected';
+type StoryboardMode = 'search' | 'create' | 'selected';
 type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
@@ -298,9 +303,15 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
 
   if (section === 'storyboards') {
     if (sectionArg1 === 'new') {
-      return { libraryId, target: 'new_storyboard' };
+      return { libraryId, target: 'new_storyboard', storyboardView: 'create' };
     }
-    return { libraryId, target: 'storyboards' };
+    if (sectionArg1) {
+      if (sectionArg2 === 'edit') {
+        return { libraryId, target: 'storyboards', storyboardId: sectionArg1, storyboardView: 'edit' };
+      }
+      return { libraryId, target: 'storyboards', storyboardId: sectionArg1, storyboardView: 'overview' };
+    }
+    return { libraryId, target: 'storyboards', storyboardView: 'search' };
   }
 
   if (section === 'texts' || section === 'writings') {
@@ -347,7 +358,9 @@ function buildCogitaPath(
   filterCollectionId?: string,
   dependencyGraphId?: string,
   dependencyView: DependencyView = 'search',
-  dependencyTransferToken?: string
+  dependencyTransferToken?: string,
+  storyboardId?: string,
+  storyboardView: StoryboardView = 'search'
 ): string {
   const workspaceBase = `/cogita/workspace/libraries/${libraryId}`;
 
@@ -426,6 +439,15 @@ function buildCogitaPath(
     return `${workspaceBase}/transfer`;
   }
   if (target === 'storyboards') {
+    if (storyboardView === 'create') {
+      return `${workspaceBase}/storyboards/new`;
+    }
+    if (storyboardId) {
+      const encodedStoryboardId = encodeURIComponent(storyboardId);
+      return storyboardView === 'edit'
+        ? `${workspaceBase}/storyboards/${encodedStoryboardId}/edit`
+        : `${workspaceBase}/storyboards/${encodedStoryboardId}`;
+    }
     return `${workspaceBase}/storyboards`;
   }
   if (target === 'new_storyboard') {
@@ -679,6 +701,11 @@ export function CogitaWorkspacePage({
     if (pathState.dependencyGraphId) return 'selected';
     return 'search';
   }, [pathState.dependencyGraphId, pathState.dependencyView]);
+  const storyboardMode = useMemo<StoryboardMode>(() => {
+    if (selectedTarget === 'new_storyboard' || pathState.storyboardView === 'create') return 'create';
+    if (pathState.storyboardId) return 'selected';
+    return 'search';
+  }, [pathState.storyboardId, pathState.storyboardView, selectedTarget]);
   const selectedInfoOption = useMemo(
     () => infos.find((item) => item.infoId === pathState.infoId) ?? null,
     [infos, pathState.infoId]
@@ -984,6 +1011,63 @@ export function CogitaWorkspacePage({
             dependencyGraphId: nextTarget === 'dependencies' ? pathState.dependencyGraphId : undefined,
             dependencyView: nextTarget === 'dependencies' ? (pathState.dependencyView ?? 'search') : 'search'
           });
+        }
+      },
+      {
+        key: 'storyboard_mode',
+        label: workspaceCopy.layers.target,
+        visible: displayTarget === 'storyboards',
+        value: storyboardMode,
+        selectedLabel:
+          storyboardMode === 'create'
+            ? workspaceCopy.infoMode.create
+            : storyboardMode === 'selected'
+              ? (pathState.storyboardId ?? copy.cogita.library.modules.storyboardsTitle)
+              : workspaceCopy.infoMode.search,
+        disabled: !hasLibrarySelection,
+        options: [
+          { value: 'search', label: workspaceCopy.infoMode.search },
+          { value: 'create', label: workspaceCopy.infoMode.create },
+          ...(pathState.storyboardId
+            ? [{ value: 'selected', label: pathState.storyboardId }]
+            : [])
+        ],
+        onSelect: (value: string) => {
+          if (!selectedLibraryId) return;
+          if (value === 'create') {
+            navigate(`/cogita/workspace/libraries/${encodeURIComponent(selectedLibraryId)}/storyboards/new`);
+            return;
+          }
+          if (value === 'selected' && pathState.storyboardId) {
+            const suffix = pathState.storyboardView === 'edit' ? '/edit' : '';
+            navigate(
+              `/cogita/workspace/libraries/${encodeURIComponent(selectedLibraryId)}/storyboards/${encodeURIComponent(pathState.storyboardId)}${suffix}`
+            );
+            return;
+          }
+          navigate(`/cogita/workspace/libraries/${encodeURIComponent(selectedLibraryId)}/storyboards`);
+        }
+      },
+      {
+        key: 'storyboard_selected_action',
+        label: workspaceCopy.layers.target,
+        visible: displayTarget === 'storyboards' && Boolean(pathState.storyboardId),
+        value: pathState.storyboardView === 'edit' ? 'edit' : 'overview',
+        selectedLabel:
+          pathState.storyboardView === 'edit'
+            ? workspaceCopy.infoActions.edit
+            : workspaceCopy.infoActions.overview,
+        disabled: !hasLibrarySelection || !pathState.storyboardId,
+        options: [
+          { value: 'overview', label: workspaceCopy.infoActions.overview },
+          { value: 'edit', label: workspaceCopy.infoActions.edit }
+        ],
+        onSelect: (value: string) => {
+          if (!selectedLibraryId || !pathState.storyboardId) return;
+          const suffix = value === 'edit' ? '/edit' : '';
+          navigate(
+            `/cogita/workspace/libraries/${encodeURIComponent(selectedLibraryId)}/storyboards/${encodeURIComponent(pathState.storyboardId)}${suffix}`
+          );
         }
       },
       {
@@ -1504,6 +1588,7 @@ export function CogitaWorkspacePage({
       libraries,
       loading,
       applyNavigationSelection,
+      navigate,
       revisions,
       selectedCollection,
       selectedCollectionId,
@@ -1522,6 +1607,7 @@ export function CogitaWorkspacePage({
       displayRevisionView,
       displayTarget,
       selectedTargetLabel,
+      storyboardMode,
       showCollectionLayer,
       showCollectionActionLayer,
       showRevisionLayer,
@@ -1536,6 +1622,8 @@ export function CogitaWorkspacePage({
       pathState.filterCollectionId,
       pathState.liveSessionId,
       pathState.liveSessionView,
+      pathState.storyboardId,
+      pathState.storyboardView,
       workspaceCopy.infoActions.edit,
       workspaceCopy.infoActions.overview,
       workspaceCopy.infoActions.seeCards,
@@ -1549,6 +1637,7 @@ export function CogitaWorkspacePage({
       workspaceCopy.targets.allCards,
       workspaceCopy.targets.allRevisions,
       workspaceCopy.targets.dependencies,
+      copy.cogita.library.modules.storyboardsTitle,
       workspaceCopy.infoMode.create,
       workspaceCopy.infoMode.search,
       workspaceCopy.revisionForm.createAction,
@@ -1590,6 +1679,14 @@ export function CogitaWorkspacePage({
   );
   const sidebarDependencySelectedActionLevel = useMemo(
     () => sidebarActionLevels.find((level) => level.key === 'dependency_selected_action') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarStoryboardModeLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'storyboard_mode') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarStoryboardSelectedActionLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'storyboard_selected_action') ?? null,
     [sidebarActionLevels]
   );
   const sidebarCollectionActionsLevel = useMemo(
@@ -1780,6 +1877,24 @@ export function CogitaWorkspacePage({
                     undefined
                   );
                 }
+                if (level.key === 'storyboard_mode') {
+                  if (!selectedLibraryId) return normalizePath(location.pathname);
+                  const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+                  if (option.value === 'create') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/storyboards/new`;
+                  }
+                  if (option.value === 'selected' && pathState.storyboardId) {
+                    const suffix = pathState.storyboardView === 'edit' ? '/edit' : '';
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/storyboards/${encodeURIComponent(pathState.storyboardId)}${suffix}`;
+                  }
+                  return `/cogita/workspace/libraries/${encodedLibraryId}/storyboards`;
+                }
+                if (level.key === 'storyboard_selected_action' && pathState.storyboardId) {
+                  if (!selectedLibraryId) return normalizePath(location.pathname);
+                  const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+                  const suffix = option.value === 'edit' ? '/edit' : '';
+                  return `/cogita/workspace/libraries/${encodedLibraryId}/storyboards/${encodeURIComponent(pathState.storyboardId)}${suffix}`;
+                }
                 if (level.key === 'collection_mode') {
                   if (option.value === 'create') {
                     return buildCogitaPath(selectedLibraryId, 'new_collection', undefined, 'detail');
@@ -1906,6 +2021,8 @@ export function CogitaWorkspacePage({
       pathState.infoView,
       pathState.liveSessionId,
       pathState.liveSessionView,
+      pathState.storyboardId,
+      pathState.storyboardView,
       selectedCollectionId,
       selectedLibraryId,
       selectedRevisionId,
@@ -1961,7 +2078,15 @@ export function CogitaWorkspacePage({
       return <CogitaLibraryTransferPage {...baseProps} />;
     }
     if (pathState.target === 'storyboards' || pathState.target === 'new_storyboard') {
-      return <CogitaLibraryStoryboardsPage {...baseProps} />;
+      const storyboardMode: StoryboardWorkspaceMode =
+        pathState.target === 'new_storyboard' || pathState.storyboardView === 'create'
+          ? 'create'
+          : pathState.storyboardView === 'edit'
+            ? 'edit'
+            : pathState.storyboardView === 'overview'
+              ? 'overview'
+              : 'search';
+      return <CogitaLibraryStoryboardsPage {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
     }
     if (pathState.target === 'texts' || pathState.target === 'new_text') {
       return <CogitaLibraryTextsPage {...baseProps} />;
@@ -2091,6 +2216,8 @@ export function CogitaWorkspacePage({
     pathState.liveSessionView,
     pathState.revisionId,
     pathState.revisionView,
+    pathState.storyboardId,
+    pathState.storyboardView,
     pathState.target,
     secureMode,
     showProfileMenu,
@@ -2692,6 +2819,20 @@ export function CogitaWorkspacePage({
                       {shortenNavLabel(selectedDependencyGraph?.name ?? workspaceCopy.targets.dependencies, SIDEBAR_NAV_LABEL_MAX)}
                     </p>
                     {renderSidebarActions(sidebarDependencySelectedActionLevel, 'sidebar')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {sidebarStoryboardModeLevel ? (
+              <div className="cogita-sidebar-actions-nested" data-level="branch">
+                <p className="cogita-sidebar-note">{workspaceCopy.targets.storyboards}</p>
+                {renderSidebarActions(sidebarStoryboardModeLevel, 'sidebar')}
+                {sidebarStoryboardSelectedActionLevel ? (
+                  <div className="cogita-sidebar-actions-nested" data-level="branch">
+                    <p className="cogita-sidebar-note" title={pathState.storyboardId ?? workspaceCopy.targets.storyboards}>
+                      {shortenNavLabel(pathState.storyboardId ?? workspaceCopy.targets.storyboards, SIDEBAR_NAV_LABEL_MAX)}
+                    </p>
+                    {renderSidebarActions(sidebarStoryboardSelectedActionLevel, 'sidebar')}
                   </div>
                 ) : null}
               </div>
