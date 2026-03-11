@@ -292,7 +292,13 @@ async function buildLiveRounds(payload: {
   });
   const normalizedCards = normalizeLoadedCards(gatheredCards);
   const prepared = revisionType.prepare(normalizedCards, revisionLimit, revisionSettings);
-  const cards = prepared.queue.length > 0 ? prepared.queue : normalizedCards;
+  const preparedPool = (prepared.meta as { pool?: typeof normalizedCards } | null)?.pool;
+  const cards =
+    Array.isArray(preparedPool) && preparedPool.length > 0
+      ? preparedPool
+      : prepared.queue.length > 0
+        ? prepared.queue
+        : normalizedCards;
   const infoIds = Array.from(new Set(cards.filter((c) => c.cardType === 'info').map((c) => c.cardId)));
 
   const infoDetails = new Map<string, { infoType: string; payload: unknown }>();

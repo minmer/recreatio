@@ -69,37 +69,74 @@ public sealed class RequestLoggingMiddleware
 
     private void LogStatus(HttpContext context, string? bodyText, string? requestBody = null)
     {
-        if (context.Response.StatusCode is < 400 or >= 500)
+        if (context.Response.StatusCode < 400)
         {
             return;
         }
 
+        var isServerError = context.Response.StatusCode >= 500;
+
         if (!string.IsNullOrWhiteSpace(bodyText))
         {
-            _logger.LogWarning(
-                "HTTP {Method} {Path} -> {StatusCode}. Body: {Body}",
-                context.Request.Method,
-                context.Request.Path,
-                context.Response.StatusCode,
-                bodyText);
+            if (isServerError)
+            {
+                _logger.LogError(
+                    "HTTP {Method} {Path} -> {StatusCode}. Body: {Body}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Response.StatusCode,
+                    bodyText);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "HTTP {Method} {Path} -> {StatusCode}. Body: {Body}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Response.StatusCode,
+                    bodyText);
+            }
             return;
         }
 
         if (!string.IsNullOrWhiteSpace(requestBody))
         {
-            _logger.LogWarning(
-                "HTTP {Method} {Path} -> {StatusCode}. RequestBody: {Body}",
-                context.Request.Method,
-                context.Request.Path,
-                context.Response.StatusCode,
-                requestBody);
+            if (isServerError)
+            {
+                _logger.LogError(
+                    "HTTP {Method} {Path} -> {StatusCode}. RequestBody: {Body}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Response.StatusCode,
+                    requestBody);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "HTTP {Method} {Path} -> {StatusCode}. RequestBody: {Body}",
+                    context.Request.Method,
+                    context.Request.Path,
+                    context.Response.StatusCode,
+                    requestBody);
+            }
             return;
         }
 
-        _logger.LogWarning(
-            "HTTP {Method} {Path} -> {StatusCode}",
-            context.Request.Method,
-            context.Request.Path,
-            context.Response.StatusCode);
+        if (isServerError)
+        {
+            _logger.LogError(
+                "HTTP {Method} {Path} -> {StatusCode}",
+                context.Request.Method,
+                context.Request.Path,
+                context.Response.StatusCode);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "HTTP {Method} {Path} -> {StatusCode}",
+                context.Request.Method,
+                context.Request.Path,
+                context.Response.StatusCode);
+        }
     }
 }

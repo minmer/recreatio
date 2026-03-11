@@ -286,110 +286,134 @@ public static class PilgrimageEndpoints
             IDataProtectionProvider dataProtectionProvider,
             IEncryptionService encryptionService,
             ILedgerService ledgerService,
+            ILoggerFactory loggerFactory,
             CancellationToken ct) =>
         {
-            var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
-            var pilgrimage = await dbContext.PilgrimageEvents.FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
-            if (pilgrimage is null)
+            var logger = loggerFactory.CreateLogger("Pilgrimage.PublicRegistrations");
+            try
             {
-                return Results.NotFound();
+                var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
+                var pilgrimage = await dbContext.PilgrimageEvents.FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
+                if (pilgrimage is null)
+                {
+                    return Results.NotFound();
+                }
+
+                var fullName = NormalizeShort(request.FullName, 200);
+                var phone = NormalizeShort(request.Phone, 60);
+                var emergencyName = NormalizeShort(request.EmergencyContactName, 200);
+                var emergencyPhone = NormalizeShort(request.EmergencyContactPhone, 60);
+
+                if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone) ||
+                    string.IsNullOrWhiteSpace(emergencyName) || string.IsNullOrWhiteSpace(emergencyPhone))
+                {
+                    return Results.BadRequest(new { error = "Full name, phone and emergency contact are required." });
+                }
+
+                if (!request.AcceptedTerms || !request.AcceptedRodo)
+                {
+                    return Results.BadRequest(new { error = "Terms and RODO consent are required." });
+                }
+
+                var variant = NormalizeVariant(request.ParticipationVariant);
+                var participantKey = UnprotectEventDataKey(dataProtectionProvider, pilgrimage.Id, "participant", pilgrimage.ParticipantDataKeyServerEnc);
+                if (participantKey is null)
+                {
+                    return Results.Problem(
+                        title: "Registration key unavailable",
+                        detail: "Event encryption key is not available. Please contact administrator.",
+                        statusCode: StatusCodes.Status503ServiceUnavailable);
+                }
+
+                var payload = new PilgrimageParticipantPayload(
+                    fullName,
+                    phone,
+                    NormalizeShort(request.Email, 180),
+                    NormalizeShort(request.Parish, 180),
+                    request.BirthDate,
+                    request.IsMinor,
+                    variant,
+                    request.NeedsLodging,
+                    request.NeedsBaggageTransport,
+                    emergencyName,
+                    emergencyPhone,
+                    NormalizeLong(request.HealthNotes, 1400),
+                    NormalizeLong(request.DietNotes, 800),
+                    request.AcceptedTerms,
+                    request.AcceptedRodo,
+                    request.AcceptedImageConsent);
+
+                var now = DateTimeOffset.UtcNow;
+                var participantId = Guid.NewGuid();
+                var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
+                var payloadEnc = encryptionService.Encrypt(participantKey, payloadJson, participantId.ToByteArray());
+                var identityDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"{fullName.ToLowerInvariant()}|{phone.Trim()}"));
+
+                var participant = new PilgrimageParticipant
+                {
+                    Id = participantId,
+                    EventId = pilgrimage.Id,
+                    ParticipationVariant = variant,
+                    RegistrationStatus = "pending",
+                    PaymentStatus = "pending",
+                    AttendanceStatus = "not-checked-in",
+                    NeedsLodging = request.NeedsLodging,
+                    NeedsBaggageTransport = request.NeedsBaggageTransport,
+                    IsMinor = request.IsMinor,
+                    AcceptedTerms = request.AcceptedTerms,
+                    AcceptedRodo = request.AcceptedRodo,
+                    IdentityDigest = identityDigest,
+                    PayloadEnc = payloadEnc,
+                    PayloadDataKeyId = pilgrimage.ParticipantDataKeyId,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+
+                var token = CreateParticipantAccessToken();
+                var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+                var expiresUtc = now.AddDays(120);
+
+                dbContext.PilgrimageParticipants.Add(participant);
+                dbContext.PilgrimageParticipantAccessTokens.Add(new PilgrimageParticipantAccessToken
+                {
+                    Id = Guid.NewGuid(),
+                    EventId = pilgrimage.Id,
+                    ParticipantId = participantId,
+                    TokenHash = tokenHash,
+                    ExpiresUtc = expiresUtc,
+                    CreatedUtc = now
+                });
+
+                await dbContext.SaveChangesAsync(ct);
+
+                await ledgerService.AppendBusinessAsync(
+                    "PilgrimageRegistrationCreated",
+                    "public",
+                    JsonSerializer.Serialize(new { pilgrimage.Id, participantId }),
+                    ct);
+
+                var origin = $"{context.Request.Scheme}://{context.Request.Host}";
+                var accessPath = $"/#/event/{pilgrimage.Slug}/uczestnik?token={Uri.EscapeDataString(token)}";
+                var accessLink = string.IsNullOrWhiteSpace(context.Request.Host.Value) ? accessPath : $"{origin}{accessPath}";
+
+                return Results.Ok(new PilgrimageRegistrationResponse(participantId, token, accessLink, expiresUtc));
             }
-
-            var fullName = NormalizeShort(request.FullName, 200);
-            var phone = NormalizeShort(request.Phone, 60);
-            var emergencyName = NormalizeShort(request.EmergencyContactName, 200);
-            var emergencyPhone = NormalizeShort(request.EmergencyContactPhone, 60);
-
-            if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone) ||
-                string.IsNullOrWhiteSpace(emergencyName) || string.IsNullOrWhiteSpace(emergencyPhone))
+            catch (DbUpdateException exception)
             {
-                return Results.BadRequest(new { error = "Full name, phone and emergency contact are required." });
+                logger.LogError(exception, "Public registration DB failure for slug {Slug}", slug);
+                return Results.Problem(
+                    title: "Registration unavailable",
+                    detail: "Database error while saving registration.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
             }
-
-            if (!request.AcceptedTerms || !request.AcceptedRodo)
+            catch (Exception exception)
             {
-                return Results.BadRequest(new { error = "Terms and RODO consent are required." });
+                logger.LogError(exception, "Public registration failure for slug {Slug}", slug);
+                return Results.Problem(
+                    title: "Registration unavailable",
+                    detail: "Unexpected server error while processing registration.",
+                    statusCode: StatusCodes.Status500InternalServerError);
             }
-
-            var variant = NormalizeVariant(request.ParticipationVariant);
-            var participantKey = UnprotectEventDataKey(dataProtectionProvider, pilgrimage.Id, "participant", pilgrimage.ParticipantDataKeyServerEnc);
-            if (participantKey is null)
-            {
-                return Results.StatusCode(StatusCodes.Status500InternalServerError);
-            }
-
-            var payload = new PilgrimageParticipantPayload(
-                fullName,
-                phone,
-                NormalizeShort(request.Email, 180),
-                NormalizeShort(request.Parish, 180),
-                request.BirthDate,
-                request.IsMinor,
-                variant,
-                request.NeedsLodging,
-                request.NeedsBaggageTransport,
-                emergencyName,
-                emergencyPhone,
-                NormalizeLong(request.HealthNotes, 1400),
-                NormalizeLong(request.DietNotes, 800),
-                request.AcceptedTerms,
-                request.AcceptedRodo,
-                request.AcceptedImageConsent);
-
-            var now = DateTimeOffset.UtcNow;
-            var participantId = Guid.NewGuid();
-            var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
-            var payloadEnc = encryptionService.Encrypt(participantKey, payloadJson, participantId.ToByteArray());
-            var identityDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"{fullName.ToLowerInvariant()}|{phone.Trim()}"));
-
-            var participant = new PilgrimageParticipant
-            {
-                Id = participantId,
-                EventId = pilgrimage.Id,
-                ParticipationVariant = variant,
-                RegistrationStatus = "pending",
-                PaymentStatus = "pending",
-                AttendanceStatus = "not-checked-in",
-                NeedsLodging = request.NeedsLodging,
-                NeedsBaggageTransport = request.NeedsBaggageTransport,
-                IsMinor = request.IsMinor,
-                AcceptedTerms = request.AcceptedTerms,
-                AcceptedRodo = request.AcceptedRodo,
-                IdentityDigest = identityDigest,
-                PayloadEnc = payloadEnc,
-                PayloadDataKeyId = pilgrimage.ParticipantDataKeyId,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            };
-
-            var token = CreateParticipantAccessToken();
-            var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-            var expiresUtc = now.AddDays(120);
-
-            dbContext.PilgrimageParticipants.Add(participant);
-            dbContext.PilgrimageParticipantAccessTokens.Add(new PilgrimageParticipantAccessToken
-            {
-                Id = Guid.NewGuid(),
-                EventId = pilgrimage.Id,
-                ParticipantId = participantId,
-                TokenHash = tokenHash,
-                ExpiresUtc = expiresUtc,
-                CreatedUtc = now
-            });
-
-            await dbContext.SaveChangesAsync(ct);
-
-            await ledgerService.AppendBusinessAsync(
-                "PilgrimageRegistrationCreated",
-                "public",
-                JsonSerializer.Serialize(new { pilgrimage.Id, participantId }),
-                ct);
-
-            var origin = $"{context.Request.Scheme}://{context.Request.Host}";
-            var accessPath = $"/#/event/{pilgrimage.Slug}/uczestnik?token={Uri.EscapeDataString(token)}";
-            var accessLink = string.IsNullOrWhiteSpace(context.Request.Host.Value) ? accessPath : $"{origin}{accessPath}";
-
-            return Results.Ok(new PilgrimageRegistrationResponse(participantId, token, accessLink, expiresUtc));
         });
 
         group.MapPost("/{slug}/public/contact", async (
