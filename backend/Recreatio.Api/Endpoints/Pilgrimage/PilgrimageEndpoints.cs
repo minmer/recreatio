@@ -62,7 +62,10 @@ public static class PilgrimageEndpoints
                     .FirstOrDefaultAsync(ct);
             }
 
-            return Results.Ok(new { hasAdmin, isCurrentUserAdmin, adminDisplayName });
+            var kal26Provisioned = await dbContext.PilgrimageEvents.AsNoTracking()
+                .AnyAsync(x => x.Slug == "kal26", ct);
+
+            return Results.Ok(new { hasAdmin, isCurrentUserAdmin, adminDisplayName, kal26Provisioned });
         });
 
         group.MapPost("/admin/events-limanowa/claim", async (
@@ -194,263 +197,85 @@ public static class PilgrimageEndpoints
             ILedgerService ledgerService,
             IDataProtectionProvider dataProtectionProvider,
             CancellationToken ct) =>
+            await CreatePilgrimageInternalAsync(
+                request,
+                context,
+                dbContext,
+                keyRingService,
+                encryptionService,
+                roleCryptoService,
+                sessionSecretCache,
+                ledgerService,
+                dataProtectionProvider,
+                ct)).RequireAuthorization();
+
+        group.MapPost("/admin/events-limanowa/bootstrap-kal26", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ISessionSecretCache sessionSecretCache,
+            ILedgerService ledgerService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
         {
-            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
-                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
             {
                 return Results.Unauthorized();
             }
 
-            var normalizedName = request.Name?.Trim() ?? string.Empty;
-            var normalizedSlug = request.Slug?.Trim().ToLowerInvariant() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(normalizedName) || string.IsNullOrWhiteSpace(normalizedSlug))
-            {
-                return Results.BadRequest(new { error = "Name and slug are required." });
-            }
-
-            if (normalizedSlug.Length > 80)
-            {
-                return Results.BadRequest(new { error = "Slug is too long." });
-            }
-
-            if (await dbContext.PilgrimageEvents.AsNoTracking().AnyAsync(x => x.Slug == normalizedSlug, ct))
-            {
-                return Results.BadRequest(new { error = "Slug is already taken." });
-            }
-
-            var account = await dbContext.UserAccounts.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == userId, ct);
-            if (account is null)
-            {
-                return Results.NotFound();
-            }
-
-            RoleKeyRing keyRing;
-            try
-            {
-                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
-            }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            }
-
-            if (!keyRing.TryGetReadKey(account.MasterRoleId, out var masterReadKey) ||
-                !keyRing.TryGetWriteKey(account.MasterRoleId, out var masterWriteKey) ||
-                !keyRing.TryGetOwnerKey(account.MasterRoleId, out var masterOwnerKey))
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            if (!isGlobalAdmin)
             {
                 return Results.Forbid();
             }
 
-            byte[] masterKey;
-            try
+            var existing = await dbContext.PilgrimageEvents.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == "kal26", ct);
+            if (existing is not null)
             {
-                masterKey = keyRingService.RequireMasterKey(context, userId, sessionId);
+                var config = await dbContext.PilgrimageSiteConfigs.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.EventId == existing.Id && x.IsPublished, ct);
+                var site = config is null ? CreateDefaultKal26Site() : DeserializeSiteConfig(config);
+                return Results.Ok(new PilgrimageSiteResponse(
+                    existing.Id,
+                    existing.Slug,
+                    existing.Name,
+                    existing.Motto,
+                    existing.StartDate,
+                    existing.EndDate,
+                    existing.StartLocation,
+                    existing.EndLocation,
+                    existing.DistanceKm,
+                    existing.Theme,
+                    site,
+                    true));
             }
-            catch (InvalidOperationException)
-            {
-                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
-            }
 
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
-            var now = DateTimeOffset.UtcNow;
-            var masterSigningContext = await roleCryptoService.TryGetSigningContextAsync(account.MasterRoleId, masterOwnerKey, ct);
+            var request = new PilgrimageCreateRequest(
+                "5. piesza pielgrzymka z Krakowa do Kalwarii Zebrzydowskiej",
+                "kal26",
+                "Droga, wspolnota i modlitwa",
+                new DateOnly(2026, 4, 17),
+                new DateOnly(2026, 4, 18),
+                "Krakow",
+                "Kalwaria Zebrzydowska",
+                42,
+                "pilgrimage",
+                CreateDefaultKal26Site());
 
-            var eventRole = await CreateRoleAsync(
-                normalizedName,
-                RoleKindPilgrimage,
-                account.MasterRoleId,
-                masterReadKey,
-                masterWriteKey,
-                masterOwnerKey,
-                masterKey,
-                userId,
-                now,
-                masterSigningContext,
+            return await CreatePilgrimageInternalAsync(
+                request,
+                context,
+                dbContext,
                 keyRingService,
                 encryptionService,
+                roleCryptoService,
+                sessionSecretCache,
                 ledgerService,
-                dbContext,
+                dataProtectionProvider,
                 ct);
-
-            var eventSigningContext = await roleCryptoService.TryGetSigningContextAsync(eventRole.RoleId, eventRole.OwnerKey, ct);
-
-            var organizerRole = await CreateRoleAsync(
-                $"{normalizedName} - Organizator",
-                RoleKindOrganizer,
-                eventRole.RoleId,
-                eventRole.ReadKey,
-                eventRole.WriteKey,
-                eventRole.OwnerKey,
-                masterKey,
-                userId,
-                now,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            await AddMembershipAsync(
-                userId,
-                organizerRole,
-                masterKey,
-                now,
-                masterSigningContext,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            var logisticsRole = await CreateRoleAsync(
-                $"{normalizedName} - Logistyka",
-                RoleKindLogistics,
-                eventRole.RoleId,
-                eventRole.ReadKey,
-                eventRole.WriteKey,
-                eventRole.OwnerKey,
-                masterKey,
-                userId,
-                now,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            var medicalRole = await CreateRoleAsync(
-                $"{normalizedName} - Bezpieczenstwo",
-                RoleKindMedical,
-                eventRole.RoleId,
-                eventRole.ReadKey,
-                eventRole.WriteKey,
-                eventRole.OwnerKey,
-                masterKey,
-                userId,
-                now,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            var publicRole = await CreateRoleAsync(
-                $"{normalizedName} - Publiczne",
-                RoleKindPublic,
-                eventRole.RoleId,
-                eventRole.ReadKey,
-                eventRole.WriteKey,
-                eventRole.OwnerKey,
-                masterKey,
-                userId,
-                now,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            var participantData = await CreatePilgrimageDataKeyAsync(
-                eventRole,
-                "participant-private",
-                now,
-                userId,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-            var emergencyData = await CreatePilgrimageDataKeyAsync(
-                eventRole,
-                "participant-emergency",
-                now,
-                userId,
-                eventSigningContext,
-                keyRingService,
-                encryptionService,
-                ledgerService,
-                dbContext,
-                ct);
-
-            await GrantPilgrimageDataKeyAsync(participantData, [organizerRole, logisticsRole, medicalRole], now, encryptionService, dbContext, ct);
-            await GrantPilgrimageDataKeyAsync(emergencyData, [organizerRole, medicalRole], now, encryptionService, dbContext, ct);
-
-            var eventId = Guid.NewGuid();
-            var participantServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "participant", participantData.DataKey);
-            var emergencyServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "emergency", emergencyData.DataKey);
-
-            var site = NormalizeSiteDocument(request.Site ?? CreateDefaultKal26Site());
-            var pilgrimage = new PilgrimageEvent
-            {
-                Id = eventId,
-                Slug = normalizedSlug,
-                Name = normalizedName,
-                Motto = NormalizeShort(request.Motto, 180) ?? string.Empty,
-                StartDate = request.StartDate,
-                EndDate = request.EndDate,
-                StartLocation = NormalizeShort(request.StartLocation, 160) ?? string.Empty,
-                EndLocation = NormalizeShort(request.EndLocation, 160) ?? string.Empty,
-                Theme = string.IsNullOrWhiteSpace(request.Theme) ? "pilgrimage" : request.Theme.Trim(),
-                DistanceKm = request.DistanceKm,
-                RoleId = eventRole.RoleId,
-                OrganizerRoleId = organizerRole.RoleId,
-                LogisticsRoleId = logisticsRole.RoleId,
-                MedicalRoleId = medicalRole.RoleId,
-                PublicRoleId = publicRole.RoleId,
-                ParticipantDataItemId = participantData.DataItemId,
-                ParticipantDataKeyId = participantData.DataKeyId,
-                EmergencyDataItemId = emergencyData.DataItemId,
-                EmergencyDataKeyId = emergencyData.DataKeyId,
-                ParticipantDataKeyServerEnc = participantServerKeyEnc,
-                EmergencyDataKeyServerEnc = emergencyServerKeyEnc,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            };
-
-            var config = new PilgrimageSiteConfig
-            {
-                Id = Guid.NewGuid(),
-                EventId = eventId,
-                PublicConfigJson = JsonSerializer.Serialize(site.Public),
-                ParticipantConfigJson = JsonSerializer.Serialize(site.Participant),
-                OrganizerConfigJson = JsonSerializer.Serialize(site.Organizer),
-                IsPublished = true,
-                CreatedUtc = now,
-                UpdatedUtc = now
-            };
-
-            dbContext.PilgrimageEvents.Add(pilgrimage);
-            dbContext.PilgrimageSiteConfigs.Add(config);
-            await dbContext.SaveChangesAsync(ct);
-
-            await ledgerService.AppendBusinessAsync(
-                "PilgrimageCreated",
-                userId.ToString(),
-                JsonSerializer.Serialize(new { pilgrimage.Id, pilgrimage.Name, pilgrimage.Slug }),
-                ct,
-                eventSigningContext);
-
-            await transaction.CommitAsync(ct);
-            EndpointHelpers.InvalidateRoleKeyRing(sessionSecretCache, sessionId);
-
-            return Results.Ok(new PilgrimageSiteResponse(
-                pilgrimage.Id,
-                pilgrimage.Slug,
-                pilgrimage.Name,
-                pilgrimage.Motto,
-                pilgrimage.StartDate,
-                pilgrimage.EndDate,
-                pilgrimage.StartLocation,
-                pilgrimage.EndLocation,
-                pilgrimage.DistanceKm,
-                pilgrimage.Theme,
-                site,
-                true));
         }).RequireAuthorization();
 
         group.MapPost("/{slug}/public/registrations", async (
@@ -1688,6 +1513,276 @@ public static class PilgrimageEndpoints
                 "text/csv; charset=utf-8",
                 $"{normalizedKind}.csv");
         }).RequireAuthorization();
+    }
+
+    private static async Task<IResult> CreatePilgrimageInternalAsync(
+        PilgrimageCreateRequest request,
+        HttpContext context,
+        RecreatioDbContext dbContext,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        IRoleCryptoService roleCryptoService,
+        ISessionSecretCache sessionSecretCache,
+        ILedgerService ledgerService,
+        IDataProtectionProvider dataProtectionProvider,
+        CancellationToken ct)
+    {
+        if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+            !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+        {
+            return Results.Unauthorized();
+        }
+
+        var normalizedName = request.Name?.Trim() ?? string.Empty;
+        var normalizedSlug = request.Slug?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedName) || string.IsNullOrWhiteSpace(normalizedSlug))
+        {
+            return Results.BadRequest(new { error = "Name and slug are required." });
+        }
+
+        if (normalizedSlug.Length > 80)
+        {
+            return Results.BadRequest(new { error = "Slug is too long." });
+        }
+
+        if (await dbContext.PilgrimageEvents.AsNoTracking().AnyAsync(x => x.Slug == normalizedSlug, ct))
+        {
+            return Results.BadRequest(new { error = "Slug is already taken." });
+        }
+
+        var account = await dbContext.UserAccounts.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, ct);
+        if (account is null)
+        {
+            return Results.NotFound();
+        }
+
+        RoleKeyRing keyRing;
+        try
+        {
+            keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+        }
+
+        if (!keyRing.TryGetReadKey(account.MasterRoleId, out var masterReadKey) ||
+            !keyRing.TryGetWriteKey(account.MasterRoleId, out var masterWriteKey) ||
+            !keyRing.TryGetOwnerKey(account.MasterRoleId, out var masterOwnerKey))
+        {
+            return Results.Forbid();
+        }
+
+        byte[] masterKey;
+        try
+        {
+            masterKey = keyRingService.RequireMasterKey(context, userId, sessionId);
+        }
+        catch (InvalidOperationException)
+        {
+            return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        var masterSigningContext = await roleCryptoService.TryGetSigningContextAsync(account.MasterRoleId, masterOwnerKey, ct);
+
+        var eventRole = await CreateRoleAsync(
+            normalizedName,
+            RoleKindPilgrimage,
+            account.MasterRoleId,
+            masterReadKey,
+            masterWriteKey,
+            masterOwnerKey,
+            masterKey,
+            userId,
+            now,
+            masterSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        var eventSigningContext = await roleCryptoService.TryGetSigningContextAsync(eventRole.RoleId, eventRole.OwnerKey, ct);
+
+        var organizerRole = await CreateRoleAsync(
+            $"{normalizedName} - Organizator",
+            RoleKindOrganizer,
+            eventRole.RoleId,
+            eventRole.ReadKey,
+            eventRole.WriteKey,
+            eventRole.OwnerKey,
+            masterKey,
+            userId,
+            now,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        await AddMembershipAsync(
+            userId,
+            organizerRole,
+            masterKey,
+            now,
+            masterSigningContext,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        var logisticsRole = await CreateRoleAsync(
+            $"{normalizedName} - Logistyka",
+            RoleKindLogistics,
+            eventRole.RoleId,
+            eventRole.ReadKey,
+            eventRole.WriteKey,
+            eventRole.OwnerKey,
+            masterKey,
+            userId,
+            now,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        var medicalRole = await CreateRoleAsync(
+            $"{normalizedName} - Bezpieczenstwo",
+            RoleKindMedical,
+            eventRole.RoleId,
+            eventRole.ReadKey,
+            eventRole.WriteKey,
+            eventRole.OwnerKey,
+            masterKey,
+            userId,
+            now,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        var publicRole = await CreateRoleAsync(
+            $"{normalizedName} - Publiczne",
+            RoleKindPublic,
+            eventRole.RoleId,
+            eventRole.ReadKey,
+            eventRole.WriteKey,
+            eventRole.OwnerKey,
+            masterKey,
+            userId,
+            now,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        var participantData = await CreatePilgrimageDataKeyAsync(
+            eventRole,
+            "participant-private",
+            now,
+            userId,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+        var emergencyData = await CreatePilgrimageDataKeyAsync(
+            eventRole,
+            "participant-emergency",
+            now,
+            userId,
+            eventSigningContext,
+            keyRingService,
+            encryptionService,
+            ledgerService,
+            dbContext,
+            ct);
+
+        await GrantPilgrimageDataKeyAsync(participantData, [organizerRole, logisticsRole, medicalRole], now, encryptionService, dbContext, ct);
+        await GrantPilgrimageDataKeyAsync(emergencyData, [organizerRole, medicalRole], now, encryptionService, dbContext, ct);
+
+        var eventId = Guid.NewGuid();
+        var participantServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "participant", participantData.DataKey);
+        var emergencyServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "emergency", emergencyData.DataKey);
+
+        var site = NormalizeSiteDocument(request.Site ?? CreateDefaultKal26Site());
+        var pilgrimage = new PilgrimageEvent
+        {
+            Id = eventId,
+            Slug = normalizedSlug,
+            Name = normalizedName,
+            Motto = NormalizeShort(request.Motto, 180) ?? string.Empty,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            StartLocation = NormalizeShort(request.StartLocation, 160) ?? string.Empty,
+            EndLocation = NormalizeShort(request.EndLocation, 160) ?? string.Empty,
+            Theme = string.IsNullOrWhiteSpace(request.Theme) ? "pilgrimage" : request.Theme.Trim(),
+            DistanceKm = request.DistanceKm,
+            RoleId = eventRole.RoleId,
+            OrganizerRoleId = organizerRole.RoleId,
+            LogisticsRoleId = logisticsRole.RoleId,
+            MedicalRoleId = medicalRole.RoleId,
+            PublicRoleId = publicRole.RoleId,
+            ParticipantDataItemId = participantData.DataItemId,
+            ParticipantDataKeyId = participantData.DataKeyId,
+            EmergencyDataItemId = emergencyData.DataItemId,
+            EmergencyDataKeyId = emergencyData.DataKeyId,
+            ParticipantDataKeyServerEnc = participantServerKeyEnc,
+            EmergencyDataKeyServerEnc = emergencyServerKeyEnc,
+            CreatedUtc = now,
+            UpdatedUtc = now
+        };
+
+        var config = new PilgrimageSiteConfig
+        {
+            Id = Guid.NewGuid(),
+            EventId = eventId,
+            PublicConfigJson = JsonSerializer.Serialize(site.Public),
+            ParticipantConfigJson = JsonSerializer.Serialize(site.Participant),
+            OrganizerConfigJson = JsonSerializer.Serialize(site.Organizer),
+            IsPublished = true,
+            CreatedUtc = now,
+            UpdatedUtc = now
+        };
+
+        dbContext.PilgrimageEvents.Add(pilgrimage);
+        dbContext.PilgrimageSiteConfigs.Add(config);
+        await dbContext.SaveChangesAsync(ct);
+
+        await ledgerService.AppendBusinessAsync(
+            "PilgrimageCreated",
+            userId.ToString(),
+            JsonSerializer.Serialize(new { pilgrimage.Id, pilgrimage.Name, pilgrimage.Slug }),
+            ct,
+            eventSigningContext);
+
+        await transaction.CommitAsync(ct);
+        EndpointHelpers.InvalidateRoleKeyRing(sessionSecretCache, sessionId);
+
+        return Results.Ok(new PilgrimageSiteResponse(
+            pilgrimage.Id,
+            pilgrimage.Slug,
+            pilgrimage.Name,
+            pilgrimage.Motto,
+            pilgrimage.StartDate,
+            pilgrimage.EndDate,
+            pilgrimage.StartLocation,
+            pilgrimage.EndLocation,
+            pilgrimage.DistanceKm,
+            pilgrimage.Theme,
+            site,
+            true));
     }
 
     private static PilgrimageSiteDocument DeserializeSiteConfig(PilgrimageSiteConfig config)

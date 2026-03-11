@@ -3456,6 +3456,7 @@ export type EventsLimanowaAdminStatus = {
   hasAdmin: boolean;
   isCurrentUserAdmin: boolean;
   adminDisplayName?: string | null;
+  kal26Provisioned: boolean;
 };
 
 export function getEventsLimanowaAdminStatus() {
@@ -3466,6 +3467,13 @@ export function getEventsLimanowaAdminStatus() {
 
 export function claimEventsLimanowaAdmin() {
   return request<{ claimed: boolean }>('/pilgrimage/admin/events-limanowa/claim', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function bootstrapKal26Event() {
+  return request('/pilgrimage/admin/events-limanowa/bootstrap-kal26', {
     method: 'POST',
     body: JSON.stringify({})
   });

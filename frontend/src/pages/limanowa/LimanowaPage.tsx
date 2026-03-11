@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
-import { claimEventsLimanowaAdmin, getEventsLimanowaAdminStatus } from '../../lib/api';
+import { bootstrapKal26Event, claimEventsLimanowaAdmin, getEventsLimanowaAdminStatus } from '../../lib/api';
 import '../../styles/limanowa.css';
 
 export function LimanowaPage({
@@ -17,6 +17,7 @@ export function LimanowaPage({
     hasAdmin: boolean;
     isCurrentUserAdmin: boolean;
     adminDisplayName?: string | null;
+    kal26Provisioned: boolean;
   } | null>(null);
   const [adminStatusPending, setAdminStatusPending] = useState(false);
   const [adminStatusError, setAdminStatusError] = useState<string | null>(null);
@@ -44,9 +45,23 @@ export function LimanowaPage({
     setAdminStatusError(null);
     try {
       await claimEventsLimanowaAdmin();
+      await bootstrapKal26Event();
       await loadAdminStatus();
     } catch (error: unknown) {
       setAdminStatusError(error instanceof Error ? error.message : 'Nie udało się ustanowić administratora.');
+    } finally {
+      setClaimPending(false);
+    }
+  };
+
+  const handleBootstrapKal26 = async () => {
+    setClaimPending(true);
+    setAdminStatusError(null);
+    try {
+      await bootstrapKal26Event();
+      await loadAdminStatus();
+    } catch (error: unknown) {
+      setAdminStatusError(error instanceof Error ? error.message : 'Nie udało się przygotować wydarzenia kal26.');
     } finally {
       setClaimPending(false);
     }
@@ -67,15 +82,25 @@ export function LimanowaPage({
             <p>{copy.limanowa.inBuildText}</p>
             {adminStatusPending ? <p>Sprawdzanie statusu administratora...</p> : null}
             {adminStatus ? (
-              <p>
-                {adminStatus.hasAdmin
-                  ? `Administrator: ${adminStatus.adminDisplayName ?? 'użytkownik systemowy'}`
-                  : 'Administrator dla Events + Limanowa nie jest jeszcze ustawiony.'}
-              </p>
+              <>
+                <p>
+                  {adminStatus.hasAdmin
+                    ? `Administrator: ${adminStatus.adminDisplayName ?? 'użytkownik systemowy'}`
+                    : 'Administrator dla Events + Limanowa nie jest jeszcze ustawiony.'}
+                </p>
+                <p>
+                  kal26: {adminStatus.kal26Provisioned ? 'gotowe (provisioned)' : 'nieprzygotowane'}
+                </p>
+              </>
             ) : null}
             {showProfileMenu && adminStatus && !adminStatus.hasAdmin ? (
               <button className="cta" type="button" onClick={() => void handleClaimAdmin()} disabled={claimPending}>
                 {claimPending ? 'Ustawianie...' : 'Ustaw mnie administratorem Events + Limanowa'}
+              </button>
+            ) : null}
+            {showProfileMenu && adminStatus && adminStatus.hasAdmin && adminStatus.isCurrentUserAdmin && !adminStatus.kal26Provisioned ? (
+              <button className="cta" type="button" onClick={() => void handleBootstrapKal26()} disabled={claimPending}>
+                {claimPending ? 'Przygotowywanie...' : 'Przygotuj backend kal26'}
               </button>
             ) : null}
             {adminStatusError ? <p className="pilgrimage-error">{adminStatusError}</p> : null}

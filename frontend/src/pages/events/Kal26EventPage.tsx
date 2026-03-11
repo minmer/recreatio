@@ -1507,6 +1507,28 @@ export function Kal26EventPage({
 
     setRegistrationPending(true);
     try {
+      if (!site?.isProvisioned) {
+        await createPilgrimageContactInquiry(event.slug, {
+          name: fullName,
+          phone,
+          isPublicQuestion: false,
+          email: null,
+          topic: 'Zapis pielgrzymki (awaryjnie)',
+          message: mergedNotes
+        });
+        setRegistrationNotice(
+          'Wydarzenie nie jest jeszcze aktywne w systemie zapisów. Twoje zgłoszenie zostało zapisane awaryjnie i organizator skontaktuje się telefonicznie.'
+        );
+        setRegistrationError(null);
+        setRegistrationResult(null);
+        setRegistrationForm({
+          ...defaultRegistrationForm,
+          needsLodging: false,
+          needsBaggageTransport: false
+        });
+        return;
+      }
+
       const response = await createPilgrimageRegistration(event.slug, {
         fullName,
         phone,
