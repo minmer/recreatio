@@ -2576,7 +2576,9 @@ export function CogitaWorkspacePage({
         pathState.filterCollectionId,
         pathState.dependencyGraphId,
         pathState.dependencyView ?? 'search',
-        pathState.dependencyTransferToken
+        pathState.dependencyTransferToken,
+        pathState.storyboardId,
+        pathState.storyboardView ?? 'search'
       )
     );
     if (currentPath === nextPath) {
@@ -2603,6 +2605,8 @@ export function CogitaWorkspacePage({
     pathState.filterCollectionId,
     pathState.liveSessionId,
     pathState.liveSessionView,
+    pathState.storyboardId,
+    pathState.storyboardView,
     pathState.libraryId,
     pathState.revisionId,
     pathState.revisionView,

@@ -917,7 +917,7 @@ export function CogitaLibraryStoryboardsPage({
   const isCreateMode = mode === 'create';
   const isOverviewMode = mode === 'overview';
   const isEditMode = mode === 'edit';
-  const canEdit = isEditMode;
+  const canEdit = isCreateMode || isEditMode;
 
   const [items, setItems] = useState<CogitaCreationProject[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -926,9 +926,6 @@ export function CogitaLibraryStoryboardsPage({
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-
-  const [createTitle, setCreateTitle] = useState('');
-  const [createDescription, setCreateDescription] = useState('');
 
   const [projectTitle, setProjectTitle] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
@@ -1114,56 +1111,45 @@ export function CogitaLibraryStoryboardsPage({
     navigate(`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/storyboards/${encodeURIComponent(projectId)}/edit`);
   };
 
-  const handleCreate = async () => {
-    const trimmedTitle = createTitle.trim();
-    const trimmedDescription = createDescription.trim();
-    if (!trimmedTitle || !trimmedDescription || saving) return;
+  const saveProject = async () => {
+    if (saving) return;
+    const trimmedTitle = projectTitle.trim();
+    const trimmedDescription = projectDescription.trim();
+    if (!trimmedTitle || !trimmedDescription) {
+      setSaveFailed(true);
+      setStatus('Title and description are required.');
+      return;
+    }
 
     setSaveFailed(false);
     setSaving(true);
     setStatus(null);
 
     try {
-      const initialDocument = buildDocumentForSave(createEmptyDocument(trimmedDescription), trimmedDescription);
-      const created = await createCogitaCreationProject({
-        libraryId,
-        projectType: 'storyboard',
-        name: trimmedTitle,
-        content: initialDocument
-      });
-      setItems((current) => [created, ...current]);
-      setCreateTitle('');
-      setCreateDescription('');
-      setStatus('Storyboard created. Opened in edit mode.');
-      navigateToEdit(created.projectId);
+      const prepared = buildDocumentForSave(documentState, trimmedDescription);
+      if (!selectedProject || isCreateMode) {
+        const created = await createCogitaCreationProject({
+          libraryId,
+          projectType: 'storyboard',
+          name: trimmedTitle,
+          content: prepared
+        });
+        setItems((current) => [created, ...current]);
+        setStatus('Storyboard created. Opened in edit mode.');
+        navigateToEdit(created.projectId);
+      } else {
+        const updated = await updateCogitaCreationProject({
+          libraryId,
+          projectId: selectedProject.projectId,
+          name: trimmedTitle,
+          content: prepared
+        });
+        setItems((current) => current.map((item) => (item.projectId === updated.projectId ? updated : item)));
+        setStatus('Storyboard saved.');
+      }
     } catch {
       setSaveFailed(true);
       setStatus(copy.cogita.library.modules.createFailed);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveProject = async () => {
-    if (!selectedProject || saving) return;
-
-    setSaveFailed(false);
-    setSaving(true);
-    setStatus(null);
-
-    try {
-      const prepared = buildDocumentForSave(documentState, projectDescription);
-      const updated = await updateCogitaCreationProject({
-        libraryId,
-        projectId: selectedProject.projectId,
-        name: projectTitle.trim() || 'Storyboard draft',
-        content: prepared
-      });
-      setItems((current) => current.map((item) => (item.projectId === updated.projectId ? updated : item)));
-      setStatus('Storyboard saved.');
-    } catch {
-      setSaveFailed(true);
-      setStatus('Failed to save storyboard.');
     } finally {
       setSaving(false);
     }
@@ -1375,9 +1361,19 @@ export function CogitaLibraryStoryboardsPage({
               </button>
             ) : null}
             {isCreateMode ? (
-              <button type="button" className="cta ghost" onClick={navigateToSearch}>
-                {copy.cogita.workspace.infoMode.search}
-              </button>
+              <>
+                <button type="button" className="cta ghost" onClick={navigateToSearch}>
+                  {copy.cogita.workspace.infoMode.search}
+                </button>
+                <button
+                  type="button"
+                  className="cta"
+                  onClick={() => void saveProject()}
+                  disabled={saving || !projectTitle.trim() || !projectDescription.trim()}
+                >
+                  {saving ? 'Creating...' : copy.cogita.library.modules.storyboardsCreate}
+                </button>
+              </>
             ) : null}
             {(isOverviewMode || isEditMode) && selectedProject ? (
               <>
@@ -1445,31 +1441,6 @@ export function CogitaLibraryStoryboardsPage({
           </aside>
 
           <div className="cogita-storyboard-main">
-            {isCreateMode ? (
-              <section className="cogita-library-detail cogita-storyboard-top-panel">
-                <div className="cogita-detail-header">
-                  <h3 className="cogita-detail-title">{copy.cogita.library.modules.storyboardsNewLabel}</h3>
-                </div>
-                <div className="cogita-detail-body">
-                  <StoryboardMetaForm
-                    title={createTitle}
-                    description={createDescription}
-                    titleLabel={copy.cogita.library.modules.storyboardsNewLabel}
-                    titlePlaceholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
-                    descriptionLabel="Description"
-                    descriptionPlaceholder="Storyboard description"
-                    onTitleChange={setCreateTitle}
-                    onDescriptionChange={setCreateDescription}
-                    onSubmit={() => void handleCreate()}
-                    submitLabel={copy.cogita.library.modules.storyboardsCreate}
-                    submitDisabled={saving || !createTitle.trim() || !createDescription.trim()}
-                  />
-                  {status ? <p className="cogita-help">{status}</p> : null}
-                  {saveFailed ? <p className="cogita-form-error">{copy.cogita.library.modules.createFailed}</p> : null}
-                </div>
-              </section>
-            ) : null}
-
             {!isCreateMode && !selectedProject ? (
               <section className="cogita-library-detail cogita-storyboard-top-panel">
                 <div className="cogita-detail-body">
@@ -1478,24 +1449,28 @@ export function CogitaLibraryStoryboardsPage({
               </section>
             ) : null}
 
-            {!isCreateMode && selectedProject ? (
+            {(isCreateMode || selectedProject) ? (
               <>
                 <section className="cogita-library-detail cogita-storyboard-top-panel">
                   <div className="cogita-detail-header">
-                    <h3 className="cogita-detail-title">{selectedProject.name}</h3>
+                    <h3 className="cogita-detail-title">
+                      {isCreateMode ? copy.cogita.library.modules.storyboardsNewLabel : selectedProject?.name ?? copy.cogita.library.modules.storyboardsNewLabel}
+                    </h3>
                     <div className="cogita-card-actions">
                       <button type="button" className="ghost" onClick={navigateToSearch}>
                         {copy.cogita.workspace.infoMode.search}
                       </button>
-                      {isEditMode ? (
-                        <button type="button" className="ghost" onClick={() => navigateToOverview(selectedProject.projectId)}>
-                          {copy.cogita.workspace.infoActions.overview}
-                        </button>
-                      ) : (
-                        <button type="button" className="ghost" onClick={() => navigateToEdit(selectedProject.projectId)}>
-                          {copy.cogita.workspace.infoActions.edit}
-                        </button>
-                      )}
+                      {!isCreateMode && selectedProject ? (
+                        isEditMode ? (
+                          <button type="button" className="ghost" onClick={() => navigateToOverview(selectedProject.projectId)}>
+                            {copy.cogita.workspace.infoActions.overview}
+                          </button>
+                        ) : (
+                          <button type="button" className="ghost" onClick={() => navigateToEdit(selectedProject.projectId)}>
+                            {copy.cogita.workspace.infoActions.edit}
+                          </button>
+                        )
+                      ) : null}
                     </div>
                   </div>
 
