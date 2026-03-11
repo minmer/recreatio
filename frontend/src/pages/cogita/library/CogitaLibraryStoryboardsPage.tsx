@@ -93,6 +93,19 @@ type StoryboardFlowNodeData = {
   subtitle: string;
 };
 
+type StoryboardGraphStats = {
+  totalNodes: number;
+  staticNodes: number;
+  cardNodes: number;
+  groupNodes: number;
+  totalLinks: number;
+  textStatics: number;
+  videoStatics: number;
+  audioStatics: number;
+  imageStatics: number;
+  otherStatics: number;
+};
+
 const STATIC_TYPE_OPTIONS: Array<{ value: StoryboardStaticType; label: string }> = [
   { value: 'text', label: 'Text' },
   { value: 'video', label: 'Video' },
@@ -638,6 +651,51 @@ function buildDocumentForSave(documentState: StoryboardDocument, description: st
   };
 }
 
+function collectGraphStats(rootGraph: StoryboardGraph): StoryboardGraphStats {
+  const stats: StoryboardGraphStats = {
+    totalNodes: 0,
+    staticNodes: 0,
+    cardNodes: 0,
+    groupNodes: 0,
+    totalLinks: 0,
+    textStatics: 0,
+    videoStatics: 0,
+    audioStatics: 0,
+    imageStatics: 0,
+    otherStatics: 0
+  };
+
+  const walk = (graph: StoryboardGraph) => {
+    stats.totalLinks += graph.edges.length;
+    graph.nodes.forEach((node) => {
+      if (isStructuralNode(node)) return;
+      stats.totalNodes += 1;
+      if (node.kind === 'static') {
+        stats.staticNodes += 1;
+        if (node.staticType === 'text') stats.textStatics += 1;
+        else if (node.staticType === 'video') stats.videoStatics += 1;
+        else if (node.staticType === 'audio') stats.audioStatics += 1;
+        else if (node.staticType === 'image') stats.imageStatics += 1;
+        else stats.otherStatics += 1;
+        return;
+      }
+      if (node.kind === 'card') {
+        stats.cardNodes += 1;
+        return;
+      }
+      if (node.kind === 'group') {
+        stats.groupNodes += 1;
+        if (node.groupGraph) {
+          walk(node.groupGraph);
+        }
+      }
+    });
+  };
+
+  walk(rootGraph);
+  return stats;
+}
+
 function getGraphAtPath(rootGraph: StoryboardGraph, groupPath: string[]): StoryboardGraph {
   let currentGraph = rootGraph;
   for (const nodeId of groupPath) {
@@ -689,9 +747,9 @@ function getGroupPathLabels(rootGraph: StoryboardGraph, groupPath: string[]) {
 
 function getEdgeKindLabel(kind: StoryboardEdgeKind) {
   if (kind === 'dependency') return 'Dependency';
-  if (kind === 'card_right') return 'Right path';
-  if (kind === 'card_wrong') return 'Wrong path';
-  return 'Path';
+  if (kind === 'card_right') return 'Right';
+  if (kind === 'card_wrong') return 'Wrong';
+  return '';
 }
 
 function getEdgeVisual(kind: StoryboardEdgeKind, selected: boolean) {
@@ -933,6 +991,7 @@ export function CogitaLibraryStoryboardsPage({
   const [activeGroupPath, setActiveGroupPath] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [selectedEdgeId, setSelectedEdgeId] = useState('');
+  const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   useEffect(() => {
     let cancelled = false;
@@ -980,7 +1039,12 @@ export function CogitaLibraryStoryboardsPage({
     setActiveGroupPath([]);
     setSelectedNodeId(initialGraph.startNodeId);
     setSelectedEdgeId('');
+    setShareCopyStatus('idle');
   }, [selectedProject]);
+
+  useEffect(() => {
+    setShareCopyStatus('idle');
+  }, [mode]);
 
   const activeGraph = useMemo(
     () => getGraphAtPath(documentState.rootGraph, activeGroupPath),
@@ -1039,7 +1103,7 @@ export function CogitaLibraryStoryboardsPage({
             subtitle: kindLabel
           },
           position: node.position,
-          draggable: canEdit && !isStructuralNode(node),
+          draggable: canEdit,
           selectable: true
         };
       }),
@@ -1057,7 +1121,7 @@ export function CogitaLibraryStoryboardsPage({
           target: edge.toNodeId,
           sourceHandle: edge.sourcePort,
           targetHandle: edge.targetPort,
-          label: getEdgeKindLabel(edge.kind),
+          label: getEdgeKindLabel(edge.kind) || undefined,
           animated: edge.kind === 'dependency',
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -1261,16 +1325,22 @@ export function CogitaLibraryStoryboardsPage({
     const edgeKind = deriveEdgeKind(sourcePort, targetPort);
 
     updateActiveGraph((graph) => {
-      const existingFiltered = graph.edges.filter(
+      const duplicateExists = graph.edges.some(
         (edge) =>
-          !(edge.fromNodeId === sourceNode.nodeId && edge.sourcePort === sourcePort) &&
-          !(edge.toNodeId === targetNode.nodeId && edge.targetPort === targetPort)
+          edge.fromNodeId === sourceNode.nodeId &&
+          edge.toNodeId === targetNode.nodeId &&
+          edge.sourcePort === sourcePort &&
+          edge.targetPort === targetPort
       );
+
+      if (duplicateExists) {
+        return graph;
+      }
 
       return {
         ...graph,
         edges: [
-          ...existingFiltered,
+          ...graph.edges,
           {
             edgeId: createId('edge'),
             fromNodeId: sourceNode.nodeId,
@@ -1332,8 +1402,24 @@ export function CogitaLibraryStoryboardsPage({
     }));
   }, [activeGraph.edges, activeGraph.nodes]);
 
-  const infoText =
-    'Two incoming dots: path (blue) and dependency (amber). One outgoing dot per node; card has right (green) and wrong (red).';
+  const graphStats = useMemo(() => collectGraphStats(documentState.rootGraph), [documentState.rootGraph]);
+  const storyboardRuntimeUrl = useMemo(() => {
+    if (!selectedProject) return '';
+    if (typeof window === 'undefined') {
+      return `/#/cogita/storyboard/${encodeURIComponent(libraryId)}/${encodeURIComponent(selectedProject.projectId)}`;
+    }
+    return `${window.location.origin}/#/cogita/storyboard/${encodeURIComponent(libraryId)}/${encodeURIComponent(selectedProject.projectId)}`;
+  }, [libraryId, selectedProject]);
+
+  const handleCopySharedLink = async () => {
+    if (!storyboardRuntimeUrl) return;
+    try {
+      await navigator.clipboard.writeText(storyboardRuntimeUrl);
+      setShareCopyStatus('copied');
+    } catch {
+      setShareCopyStatus('failed');
+    }
+  };
 
   return (
     <CogitaShell
@@ -1348,23 +1434,57 @@ export function CogitaLibraryStoryboardsPage({
       language={language}
       onLanguageChange={onLanguageChange}
     >
-      <section className="cogita-library-dashboard cogita-storyboard-dashboard" data-mode="detail">
-        <header className="cogita-library-dashboard-header">
-          <div>
-            <h1 className="cogita-library-title">{libraryName}</h1>
-            <p className="cogita-library-subtitle">{infoText}</p>
+      {isSearchMode ? (
+        <section className="cogita-library-dashboard cogita-flat-search-list" data-mode="list">
+          <div className="cogita-library-layout">
+            <div className="cogita-library-content">
+              <div className="cogita-library-grid">
+                <div className="cogita-flat-search-header">
+                  <div className="cogita-library-controls">
+                    <div className="cogita-library-search">
+                      <div className="cogita-search-field">
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(event) => setSearchQuery(event.target.value)}
+                          placeholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
+                        />
+                      </div>
+                    </div>
+                    <button type="button" className="cta" onClick={navigateToCreate}>
+                      {copy.cogita.library.modules.storyboardsCreate}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="cogita-library-panel">
+                  {loading ? <p>{copy.cogita.library.modules.loading}</p> : null}
+                  {!loading && loadFailed ? <p>{copy.cogita.library.modules.loadFailed}</p> : null}
+                  {!loading && !loadFailed && filteredItems.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
+
+                  <div className="cogita-storyboard-project-list">
+                    {filteredItems.map((item) => (
+                      <button key={item.projectId} type="button" className="ghost" onClick={() => navigateToOverview(item.projectId)}>
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="cogita-library-actions">
-            {isSearchMode ? (
-              <button type="button" className="cta" onClick={navigateToCreate}>
-                {copy.cogita.library.modules.storyboardsCreate}
+        </section>
+      ) : (
+        <section className="cogita-library-dashboard cogita-storyboard-dashboard" data-mode="detail">
+          <header className="cogita-library-dashboard-header">
+            <div>
+              <h1 className="cogita-library-title">{libraryName}</h1>
+            </div>
+            <div className="cogita-library-actions">
+              <button type="button" className="ghost" onClick={navigateToSearch}>
+                {copy.cogita.workspace.infoMode.search}
               </button>
-            ) : null}
-            {isCreateMode ? (
-              <>
-                <button type="button" className="cta ghost" onClick={navigateToSearch}>
-                  {copy.cogita.workspace.infoMode.search}
-                </button>
+              {isCreateMode ? (
                 <button
                   type="button"
                   className="cta"
@@ -1373,344 +1493,323 @@ export function CogitaLibraryStoryboardsPage({
                 >
                   {saving ? 'Creating...' : copy.cogita.library.modules.storyboardsCreate}
                 </button>
-              </>
-            ) : null}
-            {(isOverviewMode || isEditMode) && selectedProject ? (
-              <>
-                <button
-                  type="button"
-                  className="cta ghost"
-                  onClick={() => navigate(`/cogita/storyboard/${encodeURIComponent(libraryId)}/${encodeURIComponent(selectedProject.projectId)}`)}
-                >
-                  Open runtime mode
+              ) : null}
+              {isEditMode ? (
+                <button type="button" className="cta" onClick={() => void saveProject()} disabled={saving}>
+                  {saving ? 'Saving...' : copy.cogita.workspace.revisionForm.saveAction}
                 </button>
-                {isOverviewMode ? (
+              ) : null}
+              {isOverviewMode && selectedProject ? (
+                <>
+                  <button
+                    type="button"
+                    className="cta ghost"
+                    onClick={() => navigate(`/cogita/storyboard/${encodeURIComponent(libraryId)}/${encodeURIComponent(selectedProject.projectId)}`)}
+                  >
+                    Run storyboard
+                  </button>
+                  <button type="button" className="cta ghost" onClick={() => void handleCopySharedLink()}>
+                    Create shared link
+                  </button>
                   <button type="button" className="cta" onClick={() => navigateToEdit(selectedProject.projectId)}>
                     {copy.cogita.workspace.infoActions.edit}
                   </button>
-                ) : (
-                  <button type="button" className="cta" onClick={() => void saveProject()} disabled={saving}>
-                    {saving ? 'Saving...' : copy.cogita.workspace.revisionForm.saveAction}
-                  </button>
-                )}
-              </>
-            ) : null}
-          </div>
-        </header>
-
-        <div className="cogita-storyboard-layout">
-          <aside className="cogita-library-detail cogita-storyboard-sidebar">
-            <div className="cogita-detail-header">
-              <h3 className="cogita-detail-title">{copy.cogita.library.modules.storyboardsExisting}</h3>
+                </>
+              ) : null}
             </div>
-            <div className="cogita-detail-body">
-              <label className="cogita-field full">
-                <span>{copy.cogita.workspace.infoMode.search}</span>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
-                />
-              </label>
-              <div className="cogita-form-actions">
-                <button type="button" className="ghost" onClick={navigateToCreate}>
-                  {copy.cogita.library.modules.storyboardsCreate}
-                </button>
-              </div>
-              {loading ? <p>{copy.cogita.library.modules.loading}</p> : null}
-              {!loading && loadFailed ? <p>{copy.cogita.library.modules.loadFailed}</p> : null}
-              {!loading && !loadFailed && items.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
+          </header>
 
-              <div className="cogita-storyboard-project-list">
-                {filteredItems.map((item) => {
-                  const isSelected = selectedProject?.projectId === item.projectId;
-                  return (
-                    <button
-                      key={item.projectId}
-                      type="button"
-                      className={`ghost ${isSelected ? 'active' : ''}`}
-                      onClick={() => navigateToOverview(item.projectId)}
-                    >
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-
-          <div className="cogita-storyboard-main">
-            {!isCreateMode && !selectedProject ? (
+          {isOverviewMode && selectedProject ? (
+            <div className="cogita-storyboard-main">
               <section className="cogita-library-detail cogita-storyboard-top-panel">
                 <div className="cogita-detail-body">
-                  <p>Select an existing storyboard from search or create a new one.</p>
+                  <h3 className="cogita-detail-title" style={{ marginTop: 0 }}>{projectTitle || selectedProject.name}</h3>
+                  <p>{projectDescription || documentState.description || 'No description.'}</p>
+                  <div className="cogita-storyboard-form-grid">
+                    <label className="cogita-field">
+                      <span>Nodes</span>
+                      <input type="text" value={String(graphStats.totalNodes)} readOnly />
+                    </label>
+                    <label className="cogita-field">
+                      <span>Links</span>
+                      <input type="text" value={String(graphStats.totalLinks)} readOnly />
+                    </label>
+                    <label className="cogita-field">
+                      <span>Static</span>
+                      <input type="text" value={String(graphStats.staticNodes)} readOnly />
+                    </label>
+                    <label className="cogita-field">
+                      <span>Cards</span>
+                      <input type="text" value={String(graphStats.cardNodes)} readOnly />
+                    </label>
+                    <label className="cogita-field">
+                      <span>Groups</span>
+                      <input type="text" value={String(graphStats.groupNodes)} readOnly />
+                    </label>
+                    <label className="cogita-field">
+                      <span>Text / Video / Audio / Image / Other</span>
+                      <input
+                        type="text"
+                        value={`${graphStats.textStatics} / ${graphStats.videoStatics} / ${graphStats.audioStatics} / ${graphStats.imageStatics} / ${graphStats.otherStatics}`}
+                        readOnly
+                      />
+                    </label>
+                  </div>
+                  {storyboardRuntimeUrl ? (
+                    <label className="cogita-field full">
+                      <span>Shared link</span>
+                      <input type="text" value={storyboardRuntimeUrl} readOnly />
+                    </label>
+                  ) : null}
+                  {shareCopyStatus === 'copied' ? <p className="cogita-help">Shared link copied.</p> : null}
+                  {shareCopyStatus === 'failed' ? <p className="cogita-form-error">Failed to copy shared link.</p> : null}
                 </div>
               </section>
-            ) : null}
+            </div>
+          ) : (isCreateMode || selectedProject) ? (
+            <div className="cogita-storyboard-main">
+              <section className="cogita-library-detail cogita-storyboard-top-panel">
+                <div className="cogita-detail-body">
+                  <StoryboardMetaForm
+                    title={projectTitle}
+                    description={projectDescription}
+                    titleLabel={copy.cogita.library.modules.storyboardsNewLabel}
+                    titlePlaceholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
+                    descriptionLabel="Description"
+                    descriptionPlaceholder="Storyboard description"
+                    onTitleChange={setProjectTitle}
+                    onDescriptionChange={setProjectDescription}
+                    readOnly={!canEdit}
+                  />
 
-            {(isCreateMode || selectedProject) ? (
-              <>
-                <section className="cogita-library-detail cogita-storyboard-top-panel">
-                  <div className="cogita-detail-header">
-                    <h3 className="cogita-detail-title">
-                      {isCreateMode ? copy.cogita.library.modules.storyboardsNewLabel : selectedProject?.name ?? copy.cogita.library.modules.storyboardsNewLabel}
-                    </h3>
-                    <div className="cogita-card-actions">
-                      <button type="button" className="ghost" onClick={navigateToSearch}>
-                        {copy.cogita.workspace.infoMode.search}
-                      </button>
-                      {!isCreateMode && selectedProject ? (
-                        isEditMode ? (
-                          <button type="button" className="ghost" onClick={() => navigateToOverview(selectedProject.projectId)}>
-                            {copy.cogita.workspace.infoActions.overview}
-                          </button>
-                        ) : (
-                          <button type="button" className="ghost" onClick={() => navigateToEdit(selectedProject.projectId)}>
-                            {copy.cogita.workspace.infoActions.edit}
-                          </button>
-                        )
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="cogita-detail-body">
-                    <StoryboardMetaForm
-                      title={projectTitle}
-                      description={projectDescription}
-                      titleLabel={copy.cogita.library.modules.storyboardsNewLabel}
-                      titlePlaceholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
-                      descriptionLabel="Description"
-                      descriptionPlaceholder="Storyboard description"
-                      onTitleChange={setProjectTitle}
-                      onDescriptionChange={setProjectDescription}
-                      readOnly={!canEdit}
-                    />
-
-                    <div className="cogita-storyboard-graph-nav">
-                      <button type="button" className="ghost" onClick={() => leaveToLevel(0)} disabled={activeGroupPath.length === 0}>
-                        Root graph
-                      </button>
-                      {groupPathLabels.map((item, index) => (
-                        <button
-                          key={item.nodeId}
-                          type="button"
-                          className="ghost"
-                          onClick={() => leaveToLevel(index + 1)}
-                          disabled={index === groupPathLabels.length - 1}
-                        >
-                          {item.title}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="cogita-storyboard-graph-canvas">
-                      <ReactFlow
-                        nodes={flowNodes}
-                        edges={flowEdges}
-                        nodeTypes={nodeTypes}
-                        fitView
-                        nodesDraggable={canEdit}
-                        onConnect={handleConnect}
-                        onNodeClick={(_, node) => {
-                          setSelectedNodeId(node.id);
-                          setSelectedEdgeId('');
-                        }}
-                        onNodeDoubleClick={(_, node) => {
-                          const fullNode = activeGraph.nodes.find((item) => item.nodeId === node.id);
-                          if (fullNode?.kind === 'group') {
-                            setSelectedNodeId(fullNode.nodeId);
-                            enterGroupById(fullNode.nodeId);
-                          }
-                        }}
-                        onEdgeClick={(_, edge) => {
-                          setSelectedEdgeId(edge.id);
-                          setSelectedNodeId('');
-                        }}
-                        onPaneClick={() => {
-                          setSelectedEdgeId('');
-                        }}
-                        onNodeDragStop={(_, node) => setNodePosition(node.id, node.position)}
+                  <div className="cogita-storyboard-graph-nav">
+                    <button type="button" className="ghost" onClick={() => leaveToLevel(0)} disabled={activeGroupPath.length === 0}>
+                      Root graph
+                    </button>
+                    {groupPathLabels.map((item, index) => (
+                      <button
+                        key={item.nodeId}
+                        type="button"
+                        className="ghost"
+                        onClick={() => leaveToLevel(index + 1)}
+                        disabled={index === groupPathLabels.length - 1}
                       >
-                        <MiniMap zoomable pannable />
-                        <Background gap={18} size={1} />
-                        <Controls />
-                      </ReactFlow>
-                    </div>
-
-                    {status ? <p className="cogita-help">{status}</p> : null}
-                    {saveFailed ? <p className="cogita-form-error">{copy.cogita.library.modules.createFailed}</p> : null}
-                  </div>
-                </section>
-
-                <section className="cogita-library-detail cogita-storyboard-bottom-panel">
-                  <div className="cogita-detail-header">
-                    <h3 className="cogita-detail-title">Node and link editor</h3>
-                    <div className="cogita-card-actions">
-                      <button type="button" className="ghost" onClick={() => addNode('static')} disabled={!canEdit}>Add static</button>
-                      <button type="button" className="ghost" onClick={() => addNode('card')} disabled={!canEdit}>Add card</button>
-                      <button type="button" className="ghost" onClick={() => addNode('group')} disabled={!canEdit}>Add group</button>
-                      <button type="button" className="ghost" onClick={removeSelectedNode} disabled={!canEdit || !selectedNode || isStructuralNode(selectedNode)}>Delete node</button>
-                      <button type="button" className="ghost" onClick={removeSelectedEdge} disabled={!canEdit || !selectedEdge}>Delete link</button>
-                    </div>
+                        {item.title}
+                      </button>
+                    ))}
                   </div>
 
-                  <div className="cogita-detail-body">
-                    {selectedNode ? (
-                      <>
-                        <div className="cogita-storyboard-form-grid">
-                          <label className="cogita-field full">
-                            <span>Node title</span>
-                            <input
-                              type="text"
-                              value={selectedNode.title}
-                              disabled={!canEdit || isStructuralNode(selectedNode)}
-                              onChange={(event) => updateSelectedNode((node) => ({ ...node, title: event.target.value }))}
-                            />
-                          </label>
+                  <div className="cogita-storyboard-graph-canvas">
+                    <ReactFlow
+                      nodes={flowNodes}
+                      edges={flowEdges}
+                      nodeTypes={nodeTypes}
+                      fitView
+                      nodesDraggable={canEdit}
+                      onConnect={handleConnect}
+                      onNodeClick={(event, node) => {
+                        event.stopPropagation();
+                        setSelectedNodeId(node.id);
+                        setSelectedEdgeId('');
+                      }}
+                      onNodeDoubleClick={(_, node) => {
+                        const fullNode = activeGraph.nodes.find((item) => item.nodeId === node.id);
+                        if (fullNode?.kind === 'group') {
+                          setSelectedNodeId(fullNode.nodeId);
+                          enterGroupById(fullNode.nodeId);
+                        }
+                      }}
+                      onEdgeClick={(event, edge) => {
+                        event.stopPropagation();
+                        setSelectedEdgeId(edge.id);
+                        setSelectedNodeId('');
+                      }}
+                      onPaneClick={() => {
+                        setSelectedEdgeId('');
+                      }}
+                      onNodeDrag={(_, node) => setNodePosition(node.id, node.position)}
+                      onNodeDragStop={(_, node) => setNodePosition(node.id, node.position)}
+                    >
+                      <MiniMap zoomable pannable />
+                      <Background gap={18} size={1} />
+                      <Controls />
+                    </ReactFlow>
+                  </div>
 
-                          <label className="cogita-field full">
-                            <span>Node description</span>
-                            <textarea
-                              value={selectedNode.description}
-                              rows={2}
-                              disabled={!canEdit || isStructuralNode(selectedNode)}
-                              onChange={(event) => updateSelectedNode((node) => ({ ...node, description: event.target.value }))}
-                            />
-                          </label>
+                  {status ? <p className="cogita-help">{status}</p> : null}
+                  {saveFailed ? <p className="cogita-form-error">{copy.cogita.library.modules.createFailed}</p> : null}
+                </div>
+              </section>
 
-                          {selectedNode.kind === 'static' ? (
-                            <>
-                              <label className="cogita-field">
-                                <span>Static type</span>
-                                <select
-                                  value={selectedNode.staticType}
-                                  disabled={!canEdit}
-                                  onChange={(event) =>
-                                    updateSelectedNode((node) => ({
-                                      ...node,
-                                      staticType: normalizeStaticType(event.target.value, node.staticType)
-                                    }))
-                                  }
-                                >
-                                  {STATIC_TYPE_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
-                                </select>
-                              </label>
+              <section className="cogita-library-detail cogita-storyboard-bottom-panel">
+                <div className="cogita-detail-header">
+                  <div className="cogita-card-actions">
+                    <button type="button" className="ghost" onClick={() => addNode('static')} disabled={!canEdit}>Add static</button>
+                    <button type="button" className="ghost" onClick={() => addNode('card')} disabled={!canEdit}>Add card</button>
+                    <button type="button" className="ghost" onClick={() => addNode('group')} disabled={!canEdit}>Add group</button>
+                    <button type="button" className="ghost" onClick={removeSelectedNode} disabled={!canEdit || !selectedNode || isStructuralNode(selectedNode)}>Delete node</button>
+                    <button type="button" className="ghost" onClick={removeSelectedEdge} disabled={!canEdit || !selectedEdge}>Delete link</button>
+                  </div>
+                </div>
 
+                <div className="cogita-detail-body">
+                  {selectedNode ? (
+                    <>
+                      <div className="cogita-storyboard-form-grid">
+                        <label className="cogita-field full">
+                          <span>Node title</span>
+                          <input
+                            type="text"
+                            value={selectedNode.title}
+                            disabled={!canEdit || isStructuralNode(selectedNode)}
+                            onChange={(event) => updateSelectedNode((node) => ({ ...node, title: event.target.value }))}
+                          />
+                        </label>
+
+                        <label className="cogita-field full">
+                          <span>Node description</span>
+                          <textarea
+                            value={selectedNode.description}
+                            rows={2}
+                            disabled={!canEdit || isStructuralNode(selectedNode)}
+                            onChange={(event) => updateSelectedNode((node) => ({ ...node, description: event.target.value }))}
+                          />
+                        </label>
+
+                        {selectedNode.kind === 'static' ? (
+                          <>
+                            <label className="cogita-field">
+                              <span>Static type</span>
+                              <select
+                                value={selectedNode.staticType}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateSelectedNode((node) => ({
+                                    ...node,
+                                    staticType: normalizeStaticType(event.target.value, node.staticType)
+                                  }))
+                                }
+                              >
+                                {STATIC_TYPE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="cogita-field full">
+                              <span>Static body</span>
+                              <textarea
+                                value={selectedNode.staticBody}
+                                rows={4}
+                                disabled={!canEdit}
+                                onChange={(event) => updateSelectedNode((node) => ({ ...node, staticBody: event.target.value }))}
+                              />
+                            </label>
+
+                            {(selectedNode.staticType === 'video' || selectedNode.staticType === 'audio' || selectedNode.staticType === 'image') ? (
                               <label className="cogita-field full">
-                                <span>Static body</span>
-                                <textarea
-                                  value={selectedNode.staticBody}
-                                  rows={4}
-                                  disabled={!canEdit}
-                                  onChange={(event) => updateSelectedNode((node) => ({ ...node, staticBody: event.target.value }))}
-                                />
-                              </label>
-
-                              {(selectedNode.staticType === 'video' || selectedNode.staticType === 'audio' || selectedNode.staticType === 'image') ? (
-                                <label className="cogita-field full">
-                                  <span>Media URL</span>
-                                  <input
-                                    type="text"
-                                    value={selectedNode.mediaUrl}
-                                    disabled={!canEdit}
-                                    onChange={(event) => updateSelectedNode((node) => ({ ...node, mediaUrl: event.target.value }))}
-                                    placeholder="https://..."
-                                  />
-                                </label>
-                              ) : null}
-                            </>
-                          ) : null}
-
-                          {selectedNode.kind === 'card' ? (
-                            <>
-                              <label className="cogita-field full">
-                                <span>Knowledge item ID</span>
+                                <span>Media URL</span>
                                 <input
                                   type="text"
-                                  value={selectedNode.knowledgeItemId}
+                                  value={selectedNode.mediaUrl}
                                   disabled={!canEdit}
-                                  onChange={(event) => updateSelectedNode((node) => ({ ...node, knowledgeItemId: event.target.value }))}
-                                  placeholder="knowledge-item-id"
+                                  onChange={(event) => updateSelectedNode((node) => ({ ...node, mediaUrl: event.target.value }))}
+                                  placeholder="https://..."
                                 />
                               </label>
-
-                              <label className="cogita-field">
-                                <span>Direction</span>
-                                <select
-                                  value={selectedNode.cardDirection}
-                                  disabled={!canEdit}
-                                  onChange={(event) =>
-                                    updateSelectedNode((node) => ({
-                                      ...node,
-                                      cardDirection: normalizeCardDirection(event.target.value)
-                                    }))
-                                  }
-                                >
-                                  {CARD_DIRECTION_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
-                                </select>
-                              </label>
-                            </>
-                          ) : null}
-
-                          {selectedNode.kind === 'group' ? (
-                            <div className="cogita-form-actions">
-                              <button type="button" className="ghost" onClick={enterSelectedGroup}>
-                                Enter group graph
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {isStructuralNode(selectedNode) ? (
-                          <p className="cogita-help">
-                            Structural node ({selectedNode.kind.toUpperCase()}) is auto-managed and cannot be deleted.
-                          </p>
+                            ) : null}
+                          </>
                         ) : null}
-                      </>
-                    ) : (
-                      <p>Select a node to edit it. Select an edge to delete it.</p>
-                    )}
 
-                    <section className="cogita-storyboard-editor-section">
-                      <div className="cogita-storyboard-editor-section-head">
-                        <h4>Links in current graph</h4>
+                        {selectedNode.kind === 'card' ? (
+                          <>
+                            <label className="cogita-field full">
+                              <span>Knowledge item ID</span>
+                              <input
+                                type="text"
+                                value={selectedNode.knowledgeItemId}
+                                disabled={!canEdit}
+                                onChange={(event) => updateSelectedNode((node) => ({ ...node, knowledgeItemId: event.target.value }))}
+                                placeholder="knowledge-item-id"
+                              />
+                            </label>
+
+                            <label className="cogita-field">
+                              <span>Direction</span>
+                              <select
+                                value={selectedNode.cardDirection}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateSelectedNode((node) => ({
+                                    ...node,
+                                    cardDirection: normalizeCardDirection(event.target.value)
+                                  }))
+                                }
+                              >
+                                {CARD_DIRECTION_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </label>
+                          </>
+                        ) : null}
+
+                        {selectedNode.kind === 'group' ? (
+                          <div className="cogita-form-actions">
+                            <button type="button" className="ghost" onClick={enterSelectedGroup}>
+                              Enter group graph
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
-                      {edgeRows.length === 0 ? <p>No links.</p> : null}
-                      {edgeRows.map((edge) => (
-                        <div key={edge.edgeId} className="cogita-storyboard-inline-row">
-                          <span>{edge.fromLabel}</span>
-                          <span>{getEdgeKindLabel(edge.kind)} {'->'} {edge.toLabel}</span>
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={() => {
-                              setSelectedEdgeId(edge.edgeId);
-                              if (!canEdit) return;
-                              updateActiveGraph((graph) => ({
-                                ...graph,
-                                edges: graph.edges.filter((item) => item.edgeId !== edge.edgeId)
-                              }));
-                              setSelectedEdgeId('');
-                            }}
-                            disabled={!canEdit}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </section>
-                  </div>
-                </section>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </section>
+
+                      {isStructuralNode(selectedNode) ? (
+                        <p className="cogita-help">
+                          Structural node ({selectedNode.kind.toUpperCase()}) is auto-managed and cannot be deleted.
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p>Select a node to edit it. Select an edge to delete it.</p>
+                  )}
+
+                  <section className="cogita-storyboard-editor-section">
+                    {edgeRows.length === 0 ? <p>No links.</p> : null}
+                    {edgeRows.map((edge) => (
+                      <div key={edge.edgeId} className="cogita-storyboard-inline-row">
+                        <span>{edge.fromLabel}</span>
+                        <span>{getEdgeKindLabel(edge.kind) ? `${getEdgeKindLabel(edge.kind)} -> ${edge.toLabel}` : `-> ${edge.toLabel}`}</span>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            setSelectedEdgeId(edge.edgeId);
+                            if (!canEdit) return;
+                            updateActiveGraph((graph) => ({
+                              ...graph,
+                              edges: graph.edges.filter((item) => item.edgeId !== edge.edgeId)
+                            }));
+                            setSelectedEdgeId('');
+                          }}
+                          disabled={!canEdit}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </section>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <section className="cogita-library-detail cogita-storyboard-top-panel">
+              <div className="cogita-detail-body">
+                <p>{copy.cogita.library.modules.storyboardsEmpty}</p>
+              </div>
+            </section>
+          )}
+        </section>
+      )}
     </CogitaShell>
   );
 }

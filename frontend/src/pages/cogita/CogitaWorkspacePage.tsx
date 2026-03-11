@@ -3,6 +3,7 @@ import '../../styles/cogita.css';
 import 'katex/dist/katex.min.css';
 import {
   createCogitaLibrary,
+  getCogitaCreationProjects,
   createDataItem,
   getCogitaDependencyGraphs,
   getCogitaCollections,
@@ -17,6 +18,7 @@ import {
   searchCogitaInfos,
   updateDataItem,
   type CogitaCollectionSummary,
+  type CogitaCreationProject,
   type CogitaDependencyGraphSummary,
   type CogitaInfoSearchResult,
   type CogitaLibrary,
@@ -580,6 +582,7 @@ export function CogitaWorkspacePage({
   const [reviewersReloadTick, setReviewersReloadTick] = useState(0);
   const [revisionLiveSessions, setRevisionLiveSessions] = useState<CogitaLiveRevisionSessionListItem[]>([]);
   const [dependencyGraphs, setDependencyGraphs] = useState<CogitaDependencyGraphSummary[]>([]);
+  const [storyboardProjects, setStoryboardProjects] = useState<CogitaCreationProject[]>([]);
 
   const [preferenceRoleId, setPreferenceRoleId] = useState<string | null>(null);
   const [preferenceDataItemId, setPreferenceDataItemId] = useState<string | null>(null);
@@ -665,6 +668,10 @@ export function CogitaWorkspacePage({
     () => dependencyGraphs.find((graph) => graph.graphId === pathState.dependencyGraphId) ?? null,
     [dependencyGraphs, pathState.dependencyGraphId]
   );
+  const selectedStoryboardProject = useMemo(
+    () => storyboardProjects.find((project) => project.projectId === pathState.storyboardId) ?? null,
+    [pathState.storyboardId, storyboardProjects]
+  );
   const displayTarget = useMemo<CogitaTarget>(() => {
     if (selectedTarget === 'new_card') return 'all_cards';
     if (selectedTarget === 'new_collection') return 'all_collections';
@@ -731,6 +738,28 @@ export function CogitaWorkspacePage({
     () => targetLabels[displayTarget] ?? displayTarget,
     [displayTarget, targetLabels]
   );
+
+  useEffect(() => {
+    if (!selectedLibraryId || displayTarget !== 'storyboards') {
+      setStoryboardProjects([]);
+      return;
+    }
+
+    let cancelled = false;
+    getCogitaCreationProjects({ libraryId: selectedLibraryId, projectType: 'storyboard' })
+      .then((projects) => {
+        if (cancelled) return;
+        setStoryboardProjects(projects);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStoryboardProjects([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayTarget, selectedLibraryId]);
   const hasLibrarySelection = Boolean(selectedLibraryId);
   const tutorialSlides = useMemo<TutorialSlide[]>(() => {
     const quickStart =
@@ -1022,14 +1051,14 @@ export function CogitaWorkspacePage({
           storyboardMode === 'create'
             ? workspaceCopy.infoMode.create
             : storyboardMode === 'selected'
-              ? (pathState.storyboardId ?? copy.cogita.library.modules.storyboardsTitle)
+              ? (selectedStoryboardProject?.name ?? pathState.storyboardId ?? copy.cogita.library.modules.storyboardsTitle)
               : workspaceCopy.infoMode.search,
         disabled: !hasLibrarySelection,
         options: [
           { value: 'search', label: workspaceCopy.infoMode.search },
           { value: 'create', label: workspaceCopy.infoMode.create },
           ...(pathState.storyboardId
-            ? [{ value: 'selected', label: pathState.storyboardId }]
+            ? [{ value: 'selected', label: selectedStoryboardProject?.name ?? pathState.storyboardId }]
             : [])
         ],
         onSelect: (value: string) => {
@@ -1624,6 +1653,7 @@ export function CogitaWorkspacePage({
       pathState.liveSessionView,
       pathState.storyboardId,
       pathState.storyboardView,
+      selectedStoryboardProject?.name,
       workspaceCopy.infoActions.edit,
       workspaceCopy.infoActions.overview,
       workspaceCopy.infoActions.seeCards,
@@ -2833,8 +2863,11 @@ export function CogitaWorkspacePage({
                 {renderSidebarActions(sidebarStoryboardModeLevel, 'sidebar')}
                 {sidebarStoryboardSelectedActionLevel ? (
                   <div className="cogita-sidebar-actions-nested" data-level="branch">
-                    <p className="cogita-sidebar-note" title={pathState.storyboardId ?? workspaceCopy.targets.storyboards}>
-                      {shortenNavLabel(pathState.storyboardId ?? workspaceCopy.targets.storyboards, SIDEBAR_NAV_LABEL_MAX)}
+                    <p
+                      className="cogita-sidebar-note"
+                      title={selectedStoryboardProject?.name ?? pathState.storyboardId ?? workspaceCopy.targets.storyboards}
+                    >
+                      {shortenNavLabel(selectedStoryboardProject?.name ?? pathState.storyboardId ?? workspaceCopy.targets.storyboards, SIDEBAR_NAV_LABEL_MAX)}
                     </p>
                     {renderSidebarActions(sidebarStoryboardSelectedActionLevel, 'sidebar')}
                   </div>
