@@ -8884,11 +8884,11 @@ public static class CogitaEndpoints
             if (isAsyncSession)
             {
                 var rounds = ParseLiveAsyncRoundBundle(session.CurrentPromptJson);
-                var currentRound = rounds.FirstOrDefault(x => x.RoundIndex == roundIndex);
-                if (currentRound is null)
+                if (roundIndex < 0 || roundIndex >= rounds.Count)
                 {
                     return Results.BadRequest(new { error = "Unable to resolve async round." });
                 }
+                var currentRound = rounds[roundIndex];
 
                 if (!EvaluateLiveAsyncAnswer(currentRound, answerNode, out var isCorrect, out _))
                 {
@@ -18192,10 +18192,21 @@ public static class CogitaEndpoints
                     CloneJsonObject(reveal)));
             }
 
-            return rounds
+            var ordered = rounds
                 .OrderBy(x => x.RoundIndex)
                 .ThenBy(x => x.CardKey, StringComparer.Ordinal)
                 .ToList();
+
+            // Normalize round indexes to a strict 0..N-1 sequence for resilience against malformed payloads.
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                if (ordered[i].RoundIndex != i)
+                {
+                    ordered[i] = ordered[i] with { RoundIndex = i };
+                }
+            }
+
+            return ordered;
         }
         catch
         {
@@ -21130,7 +21141,7 @@ public static class CogitaEndpoints
         }
 
         code = code.Trim();
-        if (code.Length < 12 || code.Length > 32 || code.Any(ch => ch < '0' || ch > '9'))
+        if (code.Length < 6 || code.Length > 128)
         {
             return null;
         }

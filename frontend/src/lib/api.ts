@@ -1857,7 +1857,7 @@ export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: s
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   return request<CogitaPublicRevisionShare>(
-    `/cogita/public/revision/${payload.shareId}${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -1868,7 +1868,7 @@ export function getCogitaPublicRevisionInfos(payload: { shareId: string; key?: s
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
   return request<CogitaInfoSearchResult[]>(
-    `/cogita/public/revision/${payload.shareId}/infos${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/infos${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -1884,7 +1884,7 @@ export function getCogitaPublicRevisionCards(payload: {
   if (payload.limit) params.set('limit', String(payload.limit));
   if (payload.cursor) params.set('cursor', payload.cursor);
   return request<CogitaCardSearchBundle>(
-    `/cogita/public/revision/${payload.shareId}/cards${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/cards${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -1893,7 +1893,7 @@ export function getCogitaPublicComputedSample(payload: { shareId: string; infoId
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   return request<CogitaComputedSample>(
-    `/cogita/public/revision/${payload.shareId}/computed/${payload.infoId}/sample${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/computed/${payload.infoId}/sample${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -1987,7 +1987,7 @@ export function getCogitaPublicRevisionDependencies(payload: { shareId: string; 
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   const qs = params.toString();
-  return request<CogitaItemDependencyBundle>(`/cogita/public/revision/${payload.shareId}/dependencies${qs ? `?${qs}` : ''}`, {
+  return request<CogitaItemDependencyBundle>(`/cogita/public/revision/${encodeURIComponent(payload.shareId)}/dependencies${qs ? `?${qs}` : ''}`, {
     method: 'GET'
   });
 }
@@ -2087,7 +2087,7 @@ export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: 
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/public/revision/${payload.shareCode}/infos/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareCode)}/infos/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -3252,6 +3252,49 @@ export type PilgrimageRegistrationResponse = {
   expiresUtc: string;
 };
 
+export type PilgrimageRegistrationTransferRow = {
+  fullName: string;
+  phone: string;
+  email?: string | null;
+  parish?: string | null;
+  birthDate?: string | null;
+  isMinor: boolean;
+  participationVariant: string;
+  needsLodging: boolean;
+  needsBaggageTransport: boolean;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  healthNotes?: string | null;
+  dietNotes?: string | null;
+  acceptedTerms: boolean;
+  acceptedRodo: boolean;
+  acceptedImageConsent: boolean;
+  registrationStatus?: string | null;
+  paymentStatus?: string | null;
+  attendanceStatus?: string | null;
+  groupName?: string | null;
+  createdUtc?: string | null;
+  updatedUtc?: string | null;
+};
+
+export type PilgrimageRegistrationExport = {
+  eventId: string;
+  slug: string;
+  exportedUtc: string;
+  rows: PilgrimageRegistrationTransferRow[];
+};
+
+export type PilgrimageRegistrationImportRequest = {
+  rows: PilgrimageRegistrationTransferRow[];
+  replaceExisting: boolean;
+};
+
+export type PilgrimageRegistrationImportResponse = {
+  importedRegistrations: number;
+  skippedRegistrations: number;
+  replaceExisting: boolean;
+};
+
 export type PilgrimageParticipantProfile = {
   participantId: string;
   fullName: string;
@@ -3630,6 +3673,22 @@ export function getPilgrimageExportUrl(eventId: string, kind: PilgrimageExportKi
 
 export function getPilgrimageParticipantsExportUrl(eventId: string) {
   return getPilgrimageExportUrl(eventId, 'participants');
+}
+
+export function exportPilgrimageRegistrations(eventId: string) {
+  return request<PilgrimageRegistrationExport>(`/pilgrimage/${eventId}/organizer/registrations/export`, {
+    method: 'GET'
+  });
+}
+
+export function importPilgrimageRegistrations(eventId: string, payload: PilgrimageRegistrationImportRequest) {
+  return request<PilgrimageRegistrationImportResponse>(`/pilgrimage/${eventId}/organizer/registrations/import`, {
+    method: 'POST',
+    body: JSON.stringify({
+      rows: payload.rows,
+      replaceExisting: payload.replaceExisting
+    })
+  });
 }
 
 export type ChatParticipant = {

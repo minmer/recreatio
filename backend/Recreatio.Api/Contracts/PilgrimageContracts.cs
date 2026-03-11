@@ -91,6 +91,45 @@ public sealed record PilgrimageRegistrationResponse(
     string AccessLink,
     DateTimeOffset ExpiresUtc);
 
+public sealed record PilgrimageRegistrationTransferRow(
+    string FullName,
+    string Phone,
+    string? Email,
+    string? Parish,
+    DateOnly? BirthDate,
+    bool IsMinor,
+    string ParticipationVariant,
+    bool NeedsLodging,
+    bool NeedsBaggageTransport,
+    string EmergencyContactName,
+    string EmergencyContactPhone,
+    string? HealthNotes,
+    string? DietNotes,
+    bool AcceptedTerms,
+    bool AcceptedRodo,
+    bool AcceptedImageConsent,
+    string? RegistrationStatus,
+    string? PaymentStatus,
+    string? AttendanceStatus,
+    string? GroupName,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? UpdatedUtc);
+
+public sealed record PilgrimageRegistrationExportResponse(
+    Guid EventId,
+    string Slug,
+    DateTimeOffset ExportedUtc,
+    IReadOnlyList<PilgrimageRegistrationTransferRow> Rows);
+
+public sealed record PilgrimageRegistrationImportRequest(
+    IReadOnlyList<PilgrimageRegistrationTransferRow> Rows,
+    bool ReplaceExisting);
+
+public sealed record PilgrimageRegistrationImportResponse(
+    int ImportedRegistrations,
+    int SkippedRegistrations,
+    bool ReplaceExisting);
+
 public sealed record PilgrimageParticipantProfile(
     Guid ParticipantId,
     string FullName,

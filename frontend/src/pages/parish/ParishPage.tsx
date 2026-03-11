@@ -64,6 +64,7 @@ import {
   type ParishSacramentSection,
   type ParishSummary
 } from '../../lib/api';
+import { normalizePolishPhone } from '../../lib/phone';
 
 type ThemePreset = 'classic' | 'minimal' | 'warm';
 type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
@@ -3520,10 +3521,14 @@ export function ParishPage({
 
   const handleSubmitConfirmationCandidate = async () => {
     if (!parishSlug) return;
-    const phoneNumbers = confirmationPhonesRaw
+    const phoneRows = confirmationPhonesRaw
       .split('\n')
       .map((item) => item.trim())
       .filter((item) => item.length > 0);
+    const invalidPhones = phoneRows.filter((item) => !normalizePolishPhone(item));
+    const phoneNumbers = phoneRows
+      .map((item) => normalizePolishPhone(item))
+      .filter((item): item is string => Boolean(item));
 
     if (
       !confirmationName.trim() ||
@@ -3537,6 +3542,11 @@ export function ParishPage({
     }
     if (phoneNumbers.length === 0) {
       setConfirmationFormError('Podaj co najmniej jeden numer telefonu.');
+      setConfirmationFormSuccess(null);
+      return;
+    }
+    if (invalidPhones.length > 0) {
+      setConfirmationFormError('Każdy numer telefonu musi mieć format +48 i 9 cyfr.');
       setConfirmationFormSuccess(null);
       return;
     }
@@ -3583,7 +3593,7 @@ export function ParishPage({
   const buildConfirmationSmsHref = (phoneNumber: string, token: string) => {
     const verificationLink = buildConfirmationVerificationLink(token);
     if (!verificationLink) return '';
-    const normalizedPhone = phoneNumber.replace(/[^\d+]/g, '');
+    const normalizedPhone = normalizePolishPhone(phoneNumber) ?? phoneNumber.replace(/[^\d+]/g, '');
     const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
     const message =
       `Szczęść Boże!\n` +

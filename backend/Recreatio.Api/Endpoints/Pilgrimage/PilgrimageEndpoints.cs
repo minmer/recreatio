@@ -300,14 +300,14 @@ public static class PilgrimageEndpoints
                 }
 
                 var fullName = NormalizeShort(request.FullName, 200);
-                var phone = NormalizeShort(request.Phone, 60);
+                var phone = NormalizePolishPhone(request.Phone);
                 var emergencyName = NormalizeShort(request.EmergencyContactName, 200);
-                var emergencyPhone = NormalizeShort(request.EmergencyContactPhone, 60);
+                var emergencyPhone = NormalizePolishPhone(request.EmergencyContactPhone);
 
                 if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(phone) ||
                     string.IsNullOrWhiteSpace(emergencyName) || string.IsNullOrWhiteSpace(emergencyPhone))
                 {
-                    return Results.BadRequest(new { error = "Full name, phone and emergency contact are required." });
+                    return Results.BadRequest(new { error = "Full name, valid phone (+48 and 9 digits) and emergency contact are required." });
                 }
 
                 if (!request.AcceptedTerms || !request.AcceptedRodo)
@@ -434,7 +434,7 @@ public static class PilgrimageEndpoints
             var name = NormalizeShort(request.Name, 180);
             var topic = NormalizeShort(request.Topic, 120);
             var message = NormalizeLong(request.Message, 2400);
-            var phone = NormalizeShort(request.Phone, 80);
+            var phone = NormalizePolishPhone(request.Phone);
             var isPublicQuestion = request.IsPublicQuestion;
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(topic) || string.IsNullOrWhiteSpace(message))
             {
@@ -442,7 +442,11 @@ public static class PilgrimageEndpoints
             }
             if (!isPublicQuestion && string.IsNullOrWhiteSpace(phone))
             {
-                return Results.BadRequest(new { error = "Phone is required for private answer." });
+                return Results.BadRequest(new { error = "Phone is required for private answer and must be in +48XXXXXXXXX format." });
+            }
+            if (!string.IsNullOrWhiteSpace(request.Phone) && string.IsNullOrWhiteSpace(phone))
+            {
+                return Results.BadRequest(new { error = "Phone must be in +48XXXXXXXXX format." });
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -1537,6 +1541,296 @@ public static class PilgrimageEndpoints
                 "text/csv; charset=utf-8",
                 $"{normalizedKind}.csv");
         }).RequireAuthorization();
+
+        group.MapGet("/{eventId:guid}/organizer/registrations/export", async (
+            Guid eventId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            IEncryptionService encryptionService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eventId, ct);
+            if (pilgrimage is null)
+            {
+                return Results.NotFound();
+            }
+
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
+            {
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+            }
+
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
+            {
+                return Results.Forbid();
+            }
+
+            var participantKey = UnprotectEventDataKey(dataProtectionProvider, pilgrimage.Id, "participant", pilgrimage.ParticipantDataKeyServerEnc);
+            if (participantKey is null)
+            {
+                return Results.StatusCode(StatusCodes.Status500InternalServerError);
+            }
+
+            var rows = await dbContext.PilgrimageParticipants.AsNoTracking()
+                .Where(x => x.EventId == eventId)
+                .OrderBy(x => x.CreatedUtc)
+                .ToListAsync(ct);
+
+            var transferRows = new List<PilgrimageRegistrationTransferRow>(rows.Count);
+            foreach (var row in rows)
+            {
+                var payload = DecryptParticipantPayload(row, participantKey, encryptionService);
+                if (payload is null)
+                {
+                    continue;
+                }
+
+                transferRows.Add(new PilgrimageRegistrationTransferRow(
+                    payload.FullName,
+                    payload.Phone,
+                    payload.Email,
+                    payload.Parish,
+                    payload.BirthDate,
+                    payload.IsMinor,
+                    payload.ParticipationVariant,
+                    payload.NeedsLodging,
+                    payload.NeedsBaggageTransport,
+                    payload.EmergencyContactName,
+                    payload.EmergencyContactPhone,
+                    payload.HealthNotes,
+                    payload.DietNotes,
+                    payload.AcceptedTerms,
+                    payload.AcceptedRodo,
+                    payload.AcceptedImageConsent,
+                    row.RegistrationStatus,
+                    row.PaymentStatus,
+                    row.AttendanceStatus,
+                    row.GroupName,
+                    row.CreatedUtc,
+                    row.UpdatedUtc));
+            }
+
+            return Results.Ok(new PilgrimageRegistrationExportResponse(
+                pilgrimage.Id,
+                pilgrimage.Slug,
+                DateTimeOffset.UtcNow,
+                transferRows));
+        }).RequireAuthorization();
+
+        group.MapPost("/{eventId:guid}/organizer/registrations/import", async (
+            Guid eventId,
+            PilgrimageRegistrationImportRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            IEncryptionService encryptionService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eventId, ct);
+            if (pilgrimage is null)
+            {
+                return Results.NotFound();
+            }
+
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
+            {
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+            }
+
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
+            {
+                return Results.Forbid();
+            }
+
+            var sourceRows = request.Rows ?? Array.Empty<PilgrimageRegistrationTransferRow>();
+            if (sourceRows.Count == 0 && !request.ReplaceExisting)
+            {
+                return Results.BadRequest(new { error = "Import payload is empty." });
+            }
+
+            var participantKey = UnprotectEventDataKey(dataProtectionProvider, pilgrimage.Id, "participant", pilgrimage.ParticipantDataKeyServerEnc);
+            if (participantKey is null)
+            {
+                return Results.StatusCode(StatusCodes.Status500InternalServerError);
+            }
+
+            if (request.ReplaceExisting)
+            {
+                var participantIds = await dbContext.PilgrimageParticipants
+                    .Where(x => x.EventId == eventId)
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+
+                if (participantIds.Count > 0)
+                {
+                    var issues = await dbContext.PilgrimageParticipantIssues
+                        .Where(x => x.EventId == eventId && participantIds.Contains(x.ParticipantId))
+                        .ToListAsync(ct);
+                    if (issues.Count > 0)
+                    {
+                        dbContext.PilgrimageParticipantIssues.RemoveRange(issues);
+                    }
+
+                    var tokens = await dbContext.PilgrimageParticipantAccessTokens
+                        .Where(x => x.EventId == eventId && participantIds.Contains(x.ParticipantId))
+                        .ToListAsync(ct);
+                    if (tokens.Count > 0)
+                    {
+                        dbContext.PilgrimageParticipantAccessTokens.RemoveRange(tokens);
+                    }
+
+                    var participants = await dbContext.PilgrimageParticipants
+                        .Where(x => x.EventId == eventId)
+                        .ToListAsync(ct);
+                    if (participants.Count > 0)
+                    {
+                        dbContext.PilgrimageParticipants.RemoveRange(participants);
+                    }
+
+                    await dbContext.SaveChangesAsync(ct);
+                }
+            }
+
+            var importedRegistrations = 0;
+            var skippedRegistrations = 0;
+            var now = DateTimeOffset.UtcNow;
+            foreach (var source in sourceRows)
+            {
+                var fullName = NormalizeShort(source.FullName, 200);
+                var phone = NormalizePolishPhone(source.Phone);
+                var emergencyName = NormalizeShort(source.EmergencyContactName, 200);
+                var emergencyPhone = NormalizePolishPhone(source.EmergencyContactPhone);
+                if (string.IsNullOrWhiteSpace(fullName) ||
+                    string.IsNullOrWhiteSpace(phone) ||
+                    string.IsNullOrWhiteSpace(emergencyName) ||
+                    string.IsNullOrWhiteSpace(emergencyPhone))
+                {
+                    skippedRegistrations += 1;
+                    continue;
+                }
+
+                var variant = NormalizeVariant(source.ParticipationVariant);
+                var payload = new PilgrimageParticipantPayload(
+                    fullName,
+                    phone,
+                    NormalizeShort(source.Email, 180),
+                    NormalizeShort(source.Parish, 180),
+                    source.BirthDate,
+                    source.IsMinor,
+                    variant,
+                    source.NeedsLodging,
+                    source.NeedsBaggageTransport,
+                    emergencyName,
+                    emergencyPhone,
+                    NormalizeLong(source.HealthNotes, 1400),
+                    NormalizeLong(source.DietNotes, 800),
+                    source.AcceptedTerms,
+                    source.AcceptedRodo,
+                    source.AcceptedImageConsent);
+
+                if (!payload.AcceptedTerms || !payload.AcceptedRodo)
+                {
+                    skippedRegistrations += 1;
+                    continue;
+                }
+
+                var createdUtc = source.CreatedUtc is { } rawCreated && rawCreated.Year >= 2000 ? rawCreated : now;
+                var updatedUtc = source.UpdatedUtc is { } rawUpdated && rawUpdated >= createdUtc ? rawUpdated : createdUtc;
+                var participantId = Guid.NewGuid();
+                var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload);
+                var payloadEnc = encryptionService.Encrypt(participantKey, payloadJson, participantId.ToByteArray());
+                var identityDigest = SHA256.HashData(Encoding.UTF8.GetBytes($"{fullName.ToLowerInvariant()}|{phone.Trim()}"));
+
+                var participant = new PilgrimageParticipant
+                {
+                    Id = participantId,
+                    EventId = pilgrimage.Id,
+                    ParticipationVariant = variant,
+                    RegistrationStatus = NormalizeRegistrationStatus(source.RegistrationStatus),
+                    PaymentStatus = NormalizePaymentStatus(source.PaymentStatus),
+                    AttendanceStatus = NormalizeAttendanceStatus(source.AttendanceStatus),
+                    GroupName = NormalizeShort(source.GroupName, 120),
+                    NeedsLodging = source.NeedsLodging,
+                    NeedsBaggageTransport = source.NeedsBaggageTransport,
+                    IsMinor = source.IsMinor,
+                    AcceptedTerms = source.AcceptedTerms,
+                    AcceptedRodo = source.AcceptedRodo,
+                    IdentityDigest = identityDigest,
+                    PayloadEnc = payloadEnc,
+                    PayloadDataKeyId = pilgrimage.ParticipantDataKeyId,
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = updatedUtc
+                };
+
+                dbContext.PilgrimageParticipants.Add(participant);
+                var token = CreateParticipantAccessToken();
+                var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+                dbContext.PilgrimageParticipantAccessTokens.Add(new PilgrimageParticipantAccessToken
+                {
+                    Id = Guid.NewGuid(),
+                    EventId = pilgrimage.Id,
+                    ParticipantId = participantId,
+                    TokenHash = tokenHash,
+                    ExpiresUtc = now.AddDays(120),
+                    CreatedUtc = now
+                });
+
+                importedRegistrations += 1;
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendBusinessAsync(
+                "PilgrimageRegistrationsImported",
+                userId.ToString(),
+                JsonSerializer.Serialize(new
+                {
+                    pilgrimageId = pilgrimage.Id,
+                    importedRegistrations,
+                    skippedRegistrations,
+                    request.ReplaceExisting
+                }),
+                ct);
+
+            return Results.Ok(new PilgrimageRegistrationImportResponse(
+                importedRegistrations,
+                skippedRegistrations,
+                request.ReplaceExisting));
+        }).RequireAuthorization();
     }
 
     private static async Task<IResult> CreatePilgrimageInternalAsync(
@@ -1948,6 +2242,36 @@ public static class PilgrimageEndpoints
     {
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
         return AllowedInquiryStatuses.Contains(normalized, StringComparer.Ordinal) ? normalized : "new";
+    }
+
+    private static string? NormalizePolishPhone(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        string? national = null;
+        if (digits.Length == 9)
+        {
+            national = digits;
+        }
+        else if (digits.Length == 11 && digits.StartsWith("48", StringComparison.Ordinal))
+        {
+            national = digits[2..];
+        }
+        else if (digits.Length == 13 && digits.StartsWith("0048", StringComparison.Ordinal))
+        {
+            national = digits[4..];
+        }
+
+        if (string.IsNullOrWhiteSpace(national) || national.Length != 9)
+        {
+            return null;
+        }
+
+        return $"+48{national}";
     }
 
     private static string? NormalizeShort(string? value, int maxLength)

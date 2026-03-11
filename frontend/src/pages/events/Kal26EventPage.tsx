@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
@@ -9,21 +9,25 @@ import {
   createPilgrimageParticipantIssue,
   createPilgrimageRegistration,
   createPilgrimageTask,
+  exportPilgrimageRegistrations,
   getPilgrimagePublicInquiryAnswers,
   getPilgrimageExportUrl,
   getPilgrimageOrganizerDashboard,
   getPilgrimageParticipantZone,
   getPilgrimageSite,
+  importPilgrimageRegistrations,
   updatePilgrimageIssue,
   updatePilgrimageInquiry,
   updatePilgrimageParticipant,
   updatePilgrimageTask,
   type PilgrimageOrganizerDashboard,
   type PilgrimagePublicInquiryAnswer,
+  type PilgrimageRegistrationTransferRow,
   type PilgrimageParticipantZone,
   type PilgrimageSection,
   type PilgrimageSite
 } from '../../lib/api';
+import { normalizePolishPhone } from '../../lib/phone';
 import { PILGRIMAGE_START_SVG } from './pilgrimageStartSvg';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
 import { InformationPage } from './InformationPage';
@@ -1145,6 +1149,10 @@ export function Kal26EventPage({
   const [participantVariantFilter, setParticipantVariantFilter] = useState('all');
   const [organizerActionError, setOrganizerActionError] = useState<string | null>(null);
   const [organizerSavingId, setOrganizerSavingId] = useState<string | null>(null);
+  const [registrationTransferBusy, setRegistrationTransferBusy] = useState(false);
+  const [registrationTransferInfo, setRegistrationTransferInfo] = useState<string | null>(null);
+  const [registrationTransferError, setRegistrationTransferError] = useState<string | null>(null);
+  const [registrationImportReplaceExisting, setRegistrationImportReplaceExisting] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementBody, setAnnouncementBody] = useState('');
   const [announcementAudience, setAnnouncementAudience] = useState('participant');
@@ -1163,6 +1171,7 @@ export function Kal26EventPage({
   const [publicContactAnswers, setPublicContactAnswers] = useState<PilgrimagePublicInquiryAnswer[]>([]);
   const [publicContactAnswersPending, setPublicContactAnswersPending] = useState(false);
   const [publicContactAnswersError, setPublicContactAnswersError] = useState<string | null>(null);
+  const registrationImportFileRef = useRef<HTMLInputElement | null>(null);
   const [isHeaderCompact, setIsHeaderCompact] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -1457,9 +1466,15 @@ export function Kal26EventPage({
     setRegistrationNotice(null);
 
     try {
+      const normalizedPhone = normalizePolishPhone(registrationForm.phone);
+      const normalizedEmergencyPhone = normalizePolishPhone(registrationForm.emergencyContactPhone);
+      if (!normalizedPhone || !normalizedEmergencyPhone) {
+        setRegistrationError('Numer telefonu musi mieć format +48 i 9 cyfr.');
+        return;
+      }
       const response = await createPilgrimageRegistration(event.slug, {
         fullName: registrationForm.fullName,
-        phone: registrationForm.phone,
+        phone: normalizedPhone,
         email: registrationForm.email || null,
         parish: registrationForm.parish || null,
         birthDate: registrationForm.birthDate || null,
@@ -1468,7 +1483,7 @@ export function Kal26EventPage({
         needsLodging: registrationForm.needsLodging,
         needsBaggageTransport: registrationForm.needsBaggageTransport,
         emergencyContactName: registrationForm.emergencyContactName,
-        emergencyContactPhone: registrationForm.emergencyContactPhone,
+        emergencyContactPhone: normalizedEmergencyPhone,
         healthNotes: registrationForm.healthNotes || null,
         dietNotes: registrationForm.dietNotes || null,
         acceptedTerms: registrationForm.acceptedTerms,
@@ -1493,10 +1508,10 @@ export function Kal26EventPage({
     setRegistrationNotice(null);
 
     const fullName = registrationForm.fullName.trim();
-    const phone = registrationForm.phone.trim();
+    const phone = normalizePolishPhone(registrationForm.phone);
     const startPlace = registrationForm.parish.trim();
     if (!fullName || !phone || !startPlace) {
-      setRegistrationError('Uzupełnij imię i nazwisko, telefon oraz miejsce startu.');
+      setRegistrationError('Uzupełnij imię i nazwisko, miejsce startu oraz poprawny telefon (+48 i 9 cyfr).');
       return;
     }
     const participationVariant = startPlace.toLowerCase().includes('tyniec') ? 'saturday' : 'full';
@@ -1594,15 +1609,15 @@ export function Kal26EventPage({
   const goToNextRegistrationStep = () => {
     setRegistrationError(null);
     if (registrationStep === 1) {
-      if (!registrationForm.fullName.trim() || !registrationForm.phone.trim()) {
-        setRegistrationError('W kroku 1 uzupelnij imie i nazwisko oraz telefon.');
+      if (!registrationForm.fullName.trim() || !normalizePolishPhone(registrationForm.phone)) {
+        setRegistrationError('W kroku 1 uzupelnij imie i nazwisko oraz poprawny telefon (+48 i 9 cyfr).');
         return;
       }
     }
 
     if (registrationStep === 3) {
-      if (!registrationForm.emergencyContactName.trim() || !registrationForm.emergencyContactPhone.trim()) {
-        setRegistrationError('W kroku 3 uzupelnij kontakt awaryjny.');
+      if (!registrationForm.emergencyContactName.trim() || !normalizePolishPhone(registrationForm.emergencyContactPhone)) {
+        setRegistrationError('W kroku 3 uzupelnij kontakt awaryjny i poprawny telefon (+48 i 9 cyfr).');
         return;
       }
     }
@@ -1657,8 +1672,13 @@ export function Kal26EventPage({
 
   const handleContactSubmit = async (eventForm: FormEvent) => {
     eventForm.preventDefault();
-    if (!contactForm.isPublicQuestion && !contactForm.phone.trim()) {
+    const normalizedPhone = normalizePolishPhone(contactForm.phone);
+    if (!contactForm.isPublicQuestion && !normalizedPhone) {
       setContactError('Dla odpowiedzi prywatnej podaj numer telefonu.');
+      return;
+    }
+    if (contactForm.phone.trim() && !normalizedPhone) {
+      setContactError('Telefon musi mieć format +48 i 9 cyfr.');
       return;
     }
     setContactPending(true);
@@ -1667,7 +1687,7 @@ export function Kal26EventPage({
     try {
       await createPilgrimageContactInquiry(event.slug, {
         name: contactForm.name,
-        phone: contactForm.phone || null,
+        phone: normalizedPhone,
         isPublicQuestion: contactForm.isPublicQuestion,
         email: contactForm.email || null,
         topic: contactForm.topic,
@@ -1679,6 +1699,63 @@ export function Kal26EventPage({
       setContactError(error instanceof Error ? error.message : 'Nie udalo sie wyslac wiadomosci.');
     } finally {
       setContactPending(false);
+    }
+  };
+
+  const handleExportRegistrations = async () => {
+    if (!site?.id) return;
+    setRegistrationTransferBusy(true);
+    setRegistrationTransferError(null);
+    setRegistrationTransferInfo(null);
+    try {
+      const payload = await exportPilgrimageRegistrations(site.id);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `pilgrimage-registrations-${event.slug}-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setRegistrationTransferInfo(`Wyeksportowano ${payload.rows.length} zapisów.`);
+    } catch {
+      setRegistrationTransferError('Nie udało się wyeksportować zapisów.');
+    } finally {
+      setRegistrationTransferBusy(false);
+    }
+  };
+
+  const handleImportRegistrationsFileChange = async (eventInput: ChangeEvent<HTMLInputElement>) => {
+    if (!site?.id) return;
+    const file = eventInput.target.files?.[0];
+    if (!file) return;
+
+    setRegistrationTransferBusy(true);
+    setRegistrationTransferError(null);
+    setRegistrationTransferInfo(null);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text) as { rows?: unknown[] };
+      if (!payload || !Array.isArray(payload.rows)) {
+        setRegistrationTransferError('Plik importu ma nieprawidłowy format JSON.');
+        return;
+      }
+      const rows = payload.rows as PilgrimageRegistrationTransferRow[];
+
+      const result = await importPilgrimageRegistrations(site.id, {
+        rows,
+        replaceExisting: registrationImportReplaceExisting
+      });
+      setRegistrationTransferInfo(
+        `Import zakończony: ${result.importedRegistrations} zapisów, pominięto ${result.skippedRegistrations}.`
+      );
+      await loadOrganizerDashboard();
+    } catch {
+      setRegistrationTransferError('Nie udało się zaimportować zapisów.');
+    } finally {
+      setRegistrationTransferBusy(false);
+      if (registrationImportFileRef.current) {
+        registrationImportFileRef.current.value = '';
+      }
     }
   };
 
@@ -2462,8 +2539,38 @@ export function Kal26EventPage({
               <a className="ghost" href={getPilgrimageExportUrl(site.id, 'attendance')} target="_blank" rel="noreferrer">
                 CSV obecnosc
               </a>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void handleExportRegistrations()}
+                disabled={registrationTransferBusy}
+              >
+                {registrationTransferBusy ? 'Przetwarzanie...' : 'Eksport JSON zapisów'}
+              </button>
+              <label className="ghost" style={{ display: 'inline-flex', cursor: registrationTransferBusy ? 'not-allowed' : 'pointer' }}>
+                Import JSON zapisów
+                <input
+                  ref={registrationImportFileRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={(eventInput) => void handleImportRegistrationsFileChange(eventInput)}
+                  disabled={registrationTransferBusy}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <input
+                  type="checkbox"
+                  checked={registrationImportReplaceExisting}
+                  onChange={(eventInput) => setRegistrationImportReplaceExisting(eventInput.target.checked)}
+                  disabled={registrationTransferBusy}
+                />
+                Zastąp istniejące zapisy
+              </label>
             </div>
           ) : null}
+          {registrationTransferError ? <p className="pilgrimage-error">{registrationTransferError}</p> : null}
+          {registrationTransferInfo ? <p className="pilgrimage-success">{registrationTransferInfo}</p> : null}
           <div className="pilgrimage-form-grid">
             <label>
               Szukaj

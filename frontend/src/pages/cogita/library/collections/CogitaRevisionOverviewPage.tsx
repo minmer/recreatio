@@ -63,8 +63,9 @@ export function CogitaRevisionOverviewPage({
 
   const activeShareLink = useMemo(() => {
     if (!activeShare?.shareCode) return null;
-    if (typeof window === 'undefined') return `/#/cogita/public/revision/${activeShare.shareCode}`;
-    return `${window.location.origin}/#/cogita/public/revision/${activeShare.shareCode}`;
+    const encodedShareCode = encodeURIComponent(activeShare.shareCode);
+    if (typeof window === 'undefined') return `/#/cogita/public/revision/${encodedShareCode}`;
+    return `${window.location.origin}/#/cogita/public/revision/${encodedShareCode}`;
   }, [activeShare?.shareCode]);
 
   const revisionRunHref = useMemo(() => {

@@ -286,7 +286,7 @@ public static class ParishEndpoints
 
             if (phoneNumbers.Count == 0)
             {
-                return Results.BadRequest(new { error = "At least one phone number is required." });
+                return Results.BadRequest(new { error = "At least one valid phone number in +48XXXXXXXXX format is required." });
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -2081,7 +2081,7 @@ public static class ParishEndpoints
         var result = new List<string>();
         foreach (var raw in phoneNumbers)
         {
-            var normalized = NormalizeConfirmationText(raw, 40);
+            var normalized = NormalizePolishPhone(raw);
             if (normalized is null)
             {
                 continue;
@@ -2130,7 +2130,7 @@ public static class ParishEndpoints
         var result = new List<ParishConfirmationImportPhone>();
         foreach (var item in phoneNumbers)
         {
-            var number = NormalizeConfirmationText(item.Number, 40);
+            var number = NormalizePolishPhone(item.Number);
             if (number is null)
             {
                 continue;
@@ -2151,6 +2151,36 @@ public static class ParishEndpoints
         }
 
         return result;
+    }
+
+    private static string? NormalizePolishPhone(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        string? national = null;
+        if (digits.Length == 9)
+        {
+            national = digits;
+        }
+        else if (digits.Length == 11 && digits.StartsWith("48", StringComparison.Ordinal))
+        {
+            national = digits[2..];
+        }
+        else if (digits.Length == 13 && digits.StartsWith("0048", StringComparison.Ordinal))
+        {
+            national = digits[4..];
+        }
+
+        if (string.IsNullOrWhiteSpace(national) || national.Length != 9)
+        {
+            return null;
+        }
+
+        return $"+48{national}";
     }
 
     private static bool TryParseConfirmationImportRequest(

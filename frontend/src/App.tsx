@@ -54,6 +54,15 @@ type Language = (typeof languages)[number];
 
 type PanelType = 'faq' | 'legal' | 'login' | null;
 
+function decodeRouteSegment(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export default function App() {
   const [mode, setMode] = useState<Mode>('login');
   const [language, setLanguage] = useState<Language>(() => {
@@ -97,7 +106,7 @@ export default function App() {
   const isCogitaLiveSessionsPath = pathname.startsWith('/cogita/live-sessions/');
   const shareSegments = pathname.split('/').filter(Boolean);
   const chatPublicCode = isChatPublicPath ? shareSegments[2] : undefined;
-  const shareId = isCogitaSharePath ? shareSegments[3] : undefined;
+  const shareId = isCogitaSharePath ? decodeRouteSegment(shareSegments[3]) : undefined;
   const liveJoinCode = isCogitaLiveJoinPath ? pathname.split('/')[4] : undefined;
   const liveWallLoginCode = isCogitaLiveWallLoginPath ? pathname.split('/')[4] : undefined;
   const liveWallPublicCode = isCogitaLiveWallPublicPath ? pathname.split('/')[4] : undefined;
