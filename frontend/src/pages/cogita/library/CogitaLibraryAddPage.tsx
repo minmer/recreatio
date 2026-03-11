@@ -908,7 +908,7 @@ export function CogitaLibraryAddPage({
           payload,
           links
         });
-        setStatus('Info updated.');
+        setStatus('Knowledge item updated.');
       } else {
         await createCogitaInfo({
           libraryId,
@@ -929,16 +929,16 @@ export function CogitaLibraryAddPage({
             setQuestionImportQueueIndex(nextIndex);
             setQuestionDefinition(nextDefinition);
             setPayloadValues((prev) => ({ ...prev, definition: serializedNext }));
-            setStatus(`Info saved. Loaded next question (${nextIndex + 1}/${questionImportQueue.length}).`);
+            setStatus(`Knowledge item saved. Loaded next question (${nextIndex + 1}/${questionImportQueue.length}).`);
           } else {
-            setStatus('Info saved.');
+            setStatus('Knowledge item saved.');
           }
         } else {
           if (selectedInfoType === 'question' && questionImportQueue.length > 0) {
             setQuestionImportQueue([]);
             setQuestionImportQueueIndex(0);
           }
-          setStatus('Info saved.');
+          setStatus('Knowledge item saved.');
         }
 
         const nextPayload: Record<string, string> = {};
@@ -1491,12 +1491,12 @@ export function CogitaLibraryAddPage({
       <section className="cogita-library-dashboard" data-mode="detail">
         <header className="cogita-library-dashboard-header">
           <div>
-            <p className="cogita-user-kicker">{isEditMode ? 'Edit info' : 'Create info'}</p>
+            <p className="cogita-user-kicker">{isEditMode ? 'Edit knowledge item' : 'Create knowledge item'}</p>
             <h1 className="cogita-library-title">{libraryName}</h1>
             <p className="cogita-library-subtitle">Specification-driven editor</p>
           </div>
           <div className="cogita-library-actions">
-            <a className="cta ghost" href={`/#/cogita/library/${libraryId}/infos`}>
+            <a className="cta ghost" href={`/#/cogita/workspace/libraries/${libraryId}/knowledge-items`}>
               Back to list
             </a>
           </div>
@@ -1507,7 +1507,7 @@ export function CogitaLibraryAddPage({
             <article className="cogita-library-panel">
               {!isEditMode ? (
                 <label className="cogita-field full">
-                  <span>Info type</span>
+                  <span>Knowledge item type</span>
                   <select value={selectedInfoType} onChange={(event) => setSelectedInfoType(event.target.value as CogitaInfoType)}>
                     {infoTypeOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1531,12 +1531,12 @@ export function CogitaLibraryAddPage({
                     .map(renderLinkField)}
                 </div>
               ) : (
-                loading === 'loading' && isEditMode ? null : <p>No specification found for this info type.</p>
+                loading === 'loading' && isEditMode ? null : <p>No specification found for this knowledge item type.</p>
               )}
 
               <div className="cogita-form-actions">
                 <button type="button" className="cta" onClick={handleSave} disabled={loading === 'saving' || !currentSpec}>
-                  {loading === 'saving' ? 'Saving...' : isEditMode ? 'Update info' : 'Create info'}
+                  {loading === 'saving' ? 'Saving...' : isEditMode ? 'Update knowledge item' : 'Create knowledge item'}
                 </button>
               </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CogitaShell } from '../CogitaShell';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
@@ -30,6 +31,7 @@ export function CogitaLibraryStoryboardsPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
 }) {
+  const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const [name, setName] = useState('');
   const [items, setItems] = useState<CogitaCreationProject[]>([]);
@@ -140,7 +142,12 @@ export function CogitaLibraryStoryboardsPage({
                   {!loading && !loadFailed && items.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
                   {saveFailed ? <p>{copy.cogita.library.modules.createFailed}</p> : null}
                   {items.map((item) => (
-                    <button key={item.projectId} type="button" className="ghost">
+                    <button
+                      key={item.projectId}
+                      type="button"
+                      className="ghost"
+                      onClick={() => navigate(`/cogita/storyboard/${encodeURIComponent(libraryId)}/${encodeURIComponent(item.projectId)}`)}
+                    >
                       {item.name}
                     </button>
                   ))}

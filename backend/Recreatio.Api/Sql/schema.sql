@@ -2145,6 +2145,28 @@ CREATE INDEX IX_CogitaRunEvents_RunCreated ON dbo.CogitaRunEvents (RunId, Create
 CREATE INDEX IX_CogitaRunEvents_ParticipantCreated ON dbo.CogitaRunEvents (ParticipantId, CreatedUtc);
 GO
 
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CogitaDashboardPreferences' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE dbo.CogitaDashboardPreferences
+    (
+        Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaDashboardPreferences PRIMARY KEY,
+        UserId UNIQUEIDENTIFIER NOT NULL,
+        LayoutVersion NVARCHAR(64) NOT NULL CONSTRAINT DF_CogitaDashboardPreferences_LayoutVersion DEFAULT (N'v1'),
+        PreferencesJson NVARCHAR(MAX) NOT NULL CONSTRAINT DF_CogitaDashboardPreferences_PreferencesJson DEFAULT (N'{}'),
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaDashboardPreferences_User FOREIGN KEY (UserId) REFERENCES dbo.UserAccounts(Id),
+        CONSTRAINT UX_CogitaDashboardPreferences_User UNIQUE (UserId)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaDashboardPreferences_UpdatedUtc' AND object_id = OBJECT_ID('dbo.CogitaDashboardPreferences'))
+BEGIN
+    CREATE INDEX IX_CogitaDashboardPreferences_UpdatedUtc ON dbo.CogitaDashboardPreferences (UpdatedUtc DESC);
+END
+GO
+
 -- Chat module
 -- Adds dedicated chat tables in separate [chat] schema.
 -- Existing tables are not modified.

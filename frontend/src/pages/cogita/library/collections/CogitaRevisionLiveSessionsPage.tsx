@@ -92,7 +92,7 @@ export function CogitaRevisionLiveSessionsPage({
   const [busyAction, setBusyAction] = useState<'none' | 'create' | 'save' | 'duplicate' | 'delete' | 'remove'>('none');
   const [message, setMessage] = useState<string | null>(null);
 
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const liveCopy = copy.cogita.library.revision.live;
   const presetDefinitions = useMemo(() => getLivePresets(), []);
   const presetLabelById = (presetId: LivePresetId) => {
@@ -332,7 +332,7 @@ export function CogitaRevisionLiveSessionsPage({
         sessionId: attachedSession.sessionId
       });
       await loadSessions();
-      navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(revisionId)}/live-sessions`, { replace: true });
+      navigate(`/cogita/workspace/libraries/${libraryId}/revisions/${encodeURIComponent(revisionId)}/live-sessions`, { replace: true });
     } catch {
       setMessage('Failed to delete live session.');
     } finally {
@@ -396,19 +396,19 @@ export function CogitaRevisionLiveSessionsPage({
 
   const joinWallUrl =
     attachedSession?.code && typeof window !== 'undefined'
-      ? `${window.location.origin}/#/cogita/live-wall/login/${encodeURIComponent(attachedSession.code)}`
+      ? `${window.location.origin}/#/cogita/live/wall/login/${encodeURIComponent(attachedSession.code)}`
       : '';
   const publicJoinUrl =
     attachedSession?.code && typeof window !== 'undefined'
-      ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(attachedSession.code)}`
+      ? `${window.location.origin}/#/cogita/live/join/${encodeURIComponent(attachedSession.code)}`
       : '';
   const presenterUrl =
     attachedSession?.code && typeof window !== 'undefined'
-      ? `${window.location.origin}/#/cogita/live-wall/public/${encodeURIComponent(attachedSession.code)}`
+      ? `${window.location.origin}/#/cogita/live/wall/output/${encodeURIComponent(attachedSession.code)}`
       : '';
   const hostUrl =
     attachedSession?.sessionId && attachedSession?.hostSecret && typeof window !== 'undefined'
-      ? `${window.location.origin}/#/cogita/live-wall/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}?sessionId=${encodeURIComponent(attachedSession.sessionId)}&hostSecret=${encodeURIComponent(attachedSession.hostSecret)}&code=${encodeURIComponent(attachedSession.code)}`
+      ? `${window.location.origin}/#/cogita/live/wall/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(revisionId)}?sessionId=${encodeURIComponent(attachedSession.sessionId)}&hostSecret=${encodeURIComponent(attachedSession.hostSecret)}&code=${encodeURIComponent(attachedSession.code)}`
       : '';
   const participantScoreById = useMemo(() => {
     const map = new Map<string, number>();

@@ -64,14 +64,15 @@ export function CogitaRevisionOverviewPage({
   const activeShareLink = useMemo(() => {
     if (!activeShare?.shareCode) return null;
     const encodedShareCode = encodeURIComponent(activeShare.shareCode);
-    if (typeof window === 'undefined') return `/#/cogita/public/revision/${encodedShareCode}`;
-    return `${window.location.origin}/#/cogita/public/revision/${encodedShareCode}`;
+    if (typeof window === 'undefined') return `/#/cogita/revision/shared/${encodedShareCode}`;
+    return `${window.location.origin}/#/cogita/revision/shared/${encodedShareCode}`;
   }, [activeShare?.shareCode]);
 
   const revisionRunHref = useMemo(() => {
-    const base = `/#/cogita/library/${encodeURIComponent(libraryId)}/revisions/${encodeURIComponent(revisionId)}/run`;
+    const base = `/#/cogita/revision/solo/${encodeURIComponent(libraryId)}/new`;
     if (!revision) return base;
     const params = new URLSearchParams();
+    params.set('sourceRevisionId', revisionId);
     const mode = String(revision.revisionType ?? revision.mode ?? 'random').trim().toLowerCase();
     params.set('mode', mode || 'random');
     params.set('check', String(revision.check ?? 'exact'));
@@ -167,7 +168,7 @@ export function CogitaRevisionOverviewPage({
     setDeleteStatus(null);
     try {
       await deleteCogitaRevision({ libraryId, revisionId });
-      navigate(`/cogita/library/${libraryId}/revisions`, { replace: true });
+      navigate(`/cogita/workspace/libraries/${libraryId}/revisions`, { replace: true });
     } catch {
       setDeleteStatus('Failed to delete revision. Remove live sessions and shares first.');
     }

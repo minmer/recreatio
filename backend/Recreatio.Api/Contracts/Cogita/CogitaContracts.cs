@@ -25,6 +25,18 @@ public sealed record CogitaLibraryStatsResponse(
     int TotalTopics
 );
 
+public sealed record CogitaDashboardPreferencesRequest(
+    string? LayoutVersion,
+    string PreferencesJson
+);
+
+public sealed record CogitaDashboardPreferencesResponse(
+    string LayoutVersion,
+    string PreferencesJson,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc
+);
+
 public sealed record CogitaCreationProjectCreateRequest(
     string ProjectType,
     string Name,

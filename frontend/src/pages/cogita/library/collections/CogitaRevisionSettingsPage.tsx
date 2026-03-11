@@ -215,7 +215,7 @@ export function CogitaRevisionSettingsPage({
         limit
       });
       setSaveStatus('saved');
-      navigate(`/cogita/library/${libraryId}/revisions/${encodeURIComponent(created.revisionId)}`, { replace: true });
+      navigate(`/cogita/workspace/libraries/${libraryId}/revisions/${encodeURIComponent(created.revisionId)}`, { replace: true });
     } catch {
       setSaveStatus('error');
     }

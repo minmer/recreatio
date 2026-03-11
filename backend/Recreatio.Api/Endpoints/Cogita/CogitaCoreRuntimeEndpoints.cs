@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
@@ -14,6 +15,47 @@ namespace Recreatio.Api.Endpoints.Cogita;
 public static class CogitaCoreRuntimeEndpoints
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan SharedRecoveryTtl = TimeSpan.FromMinutes(20);
+
+    private static byte[] HashRecoveryToken(string token)
+    {
+        return SHA256.HashData(Encoding.UTF8.GetBytes(token));
+    }
+
+    private static string GenerateRecoveryToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(24);
+        return Convert.ToBase64String(bytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+    }
+
+    private static DateTimeOffset? ParseRecoveryExpirationUtc(string? cipher)
+    {
+        if (string.IsNullOrWhiteSpace(cipher))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(cipher);
+            if (!document.RootElement.TryGetProperty("expUtc", out var expNode))
+            {
+                return null;
+            }
+            if (!expNode.TryGetDateTimeOffset(out var value))
+            {
+                return null;
+            }
+            return value;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     public static void MapCogitaCoreRuntimeEndpoints(this RouteGroupBuilder group)
     {
@@ -56,7 +98,7 @@ public static class CogitaCoreRuntimeEndpoints
                     Id = Guid.NewGuid(),
                     LibraryId = libraryId,
                     RoleId = roleId,
-                    Name = "Core runtime pattern",
+                    Name = "Revision runtime pattern",
                     Mode = "random-once",
                     SettingsJson = "{}",
                     CollectionScopeJson = "{}",
@@ -152,20 +194,83 @@ public static class CogitaCoreRuntimeEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "Participant" : request.DisplayName.Trim();
-            var participant = new CogitaRunParticipantCore
+            var normalizedPersonRoleId = request.PersonRoleId.HasValue && request.PersonRoleId.Value != Guid.Empty
+                ? request.PersonRoleId
+                : null;
+            var isSharedScope = string.Equals(run.RunScope, "shared", StringComparison.Ordinal);
+            var recoveryTokenRequest = string.IsNullOrWhiteSpace(request.RecoveryToken)
+                ? null
+                : request.RecoveryToken.Trim();
+            var participantRecovered = false;
+
+            CogitaRunParticipantCore? participant = null;
+            if (isSharedScope && !string.IsNullOrWhiteSpace(recoveryTokenRequest))
             {
-                Id = Guid.NewGuid(),
-                RunId = runId,
-                PersonRoleId = request.PersonRoleId.HasValue && request.PersonRoleId.Value != Guid.Empty
-                    ? request.PersonRoleId
-                    : null,
-                DisplayNameCipher = displayName,
-                IsHost = request.IsHost,
-                IsConnected = true,
-                JoinedUtc = now,
-                UpdatedUtc = now
-            };
-            dbContext.CogitaRunParticipantsCore.Add(participant);
+                var requestedTokenHash = HashRecoveryToken(recoveryTokenRequest);
+                var candidates = await dbContext.CogitaRunParticipantsCore
+                    .Where(x => x.RunId == runId && x.AccessTokenHash != null)
+                    .ToListAsync(ct);
+
+                participant = candidates.FirstOrDefault(x =>
+                    x.AccessTokenHash is not null && x.AccessTokenHash.SequenceEqual(requestedTokenHash));
+                if (participant is not null)
+                {
+                    var expiresUtc = ParseRecoveryExpirationUtc(participant.AccessTokenCipher);
+                    if (!expiresUtc.HasValue || expiresUtc.Value <= now)
+                    {
+                        participant = null;
+                    }
+                    else
+                    {
+                        participantRecovered = true;
+                        participant.IsConnected = true;
+                        participant.UpdatedUtc = now;
+                        if (normalizedPersonRoleId.HasValue)
+                        {
+                            participant.PersonRoleId = normalizedPersonRoleId;
+                        }
+                        if (!string.IsNullOrWhiteSpace(request.DisplayName))
+                        {
+                            participant.DisplayNameCipher = displayName;
+                        }
+                        participant.IsHost = participant.IsHost || request.IsHost;
+                    }
+                }
+            }
+
+            if (participant is null)
+            {
+                participant = new CogitaRunParticipantCore
+                {
+                    Id = Guid.NewGuid(),
+                    RunId = runId,
+                    PersonRoleId = normalizedPersonRoleId,
+                    DisplayNameCipher = displayName,
+                    IsHost = request.IsHost,
+                    IsConnected = true,
+                    JoinedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaRunParticipantsCore.Add(participant);
+            }
+
+            string? recoveryToken = null;
+            DateTimeOffset? recoveryExpiresUtc = null;
+            if (isSharedScope)
+            {
+                recoveryToken = GenerateRecoveryToken();
+                recoveryExpiresUtc = now.Add(SharedRecoveryTtl);
+                participant.AccessTokenHash = HashRecoveryToken(recoveryToken);
+                participant.AccessTokenCipher = JsonSerializer.Serialize(new
+                {
+                    expUtc = recoveryExpiresUtc
+                });
+            }
+            else
+            {
+                participant.AccessTokenHash = null;
+                participant.AccessTokenCipher = null;
+            }
 
             dbContext.CogitaRunEventsCore.Add(new CogitaRunEventCore
             {
@@ -173,14 +278,15 @@ public static class CogitaCoreRuntimeEndpoints
                 LibraryId = libraryId,
                 RunId = runId,
                 ParticipantId = participant.Id,
-                EventType = "participant_joined",
+                EventType = participantRecovered ? "participant_recovered" : "participant_joined",
                 PayloadJson = JsonSerializer.Serialize(new
                 {
                     participantId = participant.Id,
                     participant.PersonRoleId,
-                    displayName,
+                    displayName = participant.DisplayNameCipher,
                     participant.IsHost,
-                    runScope = run.RunScope
+                    runScope = run.RunScope,
+                    recovered = participantRecovered
                 }),
                 CreatedUtc = now
             });
@@ -192,11 +298,13 @@ public static class CogitaCoreRuntimeEndpoints
                 participant.Id,
                 participant.RunId,
                 participant.PersonRoleId,
-                displayName,
+                participant.DisplayNameCipher,
                 participant.IsHost,
                 participant.IsConnected,
                 participant.JoinedUtc,
-                participant.UpdatedUtc));
+                participant.UpdatedUtc,
+                recoveryToken,
+                recoveryExpiresUtc));
         });
 
         group.MapPost("/libraries/{libraryId:guid}/runs/{runId:guid}/status", async (
@@ -281,7 +389,9 @@ public static class CogitaCoreRuntimeEndpoints
                     x.IsHost,
                     x.IsConnected,
                     x.JoinedUtc,
-                    x.UpdatedUtc))
+                    x.UpdatedUtc,
+                    null,
+                    null))
                 .ToListAsync(ct);
 
             var cardsTotal = await dbContext.CogitaCheckcardDefinitionsCore.AsNoTracking()
@@ -386,55 +496,109 @@ public static class CogitaCoreRuntimeEndpoints
                 .GroupBy(x => x.ChildCardId)
                 .ToDictionary(grouping => grouping.Key, grouping => grouping.ToList());
 
+            var latestStackEvent = await dbContext.CogitaRunEventsCore.AsNoTracking()
+                .Where(x => x.RunId == runId && x.ParticipantId == participant.Id && x.EventType == "stack_built")
+                .OrderByDescending(x => x.CreatedUtc)
+                .FirstOrDefaultAsync(ct);
+            var parsedStackPayload = SafeParseStackPayload(latestStackEvent?.PayloadJson);
+            var activeStackRoundIndexes = parsedStackPayload.RoundIndexes
+                .Where(index => index >= 0 && index < cards.Count && !answeredRoundIndexSet.Contains(index))
+                .Distinct()
+                .ToList();
+
             var candidateRoundIndexes = new List<int>();
             var blockedCount = 0;
             var reasonByRoundIndex = new Dictionary<int, List<string>>();
-            for (var index = 0; index < cards.Count; index++)
+            var stackCycleUsed = 0;
+            if (activeStackRoundIndexes.Count > 0)
             {
-                if (answeredRoundIndexSet.Contains(index))
+                stackCycleUsed = parsedStackPayload.Cycle <= 0 ? 1 : parsedStackPayload.Cycle;
+                blockedCount = Math.Max(0, parsedStackPayload.BlockedCount ?? 0);
+                candidateRoundIndexes.AddRange(activeStackRoundIndexes);
+                foreach (var roundIndex in activeStackRoundIndexes)
                 {
-                    continue;
-                }
-
-                var card = cardByIndex[index];
-                var blocked = false;
-                var reasons = new List<string>();
-                if (edgesByChild.TryGetValue(card.Id, out var dependencies))
-                {
-                    foreach (var edge in dependencies)
+                    reasonByRoundIndex[roundIndex] = new List<string>
                     {
-                        if (!cardById.TryGetValue(edge.ParentCardId, out var parentCardKey))
-                        {
-                            continue;
-                        }
+                        $"stack:cycle:{stackCycleUsed}",
+                        "dependency:locked-in-cycle"
+                    };
+                }
+            }
+            else
+            {
+                for (var index = 0; index < cards.Count; index++)
+                {
+                    if (answeredRoundIndexSet.Contains(index))
+                    {
+                        continue;
+                    }
 
-                        var parentKnowness = knownessByCard.TryGetValue(parentCardKey, out var value) ? value : 0d;
-                        var threshold = (double)edge.ThresholdPct;
-                        if (parentKnowness + 0.0001d < threshold)
+                    var card = cardByIndex[index];
+                    var blocked = false;
+                    var reasons = new List<string>();
+                    if (edgesByChild.TryGetValue(card.Id, out var dependencies))
+                    {
+                        foreach (var edge in dependencies)
                         {
-                            var hardSoft = edge.IsHardBlock ? "hard" : "soft";
-                            reasons.Add($"dependency:{hardSoft}:{parentCardKey}:{Math.Round(parentKnowness, 2)}/{Math.Round(threshold, 2)}");
-                            blocked |= edge.IsHardBlock;
+                            if (!cardById.TryGetValue(edge.ParentCardId, out var parentCardKey))
+                            {
+                                continue;
+                            }
+
+                            var parentKnowness = knownessByCard.TryGetValue(parentCardKey, out var value) ? value : 0d;
+                            var threshold = (double)edge.ThresholdPct;
+                            if (parentKnowness + 0.0001d < threshold)
+                            {
+                                var hardSoft = edge.IsHardBlock ? "hard" : "soft";
+                                reasons.Add($"dependency:{hardSoft}:{parentCardKey}:{Math.Round(parentKnowness, 2)}/{Math.Round(threshold, 2)}");
+                                blocked |= edge.IsHardBlock;
+                            }
                         }
+                    }
+
+                    if (blocked)
+                    {
+                        blockedCount++;
+                        reasonByRoundIndex[index] = reasons;
+                        continue;
+                    }
+
+                    candidateRoundIndexes.Add(index);
+                    if (reasons.Count > 0)
+                    {
+                        reasonByRoundIndex[index] = reasons;
                     }
                 }
 
-                if (blocked)
+                if (candidateRoundIndexes.Count > 0)
                 {
-                    blockedCount++;
-                    reasonByRoundIndex[index] = reasons;
-                    continue;
-                }
-
-                candidateRoundIndexes.Add(index);
-                if (reasons.Count > 0)
-                {
-                    reasonByRoundIndex[index] = reasons;
+                    stackCycleUsed = Math.Max(1, parsedStackPayload.Cycle + 1);
+                    dbContext.CogitaRunEventsCore.Add(new CogitaRunEventCore
+                    {
+                        Id = Guid.NewGuid(),
+                        LibraryId = libraryId,
+                        RunId = runId,
+                        ParticipantId = participant.Id,
+                        EventType = "stack_built",
+                        PayloadJson = JsonSerializer.Serialize(new
+                        {
+                            cycle = stackCycleUsed,
+                            roundIndexes = candidateRoundIndexes,
+                            blockedCount,
+                            totalCards = cards.Count
+                        }, JsonOptions),
+                        CreatedUtc = DateTimeOffset.UtcNow
+                    });
                 }
             }
 
             if (candidateRoundIndexes.Count == 0)
             {
+                if (answeredRoundIndexSet.Count >= cards.Count)
+                {
+                    return Results.Ok(new CoreNextCardResponse(null, null, "finished", Array.Empty<string>(), cards.Count, 0));
+                }
+
                 var firstReason = reasonByRoundIndex.OrderBy(x => x.Key).SelectMany(x => x.Value).Take(6).ToArray();
                 return Results.Ok(new CoreNextCardResponse(null, null, "dependency-blocked", firstReason, cards.Count, blockedCount));
             }
@@ -473,6 +637,10 @@ public static class CogitaCoreRuntimeEndpoints
                 $"selection:{selectionMode}",
                 $"knowness:{Math.Round(knownessByRound[nextRoundIndex], 2)}"
             };
+            if (stackCycleUsed > 0)
+            {
+                reasonTrace.Add($"stack:cycle:{stackCycleUsed}");
+            }
             if (reasonByRoundIndex.TryGetValue(nextRoundIndex, out var extraReasons))
             {
                 reasonTrace.AddRange(extraReasons);
@@ -549,6 +717,8 @@ public static class CogitaCoreRuntimeEndpoints
             var outcomeClass = CogitaKnownessCore.NormalizeOutcomeClass(request.OutcomeClass);
             var revealedUtc = request.RevealedUtc ?? now;
             var promptShownUtc = request.PromptShownUtc ?? now;
+            var correctAnswerForDiagnostics = ExtractCorrectAnswer(cardDefinition.RevealJson);
+            var charComparison = BuildCharComparison(request.Answer, correctAnswerForDiagnostics);
 
             var exposure = await dbContext.CogitaRunExposures
                 .FirstOrDefaultAsync(
@@ -616,7 +786,8 @@ public static class CogitaCoreRuntimeEndpoints
                     outcomeClass,
                     responseDurationMs = request.ResponseDurationMs,
                     totalPoints,
-                    scoreFactors
+                    scoreFactors,
+                    charComparison
                 }, JsonOptions),
                 CreatedUtc = now
             });
@@ -674,6 +845,7 @@ public static class CogitaCoreRuntimeEndpoints
                 totalPoints,
                 scoreFactors,
                 reveal,
+                charComparison,
                 knownessUpdate.Snapshot,
                 knownessUpdate.Propagation));
         });
@@ -1683,7 +1855,7 @@ public static class CogitaCoreRuntimeEndpoints
             LibraryId = libraryId,
             TypeKey = typeKey,
             Version = 1,
-            DisplayName = itemType == "connection" ? "Legacy Connection" : "Legacy Info",
+            DisplayName = itemType == "connection" ? "Legacy Connection" : "Legacy Knowledge Item",
             SpecJson = "{\"source\":\"legacy-review-outcomes\"}",
             CreatedUtc = now,
             UpdatedUtc = now
@@ -2261,6 +2433,43 @@ public static class CogitaCoreRuntimeEndpoints
         }
     }
 
+    private static CoreCharComparisonResponse? BuildCharComparison(string? participantAnswer, string? correctAnswer)
+    {
+        if (string.IsNullOrWhiteSpace(participantAnswer) || string.IsNullOrWhiteSpace(correctAnswer))
+        {
+            return null;
+        }
+
+        var expected = correctAnswer.Trim();
+        var actual = participantAnswer.Trim();
+        var comparedLength = Math.Max(expected.Length, actual.Length);
+        if (comparedLength == 0)
+        {
+            return new CoreCharComparisonResponse(0, 0, 100d, Array.Empty<CoreCharMismatchResponse>());
+        }
+
+        var mismatchCount = 0;
+        var mismatches = new List<CoreCharMismatchResponse>();
+        for (var index = 0; index < comparedLength; index++)
+        {
+            var expectedChar = index < expected.Length ? expected[index].ToString() : null;
+            var actualChar = index < actual.Length ? actual[index].ToString() : null;
+            if (string.Equals(expectedChar, actualChar, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            mismatchCount++;
+            if (mismatches.Count < 64)
+            {
+                mismatches.Add(new CoreCharMismatchResponse(index, expectedChar, actualChar));
+            }
+        }
+
+        var similarityPct = Math.Round(Math.Max(0d, Math.Min(100d, ((comparedLength - mismatchCount) / (double)comparedLength) * 100d)), 2);
+        return new CoreCharComparisonResponse(comparedLength, mismatchCount, similarityPct, mismatches);
+    }
+
     private static ParsedAttemptEventPayload SafeParseEventPayload(string? payloadJson)
     {
         if (string.IsNullOrWhiteSpace(payloadJson))
@@ -2307,6 +2516,54 @@ public static class CogitaCoreRuntimeEndpoints
         }
     }
 
+    private static ParsedStackPayload SafeParseStackPayload(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return ParsedStackPayload.Empty;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return ParsedStackPayload.Empty;
+            }
+
+            var cycle = 0;
+            if (root.TryGetProperty("cycle", out var cycleProp) && cycleProp.TryGetInt32(out var parsedCycle))
+            {
+                cycle = Math.Max(0, parsedCycle);
+            }
+
+            int? blockedCount = null;
+            if (root.TryGetProperty("blockedCount", out var blockedProp) && blockedProp.TryGetInt32(out var parsedBlocked))
+            {
+                blockedCount = Math.Max(0, parsedBlocked);
+            }
+
+            var roundIndexes = new List<int>();
+            if (root.TryGetProperty("roundIndexes", out var roundsProp) && roundsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var round in roundsProp.EnumerateArray())
+                {
+                    if (round.TryGetInt32(out var parsedRound) && parsedRound >= 0)
+                    {
+                        roundIndexes.Add(parsedRound);
+                    }
+                }
+            }
+
+            return new ParsedStackPayload(cycle, roundIndexes, blockedCount);
+        }
+        catch
+        {
+            return ParsedStackPayload.Empty;
+        }
+    }
+
     private sealed class MutableParticipantStats
     {
         public Guid ParticipantId { get; set; }
@@ -2329,6 +2586,14 @@ public static class CogitaCoreRuntimeEndpoints
         public static readonly ParsedAttemptEventPayload Empty = new("wrong", 0, 0, null);
     }
 
+    private readonly record struct ParsedStackPayload(
+        int Cycle,
+        IReadOnlyList<int> RoundIndexes,
+        int? BlockedCount)
+    {
+        public static readonly ParsedStackPayload Empty = new(0, Array.Empty<int>(), null);
+    }
+
     private readonly record struct CoreCardRow(Guid Id, string CardKey);
 
     public sealed record CreateCoreRunRequest(
@@ -2342,7 +2607,8 @@ public static class CogitaCoreRuntimeEndpoints
     public sealed record JoinCoreRunRequest(
         [property: JsonPropertyName("personRoleId")] Guid? PersonRoleId,
         [property: JsonPropertyName("displayName")] string? DisplayName,
-        [property: JsonPropertyName("isHost")] bool IsHost);
+        [property: JsonPropertyName("isHost")] bool IsHost,
+        [property: JsonPropertyName("recoveryToken")] string? RecoveryToken);
 
     public sealed record SetCoreRunStatusRequest(
         [property: JsonPropertyName("status")] string Status,
@@ -2433,7 +2699,9 @@ public static class CogitaCoreRuntimeEndpoints
         bool IsHost,
         bool IsConnected,
         DateTimeOffset JoinedUtc,
-        DateTimeOffset UpdatedUtc);
+        DateTimeOffset UpdatedUtc,
+        string? RecoveryToken,
+        DateTimeOffset? RecoveryExpiresUtc);
 
     public sealed record CoreRunParticipantProgressResponse(
         int AttemptCount,
@@ -2506,6 +2774,17 @@ public static class CogitaCoreRuntimeEndpoints
         double ChildContribution,
         double ParentKnowness);
 
+    public sealed record CoreCharMismatchResponse(
+        int Index,
+        string? Expected,
+        string? Actual);
+
+    public sealed record CoreCharComparisonResponse(
+        int ComparedLength,
+        int MismatchCount,
+        double SimilarityPct,
+        IReadOnlyList<CoreCharMismatchResponse> MismatchesPreview);
+
     public sealed record CoreRunAttemptResponse(
         Guid AttemptId,
         Guid RunId,
@@ -2519,6 +2798,7 @@ public static class CogitaCoreRuntimeEndpoints
         int TotalPoints,
         IReadOnlyList<CoreScoreFactorResponse> ScoreFactors,
         CoreRevealResponse Reveal,
+        CoreCharComparisonResponse? CharComparison,
         CoreKnownessSnapshotResponse? KnownessSnapshot,
         IReadOnlyList<CoreKnownessPropagationResponse> KnownessPropagation);
 

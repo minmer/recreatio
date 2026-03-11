@@ -35,7 +35,7 @@ export function CogitaCollectionDetailPage({
   collectionId: string;
 }) {
   const navigate = useNavigate();
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const [totalCount, setTotalCount] = useState(0);
   const [cards, setCards] = useState<CogitaCardSearchResult[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
@@ -92,7 +92,7 @@ export function CogitaCollectionDetailPage({
     setDeleteStatus(null);
     try {
       await deleteCogitaCollection({ libraryId, collectionId });
-      navigate(`/cogita/library/${libraryId}/collections`, { replace: true });
+      navigate(`/cogita/workspace/libraries/${libraryId}/collections`, { replace: true });
     } catch (error) {
       if (error instanceof ApiError && error.message) {
         try {

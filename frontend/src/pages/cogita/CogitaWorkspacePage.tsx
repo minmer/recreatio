@@ -44,14 +44,13 @@ import { CogitaCollectionCreatePage } from './library/collections/CogitaCollecti
 import { CogitaRevisionListPage } from './library/collections/CogitaRevisionListPage';
 import { CogitaRevisionOverviewPage } from './library/collections/CogitaRevisionOverviewPage';
 import { CogitaRevisionSettingsPage } from './library/collections/CogitaRevisionSettingsPage';
-import { CogitaRevisionRunPage } from './library/collections/CogitaRevisionRunPage';
 import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevisionLiveSessionsPage';
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
 import { createWorkspaceTransfer } from '../../cogita/workspace/transfer';
 
-type RevisionView = 'detail' | 'graph' | 'settings' | 'run' | 'live' | 'new';
+type RevisionView = 'detail' | 'graph' | 'settings' | 'live' | 'new';
 type LiveSessionView = 'list' | 'new' | 'detail' | 'edit';
 type DependencyView = 'search' | 'create' | 'overview' | 'edit';
 type CogitaTarget =
@@ -118,6 +117,7 @@ type TutorialSlide = { step: string; title: string; lead: string; passages: stri
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
 const REVIEWER_PREFS_ITEM_NAME = 'cogita.reviewer.preferences';
+const WORKSPACE_LAST_PATH_KEY = 'cogita.workspace.last.path';
 const TARGET_OPTIONS: CogitaTarget[] = [
   'library_overview',
   'all_cards',
@@ -142,7 +142,7 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   new_text: { requiresCollection: false, allowsRevision: false },
   dependencies: { requiresCollection: false, allowsRevision: false }
 };
-const REVISION_SELECTION_VIEWS: RevisionView[] = ['detail', 'settings', 'run', 'live'];
+const REVISION_SELECTION_VIEWS: RevisionView[] = ['detail', 'settings', 'live'];
 const SIDEBAR_NAV_LABEL_MAX = 30;
 const BREADCRUMB_NAV_LABEL_MAX = 42;
 
@@ -155,14 +155,33 @@ function shortenNavLabel(label: string, maxLength: number) {
 
 function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPath {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments[0] !== 'cogita' || segments[1] !== 'library') {
+  if (segments[0] !== 'cogita') {
     return {};
   }
 
-  const libraryId = segments[2];
+  if (segments[1] !== 'workspace') {
+    return {};
+  }
+
+  if (!segments[2]) {
+    return {};
+  }
+
+  if (segments[2] !== 'libraries') {
+    return {};
+  }
+
+  const libraryId = segments[3];
   if (!libraryId) {
     return {};
   }
+
+  const section = segments[4];
+  const sectionArg1 = segments[5];
+  const sectionArg2 = segments[6];
+  const sectionArg3 = segments[7];
+  const sectionArg4 = segments[8];
+
   const searchParams = new URLSearchParams(search);
   const filterCollectionId = (searchParams.get('filterCollectionId') ?? '').trim() || undefined;
   const dependencyGraphId = (searchParams.get('graphId') ?? '').trim() || undefined;
@@ -180,32 +199,36 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
             : undefined;
   const dependencyView: DependencyView | undefined = dependencyViewBase ?? (dependencyGraphId ? 'overview' : 'search');
 
-  if (!segments[3]) {
+  if (!section) {
     return { libraryId, target: 'library_overview' };
   }
 
-  if (segments[3] === 'infos') {
-    const infoId = segments[4];
+  if (section === 'cards') {
+    return { libraryId, target: 'all_cards', cardMode: 'list' };
+  }
+
+  if (section === 'infos' || section === 'knowledge-items') {
+    const infoId = sectionArg1;
     if (!infoId) {
       return { libraryId, target: 'all_cards', cardMode: 'list' };
     }
     if (infoId === 'new') {
       return { libraryId, target: 'new_card' };
     }
-    if (segments[5] === 'edit') {
+    if (sectionArg2 === 'edit') {
       return { libraryId, target: 'new_card', infoId };
     }
-    if (segments[5] === 'checkcards') {
+    if (sectionArg2 === 'checkcards' || sectionArg2 === 'cards') {
       return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'cards' };
     }
-    if (segments[5] === 'collections') {
+    if (sectionArg2 === 'collections') {
       return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'collections' };
     }
     return { libraryId, target: 'all_cards', cardMode: 'list', infoId, infoView: 'overview' };
   }
 
-  if (segments[3] === 'revisions') {
-    const revisionId = segments[4];
+  if (section === 'revisions') {
+    const revisionId = sectionArg1;
     if (!revisionId) {
       return { libraryId, target: 'all_revisions', filterCollectionId };
     }
@@ -216,26 +239,26 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
       return { libraryId, target: 'all_revisions', revisionView: 'new', filterCollectionId };
     }
     if (revisionId === 'run') {
-      return { libraryId, target: 'all_revisions', revisionView: 'run', filterCollectionId };
+      return { libraryId, target: 'all_revisions', filterCollectionId };
     }
-    if (segments[5] === 'run') {
-      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'run', filterCollectionId };
-    }
-    if (segments[5] === 'shared') {
+    if (sectionArg2 === 'run') {
       return { libraryId, target: 'all_revisions', revisionId, revisionView: 'detail', filterCollectionId };
     }
-    if (segments[5] === 'edit') {
+    if (sectionArg2 === 'shared') {
+      return { libraryId, target: 'all_revisions', revisionId, revisionView: 'detail', filterCollectionId };
+    }
+    if (sectionArg2 === 'edit') {
       return { libraryId, target: 'all_revisions', revisionId, revisionView: 'settings', filterCollectionId };
     }
-    if (segments[5] === 'live-sessions') {
-      const liveSessionId = segments[6];
+    if (sectionArg2 === 'live-sessions') {
+      const liveSessionId = sectionArg3;
       if (!liveSessionId) {
         return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'list', filterCollectionId };
       }
       if (liveSessionId === 'new') {
         return { libraryId, target: 'all_revisions', revisionId, revisionView: 'live', liveSessionView: 'new', filterCollectionId };
       }
-      if (segments[7] === 'edit') {
+      if (sectionArg4 === 'edit') {
         return {
           libraryId,
           target: 'all_revisions',
@@ -259,7 +282,7 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     return { libraryId, target: 'all_revisions', revisionId, revisionView: 'detail', filterCollectionId };
   }
 
-  if (segments[3] === 'dependencies') {
+  if (section === 'dependencies') {
     return {
       libraryId,
       target: 'dependencies',
@@ -269,42 +292,42 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     };
   }
 
-  if (segments[3] === 'transfer') {
+  if (section === 'transfer') {
     return { libraryId, target: 'transfer' };
   }
 
-  if (segments[3] === 'storyboards') {
-    if (segments[4] === 'new') {
+  if (section === 'storyboards') {
+    if (sectionArg1 === 'new') {
       return { libraryId, target: 'new_storyboard' };
     }
     return { libraryId, target: 'storyboards' };
   }
 
-  if (segments[3] === 'texts') {
-    if (segments[4] === 'new') {
+  if (section === 'texts' || section === 'writings') {
+    if (sectionArg1 === 'new') {
       return { libraryId, target: 'new_text' };
     }
     return { libraryId, target: 'texts' };
   }
 
-  if (segments[3] !== 'collections') {
+  if (section !== 'collections') {
     return { libraryId, target: 'library_overview' };
   }
 
-  const collectionId = segments[4];
+  const collectionId = sectionArg1;
   if (!collectionId) {
     return { libraryId, target: 'all_collections' };
   }
   if (collectionId === 'new') {
     return { libraryId, target: 'new_collection' };
   }
-  if (segments[5] === 'edit') {
+  if (sectionArg2 === 'edit') {
     return { libraryId, target: 'all_collections', collectionId, revisionView: 'graph' };
   }
-  if (segments[5] === 'revisions') {
+  if (sectionArg2 === 'revisions') {
     return { libraryId, target: 'all_revisions', collectionId, filterCollectionId: collectionId };
   }
-  if (segments[5] === 'infos') {
+  if (sectionArg2 === 'infos' || sectionArg2 === 'knowledge-items' || sectionArg2 === 'cards') {
     return { libraryId, target: 'all_cards', collectionId, cardMode: 'list', filterCollectionId: collectionId };
   }
   return { libraryId, target: 'all_collections', collectionId, revisionView: 'detail', collectionView: 'overview' };
@@ -326,91 +349,93 @@ function buildCogitaPath(
   dependencyView: DependencyView = 'search',
   dependencyTransferToken?: string
 ): string {
+  const workspaceBase = `/cogita/workspace/libraries/${libraryId}`;
+
   const buildRevisionPath = (id?: string, view?: RevisionView) => {
     if (!id) {
-      if (view === 'new' || view === 'run') return `/cogita/library/${libraryId}/revisions/${view}`;
-      if (view === 'live') return `/cogita/library/${libraryId}/revisions/live-sessions`;
-      return `/cogita/library/${libraryId}/revisions`;
+      if (view === 'new') return `${workspaceBase}/revisions/${view}`;
+      if (view === 'live') return `${workspaceBase}/revisions/live-sessions`;
+      return `${workspaceBase}/revisions`;
     }
-    if (view === 'settings') return `/cogita/library/${libraryId}/revisions/${id}/edit`;
-    if (view === 'run') return `/cogita/library/${libraryId}/revisions/${id}/run`;
+    if (view === 'settings') return `${workspaceBase}/revisions/${id}/edit`;
     if (view === 'live') {
       if (liveSessionView === 'new') {
-        return `/cogita/library/${libraryId}/revisions/${id}/live-sessions/new`;
+        return `${workspaceBase}/revisions/${id}/live-sessions/new`;
       }
       if (liveSessionId) {
         return liveSessionView === 'edit'
-          ? `/cogita/library/${libraryId}/revisions/${id}/live-sessions/${liveSessionId}/edit`
-          : `/cogita/library/${libraryId}/revisions/${id}/live-sessions/${liveSessionId}`;
+          ? `${workspaceBase}/revisions/${id}/live-sessions/${liveSessionId}/edit`
+          : `${workspaceBase}/revisions/${id}/live-sessions/${liveSessionId}`;
       }
-      return `/cogita/library/${libraryId}/revisions/${id}/live-sessions`;
+      return `${workspaceBase}/revisions/${id}/live-sessions`;
     }
-    return `/cogita/library/${libraryId}/revisions/${id}`;
+    return `${workspaceBase}/revisions/${id}`;
   };
+
   if (!libraryId) {
-    return '/cogita';
+    return '/cogita/workspace';
   }
   if (target === 'library_overview') {
-    return `/cogita/library/${libraryId}`;
+    return workspaceBase;
   }
   if (target === 'all_cards') {
     if (filterCollectionId && !infoId) {
-      return `/cogita/library/${libraryId}/collections/${filterCollectionId}/infos`;
+      return `${workspaceBase}/collections/${filterCollectionId}/cards`;
     }
     if (infoId) {
       if (infoView === 'cards') {
-        return `/cogita/library/${libraryId}/infos/${infoId}/checkcards`;
+        return `${workspaceBase}/knowledge-items/${infoId}/cards`;
       }
       if (infoView === 'collections') {
-        return `/cogita/library/${libraryId}/infos/${infoId}/collections`;
+        return `${workspaceBase}/knowledge-items/${infoId}/collections`;
       }
-      return `/cogita/library/${libraryId}/infos/${infoId}`;
+      return `${workspaceBase}/knowledge-items/${infoId}`;
     }
-    return `/cogita/library/${libraryId}/infos`;
+    return `${workspaceBase}/cards`;
   }
   if (target === 'new_card') {
     if (infoId) {
-      return `/cogita/library/${libraryId}/infos/${infoId}/edit`;
+      return `${workspaceBase}/knowledge-items/${infoId}/edit`;
     }
-    return `/cogita/library/${libraryId}/infos/new`;
+    return `${workspaceBase}/knowledge-items/new`;
   }
   if (target === 'all_revisions') {
     if (filterCollectionId && !revisionId && (!revisionView || revisionView === 'settings')) {
-      return `/cogita/library/${libraryId}/collections/${filterCollectionId}/revisions`;
+      return `${workspaceBase}/collections/${filterCollectionId}/revisions`;
     }
     return buildRevisionPath(revisionId, revisionView);
   }
   if (target === 'all_collections') {
-    if (revisionView === 'settings' || revisionView === 'run' || revisionView === 'live' || revisionView === 'new') {
+    if (revisionView === 'settings' || revisionView === 'live' || revisionView === 'new') {
       return buildRevisionPath(revisionId, revisionView);
     }
     if (!collectionId) {
-      return `/cogita/library/${libraryId}/collections`;
+      return `${workspaceBase}/collections`;
     }
     if (revisionView === 'graph') {
-      return `/cogita/library/${libraryId}/collections/${collectionId}/edit`;
+      return `${workspaceBase}/collections/${collectionId}/edit`;
     }
     return collectionView === 'infos'
-      ? `/cogita/library/${libraryId}/collections/${collectionId}/infos`
-      : `/cogita/library/${libraryId}/collections/${collectionId}`;
+      ? `${workspaceBase}/collections/${collectionId}/knowledge-items`
+      : `${workspaceBase}/collections/${collectionId}`;
   }
   if (target === 'new_collection') {
-    return `/cogita/library/${libraryId}/collections/new`;
+    return `${workspaceBase}/collections/new`;
   }
   if (target === 'transfer') {
-    return `/cogita/library/${libraryId}/transfer`;
+    return `${workspaceBase}/transfer`;
   }
   if (target === 'storyboards') {
-    return `/cogita/library/${libraryId}/storyboards`;
+    return `${workspaceBase}/storyboards`;
   }
   if (target === 'new_storyboard') {
-    return `/cogita/library/${libraryId}/storyboards/new`;
+    return `${workspaceBase}/storyboards/new`;
   }
   if (target === 'texts') {
-    return `/cogita/library/${libraryId}/texts`;
+    return `${workspaceBase}/writings`;
   }
   if (target === 'new_text') {
-    return `/cogita/library/${libraryId}/texts/new`;
+    return `${workspaceBase}/writings/new`;
   }
   if (target === 'dependencies') {
     const params = new URLSearchParams();
@@ -419,9 +444,9 @@ function buildCogitaPath(
     if (dependencyView !== 'search') params.set('dependencyView', dependencyView);
     if (dependencyTransferToken) params.set('transfer', dependencyTransferToken);
     const qs = params.toString();
-    return `/cogita/library/${libraryId}/dependencies${qs ? `?${qs}` : ''}`;
+    return `${workspaceBase}/dependencies${qs ? `?${qs}` : ''}`;
   }
-  return `/cogita/library/${libraryId}`;
+  return workspaceBase;
 }
 
 function normalizePath(path: string) {
@@ -503,6 +528,16 @@ export function CogitaWorkspacePage({
   const pathState = useMemo(() => parseCogitaPath(location.pathname, location.search), [location.pathname, location.search]);
   const workspaceCopy = copy.cogita.workspace;
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const normalized = normalizePath(location.pathname);
+    if (!normalized.startsWith('/cogita/workspace')) {
+      return;
+    }
+    const nextPath = `${normalized}${location.search ?? ''}`;
+    window.localStorage.setItem(WORKSPACE_LAST_PATH_KEY, nextPath);
+  }, [location.pathname, location.search]);
+
   const [libraries, setLibraries] = useState<CogitaLibrary[]>([]);
   const [collections, setCollections] = useState<CogitaCollectionSummary[]>([]);
   const [infos, setInfos] = useState<CogitaInfoSearchResult[]>([]);
@@ -544,7 +579,10 @@ export function CogitaWorkspacePage({
     [collections, selectedCollectionId]
   );
 
-  const isPersonsPage = normalizePath(location.pathname) === '/cogita/persons';
+  const normalizedWorkspacePath = normalizePath(location.pathname);
+  const isPersonsPage =
+    normalizedWorkspacePath === '/cogita/persons' ||
+    normalizedWorkspacePath === '/cogita/workspace/persons';
 
   useEffect(() => {
     if (!selectedLibraryId) {
@@ -679,18 +717,18 @@ export function CogitaWorkspacePage({
       return [
         { step: 'Krok 1', title: 'Czym jest Cogita?', lead: 'To centrum budowania i prowadzenia procesu nauki po zalogowaniu.', passages: ['W jednym miejscu łączysz treści, ćwiczenia i współpracę zespołu.', 'Zamiast luźnych notatek dostajesz spójny przepływ: biblioteka → kolekcja → powtórka.'], focus: ['Jedna przestrzeń robocza', 'Spójny proces'], action: quickStart },
         { step: 'Krok 2', title: 'Zacznij od biblioteki', lead: 'Biblioteka jest bazą dla całego tematu.', passages: ['Nazwij bibliotekę jasno: np. „Historia Kościoła – semestr 1”.', 'Każdy kolejny moduł korzysta z tej samej biblioteki jako źródła.'], focus: ['Nazwa tematyczna', 'Jeden punkt startowy'], action: quickStart },
-        { step: 'Krok 3', title: 'Dodawaj informacje', lead: 'Twórz krótkie, konkretne jednostki wiedzy.', passages: ['Wpisy typu info opisują pojęcia, osoby, źródła i cytaty.', 'Małe jednostki łatwiej łączyć, powtarzać i aktualizować.'], focus: ['Krótko i konkretnie', 'Łatwe aktualizacje'], action: quickStart },
-        { step: 'Krok 4', title: 'Pracuj na typach', lead: 'Formularze dostosowują się do rodzaju informacji.', passages: ['Każdy typ pokazuje właściwe pola i porządkuje dane.', 'To zmniejsza chaos i poprawia jakość wyszukiwania.'], focus: ['Lepsza struktura', 'Mniej błędów'], action: quickStart },
+        { step: 'Krok 3', title: 'Dodawaj elementy wiedzy', lead: 'Twórz krótkie, konkretne jednostki wiedzy.', passages: ['Elementy wiedzy opisują pojęcia, osoby, źródła i cytaty.', 'Małe jednostki łatwiej łączyć, powtarzać i aktualizować.'], focus: ['Krótko i konkretnie', 'Łatwe aktualizacje'], action: quickStart },
+        { step: 'Krok 4', title: 'Pracuj na typach', lead: 'Formularze dostosowują się do rodzaju elementu wiedzy.', passages: ['Każdy typ pokazuje właściwe pola i porządkuje dane.', 'To zmniejsza chaos i poprawia jakość wyszukiwania.'], focus: ['Lepsza struktura', 'Mniej błędów'], action: quickStart },
         { step: 'Krok 5', title: 'Łącz wiedzę linkami', lead: 'Buduj kontekst przez relacje między wpisami.', passages: ['Połącz temat z definicją, źródłem i przykładem.', 'Graf relacji pomaga zobaczyć, czego brakuje przed kolejnym etapem.'], focus: ['Relacje między wpisami', 'Pełniejszy kontekst'], action: quickStart },
         { step: 'Krok 6', title: 'Twórz kolekcje celu', lead: 'Kolekcja grupuje wpisy pod konkretny scenariusz.', passages: ['Osobna kolekcja dla lekcji, osobna dla quizu lub egzaminu.', 'Nie duplikujesz treści — tylko wybierasz, co jest potrzebne.'], focus: ['Celowe grupowanie', 'Bez duplikatów'], action: quickStart },
         { step: 'Krok 7', title: 'Dodawaj powtórki', lead: 'Powtórka definiuje jak przebiega sprawdzanie.', passages: ['Ustaw tempo, kolejność i zakres materiału.', 'Dla jednej kolekcji możesz mieć kilka powtórek o różnych poziomach.'], focus: ['Kontrola tempa', 'Różne poziomy'], action: quickStart },
-        { step: 'Krok 8', title: 'Info vs karta', lead: 'Rozróżniaj źródło wiedzy i widok ćwiczeniowy.', passages: ['Info to rekord bazowy, który przechowuje treść.', 'Karta to forma pytania/utrwalenia generowana z info.'], focus: ['Źródło danych', 'Widok ćwiczeń'], action: quickStart },
+        { step: 'Krok 8', title: 'Element wiedzy vs karta', lead: 'Rozróżniaj źródło wiedzy i widok ćwiczeniowy.', passages: ['Element wiedzy to rekord bazowy, który przechowuje treść.', 'Karta to forma pytania/utrwalenia generowana z elementu wiedzy.'], focus: ['Źródło danych', 'Widok ćwiczeń'], action: quickStart },
         { step: 'Krok 9', title: 'Uruchamiaj sesję', lead: 'Tryb Run prowadzi uczestników krok po kroku.', passages: ['Prowadzący kontroluje rytm i przejścia między etapami.', 'Uczestnicy mają jasny przebieg bez zgadywania, co dalej.'], focus: ['Płynny przebieg', 'Lepsza dynamika grupy'], action: quickStart },
         { step: 'Krok 10', title: 'Czytaj graf zależności', lead: 'Graf pokazuje priorytety nauki.', passages: ['Węzły centralne oznaczają tematy, które wpływają na wiele innych.', 'Najpierw utrwal fundamenty, potem przechodź do warstw zaawansowanych.'], focus: ['Priorytety materiału', 'Lepsza kolejność'], action: quickStart },
         { step: 'Krok 11', title: 'Storyboard i teksty', lead: 'Plan i notatki trzymaj blisko wiedzy źródłowej.', passages: ['Storyboard układa narrację i przebieg spotkania.', 'Teksty zbierają komentarze, wnioski i gotowe treści do publikacji.'], focus: ['Lepsze przygotowanie', 'Notatki w kontekście'], action: quickStart },
         { step: 'Krok 12', title: 'Udostępniaj bezpiecznie', lead: 'Dziel się materiałem bez utraty kontroli.', passages: ['Możesz dać dostęp tylko do odczytu dla wybranych osób.', 'Edycja pozostaje po stronie autora lub zespołu prowadzącego.'], focus: ['Kontrola uprawnień', 'Bezpieczne współdzielenie'], action: quickStart },
         { step: 'Krok 13', title: 'Nawiguj warstwowo', lead: 'Sidebar i breadcrumb prowadzą przez poziomy.', passages: ['Zawsze widzisz, czy pracujesz na bibliotece, kolekcji czy powtórce.', 'Mniej kliknięć „w ciemno”, więcej świadomej nawigacji.'], focus: ['Orientacja w systemie', 'Szybsze decyzje'], action: quickStart },
-        { step: 'Krok 14', title: 'Plan wdrożenia 30 minut', lead: 'Najpierw prosty pilot, potem rozwijaj.', passages: ['Plan: 1 biblioteka, 10 wpisów info, 1 kolekcja, 1 powtórka testowa.', 'Po pierwszej sesji popraw strukturę i dodaj kolejne scenariusze.'], focus: ['Szybki start', 'Iteracyjne doskonalenie'], action: 'Gotowe? Załóż bibliotekę po prawej i przejdź do pierwszego wpisu.' }
+        { step: 'Krok 14', title: 'Plan wdrożenia 30 minut', lead: 'Najpierw prosty pilot, potem rozwijaj.', passages: ['Plan: 1 biblioteka, 10 elementów wiedzy, 1 kolekcja, 1 powtórka testowa.', 'Po pierwszej sesji popraw strukturę i dodaj kolejne scenariusze.'], focus: ['Szybki start', 'Iteracyjne doskonalenie'], action: 'Gotowe? Załóż bibliotekę po prawej i przejdź do pierwszego wpisu.' }
       ];
     }
 
@@ -698,36 +736,36 @@ export function CogitaWorkspacePage({
       return [
         { step: 'Schritt 1', title: 'Was ist Cogita?', lead: 'Ein zentraler Workspace für Lernen und Moderation nach dem Login.', passages: ['Du verbindest Inhalte, Übungen und Teamarbeit in einem Ablauf.', 'Der Prozess bleibt klar: Bibliothek → Sammlung → Wiederholung.'], focus: ['Ein Workspace', 'Klarer Ablauf'], action: quickStart },
         { step: 'Schritt 2', title: 'Mit Bibliothek starten', lead: 'Die Bibliothek ist der Startpunkt für dein Thema.', passages: ['Vergib einen klaren Namen für Kurs oder Modul.', 'Alle weiteren Bereiche greifen auf diese Basis zu.'], focus: ['Sauberer Start', 'Gemeinsame Basis'], action: quickStart },
-        { step: 'Schritt 3', title: 'Infos anlegen', lead: 'Erfasse Wissen in kleinen, klaren Einträgen.', passages: ['Info-Einträge enthalten Begriffe, Personen, Quellen und Zitate.', 'Kleinere Einheiten lassen sich besser verknüpfen und trainieren.'], focus: ['Kleine Einheiten', 'Leicht wartbar'], action: quickStart },
-        { step: 'Schritt 4', title: 'Typbasierte Eingabe', lead: 'Formulare passen sich automatisch dem Info-Typ an.', passages: ['Dadurch bleiben Daten strukturiert und konsistent.', 'Das verbessert Qualität und Auffindbarkeit.'], focus: ['Konsistenz', 'Bessere Suche'], action: quickStart },
+        { step: 'Schritt 3', title: 'Wissenseinträge anlegen', lead: 'Erfasse Wissen in kleinen, klaren Einträgen.', passages: ['Wissenseinträge enthalten Begriffe, Personen, Quellen und Zitate.', 'Kleinere Einheiten lassen sich besser verknüpfen und trainieren.'], focus: ['Kleine Einheiten', 'Leicht wartbar'], action: quickStart },
+        { step: 'Schritt 4', title: 'Typbasierte Eingabe', lead: 'Formulare passen sich automatisch dem Wissens-Typ an.', passages: ['Dadurch bleiben Daten strukturiert und konsistent.', 'Das verbessert Qualität und Auffindbarkeit.'], focus: ['Konsistenz', 'Bessere Suche'], action: quickStart },
         { step: 'Schritt 5', title: 'Wissen verlinken', lead: 'Verbinde Einträge zu einem Kontextnetz.', passages: ['Thema, Quelle und Beispiel werden als Beziehung sichtbar.', 'So erkennst du Lücken vor der nächsten Lernphase.'], focus: ['Kontextnetz', 'Lücken erkennen'], action: quickStart },
         { step: 'Schritt 6', title: 'Ziel-Sammlungen bauen', lead: 'Eine Sammlung bündelt Inhalte für einen konkreten Zweck.', passages: ['Nutze getrennte Sammlungen für Unterricht, Quiz oder Prüfung.', 'Du wählst Inhalte aus statt sie zu kopieren.'], focus: ['Zielorientierung', 'Keine Duplikate'], action: quickStart },
         { step: 'Schritt 7', title: 'Wiederholungen erstellen', lead: 'Wiederholungen definieren den Prüfungsablauf.', passages: ['Tempo, Reihenfolge und Umfang sind pro Wiederholung steuerbar.', 'Mehrere Wiederholungen pro Sammlung sind möglich.'], focus: ['Ablaufsteuerung', 'Mehrere Niveaus'], action: quickStart },
-        { step: 'Schritt 8', title: 'Info und Karte', lead: 'Datenobjekt und Trainingsansicht sind getrennt.', passages: ['Info ist die Quelle der Inhalte.', 'Die Karte ist die Übungsansicht für Frage und Antwort.'], focus: ['Sauberes Modell', 'Wiederverwendbar'], action: quickStart },
+        { step: 'Schritt 8', title: 'Wissenseintrag und Karte', lead: 'Datenobjekt und Trainingsansicht sind getrennt.', passages: ['Der Wissenseintrag ist die Quelle der Inhalte.', 'Die Karte ist die Übungsansicht für Frage und Antwort.'], focus: ['Sauberes Modell', 'Wiederverwendbar'], action: quickStart },
         { step: 'Schritt 9', title: 'Sitzung durchführen', lead: 'Im Run-Modus führst du die Gruppe Schritt für Schritt.', passages: ['Moderation steuert Übergänge und Timing.', 'Teilnehmende folgen einem klaren Ablauf.'], focus: ['Klare Moderation', 'Stabile Dynamik'], action: quickStart },
         { step: 'Schritt 10', title: 'Abhängigkeitsgraph lesen', lead: 'Der Graph zeigt Lernprioritäten.', passages: ['Zentrale Knoten beeinflussen viele weitere Themen.', 'Starte mit Grundlagen und baue danach auf.'], focus: ['Priorisierung', 'Lernreihenfolge'], action: quickStart },
         { step: 'Schritt 11', title: 'Storyboard & Texte', lead: 'Plane Ablauf und sammle Notizen im selben Kontext.', passages: ['Storyboards strukturieren Sequenzen und Rollen.', 'Texte halten Erkenntnisse und veröffentlichungsreife Inhalte fest.'], focus: ['Planung', 'Dokumentation'], action: quickStart },
         { step: 'Schritt 12', title: 'Sicher teilen', lead: 'Teile Inhalte ohne Kontrollverlust.', passages: ['Leserechte sind separat von Bearbeitungsrechten steuerbar.', 'So bleibt der Kernbestand geschützt.'], focus: ['Rechtekontrolle', 'Sicheres Teilen'], action: quickStart },
         { step: 'Schritt 13', title: 'Ebenen-Navigation', lead: 'Sidebar und Breadcrumb zeigen deinen aktuellen Kontext.', passages: ['Du siehst sofort, auf welcher Ebene du arbeitest.', 'Das spart Zeit und reduziert Fehlklicks.'], focus: ['Orientierung', 'Effizienz'], action: quickStart },
-        { step: 'Schritt 14', title: '30-Minuten-Startplan', lead: 'Starte klein und erweitere iterativ.', passages: ['Plan: 1 Bibliothek, 10 Infos, 1 Sammlung, 1 Test-Wiederholung.', 'Nach der ersten Runde verbesserst du Struktur und Ablauf.'], focus: ['Schneller Einstieg', 'Iteratives Vorgehen'], action: 'Jetzt starten: Bibliothek rechts anlegen und den ersten Eintrag erfassen.' }
+        { step: 'Schritt 14', title: '30-Minuten-Startplan', lead: 'Starte klein und erweitere iterativ.', passages: ['Plan: 1 Bibliothek, 10 Wissenseinträge, 1 Sammlung, 1 Test-Wiederholung.', 'Nach der ersten Runde verbesserst du Struktur und Ablauf.'], focus: ['Schneller Einstieg', 'Iteratives Vorgehen'], action: 'Jetzt starten: Bibliothek rechts anlegen und den ersten Eintrag erfassen.' }
       ];
     }
 
     return [
       { step: 'Step 1', title: 'What is Cogita?', lead: 'A post-login workspace to design, run, and improve knowledge journeys.', passages: ['You can keep content, training flow, and collaboration in one place.', 'The path stays explicit: library → collection → revision → session.'], focus: ['Single workspace', 'Clear learning flow'], action: quickStart },
       { step: 'Step 2', title: 'Start with a library', lead: 'Your library is the root container for one domain or program.', passages: ['Name it after your course, cohort, or topic scope.', 'Every next module reuses this foundation.'], focus: ['Root container', 'Consistent base'], action: quickStart },
-      { step: 'Step 3', title: 'Add information units', lead: 'Build knowledge from small, reusable info entries.', passages: ['Capture terms, references, people, concepts, and citations.', 'Smaller entries are easier to link, review, and update.'], focus: ['Reusable units', 'Easy maintenance'], action: quickStart },
-      { step: 'Step 4', title: 'Use type-based forms', lead: 'Each info type has a matching data structure and fields.', passages: ['Form layouts adapt automatically to the selected type.', 'This improves consistency and lowers input mistakes.'], focus: ['Structured input', 'Fewer errors'], action: quickStart },
+      { step: 'Step 3', title: 'Add knowledge items', lead: 'Build knowledge from small, reusable knowledge item entries.', passages: ['Capture terms, references, people, concepts, and citations.', 'Smaller entries are easier to link, review, and update.'], focus: ['Reusable units', 'Easy maintenance'], action: quickStart },
+      { step: 'Step 4', title: 'Use type-based forms', lead: 'Each knowledge item type has a matching data structure and fields.', passages: ['Form layouts adapt automatically to the selected type.', 'This improves consistency and lowers input mistakes.'], focus: ['Structured input', 'Fewer errors'], action: quickStart },
       { step: 'Step 5', title: 'Link the knowledge graph', lead: 'Relationships turn isolated facts into usable context.', passages: ['Connect topics, sources, and supporting examples.', 'Dependency links show what must be learned first.'], focus: ['Context building', 'Better sequencing'], action: quickStart },
-      { step: 'Step 6', title: 'Build goal collections', lead: 'Collections package selected infos for a concrete objective.', passages: ['Create separate collections for class, quiz, exam, or workshop.', 'You curate from existing entries instead of duplicating content.'], focus: ['Goal-oriented sets', 'No duplication'], action: quickStart },
+      { step: 'Step 6', title: 'Build goal collections', lead: 'Collections package selected knowledge items for a concrete objective.', passages: ['Create separate collections for class, quiz, exam, or workshop.', 'You curate from existing entries instead of duplicating content.'], focus: ['Goal-oriented sets', 'No duplication'], action: quickStart },
       { step: 'Step 7', title: 'Create revisions', lead: 'Revisions define how practice and checking should run.', passages: ['Set pacing, order, and scope for each session style.', 'One collection can host multiple revision strategies.'], focus: ['Practice design', 'Multiple modes'], action: quickStart },
-      { step: 'Step 8', title: 'Understand info vs card', lead: 'Data objects and practice views are intentionally separate.', passages: ['Info is the canonical source object.', 'Card is the generated training/checking view.'], focus: ['Clear model', 'Reusable content'], action: quickStart },
+      { step: 'Step 8', title: 'Knowledge item vs card', lead: 'Data objects and practice views are intentionally separate.', passages: ['A knowledge item is the canonical source object.', 'A card is the generated training/checking view.'], focus: ['Clear model', 'Reusable content'], action: quickStart },
       { step: 'Step 9', title: 'Run live sessions', lead: 'Run mode helps facilitators guide each step with control.', passages: ['Move through prompts, responses, and timing intentionally.', 'Participants get a predictable and focused session rhythm.'], focus: ['Facilitator control', 'Group clarity'], action: quickStart },
       { step: 'Step 10', title: 'Read dependency graphs', lead: 'Graph views expose prerequisites and high-impact nodes.', passages: ['Central nodes usually deserve priority in onboarding.', 'Use this to plan revision order and reduce confusion.'], focus: ['Priority mapping', 'Smarter progression'], action: quickStart },
       { step: 'Step 11', title: 'Use storyboards and texts', lead: 'Plan narratives and keep notes near source knowledge.', passages: ['Storyboards model session structure and transitions.', 'Texts capture outcomes, drafts, and reusable explanations.'], focus: ['Planning layer', 'Contextual notes'], action: quickStart },
       { step: 'Step 12', title: 'Share safely', lead: 'Share read access without losing editorial control.', passages: ['Keep editing rights restricted to owners or maintainers.', 'Collaborators can consume material while core data stays protected.'], focus: ['Access control', 'Safe collaboration'], action: quickStart },
       { step: 'Step 13', title: 'Navigate by layers', lead: 'Sidebar and breadcrumb make system depth understandable.', passages: ['You always know whether you are at library, collection, or revision level.', 'Clear location awareness reduces wrong actions.'], focus: ['Fast orientation', 'Lower friction'], action: quickStart },
-      { step: 'Step 14', title: '30-minute launch plan', lead: 'Start with a minimum viable setup, then iterate.', passages: ['Plan: create 1 library, add 10 infos, build 1 collection, run 1 revision.', 'After the first run, refine structure and scale by scenario.'], focus: ['Immediate execution', 'Iterative improvement'], action: 'Ready now? Create your first library on the right and start adding knowledge.' }
+      { step: 'Step 14', title: '30-minute launch plan', lead: 'Start with a minimum viable setup, then iterate.', passages: ['Plan: create 1 library, add 10 knowledge items, build 1 collection, run 1 revision.', 'After the first run, refine structure and scale by scenario.'], focus: ['Immediate execution', 'Iterative improvement'], action: 'Ready now? Create your first library on the right and start adding knowledge.' }
     ];
   }, [language]);
   const tutorialTotal = tutorialSlides.length;
@@ -745,7 +783,6 @@ export function CogitaWorkspacePage({
         (selectedRevisionView === 'new' ||
           Boolean(selectedRevisionId) ||
           displayRevisionView === 'settings' ||
-          displayRevisionView === 'run' ||
           displayRevisionView === 'live')));
   const showRevisionLayer = isRevisionBranchActive;
   const showRevisionActionLayer = isRevisionBranchActive && Boolean(selectedRevisionId);
@@ -1137,7 +1174,7 @@ export function CogitaWorkspacePage({
             });
             if (!token) return;
             const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });
-            navigate(`/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`);
+            navigate(`/cogita/workspace/libraries/${selectedLibraryId}/dependencies?${query.toString()}`);
             return;
           }
           if (value === 'edit') {
@@ -1230,7 +1267,7 @@ export function CogitaWorkspacePage({
         value:
           displayRevisionView === 'graph'
             ? 'edit'
-            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'live')
+            : (displayRevisionView === 'settings' || displayRevisionView === 'live')
             ? 'revisions'
             : (pathState.collectionView ?? 'infos') === 'overview'
             ? 'overview'
@@ -1238,7 +1275,7 @@ export function CogitaWorkspacePage({
         selectedLabel:
           displayRevisionView === 'graph'
             ? workspaceCopy.infoActions.edit
-            : (displayRevisionView === 'settings' || displayRevisionView === 'run' || displayRevisionView === 'live')
+            : (displayRevisionView === 'settings' || displayRevisionView === 'live')
             ? workspaceCopy.targets.allRevisions
             : (pathState.collectionView ?? 'infos') === 'overview'
             ? workspaceCopy.infoActions.overview
@@ -1328,7 +1365,7 @@ export function CogitaWorkspacePage({
               collectionId: nextCollectionId,
               revisionId: selectedRevisionId,
               revisionView:
-                displayRevisionView === 'run' || displayRevisionView === 'live' || displayRevisionView === 'detail'
+                displayRevisionView === 'live' || displayRevisionView === 'detail'
                   ? displayRevisionView
                   : 'settings'
             });
@@ -1645,7 +1682,7 @@ export function CogitaWorkspacePage({
                 if (level.key === 'info_selected_action' && pathState.infoId) {
                   if (option.value === 'dependencies') {
                     const query = new URLSearchParams({ dependencyView: 'create' });
-                    return `/cogita/library/${selectedLibraryId}/dependencies?${query.toString()}`;
+                    return `/cogita/workspace/libraries/${selectedLibraryId}/dependencies?${query.toString()}`;
                   }
                   if (option.value === 'edit') {
                     return buildCogitaPath(
@@ -1785,7 +1822,7 @@ export function CogitaWorkspacePage({
                   }
                   if (option.value === 'selected' && selectedRevisionId) {
                     const mode =
-                      displayRevisionView === 'run' || displayRevisionView === 'live' || displayRevisionView === 'detail'
+                      displayRevisionView === 'live' || displayRevisionView === 'detail'
                         ? displayRevisionView
                         : 'settings';
                     return buildCogitaPath(selectedLibraryId, nextTarget, nextCollectionId, mode, selectedRevisionId, undefined, 'list', undefined, 'overview', 'infos', pathState.filterCollectionId);
@@ -1877,7 +1914,10 @@ export function CogitaWorkspacePage({
   );
   const embeddedSubpage = useMemo(() => {
     const libraryId = pathState.libraryId;
-    if (!libraryId || !location.pathname.startsWith('/cogita/library/')) {
+    if (
+      !libraryId ||
+      !location.pathname.startsWith('/cogita/workspace/libraries/')
+    ) {
       return null;
     }
 
@@ -1929,9 +1969,6 @@ export function CogitaWorkspacePage({
     if (pathState.target === 'all_revisions') {
       if (!pathState.revisionId && !pathState.revisionView) {
         return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
-      }
-      if (pathState.revisionView === 'run') {
-        return <CogitaRevisionRunPage {...baseProps} revisionId={pathState.revisionId} />;
       }
       if (pathState.revisionView === 'detail' && pathState.revisionId) {
         return <CogitaRevisionOverviewPage {...baseProps} revisionId={pathState.revisionId} />;
@@ -2384,15 +2421,16 @@ export function CogitaWorkspacePage({
     }
 
     const currentPath = normalizePath(`${location.pathname}${location.search ?? ''}`);
+    const normalizedPathname = normalizePath(location.pathname);
     const isMainCogitaPath =
-      normalizePath(location.pathname) === '/cogita' &&
+      (normalizedPathname === '/cogita/workspace' || normalizedPathname === '/cogita') &&
       !pathState.libraryId &&
       !selectedLibraryId;
     if (isMainCogitaPath) {
       lastNavigationRef.current = null;
       return;
     }
-    if (normalizePath(location.pathname) === '/cogita/persons') {
+    if (normalizedPathname === '/cogita/persons' || normalizedPathname === '/cogita/workspace/persons') {
       lastNavigationRef.current = null;
       return;
     }
@@ -2564,7 +2602,7 @@ export function CogitaWorkspacePage({
               onChange={(event) => {
                 const value = event.target.value;
                 if (value === '__new_person__') {
-                  navigate('/cogita/persons');
+                  navigate('/cogita/workspace/persons');
                   return;
                 }
                 setSelectedReviewerRoleId(value);
@@ -2579,7 +2617,7 @@ export function CogitaWorkspacePage({
               <option value="__new_person__">+ Create new person</option>
             </select>
           </label>
-          <button type="button" className="ghost" onClick={() => navigate('/cogita/persons')}>
+          <button type="button" className="ghost" onClick={() => navigate('/cogita/workspace/persons')}>
             Persons
           </button>
         </div>

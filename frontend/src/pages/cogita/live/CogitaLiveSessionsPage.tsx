@@ -144,7 +144,7 @@ export function CogitaLiveSessionsPage(props: {
       const code = encodeURIComponent(attached.code);
       if (mode === 'host') {
         navigate(
-          `/cogita/live-wall/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(item.revisionId)}?sessionId=${encodeURIComponent(
+          `/cogita/live/wall/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(item.revisionId)}?sessionId=${encodeURIComponent(
             attached.sessionId
           )}&hostSecret=${encodeURIComponent(attached.hostSecret)}&code=${code}`
         );
@@ -152,8 +152,8 @@ export function CogitaLiveSessionsPage(props: {
       }
       const target =
         mode === 'presenter'
-          ? `${window.location.origin}/#/cogita/live-wall/public/${code}`
-          : `${window.location.origin}/#/cogita/public/live-revision/${code}`;
+          ? `${window.location.origin}/#/cogita/live/wall/output/${code}`
+          : `${window.location.origin}/#/cogita/live/join/${code}`;
       window.open(target, '_blank', 'noopener');
     } finally {
       setBusySessionId(null);

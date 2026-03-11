@@ -19,10 +19,110 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
 
-const DISPLAY_NAME_STORAGE_KEY = 'cogita.core.displayName';
+const DISPLAY_NAME_STORAGE_KEY = 'cogita.revision.displayName';
+const LEGACY_DISPLAY_NAME_STORAGE_KEY = 'cogita.core.displayName';
+const RECENT_REVISIONS_STORAGE_KEY = 'cogita.revision.recent';
+
+type CoreCharComparison = {
+  comparedLength: number;
+  mismatchCount: number;
+  similarityPct: number;
+  mismatchesPreview: Array<{
+    index: number;
+    expected?: string | null;
+    actual?: string | null;
+  }>;
+};
+
+type RecentRevisionEntry = {
+  libraryId: string;
+  runId: string;
+  mode: 'solo' | 'shared' | 'group-async' | 'group-sync';
+  title?: string | null;
+  updatedUtc: string;
+};
+
+function normalizeRecentRevisionMode(scope: string | undefined): RecentRevisionEntry['mode'] | null {
+  if (scope === 'group_async' || scope === 'group-async') return 'group-async';
+  if (scope === 'group_sync' || scope === 'group-sync') return 'group-sync';
+  if (scope === 'shared') return 'shared';
+  if (scope === 'solo') return 'solo';
+  return null;
+}
+
+function pushRecentRevision(entry: RecentRevisionEntry) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(RECENT_REVISIONS_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as RecentRevisionEntry[]) : [];
+    const list = Array.isArray(parsed) ? parsed : [];
+    const next = [entry, ...list.filter((item) => !(item.libraryId === entry.libraryId && item.runId === entry.runId && item.mode === entry.mode))]
+      .slice(0, 12);
+    window.localStorage.setItem(RECENT_REVISIONS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore local storage parsing errors
+  }
+}
 
 function participantStorageKey(libraryId: string, runId: string) {
+  return `cogita.revision.participant.${libraryId}.${runId}`;
+}
+
+function sharedRecoveryStorageKey(libraryId: string, runId: string) {
+  return `cogita.revision.shared.recovery.${libraryId}.${runId}`;
+}
+
+function groupParticipantsStorageKey(libraryId: string, runId: string) {
+  return `cogita.revision.group.participants.${libraryId}.${runId}`;
+}
+
+function groupActiveParticipantStorageKey(libraryId: string, runId: string) {
+  return `cogita.revision.group.active.${libraryId}.${runId}`;
+}
+
+function legacyParticipantStorageKey(libraryId: string, runId: string) {
   return `cogita.core.participant.${libraryId}.${runId}`;
+}
+
+function legacySharedRecoveryStorageKey(libraryId: string, runId: string) {
+  return `cogita.core.shared.recovery.${libraryId}.${runId}`;
+}
+
+function legacyGroupParticipantsStorageKey(libraryId: string, runId: string) {
+  return `cogita.core.group.participants.${libraryId}.${runId}`;
+}
+
+function legacyGroupActiveParticipantStorageKey(libraryId: string, runId: string) {
+  return `cogita.core.group.active.${libraryId}.${runId}`;
+}
+
+function readStorage(primaryKey: string, legacyKey: string): string | null {
+  const primary = localStorage.getItem(primaryKey);
+  if (primary !== null) {
+    return primary;
+  }
+  return localStorage.getItem(legacyKey);
+}
+
+function writeStorage(primaryKey: string, legacyKey: string, value: string) {
+  localStorage.setItem(primaryKey, value);
+  localStorage.removeItem(legacyKey);
+}
+
+function removeStorage(primaryKey: string, legacyKey: string) {
+  localStorage.removeItem(primaryKey);
+  localStorage.removeItem(legacyKey);
+}
+
+function parseStoredParticipantIds(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((value) => String(value ?? '').trim()).filter((value) => value.length > 0);
+  } catch {
+    return [];
+  }
 }
 
 export function CogitaCoreRunPage({
@@ -37,7 +137,8 @@ export function CogitaCoreRunPage({
   language,
   onLanguageChange,
   libraryId,
-  runId
+  runId,
+  runScopeHint
 }: {
   copy: Copy;
   authLabel: string;
@@ -51,12 +152,17 @@ export function CogitaCoreRunPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   runId: string;
+  runScopeHint?: 'solo' | 'shared' | 'group_async' | 'group_sync';
 }) {
   const coreCopy = copy.cogita.core.run;
   const [runState, setRunState] = useState<CogitaCoreRunState | null>(null);
   const [participant, setParticipant] = useState<CogitaCoreRunParticipant | null>(null);
+  const [groupParticipants, setGroupParticipants] = useState<CogitaCoreRunParticipant[]>([]);
+  const [newParticipantName, setNewParticipantName] = useState('');
+  const [joiningParticipant, setJoiningParticipant] = useState(false);
   const [nextCard, setNextCard] = useState<CogitaCoreNextCard | null>(null);
   const [reveal, setReveal] = useState<CogitaCoreReveal | null>(null);
+  const [charComparison, setCharComparison] = useState<CoreCharComparison | null>(null);
   const [statistics, setStatistics] = useState<CogitaCoreRunStatistics | null>(null);
   const [answer, setAnswer] = useState('');
   const [promptShownUtc, setPromptShownUtc] = useState<string | null>(null);
@@ -65,6 +171,24 @@ export function CogitaCoreRunPage({
   const [error, setError] = useState<string | null>(null);
 
   const participantKey = useMemo(() => participantStorageKey(libraryId, runId), [libraryId, runId]);
+  const legacyParticipantKey = useMemo(() => legacyParticipantStorageKey(libraryId, runId), [libraryId, runId]);
+  const sharedRecoveryKey = useMemo(() => sharedRecoveryStorageKey(libraryId, runId), [libraryId, runId]);
+  const legacySharedRecoveryKey = useMemo(() => legacySharedRecoveryStorageKey(libraryId, runId), [libraryId, runId]);
+  const groupParticipantsKey = useMemo(() => groupParticipantsStorageKey(libraryId, runId), [libraryId, runId]);
+  const legacyGroupParticipantsKey = useMemo(() => legacyGroupParticipantsStorageKey(libraryId, runId), [libraryId, runId]);
+  const groupActiveParticipantKey = useMemo(() => groupActiveParticipantStorageKey(libraryId, runId), [libraryId, runId]);
+  const legacyGroupActiveParticipantKey = useMemo(
+    () => legacyGroupActiveParticipantStorageKey(libraryId, runId),
+    [libraryId, runId]
+  );
+  const isGroupScope = runState?.run.runScope === 'group_sync';
+  const isGroupSyncScope = runState?.run.runScope === 'group_sync';
+  const interactionLocked = working || joiningParticipant;
+  const visibleGroupParticipants = useMemo(() => {
+    if (!isGroupScope) return [];
+    if (groupParticipants.length > 0) return groupParticipants;
+    return runState?.participants ?? [];
+  }, [groupParticipants, isGroupScope, runState]);
 
   const refreshRunState = useCallback(
     async (participantId?: string | null) => {
@@ -83,35 +207,99 @@ export function CogitaCoreRunPage({
 
   const initializeParticipant = useCallback(
     async (state: CogitaCoreRunState) => {
-      const sharedEphemeral = state.run.runScope === 'shared';
-      const existingParticipantId = !sharedEphemeral ? localStorage.getItem(participantKey) : null;
+      const fallbackDisplayName =
+        readStorage(DISPLAY_NAME_STORAGE_KEY, LEGACY_DISPLAY_NAME_STORAGE_KEY) ?? coreCopy.defaultParticipantName;
+      const runScope = state.run.runScope;
+      const sharedEphemeral = runScope === 'shared';
+      const groupScoped = runScope === 'group_sync';
+
       if (sharedEphemeral) {
-        localStorage.removeItem(participantKey);
+        removeStorage(participantKey, legacyParticipantKey);
+        removeStorage(groupParticipantsKey, legacyGroupParticipantsKey);
+        removeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey);
+        const existingRecoveryToken = readStorage(sharedRecoveryKey, legacySharedRecoveryKey);
+        const joined = await joinCogitaCoreRun({
+          libraryId,
+          runId,
+          displayName: fallbackDisplayName,
+          isHost: false,
+          recoveryToken: existingRecoveryToken
+        });
+        if (joined.recoveryToken) {
+          writeStorage(sharedRecoveryKey, legacySharedRecoveryKey, joined.recoveryToken);
+        } else {
+          removeStorage(sharedRecoveryKey, legacySharedRecoveryKey);
+        }
+        writeStorage(DISPLAY_NAME_STORAGE_KEY, LEGACY_DISPLAY_NAME_STORAGE_KEY, joined.displayName || fallbackDisplayName);
+        setGroupParticipants([]);
+        setParticipant(joined);
+        return joined;
       }
 
+      removeStorage(sharedRecoveryKey, legacySharedRecoveryKey);
+
+      if (groupScoped) {
+        removeStorage(participantKey, legacyParticipantKey);
+        const storedParticipantIds = parseStoredParticipantIds(readStorage(groupParticipantsKey, legacyGroupParticipantsKey));
+        let roster = state.participants.filter((item) => storedParticipantIds.includes(item.participantId));
+        if (roster.length === 0) {
+          const joined = await joinCogitaCoreRun({
+            libraryId,
+            runId,
+            displayName: fallbackDisplayName,
+            isHost: false
+          });
+          roster = [joined];
+        }
+
+        const storedActiveId = readStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey);
+        const activeParticipant = roster.find((item) => item.participantId === storedActiveId) ?? roster[0];
+        writeStorage(groupParticipantsKey, legacyGroupParticipantsKey, JSON.stringify(roster.map((item) => item.participantId)));
+        writeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey, activeParticipant.participantId);
+        writeStorage(DISPLAY_NAME_STORAGE_KEY, LEGACY_DISPLAY_NAME_STORAGE_KEY, activeParticipant.displayName || fallbackDisplayName);
+        setGroupParticipants(roster);
+        setParticipant(activeParticipant);
+        return activeParticipant;
+      }
+
+      const existingParticipantId = readStorage(participantKey, legacyParticipantKey);
       if (existingParticipantId) {
         const cached = state.participants.find((item) => item.participantId === existingParticipantId);
         if (cached) {
+          setGroupParticipants([]);
           setParticipant(cached);
           return cached;
         }
       }
 
-      const fallbackDisplayName = localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? coreCopy.defaultParticipantName;
       const joined = await joinCogitaCoreRun({
         libraryId,
         runId,
         displayName: fallbackDisplayName,
-        isHost: false
+        isHost: false,
+        recoveryToken: null
       });
-      if (!sharedEphemeral) {
-        localStorage.setItem(participantKey, joined.participantId);
-      }
-      localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, joined.displayName || fallbackDisplayName);
+      writeStorage(participantKey, legacyParticipantKey, joined.participantId);
+      removeStorage(groupParticipantsKey, legacyGroupParticipantsKey);
+      removeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey);
+      writeStorage(DISPLAY_NAME_STORAGE_KEY, LEGACY_DISPLAY_NAME_STORAGE_KEY, joined.displayName || fallbackDisplayName);
+      setGroupParticipants([]);
       setParticipant(joined);
       return joined;
     },
-    [coreCopy.defaultParticipantName, libraryId, participantKey, runId]
+    [
+      coreCopy.defaultParticipantName,
+      groupActiveParticipantKey,
+      groupParticipantsKey,
+      legacyGroupActiveParticipantKey,
+      legacyGroupParticipantsKey,
+      legacyParticipantKey,
+      legacySharedRecoveryKey,
+      libraryId,
+      participantKey,
+      runId,
+      sharedRecoveryKey
+    ]
   );
 
   const loadNextCard = useCallback(async (participantIdOverride?: string | null) => {
@@ -127,6 +315,7 @@ export function CogitaCoreRunPage({
     });
     setNextCard(response);
     setReveal(null);
+    setCharComparison(null);
     setAnswer('');
     setPromptShownUtc(new Date().toISOString());
   }, [libraryId, participant, runId]);
@@ -139,14 +328,22 @@ export function CogitaCoreRunPage({
       try {
         await issueCsrf();
         if (runId === 'new') {
+          const runScope = runScopeHint ?? 'solo';
           const created = await createCogitaCoreRun({
             libraryId,
-            runScope: 'solo',
+            runScope,
             title: coreCopy.generatedRunTitle,
             status: 'lobby'
           });
           if (typeof window !== 'undefined') {
-            window.location.hash = `#/cogita/core/runs/${encodeURIComponent(libraryId)}/${encodeURIComponent(created.runId)}`;
+            const routeMode = runScope === 'group_async'
+              ? 'group-async'
+              : runScope === 'group_sync'
+                ? 'group-sync'
+                : runScope === 'shared'
+                  ? 'shared'
+                  : 'solo';
+            window.location.hash = `#/cogita/revision/${routeMode}/${encodeURIComponent(libraryId)}/${encodeURIComponent(created.runId)}`;
           }
           return;
         }
@@ -190,10 +387,57 @@ export function CogitaCoreRunPage({
     initializeParticipant,
     libraryId,
     loadNextCard,
+    runScopeHint,
     refreshRunState,
     refreshStatistics,
     runId
   ]);
+
+  useEffect(() => {
+    if (!runState) return;
+    if (!isGroupScope) {
+      setGroupParticipants([]);
+      return;
+    }
+    const storedIds = parseStoredParticipantIds(readStorage(groupParticipantsKey, legacyGroupParticipantsKey));
+    let roster = runState.participants.filter((item) => storedIds.includes(item.participantId));
+    if (roster.length === 0 && storedIds.length === 0 && participant) {
+      const current = runState.participants.find((item) => item.participantId === participant.participantId);
+      if (current) {
+        roster = [current];
+      }
+    }
+    if (roster.length === 0) return;
+    setGroupParticipants(roster);
+    writeStorage(groupParticipantsKey, legacyGroupParticipantsKey, JSON.stringify(roster.map((item) => item.participantId)));
+    const storedActiveId = readStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey);
+    const nextActive = roster.find((item) => item.participantId === storedActiveId) ?? roster[0];
+    writeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey, nextActive.participantId);
+    if (participant?.participantId !== nextActive.participantId) {
+      setParticipant(nextActive);
+    }
+  }, [
+    groupActiveParticipantKey,
+    groupParticipantsKey,
+    isGroupScope,
+    legacyGroupActiveParticipantKey,
+    legacyGroupParticipantsKey,
+    participant?.participantId,
+    runState
+  ]);
+
+  useEffect(() => {
+    if (runId === 'new') return;
+    const mode = normalizeRecentRevisionMode(runState?.run.runScope ?? runScopeHint);
+    if (!mode) return;
+    pushRecentRevision({
+      libraryId,
+      runId,
+      mode,
+      title: runState?.run.title ?? null,
+      updatedUtc: new Date().toISOString()
+    });
+  }, [libraryId, runId, runScopeHint, runState?.run.runScope, runState?.run.title]);
 
   const submitOutcome = useCallback(
     async (outcomeClass: 'correct' | 'wrong' | 'blank_timeout') => {
@@ -220,6 +464,7 @@ export function CogitaCoreRunPage({
         });
 
         setReveal(result.reveal);
+        setCharComparison(result.charComparison ?? null);
         await Promise.all([
           refreshRunState(participant.participantId),
           refreshStatistics()
@@ -249,6 +494,93 @@ export function CogitaCoreRunPage({
     }
   }, [coreCopy.nextFailed, loadNextCard, participant, refreshRunState]);
 
+  const handleSelectGroupParticipant = useCallback(async (
+    nextParticipant: CogitaCoreRunParticipant
+  ) => {
+    setParticipant(nextParticipant);
+    writeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey, nextParticipant.participantId);
+    setReveal(null);
+    setCharComparison(null);
+    setNextCard(null);
+    setAnswer('');
+    setPromptShownUtc(null);
+    if (!runState || runState.run.status === 'finished' || runState.run.status === 'archived') {
+      return;
+    }
+    setWorking(true);
+    setError(null);
+    try {
+      await loadNextCard(nextParticipant.participantId);
+      await refreshRunState(nextParticipant.participantId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : coreCopy.nextFailed;
+      setError(message);
+    } finally {
+      setWorking(false);
+    }
+  }, [
+    coreCopy.nextFailed,
+    groupActiveParticipantKey,
+    legacyGroupActiveParticipantKey,
+    loadNextCard,
+    refreshRunState,
+    runState
+  ]);
+
+  const handleAddGroupParticipant = useCallback(async () => {
+    if (!runState || !isGroupScope || joiningParticipant) {
+      return;
+    }
+    const fallbackName = `${coreCopy.defaultParticipantName} ${Math.max(2, visibleGroupParticipants.length + 1)}`;
+    const displayName = newParticipantName.trim() || fallbackName;
+    setJoiningParticipant(true);
+    setError(null);
+    try {
+      const joined = await joinCogitaCoreRun({
+        libraryId,
+        runId,
+        displayName,
+        isHost: false
+      });
+      const nextIds = new Set(parseStoredParticipantIds(readStorage(groupParticipantsKey, legacyGroupParticipantsKey)));
+      nextIds.add(joined.participantId);
+      writeStorage(groupParticipantsKey, legacyGroupParticipantsKey, JSON.stringify(Array.from(nextIds)));
+      writeStorage(groupActiveParticipantKey, legacyGroupActiveParticipantKey, joined.participantId);
+      writeStorage(DISPLAY_NAME_STORAGE_KEY, LEGACY_DISPLAY_NAME_STORAGE_KEY, joined.displayName || displayName);
+      setNewParticipantName('');
+      setParticipant(joined);
+      const updatedState = await refreshRunState(joined.participantId);
+      const roster = updatedState.participants.filter((item) => nextIds.has(item.participantId));
+      setGroupParticipants(roster.length > 0 ? roster : [joined]);
+      await refreshStatistics();
+      if (updatedState.run.status !== 'finished' && updatedState.run.status !== 'archived') {
+        await loadNextCard(joined.participantId);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : coreCopy.initFailed;
+      setError(message);
+    } finally {
+      setJoiningParticipant(false);
+    }
+  }, [
+    coreCopy.defaultParticipantName,
+    coreCopy.initFailed,
+    groupActiveParticipantKey,
+    groupParticipantsKey,
+    isGroupScope,
+    joiningParticipant,
+    legacyGroupActiveParticipantKey,
+    legacyGroupParticipantsKey,
+    libraryId,
+    loadNextCard,
+    newParticipantName,
+    refreshRunState,
+    refreshStatistics,
+    runId,
+    runState,
+    visibleGroupParticipants.length
+  ]);
+
   return (
     <CogitaShell
       copy={copy}
@@ -274,12 +606,45 @@ export function CogitaCoreRunPage({
           </div>
           <div className="cogita-core-run-actions">
             <a className="ghost" href="/#/">{coreCopy.returnToRecreatio}</a>
-            <a className="ghost" href="/#/cogita">{coreCopy.backToCogita}</a>
+            <a className="ghost" href="/#/cogita/revision">{coreCopy.backToCogita}</a>
           </div>
         </header>
 
         {loading ? <p>{coreCopy.loading}</p> : null}
         {error ? <p className="cogita-core-run-error">{error}</p> : null}
+
+        {!loading && isGroupSyncScope ? (
+          <article className="cogita-core-run-card">
+            <p className="cogita-core-run-kicker">Group sync participants</p>
+            <p className="cogita-core-run-trace">Select the active participant before each question.</p>
+            <div className="cogita-core-run-outcomes" style={{ flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+              {visibleGroupParticipants.map((item) => (
+                <button
+                  key={item.participantId}
+                  type="button"
+                  className="ghost"
+                  onClick={() => void handleSelectGroupParticipant(item)}
+                  disabled={interactionLocked || participant?.participantId === item.participantId}
+                  style={participant?.participantId === item.participantId ? { borderColor: 'rgba(111, 214, 255, 0.8)' } : undefined}
+                >
+                  {item.displayName}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr auto' }}>
+              <input
+                type="text"
+                value={newParticipantName}
+                onChange={(event) => setNewParticipantName(event.target.value)}
+                placeholder="New participant name"
+                disabled={interactionLocked}
+              />
+              <button type="button" className="ghost" onClick={() => void handleAddGroupParticipant()} disabled={interactionLocked}>
+                Add participant
+              </button>
+            </div>
+          </article>
+        ) : null}
 
         {!loading && nextCard?.cardKey ? (
           <article className="cogita-core-run-card">
@@ -296,19 +661,19 @@ export function CogitaCoreRunPage({
               id="core-answer"
               value={answer}
               onChange={(event) => setAnswer(event.target.value)}
-              disabled={working}
+              disabled={interactionLocked}
               placeholder={coreCopy.answerPlaceholder}
               rows={4}
             />
 
             <div className="cogita-core-run-outcomes">
-              <button type="button" className="ghost" disabled={working} onClick={() => void submitOutcome('correct')}>
+              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('correct')}>
                 {coreCopy.correctAction}
               </button>
-              <button type="button" className="ghost" disabled={working} onClick={() => void submitOutcome('wrong')}>
+              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('wrong')}>
                 {coreCopy.wrongAction}
               </button>
-              <button type="button" className="ghost" disabled={working} onClick={() => void submitOutcome('blank_timeout')}>
+              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('blank_timeout')}>
                 {coreCopy.blankTimeoutAction}
               </button>
             </div>
@@ -318,7 +683,7 @@ export function CogitaCoreRunPage({
         {!loading && !nextCard?.cardKey && !reveal ? (
           <article className="cogita-core-run-card">
             <p>{coreCopy.noCardSelected}</p>
-            <button type="button" className="ghost" disabled={working} onClick={() => void handleNext()}>
+            <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void handleNext()}>
               {coreCopy.selectNextCardAction}
             </button>
           </article>
@@ -334,6 +699,20 @@ export function CogitaCoreRunPage({
             <p>
               {coreCopy.participantAnswerLabel}: <strong>{reveal.participantAnswer ?? '-'}</strong>
             </p>
+            {charComparison ? (
+              <p>
+                Character match: {charComparison.similarityPct.toFixed(2)}% ({charComparison.mismatchCount}/{charComparison.comparedLength} mismatches)
+              </p>
+            ) : null}
+            {charComparison && charComparison.mismatchesPreview.length > 0 ? (
+              <p className="cogita-core-run-trace">
+                Mismatch preview:{' '}
+                {charComparison.mismatchesPreview
+                  .slice(0, 6)
+                  .map((entry) => `#${entry.index} '${entry.expected ?? '∅'}'→'${entry.actual ?? '∅'}'`)
+                  .join(' · ')}
+              </p>
+            ) : null}
             <p>
               {coreCopy.distributionLabel}: {reveal.outcomeDistribution.correctPct.toFixed(1)}% {coreCopy.correctLabel.toLowerCase()} · {reveal.outcomeDistribution.wrongPct.toFixed(1)}% {coreCopy.wrongLabel.toLowerCase()} ·{' '}
               {reveal.outcomeDistribution.blankTimeoutPct.toFixed(1)}% {coreCopy.blankLabel.toLowerCase()}
@@ -347,7 +726,7 @@ export function CogitaCoreRunPage({
               </p>
             ) : null}
             <p>{coreCopy.totalPointsLabel}: {reveal.totalPoints}</p>
-            <button type="button" className="ghost" disabled={working} onClick={() => void handleNext()}>
+            <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void handleNext()}>
               {coreCopy.nextCardAction}
             </button>
           </article>
@@ -365,7 +744,11 @@ export function CogitaCoreRunPage({
             {statistics.participants.length > 0 ? (
               <div className="cogita-core-run-participants">
                 {statistics.participants.map((item) => (
-                  <div key={item.participantId} className="cogita-core-run-participant-row">
+                  <div
+                    key={item.participantId}
+                    className="cogita-core-run-participant-row"
+                    style={participant?.participantId === item.participantId ? { borderColor: 'rgba(111, 214, 255, 0.75)' } : undefined}
+                  >
                     <strong>{item.displayName}</strong>
                     <span>
                       {item.correctCount}/{item.attemptCount} {coreCopy.correctLabel.toLowerCase()} · {coreCopy.knownessLabel.toLowerCase()} {item.knownessScore.toFixed(1)} · {coreCopy.pointsLabel.toLowerCase()} {item.totalPoints}

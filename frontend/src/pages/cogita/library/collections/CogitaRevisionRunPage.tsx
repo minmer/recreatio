@@ -104,7 +104,7 @@ export function CogitaRevisionRunPage({
   revisionId?: string;
 }) {
   const location = useLocation();
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [resolvedRevisionOptions, setResolvedRevisionOptions] = useState<{
     mode: string;
@@ -600,7 +600,7 @@ export function CogitaRevisionRunPage({
     if (revisionScope === 'info-selection') {
       const seed = scopedSeedId ? loadInfoSelectionRevisionSeed(libraryId, scopedSeedId) : null;
       const count = seed?.infoIds.length ?? 0;
-      setCollectionName(count > 0 ? `Selected infos (${count})` : 'Selected infos');
+      setCollectionName(count > 0 ? `Selected knowledge items (${count})` : 'Selected knowledge items');
       return;
     }
     setCollectionName(copy.cogita.library.collections.defaultName);
@@ -2134,7 +2134,7 @@ export function CogitaRevisionRunPage({
       return { scopeType: 'collection' as const, scopeId: effectiveCollectionId, title: 'Collection statistics' };
     }
     if (revisionScope === 'info' && scopedInfoId) {
-      return { scopeType: 'info' as const, scopeId: scopedInfoId, title: 'Info statistics' };
+      return { scopeType: 'info' as const, scopeId: scopedInfoId, title: 'Knowledge item statistics' };
     }
     return { scopeType: 'library' as const, scopeId: null, title: 'Library statistics' };
   }, [effectiveCollectionId, isCollectionScope, revisionId, revisionScope, revisionType.id, scopedInfoId]);
@@ -2205,7 +2205,7 @@ export function CogitaRevisionRunPage({
                 </a>
               </>
             ) : (
-              <a className="cta ghost" href={`${baseHref}/infos`}>
+              <a className="cta ghost" href={`${baseHref}/knowledge-items`}>
                 {copy.cogita.library.actions.allCards}
               </a>
             )}
@@ -2361,7 +2361,7 @@ export function CogitaRevisionRunPage({
                 <div className="cogita-card-empty">
                   <p>{copy.cogita.library.revision.completed}</p>
                   <div className="cogita-form-actions">
-                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${effectiveCollectionId}` : `${baseHref}/infos`}>
+                    <a className="cta" href={isCollectionScope ? `${baseHref}/collections/${effectiveCollectionId}` : `${baseHref}/knowledge-items`}>
                       {isCollectionScope ? copy.cogita.library.actions.collectionDetail : copy.cogita.library.actions.allCards}
                     </a>
                   </div>

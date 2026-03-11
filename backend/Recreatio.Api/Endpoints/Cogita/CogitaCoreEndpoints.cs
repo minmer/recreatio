@@ -11,7 +11,11 @@ public static class CogitaCoreEndpoints
 {
     public static void MapCogitaCoreEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/cogita/core").RequireAuthorization();
+        MapCogitaCoreEndpointGroup(app.MapGroup("/cogita/revision").RequireAuthorization());
+    }
+
+    private static void MapCogitaCoreEndpointGroup(RouteGroupBuilder group)
+    {
 
         group.MapGet("/libraries/{libraryId:guid}/type-specs", async (
             HttpContext context,

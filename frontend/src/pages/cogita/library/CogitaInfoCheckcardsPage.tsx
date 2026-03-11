@@ -537,7 +537,7 @@ export function CogitaInfoCheckcardsPage({
                     disabled={cards.length === 0}
                     onClick={() =>
                       navigate(
-                        `/cogita/library/${libraryId}/revisions/run?scope=info&infoId=${encodeURIComponent(infoId)}`
+                        `/cogita/revision/solo/${encodeURIComponent(libraryId)}/new?scope=info&infoId=${encodeURIComponent(infoId)}`
                       )
                     }
                   >
@@ -728,7 +728,7 @@ export function CogitaInfoCheckcardsPage({
                       scopeId={infoId}
                       selectedPersonRoleId={selectedReviewerRoleId}
                       persistentOnly={!!selectedReviewerRoleId}
-                      title="Info statistics"
+                      title="Knowledge item statistics"
                     />
                   </aside>
                 </div>

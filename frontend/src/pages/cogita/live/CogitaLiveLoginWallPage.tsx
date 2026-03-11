@@ -25,7 +25,7 @@ export function CogitaLiveLoginWallPage({
   const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const joinUrl = useMemo(
-    () => (typeof window !== 'undefined' ? `${window.location.origin}/#/cogita/public/live-revision/${encodeURIComponent(code)}` : ''),
+    () => (typeof window !== 'undefined' ? `${window.location.origin}/#/cogita/live/join/${encodeURIComponent(code)}` : ''),
     [code]
   );
 

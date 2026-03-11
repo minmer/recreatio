@@ -72,7 +72,7 @@ export function CogitaDependencyGraphPage({
   libraryId: string;
   mode?: 'search' | 'create' | 'overview' | 'edit';
 }) {
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const navigate = useNavigate();
   const location = useLocation();
   const isEditMode = mode === 'edit' || mode === 'create';
@@ -204,7 +204,7 @@ export function CogitaDependencyGraphPage({
     const next = params.toString();
     const current = new URLSearchParams(location.search).toString();
     if (next === current) return;
-    navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
   }, [libraryId, location.search, mode, navigate, selectedGraphId]);
 
   useEffect(() => {
@@ -333,13 +333,13 @@ export function CogitaDependencyGraphPage({
       setSelectedNodeId(null);
       setHasLocalDraft(true);
       setLastCreateSourceKey(sourceKey);
-      setStatus(`Prepared ${prefilledNodes.length} selected infos for a new dependency graph.`);
+      setStatus(`Prepared ${prefilledNodes.length} selected knowledge items for a new dependency graph.`);
       if (transferToken) {
         removeWorkspaceTransfer(transferToken);
         const params = new URLSearchParams(location.search);
         params.delete('transfer');
         const next = params.toString();
-        navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+        navigate(`/cogita/workspace/libraries/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
       }
     });
     return () => {
@@ -376,12 +376,12 @@ export function CogitaDependencyGraphPage({
       })
     );
     setSelectedNodeId(transfer.targetNodeId);
-    setStatus('Selected info was assigned to this node.');
+    setStatus('Selected knowledge item was assigned to this node.');
     removeWorkspaceTransfer(transferToken);
     const params = new URLSearchParams(location.search);
     params.delete('transfer');
     const next = params.toString();
-    navigate(`/cogita/library/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/dependencies${next ? `?${next}` : ''}`, { replace: true });
   }, [hasLocalDraft, libraryId, location.search, navigate, setEdges, setNodes, transfer, transferToken]);
 
   useEffect(() => {
@@ -430,7 +430,7 @@ export function CogitaDependencyGraphPage({
           });
         });
         if (additions.length > 0) {
-          setStatus(`Imported ${additions.length} selected infos into this dependency graph.`);
+          setStatus(`Imported ${additions.length} selected knowledge items into this dependency graph.`);
         }
         return additions.length > 0 ? [...prev, ...additions] : prev;
       });
@@ -580,12 +580,12 @@ export function CogitaDependencyGraphPage({
     if (!token) return;
     const returnParams = new URLSearchParams(location.search);
     returnParams.set('transfer', token);
-    const returnPath = `/cogita/library/${libraryId}/dependencies${returnParams.toString() ? `?${returnParams.toString()}` : ''}`;
+    const returnPath = `/cogita/workspace/libraries/${libraryId}/dependencies${returnParams.toString() ? `?${returnParams.toString()}` : ''}`;
     updateWorkspaceTransfer(token, (current) => {
       if (current.kind !== 'dependency_node_pick') return current;
       return { ...current, returnPath };
     });
-    navigate(`/cogita/library/${libraryId}/infos?transfer=${encodeURIComponent(token)}`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items?transfer=${encodeURIComponent(token)}`, { replace: true });
   };
 
   const updateSelectedCollection = (value: CogitaInfoSearchResult | null) => {
@@ -715,7 +715,7 @@ export function CogitaDependencyGraphPage({
                           className={`cogita-card-item ${selectedGraphId === graph.graphId ? 'active' : ''}`}
                           onClick={() =>
                             navigate(
-                              `/cogita/library/${libraryId}/dependencies?graphId=${encodeURIComponent(graph.graphId)}&dependencyView=overview`,
+                              `/cogita/workspace/libraries/${libraryId}/dependencies?graphId=${encodeURIComponent(graph.graphId)}&dependencyView=overview`,
                               { replace: true }
                             )
                           }
@@ -734,7 +734,7 @@ export function CogitaDependencyGraphPage({
                           type="button"
                           className="ghost"
                           onClick={() =>
-                            navigate(`/cogita/library/${libraryId}/dependencies?dependencyView=create`, { replace: true })
+                            navigate(`/cogita/workspace/libraries/${libraryId}/dependencies?dependencyView=create`, { replace: true })
                           }
                         >
                           Create dependency graph
@@ -784,7 +784,7 @@ export function CogitaDependencyGraphPage({
               <button
                 type="button"
                 className="cta"
-                onClick={() => navigate(`/cogita/library/${libraryId}/dependencies?graphId=${encodeURIComponent(selectedGraphId ?? '')}&dependencyView=edit`)}
+                onClick={() => navigate(`/cogita/workspace/libraries/${libraryId}/dependencies?graphId=${encodeURIComponent(selectedGraphId ?? '')}&dependencyView=edit`)}
                 disabled={!selectedGraphId}
               >
                 {copy.cogita.workspace.infoActions.edit}
@@ -826,7 +826,7 @@ export function CogitaDependencyGraphPage({
                 </div>
                 <div className="cogita-graph-summary">
                   <p>{`Nodes: ${selectedGraph?.nodeCount ?? nodes.length}`}</p>
-                  <p>{`Linked infos: ${preview?.totalCollections ?? overviewItems.length}`}</p>
+                  <p>{`Linked knowledge items: ${preview?.totalCollections ?? overviewItems.length}`}</p>
                   <p>{`Updated: ${updatedDate}`}</p>
                 </div>
                 <hr />
@@ -843,7 +843,7 @@ export function CogitaDependencyGraphPage({
                     ))
                   ) : (
                     <div className="cogita-card-empty">
-                      <p>No linked information in this dependency graph yet.</p>
+                      <p>No linked knowledge items in this dependency graph yet.</p>
                     </div>
                   )}
                 </div>

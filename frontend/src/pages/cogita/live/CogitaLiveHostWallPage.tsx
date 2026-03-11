@@ -822,6 +822,14 @@ export function CogitaLiveHostWallPage({
     }
   };
 
+  const openSafeOutputScreen = () => {
+    if (typeof window === 'undefined') return;
+    const code = session?.code?.trim();
+    if (!code) return;
+    const target = `${window.location.origin}/#/cogita/live/wall/output/${encodeURIComponent(code)}`;
+    window.open(target, '_blank', 'noopener');
+  };
+
   const pollSession = async () => {
     try {
       const next = await withFreshHostSecret((secret) =>
@@ -1784,7 +1792,7 @@ export function CogitaLiveHostWallPage({
             </div>
           ))}
             <div className="cogita-form-actions">
-              {isLobbyStage ? (
+            {isLobbyStage ? (
                 <button type="button" className="cta" onClick={() => void startSession()} disabled={!canStartSession}>
                   {liveCopy.publishCurrentRound}
                 </button>
@@ -1821,6 +1829,9 @@ export function CogitaLiveHostWallPage({
                 ) : null}
               </>
             )}
+            <button type="button" className="cta ghost" onClick={openSafeOutputScreen} disabled={!session?.code}>
+              {liveCopy.presenterUrlLabel}
+            </button>
           </div>
           {roundsStatus === 'loading' ? <p className="cogita-help">{preparingLabel}</p> : null}
           {roundsStatus === 'ready' && rounds.length > 0 ? <p className="cogita-help">{preparedLabel}</p> : null}

@@ -105,6 +105,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaKnownessSnapshot> CogitaKnownessSnapshots => Set<Data.Cogita.CogitaKnownessSnapshot>();
     public DbSet<Data.Cogita.CogitaCreationArtifact> CogitaCreationArtifacts => Set<Data.Cogita.CogitaCreationArtifact>();
     public DbSet<Data.Cogita.CogitaReferenceCryptoField> CogitaReferenceCryptoFields => Set<Data.Cogita.CogitaReferenceCryptoField>();
+    public DbSet<Data.Cogita.CogitaDashboardPreference> CogitaDashboardPreferences => Set<Data.Cogita.CogitaDashboardPreference>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore> CogitaKnowledgeLinkSinglesCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore> CogitaKnowledgeLinkMultisCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore>();
     public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
@@ -319,6 +320,11 @@ public sealed class RecreatioDbContext : DbContext
             .IsUnique();
         modelBuilder.Entity<Data.Cogita.CogitaReferenceCryptoField>()
             .HasIndex(x => new { x.LibraryId, x.FieldKey, x.DeterministicHash });
+        modelBuilder.Entity<Data.Cogita.CogitaDashboardPreference>()
+            .HasIndex(x => x.UserId)
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaDashboardPreference>()
+            .HasIndex(x => x.UpdatedUtc);
 
         modelBuilder.Entity<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>()
             .HasIndex(x => new { x.SourceItemId, x.FieldKey })

@@ -11,6 +11,7 @@ using Recreatio.Api.Contracts.Cogita;
 using Recreatio.Api.Crypto;
 using Recreatio.Api.Data;
 using Recreatio.Api.Data.Cogita;
+using Recreatio.Api.Data.Cogita.Core;
 using Recreatio.Api.Domain;
 using Recreatio.Api.Domain.Cogita;
 using Recreatio.Api.Security;
@@ -71,9 +72,156 @@ public static class CogitaEndpoints
         }
     }
 
+    private static IResult RedirectCogitaAlias(HttpContext context, string path)
+    {
+        var query = context.Request.QueryString.HasValue ? context.Request.QueryString.Value : string.Empty;
+        return Results.Redirect($"{path}{query}", permanent: false, preserveMethod: true);
+    }
+
     public static void MapCogitaEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/cogita").RequireAuthorization();
+
+        // Legacy naming aliases to keep deprecated infos/checkcards paths compatible.
+        group.MapMethods("/libraries/{libraryId:guid}/infos", new[] { "GET", "POST" }, (
+            Guid libraryId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items"));
+        group.MapMethods("/libraries/{libraryId:guid}/infos/{infoId:guid}", new[] { "GET", "PUT", "DELETE" }, (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}"));
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/collections", (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/collections"));
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/approaches/{approachKey}", (
+            Guid libraryId,
+            Guid infoId,
+            string approachKey,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/approaches/{Uri.EscapeDataString(approachKey)}"));
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards", (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/cards"));
+        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards/dependencies", (
+            Guid libraryId,
+            Guid infoId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/cards/dependencies"));
+        group.MapGet("/public/revision/{code}/infos", (
+            string code,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/knowledge-items"))
+            .AllowAnonymous();
+        group.MapGet("/public/revision/{code}/infos/{infoId:guid}", (
+            string code,
+            Guid infoId,
+            HttpContext context) =>
+            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/knowledge-items/{infoId:D}"))
+            .AllowAnonymous();
+
+        group.MapGet("/dashboard/preferences", async (
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var existing = await dbContext.CogitaDashboardPreferences.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == userId, ct);
+
+            if (existing is null)
+            {
+                var now = DateTimeOffset.UtcNow;
+                return Results.Ok(new CogitaDashboardPreferencesResponse(
+                    "v1",
+                    "{}",
+                    now,
+                    now));
+            }
+
+            return Results.Ok(new CogitaDashboardPreferencesResponse(
+                string.IsNullOrWhiteSpace(existing.LayoutVersion) ? "v1" : existing.LayoutVersion,
+                string.IsNullOrWhiteSpace(existing.PreferencesJson) ? "{}" : existing.PreferencesJson,
+                existing.CreatedUtc,
+                existing.UpdatedUtc));
+        });
+
+        group.MapPost("/dashboard/preferences", async (
+            CogitaDashboardPreferencesRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var normalizedJson = string.IsNullOrWhiteSpace(request.PreferencesJson)
+                ? "{}"
+                : request.PreferencesJson.Trim();
+            if (normalizedJson.Length > 256_000)
+            {
+                return Results.BadRequest(new { error = "Preferences payload is too large." });
+            }
+
+            try
+            {
+                using var _ = JsonDocument.Parse(normalizedJson);
+            }
+            catch
+            {
+                return Results.BadRequest(new { error = "PreferencesJson must be valid JSON." });
+            }
+
+            var normalizedLayoutVersion = string.IsNullOrWhiteSpace(request.LayoutVersion)
+                ? "v1"
+                : request.LayoutVersion.Trim();
+            if (normalizedLayoutVersion.Length > 64)
+            {
+                normalizedLayoutVersion = normalizedLayoutVersion[..64];
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var existing = await dbContext.CogitaDashboardPreferences
+                .FirstOrDefaultAsync(x => x.UserId == userId, ct);
+            if (existing is null)
+            {
+                existing = new CogitaDashboardPreference
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    LayoutVersion = normalizedLayoutVersion,
+                    PreferencesJson = normalizedJson,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaDashboardPreferences.Add(existing);
+            }
+            else
+            {
+                existing.LayoutVersion = normalizedLayoutVersion;
+                existing.PreferencesJson = normalizedJson;
+                existing.UpdatedUtc = now;
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            return Results.Ok(new CogitaDashboardPreferencesResponse(
+                existing.LayoutVersion,
+                existing.PreferencesJson,
+                existing.CreatedUtc,
+                existing.UpdatedUtc));
+        });
 
         group.MapGet("/libraries", async (
             HttpContext context,
@@ -853,7 +1001,7 @@ public static class CogitaEndpoints
             return Results.Ok(specs);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items", async (
             Guid libraryId,
             string? type,
             string? query,
@@ -1024,7 +1172,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1107,7 +1255,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/collections", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/collections", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1235,7 +1383,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/approaches/{approachKey}", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/approaches/{approachKey}", async (
             Guid libraryId,
             Guid infoId,
             string approachKey,
@@ -1308,7 +1456,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/cards", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1364,7 +1512,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaCardSearchBundleResponse(cards.Count, cards.Count, null, cards));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards/dependencies", async (
+        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/cards/dependencies", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1431,7 +1579,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaItemDependencyBundleResponse(response));
         });
 
-        group.MapPut("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+        group.MapPut("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             CogitaUpdateInfoRequest request,
@@ -1574,7 +1722,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
         });
 
-        group.MapDelete("/libraries/{libraryId:guid}/infos/{infoId:guid}", async (
+        group.MapDelete("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1632,13 +1780,21 @@ public static class CogitaEndpoints
                 blockers.Add("connections");
             }
 
-            var usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
-                .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct)
-                || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
-                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct);
+            var usedAsLinkTarget = await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
+                .AnyAsync(x => x.LibraryId == libraryId && x.TargetItemId == infoId, ct)
+                || await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetItemId == infoId, ct);
+            if (!usedAsLinkTarget)
+            {
+                // Compatibility check for datasets not migrated to knowledge-link tables yet.
+                usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct)
+                    || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                        .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == infoId, ct);
+            }
             if (usedAsLinkTarget)
             {
-                blockers.Add("info-links");
+                blockers.Add("knowledge-links");
             }
 
             var usedByWordLanguage = await dbContext.CogitaWordLanguages.AsNoTracking()
@@ -1680,19 +1836,42 @@ public static class CogitaEndpoints
                 });
             }
 
-            var ownSingles = await dbContext.CogitaInfoLinkSingles
-                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            var ownSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
                 .ToListAsync(ct);
-            var ownMultis = await dbContext.CogitaInfoLinkMultis
-                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+            var ownMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
                 .ToListAsync(ct);
             if (ownSingles.Count > 0)
             {
-                dbContext.CogitaInfoLinkSingles.RemoveRange(ownSingles);
+                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(ownSingles);
             }
             if (ownMultis.Count > 0)
             {
-                dbContext.CogitaInfoLinkMultis.RemoveRange(ownMultis);
+                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(ownMultis);
+            }
+
+            var ownReferenceFields = await dbContext.CogitaReferenceCryptoFields
+                .Where(x => x.LibraryId == libraryId && x.OwnerEntity == "knowledge-item" && x.OwnerId == infoId)
+                .ToListAsync(ct);
+            if (ownReferenceFields.Count > 0)
+            {
+                dbContext.CogitaReferenceCryptoFields.RemoveRange(ownReferenceFields);
+            }
+
+            var legacyOwnSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                .ToListAsync(ct);
+            var legacyOwnMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                .ToListAsync(ct);
+            if (legacyOwnSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(legacyOwnSingles);
+            }
+            if (legacyOwnMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(legacyOwnMultis);
             }
 
             var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
@@ -2888,33 +3067,70 @@ public static class CogitaEndpoints
                 dbContext.CogitaCollectionGraphs.Remove(graph);
             }
 
-            var ownSingles = await dbContext.CogitaInfoLinkSingles
-                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+            var ownSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == collectionId)
                 .ToListAsync(ct);
-            var ownMultis = await dbContext.CogitaInfoLinkMultis
-                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+            var ownMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == collectionId)
                 .ToListAsync(ct);
-            var incomingSingles = await dbContext.CogitaInfoLinkSingles
-                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+            var incomingSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+                .Where(x => x.LibraryId == libraryId && x.TargetItemId == collectionId)
                 .ToListAsync(ct);
-            var incomingMultis = await dbContext.CogitaInfoLinkMultis
-                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+            var incomingMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                .Where(x => x.LibraryId == libraryId && x.TargetItemId == collectionId)
                 .ToListAsync(ct);
             if (ownSingles.Count > 0)
             {
-                dbContext.CogitaInfoLinkSingles.RemoveRange(ownSingles);
+                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(ownSingles);
             }
             if (ownMultis.Count > 0)
             {
-                dbContext.CogitaInfoLinkMultis.RemoveRange(ownMultis);
+                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(ownMultis);
             }
             if (incomingSingles.Count > 0)
             {
-                dbContext.CogitaInfoLinkSingles.RemoveRange(incomingSingles);
+                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(incomingSingles);
             }
             if (incomingMultis.Count > 0)
             {
-                dbContext.CogitaInfoLinkMultis.RemoveRange(incomingMultis);
+                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(incomingMultis);
+            }
+
+            var ownReferenceFields = await dbContext.CogitaReferenceCryptoFields
+                .Where(x => x.LibraryId == libraryId && x.OwnerEntity == "knowledge-item" && x.OwnerId == collectionId)
+                .ToListAsync(ct);
+            if (ownReferenceFields.Count > 0)
+            {
+                dbContext.CogitaReferenceCryptoFields.RemoveRange(ownReferenceFields);
+            }
+
+            var legacyOwnSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+                .ToListAsync(ct);
+            var legacyOwnMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.InfoId == collectionId)
+                .ToListAsync(ct);
+            var legacyIncomingSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+                .ToListAsync(ct);
+            var legacyIncomingMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.TargetInfoId == collectionId)
+                .ToListAsync(ct);
+            if (legacyOwnSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(legacyOwnSingles);
+            }
+            if (legacyOwnMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(legacyOwnMultis);
+            }
+            if (legacyIncomingSingles.Count > 0)
+            {
+                dbContext.CogitaInfoLinkSingles.RemoveRange(legacyIncomingSingles);
+            }
+            if (legacyIncomingMultis.Count > 0)
+            {
+                dbContext.CogitaInfoLinkMultis.RemoveRange(legacyIncomingMultis);
             }
 
             var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
@@ -9519,7 +9735,7 @@ public static class CogitaEndpoints
             ));
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision/{code}/infos", async (
+        group.MapGet("/public/revision/{code}/knowledge-items", async (
             string code,
             string? key,
             string? type,
@@ -9600,7 +9816,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision/{code}/infos/{infoId:guid}", async (
+        group.MapGet("/public/revision/{code}/knowledge-items/{infoId:guid}", async (
             string code,
             string? key,
             Guid infoId,
@@ -12731,7 +12947,7 @@ public static class CogitaEndpoints
             return Results.Empty;
         });
 
-        group.MapPost("/libraries/{libraryId:guid}/infos", async (
+        group.MapPost("/libraries/{libraryId:guid}/knowledge-items", async (
             Guid libraryId,
             CogitaCreateInfoRequest request,
             HttpContext context,
@@ -13882,63 +14098,93 @@ public static class CogitaEndpoints
 
         try
         {
-        var existingSingles = await dbContext.CogitaInfoLinkSingles
-            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
-            .ToListAsync(ct);
-        if (existingSingles.Count > 0)
-        {
-            dbContext.CogitaInfoLinkSingles.RemoveRange(existingSingles);
-        }
-
-        var existingMultis = await dbContext.CogitaInfoLinkMultis
-            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
-            .ToListAsync(ct);
-        if (existingMultis.Count > 0)
-        {
-            dbContext.CogitaInfoLinkMultis.RemoveRange(existingMultis);
-        }
-
-        foreach (var field in fieldSpecs)
-        {
-            parsed.TryGetValue(field.Key, out var values);
-            values ??= new List<Guid>();
-            if (values.Count == 0)
+            var existingSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .ToListAsync(ct);
+            if (existingSingles.Count > 0)
             {
-                continue;
+                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(existingSingles);
             }
 
-            if (field.Multiple)
+            var existingMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .ToListAsync(ct);
+            if (existingMultis.Count > 0)
             {
-                for (var i = 0; i < values.Count; i++)
+                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(existingMultis);
+            }
+
+            var existingReferenceFields = await dbContext.CogitaReferenceCryptoFields
+                .Where(x => x.LibraryId == libraryId && x.OwnerEntity == "knowledge-item" && x.OwnerId == infoId)
+                .ToListAsync(ct);
+            if (existingReferenceFields.Count > 0)
+            {
+                dbContext.CogitaReferenceCryptoFields.RemoveRange(existingReferenceFields);
+            }
+
+            foreach (var field in fieldSpecs)
+            {
+                parsed.TryGetValue(field.Key, out var values);
+                values ??= new List<Guid>();
+                if (values.Count == 0)
                 {
-                    dbContext.CogitaInfoLinkMultis.Add(new CogitaInfoLinkMulti
+                    continue;
+                }
+
+                if (field.Multiple)
+                {
+                    for (var i = 0; i < values.Count; i++)
+                    {
+                        dbContext.CogitaKnowledgeLinkMultisCore.Add(new CogitaKnowledgeLinkMultiCore
+                        {
+                            Id = Guid.NewGuid(),
+                            LibraryId = libraryId,
+                            SourceItemId = infoId,
+                            FieldKey = field.Key,
+                            TargetItemId = values[i],
+                            SortOrder = i,
+                            CreatedUtc = now,
+                            UpdatedUtc = now
+                        });
+                    }
+                }
+                else
+                {
+                    dbContext.CogitaKnowledgeLinkSinglesCore.Add(new CogitaKnowledgeLinkSingleCore
                     {
                         Id = Guid.NewGuid(),
                         LibraryId = libraryId,
-                        InfoId = infoId,
+                        SourceItemId = infoId,
                         FieldKey = field.Key,
-                        TargetInfoId = values[i],
-                        SortOrder = i,
+                        TargetItemId = values[0],
+                        IsRequired = field.Required,
                         CreatedUtc = now,
                         UpdatedUtc = now
                     });
                 }
-            }
-            else
-            {
-                dbContext.CogitaInfoLinkSingles.Add(new CogitaInfoLinkSingle
+
+                var normalizedFieldKey = field.Key.Trim().ToLowerInvariant();
+                var normalizedValue = values.Count == 1
+                    ? values[0].ToString("D")
+                    : string.Join(",", values.Select(x => x.ToString("D")));
+                var scopedHashInput = $"{libraryId:D}:{normalizedFieldKey}:{normalizedValue}";
+                dbContext.CogitaReferenceCryptoFields.Add(new CogitaReferenceCryptoField
                 {
                     Id = Guid.NewGuid(),
                     LibraryId = libraryId,
-                    InfoId = infoId,
-                    FieldKey = field.Key,
-                    TargetInfoId = values[0],
-                    IsRequired = field.Required,
+                    OwnerEntity = "knowledge-item",
+                    OwnerId = infoId,
+                    FieldKey = normalizedFieldKey,
+                    PolicyVersion = "v1",
+                    ValueCipher = Convert.ToBase64String(Encoding.UTF8.GetBytes(normalizedValue)),
+                    DeterministicHash = SHA256.HashData(Encoding.UTF8.GetBytes(scopedHashInput)),
+                    SignatureBase64 = null,
+                    Signer = null,
+                    SignatureVersion = null,
                     CreatedUtc = now,
                     UpdatedUtc = now
                 });
             }
-        }
         }
         catch (Exception ex) when (IsMissingInfoLinksSchema(ex))
         {
@@ -13964,40 +14210,56 @@ public static class CogitaEndpoints
 
         try
         {
-        var singles = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
-            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
-            .ToListAsync(ct);
-        var multis = await dbContext.CogitaInfoLinkMultis.AsNoTracking()
-            .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
-            .OrderBy(x => x.SortOrder)
-            .ToListAsync(ct);
+            var singles = await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .Select(x => new { x.FieldKey, TargetItemId = x.TargetItemId })
+                .ToListAsync(ct);
+            var multis = await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .OrderBy(x => x.SortOrder)
+                .Select(x => new { x.FieldKey, TargetItemId = x.TargetItemId })
+                .ToListAsync(ct);
 
-        var root = new JsonObject();
-        foreach (var field in fieldSpecs)
-        {
-            if (field.Multiple)
+            if (singles.Count == 0 && multis.Count == 0)
             {
-                var values = multis
-                    .Where(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
-                    .Select(x => x.TargetInfoId.ToString())
-                    .ToList();
-                var array = new JsonArray();
-                foreach (var value in values)
+                // Compatibility fallback for older datasets that still store links in legacy tables.
+                singles = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                    .Select(x => new { x.FieldKey, TargetItemId = x.TargetInfoId })
+                    .ToListAsync(ct);
+                multis = await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
+                    .OrderBy(x => x.SortOrder)
+                    .Select(x => new { x.FieldKey, TargetItemId = x.TargetInfoId })
+                    .ToListAsync(ct);
+            }
+
+            var root = new JsonObject();
+            foreach (var field in fieldSpecs)
+            {
+                if (field.Multiple)
                 {
-                    array.Add(value);
+                    var values = multis
+                        .Where(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
+                        .Select(x => x.TargetItemId.ToString())
+                        .ToList();
+                    var array = new JsonArray();
+                    foreach (var value in values)
+                    {
+                        array.Add(value);
+                    }
+                    root[field.Key] = array;
                 }
-                root[field.Key] = array;
+                else
+                {
+                    var value = singles
+                        .FirstOrDefault(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
+                        ?.TargetItemId;
+                    root[field.Key] = value?.ToString();
+                }
             }
-            else
-            {
-                var value = singles
-                    .FirstOrDefault(x => x.FieldKey.Equals(field.Key, StringComparison.OrdinalIgnoreCase))
-                    ?.TargetInfoId;
-                root[field.Key] = value?.ToString();
-            }
-        }
 
-        return JsonSerializer.SerializeToElement(root);
+            return JsonSerializer.SerializeToElement(root);
         }
         catch (Exception ex) when (IsMissingInfoLinksSchema(ex))
         {
@@ -15747,20 +16009,38 @@ public static class CogitaEndpoints
 
         var infoIds = infos.Select(x => x.Id).ToList();
         var singleLinks = infoIds.Count == 0
-            ? new List<CogitaInfoLinkSingle>()
-            : await dbContext.CogitaInfoLinkSingles.AsNoTracking()
-                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+            ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
+            : await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
+                .Select(x => new ValueTuple<Guid, string, Guid>(x.SourceItemId, x.FieldKey, x.TargetItemId))
                 .ToListAsync(ct);
         var multiLinks = infoIds.Count == 0
-            ? new List<CogitaInfoLinkMulti>()
-            : await dbContext.CogitaInfoLinkMultis.AsNoTracking()
-                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+            ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
+            : await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.SourceItemId))
                 .OrderBy(x => x.SortOrder)
+                .Select(x => new ValueTuple<Guid, string, Guid>(x.SourceItemId, x.FieldKey, x.TargetItemId))
                 .ToListAsync(ct);
+        if (singleLinks.Count == 0 && multiLinks.Count == 0)
+        {
+            // Compatibility fallback for data not migrated to knowledge-link tables yet.
+            singleLinks = infoIds.Count == 0
+                ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
+                : await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+                    .Select(x => new ValueTuple<Guid, string, Guid>(x.InfoId, x.FieldKey, x.TargetInfoId))
+                    .ToListAsync(ct);
+            multiLinks = infoIds.Count == 0
+                ? new List<(Guid SourceItemId, string FieldKey, Guid TargetItemId)>()
+                : await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && infoIds.Contains(x.InfoId))
+                    .OrderBy(x => x.SortOrder)
+                    .Select(x => new ValueTuple<Guid, string, Guid>(x.InfoId, x.FieldKey, x.TargetInfoId))
+                    .ToListAsync(ct);
+        }
         var linksByInfo = singleLinks
-            .Select(x => (x.InfoId, x.FieldKey, x.TargetInfoId))
-            .Concat(multiLinks.Select(x => (x.InfoId, x.FieldKey, x.TargetInfoId)))
-            .GroupBy(x => x.InfoId)
+            .Concat(multiLinks)
+            .GroupBy(x => x.SourceItemId)
             .ToDictionary(group => group.Key, group => group.ToList());
 
         var wordIds = connectionItems
@@ -15847,18 +16127,18 @@ public static class CogitaEndpoints
                 foreach (var linked in linkedEntries)
                 {
                     filterTokens.Add(("linkField", linked.FieldKey));
-                    filterTokens.Add(($"link.{linked.FieldKey}", linked.TargetInfoId.ToString()));
-                    filterTokens.Add(("relatedInfoId", linked.TargetInfoId.ToString()));
-                    if (infoTypes.TryGetValue(linked.TargetInfoId, out var relatedType))
+                    filterTokens.Add(($"link.{linked.FieldKey}", linked.TargetItemId.ToString()));
+                    filterTokens.Add(("relatedInfoId", linked.TargetItemId.ToString()));
+                    if (infoTypes.TryGetValue(linked.TargetItemId, out var relatedType))
                     {
                         filterTokens.Add(("relatedInfoType", relatedType));
                         filterTokens.Add(("linkTargetType", relatedType));
                         if (relatedType == "language")
                         {
-                            filterTokens.Add(("languageId", linked.TargetInfoId.ToString()));
+                            filterTokens.Add(("languageId", linked.TargetItemId.ToString()));
                         }
                     }
-                    if (infoTitles.TryGetValue(linked.TargetInfoId, out var relatedLabel))
+                    if (infoTitles.TryGetValue(linked.TargetItemId, out var relatedLabel))
                     {
                         relationTexts.Add(relatedLabel);
                     }

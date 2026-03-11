@@ -34,8 +34,8 @@ type GraphNodeData = {
 
 const NODE_CATALOG = [
   { type: 'source.translation', label: 'Translation source' },
-  { type: 'source.info.all', label: 'All infos' },
-  { type: 'source.info', label: 'Info source' },
+  { type: 'source.info.all', label: 'All knowledge items' },
+  { type: 'source.info', label: 'Knowledge item source' },
   { type: 'source.connection', label: 'Connection source' },
   { type: 'filter.tag', label: 'Tag filter' },
   { type: 'filter.language', label: 'Language filter' },
@@ -100,7 +100,7 @@ export function CogitaCollectionGraphPage({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ total: number; connections: number; infos: number } | null>(null);
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
 
   useEffect(() => {
     getCogitaCollection(libraryId, collectionId)

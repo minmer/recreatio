@@ -29,7 +29,7 @@ export function CogitaCollectionListPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
 }) {
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const [query, setQuery] = useState('');
   const [collections, setCollections] = useState<CogitaCollectionSummary[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready'>('idle');

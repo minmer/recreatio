@@ -61,8 +61,8 @@ const COLLECTION_GRAPH_I18N = {
   en: {
     nodeLabels: {
       'source.translation': 'Translation source',
-      'source.info.all': 'All infos',
-      'source.info': 'Info source',
+      'source.info.all': 'All knowledge items',
+      'source.info': 'Knowledge item source',
       'source.connection': 'Connection source',
       'filter.tag': 'Tag filter',
       'filter.language': 'Language filter',
@@ -83,9 +83,9 @@ const COLLECTION_GRAPH_I18N = {
       topic: 'Topic',
       computed: 'Computed'
     },
-    selectedInfoNode: 'Selected info',
-    selectedInfosNode: 'Selected infos',
-    draftLoaded: 'Draft loaded from {count} selected infos. Set name and save to create collection.'
+    selectedInfoNode: 'Selected knowledge item',
+    selectedInfosNode: 'Selected knowledge items',
+    draftLoaded: 'Draft loaded from {count} selected knowledge items. Set name and save to create collection.'
   },
   pl: {
     nodeLabels: {
@@ -119,8 +119,8 @@ const COLLECTION_GRAPH_I18N = {
   de: {
     nodeLabels: {
       'source.translation': 'Übersetzungsquelle',
-      'source.info.all': 'Alle Infos',
-      'source.info': 'Info-Quelle',
+      'source.info.all': 'Alle Wissenseinträge',
+      'source.info': 'Wissenseintrag-Quelle',
       'source.connection': 'Verbindungsquelle',
       'filter.tag': 'Tag-Filter',
       'filter.language': 'Sprachfilter',
@@ -141,9 +141,9 @@ const COLLECTION_GRAPH_I18N = {
       topic: 'Thema',
       computed: 'Berechnet'
     },
-    selectedInfoNode: 'Ausgewählte Info',
-    selectedInfosNode: 'Ausgewählte Infos',
-    draftLoaded: 'Entwurf mit {count} ausgewählten Infos geladen. Name setzen und Sammlung speichern.'
+    selectedInfoNode: 'Ausgewählter Wissenseintrag',
+    selectedInfosNode: 'Ausgewählte Wissenseinträge',
+    draftLoaded: 'Entwurf mit {count} ausgewählten Wissenseinträgen geladen. Name setzen und Sammlung speichern.'
   }
 } as const;
 

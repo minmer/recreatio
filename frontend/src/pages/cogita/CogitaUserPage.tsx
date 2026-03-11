@@ -61,7 +61,7 @@ export function CogitaUserPage({
       setLibraries((prev) => [library, ...prev]);
       setNewLibraryName('');
       if (typeof window !== 'undefined') {
-        window.location.href = `/#/cogita/library/${library.libraryId}`;
+        window.location.href = `/#/cogita/workspace/libraries/${library.libraryId}`;
       }
     } catch {
       setStatus(copy.cogita.user.libraryCreateFailed);
@@ -139,16 +139,16 @@ export function CogitaUserPage({
                 <div className="cogita-card-list" data-view="list">
                   {libraries.map((library) => (
                     <div key={library.libraryId} className="cogita-card-item">
-                      <a className="cogita-card-select" href={`/#/cogita/library/${library.libraryId}`}>
+                      <a className="cogita-card-select" href={`/#/cogita/workspace/libraries/${library.libraryId}`}>
                         <div className="cogita-card-type">{copy.cogita.user.libraryRoleLabel}</div>
                         <h3 className="cogita-card-title">{library.name}</h3>
                         <p className="cogita-card-subtitle">{library.libraryId}</p>
                       </a>
                       <div className="cogita-card-actions">
-                        <a className="ghost" href={`/#/cogita/library/${library.libraryId}`}>
+                        <a className="ghost" href={`/#/cogita/workspace/libraries/${library.libraryId}`}>
                           {copy.cogita.user.openOverview}
                         </a>
-                        <a className="ghost" href={`/#/cogita/library/${library.libraryId}/infos`}>
+                        <a className="ghost" href={`/#/cogita/workspace/libraries/${library.libraryId}/knowledge-items`}>
                           {copy.cogita.user.openCards}
                         </a>
                       </div>

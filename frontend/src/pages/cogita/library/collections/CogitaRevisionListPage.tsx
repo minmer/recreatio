@@ -33,7 +33,7 @@ export function CogitaRevisionListPage({
   libraryId: string;
   collectionId?: string;
 }) {
-  const baseHref = `/#/cogita/library/${libraryId}`;
+  const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [revisions, setRevisions] = useState<CogitaRevision[]>([]);

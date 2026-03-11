@@ -607,7 +607,7 @@ export function CogitaLibraryListPage({
       setRawResults((prev) => prev.filter((item) => !deletedSet.has(item.infoId)));
       setFocusedInfoId((prev) => (prev && deletedSet.has(prev) ? null : prev));
       if (selectedInfoIdFromRoute && deletedSet.has(selectedInfoIdFromRoute)) {
-        navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+        navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items`, { replace: true });
       }
     }
     if (failedCount === ids.length) {
@@ -630,20 +630,20 @@ export function CogitaLibraryListPage({
   };
 
   const openInfo = (infoId: string) => {
-    navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(infoId)}`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items/${encodeURIComponent(infoId)}`, { replace: true });
   };
 
   const closeInfoOverview = () => {
-    navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items`, { replace: true });
   };
 
   const clearCollectionScope = () => {
-    navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items`, { replace: true });
   };
 
   const editSelectedInfo = () => {
     if (!selectedInfoIdFromRoute) return;
-    navigate(`/cogita/library/${libraryId}/infos/${encodeURIComponent(selectedInfoIdFromRoute)}/edit`, { replace: true });
+    navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items/${encodeURIComponent(selectedInfoIdFromRoute)}/edit`, { replace: true });
   };
 
   const deleteSelectedInfo = async () => {
@@ -659,7 +659,7 @@ export function CogitaLibraryListPage({
         return next;
       });
       setRawResults((prev) => prev.filter((item) => item.infoId !== selectedInfoIdFromRoute));
-      navigate(`/cogita/library/${libraryId}/infos`, { replace: true });
+      navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items`, { replace: true });
     } catch {
       setInfoDeleteStatus('Failed to delete information. Remove links and collection/connection usage first.');
     }
@@ -671,7 +671,7 @@ export function CogitaLibraryListPage({
       selectedItems.map((item) => item.infoId)
     );
     if (!seedId) return;
-    navigate(`/cogita/library/${libraryId}/collections/new?draft=${encodeURIComponent(seedId)}&draftType=info-selection`);
+    navigate(`/cogita/workspace/libraries/${libraryId}/collections/new?draft=${encodeURIComponent(seedId)}&draftType=info-selection`);
   };
 
   const singleSelectedId = selectedItems.length === 1 ? selectedItems[0]?.infoId ?? null : null;
@@ -854,7 +854,7 @@ export function CogitaLibraryListPage({
                     <div className="cogita-card-list" data-view="list">
                       {infoCollections.map((collection) => (
                         <article key={collection.collectionId} className="cogita-card-item">
-                          <a className="cogita-card-select" href={`/#/cogita/library/${libraryId}/collections/${collection.collectionId}`}>
+                          <a className="cogita-card-select" href={`/#/cogita/workspace/libraries/${libraryId}/collections/${collection.collectionId}`}>
                             <div className="cogita-card-type">Collection</div>
                             <h3 className="cogita-card-title">{collection.name}</h3>
                             <p className="cogita-card-subtitle">{collection.itemCount} items</p>
@@ -1151,7 +1151,7 @@ export function CogitaLibraryListPage({
                         });
                         if (!token) return;
                         const query = new URLSearchParams({ transfer: token, dependencyView: 'create' });
-                        navigate(`/cogita/library/${libraryId}/dependencies?${query.toString()}`, { replace: true });
+                        navigate(`/cogita/workspace/libraries/${libraryId}/dependencies?${query.toString()}`, { replace: true });
                       }}
                       disabled={selectedItems.length === 0}
                     >
@@ -1238,25 +1238,25 @@ function formatDateTime(value: string, language: 'pl' | 'en' | 'de') {
 function getInfoOverviewCopy(language: 'pl' | 'en' | 'de') {
   if (language === 'pl') {
     return {
-      kicker: 'Informacja',
+      kicker: 'Element wiedzy',
       backToSearch: 'Wróć do wyszukiwania',
-      loading: 'Ładowanie informacji...',
-      loadError: 'Nie udało się wczytać informacji.',
+      loading: 'Ładowanie elementu wiedzy...',
+      loadError: 'Nie udało się wczytać elementu wiedzy.',
       knownness: 'Znajomość',
       reviews: 'Sprawdzenia',
       correct: 'Poprawne: {correct} / {total}',
       lastReview: 'Ostatnie sprawdzenie',
       noLastReview: 'Brak sprawdzeń',
       linkedCards: 'Powiązane karty',
-      linkedCardsHint: 'Karty sprawdzające zależne od tej informacji',
-      payload: 'Treść informacji',
+      linkedCardsHint: 'Karty zależne od tego elementu wiedzy',
+      payload: 'Treść elementu wiedzy',
       links: 'Powiązania',
       empty: 'Brak danych',
       noLinks: 'Brak powiązań',
-      checkcards: 'Karty sprawdzające',
-      loadingCheckcards: 'Ładowanie kart sprawdzających...',
-      loadCheckcardsError: 'Nie udało się wczytać kart sprawdzających.',
-      noCheckcards: 'Brak kart sprawdzających.',
+      checkcards: 'Karty',
+      loadingCheckcards: 'Ładowanie kart...',
+      loadCheckcardsError: 'Nie udało się wczytać kart.',
+      noCheckcards: 'Brak kart.',
       checkcardCount: 'Liczba kart',
       dependencyCount: 'Zależności (efektywne)',
       approach: 'Podejście',
@@ -1272,25 +1272,25 @@ function getInfoOverviewCopy(language: 'pl' | 'en' | 'de') {
   }
   if (language === 'de') {
     return {
-      kicker: 'Information',
+      kicker: 'Wissenseintrag',
       backToSearch: 'Zur Suche',
-      loading: 'Information wird geladen...',
-      loadError: 'Information konnte nicht geladen werden.',
+      loading: 'Wissenseintrag wird geladen...',
+      loadError: 'Wissenseintrag konnte nicht geladen werden.',
       knownness: 'Kenntnisstand',
       reviews: 'Abfragen',
       correct: 'Richtig: {correct} / {total}',
       lastReview: 'Letzte Abfrage',
       noLastReview: 'Noch keine Abfragen',
       linkedCards: 'Verknüpfte Karten',
-      linkedCardsHint: 'Prüfkarten, die von dieser Information abhängen',
+      linkedCardsHint: 'Karten, die von diesem Wissenseintrag abhängen',
       payload: 'Inhalt',
       links: 'Verknüpfungen',
       empty: 'Keine Daten',
       noLinks: 'Keine Verknüpfungen',
-      checkcards: 'Prüfkarten',
-      loadingCheckcards: 'Prüfkarten werden geladen...',
-      loadCheckcardsError: 'Prüfkarten konnten nicht geladen werden.',
-      noCheckcards: 'Keine Prüfkarten.',
+      checkcards: 'Karten',
+      loadingCheckcards: 'Karten werden geladen...',
+      loadCheckcardsError: 'Karten konnten nicht geladen werden.',
+      noCheckcards: 'Keine Karten.',
       checkcardCount: 'Anzahl Karten',
       dependencyCount: 'Abhängigkeiten (effektiv)',
       approach: 'Ansicht',
@@ -1305,26 +1305,26 @@ function getInfoOverviewCopy(language: 'pl' | 'en' | 'de') {
     } as const;
   }
   return {
-    kicker: 'Info',
+    kicker: 'Knowledge Item',
     backToSearch: 'Back to search',
-    loading: 'Loading info...',
-    loadError: 'Failed to load info.',
+    loading: 'Loading knowledge item...',
+    loadError: 'Failed to load knowledge item.',
     knownness: 'Knownness',
     reviews: 'Reviews',
     correct: 'Correct: {correct} / {total}',
     lastReview: 'Last review',
     noLastReview: 'No reviews yet',
-    linkedCards: 'Linked checking cards',
-    linkedCardsHint: 'Checking cards depending on this info',
-    payload: 'Information',
+    linkedCards: 'Linked cards',
+    linkedCardsHint: 'Cards depending on this knowledge item',
+    payload: 'Knowledge item payload',
     links: 'Links',
     empty: 'No data',
     noLinks: 'No links',
-    checkcards: 'Checkcards',
-    loadingCheckcards: 'Loading checkcards...',
-    loadCheckcardsError: 'Failed to load checkcards.',
-    noCheckcards: 'No checkcards.',
-    checkcardCount: 'Checkcard count',
+    checkcards: 'Cards',
+    loadingCheckcards: 'Loading cards...',
+    loadCheckcardsError: 'Failed to load cards.',
+    noCheckcards: 'No cards.',
+    checkcardCount: 'Card count',
     dependencyCount: 'Dependencies (effective)',
     approach: 'Approach',
     loadingApproach: 'Loading view...',
