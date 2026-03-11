@@ -45,15 +45,26 @@ function parseStoryboardSteps(script: string): string[] {
   return chunks.length > 0 ? chunks : [normalized];
 }
 
-function buildStoryboardContent(script: string) {
+function buildStoryboardContent(script: string, existingContent?: unknown) {
   const cleanScript = script.trim();
   const steps = parseStoryboardSteps(cleanScript);
   const references = Array.from(new Set((cleanScript.match(/\[\[[^\]]+\]\]/g) ?? []).map((entry) => entry.slice(2, -2).trim())));
-  return {
+  const base = {
     script: cleanScript,
     steps,
     references
   };
+  if (
+    existingContent &&
+    typeof existingContent === 'object' &&
+    (existingContent as { schema?: unknown }).schema === 'cogita_storyboard_graph'
+  ) {
+    return {
+      ...(existingContent as Record<string, unknown>),
+      ...base
+    };
+  }
+  return base;
 }
 
 export function CogitaStoryboardRuntimePage({
@@ -237,7 +248,7 @@ export function CogitaStoryboardRuntimePage({
         libraryId: selectedLibraryId,
         projectId: selectedProjectId,
         name: projectName.trim() || 'Storyboard draft',
-        content: buildStoryboardContent(script)
+        content: buildStoryboardContent(script, selectedProject?.content)
       });
       setProjects((current) =>
         current.map((item) => (item.projectId === updated.projectId ? updated : item))
