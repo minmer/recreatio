@@ -38,6 +38,7 @@ type StoryboardNodeRecord = {
   staticBody: string;
   mediaUrl: string;
   knowledgeItemId: string;
+  cardCheckType: string;
   cardDirection: StoryboardCardDirection;
   groupGraph?: StoryboardGraph;
 };
@@ -67,6 +68,7 @@ type RuntimeBlock = {
   staticBody: string;
   mediaUrl: string;
   knowledgeItemId: string;
+  cardCheckType: string;
   cardDirection: StoryboardCardDirection;
 };
 
@@ -110,6 +112,7 @@ function createStartNode(nodeId?: string): StoryboardNodeRecord {
     staticBody: '',
     mediaUrl: '',
     knowledgeItemId: '',
+    cardCheckType: '',
     cardDirection: 'front_to_back'
   };
 }
@@ -125,6 +128,7 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
     staticBody: '',
     mediaUrl: '',
     knowledgeItemId: '',
+    cardCheckType: '',
     cardDirection: 'front_to_back'
   };
 }
@@ -195,6 +199,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticBody: toString(item.staticBody ?? item.text),
       mediaUrl: toString(item.mediaUrl ?? item.videoUrl),
       knowledgeItemId: toString(item.knowledgeItemId),
+      cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection),
       groupGraph: kind === 'group' && item.groupGraph ? parseGraph(item.groupGraph) : undefined
     };
@@ -334,6 +339,7 @@ function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): Run
     staticBody: node.staticBody,
     mediaUrl: node.mediaUrl,
     knowledgeItemId: node.knowledgeItemId,
+    cardCheckType: node.cardCheckType,
     cardDirection: node.cardDirection
   };
 }

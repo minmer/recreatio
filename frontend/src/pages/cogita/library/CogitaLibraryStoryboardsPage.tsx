@@ -20,13 +20,18 @@ import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
 import {
   createCogitaStoryboardShare,
   createCogitaCreationProject,
+  getCogitaInfoCheckcards,
   getCogitaCreationProjects,
   getCogitaStoryboardShares,
   revokeCogitaStoryboardShare,
   updateCogitaCreationProject,
+  type CogitaCardSearchResult,
   type CogitaCreationProject,
   type CogitaStoryboardShare
 } from '../../../lib/api';
+import { CogitaCheckcardRow } from './components/CogitaCheckcardRow';
+import { CogitaKnowledgeItemSearchOverlay } from './components/CogitaKnowledgeItemSearchOverlay';
+import { buildCheckcardKey } from './checkcards/checkcardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
 
@@ -59,6 +64,7 @@ type StoryboardNodeRecord = {
   staticBody: string;
   mediaUrl: string;
   knowledgeItemId: string;
+  cardCheckType: string;
   cardDirection: StoryboardCardDirection;
   groupGraph?: StoryboardGraph;
 };
@@ -191,6 +197,7 @@ function createStartNode(nodeId?: string): StoryboardNodeRecord {
     staticBody: '',
     mediaUrl: '',
     knowledgeItemId: '',
+    cardCheckType: '',
     cardDirection: 'front_to_back'
   };
 }
@@ -206,6 +213,7 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
     staticBody: '',
     mediaUrl: '',
     knowledgeItemId: '',
+    cardCheckType: '',
     cardDirection: 'front_to_back'
   };
 }
@@ -224,6 +232,7 @@ function createAuthorNode(kind: 'static' | 'card' | 'group', index: number): Sto
     staticBody: '',
     mediaUrl: '',
     knowledgeItemId: '',
+    cardCheckType: '',
     cardDirection: 'front_to_back'
   };
 }
@@ -284,6 +293,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticBody: toString(node.staticBody ?? node.text),
       mediaUrl: toString(node.mediaUrl ?? node.videoUrl),
       knowledgeItemId: toString(node.knowledgeItemId),
+      cardCheckType: toString(node.cardCheckType ?? node.checkType),
       cardDirection: normalizeCardDirection(node.cardDirection),
       groupGraph: kind === 'group' && node.groupGraph ? parseGraph(node.groupGraph) : undefined
     } satisfies StoryboardNodeRecord;
@@ -404,6 +414,7 @@ function buildLegacyGraphFromV1(root: Record<string, unknown>): StoryboardGraph 
       staticBody: toString(item.text),
       mediaUrl: toString(item.videoUrl),
       knowledgeItemId: toString(item.knowledgeItemId),
+      cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection)
     } satisfies StoryboardNodeRecord;
   });
@@ -639,7 +650,8 @@ function collectScriptLines(graph: StoryboardGraph, depth = 0): string[] {
 
     if (node.kind === 'card') {
       const payload = node.knowledgeItemId.trim() || node.title;
-      lines.push(`${prefix}Card (${node.cardDirection}): ${payload}`);
+      const checkTag = node.cardCheckType.trim() ? ` / ${node.cardCheckType.trim()}` : '';
+      lines.push(`${prefix}Card (${node.cardDirection}${checkTag}): ${payload}`);
       return;
     }
 
@@ -995,10 +1007,6 @@ export function CogitaLibraryStoryboardsPage({
     { value: 'image', label: storyboardEditorCopy.staticTypeImage },
     { value: 'other', label: storyboardEditorCopy.staticTypeOther }
   ];
-  const cardDirectionOptions: Array<{ value: StoryboardCardDirection; label: string }> = [
-    { value: 'front_to_back', label: storyboardEditorCopy.cardDirectionFrontToBack },
-    { value: 'back_to_front', label: storyboardEditorCopy.cardDirectionBackToFront }
-  ];
   const staticTypeLabels: Record<StoryboardStaticType, string> = {
     text: storyboardEditorCopy.staticTypeText,
     video: storyboardEditorCopy.staticTypeVideo,
@@ -1031,6 +1039,10 @@ export function CogitaLibraryStoryboardsPage({
   const [activeGroupPath, setActiveGroupPath] = useState<string[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState('');
   const [selectedEdgeId, setSelectedEdgeId] = useState('');
+  const [cardPickerOpen, setCardPickerOpen] = useState(false);
+  const [cardNodeCards, setCardNodeCards] = useState<Record<string, CogitaCardSearchResult[]>>({});
+  const [cardNodeInfoLabels, setCardNodeInfoLabels] = useState<Record<string, string>>({});
+  const [cardNodeCardsStatus, setCardNodeCardsStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [activeShare, setActiveShare] = useState<CogitaStoryboardShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -1070,6 +1082,10 @@ export function CogitaLibraryStoryboardsPage({
       setActiveGroupPath([]);
       setSelectedNodeId('');
       setSelectedEdgeId('');
+      setCardPickerOpen(false);
+      setCardNodeCards({});
+      setCardNodeInfoLabels({});
+      setCardNodeCardsStatus('idle');
       return;
     }
 
@@ -1081,6 +1097,10 @@ export function CogitaLibraryStoryboardsPage({
     setActiveGroupPath([]);
     setSelectedNodeId(initialGraph.startNodeId);
     setSelectedEdgeId('');
+    setCardPickerOpen(false);
+    setCardNodeCards({});
+    setCardNodeInfoLabels({});
+    setCardNodeCardsStatus('idle');
     setActiveShare(null);
     setShareStatus('idle');
     setShareCopyStatus('idle');
@@ -1141,6 +1161,33 @@ export function CogitaLibraryStoryboardsPage({
     [activeGraph.edges, selectedEdgeId]
   );
 
+  useEffect(() => {
+    if (!selectedNode || selectedNode.kind !== 'card' || !selectedNode.knowledgeItemId.trim()) {
+      setCardNodeCardsStatus('idle');
+      return;
+    }
+    if (cardNodeCards[selectedNode.nodeId]) {
+      return;
+    }
+
+    let cancelled = false;
+    setCardNodeCardsStatus('loading');
+    getCogitaInfoCheckcards({ libraryId, infoId: selectedNode.knowledgeItemId.trim() })
+      .then((bundle) => {
+        if (cancelled) return;
+        setCardNodeCards((current) => ({ ...current, [selectedNode.nodeId]: bundle.items }));
+        setCardNodeCardsStatus('idle');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCardNodeCards((current) => ({ ...current, [selectedNode.nodeId]: [] }));
+        setCardNodeCardsStatus('error');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardNodeCards, libraryId, selectedNode]);
+
   const groupPathLabels = useMemo(
     () => getGroupPathLabels(documentState.rootGraph, activeGroupPath),
     [activeGroupPath, documentState.rootGraph]
@@ -1175,10 +1222,11 @@ export function CogitaLibraryStoryboardsPage({
           },
           position: node.position,
           draggable: canEdit,
-          selectable: true
+          selectable: true,
+          selected: node.nodeId === selectedNodeId
         };
       }),
-    [activeGraph.nodes, canEdit, directionLabels, staticTypeLabels, storyboardEditorCopy.nodeKindCard, storyboardEditorCopy.nodeKindEnd, storyboardEditorCopy.nodeKindGroup, storyboardEditorCopy.nodeKindStart, storyboardEditorCopy.nodeKindStatic]
+    [activeGraph.nodes, canEdit, directionLabels, selectedNodeId, staticTypeLabels, storyboardEditorCopy.nodeKindCard, storyboardEditorCopy.nodeKindEnd, storyboardEditorCopy.nodeKindGroup, storyboardEditorCopy.nodeKindStart, storyboardEditorCopy.nodeKindStatic]
   );
 
   const flowEdges = useMemo<Edge[]>(
@@ -1200,6 +1248,7 @@ export function CogitaLibraryStoryboardsPage({
           sourceHandle: edge.sourcePort,
           targetHandle: edge.targetPort,
           focusable: true,
+          selected: edge.edgeId === selectedEdgeId,
           interactionWidth: 32,
           label: edgeLabel || undefined,
           animated: edge.kind === 'dependency',
@@ -1223,6 +1272,16 @@ export function CogitaLibraryStoryboardsPage({
   );
 
   const nodeTypes = useMemo(() => ({ storyboardNode: StoryboardFlowNode }), []);
+
+  const selectedNodeCards = useMemo(() => {
+    if (!selectedNode || selectedNode.kind !== 'card') return [] as CogitaCardSearchResult[];
+    return cardNodeCards[selectedNode.nodeId] ?? [];
+  }, [cardNodeCards, selectedNode]);
+
+  const selectedCardKey = useMemo(() => {
+    if (!selectedNode || selectedNode.kind !== 'card') return '';
+    return `${selectedNode.cardCheckType || ''}|${selectedNode.cardDirection || ''}`;
+  }, [selectedNode]);
 
   const updateActiveGraph = (updater: (graph: StoryboardGraph) => StoryboardGraph) => {
     setDocumentState((current) => ({
@@ -1474,6 +1533,7 @@ export function CogitaLibraryStoryboardsPage({
     setActiveGroupPath(nextPath);
     setSelectedNodeId(nextGraph.startNodeId);
     setSelectedEdgeId('');
+    setCardPickerOpen(false);
   };
 
   const enterSelectedGroup = () => {
@@ -1769,17 +1829,6 @@ export function CogitaLibraryStoryboardsPage({
                         setSelectedEdgeId(edge.id);
                         setSelectedNodeId('');
                       }}
-                      onSelectionChange={({ nodes, edges }) => {
-                        if (edges.length > 0) {
-                          setSelectedEdgeId(edges[0].id);
-                          setSelectedNodeId('');
-                          return;
-                        }
-                        if (nodes.length > 0) {
-                          setSelectedNodeId(nodes[0].id);
-                          setSelectedEdgeId('');
-                        }
-                      }}
                       onPaneClick={() => {
                         setSelectedEdgeId('');
                         setSelectedNodeId('');
@@ -1882,33 +1931,48 @@ export function CogitaLibraryStoryboardsPage({
                         {selectedNode.kind === 'card' ? (
                           <>
                             <label className="cogita-field full">
-                              <span>{storyboardEditorCopy.knowledgeItemIdLabel}</span>
-                              <input
-                                type="text"
-                                value={selectedNode.knowledgeItemId}
-                                disabled={!canEdit}
-                                onChange={(event) => updateSelectedNode((node) => ({ ...node, knowledgeItemId: event.target.value }))}
-                                placeholder="knowledge-item-id"
-                              />
+                              <span>{storyboardEditorCopy.selectedKnowledgeItemLabel}</span>
+                              <input type="text" value={cardNodeInfoLabels[selectedNode.nodeId] ?? selectedNode.knowledgeItemId} readOnly />
                             </label>
+                            <div className="cogita-card-actions">
+                              <button type="button" className="ghost" disabled={!canEdit} onClick={() => setCardPickerOpen(true)}>
+                                {storyboardEditorCopy.selectKnowledgeItemAction}
+                              </button>
+                            </div>
 
-                            <label className="cogita-field">
-                              <span>{storyboardEditorCopy.directionLabel}</span>
-                              <select
-                                value={selectedNode.cardDirection}
-                                disabled={!canEdit}
-                                onChange={(event) =>
-                                  updateSelectedNode((node) => ({
-                                    ...node,
-                                    cardDirection: normalizeCardDirection(event.target.value)
-                                  }))
-                                }
-                              >
-                                {cardDirectionOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>{option.label}</option>
-                                ))}
-                              </select>
-                            </label>
+                            {cardNodeCardsStatus === 'loading' ? <p className="cogita-help">{storyboardEditorCopy.checkcardsLoading}</p> : null}
+                            {cardNodeCardsStatus === 'error' ? <p className="cogita-form-error">{storyboardEditorCopy.checkcardsLoadFailed}</p> : null}
+                            {selectedNode.knowledgeItemId && selectedNodeCards.length === 0 && cardNodeCardsStatus !== 'loading' ? (
+                              <p className="cogita-help">{storyboardEditorCopy.checkcardsEmpty}</p>
+                            ) : null}
+                            {selectedNodeCards.length > 0 ? (
+                              <div className="cogita-storyboard-checkcards-panel">
+                                <p className="cogita-help">{storyboardEditorCopy.selectCheckingcardHint}</p>
+                                <div className="cogita-storyboard-checkcards-list">
+                                  {selectedNodeCards.map((card) => {
+                                    const mappedDirection: StoryboardCardDirection =
+                                      card.direction === 'back_to_front' || card.direction === 'front_to_back'
+                                        ? card.direction
+                                        : selectedNode.cardDirection;
+                                    const key = `${card.checkType ?? ''}|${mappedDirection}`;
+                                    return (
+                                      <CogitaCheckcardRow
+                                        key={buildCheckcardKey(card)}
+                                        card={card}
+                                        active={key === selectedCardKey}
+                                        onClick={() =>
+                                          updateSelectedNode((node) => ({
+                                            ...node,
+                                            cardCheckType: card.checkType ?? '',
+                                            cardDirection: mappedDirection
+                                          }))
+                                        }
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ) : null}
                           </>
                         ) : null}
 
@@ -1989,6 +2053,42 @@ export function CogitaLibraryStoryboardsPage({
           )}
         </section>
       )}
+      <CogitaKnowledgeItemSearchOverlay
+        libraryId={libraryId}
+        open={cardPickerOpen && !!selectedNode && selectedNode.kind === 'card'}
+        title={storyboardEditorCopy.selectKnowledgeItemAction}
+        closeLabel={copy.cogita.shell.back}
+        searchLabel={storyboardEditorCopy.overlaySearchLabel}
+        searchPlaceholder={storyboardEditorCopy.overlaySearchPlaceholder}
+        searchingLabel={storyboardEditorCopy.overlaySearching}
+        emptyLabel={storyboardEditorCopy.overlayNoLinkedCheckcards}
+        failedLabel={copy.cogita.library.modules.loadFailed}
+        resultSuffixLabel={storyboardEditorCopy.overlayResultCardsSuffix}
+        onClose={() => setCardPickerOpen(false)}
+        onSelect={(result) => {
+          if (!selectedNode || selectedNode.kind !== 'card') return;
+          const fallbackDirection: StoryboardCardDirection =
+            result.cards[0]?.direction === 'back_to_front' || result.cards[0]?.direction === 'front_to_back'
+              ? result.cards[0].direction
+              : selectedNode.cardDirection;
+          updateSelectedNode((node) => ({
+            ...node,
+            knowledgeItemId: result.info.infoId,
+            cardCheckType: result.cards[0]?.checkType ?? '',
+            cardDirection: fallbackDirection
+          }));
+          setCardNodeInfoLabels((current) => ({
+            ...current,
+            [selectedNode.nodeId]: result.info.label
+          }));
+          setCardNodeCards((current) => ({
+            ...current,
+            [selectedNode.nodeId]: result.cards
+          }));
+          setCardNodeCardsStatus('idle');
+          setCardPickerOpen(false);
+        }}
+      />
     </CogitaShell>
   );
 }

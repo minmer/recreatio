@@ -4627,6 +4627,29 @@
     rgba(6, 18, 31, 0.95);
 }
 
+.cogita-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(2, 10, 18, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.cogita-overlay-card {
+  width: min(760px, 100%);
+  max-height: min(86vh, 760px);
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.24);
+  background: rgba(8, 21, 36, 0.98);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.34);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
 .cogita-storyboard-empty {
   min-height: 100%;
   display: grid;
@@ -4727,6 +4750,28 @@
 
 .cogita-storyboard-checkline input {
   margin: 0;
+}
+
+.cogita-storyboard-checkcards-panel {
+  margin-top: 0.15rem;
+  border: 1px solid rgba(120, 170, 220, 0.22);
+  border-radius: 10px;
+  background: rgba(11, 27, 45, 0.8);
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cogita-storyboard-checkcards-panel > p {
+  margin: 0;
+}
+
+.cogita-storyboard-checkcards-list {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 0.15rem;
 }
 
 .cogita-revision-run .cogita-library-grid {

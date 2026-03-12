@@ -480,6 +480,17 @@ export type Copy = {
           staticTypeLabel: string;
           staticBodyLabel: string;
           mediaUrlLabel: string;
+          selectedKnowledgeItemLabel: string;
+          selectKnowledgeItemAction: string;
+          checkcardsLoading: string;
+          checkcardsLoadFailed: string;
+          checkcardsEmpty: string;
+          selectCheckingcardHint: string;
+          overlaySearchLabel: string;
+          overlaySearchPlaceholder: string;
+          overlaySearching: string;
+          overlayNoLinkedCheckcards: string;
+          overlayResultCardsSuffix: string;
           knowledgeItemIdLabel: string;
           directionLabel: string;
           enterGroupAction: string;

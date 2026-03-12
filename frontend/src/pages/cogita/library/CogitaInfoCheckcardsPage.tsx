@@ -9,6 +9,7 @@ import { CogitaCheckcardSurface } from './collections/components/CogitaCheckcard
 import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
 import { getInfoTypeLabel } from './libraryOptions';
 import { CogitaStatisticsPanel } from './components/CogitaStatisticsPanel';
+import { CogitaCheckcardRow } from './components/CogitaCheckcardRow';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
@@ -18,6 +19,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../lib/api';
+import { buildCheckcardKey, formatCheckTarget } from './checkcards/checkcardDisplay';
 import { evaluateAnchorTextAnswer } from '../../../cogita/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 import {
@@ -66,18 +68,8 @@ type DirectCardPreview =
       expected: string;
     };
 
-function cardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {
-  return [card.cardId, card.checkType ?? '', card.direction ?? ''].join('|');
-}
-
 function dependencyKey(dep: Pick<CogitaItemDependency, 'parentItemId' | 'parentCheckType' | 'parentDirection'>) {
   return [dep.parentItemId, dep.parentCheckType ?? '', dep.parentDirection ?? ''].join('|');
-}
-
-function formatCheckTarget(card: CogitaCardSearchResult) {
-  const raw = card.checkType ?? 'info';
-  const main = raw.startsWith('question-') ? `question / ${raw.slice('question-'.length)}` : raw;
-  return card.direction ? `${main} / ${card.direction}` : main;
 }
 
 export function CogitaInfoCheckcardsPage({
@@ -181,12 +173,12 @@ export function CogitaInfoCheckcardsPage({
   }, [detailInfoType, infoId, libraryId]);
 
   const graphNodes = useMemo<Node<CheckcardNodeData>[]>(() => {
-    const cardMap = new Map(cards.map((card) => [cardKey(card), card]));
+    const cardMap = new Map(cards.map((card) => [buildCheckcardKey(card), card]));
     const incoming = new Map<string, number>();
     const outgoing = new Map<string, string[]>();
     for (const card of cards) {
-      incoming.set(cardKey(card), 0);
-      outgoing.set(cardKey(card), []);
+      incoming.set(buildCheckcardKey(card), 0);
+      outgoing.set(buildCheckcardKey(card), []);
     }
     for (const dep of dependencies) {
       const source = dependencyKey({
@@ -214,7 +206,7 @@ export function CogitaInfoCheckcardsPage({
     }
     const grouped = new Map<number, string[]>();
     for (const card of cards) {
-      const key = cardKey(card);
+      const key = buildCheckcardKey(card);
       const level = levelById.get(key) ?? 0;
       const bucket = grouped.get(level) ?? [];
       bucket.push(key);
@@ -222,7 +214,7 @@ export function CogitaInfoCheckcardsPage({
     }
 
     return cards.map((card) => {
-      const key = cardKey(card);
+      const key = buildCheckcardKey(card);
       const level = levelById.get(key) ?? 0;
       const idsInLevel = grouped.get(level) ?? [key];
       const row = Math.max(0, idsInLevel.indexOf(key));
@@ -249,7 +241,7 @@ export function CogitaInfoCheckcardsPage({
     });
   }, [cards, dependencies]);
 
-  const cardByKey = useMemo(() => new Map(cards.map((card) => [cardKey(card), card])), [cards]);
+  const cardByKey = useMemo(() => new Map(cards.map((card) => [buildCheckcardKey(card), card])), [cards]);
 
   const graphEdges = useMemo<Edge[]>(() => {
     const edges: Edge[] = [];
@@ -265,7 +257,6 @@ export function CogitaInfoCheckcardsPage({
         id: `${source}->${target}`,
         source,
         target,
-        selectable: false,
         animated: false,
         style: { stroke: 'rgba(148, 202, 248, 0.7)' }
       });
@@ -384,12 +375,12 @@ export function CogitaInfoCheckcardsPage({
     }
   };
 
-  const selectedCardKey = selectedCard ? cardKey(selectedCard) : null;
+  const selectedCardKey = selectedCard ? buildCheckcardKey(selectedCard) : null;
   const selectedCardAlreadyChecked = selectedCardKey ? !!checkedCardKeys[selectedCardKey] : false;
 
   const checkAnswerAndSave = async () => {
     if (!selectedCard || !cardPreview) return;
-    const key = cardKey(selectedCard);
+    const key = buildCheckcardKey(selectedCard);
     if (checkedCardKeys[key]) {
       setSaveStatus('This card was already checked.');
       return;
@@ -427,7 +418,7 @@ export function CogitaInfoCheckcardsPage({
 
   const handleRevealCorrectAnswer = () => {
     if (!selectedCard || !cardPreview) return;
-    const key = cardKey(selectedCard);
+    const key = buildCheckcardKey(selectedCard);
     if (!checkedCardKeys[key]) {
       setCheckedCardKeys((prev) => ({ ...prev, [key]: true }));
       setSaveStatus('Answer revealed (not saved).');
@@ -707,18 +698,15 @@ export function CogitaInfoCheckcardsPage({
                     <h3>Checking cards</h3>
                     <div className="cogita-info-tree">
                       {cards.map((card) => {
-                        const key = cardKey(card);
+                        const key = buildCheckcardKey(card);
                         const active = selectedNodeId === key;
                         return (
-                          <button
+                          <CogitaCheckcardRow
                             key={key}
-                            type="button"
-                            className={`ghost cogita-checkcard-row ${active ? 'active' : ''}`}
+                            card={card}
+                            active={active}
                             onClick={() => setSelectedNodeId(key)}
-                          >
-                            <span>{card.label}</span>
-                            <small>{formatCheckTarget(card)}</small>
-                          </button>
+                          />
                         );
                       })}
                     </div>
