@@ -842,63 +842,56 @@ export function CogitaKnowledgeItemSearch({
               <div className="cogita-library-controls">
                 <div className="cogita-library-search">
                   <div className="cogita-search-field">
-                    <select
-                      aria-label={listCopy.typeLabel}
-                      value={searchType}
-                      onChange={(event) => setSearchType(event.target.value as CogitaInfoType | 'any')}
-                    >
-                      {infoTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <CogitaKnowledgeSearch
-                      libraryId={libraryId}
-                      infoType={searchType}
-                      query={searchQuery}
-                      onQueryChange={setSearchQuery}
-                      minQueryLength={0}
-                      debounceMs={240}
-                      limit={SEARCH_LIMIT}
-                      entityFilters={searchFiltersPayload}
-                      useEntitySearch
-                      searchLabel={listCopy.searchPlaceholder}
-                      searchPlaceholder={listCopy.searchPlaceholder}
-                      searchingLabel={listCopy.loading}
-                      emptyLabel={listCopy.noMatch}
-                      failedLabel={listCopy.noMatch}
-                      resultSuffixLabel=""
-                      showInput
-                      inlineInput
-                      inputAriaLabel={listCopy.searchTitle}
-                      showStatusMessages={false}
-                      hideResultsList
-                      disabled={filterCollectionId ? !collectionScopeReady : false}
-                      onStatusChange={(nextStatus) => {
-                        setSearchStatus(nextStatus === 'error' ? 'ready' : nextStatus === 'idle' ? 'ready' : nextStatus);
-                      }}
-                      onResultsChange={(searchResults) => {
-                        const mapped = searchResults.map((entry) => entry.info);
-                        if (filterCollectionId && collectionScopeInfoIds) {
-                          setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
-                        } else {
-                          setRawResults(mapped);
-                        }
-                      }}
-                    />
-                    <select aria-label={listCopy.sortLabel} value={sortBy} onChange={(event) => setSortBy(event.target.value as InfoSort)}>
-                      {sortOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select aria-label={listCopy.viewLabel} value={viewMode} onChange={(event) => setViewMode(event.target.value as ResultView)}>
-                      <option value="details">{listCopy.viewDetails}</option>
-                      <option value="wide">{listCopy.viewWide}</option>
-                      <option value="grid">{listCopy.viewGrid}</option>
-                    </select>
+                    <div className="cogita-search-field-main">
+                      <CogitaKnowledgeSearch
+                        libraryId={libraryId}
+                        infoType={searchType}
+                        query={searchQuery}
+                        onQueryChange={setSearchQuery}
+                        minQueryLength={0}
+                        debounceMs={240}
+                        limit={SEARCH_LIMIT}
+                        entityFilters={searchFiltersPayload}
+                        useEntitySearch
+                        searchLabel={listCopy.searchPlaceholder}
+                        searchPlaceholder={listCopy.searchPlaceholder}
+                        searchingLabel={listCopy.loading}
+                        emptyLabel={listCopy.noMatch}
+                        failedLabel={listCopy.noMatch}
+                        resultSuffixLabel=""
+                        showInput
+                        inlineInput
+                        inputAriaLabel={listCopy.searchTitle}
+                        showStatusMessages={false}
+                        hideResultsList
+                        disabled={filterCollectionId ? !collectionScopeReady : false}
+                        onStatusChange={(nextStatus) => {
+                          setSearchStatus(nextStatus === 'error' ? 'ready' : nextStatus === 'idle' ? 'ready' : nextStatus);
+                        }}
+                        onResultsChange={(searchResults) => {
+                          const mapped = searchResults.map((entry) => entry.info);
+                          if (filterCollectionId && collectionScopeInfoIds) {
+                            setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
+                          } else {
+                            setRawResults(mapped);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="cogita-search-field-right">
+                      <select aria-label={listCopy.sortLabel} value={sortBy} onChange={(event) => setSortBy(event.target.value as InfoSort)}>
+                        {sortOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select aria-label={listCopy.viewLabel} value={viewMode} onChange={(event) => setViewMode(event.target.value as ResultView)}>
+                        <option value="details">{listCopy.viewDetails}</option>
+                        <option value="wide">{listCopy.viewWide}</option>
+                        <option value="grid">{listCopy.viewGrid}</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -1,2 +1,1 @@
-export { CogitaSearchOverlayCard } from './CogitaSearchOverlayCard';
-export { CogitaKnowledgeItemSearchOverlay } from './CogitaKnowledgeItemSearchOverlay';
+export { CogitaWorkspaceComponentOverlay } from './CogitaWorkspaceComponentOverlay';

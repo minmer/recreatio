@@ -30,7 +30,8 @@ import {
   type CogitaStoryboardShare
 } from '../../../../lib/api';
 import { CogitaCheckcardList } from '../components/CogitaCheckcardList';
-import { CogitaKnowledgeItemSearchOverlay } from '../components/search/overlays/CogitaKnowledgeItemSearchOverlay';
+import { CogitaKnowledgeSearch } from '../components/search/CogitaKnowledgeSearch';
+import { CogitaWorkspaceComponentOverlay } from '../components/search/overlays/CogitaWorkspaceComponentOverlay';
 import { CogitaStoryboardProjectSearch } from '../components/search/CogitaStoryboardProjectSearch';
 import { buildCheckcardKey } from '../checkcards/checkcardDisplay';
 
@@ -2049,42 +2050,48 @@ export function CogitaStoryboardWorkspace({
           )}
         </section>
       )}
-      <CogitaKnowledgeItemSearchOverlay
-        libraryId={libraryId}
+      <CogitaWorkspaceComponentOverlay
         open={cardPickerOpen && !!selectedNode && selectedNode.kind === 'card'}
         title={storyboardEditorCopy.selectKnowledgeItemAction}
         closeLabel={copy.cogita.shell.back}
-        searchLabel={storyboardEditorCopy.overlaySearchLabel}
-        searchPlaceholder={storyboardEditorCopy.overlaySearchPlaceholder}
-        searchingLabel={storyboardEditorCopy.overlaySearching}
-        emptyLabel={storyboardEditorCopy.overlayNoLinkedCheckcards}
-        failedLabel={copy.cogita.library.modules.loadFailed}
-        resultSuffixLabel={storyboardEditorCopy.overlayResultCardsSuffix}
+        workspaceLinkTo={`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/knowledge-items`}
+        workspaceLinkLabel={copy.cogita.workspace.targets.allCards}
         onClose={() => setCardPickerOpen(false)}
-        onSelect={(result) => {
-          if (!selectedNode || selectedNode.kind !== 'card') return;
-          const fallbackDirection: StoryboardCardDirection =
-            result.cards[0]?.direction === 'back_to_front' || result.cards[0]?.direction === 'front_to_back'
-              ? result.cards[0].direction
-              : selectedNode.cardDirection;
-          updateSelectedNode((node) => ({
-            ...node,
-            knowledgeItemId: result.info.infoId,
-            cardCheckType: result.cards[0]?.checkType ?? '',
-            cardDirection: fallbackDirection
-          }));
-          setCardNodeInfoLabels((current) => ({
-            ...current,
-            [selectedNode.nodeId]: result.info.label
-          }));
-          setCardNodeCards((current) => ({
-            ...current,
-            [selectedNode.nodeId]: result.cards
-          }));
-          setCardNodeCardsStatus('idle');
-          setCardPickerOpen(false);
-        }}
-      />
+      >
+        <CogitaKnowledgeSearch
+          libraryId={libraryId}
+          searchLabel={storyboardEditorCopy.overlaySearchLabel}
+          searchPlaceholder={storyboardEditorCopy.overlaySearchPlaceholder}
+          searchingLabel={storyboardEditorCopy.overlaySearching}
+          emptyLabel={storyboardEditorCopy.overlayNoLinkedCheckcards}
+          failedLabel={copy.cogita.library.modules.loadFailed}
+          resultSuffixLabel={storyboardEditorCopy.overlayResultCardsSuffix}
+          requireLinkedCheckcards
+          onKnowledgeItemSelect={(result) => {
+            if (!selectedNode || selectedNode.kind !== 'card') return;
+            const fallbackDirection: StoryboardCardDirection =
+              result.cards[0]?.direction === 'back_to_front' || result.cards[0]?.direction === 'front_to_back'
+                ? result.cards[0].direction
+                : selectedNode.cardDirection;
+            updateSelectedNode((node) => ({
+              ...node,
+              knowledgeItemId: result.info.infoId,
+              cardCheckType: result.cards[0]?.checkType ?? '',
+              cardDirection: fallbackDirection
+            }));
+            setCardNodeInfoLabels((current) => ({
+              ...current,
+              [selectedNode.nodeId]: result.info.label
+            }));
+            setCardNodeCards((current) => ({
+              ...current,
+              [selectedNode.nodeId]: result.cards
+            }));
+            setCardNodeCardsStatus('idle');
+            setCardPickerOpen(false);
+          }}
+        />
+      </CogitaWorkspaceComponentOverlay>
     </CogitaShell>
   );
 }

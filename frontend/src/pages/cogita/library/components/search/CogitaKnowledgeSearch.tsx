@@ -264,7 +264,11 @@ export function CogitaKnowledgeSearch({
     onKnowledgeItemToggleSelection?.(result, checked);
   };
   const handleResultSelect = (result: CogitaKnowledgeSearchResult) => {
-    onKnowledgeItemSelect?.(result);
+    if (onKnowledgeItemSelect) {
+      onKnowledgeItemSelect(result);
+      return;
+    }
+    onKnowledgeItemOpen?.(result);
   };
   const handleResultOpen = (result: CogitaKnowledgeSearchResult) => {
     onKnowledgeItemOpen?.(result);
