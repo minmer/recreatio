@@ -4594,6 +4594,21 @@
   gap: 1rem;
 }
 
+.cogita-storyboard-dashboard,
+.cogita-storyboard-dashboard .cogita-library-title,
+.cogita-storyboard-dashboard .cogita-detail-title,
+.cogita-storyboard-dashboard .cogita-user-kicker {
+  color: rgba(236, 245, 255, 0.96);
+}
+
+.cogita-storyboard-dashboard p,
+.cogita-storyboard-dashboard .cogita-help,
+.cogita-storyboard-dashboard .cogita-form-error,
+.cogita-storyboard-dashboard .cogita-field > span,
+.cogita-storyboard-dashboard .cogita-storyboard-inline-row span {
+  color: rgba(214, 230, 248, 0.92);
+}
+
 .cogita-storyboard-top-panel,
 .cogita-storyboard-bottom-panel {
   background: rgba(8, 21, 36, 0.82);
@@ -4667,6 +4682,20 @@
 .cogita-storyboard-editor-section h4 {
   margin: 0;
   color: rgba(235, 245, 255, 0.94);
+}
+
+.cogita-storyboard-runtime,
+.cogita-storyboard-runtime .cogita-library-title,
+.cogita-storyboard-runtime .cogita-detail-title,
+.cogita-storyboard-runtime .cogita-user-kicker {
+  color: rgba(236, 245, 255, 0.96);
+}
+
+.cogita-storyboard-runtime p,
+.cogita-storyboard-runtime .cogita-help,
+.cogita-storyboard-runtime .cogita-form-error,
+.cogita-storyboard-runtime strong {
+  color: rgba(214, 230, 248, 0.92);
 }
 
 .cogita-storyboard-editor-section-head {

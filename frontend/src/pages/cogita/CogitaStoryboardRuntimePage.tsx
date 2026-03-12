@@ -658,7 +658,7 @@ export function CogitaStoryboardRuntimePage({
         ) : null
       }
     >
-      <section className="cogita-section" style={{ maxWidth: 980, margin: '0 auto', width: '100%' }}>
+      <section className="cogita-section cogita-storyboard-runtime" style={{ maxWidth: 980, margin: '0 auto', width: '100%' }}>
         <header className="cogita-library-header" style={{ marginBottom: '1rem' }}>
           <div>
             <p className="cogita-user-kicker">{runtimeCopy.kicker}</p>

@@ -1123,7 +1123,7 @@ export function CogitaLibraryStoryboardsPage({
   );
 
   useEffect(() => {
-    if (!activeGraph.nodes.some((node) => node.nodeId === selectedNodeId)) {
+    if (selectedNodeId && !activeGraph.nodes.some((node) => node.nodeId === selectedNodeId)) {
       setSelectedNodeId(activeGraph.startNodeId);
     }
     if (selectedEdgeId && !activeGraph.edges.some((edge) => edge.edgeId === selectedEdgeId)) {
