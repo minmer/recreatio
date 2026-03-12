@@ -11,10 +11,10 @@ import {
   updateCogitaLiveRevisionSession,
   type CogitaLiveRevisionSession,
   type CogitaLiveRevisionSessionListItem
-} from '../../../../lib/api';
-import { CogitaShell } from '../../CogitaShell';
-import type { Copy } from '../../../../content/types';
-import type { RouteKey } from '../../../../types/navigation';
+} from '../../../../../lib/api';
+import { CogitaShell } from '../../../CogitaShell';
+import type { Copy } from '../../../../../content/types';
+import type { RouteKey } from '../../../../../types/navigation';
 import {
   DEFAULT_LIVE_RULES,
   clampInt,
@@ -30,13 +30,13 @@ import {
   type LivePresetId,
   type NextQuestionMode,
   type TimerExpireAction
-} from '../../live/liveSessionRules';
-import { buildLiveSessionSummaryLines } from '../../live/liveSessionDescription';
-import { CogitaLiveSessionSearch } from '../components/search/CogitaLiveSessionSearch';
+} from '../../../live/liveSessionRules';
+import { buildLiveSessionSummaryLines } from '../../../live/liveSessionDescription';
+import { CogitaLiveSessionSearch } from '../../components/search/CogitaLiveSessionSearch';
 
-export type LiveSessionsPageMode = 'search' | 'create' | 'detail' | 'edit';
+export type LiveSessionsMode = 'search' | 'create' | 'detail' | 'edit';
 
-export type CogitaRevisionLiveSessionsPageProps = {
+export type CogitaRevisionLiveSessionsProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -49,7 +49,7 @@ export type CogitaRevisionLiveSessionsPageProps = {
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   revisionId: string;
-  mode?: LiveSessionsPageMode;
+  mode?: LiveSessionsMode;
   sessionId?: string;
   onCreated?: (sessionId: string) => void;
   onOpenSession?: (sessionId: string) => void;
@@ -57,7 +57,7 @@ export type CogitaRevisionLiveSessionsPageProps = {
   onRequestOverview?: (sessionId: string) => void;
 };
 
-export function CogitaRevisionLiveSessionsPage({
+export function CogitaRevisionLiveSessions({
   copy,
   authLabel,
   showProfileMenu,
@@ -76,7 +76,7 @@ export function CogitaRevisionLiveSessionsPage({
   onOpenSession,
   onRequestEdit,
   onRequestOverview
-}: CogitaRevisionLiveSessionsPageProps) {
+}: CogitaRevisionLiveSessionsProps) {
   const navigate = useNavigate();
   const FIXED_HOST_VIEW_MODE = 'panel' as const;
   const FIXED_PARTICIPANT_VIEW_MODE = 'question' as const;

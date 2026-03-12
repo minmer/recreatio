@@ -31,24 +31,24 @@ import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaEmbeddedContext, CogitaShell } from './CogitaShell';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CogitaLibraryOverviewPage } from './library/CogitaLibraryOverviewPage';
-import { CogitaLibraryListPage } from './library/CogitaLibraryListPage';
-import { CogitaKnowledgeItemEditPage } from './library/CogitaKnowledgeItemEditPage';
-import { CogitaDependencyGraphPage } from './library/CogitaDependencyGraphPage';
-import { CogitaInfoCheckcardsPage } from './library/CogitaInfoCheckcardsPage';
+import { CogitaLibraryOverview } from './library/overview/CogitaLibraryOverview';
+import { CogitaKnowledgeItemSearch } from './library/knowledgeitem/CogitaKnowledgeItemSearch';
+import { CogitaKnowledgeItemEdit } from './library/knowledgeitem/CogitaKnowledgeItemEdit';
+import { CogitaDependencyGraph } from './library/dependency/CogitaDependencyGraph';
+import { CogitaKnowledgeItemCards } from './library/knowledgeitem/CogitaKnowledgeItemCards';
 import { CogitaPersonsPage } from './CogitaPersonsPage';
-import { CogitaLibraryTransferPage } from './library/CogitaLibraryTransferPage';
-import { CogitaLibraryStoryboardsPage } from './library/CogitaLibraryStoryboardsPage';
-import { CogitaStoryboardEditPage } from './library/CogitaStoryboardEditPage';
-import { CogitaLibraryTextsPage } from './library/CogitaLibraryTextsPage';
-import type { StoryboardWorkspaceMode } from './library/CogitaLibraryStoryboardsPage';
-import { CogitaCollectionListPage } from './library/collections/CogitaCollectionListPage';
-import { CogitaCollectionDetailPage } from './library/collections/CogitaCollectionDetailPage';
-import { CogitaCollectionEditPage } from './library/collections/CogitaCollectionEditPage';
-import { CogitaRevisionListPage } from './library/collections/CogitaRevisionListPage';
-import { CogitaRevisionOverviewPage } from './library/collections/CogitaRevisionOverviewPage';
-import { CogitaRevisionEditPage } from './library/collections/CogitaRevisionEditPage';
-import { CogitaRevisionLiveSessionsPage } from './library/collections/CogitaRevisionLiveSessionsPage';
+import { CogitaTransferWorkspace } from './library/transfer/CogitaTransferWorkspace';
+import { CogitaStoryboardWorkspace } from './library/storyboard/CogitaStoryboardWorkspace';
+import { CogitaStoryboardEdit } from './library/storyboard/CogitaStoryboardEdit';
+import { CogitaTextWorkspace } from './library/text/CogitaTextWorkspace';
+import type { StoryboardWorkspaceMode } from './library/storyboard/CogitaStoryboardWorkspace';
+import { CogitaCollectionSearch } from './library/collection/CogitaCollectionSearch';
+import { CogitaCollectionOverview } from './library/collection/CogitaCollectionOverview';
+import { CogitaCollectionEdit } from './library/collection/CogitaCollectionEdit';
+import { CogitaRevisionSearch } from './library/revision/CogitaRevisionSearch';
+import { CogitaRevisionOverview } from './library/revision/CogitaRevisionOverview';
+import { CogitaRevisionEdit } from './library/revision/CogitaRevisionEdit';
+import { CogitaRevisionLiveSessions } from './library/revision/livesessions/CogitaRevisionLiveSessions';
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './library/types';
 import { primeCachedCollections } from './library/cogitaMetaCache';
@@ -2084,14 +2084,14 @@ export function CogitaWorkspacePage({
     };
 
     if (pathState.target === 'library_overview') {
-      return <CogitaLibraryOverviewPage {...baseProps} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
+      return <CogitaLibraryOverview {...baseProps} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
     }
     if (pathState.target === 'all_cards') {
       if (pathState.infoId && pathState.infoView === 'cards') {
-        return <CogitaInfoCheckcardsPage {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
+        return <CogitaKnowledgeItemCards {...baseProps} infoId={pathState.infoId} selectedReviewerRoleId={selectedReviewerRoleId || null} />;
       }
       return (
-        <CogitaLibraryListPage
+        <CogitaKnowledgeItemSearch
           {...baseProps}
           mode={pathState.cardMode ?? 'list'}
           filterCollectionId={pathState.filterCollectionId}
@@ -2100,13 +2100,13 @@ export function CogitaWorkspacePage({
       );
     }
     if (pathState.target === 'new_card') {
-      return <CogitaKnowledgeItemEditPage {...baseProps} infoId={pathState.infoId} />;
+      return <CogitaKnowledgeItemEdit {...baseProps} editInfoId={pathState.infoId} />;
     }
     if (pathState.target === 'dependencies') {
-      return <CogitaDependencyGraphPage {...baseProps} mode={pathState.dependencyView ?? 'search'} />;
+      return <CogitaDependencyGraph {...baseProps} mode={pathState.dependencyView ?? 'search'} />;
     }
     if (pathState.target === 'transfer') {
-      return <CogitaLibraryTransferPage {...baseProps} />;
+      return <CogitaTransferWorkspace {...baseProps} />;
     }
     if (pathState.target === 'storyboards' || pathState.target === 'new_storyboard') {
       const storyboardMode: StoryboardWorkspaceMode =
@@ -2118,23 +2118,23 @@ export function CogitaWorkspacePage({
               ? 'overview'
               : 'search';
       if (storyboardMode === 'create' || storyboardMode === 'edit') {
-        return <CogitaStoryboardEditPage {...baseProps} storyboardId={storyboardMode === 'edit' ? pathState.storyboardId : undefined} />;
+        return <CogitaStoryboardEdit {...baseProps} storyboardId={storyboardMode === 'edit' ? pathState.storyboardId : undefined} />;
       }
-      return <CogitaLibraryStoryboardsPage {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
+      return <CogitaStoryboardWorkspace {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
     }
     if (pathState.target === 'texts' || pathState.target === 'new_text') {
-      return <CogitaLibraryTextsPage {...baseProps} />;
+      return <CogitaTextWorkspace {...baseProps} />;
     }
     if (pathState.target === 'all_revisions') {
       if (!pathState.revisionId && !pathState.revisionView) {
-        return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
+        return <CogitaRevisionSearch {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
       if (pathState.revisionView === 'detail' && pathState.revisionId) {
-        return <CogitaRevisionOverviewPage {...baseProps} revisionId={pathState.revisionId} />;
+        return <CogitaRevisionOverview {...baseProps} revisionId={pathState.revisionId} />;
       }
       if (pathState.revisionView === 'live' && pathState.revisionId) {
         return (
-          <CogitaRevisionLiveSessionsPage
+          <CogitaRevisionLiveSessions
             {...baseProps}
             revisionId={pathState.revisionId}
             mode={
@@ -2198,23 +2198,23 @@ export function CogitaWorkspacePage({
         return <CogitaLiveSessionsPage {...baseProps} libraryId={libraryId} />;
       }
       if (!pathState.revisionId && pathState.revisionView === 'settings') {
-        return <CogitaRevisionListPage {...baseProps} collectionId={pathState.filterCollectionId} />;
+        return <CogitaRevisionSearch {...baseProps} collectionId={pathState.filterCollectionId} />;
       }
-      return <CogitaRevisionEditPage {...baseProps} revisionId={pathState.revisionId} />;
+      return <CogitaRevisionEdit {...baseProps} revisionId={pathState.revisionId} />;
     }
     if (pathState.target === 'all_collections') {
       if (pathState.collectionId) {
         const collectionProps = { ...baseProps, collectionId: pathState.collectionId };
         if (pathState.revisionView === 'graph') {
-          return <CogitaCollectionEditPage {...collectionProps} collectionId={pathState.collectionId} />;
+          return <CogitaCollectionEdit {...collectionProps} collectionId={pathState.collectionId} />;
         }
-        return <CogitaCollectionDetailPage {...collectionProps} />;
+        return <CogitaCollectionOverview {...collectionProps} />;
       }
-      return <CogitaCollectionListPage {...baseProps} />;
+      return <CogitaCollectionSearch {...baseProps} />;
     }
     if (pathState.target === 'new_collection') {
       return (
-        <CogitaCollectionEditPage
+        <CogitaCollectionEdit
           {...baseProps}
           onCreated={(collection) => {
             applyNavigationSelection({

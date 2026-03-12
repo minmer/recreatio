@@ -4,12 +4,12 @@ import {
   getCogitaItemDependencies,
   getCogitaRevisions,
   searchCogitaCards
-} from '../../../lib/api';
-import { CogitaShell } from '../CogitaShell';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { CogitaStatisticsPanel } from './components/CogitaStatisticsPanel';
+} from '../../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import { CogitaStatisticsPanel } from '../components/CogitaStatisticsPanel';
 
 type MetricKey = 'infos' | 'collections' | 'revisions' | 'storyboards' | 'texts';
 
@@ -51,7 +51,7 @@ function PieChart({
   );
 }
 
-export function CogitaLibraryOverviewPage({
+export function CogitaLibraryOverview({
   copy,
   authLabel,
   showProfileMenu,

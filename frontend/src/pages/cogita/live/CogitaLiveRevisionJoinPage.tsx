@@ -11,7 +11,7 @@ import {
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
-import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
+import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
 import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';

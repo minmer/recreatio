@@ -17,12 +17,12 @@ import {
 } from '../../../lib/api';
 import { clampInt, parseLiveRules } from './liveSessionRules';
 import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
-import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
+import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
 import { selectNextCardIndexByMode } from '../../../cogita/revision/nextCardRoutine';
 import { getRevisionType, normalizeRevisionSettings } from '../../../cogita/revision/registry';
-import { buildRevisionQuestionRuntime } from '../library/collections/revisionShared';
+import { buildRevisionQuestionRuntime } from '../library/revision/revisionShared';
 import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../cogita/revision/cardLoader';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';

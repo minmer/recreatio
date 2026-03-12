@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState, type Connection, type Edge } from 'reactflow';
 import { useLocation, useNavigate } from 'react-router-dom';
 import 'reactflow/dist/style.css';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import { CogitaShell } from '../CogitaShell';
-import { InfoSearchSelect } from './components/InfoSearchSelect';
-import { CogitaDependencyGraphSearch } from './components/search/CogitaDependencyGraphSearch';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import { CogitaShell } from '../../CogitaShell';
+import { InfoSearchSelect } from '../components/InfoSearchSelect';
+import { CogitaDependencyGraphSearch } from '../components/search/CogitaDependencyGraphSearch';
 import {
   activateCogitaDependencyGraph,
   createCogitaDependencyGraph,
@@ -20,14 +20,14 @@ import {
   type CogitaDependencyGraphSummary,
   getCogitaInfoDetail,
   type CogitaInfoSearchResult
-} from '../../../lib/api';
-import { buildQuoteFragmentTree } from '../../../cogita/revision/quote';
+} from '../../../../lib/api';
+import { buildQuoteFragmentTree } from '../../../../cogita/revision/quote';
 import {
   createWorkspaceTransfer,
   loadWorkspaceTransfer,
   removeWorkspaceTransfer,
   updateWorkspaceTransfer
-} from '../../../cogita/workspace/transfer';
+} from '../../../../cogita/workspace/transfer';
 
 type GraphNode = {
   id: string;
@@ -46,9 +46,9 @@ function toNodeLabel(payload: unknown, fallback: string) {
   return fallback;
 }
 
-export type CogitaDependencyGraphPageMode = 'search' | 'create' | 'overview' | 'edit';
+export type CogitaDependencyGraphMode = 'search' | 'create' | 'overview' | 'edit';
 
-export type CogitaDependencyGraphPageProps = {
+export type CogitaDependencyGraphProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -60,10 +60,10 @@ export type CogitaDependencyGraphPageProps = {
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
-  mode?: CogitaDependencyGraphPageMode;
+  mode?: CogitaDependencyGraphMode;
 };
 
-export function CogitaDependencyGraphPage({
+export function CogitaDependencyGraph({
   copy,
   authLabel,
   showProfileMenu,
@@ -76,7 +76,7 @@ export function CogitaDependencyGraphPage({
   onLanguageChange,
   libraryId,
   mode = 'overview'
-}: CogitaDependencyGraphPageProps) {
+}: CogitaDependencyGraphProps) {
   const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const navigate = useNavigate();
   const location = useLocation();

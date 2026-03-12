@@ -1,9 +1,9 @@
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import { CogitaCollectionSearch } from '../components/search/CogitaCollectionSearch';
+import { CogitaCollectionSearch as CogitaCollectionSearchList } from '../components/search/CogitaCollectionSearch';
 
-export function CogitaCollectionListPage({
+export function CogitaCollectionSearch({
   copy,
   authLabel,
   showProfileMenu,

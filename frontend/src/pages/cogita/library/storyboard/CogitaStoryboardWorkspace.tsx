@@ -13,10 +13,10 @@ import ReactFlow, {
   type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { CogitaShell } from '../CogitaShell';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 import {
   createCogitaStoryboardShare,
   createCogitaCreationProject,
@@ -28,14 +28,14 @@ import {
   type CogitaCardSearchResult,
   type CogitaCreationProject,
   type CogitaStoryboardShare
-} from '../../../lib/api';
-import { CogitaCheckcardList } from './components/CogitaCheckcardList';
-import { CogitaKnowledgeItemSearchOverlay } from './components/search/overlays/CogitaKnowledgeItemSearchOverlay';
-import { CogitaStoryboardProjectSearch } from './components/search/CogitaStoryboardProjectSearch';
-import { buildCheckcardKey } from './checkcards/checkcardDisplay';
+} from '../../../../lib/api';
+import { CogitaCheckcardList } from '../components/CogitaCheckcardList';
+import { CogitaKnowledgeItemSearchOverlay } from '../components/search/overlays/CogitaKnowledgeItemSearchOverlay';
+import { CogitaStoryboardProjectSearch } from '../components/search/CogitaStoryboardProjectSearch';
+import { buildCheckcardKey } from '../checkcards/checkcardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
-export type CogitaLibraryStoryboardsPageProps = {
+export type CogitaStoryboardWorkspaceProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -985,7 +985,7 @@ function StoryboardMetaForm({
   );
 }
 
-export function CogitaLibraryStoryboardsPage({
+export function CogitaStoryboardWorkspace({
   copy,
   authLabel,
   showProfileMenu,
@@ -1000,7 +1000,7 @@ export function CogitaLibraryStoryboardsPage({
   mode = 'search',
   storyboardId,
   onCreated
-}: CogitaLibraryStoryboardsPageProps) {
+}: CogitaStoryboardWorkspaceProps) {
   const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const storyboardEditorCopy = copy.cogita.library.modules.storyboardsEditor;

@@ -7,7 +7,7 @@ import { CogitaStatisticsPanel } from '../components/CogitaStatisticsPanel';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 
-export function CogitaCollectionDetailPage({
+export function CogitaCollectionOverview({
   copy,
   authLabel,
   showProfileMenu,

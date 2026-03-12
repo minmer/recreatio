@@ -8,15 +8,15 @@ import {
   type CogitaInfoLinkFieldSpec,
   type CogitaInfoPayloadFieldSpec,
   type CogitaInfoTypeSpecification
-} from '../../../lib/api';
-import { CogitaShell } from '../CogitaShell';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import type { CogitaInfoOption, CogitaInfoType } from './types';
-import { InfoSearchSelect } from './components/InfoSearchSelect';
-import { ReferencePanel, type ReferenceSourceForm } from './components/ReferencePanel';
-import { getInfoTypeLabel } from './libraryOptions';
-import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
+} from '../../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import type { CogitaInfoOption, CogitaInfoType } from '../types';
+import { InfoSearchSelect } from '../components/InfoSearchSelect';
+import { ReferencePanel, type ReferenceSourceForm } from '../components/ReferencePanel';
+import { getInfoTypeLabel } from '../libraryOptions';
+import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 
 type LinkTypeSelectionState = Record<string, CogitaInfoType>;
 type QuestionKind = 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'matching' | 'ordering';
@@ -473,7 +473,7 @@ export type CogitaKnowledgeItemCreated = {
   label: string;
 };
 
-export type CogitaLibraryAddPageProps = {
+export type CogitaKnowledgeItemEditProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -489,7 +489,7 @@ export type CogitaLibraryAddPageProps = {
   onCreated?: (item: CogitaKnowledgeItemCreated) => void;
 };
 
-export function CogitaLibraryAddPage({
+export function CogitaKnowledgeItemEdit({
   copy,
   authLabel,
   showProfileMenu,
@@ -503,7 +503,7 @@ export function CogitaLibraryAddPage({
   libraryId,
   editInfoId,
   onCreated
-}: CogitaLibraryAddPageProps) {
+}: CogitaKnowledgeItemEditProps) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const isEditMode = Boolean(editInfoId);
   const [specifications, setSpecifications] = useState<CogitaInfoTypeSpecification[]>([]);

@@ -5,7 +5,7 @@ import {
   type CogitaLiveRevisionPublicState,
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
-import { CogitaCheckcardSurface } from '../library/collections/components/CogitaCheckcardSurface';
+import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';

@@ -4,9 +4,9 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { getRevisionType, revisionTypes } from '../../../../cogita/revision/registry';
 import { getCachedCollections } from '../cogitaMetaCache';
-import { CogitaRevisionSearch } from '../components/search/CogitaRevisionSearch';
+import { CogitaRevisionSearch as CogitaRevisionSearchList } from '../components/search/CogitaRevisionSearch';
 
-export function CogitaRevisionListPage({
+export function CogitaRevisionSearch({
   copy,
   authLabel,
   showProfileMenu,

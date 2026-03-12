@@ -12,7 +12,7 @@ import type { RouteKey } from '../../../../types/navigation';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes } from '../../../../cogita/revision/registry';
 import { useNavigate } from 'react-router-dom';
 
-export type CogitaRevisionSettingsPageProps = {
+export type CogitaRevisionEditProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -29,7 +29,7 @@ export type CogitaRevisionSettingsPageProps = {
   onCreated?: (revision: CogitaRevision) => void;
 };
 
-export function CogitaRevisionSettingsPage({
+export function CogitaRevisionEdit({
   copy,
   authLabel,
   showProfileMenu,
@@ -44,7 +44,7 @@ export function CogitaRevisionSettingsPage({
   collectionId,
   revisionId,
   onCreated
-}: CogitaRevisionSettingsPageProps) {
+}: CogitaRevisionEditProps) {
   const navigate = useNavigate();
   const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');

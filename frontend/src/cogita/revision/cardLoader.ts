@@ -1,6 +1,6 @@
 import type { CogitaCardSearchBundle, CogitaCardSearchResult } from '../../lib/api';
 import { getCardKey } from './cards';
-import { expandQuoteDirectionCards } from '../../pages/cogita/library/collections/revisionShared';
+import { expandQuoteDirectionCards } from '../../pages/cogita/library/revision/revisionShared';
 
 export type CardLoaderMode = 'random' | 'random-once' | 'levels' | 'temporal';
 
@@ -44,4 +44,3 @@ export function normalizeLoadedCards(cards: CogitaCardSearchResult[]) {
   expanded.forEach((card) => map.set(getCardKey(card), card));
   return Array.from(map.values());
 }
-

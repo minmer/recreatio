@@ -18,7 +18,7 @@ function sharedRunStorageKey(shareId: string) {
   return `cogita.revision.shared.run.${shareId}`;
 }
 
-export function CogitaRevisionSharedRuntimeEntryPage({
+export function CogitaRevisionSharedRuntimeEntry({
   copy,
   authLabel,
   showProfileMenu,

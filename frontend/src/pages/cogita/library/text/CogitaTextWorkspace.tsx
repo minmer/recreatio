@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CogitaShell } from '../CogitaShell';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import { useCogitaLibraryMeta } from './useCogitaLibraryMeta';
-import { createCogitaCreationProject, getCogitaCreationProjects, type CogitaCreationProject } from '../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import { createCogitaCreationProject, getCogitaCreationProjects, type CogitaCreationProject } from '../../../../lib/api';
 
-export function CogitaLibraryTextsPage({
+export function CogitaTextWorkspace({
   copy,
   authLabel,
   showProfileMenu,

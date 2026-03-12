@@ -17,17 +17,17 @@ import {
   type CogitaCardSearchBundle,
   type CogitaItemDependencyBundle,
   type CogitaReviewSummary
-} from '../../../lib/api';
-import { CogitaShell } from '../CogitaShell';
-import type { Copy } from '../../../content/types';
-import type { RouteKey } from '../../../types/navigation';
-import type { CogitaInfoType, CogitaLibraryMode } from './types';
-import { getInfoTypeLabel, getInfoTypeOptions } from './libraryOptions';
-import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from './infoSchemas';
+} from '../../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
+import type { CogitaInfoType, CogitaLibraryMode } from '../types';
+import { getInfoTypeLabel, getInfoTypeOptions } from '../libraryOptions';
+import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from '../infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
-import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../cogita/workspace/transfer';
-import { CogitaKnowledgeSearch } from './components/search/CogitaKnowledgeSearch';
+import { saveCollectionDraftFromInfos } from '../../../../cogita/collections/draft';
+import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../../cogita/workspace/transfer';
+import { CogitaKnowledgeSearch } from '../components/search/CogitaKnowledgeSearch';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -54,7 +54,7 @@ function loadSelectionStack(libraryId: string): Record<string, SelectedInfoStack
   }
 }
 
-export function CogitaLibraryListPage({
+export function CogitaKnowledgeItemSearch({
   copy,
   authLabel,
   showProfileMenu,
