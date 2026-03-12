@@ -9,7 +9,7 @@ import { CogitaCheckcardSurface } from './collections/components/CogitaCheckcard
 import { CogitaRevisionCard } from './collections/components/CogitaRevisionCard';
 import { getInfoTypeLabel } from './libraryOptions';
 import { CogitaStatisticsPanel } from './components/CogitaStatisticsPanel';
-import { CogitaCheckcardRow } from './components/CogitaCheckcardRow';
+import { CogitaCheckcardList } from './components/CogitaCheckcardList';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
@@ -697,18 +697,12 @@ export function CogitaInfoCheckcardsPage({
                   <aside className="cogita-info-checkcards-panel">
                     <h3>Checking cards</h3>
                     <div className="cogita-info-tree">
-                      {cards.map((card) => {
-                        const key = buildCheckcardKey(card);
-                        const active = selectedNodeId === key;
-                        return (
-                          <CogitaCheckcardRow
-                            key={key}
-                            card={card}
-                            active={active}
-                            onClick={() => setSelectedNodeId(key)}
-                          />
-                        );
-                      })}
+                      <CogitaCheckcardList
+                        cards={cards}
+                        keyForCard={(card) => buildCheckcardKey(card)}
+                        isActive={(card) => selectedNodeId === buildCheckcardKey(card)}
+                        onSelect={(card) => setSelectedNodeId(buildCheckcardKey(card))}
+                      />
                     </div>
                     <CogitaStatisticsPanel
                       libraryId={libraryId}

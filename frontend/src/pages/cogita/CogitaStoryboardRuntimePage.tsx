@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getCogitaCreationProjects,
+  getCogitaInfoApproachProjection,
+  getCogitaInfoCheckcards,
+  getCogitaInfoDetail,
   getCogitaPublicStoryboardShare,
+  type CogitaCardSearchResult,
   type CogitaCreationProject
 } from '../../lib/api';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
+import { evaluateAnchorTextAnswer } from '../../cogita/revision/compare';
+import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
 
 type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
@@ -87,6 +93,15 @@ type RuntimeState = {
   visited: Record<string, boolean>;
   completedGroups: Record<string, boolean>;
   finished: boolean;
+};
+
+type RuntimeCardState = {
+  nodeKey: string;
+  status: 'loading' | 'ready' | 'error' | 'evaluated';
+  prompt: string;
+  expected: string;
+  answer: string;
+  isCorrect: boolean | null;
 };
 
 function toString(value: unknown) {
@@ -176,6 +191,77 @@ function deriveEdgeKind(sourcePort: StoryboardSourcePort, targetPort: Storyboard
   if (sourcePort === 'out-right') return 'card_right';
   if (sourcePort === 'out-wrong') return 'card_wrong';
   return 'path';
+}
+
+function normalizeDirection(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function directionMatchesNode(direction: string | null | undefined, nodeDirection: StoryboardCardDirection) {
+  const normalized = normalizeDirection(direction);
+  if (!normalized) return true;
+  if (nodeDirection === 'front_to_back') {
+    return normalized === 'front_to_back' || normalized === 'a-to-b' || normalized === 'forward';
+  }
+  return normalized === 'back_to_front' || normalized === 'b-to-a' || normalized === 'reverse';
+}
+
+function pickNodeCard(node: StoryboardNodeRecord, cards: CogitaCardSearchResult[]) {
+  if (cards.length === 0) return null;
+  const wantedCheckType = node.cardCheckType.trim().toLowerCase();
+  const checkFiltered = wantedCheckType
+    ? cards.filter((card) => (card.checkType ?? '').trim().toLowerCase() === wantedCheckType)
+    : cards;
+  const directionFiltered = checkFiltered.filter((card) => directionMatchesNode(card.direction, node.cardDirection));
+  if (directionFiltered.length > 0) return directionFiltered[0];
+  if (checkFiltered.length > 0) return checkFiltered[0];
+  return cards[0];
+}
+
+function buildCardPromptAndExpected(payload: {
+  node: StoryboardNodeRecord;
+  card: CogitaCardSearchResult | null;
+  infoType: string | null;
+  infoPayload: Record<string, unknown> | null;
+  vocabProjection: Record<string, unknown> | null;
+}): { prompt: string; expected: string } {
+  const { node, card, infoType, infoPayload, vocabProjection } = payload;
+  let prompt = card?.description?.trim() || node.description.trim() || card?.label || node.title;
+  let expected = card?.label?.trim() || node.title;
+
+  if (card?.cardType === 'vocab' && vocabProjection && Array.isArray(vocabProjection.words)) {
+    const words = vocabProjection.words as Array<{ label?: string }>;
+    const wordA = String(words[0]?.label ?? '?');
+    const wordB = String(words[1]?.label ?? '?');
+    const cardDirection = normalizeDirection(card.direction);
+    if (cardDirection === 'b-to-a' || cardDirection === 'back_to_front') {
+      prompt = wordB;
+      expected = wordA;
+    } else {
+      prompt = wordA;
+      expected = wordB;
+    }
+    return { prompt, expected };
+  }
+
+  if (infoPayload) {
+    const questionText =
+      (typeof infoPayload.question === 'string' && infoPayload.question.trim()) ||
+      (typeof infoPayload.prompt === 'string' && infoPayload.prompt.trim()) ||
+      (typeof infoPayload.text === 'string' && infoPayload.text.trim()) ||
+      '';
+    if (questionText) {
+      prompt = questionText;
+    } else if (infoType === 'citation') {
+      const title =
+        (typeof infoPayload.title === 'string' && infoPayload.title.trim()) ||
+        (typeof infoPayload.label === 'string' && infoPayload.label.trim()) ||
+        '';
+      if (title) prompt = title;
+    }
+  }
+
+  return { prompt, expected };
 }
 
 function parseGraph(raw: unknown): StoryboardGraph {
@@ -513,6 +599,8 @@ export function CogitaStoryboardRuntimePage({
   const [runtime, setRuntime] = useState<RuntimeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
+  const [cardState, setCardState] = useState<RuntimeCardState | null>(null);
+  const cardTransitionTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (shareCode) {
@@ -593,10 +681,95 @@ export function CogitaStoryboardRuntimePage({
     };
   }, [libraryId, projectId, shareCode]);
 
+  useEffect(() => {
+    return () => {
+      if (cardTransitionTimer.current != null) {
+        window.clearTimeout(cardTransitionTimer.current);
+      }
+    };
+  }, []);
+
   const currentNode = useMemo(() => {
     if (!runtime) return null;
     return findNode(runtime.graph, runtime.currentNodeId);
   }, [runtime]);
+
+  useEffect(() => {
+    if (cardTransitionTimer.current != null) {
+      window.clearTimeout(cardTransitionTimer.current);
+      cardTransitionTimer.current = null;
+    }
+
+    if (!runtime || !currentNode || currentNode.kind !== 'card') {
+      setCardState(null);
+      return;
+    }
+
+    const nodeKey = buildNodeKey(runtime.graphPath, currentNode.nodeId);
+    setCardState({
+      nodeKey,
+      status: 'loading',
+      prompt: '',
+      expected: '',
+      answer: '',
+      isCorrect: null
+    });
+
+    let cancelled = false;
+    const loadCard = async () => {
+      let prompt = currentNode.description.trim() || currentNode.title;
+      let expected = currentNode.title;
+
+      if (libraryId && currentNode.knowledgeItemId.trim()) {
+        try {
+          const [cardsBundle, detail] = await Promise.all([
+            getCogitaInfoCheckcards({ libraryId, infoId: currentNode.knowledgeItemId.trim() }),
+            getCogitaInfoDetail({ libraryId, infoId: currentNode.knowledgeItemId.trim() }).catch(() => null)
+          ]);
+          const selectedCard = pickNodeCard(currentNode, cardsBundle.items);
+          let vocabProjection: Record<string, unknown> | null = null;
+          if (detail?.infoType === 'translation') {
+            try {
+              const projection = await getCogitaInfoApproachProjection({
+                libraryId,
+                infoId: currentNode.knowledgeItemId.trim(),
+                approachKey: 'vocab-card'
+              });
+              vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
+            } catch {
+              vocabProjection = null;
+            }
+          }
+          const built = buildCardPromptAndExpected({
+            node: currentNode,
+            card: selectedCard,
+            infoType: detail?.infoType ?? selectedCard?.infoType ?? null,
+            infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
+            vocabProjection
+          });
+          prompt = built.prompt;
+          expected = built.expected;
+        } catch {
+          // Keep fallback prompt/expected from node metadata.
+        }
+      }
+
+      if (cancelled) return;
+      setCardState({
+        nodeKey,
+        status: 'ready',
+        prompt,
+        expected,
+        answer: '',
+        isCorrect: null
+      });
+    };
+
+    void loadCard();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentNode, libraryId, runtime]);
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];
@@ -630,14 +803,51 @@ export function CogitaStoryboardRuntimePage({
     if (!edge) return;
     setRuntime((current) => {
       if (!current) return current;
-      return advanceRuntime(current, edge.toNodeId, 'new_screen');
+      return advanceRuntime(current, edge.toNodeId, edge.displayMode);
     });
   };
 
   const restart = () => {
     if (!documentState) return;
+    if (cardTransitionTimer.current != null) {
+      window.clearTimeout(cardTransitionTimer.current);
+      cardTransitionTimer.current = null;
+    }
     setRuntime(createInitialRuntime(documentState.rootGraph));
+    setCardState(null);
     setStatus(null);
+  };
+
+  const submitCardAnswer = () => {
+    if (!cardState || cardState.status !== 'ready') return;
+    const expected = cardState.expected.trim();
+    const answer = cardState.answer.trim();
+    const evaluation = evaluateAnchorTextAnswer(expected, answer, {
+      thresholdPercent: 90,
+      treatSimilarCharsAsSame: true,
+      ignorePunctuationAndSpacing: true
+    });
+    const isCorrect = evaluation.isCorrect;
+    setCardState((current) => {
+      if (!current) return current;
+      if (current.nodeKey !== cardState.nodeKey) return current;
+      return {
+        ...current,
+        status: 'evaluated',
+        isCorrect
+      };
+    });
+
+    const outcomeEdge = isCorrect ? cardRightEdge : cardWrongEdge;
+    if (!outcomeEdge) {
+      setStatus(runtimeCopy.noCardOutcomeLink);
+      return;
+    }
+    setStatus(null);
+    cardTransitionTimer.current = window.setTimeout(() => {
+      chooseCardOutcome(outcomeEdge);
+      cardTransitionTimer.current = null;
+    }, 1100);
   };
 
   return (
@@ -702,6 +912,11 @@ export function CogitaStoryboardRuntimePage({
                       <p className="cogita-help" style={{ margin: 0 }}>
                         {runtimeCopy.directionLabel}: {block.cardDirection === 'back_to_front' ? runtimeCopy.directionBackToFront : runtimeCopy.directionFrontToBack}
                       </p>
+                      {block.cardCheckType ? (
+                        <p className="cogita-help" style={{ margin: 0 }}>
+                          {runtimeCopy.cardCheckTypeLabel}: {block.cardCheckType}
+                        </p>
+                      ) : null}
                     </>
                   ) : null}
                   {block.kind === 'group' ? (
@@ -720,10 +935,76 @@ export function CogitaStoryboardRuntimePage({
             ) : null}
 
             {currentNode?.kind === 'card' && !runtime.finished ? (
-              <div className="cogita-card-actions">
-                <button type="button" className="cta" onClick={() => chooseCardOutcome(cardRightEdge)} disabled={!cardRightEdge}>{runtimeCopy.rightAction}</button>
-                <button type="button" className="ghost" onClick={() => chooseCardOutcome(cardWrongEdge)} disabled={!cardWrongEdge}>{runtimeCopy.wrongAction}</button>
-              </div>
+              <article className="cogita-library-detail" style={{ margin: 0 }}>
+                <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
+                  {cardState?.status === 'loading' ? (
+                    <p className="cogita-help" style={{ margin: 0 }}>{runtimeCopy.cardLoading}</p>
+                  ) : null}
+                  {cardState && cardState.status !== 'loading' ? (
+                    <>
+                      <CogitaLivePromptCard
+                        prompt={{
+                          kind: 'text',
+                          prompt: cardState.prompt,
+                          inputType: 'text'
+                        }}
+                        revealExpected={cardState.status === 'evaluated' ? cardState.expected : undefined}
+                        revealedAnswer={cardState.status === 'evaluated' ? cardState.answer : undefined}
+                        surfaceState={cardState.status === 'evaluated' ? (cardState.isCorrect ? 'correct' : 'incorrect') : 'idle'}
+                        mode={cardState.status === 'evaluated' ? 'readonly' : 'interactive'}
+                        labels={{
+                          answerLabel: runtimeCopy.cardAnswerLabel,
+                          correctAnswerLabel: runtimeCopy.cardRevealLabel,
+                          participantAnswerPlaceholder: runtimeCopy.cardAnswerPlaceholder,
+                          trueLabel: runtimeCopy.rightAction,
+                          falseLabel: runtimeCopy.wrongAction,
+                          fragmentLabel: runtimeCopy.cardPromptLabel,
+                          correctFragmentLabel: runtimeCopy.cardRevealLabel,
+                          unsupportedPromptType: runtimeCopy.cardLoading,
+                          waitingForReveal: '',
+                          selectedPaths: '',
+                          removePath: '',
+                          columnPrefix: ''
+                        }}
+                        answers={{
+                          text: cardState.answer,
+                          selection: [],
+                          booleanAnswer: null,
+                          ordering: [],
+                          matchingRows: [],
+                          matchingSelection: []
+                        }}
+                        onTextChange={(value) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            return { ...current, answer: value };
+                          })
+                        }
+                      />
+                      <div className="cogita-card-actions">
+                        <button
+                          type="button"
+                          className="cta"
+                          onClick={submitCardAnswer}
+                          disabled={cardState.status !== 'ready' || cardState.answer.trim().length === 0}
+                        >
+                          {runtimeCopy.cardSubmitAction}
+                        </button>
+                      </div>
+                      {cardState.status === 'evaluated' ? (
+                        <>
+                          <p className={cardState.isCorrect ? 'cogita-help' : 'cogita-form-error'} style={{ margin: 0 }}>
+                            {cardState.isCorrect ? runtimeCopy.rightAction : runtimeCopy.wrongAction}
+                          </p>
+                          <p className="cogita-help" style={{ margin: 0 }}>
+                            {runtimeCopy.cardAutoAdvance}
+                          </p>
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+              </article>
             ) : null}
 
             {currentNode && currentNode.kind !== 'card' && !runtime.finished && pathChoices.length > 0 ? (

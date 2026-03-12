@@ -548,6 +548,15 @@ export type Copy = {
           directionLabel: string;
           directionFrontToBack: string;
           directionBackToFront: string;
+          cardCheckTypeLabel: string;
+          cardLoading: string;
+          cardPromptLabel: string;
+          cardAnswerLabel: string;
+          cardAnswerPlaceholder: string;
+          cardSubmitAction: string;
+          cardRevealLabel: string;
+          cardAutoAdvance: string;
+          noCardOutcomeLink: string;
           groupCompleted: string;
           finished: string;
           rightAction: string;

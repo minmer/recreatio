@@ -29,7 +29,7 @@ import {
   type CogitaCreationProject,
   type CogitaStoryboardShare
 } from '../../../lib/api';
-import { CogitaCheckcardRow } from './components/CogitaCheckcardRow';
+import { CogitaCheckcardList } from './components/CogitaCheckcardList';
 import { CogitaKnowledgeItemSearchOverlay } from './components/CogitaKnowledgeItemSearchOverlay';
 import { buildCheckcardKey } from './checkcards/checkcardDisplay';
 
@@ -1949,27 +1949,29 @@ export function CogitaLibraryStoryboardsPage({
                               <div className="cogita-storyboard-checkcards-panel">
                                 <p className="cogita-help">{storyboardEditorCopy.selectCheckingcardHint}</p>
                                 <div className="cogita-storyboard-checkcards-list">
-                                  {selectedNodeCards.map((card) => {
-                                    const mappedDirection: StoryboardCardDirection =
-                                      card.direction === 'back_to_front' || card.direction === 'front_to_back'
-                                        ? card.direction
-                                        : selectedNode.cardDirection;
-                                    const key = `${card.checkType ?? ''}|${mappedDirection}`;
-                                    return (
-                                      <CogitaCheckcardRow
-                                        key={buildCheckcardKey(card)}
-                                        card={card}
-                                        active={key === selectedCardKey}
-                                        onClick={() =>
-                                          updateSelectedNode((node) => ({
-                                            ...node,
-                                            cardCheckType: card.checkType ?? '',
-                                            cardDirection: mappedDirection
-                                          }))
-                                        }
-                                      />
-                                    );
-                                  })}
+                                  <CogitaCheckcardList
+                                    cards={selectedNodeCards}
+                                    keyForCard={(card) => buildCheckcardKey(card)}
+                                    isActive={(card) => {
+                                      const mappedDirection: StoryboardCardDirection =
+                                        card.direction === 'back_to_front' || card.direction === 'front_to_back'
+                                          ? card.direction
+                                          : selectedNode.cardDirection;
+                                      const key = `${card.checkType ?? ''}|${mappedDirection}`;
+                                      return key === selectedCardKey;
+                                    }}
+                                    onSelect={(card) => {
+                                      const mappedDirection: StoryboardCardDirection =
+                                        card.direction === 'back_to_front' || card.direction === 'front_to_back'
+                                          ? card.direction
+                                          : selectedNode.cardDirection;
+                                      updateSelectedNode((node) => ({
+                                        ...node,
+                                        cardCheckType: card.checkType ?? '',
+                                        cardDirection: mappedDirection
+                                      }));
+                                    }}
+                                  />
                                 </div>
                               </div>
                             ) : null}
@@ -2017,7 +2019,7 @@ export function CogitaLibraryStoryboardsPage({
                         <span>{storyboardEditorCopy.displayModeLabel}</span>
                         <select
                           value={selectedEdge.displayMode}
-                          disabled={!canEdit || selectedEdge.kind !== 'path'}
+                          disabled={!canEdit}
                           onChange={(event) => {
                             const nextMode = event.target.value === 'expand' ? 'expand' : 'new_screen';
                             updateActiveGraph((graph) => ({
@@ -2034,9 +2036,6 @@ export function CogitaLibraryStoryboardsPage({
                           <option value="expand">{storyboardEditorCopy.displayModeExpand}</option>
                         </select>
                       </label>
-                      {selectedEdge.kind !== 'path' ? (
-                        <p className="cogita-help">{storyboardEditorCopy.displayModeFixedHelp}</p>
-                      ) : null}
                     </div>
                   ) : (
                     <p>{storyboardEditorCopy.inspectorEmpty}</p>
