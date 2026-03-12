@@ -14,7 +14,6 @@ export function CogitaStoryboardProjectSearch({
   failedLabel,
   emptyLabel,
   showInput = true,
-  inlineInput = true,
   hideResultsList = false,
   inputAriaLabel,
   inputClassName,
@@ -37,7 +36,6 @@ export function CogitaStoryboardProjectSearch({
   failedLabel: string;
   emptyLabel: string;
   showInput?: boolean;
-  inlineInput?: boolean;
   hideResultsList?: boolean;
   inputAriaLabel?: string;
   inputClassName?: string;
@@ -78,28 +76,16 @@ export function CogitaStoryboardProjectSearch({
   return (
     <div style={{ display: 'grid', gap: '0.6rem' }}>
       {showInput ? (
-        inlineInput ? (
-          <div className="cogita-search-field">
-            <input
-              aria-label={inputAriaLabel ?? searchLabel}
-              className={inputClassName}
-              value={effectiveQuery}
-              onChange={(event) => handleQueryChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </div>
-        ) : (
-          <label className="cogita-field full">
-            <span>{searchLabel}</span>
-            <input
-              value={effectiveQuery}
-              onChange={(event) => handleQueryChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </label>
-        )
+        <div className="cogita-search-field">
+          <input
+            aria-label={inputAriaLabel ?? searchLabel}
+            className={inputClassName}
+            value={effectiveQuery}
+            onChange={(event) => handleQueryChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            autoFocus
+          />
+        </div>
       ) : null}
 
       {loading ? <p>{loadingLabel}</p> : null}

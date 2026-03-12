@@ -20,7 +20,6 @@ export function CogitaLiveSessionSearch({
   emptyLabel,
   countLabelTemplate = '{shown} / {total}',
   showInput = true,
-  inlineInput = true,
   showStatusFilter = true,
   showCount = true,
   hideResultsList = false,
@@ -53,7 +52,6 @@ export function CogitaLiveSessionSearch({
   emptyLabel: string;
   countLabelTemplate?: string;
   showInput?: boolean;
-  inlineInput?: boolean;
   showStatusFilter?: boolean;
   showCount?: boolean;
   hideResultsList?: boolean;
@@ -124,28 +122,16 @@ export function CogitaLiveSessionSearch({
   return (
     <div style={{ display: 'grid', gap: '0.6rem' }}>
       {showInput ? (
-        inlineInput ? (
-          <div className="cogita-search-field">
-            <input
-              aria-label={inputAriaLabel ?? searchLabel}
-              className={inputClassName}
-              value={effectiveQuery}
-              onChange={(event) => handleQueryInputChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </div>
-        ) : (
-          <label className="cogita-field full">
-            <span>{searchLabel}</span>
-            <input
-              value={effectiveQuery}
-              onChange={(event) => handleQueryInputChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </label>
-        )
+        <div className="cogita-search-field">
+          <input
+            aria-label={inputAriaLabel ?? searchLabel}
+            className={inputClassName}
+            value={effectiveQuery}
+            onChange={(event) => handleQueryInputChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            autoFocus
+          />
+        </div>
       ) : null}
 
       {showStatusFilter ? (

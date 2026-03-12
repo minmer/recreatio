@@ -841,7 +841,7 @@ export function CogitaKnowledgeItemSearch({
             <section className="cogita-library-search-surface">
               <div className="cogita-library-controls">
                 <div className="cogita-library-search">
-                  <div className="cogita-search-field">
+                  <div className="cogita-search-toolbar">
                     <div className="cogita-search-field-main">
                       <CogitaKnowledgeSearch
                         libraryId={libraryId}
@@ -860,7 +860,6 @@ export function CogitaKnowledgeItemSearch({
                         failedLabel={listCopy.noMatch}
                         resultSuffixLabel=""
                         showInput
-                        inlineInput
                         inputAriaLabel={listCopy.searchTitle}
                         showStatusMessages={false}
                         hideResultsList

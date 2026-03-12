@@ -22,7 +22,6 @@ export function CogitaRevisionSearch({
   failedLabel,
   countLabelTemplate = '{shown} / {total}',
   showInput = true,
-  inlineInput = true,
   showTypeFilter = true,
   showCount = true,
   showStatusMessages = false,
@@ -60,7 +59,6 @@ export function CogitaRevisionSearch({
   failedLabel: string;
   countLabelTemplate?: string;
   showInput?: boolean;
-  inlineInput?: boolean;
   showTypeFilter?: boolean;
   showCount?: boolean;
   showStatusMessages?: boolean;
@@ -179,37 +177,24 @@ export function CogitaRevisionSearch({
     setLocalTypeFilter(next);
   };
 
-  const compactInline = showInput && inlineInput && hideResultsList && !showStatusMessages;
   const countLabel = useMemo(
     () => countLabelTemplate.replace('{shown}', String(filtered.length)).replace('{total}', String(revisions.length)),
     [countLabelTemplate, filtered.length, revisions.length]
   );
 
   return (
-    <div style={compactInline ? undefined : { display: 'grid', gap: '0.6rem' }}>
+    <div style={{ display: 'grid', gap: '0.6rem' }}>
       {showInput ? (
-        inlineInput ? (
-          <div className="cogita-search-field">
-            <input
-              aria-label={inputAriaLabel ?? searchLabel}
-              className={inputClassName}
-              value={effectiveQuery}
-              onChange={(event) => handleQueryInputChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </div>
-        ) : (
-          <label className="cogita-field full">
-            <span>{searchLabel}</span>
-            <input
-              value={effectiveQuery}
-              onChange={(event) => handleQueryInputChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </label>
-        )
+        <div className="cogita-search-field">
+          <input
+            aria-label={inputAriaLabel ?? searchLabel}
+            className={inputClassName}
+            value={effectiveQuery}
+            onChange={(event) => handleQueryInputChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            autoFocus
+          />
+        </div>
       ) : null}
 
       {showTypeFilter ? (

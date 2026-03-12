@@ -32,7 +32,6 @@ export function CogitaKnowledgeSearch({
   resultSuffixLabel,
   requireLinkedCheckcards = false,
   showInput = true,
-  inlineInput = false,
   inputAriaLabel,
   inputClassName,
   hideResultsList = false,
@@ -74,7 +73,6 @@ export function CogitaKnowledgeSearch({
   resultSuffixLabel: string;
   requireLinkedCheckcards?: boolean;
   showInput?: boolean;
-  inlineInput?: boolean;
   inputAriaLabel?: string;
   inputClassName?: string;
   hideResultsList?: boolean;
@@ -244,7 +242,6 @@ export function CogitaKnowledgeSearch({
     }
     setLocalQuery(next);
   };
-  const compactInline = showInput && inlineInput && hideResultsList && !showStatusMessages;
   const handleSelectionToggle = (result: CogitaKnowledgeSearchResult, checked: boolean) => {
     if (effectiveSelectionMode === 'none') return;
     const infoId = result.info.infoId;
@@ -379,9 +376,9 @@ export function CogitaKnowledgeSearch({
   };
 
   return (
-    <div style={compactInline ? undefined : { display: 'grid', gap: '0.6rem' }}>
+    <div style={{ display: 'grid', gap: '0.6rem' }}>
       {showInput ? (
-        inlineInput ? (
+        <div className="cogita-search-field">
           <input
             aria-label={inputAriaLabel ?? searchLabel}
             className={inputClassName}
@@ -390,17 +387,7 @@ export function CogitaKnowledgeSearch({
             placeholder={searchPlaceholder}
             autoFocus
           />
-        ) : (
-          <label className="cogita-field full">
-            <span>{searchLabel}</span>
-            <input
-              value={effectiveQuery}
-              onChange={(event) => handleQueryChange(event.target.value)}
-              placeholder={searchPlaceholder}
-              autoFocus
-            />
-          </label>
-        )
+        </div>
       ) : null}
       {showStatusMessages && loading ? <p className="cogita-help">{searchingLabel}</p> : null}
       {showStatusMessages && error ? <p className="cogita-form-error">{error}</p> : null}
