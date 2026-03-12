@@ -21,6 +21,7 @@ export function CogitaKnowledgeSearch({
   minQueryLength = 2,
   debounceMs = 220,
   limit = 48,
+  defaultEntityFilters,
   entityFilters,
   useEntitySearch = false,
   searchLabel,
@@ -44,8 +45,12 @@ export function CogitaKnowledgeSearch({
   onKnowledgeItemSelect,
   onKnowledgeItemOpen,
   openActionLabel = 'Open',
-  showInfoId = false,
-  renderResultMeta,
+  displayMode,
+  defaultDisplayMode = 'details',
+  detailColumnNameLabel = 'Name',
+  detailColumnTypeLabel = 'Type',
+  detailColumnIdLabel = 'ID',
+  renderTypeLabel,
   showStatusMessages = true,
   disabled = false,
   onStatusChange,
@@ -58,6 +63,7 @@ export function CogitaKnowledgeSearch({
   minQueryLength?: number;
   debounceMs?: number;
   limit?: number;
+  defaultEntityFilters?: Record<string, string>;
   entityFilters?: Record<string, string>;
   useEntitySearch?: boolean;
   searchLabel: string;
@@ -81,8 +87,12 @@ export function CogitaKnowledgeSearch({
   onKnowledgeItemSelect?: (result: CogitaKnowledgeSearchResult) => void;
   onKnowledgeItemOpen?: (result: CogitaKnowledgeSearchResult) => void;
   openActionLabel?: string;
-  showInfoId?: boolean;
-  renderResultMeta?: (result: CogitaKnowledgeSearchResult) => string;
+  displayMode?: 'details' | 'wide' | 'grid';
+  defaultDisplayMode?: 'details' | 'wide' | 'grid';
+  detailColumnNameLabel?: string;
+  detailColumnTypeLabel?: string;
+  detailColumnIdLabel?: string;
+  renderTypeLabel?: (result: CogitaKnowledgeSearchResult) => string;
   showStatusMessages?: boolean;
   disabled?: boolean;
   onStatusChange?: (status: 'idle' | 'loading' | 'ready' | 'error') => void;
@@ -97,6 +107,8 @@ export function CogitaKnowledgeSearch({
   const onStatusChangeRef = useRef(onStatusChange);
   const onResultsChangeRef = useRef(onResultsChange);
   const effectiveQuery = query ?? localQuery;
+  const effectiveDisplayMode = displayMode ?? defaultDisplayMode;
+  const mergedEntityFilters = useMemo(() => ({ ...(defaultEntityFilters ?? {}), ...(entityFilters ?? {}) }), [defaultEntityFilters, entityFilters]);
   const displayResults = resultsOverride ?? results;
   const effectiveSelectionMode = useMemo<'none' | 'single' | 'multiple'>(() => {
     if (!allowSelection) return 'none';
@@ -145,7 +157,7 @@ export function CogitaKnowledgeSearch({
             libraryId,
             type: infoType && infoType !== 'any' ? infoType : undefined,
             query: trimmed || undefined,
-            filters: entityFilters,
+            filters: mergedEntityFilters,
             limit
           });
           found = entities
@@ -215,12 +227,12 @@ export function CogitaKnowledgeSearch({
     debounceMs,
     disabled,
     effectiveQuery,
-    entityFilters,
     failedLabel,
     infoType,
     libraryId,
     limit,
     minQueryLength,
+    mergedEntityFilters,
     requireLinkedCheckcards,
     useEntitySearch
   ]);
@@ -257,12 +269,109 @@ export function CogitaKnowledgeSearch({
   const handleResultOpen = (result: CogitaKnowledgeSearchResult) => {
     onKnowledgeItemOpen?.(result);
   };
-  const buildMeta = (result: CogitaKnowledgeSearchResult) => {
-    if (renderResultMeta) return renderResultMeta(result);
-    if (requireLinkedCheckcards) {
-      return `${result.info.infoType} · ${result.cards.length} ${resultSuffixLabel}`;
+  const resolveTypeLabel = (result: CogitaKnowledgeSearchResult) => {
+    if (renderTypeLabel) return renderTypeLabel(result);
+    if (requireLinkedCheckcards) return `${result.info.infoType} · ${result.cards.length} ${resultSuffixLabel}`;
+    return result.info.infoType;
+  };
+
+  const renderResults = () => {
+    if (displayResults.length === 0) {
+      return (
+        <div className="cogita-card-empty">
+          <p>{emptyLabel}</p>
+        </div>
+      );
     }
-    return showInfoId ? `${result.info.infoType} · ${result.info.infoId}` : result.info.infoType;
+
+    if (effectiveDisplayMode === 'details') {
+      return (
+        <div className="cogita-details-grid" role="table" aria-label={searchLabel}>
+          <div className="cogita-details-grid-head" role="row">
+            <span />
+            <span>{detailColumnNameLabel}</span>
+            <span>{detailColumnTypeLabel}</span>
+            <span>{detailColumnIdLabel}</span>
+            <span />
+          </div>
+          {displayResults.map((result) => (
+            <div
+              key={result.info.infoId}
+              className={`cogita-details-row ${selectedSet.has(result.info.infoId) ? 'active' : ''}`}
+              role="row"
+              onClick={() => handleResultSelect(result)}
+            >
+              {effectiveSelectionMode !== 'none' ? (
+                <label className="cogita-info-checkbox">
+                  <input
+                    type={effectiveSelectionMode === 'single' ? 'radio' : 'checkbox'}
+                    checked={selectedSet.has(result.info.infoId)}
+                    onChange={(event) => handleSelectionToggle(result, event.target.checked)}
+                    onClick={(event) => event.stopPropagation()}
+                  />
+                  <span />
+                </label>
+              ) : (
+                <span />
+              )}
+              <span title={result.info.label}>{result.info.label}</span>
+              <span title={resolveTypeLabel(result)}>{resolveTypeLabel(result)}</span>
+              <span title={result.info.infoId}>{result.info.infoId}</span>
+              {onKnowledgeItemOpen ? (
+                <button
+                  type="button"
+                  className="ghost cogita-details-open"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleResultOpen(result);
+                  }}
+                  aria-label={openActionLabel}
+                >
+                  {'>'}
+                </button>
+              ) : (
+                <span />
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className={`cogita-card-list cogita-card-list--${effectiveDisplayMode}`} data-view={effectiveDisplayMode}>
+        {displayResults.map((result) => (
+          <article key={result.info.infoId} className="cogita-card-item" data-selected={selectedSet.has(result.info.infoId)}>
+            <div className="cogita-info-result-row">
+            {effectiveSelectionMode !== 'none' ? (
+              <label className="cogita-info-checkbox">
+                <input
+                  type={effectiveSelectionMode === 'single' ? 'radio' : 'checkbox'}
+                  checked={selectedSet.has(result.info.infoId)}
+                  onChange={(event) => handleSelectionToggle(result, event.target.checked)}
+                />
+                <span />
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className="cogita-info-result-main"
+              onClick={() => handleResultSelect(result)}
+            >
+              <div className="cogita-card-type">{resolveTypeLabel(result)}</div>
+              <h3 className="cogita-card-title">{result.info.label}</h3>
+              <p className="cogita-card-subtitle">{result.info.infoId}</p>
+            </button>
+            {onKnowledgeItemOpen ? (
+              <button type="button" className="ghost" onClick={() => handleResultOpen(result)}>
+                {openActionLabel}
+              </button>
+            ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -294,38 +403,7 @@ export function CogitaKnowledgeSearch({
       {showStatusMessages && !loading && effectiveQuery.trim().length >= minQueryLength && displayResults.length === 0 ? (
         <p className="cogita-help">{emptyLabel}</p>
       ) : null}
-      {!hideResultsList ? (
-        <div className="cogita-info-tree" style={{ maxHeight: 320, overflow: 'auto' }}>
-          {displayResults.map((result) => (
-            <div key={result.info.infoId} className="cogita-info-tree-row">
-              {effectiveSelectionMode !== 'none' ? (
-                <label className="cogita-info-checkbox" style={{ marginRight: '0.35rem' }}>
-                  <input
-                    type={effectiveSelectionMode === 'single' ? 'radio' : 'checkbox'}
-                    checked={selectedSet.has(result.info.infoId)}
-                    onChange={(event) => handleSelectionToggle(result, event.target.checked)}
-                  />
-                  <span />
-                </label>
-              ) : null}
-              <button
-                type="button"
-                className="ghost cogita-checkcard-row"
-                onClick={() => handleResultSelect(result)}
-                style={{ flex: 1 }}
-              >
-                <span>{result.info.label}</span>
-                <small>{buildMeta(result)}</small>
-              </button>
-              {onKnowledgeItemOpen ? (
-                <button type="button" className="ghost" onClick={() => handleResultOpen(result)}>
-                  {openActionLabel}
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {!hideResultsList ? renderResults() : null}
     </div>
   );
 }

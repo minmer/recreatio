@@ -1024,14 +1024,15 @@ export function CogitaLibraryListPage({
                 resultsOverride={visibleSearchResults}
                 allowSelection
                 allowMultiSelect
+                displayMode={effectiveView}
+                detailColumnNameLabel={listCopy.detailColumnName}
+                detailColumnTypeLabel={listCopy.detailColumnType}
+                detailColumnIdLabel={listCopy.detailColumnId}
                 selectedIds={Array.from(selectedIdSet)}
                 onKnowledgeItemToggleSelection={(entry, checked) => toggleSelection(entry.info, checked)}
                 onKnowledgeItemOpen={(entry) => openInfo(entry.info.infoId)}
                 openActionLabel={listCopy.editInfo}
-                showInfoId
-                renderResultMeta={(entry) =>
-                  `${getInfoTypeLabel(copy, entry.info.infoType as CogitaInfoType | 'any' | 'vocab')} · ${entry.info.infoId}`
-                }
+                renderTypeLabel={(entry) => getInfoTypeLabel(copy, entry.info.infoType as CogitaInfoType | 'any' | 'vocab')}
               />
 
               {canLoadMore ? (
