@@ -13,7 +13,6 @@ import {
   searchCogitaEntities,
   type CogitaInfoApproachProjection,
   type CogitaInfoApproachSpecification,
-  type CogitaEntitySearchResult,
   type CogitaInfoSearchResult,
   type CogitaCardSearchBundle,
   type CogitaItemDependencyBundle,
@@ -28,6 +27,7 @@ import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } fro
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
 import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../cogita/workspace/transfer';
+import { CogitaKnowledgeSearch } from './components/CogitaKnowledgeSearch';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';
@@ -141,7 +141,6 @@ export function CogitaLibraryListPage({
   const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
   const [rawResults, setRawResults] = useState<CogitaInfoSearchResult[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [focusedInfoId, setFocusedInfoId] = useState<string | null>(null);
   const [selectionStack, setSelectionStack] = useState<Record<string, SelectedInfoStackItem>>(() => loadSelectionStack(libraryId));
   const [typeFilters, setTypeFilters] = useState<Record<string, string>>({});
   const [languages, setLanguages] = useState<CogitaInfoSearchResult[]>([]);
@@ -324,6 +323,21 @@ export function CogitaLibraryListPage({
     () => typeFilterConfig.some((field) => (typeFilters[field.key] ?? '').trim().length > 0),
     [typeFilterConfig, typeFilters]
   );
+  const searchFiltersPayload = useMemo(() => {
+    const payload: Record<string, string> = { sourceKind: 'info' };
+    if (hasActiveTypeFilters) {
+      for (const field of typeFilterConfig) {
+        const value = (typeFilters[field.key] ?? '').trim();
+        if (!value) continue;
+        payload[field.path ?? field.key] = value;
+      }
+    }
+    const referenceId = (typeFilters.__referenceId ?? '').trim();
+    if (referenceId) {
+      payload['link.references'] = referenceId;
+    }
+    return payload;
+  }, [hasActiveTypeFilters, typeFilterConfig, typeFilters]);
 
   useEffect(() => {
     setTypeFilters({});
@@ -332,54 +346,9 @@ export function CogitaLibraryListPage({
   useEffect(() => {
     if (filterCollectionId && !collectionScopeReady) {
       setSearchStatus('loading');
-      return;
+      setRawResults([]);
     }
-
-    const filterPayload: Record<string, string> = { sourceKind: 'info' };
-    if (hasActiveTypeFilters) {
-      for (const field of typeFilterConfig) {
-        const value = (typeFilters[field.key] ?? '').trim();
-        if (!value) continue;
-        filterPayload[field.path ?? field.key] = value;
-      }
-    }
-    const referenceId = (typeFilters.__referenceId ?? '').trim();
-    if (referenceId) {
-      filterPayload['link.references'] = referenceId;
-    }
-
-    setSearchStatus('loading');
-    const handle = window.setTimeout(() => {
-      searchCogitaEntities({
-        libraryId,
-        type: searchType === 'any' ? undefined : searchType,
-        query: searchQuery.trim() || undefined,
-        filters: filterPayload,
-        limit: SEARCH_LIMIT
-      })
-        .then((items) => {
-          const mapped = items
-            .map((item: CogitaEntitySearchResult) => ({
-              infoId: item.infoId ?? '',
-              infoType: item.entityType,
-              label: item.title
-            }))
-            .filter((item) => item.infoId.length > 0);
-          if (filterCollectionId && collectionScopeInfoIds) {
-            setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
-          } else {
-            setRawResults(mapped);
-          }
-          setSearchStatus('ready');
-        })
-        .catch(() => {
-          setRawResults([]);
-          setSearchStatus('ready');
-        });
-    }, 240);
-
-    return () => window.clearTimeout(handle);
-  }, [collectionScopeInfoIds, collectionScopeReady, filterCollectionId, hasActiveTypeFilters, libraryId, searchQuery, searchType, typeFilterConfig, typeFilters]);
+  }, [collectionScopeReady, filterCollectionId]);
 
   useEffect(() => {
     if (!selectedInfoIdFromRoute || (selectedInfoView !== 'overview' && selectedInfoView !== 'collections')) {
@@ -533,6 +502,10 @@ export function CogitaLibraryListPage({
   }, [copy, rawResults, sortBy]);
 
   const visibleResults = useMemo(() => sortedResults.slice(0, visibleCount), [sortedResults, visibleCount]);
+  const visibleSearchResults = useMemo(
+    () => visibleResults.map((info) => ({ info, cards: [] })),
+    [visibleResults]
+  );
   const canLoadMore = visibleResults.length < sortedResults.length;
   const selectedIdSet = useMemo(() => new Set(Object.keys(selectionStack)), [selectionStack]);
   const selectedItems = useMemo(() => Object.values(selectionStack), [selectionStack]);
@@ -562,8 +535,6 @@ export function CogitaLibraryListPage({
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-    const idSet = new Set(rawResults.map((item) => item.infoId));
-    setFocusedInfoId((prev) => (prev && idSet.has(prev) ? prev : null));
   }, [rawResults]);
 
   const upsertSelection = (item: CogitaInfoSearchResult) => {
@@ -605,7 +576,6 @@ export function CogitaLibraryListPage({
         return next;
       });
       setRawResults((prev) => prev.filter((item) => !deletedSet.has(item.infoId)));
-      setFocusedInfoId((prev) => (prev && deletedSet.has(prev) ? null : prev));
       if (selectedInfoIdFromRoute && deletedSet.has(selectedInfoIdFromRoute)) {
         navigate(`/cogita/workspace/libraries/${libraryId}/knowledge-items`, { replace: true });
       }
@@ -883,11 +853,39 @@ export function CogitaLibraryListPage({
                         </option>
                       ))}
                     </select>
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(event) => setSearchQuery(event.target.value)}
-                      placeholder={listCopy.searchPlaceholder}
+                    <CogitaKnowledgeSearch
+                      libraryId={libraryId}
+                      infoType={searchType}
+                      query={searchQuery}
+                      onQueryChange={setSearchQuery}
+                      minQueryLength={0}
+                      debounceMs={240}
+                      limit={SEARCH_LIMIT}
+                      entityFilters={searchFiltersPayload}
+                      useEntitySearch
+                      searchLabel={listCopy.searchPlaceholder}
+                      searchPlaceholder={listCopy.searchPlaceholder}
+                      searchingLabel={listCopy.loading}
+                      emptyLabel={listCopy.noMatch}
+                      failedLabel={listCopy.noMatch}
+                      resultSuffixLabel=""
+                      showInput
+                      inlineInput
+                      inputAriaLabel={listCopy.searchTitle}
+                      showStatusMessages={false}
+                      hideResultsList
+                      disabled={filterCollectionId ? !collectionScopeReady : false}
+                      onStatusChange={(nextStatus) => {
+                        setSearchStatus(nextStatus === 'error' ? 'ready' : nextStatus === 'idle' ? 'ready' : nextStatus);
+                      }}
+                      onResultsChange={(searchResults) => {
+                        const mapped = searchResults.map((entry) => entry.info);
+                        if (filterCollectionId && collectionScopeInfoIds) {
+                          setRawResults(mapped.filter((item) => collectionScopeInfoIds.has(item.infoId)));
+                        } else {
+                          setRawResults(mapped);
+                        }
+                      }}
                     />
                     <select aria-label={listCopy.sortLabel} value={sortBy} onChange={(event) => setSortBy(event.target.value as InfoSort)}>
                       {sortOptions.map((option) => (
@@ -1013,96 +1011,28 @@ export function CogitaLibraryListPage({
                 </div>
               </div>
 
-              {effectiveView === 'details' ? (
-                <div className="cogita-details-grid" role="table" aria-label={listCopy.searchTitle}>
-                  <div className="cogita-details-grid-head" role="row">
-                    <span />
-                    <span>{listCopy.detailColumnName}</span>
-                    <span>{listCopy.detailColumnType}</span>
-                    <span>{listCopy.detailColumnId}</span>
-                    <span />
-                  </div>
-                  {visibleResults.length ? (
-                    visibleResults.map((result) => {
-                      const infoTypeLabel = getInfoTypeLabel(copy, result.infoType as CogitaInfoType | 'any' | 'vocab');
-                      const isChecked = selectedIdSet.has(result.infoId);
-                      const isFocused = focusedInfoId === result.infoId;
-                      return (
-                        <div
-                          key={result.infoId}
-                          className={`cogita-details-row ${isFocused || isChecked ? 'active' : ''}`}
-                          role="row"
-                          onClick={() => setFocusedInfoId(result.infoId)}
-                        >
-                          <label className="cogita-info-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(event) => toggleSelection(result, event.target.checked)}
-                              onClick={(event) => event.stopPropagation()}
-                            />
-                            <span />
-                          </label>
-                          <span title={result.label}>{result.label}</span>
-                          <span title={infoTypeLabel}>{infoTypeLabel}</span>
-                          <span title={result.infoId}>{result.infoId}</span>
-                          <button
-                            type="button"
-                            className="ghost cogita-details-open"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openInfo(result.infoId);
-                            }}
-                            aria-label={listCopy.editInfo}
-                          >
-                            {'>'}
-                          </button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="cogita-card-empty">
-                      <p>{listCopy.noMatch}</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className={`cogita-card-list cogita-card-list--${effectiveView}`} data-view={effectiveView}>
-                  {visibleResults.length ? (
-                    visibleResults.map((result) => {
-                      const infoTypeLabel = getInfoTypeLabel(copy, result.infoType as CogitaInfoType | 'any' | 'vocab');
-                      const isChecked = selectedIdSet.has(result.infoId);
-                      const isFocused = focusedInfoId === result.infoId;
-                      return (
-                        <article key={result.infoId} className="cogita-card-item" data-selected={isFocused || isChecked}>
-                          <div className="cogita-info-result-row">
-                            <label className="cogita-info-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(event) => toggleSelection(result, event.target.checked)}
-                              />
-                              <span />
-                            </label>
-                            <button type="button" className="cogita-info-result-main" onClick={() => setFocusedInfoId(result.infoId)}>
-                              <div className="cogita-card-type">{infoTypeLabel}</div>
-                              <h3 className="cogita-card-title">{result.label}</h3>
-                              <p className="cogita-card-subtitle">{result.infoId}</p>
-                            </button>
-                            <button type="button" className="ghost" onClick={() => openInfo(result.infoId)}>
-                              {listCopy.editInfo}
-                            </button>
-                          </div>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="cogita-card-empty">
-                      <p>{listCopy.noMatch}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+              <CogitaKnowledgeSearch
+                libraryId={libraryId}
+                searchLabel={listCopy.searchPlaceholder}
+                searchPlaceholder={listCopy.searchPlaceholder}
+                searchingLabel={listCopy.loading}
+                emptyLabel={listCopy.noMatch}
+                failedLabel={listCopy.noMatch}
+                resultSuffixLabel=""
+                showInput={false}
+                showStatusMessages={false}
+                resultsOverride={visibleSearchResults}
+                allowSelection
+                allowMultiSelect
+                selectedIds={Array.from(selectedIdSet)}
+                onKnowledgeItemToggleSelection={(entry, checked) => toggleSelection(entry.info, checked)}
+                onKnowledgeItemOpen={(entry) => openInfo(entry.info.infoId)}
+                openActionLabel={listCopy.editInfo}
+                showInfoId
+                renderResultMeta={(entry) =>
+                  `${getInfoTypeLabel(copy, entry.info.infoType as CogitaInfoType | 'any' | 'vocab')} · ${entry.info.infoId}`
+                }
+              />
 
               {canLoadMore ? (
                 <div className="cogita-form-actions">
@@ -1205,19 +1135,6 @@ function resolveInfoTitle(payload: unknown, infoType: string, fallbackId: string
     }
   }
   return `${infoType} · ${fallbackId}`;
-}
-
-function formatCheckcardLabel(card: {
-  cardType: string;
-  checkType?: string | null;
-  direction?: string | null;
-  infoType?: string | null;
-}) {
-  const parts = [card.cardType];
-  if (card.infoType) parts.push(card.infoType);
-  if (card.checkType) parts.push(card.checkType);
-  if (card.direction) parts.push(card.direction);
-  return parts.join(' · ');
 }
 
 function formatDateTime(value: string, language: 'pl' | 'en' | 'de') {
