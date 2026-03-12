@@ -27,7 +27,7 @@ import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } fro
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveCollectionDraftFromInfos } from '../../../cogita/collections/draft';
 import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../cogita/workspace/transfer';
-import { CogitaKnowledgeSearch } from './components/CogitaKnowledgeSearch';
+import { CogitaKnowledgeSearch } from './components/search/CogitaKnowledgeSearch';
 
 type InfoSort = 'relevance' | 'label_asc' | 'label_desc' | 'type_asc' | 'type_desc';
 type ResultView = 'details' | 'wide' | 'grid';

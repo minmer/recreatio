@@ -32,8 +32,30 @@ import {
   type TimerExpireAction
 } from '../../live/liveSessionRules';
 import { buildLiveSessionSummaryLines } from '../../live/liveSessionDescription';
+import { CogitaLiveSessionSearch } from '../components/search/CogitaLiveSessionSearch';
 
 export type LiveSessionsPageMode = 'search' | 'create' | 'detail' | 'edit';
+
+export type CogitaRevisionLiveSessionsPageProps = {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  revisionId: string;
+  mode?: LiveSessionsPageMode;
+  sessionId?: string;
+  onCreated?: (sessionId: string) => void;
+  onOpenSession?: (sessionId: string) => void;
+  onRequestEdit?: (sessionId: string) => void;
+  onRequestOverview?: (sessionId: string) => void;
+};
 
 export function CogitaRevisionLiveSessionsPage({
   copy,
@@ -54,26 +76,7 @@ export function CogitaRevisionLiveSessionsPage({
   onOpenSession,
   onRequestEdit,
   onRequestOverview
-}: {
-  copy: Copy;
-  authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
-  onNavigate: (route: RouteKey) => void;
-  language: 'pl' | 'en' | 'de';
-  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  libraryId: string;
-  revisionId: string;
-  mode?: LiveSessionsPageMode;
-  sessionId?: string;
-  onCreated?: (sessionId: string) => void;
-  onOpenSession?: (sessionId: string) => void;
-  onRequestEdit?: (sessionId: string) => void;
-  onRequestOverview?: (sessionId: string) => void;
-}) {
+}: CogitaRevisionLiveSessionsPageProps) {
   const navigate = useNavigate();
   const FIXED_HOST_VIEW_MODE = 'panel' as const;
   const FIXED_PARTICIPANT_VIEW_MODE = 'question' as const;
@@ -234,15 +237,6 @@ export function CogitaRevisionLiveSessionsPage({
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return items.filter((item) => {
-      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
-      if (!needle) return true;
-      const haystack = `${item.title ?? ''} ${item.sessionId} ${item.status}`.toLocaleLowerCase();
-      return haystack.includes(needle);
-    });
-  }, [items, query, statusFilter]);
   const createSession = async () => {
     setBusyAction('create');
     setMessage(null);
@@ -460,68 +454,33 @@ export function CogitaRevisionLiveSessionsPage({
                     <div className="cogita-library-controls">
                       <div className="cogita-library-search">
                         <p className="cogita-user-kicker">{copy.cogita.workspace.infoMode.search}</p>
-                        <div className="cogita-search-field">
-                          <input
-                            type="text"
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                            placeholder={copy.cogita.workspace.revisionForm.namePlaceholder}
-                          />
-                        </div>
-                        <label className="cogita-field">
-                          <span>{copy.cogita.library.revision.live.statusLabel}</span>
-                          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                            <option value="all">{copy.cogita.library.infoTypes.any}</option>
-                            {statusOptions.map((value) => (
-                              <option key={`status:${value}`} value={value}>
-                                {value}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
                       </div>
                     </div>
 
-                    <div className="cogita-card-count">
-                      <span>{`${filtered.length} / ${items.length}`}</span>
-                      <span>
-                        {status === 'loading'
-                          ? copy.cogita.library.collections.loading
-                          : status === 'error'
-                            ? copy.cogita.library.revision.shareError
-                            : copy.cogita.library.collections.ready}
-                      </span>
-                    </div>
-
-                    <div className="cogita-card-list" data-view="list">
-                      {filtered.length ? (
-                        filtered.map((item) => (
-                          <div key={item.sessionId} className="cogita-card-item">
-                            <a
-                              className="cogita-card-select"
-                              href={`${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions/${encodeURIComponent(item.sessionId)}`}
-                              onClick={(event) => {
-                                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
-                                  return;
-                                }
-                                event.preventDefault();
-                                onOpenSession?.(item.sessionId);
-                              }}
-                            >
-                              <div className="cogita-card-type">{item.status}</div>
-                              <h3 className="cogita-card-title">{item.title || item.sessionId}</h3>
-                              <p className="cogita-card-subtitle">
-                                {copy.cogita.library.revision.live.participantsTitle}: {item.participantCount}
-                              </p>
-                            </a>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="cogita-card-empty">
-                          <p>{copy.cogita.library.revision.shareListEmpty}</p>
-                        </div>
-                      )}
-                    </div>
+                    <CogitaLiveSessionSearch
+                      items={items}
+                      query={query}
+                      onQueryChange={setQuery}
+                      statusFilter={statusFilter}
+                      onStatusFilterChange={setStatusFilter}
+                      searchLabel={copy.cogita.workspace.infoMode.search}
+                      searchPlaceholder={copy.cogita.workspace.revisionForm.namePlaceholder}
+                      statusLabel={copy.cogita.library.revision.live.statusLabel}
+                      anyStatusLabel={copy.cogita.library.infoTypes.any}
+                      searchingLabel={copy.cogita.library.collections.loading}
+                      readyLabel={copy.cogita.library.collections.ready}
+                      errorLabel={copy.cogita.library.revision.shareError}
+                      loadState={status}
+                      emptyLabel={copy.cogita.library.revision.shareListEmpty}
+                      statusOptions={statusOptions}
+                      participantsLabel={copy.cogita.library.revision.live.participantsTitle}
+                      openActionLabel={copy.cogita.workspace.infoActions.overview}
+                      inputAriaLabel={copy.cogita.workspace.revisionForm.namePlaceholder}
+                      buildSessionHref={(item) =>
+                        `${baseHref}/revisions/${encodeURIComponent(revisionId)}/live-sessions/${encodeURIComponent(item.sessionId)}`
+                      }
+                      onSessionSelect={(item) => onOpenSession?.(item.sessionId)}
+                    />
                   </>
                 ) : null}
 

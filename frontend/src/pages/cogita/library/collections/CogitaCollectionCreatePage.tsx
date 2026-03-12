@@ -3,6 +3,7 @@ import ReactFlow, { Background, Controls, addEdge, useEdgesState, useNodesState,
 import 'reactflow/dist/style.css';
 import {
   createCogitaCollection,
+  type CogitaCollectionDetail,
   getCogitaCollection,
   getCogitaCollectionGraph,
   saveCogitaCollectionGraph,
@@ -147,6 +148,22 @@ const COLLECTION_GRAPH_I18N = {
   }
 } as const;
 
+export type CogitaCollectionCreatePageProps = {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  collectionId?: string;
+  onCreated?: (collection: CogitaCollectionDetail) => void;
+};
+
 export function CogitaCollectionCreatePage({
   copy,
   authLabel,
@@ -161,21 +178,7 @@ export function CogitaCollectionCreatePage({
   libraryId,
   collectionId,
   onCreated
-}: {
-  copy: Copy;
-  authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
-  onNavigate: (route: RouteKey) => void;
-  language: 'pl' | 'en' | 'de';
-  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  libraryId: string;
-  collectionId?: string;
-  onCreated: (collectionId: string) => void;
-}) {
+}: CogitaCollectionCreatePageProps) {
   const location = useLocation();
   const graphCopy = COLLECTION_GRAPH_I18N[language];
   const nodeCatalog = useMemo(
@@ -387,6 +390,7 @@ export function CogitaCollectionCreatePage({
       };
       let collectionIdToSave = activeCollectionId;
       let createdNow = false;
+      let createdCollectionDetail: CogitaCollectionDetail | null = null;
       if (!collectionIdToSave) {
         const created = await createCogitaCollection({
           libraryId,
@@ -398,6 +402,17 @@ export function CogitaCollectionCreatePage({
         collectionIdToSave = created.collectionId;
         createdNow = true;
         setActiveCollectionId(created.collectionId);
+        try {
+          createdCollectionDetail = await getCogitaCollection(libraryId, created.collectionId);
+        } catch {
+          createdCollectionDetail = {
+            collectionId: created.collectionId,
+            name: name.trim(),
+            notes: notes.trim() || null,
+            itemCount: 0,
+            createdUtc: new Date().toISOString()
+          };
+        }
       } else {
         await updateCogitaCollection({
           libraryId,
@@ -413,8 +428,8 @@ export function CogitaCollectionCreatePage({
         });
       }
       setStatusMessage(createdNow ? copy.cogita.library.collections.saveSuccess : copy.cogita.library.graph.saveSuccess);
-      if (createdNow) {
-        onCreated(collectionIdToSave);
+      if (createdNow && createdCollectionDetail) {
+        onCreated?.(createdCollectionDetail);
       }
     } catch {
       setStatusMessage(activeCollectionId ? copy.cogita.library.graph.saveFail : copy.cogita.library.collections.saveFail);

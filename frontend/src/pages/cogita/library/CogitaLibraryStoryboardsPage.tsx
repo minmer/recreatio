@@ -30,10 +30,27 @@ import {
   type CogitaStoryboardShare
 } from '../../../lib/api';
 import { CogitaCheckcardList } from './components/CogitaCheckcardList';
-import { CogitaKnowledgeItemSearchOverlay } from './components/CogitaKnowledgeItemSearchOverlay';
+import { CogitaKnowledgeItemSearchOverlay } from './components/search/overlays/CogitaKnowledgeItemSearchOverlay';
+import { CogitaStoryboardProjectSearch } from './components/search/CogitaStoryboardProjectSearch';
 import { buildCheckcardKey } from './checkcards/checkcardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
+export type CogitaLibraryStoryboardsPageProps = {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  mode?: StoryboardWorkspaceMode;
+  storyboardId?: string;
+  onCreated?: (project: CogitaCreationProject) => void;
+};
 
 type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
@@ -981,22 +998,9 @@ export function CogitaLibraryStoryboardsPage({
   onLanguageChange,
   libraryId,
   mode = 'search',
-  storyboardId
-}: {
-  copy: Copy;
-  authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
-  onNavigate: (route: RouteKey) => void;
-  language: 'pl' | 'en' | 'de';
-  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  libraryId: string;
-  mode?: StoryboardWorkspaceMode;
-  storyboardId?: string;
-}) {
+  storyboardId,
+  onCreated
+}: CogitaLibraryStoryboardsPageProps) {
   const navigate = useNavigate();
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const storyboardEditorCopy = copy.cogita.library.modules.storyboardsEditor;
@@ -1193,12 +1197,6 @@ export function CogitaLibraryStoryboardsPage({
     [activeGroupPath, documentState.rootGraph]
   );
 
-  const filteredItems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter((item) => item.name.toLowerCase().includes(query) || item.projectId.toLowerCase().includes(query));
-  }, [items, searchQuery]);
-
   const flowNodes = useMemo<Node<StoryboardFlowNodeData>[]>(
     () =>
       activeGraph.nodes.map((node) => {
@@ -1339,7 +1337,11 @@ export function CogitaLibraryStoryboardsPage({
         });
         setItems((current) => [created, ...current]);
         setStatus(storyboardEditorCopy.createdStatus);
-        navigateToEdit(created.projectId);
+        if (onCreated) {
+          onCreated(created);
+        } else {
+          navigateToEdit(created.projectId);
+        }
       } else {
         const editProjectId = selectedProject?.projectId ?? storyboardId;
         if (!editProjectId) {
@@ -1621,16 +1623,6 @@ export function CogitaLibraryStoryboardsPage({
               <div className="cogita-library-grid">
                 <div className="cogita-flat-search-header">
                   <div className="cogita-library-controls">
-                    <div className="cogita-library-search">
-                      <div className="cogita-search-field">
-                        <input
-                          type="text"
-                          value={searchQuery}
-                          onChange={(event) => setSearchQuery(event.target.value)}
-                          placeholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
-                        />
-                      </div>
-                    </div>
                     <button type="button" className="cta" onClick={navigateToCreate}>
                       {copy.cogita.library.modules.storyboardsCreate}
                     </button>
@@ -1638,17 +1630,22 @@ export function CogitaLibraryStoryboardsPage({
                 </div>
 
                 <div className="cogita-library-panel">
-                  {loading ? <p>{copy.cogita.library.modules.loading}</p> : null}
-                  {!loading && loadFailed ? <p>{copy.cogita.library.modules.loadFailed}</p> : null}
-                  {!loading && !loadFailed && filteredItems.length === 0 ? <p>{copy.cogita.library.modules.storyboardsEmpty}</p> : null}
-
-                  <div className="cogita-storyboard-project-list">
-                    {filteredItems.map((item) => (
-                      <button key={item.projectId} type="button" className="ghost" onClick={() => navigateToOverview(item.projectId)}>
-                        {item.name}
-                      </button>
-                    ))}
-                  </div>
+                  <CogitaStoryboardProjectSearch
+                    items={items}
+                    query={searchQuery}
+                    onQueryChange={setSearchQuery}
+                    searchLabel={copy.cogita.workspace.infoMode.search}
+                    searchPlaceholder={copy.cogita.library.modules.storyboardsNewPlaceholder}
+                    loading={loading}
+                    loadingLabel={copy.cogita.library.modules.loading}
+                    loadFailed={loadFailed}
+                    failedLabel={copy.cogita.library.modules.loadFailed}
+                    emptyLabel={copy.cogita.library.modules.storyboardsEmpty}
+                    inputAriaLabel={copy.cogita.library.modules.storyboardsNewPlaceholder}
+                    buildProjectHref={(item) => `/#/cogita/workspace/libraries/${libraryId}/storyboards/${encodeURIComponent(item.projectId)}`}
+                    openActionLabel={copy.cogita.workspace.infoActions.overview}
+                    onProjectSelect={(item) => navigateToOverview(item.projectId)}
+                  />
                 </div>
               </div>
             </div>

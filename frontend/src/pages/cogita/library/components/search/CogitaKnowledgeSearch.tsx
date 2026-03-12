@@ -6,7 +6,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaEntitySearchResult,
   type CogitaInfoSearchResult
-} from '../../../../lib/api';
+} from '../../../../../lib/api';
 
 export type CogitaKnowledgeSearchResult = {
   info: CogitaInfoSearchResult;

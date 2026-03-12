@@ -3,6 +3,7 @@ import {
   createCogitaRevision,
   getCogitaCollections,
   getCogitaRevision,
+  type CogitaRevision,
   updateCogitaRevision,
 } from '../../../../lib/api';
 import { CogitaShell } from '../../CogitaShell';
@@ -10,6 +11,23 @@ import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
 import { getRevisionType, normalizeRevisionSettings, revisionTypes } from '../../../../cogita/revision/registry';
 import { useNavigate } from 'react-router-dom';
+
+export type CogitaRevisionSettingsPageProps = {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  collectionId?: string;
+  revisionId?: string;
+  onCreated?: (revision: CogitaRevision) => void;
+};
 
 export function CogitaRevisionSettingsPage({
   copy,
@@ -24,22 +42,9 @@ export function CogitaRevisionSettingsPage({
   onLanguageChange,
   libraryId,
   collectionId,
-  revisionId
-}: {
-  copy: Copy;
-  authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
-  onNavigate: (route: RouteKey) => void;
-  language: 'pl' | 'en' | 'de';
-  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  libraryId: string;
-  collectionId?: string;
-  revisionId?: string;
-}) {
+  revisionId,
+  onCreated
+}: CogitaRevisionSettingsPageProps) {
   const navigate = useNavigate();
   const [availableCollections, setAvailableCollections] = useState<{ collectionId: string; name: string }[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState(collectionId ?? '');
@@ -215,7 +220,11 @@ export function CogitaRevisionSettingsPage({
         limit
       });
       setSaveStatus('saved');
-      navigate(`/cogita/workspace/libraries/${libraryId}/revisions/${encodeURIComponent(created.revisionId)}`, { replace: true });
+      if (onCreated) {
+        onCreated(created);
+      } else {
+        navigate(`/cogita/workspace/libraries/${libraryId}/revisions/${encodeURIComponent(created.revisionId)}`, { replace: true });
+      }
     } catch {
       setSaveStatus('error');
     }

@@ -6,6 +6,7 @@ import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
 import { InfoSearchSelect } from './components/InfoSearchSelect';
+import { CogitaDependencyGraphSearch } from './components/search/CogitaDependencyGraphSearch';
 import {
   activateCogitaDependencyGraph,
   createCogitaDependencyGraph,
@@ -45,6 +46,23 @@ function toNodeLabel(payload: unknown, fallback: string) {
   return fallback;
 }
 
+export type CogitaDependencyGraphPageMode = 'search' | 'create' | 'overview' | 'edit';
+
+export type CogitaDependencyGraphPageProps = {
+  copy: Copy;
+  authLabel: string;
+  showProfileMenu: boolean;
+  onProfileNavigate: () => void;
+  onToggleSecureMode: () => void;
+  onLogout: () => void;
+  secureMode: boolean;
+  onNavigate: (route: RouteKey) => void;
+  language: 'pl' | 'en' | 'de';
+  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
+  libraryId: string;
+  mode?: CogitaDependencyGraphPageMode;
+};
+
 export function CogitaDependencyGraphPage({
   copy,
   authLabel,
@@ -58,20 +76,7 @@ export function CogitaDependencyGraphPage({
   onLanguageChange,
   libraryId,
   mode = 'overview'
-}: {
-  copy: Copy;
-  authLabel: string;
-  showProfileMenu: boolean;
-  onProfileNavigate: () => void;
-  onToggleSecureMode: () => void;
-  onLogout: () => void;
-  secureMode: boolean;
-  onNavigate: (route: RouteKey) => void;
-  language: 'pl' | 'en' | 'de';
-  onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
-  libraryId: string;
-  mode?: 'search' | 'create' | 'overview' | 'edit';
-}) {
+}: CogitaDependencyGraphPageProps) {
   const baseHref = `/#/cogita/workspace/libraries/${libraryId}`;
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,6 +91,7 @@ export function CogitaDependencyGraphPage({
   const [quotePreview, setQuotePreview] = useState<{ title: string; fragments: Array<{ id: string; text: string; depth: number }> } | null>(null);
 
   const [graphs, setGraphs] = useState<CogitaDependencyGraphSummary[]>([]);
+  const [graphsStatus, setGraphsStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedGraphId, setSelectedGraphId] = useState<string | null>(null);
   const [graphSearch, setGraphSearch] = useState('');
   const [graphStatusFilter, setGraphStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -148,16 +154,23 @@ export function CogitaDependencyGraphPage({
   }, [graphSearch, graphStatusFilter, graphs]);
 
   const loadGraphs = useCallback(async () => {
-    const response = await getCogitaDependencyGraphs({ libraryId });
-    setGraphs(response.items ?? []);
-    setSelectedGraphId((current) => {
-      if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
-      if (mode === 'create' && requestedInfos.length > 0) return null;
-      if (current && response.items.some((item) => item.graphId === current)) return current;
-      if (mode === 'create' || mode === 'search') return null;
-      const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
-      return preferred?.graphId ?? null;
-    });
+    setGraphsStatus('loading');
+    try {
+      const response = await getCogitaDependencyGraphs({ libraryId });
+      setGraphs(response.items ?? []);
+      setSelectedGraphId((current) => {
+        if (routeGraphId && response.items.some((item) => item.graphId === routeGraphId)) return routeGraphId;
+        if (mode === 'create' && requestedInfos.length > 0) return null;
+        if (current && response.items.some((item) => item.graphId === current)) return current;
+        if (mode === 'create' || mode === 'search') return null;
+        const preferred = response.items.find((item) => item.isActive) ?? response.items[0];
+        return preferred?.graphId ?? null;
+      });
+      setGraphsStatus('ready');
+    } catch (error) {
+      setGraphsStatus('error');
+      throw error;
+    }
   }, [libraryId, mode, requestedInfos.length, routeGraphId]);
 
   useEffect(() => {
@@ -677,71 +690,36 @@ export function CogitaDependencyGraphPage({
                   <div className="cogita-library-controls">
                     <div className="cogita-library-search">
                       <p className="cogita-user-kicker">{copy.cogita.workspace.infoMode.search}</p>
-                      <div className="cogita-search-field">
-                        <input
-                          type="text"
-                          value={graphSearch}
-                          onChange={(event) => setGraphSearch(event.target.value)}
-                          placeholder="Search dependency graph"
-                        />
-                      </div>
-                      <label className="cogita-field">
-                        <span>{copy.cogita.library.revision.live.statusLabel}</span>
-                        <select
-                          value={graphStatusFilter}
-                          onChange={(event) => setGraphStatusFilter(event.target.value as 'all' | 'active' | 'inactive')}
-                        >
-                          <option value="all">{copy.cogita.library.infoTypes.any}</option>
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                        </select>
-                      </label>
                     </div>
                   </div>
                 </div>
 
                 <div className="cogita-library-panel">
-                  <div className="cogita-card-count">
-                    <span>{`${filteredGraphs.length} / ${graphs.length}`}</span>
-                    <span>{copy.cogita.library.collections.ready}</span>
-                  </div>
-
-                  <div className="cogita-card-list" data-view="list">
-                    {filteredGraphs.length ? (
-                      filteredGraphs.map((graph) => (
-                        <button
-                          key={graph.graphId}
-                          type="button"
-                          className={`cogita-card-item ${selectedGraphId === graph.graphId ? 'active' : ''}`}
-                          onClick={() =>
-                            navigate(
-                              `/cogita/workspace/libraries/${libraryId}/dependencies?graphId=${encodeURIComponent(graph.graphId)}&dependencyView=overview`,
-                              { replace: true }
-                            )
-                          }
-                        >
-                          <div className="cogita-card-select">
-                            <div className="cogita-card-type">{graph.isActive ? 'active' : 'inactive'}</div>
-                            <h3 className="cogita-card-title">{graph.name}</h3>
-                            <p className="cogita-card-subtitle">{graph.nodeCount} nodes</p>
-                          </div>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="cogita-card-empty">
-                        <p>No dependency graphs yet.</p>
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() =>
-                            navigate(`/cogita/workspace/libraries/${libraryId}/dependencies?dependencyView=create`, { replace: true })
-                          }
-                        >
-                          Create dependency graph
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <CogitaDependencyGraphSearch
+                    items={graphs}
+                    query={graphSearch}
+                    onQueryChange={setGraphSearch}
+                    statusFilter={graphStatusFilter}
+                    onStatusFilterChange={setGraphStatusFilter}
+                    searchLabel={copy.cogita.workspace.infoMode.search}
+                    searchPlaceholder="Search dependency graph"
+                    statusLabel={copy.cogita.library.revision.live.statusLabel}
+                    anyStatusLabel={copy.cogita.library.infoTypes.any}
+                    activeStatusLabel="active"
+                    inactiveStatusLabel="inactive"
+                    loadState={graphsStatus}
+                    loadingLabel={copy.cogita.library.collections.loading}
+                    errorLabel={copy.cogita.library.modules.loadFailed}
+                    readyLabel={copy.cogita.library.collections.ready}
+                    emptyLabel="No dependency graphs yet."
+                    selectedGraphId={selectedGraphId}
+                    buildGraphHref={(graph) =>
+                      `/#/cogita/workspace/libraries/${libraryId}/dependencies?graphId=${encodeURIComponent(graph.graphId)}&dependencyView=overview`
+                    }
+                    openActionLabel={copy.cogita.workspace.infoActions.overview}
+                    emptyActionLabel="Create dependency graph"
+                    onEmptyAction={() => navigate(`/cogita/workspace/libraries/${libraryId}/dependencies?dependencyView=create`, { replace: true })}
+                  />
                 </div>
               </div>
             </div>

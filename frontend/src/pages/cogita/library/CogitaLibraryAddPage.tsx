@@ -467,20 +467,13 @@ function validateReferenceSourceForm(form: ReferenceSourceForm): boolean {
   return Boolean(form.locatorValue.trim());
 }
 
-export function CogitaLibraryAddPage({
-  copy,
-  authLabel,
-  showProfileMenu,
-  onProfileNavigate,
-  onToggleSecureMode,
-  onLogout,
-  secureMode,
-  onNavigate,
-  language,
-  onLanguageChange,
-  libraryId,
-  editInfoId
-}: {
+export type CogitaKnowledgeItemCreated = {
+  infoId: string;
+  infoType: string;
+  label: string;
+};
+
+export type CogitaLibraryAddPageProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -493,7 +486,24 @@ export function CogitaLibraryAddPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId: string;
   editInfoId?: string;
-}) {
+  onCreated?: (item: CogitaKnowledgeItemCreated) => void;
+};
+
+export function CogitaLibraryAddPage({
+  copy,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  language,
+  onLanguageChange,
+  libraryId,
+  editInfoId,
+  onCreated
+}: CogitaLibraryAddPageProps) {
   const { libraryName } = useCogitaLibraryMeta(libraryId);
   const isEditMode = Boolean(editInfoId);
   const [specifications, setSpecifications] = useState<CogitaInfoTypeSpecification[]>([]);
@@ -910,11 +920,16 @@ export function CogitaLibraryAddPage({
         });
         setStatus('Knowledge item updated.');
       } else {
-        await createCogitaInfo({
+        const created = await createCogitaInfo({
           libraryId,
           infoType: selectedInfoType,
           payload,
           links
+        });
+        onCreated?.({
+          infoId: created.infoId,
+          infoType: created.infoType,
+          label: resolveInfoLabel(payload, created.infoId)
         });
         const hasQueuedQuestionImport =
           selectedInfoType === 'question' &&
