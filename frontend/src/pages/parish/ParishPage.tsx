@@ -2182,12 +2182,6 @@ export function ParishPage({
 
   const handlePrintConfirmationCards = () => {
     if (confirmationCandidates.length === 0) return;
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-    if (!printWindow) {
-      setConfirmationTransferError('Przeglądarka zablokowała okno wydruku. Zezwól na wyskakujące okna i spróbuj ponownie.');
-      return;
-    }
-
     const printedAt = new Date().toLocaleString('pl-PL');
     const parentParagraphsHtml = confirmationParentConsentDraft
       .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
@@ -2373,6 +2367,11 @@ export function ParishPage({
   </script>
 </body>
 </html>`;
+    const printWindow = window.open('about:blank', '_blank') ?? window.open('about:blank', '_self');
+    if (!printWindow) {
+      setConfirmationTransferError('Nie udało się otworzyć strony wydruku.');
+      return;
+    }
 
     printWindow.document.open();
     printWindow.document.write(html);
@@ -6810,7 +6809,7 @@ export function ParishPage({
                           <div className="confirmation-print-panel">
                             <div className="confirmation-print-toolbar">
                               <p className="note">
-                                Wydruk otwiera się w nowej karcie jako osobny dokument A5 (dwustronnie).
+                                Wydruk otwiera się jako osobny dokument A5 (preferowana nowa karta; przy blokadzie popup bieżąca karta).
                               </p>
                               <button type="button" className="parish-login" onClick={handlePrintConfirmationCards}>
                                 Drukuj wszystkie karty
