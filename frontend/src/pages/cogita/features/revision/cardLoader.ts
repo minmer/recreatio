@@ -1,6 +1,6 @@
 import type { CogitaCardSearchBundle, CogitaCardSearchResult } from '../../../../lib/api';
 import { getCardKey } from './cards';
-import { expandQuoteDirectionCards } from '../../components/workspace/revision/revisionShared';
+import { expandQuoteDirectionCards } from '../../components/revision/revisionShared';
 
 export type CardLoaderMode = 'random' | 'random-once' | 'levels' | 'temporal';
 

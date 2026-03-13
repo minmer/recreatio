@@ -27,7 +27,7 @@ import {
   emptyQuestionAnswers,
   type RevisionQuestionAnswers,
   type RevisionQuestionPrompt
-} from '../revision/revisionShared';
+} from '../../revision/revisionShared';
 import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 
 type CheckcardNodeData = {

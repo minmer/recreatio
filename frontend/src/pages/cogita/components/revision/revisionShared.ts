@@ -1,12 +1,12 @@
-import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../../lib/api';
-import { buildQuoteFragmentTree } from '../../../features/revision/quote';
+import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../lib/api';
+import { buildQuoteFragmentTree } from '../../features/revision/quote';
 import {
   normalizeQuestionType,
   parseQuestionDefinition,
   shuffleQuestionDefinitionForRuntime
-} from '../../questions/questionRuntime';
-import type { CheckcardExpectedModel, CheckcardPromptModel } from '../checkcards/checkcardRuntime';
-export { normalizeQuestionType } from '../../questions/questionRuntime';
+} from '../questions/questionRuntime';
+import type { CheckcardExpectedModel, CheckcardPromptModel } from '../workspace/checkcards/checkcardRuntime';
+export { normalizeQuestionType } from '../questions/questionRuntime';
 
 export type RevisionQuestionPrompt = {
   kind: 'text' | 'selection' | 'boolean' | 'ordering' | 'matching';

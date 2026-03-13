@@ -2069,6 +2069,10 @@
   align-items: center;
 }
 
+.confirmation-admin-tabs {
+  margin-bottom: 12px;
+}
+
 .confirmation-verify-banner {
   margin-top: 14px;
   border: 2px solid var(--parish-line);
@@ -2117,6 +2121,135 @@
 .confirmation-candidate-list {
   display: grid;
   gap: 12px;
+}
+
+.confirmation-print-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.confirmation-print-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.confirmation-print-root {
+  display: grid;
+  gap: 16px;
+}
+
+.confirmation-print-sheet {
+  display: grid;
+  gap: 12px;
+}
+
+.confirmation-print-side {
+  width: min(148mm, 100%);
+  min-height: 210mm;
+  margin: 0 auto;
+  padding: 12mm;
+  box-sizing: border-box;
+  border: 1px solid var(--parish-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.confirmation-print-side h4 {
+  margin: 0 0 12px;
+}
+
+.confirmation-print-side p {
+  margin: 0 0 8px;
+}
+
+.confirmation-print-lead {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+}
+
+.confirmation-print-side-back {
+  font-size: 0.83rem;
+  line-height: 1.35;
+}
+
+.confirmation-print-phones {
+  margin: 0 0 10px 18px;
+  padding: 0;
+}
+
+.confirmation-print-rodo-list {
+  margin-bottom: 12px;
+}
+
+.confirmation-print-signature-block {
+  margin-top: 18px;
+}
+
+.signature-line {
+  height: 1px;
+  background: #111;
+  margin: 16px 0;
+}
+
+@page {
+  size: A5 portrait;
+  margin: 10mm;
+}
+
+@media print {
+  .parish-portal.print-confirmation-cards .parish-header,
+  .parish-portal.print-confirmation-cards .parish-mock-notice-section,
+  .parish-portal.print-confirmation-cards .sacrament-shortcuts,
+  .parish-portal.print-confirmation-cards .confirmation-form-card,
+  .parish-portal.print-confirmation-cards .confirmation-admin-tabs,
+  .parish-portal.print-confirmation-cards .confirmation-admin-actions,
+  .parish-portal.print-confirmation-cards .confirmation-print-toolbar,
+  .parish-portal.print-confirmation-cards .confirmation-info {
+    display: none !important;
+  }
+
+  .parish-portal.print-confirmation-cards .parish-main {
+    padding: 0 !important;
+  }
+
+  .parish-portal.print-confirmation-cards .parish-section {
+    margin: 0 !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-admin-card {
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-root {
+    gap: 0 !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-sheet {
+    gap: 0 !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-side {
+    width: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    break-after: page;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-sheet:last-child .confirmation-print-side:last-child {
+    break-after: auto;
+  }
 }
 
 .confirmation-candidate-item {

@@ -1106,6 +1106,39 @@ const confirmationSectionPath: Record<SacramentPanelSection, string> = {
   form: 'form'
 };
 
+const confirmationParentConsentDraft = [
+  'Ja, niżej podpisany / niżej podpisana, jako rodzic / opiekun prawny kandydata do sakramentu bierzmowania, oświadczam, że wyrażam zgodę na udział mojego dziecka w spotkaniach przygotowujących do przyjęcia sakramentu bierzmowania przy Parafii Rzymskokatolickiej pw. św. Jana Chrzciciela w Krakowie, ul. Dobrego Pasterza 117, 31-416 Kraków, prowadzonych przez ks. Michała Mleczka.',
+  'Oświadczam również, że przyjmuję do wiadomości zasady związane z parafialnym przygotowaniem do bierzmowania oraz zobowiązuję się do współpracy z osobami prowadzącymi przygotowanie mojego dziecka.',
+  'Jednocześnie wyrażam zgodę na samodzielny powrót mojego dziecka do domu po zakończeniu spotkań przygotowujących do sakramentu bierzmowania i biorę za ten powrót pełną odpowiedzialność.'
+];
+
+const confirmationRodoClauseDraft = {
+  intro:
+    'Zgodnie z art. 13 ust. 1 i 2 RODO oraz art. 8 ust. 1 Dekretu ogólnego Konferencji Episkopatu Polski w sprawie ochrony osób fizycznych w związku z przetwarzaniem danych osobowych w Kościele katolickim informujemy, że:',
+  admin:
+    'Administratorem danych osobowych jest Parafia Rzymskokatolicka pw. św. Jana Chrzciciela w Krakowie, ul. Dobrego Pasterza 117, 31-416 Kraków, e-mail: parafia@janchrzciciel.eu.',
+  iod: 'Kontakt z Inspektorem Ochrony Danych jest możliwy pod adresem e-mail: diod@diecezja.krakow.pl.',
+  purposesLead: 'Dane osobowe rodzica / opiekuna prawnego oraz dziecka są przetwarzane w celu:',
+  purposes: [
+    'organizacji i prowadzenia przygotowania do sakramentu bierzmowania,',
+    'kontaktu w sprawach związanych z przygotowaniem,',
+    'prowadzenia dokumentacji parafialnej związanej z przygotowaniem do sakramentu bierzmowania,',
+    'realizacji obowiązków wynikających z przepisów prawa kościelnego i powszechnie obowiązującego.'
+  ],
+  recipients:
+    'Odbiorcami danych mogą być wyłącznie podmioty uprawnione do ich otrzymania na podstawie przepisów prawa, podmioty współpracujące z administratorem na podstawie stosownych upoważnień oraz właściwe podmioty kościelne w zakresie niezbędnym do realizacji celu przetwarzania.',
+  retention:
+    'Dane osobowe będą przechowywane przez okres niezbędny do realizacji celu, dla którego zostały zebrane, a następnie przez okres wynikający z przepisów prawa kościelnego i powszechnie obowiązującego.',
+  rights:
+    'Przysługuje Pani / Panu prawo dostępu do danych osobowych, ich sprostowania, ograniczenia przetwarzania, a w przypadkach przewidzianych przepisami także żądania usunięcia danych.',
+  supervision:
+    'W przypadku danych osobowych związanych z działalnością kanoniczną Kościoła katolickiego właściwym organem nadzoru jest Kościelny Inspektor Ochrony Danych, Skwer kard. Stefana Wyszyńskiego 6, 01-015 Warszawa, e-mail: kiod@episkopat.pl. W przypadku danych związanych z pozostałą działalnością właściwym organem nadzorczym jest Prezes Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa.',
+  automation: 'Dane osobowe nie będą przetwarzane w sposób zautomatyzowany, w tym również w formie profilowania.',
+  required:
+    'Podanie danych jest dobrowolne, ale niezbędne do udziału dziecka w parafialnym przygotowaniu do sakramentu bierzmowania.',
+  acknowledgment: 'Oświadczam, że zapoznałem / zapoznałam się z treścią powyższej klauzuli informacyjnej.'
+};
+
 const parseConfirmationSection = (value?: string | null): SacramentPanelSection => {
   if (value === 'parish-info') return 'parish';
   if (value === 'faq') return 'faq';
@@ -1781,6 +1814,7 @@ export function ParishPage({
   const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
+  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'print'>('submissions');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
@@ -2138,6 +2172,10 @@ export function ParishPage({
     }
   };
 
+  const handlePrintConfirmationCards = () => {
+    window.print();
+  };
+
   useEffect(() => {
     if (!isConfirmationSubpage) {
       setConfirmationVerifyInfo(null);
@@ -2277,6 +2315,11 @@ export function ParishPage({
 
   const activeSacramentPanelSection =
     selectedSacrament.id === 'confirmation' ? confirmationPanelSection : sacramentPanelSection;
+  const isConfirmationPrintMode =
+    isAuthenticated &&
+    selectedSacrament.id === 'confirmation' &&
+    activeSacramentPanelSection === 'form' &&
+    confirmationAdminTab === 'print';
 
   const selectPage = (next: PageId) => {
     setActivePage(next);
@@ -3766,7 +3809,7 @@ export function ParishPage({
   }, [resizeState, baseColumns, gridColumns]);
 
   return (
-    <div className={`parish-portal theme-${theme}`} lang={language}>
+    <div className={`parish-portal theme-${theme} ${isConfirmationPrintMode ? 'print-confirmation-cards' : ''}`} lang={language}>
       {view === 'chooser' ? (
         <>
           <header className="parish-header parish-header--chooser">
@@ -6455,6 +6498,22 @@ export function ParishPage({
                             Odśwież
                           </button>
                         </div>
+                        <div className="tabs small confirmation-admin-tabs">
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'submissions' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('submissions')}
+                          >
+                            Zgłoszenia
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'print' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('print')}
+                          >
+                            Karty do druku (A5)
+                          </button>
+                        </div>
                         <div className="confirmation-admin-actions">
                           <button
                             type="button"
@@ -6494,57 +6553,140 @@ export function ParishPage({
                         {confirmationCandidatesError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
                         ) : null}
-                        {confirmationCandidates.length === 0 ? (
-                          <p className="muted">Brak zgłoszeń.</p>
+                        {confirmationAdminTab === 'submissions' ? (
+                          confirmationCandidates.length === 0 ? (
+                            <p className="muted">Brak zgłoszeń.</p>
+                          ) : (
+                            <div className="confirmation-candidate-list">
+                              {confirmationCandidates.map((candidate) => (
+                                <article key={candidate.id} className="confirmation-candidate-item">
+                                  <div className="confirmation-candidate-head">
+                                    <strong>
+                                      {candidate.name} {candidate.surname}
+                                    </strong>
+                                    <span className="muted">
+                                      {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
+                                    </span>
+                                  </div>
+                                  <p className="note">
+                                    <strong>Adres:</strong> {candidate.address}
+                                  </p>
+                                  <p className="note">
+                                    <strong>Szkoła:</strong> {candidate.schoolShort}
+                                  </p>
+                                  <ul className="confirmation-phone-list">
+                                    {candidate.phoneNumbers.map((phone) => {
+                                      const smsHref = buildConfirmationSmsHref(phone.number, phone.verificationToken);
+                                      return (
+                                        <li key={`${candidate.id}-${phone.index}`}>
+                                          <span>{phone.number}</span>
+                                          {phone.isVerified ? (
+                                            <span className="pill">Zweryfikowany</span>
+                                          ) : (
+                                            <>
+                                              <span className="pill">Niezweryfikowany</span>
+                                              {smsHref ? (
+                                                <a className="ghost" href={smsHref}>
+                                                  Utwórz SMS
+                                                </a>
+                                              ) : null}
+                                              <button
+                                                type="button"
+                                                className="ghost"
+                                                onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                              >
+                                                {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
+                                              </button>
+                                            </>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </article>
+                              ))}
+                            </div>
+                          )
                         ) : (
-                          <div className="confirmation-candidate-list">
-                            {confirmationCandidates.map((candidate) => (
-                              <article key={candidate.id} className="confirmation-candidate-item">
-                                <div className="confirmation-candidate-head">
-                                  <strong>
-                                    {candidate.name} {candidate.surname}
-                                  </strong>
-                                  <span className="muted">
-                                    {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
-                                  </span>
-                                </div>
-                                <p className="note">
-                                  <strong>Adres:</strong> {candidate.address}
-                                </p>
-                                <p className="note">
-                                  <strong>Szkoła:</strong> {candidate.schoolShort}
-                                </p>
-                                <ul className="confirmation-phone-list">
-                                  {candidate.phoneNumbers.map((phone) => {
-                                    const smsHref = buildConfirmationSmsHref(phone.number, phone.verificationToken);
-                                    return (
-                                      <li key={`${candidate.id}-${phone.index}`}>
-                                        <span>{phone.number}</span>
-                                        {phone.isVerified ? (
-                                          <span className="pill">Zweryfikowany</span>
-                                        ) : (
-                                          <>
-                                            <span className="pill">Niezweryfikowany</span>
-                                            {smsHref ? (
-                                              <a className="ghost" href={smsHref}>
-                                                Utwórz SMS
-                                              </a>
-                                            ) : null}
-                                            <button
-                                              type="button"
-                                              className="ghost"
-                                              onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
-                                            >
-                                              {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
-                                            </button>
-                                          </>
-                                        )}
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              </article>
-                            ))}
+                          <div className="confirmation-print-panel">
+                            <div className="confirmation-print-toolbar">
+                              <p className="note">
+                                Widok do druku kart kandydatów (A5, dwustronnie). Każda karta ma stronę danych i stronę zgody rodziców.
+                              </p>
+                              <button type="button" className="parish-login" onClick={handlePrintConfirmationCards}>
+                                Drukuj wszystkie karty
+                              </button>
+                            </div>
+                            {confirmationCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń do wydruku.</p>
+                            ) : (
+                              <div className="confirmation-print-root">
+                                {confirmationCandidates.map((candidate) => (
+                                  <article key={`print-${candidate.id}`} className="confirmation-print-sheet">
+                                    <section className="confirmation-print-side confirmation-print-side-front">
+                                      <p className="tag">Bierzmowanie</p>
+                                      <h4>Oświadczenie rodzica / opiekuna prawnego</h4>
+                                      <p className="confirmation-print-lead">
+                                        OŚWIADCZENIE RODZICA / OPIEKUNA PRAWNEGO DOTYCZĄCE UDZIAŁU DZIECKA W PRZYGOTOWANIU DO
+                                        SAKRAMENTU BIERZMOWANIA
+                                      </p>
+                                      <p>
+                                        <strong>Imię i nazwisko:</strong> {candidate.name} {candidate.surname}
+                                      </p>
+                                      <p>
+                                        <strong>Adres zamieszkania:</strong> {candidate.address}
+                                      </p>
+                                      <p>
+                                        <strong>Szkoła (skrót):</strong> {candidate.schoolShort}
+                                      </p>
+                                      <p>
+                                        <strong>Numery kontaktowe:</strong>
+                                      </p>
+                                      <ul className="confirmation-print-phones">
+                                        {candidate.phoneNumbers.map((phone) => (
+                                          <li key={`print-${candidate.id}-${phone.index}`}>
+                                            {phone.number}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <p>
+                                        <strong>Data zgłoszenia:</strong> {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                      </p>
+                                      {confirmationParentConsentDraft.map((paragraph, index) => (
+                                        <p key={`parent-consent-${candidate.id}-${index}`}>{paragraph}</p>
+                                      ))}
+                                      <div className="confirmation-print-signature-block">
+                                        <p>Miejscowość, data: .............................................................</p>
+                                        <p>Podpis rodzica / opiekuna prawnego: .............................................................</p>
+                                      </div>
+                                    </section>
+                                    <section className="confirmation-print-side confirmation-print-side-back">
+                                      <p className="tag">RODO</p>
+                                      <h4>Klauzula informacyjna RODO</h4>
+                                      <p className="confirmation-print-lead">
+                                        KLAUZULA INFORMACYJNA DOTYCZĄCA PRZETWARZANIA DANYCH OSOBOWYCH
+                                      </p>
+                                      <p>{confirmationRodoClauseDraft.intro}</p>
+                                      <p>{confirmationRodoClauseDraft.admin}</p>
+                                      <p>{confirmationRodoClauseDraft.iod}</p>
+                                      <p>{confirmationRodoClauseDraft.purposesLead}</p>
+                                      <ul className="confirmation-print-phones confirmation-print-rodo-list">
+                                        {confirmationRodoClauseDraft.purposes.map((item, index) => (
+                                          <li key={`rodo-purpose-${candidate.id}-${index}`}>{item}</li>
+                                        ))}
+                                      </ul>
+                                      <p>{confirmationRodoClauseDraft.recipients}</p>
+                                      <p>{confirmationRodoClauseDraft.retention}</p>
+                                      <p>{confirmationRodoClauseDraft.rights}</p>
+                                      <p>{confirmationRodoClauseDraft.supervision}</p>
+                                      <p>{confirmationRodoClauseDraft.automation}</p>
+                                      <p>{confirmationRodoClauseDraft.required}</p>
+                                      <p>{confirmationRodoClauseDraft.acknowledgment}</p>
+                                    </section>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

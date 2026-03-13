@@ -5,7 +5,7 @@ import type { CogitaCardSearchResult, CogitaInfoSearchResult } from '../../../..
 import { LatexBlock } from '../../../../../../components/LatexText';
 import { anchorMaskValueToRgb } from '../../../../features/revision/compare';
 import { CogitaLivePromptCard } from '../../../../live/components/CogitaLivePromptCard';
-import type { RevisionQuestionAnswers, RevisionQuestionPrompt } from '../revisionShared';
+import type { RevisionQuestionAnswers, RevisionQuestionPrompt } from '../../../revision/revisionShared';
 
 export function CogitaRevisionCard({
   copy,

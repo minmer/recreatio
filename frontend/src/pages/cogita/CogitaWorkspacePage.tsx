@@ -41,10 +41,8 @@ import { CogitaDependencyOverview } from './components/workspace/dependency/Cogi
 import { CogitaNotionCards } from './components/workspace/notion/CogitaNotionCards';
 import { CogitaPersonsPage } from './CogitaPersonsPage';
 import { CogitaTransferWorkspace } from './components/workspace/transfer/CogitaTransferWorkspace';
-import { CogitaStoryboardWorkspace } from './components/workspace/storyboard/CogitaStoryboardWorkspace';
-import { CogitaStoryboardEdit } from './components/workspace/storyboard/CogitaStoryboardEdit';
+import { CogitaStoryboardEdit, type StoryboardWorkspaceMode } from './components/workspace/storyboard/CogitaStoryboardEdit';
 import { CogitaTextWorkspace } from './components/workspace/text/CogitaTextWorkspace';
-import type { StoryboardWorkspaceMode } from './components/workspace/storyboard/CogitaStoryboardWorkspace';
 import { CogitaCollectionSearch } from './components/workspace/collection/CogitaCollectionSearch';
 import { CogitaCollectionOverview } from './components/workspace/collection/CogitaCollectionOverview';
 import { CogitaCollectionEdit } from './components/workspace/collection/CogitaCollectionEdit';
@@ -2136,10 +2134,7 @@ export function CogitaWorkspacePage({
             : pathState.storyboardView === 'overview'
               ? 'overview'
               : 'search';
-      if (storyboardMode === 'create' || storyboardMode === 'edit') {
-        return <CogitaStoryboardEdit {...baseProps} storyboardId={storyboardMode === 'edit' ? pathState.storyboardId : undefined} />;
-      }
-      return <CogitaStoryboardWorkspace {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
+      return <CogitaStoryboardEdit {...baseProps} mode={storyboardMode} storyboardId={pathState.storyboardId} />;
     }
     if (pathState.target === 'texts' || pathState.target === 'new_text') {
       return <CogitaTextWorkspace {...baseProps} />;
