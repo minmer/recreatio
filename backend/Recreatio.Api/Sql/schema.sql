@@ -1849,7 +1849,7 @@ IF OBJECT_ID(N'dbo.CogitaDependencyEdges', N'U') IS NOT NULL DROP TABLE dbo.Cogi
 IF OBJECT_ID(N'dbo.CogitaCheckcardDefinitions', N'U') IS NOT NULL DROP TABLE dbo.CogitaCheckcardDefinitions;
 IF OBJECT_ID(N'dbo.CogitaKnowledgeLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeLinkMultis;
 IF OBJECT_ID(N'dbo.CogitaKnowledgeLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeLinkSingles;
-IF OBJECT_ID(N'dbo.CogitaKnowledgeItems', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeItems;
+IF OBJECT_ID(N'dbo.CogitaNotions', N'U') IS NOT NULL DROP TABLE dbo.CogitaNotions;
 IF OBJECT_ID(N'dbo.CogitaKnowledgeTypeSpecs', N'U') IS NOT NULL DROP TABLE dbo.CogitaKnowledgeTypeSpecs;
 GO
 
@@ -1867,9 +1867,9 @@ CREATE TABLE dbo.CogitaKnowledgeTypeSpecs
 );
 GO
 
-CREATE TABLE dbo.CogitaKnowledgeItems
+CREATE TABLE dbo.CogitaNotions
 (
-    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaKnowledgeItems PRIMARY KEY,
+    Id UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_CogitaNotions PRIMARY KEY,
     LibraryId UNIQUEIDENTIFIER NOT NULL,
     RoleId UNIQUEIDENTIFIER NOT NULL,
     TypeSpecId UNIQUEIDENTIFIER NOT NULL,
@@ -1877,16 +1877,16 @@ CREATE TABLE dbo.CogitaKnowledgeItems
     Title NVARCHAR(512) NOT NULL,
     SearchText NVARCHAR(MAX) NOT NULL,
     PayloadJson NVARCHAR(MAX) NOT NULL,
-    IsExcludedFromKnowness BIT NOT NULL CONSTRAINT DF_CogitaKnowledgeItems_IsExcludedFromKnowness DEFAULT (0),
+    IsExcludedFromKnowness BIT NOT NULL CONSTRAINT DF_CogitaNotions_IsExcludedFromKnowness DEFAULT (0),
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaKnowledgeItems_TypeSpec FOREIGN KEY (TypeSpecId) REFERENCES dbo.CogitaKnowledgeTypeSpecs(Id),
-    CONSTRAINT FK_CogitaKnowledgeItems_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
+    CONSTRAINT FK_CogitaNotions_TypeSpec FOREIGN KEY (TypeSpecId) REFERENCES dbo.CogitaKnowledgeTypeSpecs(Id),
+    CONSTRAINT FK_CogitaNotions_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id)
 );
 GO
 
-CREATE INDEX IX_CogitaKnowledgeItems_Library ON dbo.CogitaKnowledgeItems (LibraryId, UpdatedUtc DESC);
-CREATE INDEX IX_CogitaKnowledgeItems_Type ON dbo.CogitaKnowledgeItems (LibraryId, TypeKey, UpdatedUtc DESC);
+CREATE INDEX IX_CogitaNotions_Library ON dbo.CogitaNotions (LibraryId, UpdatedUtc DESC);
+CREATE INDEX IX_CogitaNotions_Type ON dbo.CogitaNotions (LibraryId, TypeKey, UpdatedUtc DESC);
 GO
 
 CREATE TABLE dbo.CogitaCreationProjects
@@ -1918,7 +1918,7 @@ CREATE TABLE dbo.CogitaCreationArtifacts
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_CogitaCreationArtifacts_Project FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaCreationArtifacts_SourceItem FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id)
+    CONSTRAINT FK_CogitaCreationArtifacts_SourceItem FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaNotions(Id)
 );
 GO
 
@@ -1958,8 +1958,8 @@ CREATE TABLE dbo.CogitaKnowledgeLinkSingles
     IsRequired BIT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaKnowledgeItems(Id),
+    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaNotions(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaKnowledgeLinkSingles_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaNotions(Id),
     CONSTRAINT UX_CogitaKnowledgeLinkSingles_SourceField UNIQUE (SourceItemId, FieldKey)
 );
 GO
@@ -1974,8 +1974,8 @@ CREATE TABLE dbo.CogitaKnowledgeLinkMultis
     SortOrder INT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
-    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaKnowledgeItems(Id),
+    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Source FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaNotions(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaKnowledgeLinkMultis_Target FOREIGN KEY (TargetItemId) REFERENCES dbo.CogitaNotions(Id),
     CONSTRAINT UX_CogitaKnowledgeLinkMultis_SourceFieldTarget UNIQUE (SourceItemId, FieldKey, TargetItemId)
 );
 GO
@@ -1996,7 +1996,7 @@ CREATE TABLE dbo.CogitaCheckcardDefinitions
     IsActive BIT NOT NULL CONSTRAINT DF_CogitaCheckcardDefinitions_IsActive DEFAULT (1),
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
-    CONSTRAINT FK_CogitaCheckcardDefinitions_Item FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaKnowledgeItems(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_CogitaCheckcardDefinitions_Item FOREIGN KEY (SourceItemId) REFERENCES dbo.CogitaNotions(Id) ON DELETE CASCADE,
     CONSTRAINT UX_CogitaCheckcardDefinitions_CardKey UNIQUE (LibraryId, CardKey)
 );
 GO

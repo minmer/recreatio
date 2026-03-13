@@ -88,43 +88,43 @@ public static class CogitaEndpoints
         group.MapMethods("/libraries/{libraryId:guid}/infos", new[] { "GET", "POST" }, (
             Guid libraryId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions"));
         group.MapMethods("/libraries/{libraryId:guid}/infos/{infoId:guid}", new[] { "GET", "PUT", "DELETE" }, (
             Guid libraryId,
             Guid infoId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions/{infoId:D}"));
         group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/collections", (
             Guid libraryId,
             Guid infoId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/collections"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions/{infoId:D}/collections"));
         group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/approaches/{approachKey}", (
             Guid libraryId,
             Guid infoId,
             string approachKey,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/approaches/{Uri.EscapeDataString(approachKey)}"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions/{infoId:D}/approaches/{Uri.EscapeDataString(approachKey)}"));
         group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards", (
             Guid libraryId,
             Guid infoId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/cards"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions/{infoId:D}/cards"));
         group.MapGet("/libraries/{libraryId:guid}/infos/{infoId:guid}/checkcards/dependencies", (
             Guid libraryId,
             Guid infoId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/knowledge-items/{infoId:D}/cards/dependencies"));
+            RedirectCogitaAlias(context, $"/cogita/libraries/{libraryId:D}/notions/{infoId:D}/cards/dependencies"));
         group.MapGet("/public/revision/{code}/infos", (
             string code,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/knowledge-items"))
+            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/notions"))
             .AllowAnonymous();
         group.MapGet("/public/revision/{code}/infos/{infoId:guid}", (
             string code,
             Guid infoId,
             HttpContext context) =>
-            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/knowledge-items/{infoId:D}"))
+            RedirectCogitaAlias(context, $"/cogita/public/revision/{Uri.EscapeDataString(code)}/notions/{infoId:D}"))
             .AllowAnonymous();
 
         group.MapGet("/dashboard/preferences", async (
@@ -1288,7 +1288,7 @@ public static class CogitaEndpoints
             return Results.Ok(specs);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions", async (
             Guid libraryId,
             string? type,
             string? query,
@@ -1459,7 +1459,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1542,7 +1542,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/collections", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/collections", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1670,7 +1670,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/approaches/{approachKey}", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/approaches/{approachKey}", async (
             Guid libraryId,
             Guid infoId,
             string approachKey,
@@ -1743,7 +1743,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/cards", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/cards", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1799,7 +1799,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaCardSearchBundleResponse(cards.Count, cards.Count, null, cards));
         });
 
-        group.MapGet("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}/cards/dependencies", async (
+        group.MapGet("/libraries/{libraryId:guid}/notions/{infoId:guid}/cards/dependencies", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -1866,7 +1866,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaItemDependencyBundleResponse(response));
         });
 
-        group.MapPut("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
+        group.MapPut("/libraries/{libraryId:guid}/notions/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             CogitaUpdateInfoRequest request,
@@ -2009,7 +2009,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaUpdateInfoResponse(info.Id, info.InfoType));
         });
 
-        group.MapDelete("/libraries/{libraryId:guid}/knowledge-items/{infoId:guid}", async (
+        group.MapDelete("/libraries/{libraryId:guid}/notions/{infoId:guid}", async (
             Guid libraryId,
             Guid infoId,
             HttpContext context,
@@ -10082,7 +10082,7 @@ public static class CogitaEndpoints
             ));
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision/{code}/knowledge-items", async (
+        group.MapGet("/public/revision/{code}/notions", async (
             string code,
             string? key,
             string? type,
@@ -10163,7 +10163,7 @@ public static class CogitaEndpoints
             return Results.Ok(responses);
         }).AllowAnonymous();
 
-        group.MapGet("/public/revision/{code}/knowledge-items/{infoId:guid}", async (
+        group.MapGet("/public/revision/{code}/notions/{infoId:guid}", async (
             string code,
             string? key,
             Guid infoId,
@@ -13294,7 +13294,7 @@ public static class CogitaEndpoints
             return Results.Empty;
         });
 
-        group.MapPost("/libraries/{libraryId:guid}/knowledge-items", async (
+        group.MapPost("/libraries/{libraryId:guid}/notions", async (
             Guid libraryId,
             CogitaCreateInfoRequest request,
             HttpContext context,
@@ -15377,7 +15377,7 @@ public static class CogitaEndpoints
             text.Contains("CogitaInfos", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("CogitaInfoSearchIndexes", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("CogitaEntitySearchDocuments", StringComparison.OrdinalIgnoreCase) ||
-            text.Contains("CogitaKnowledgeItems", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("CogitaNotions", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("CogitaKnowledgeTypeSpecs", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("CogitaCheckcardDefinitions", StringComparison.OrdinalIgnoreCase);
         var looksLikeConstraint =

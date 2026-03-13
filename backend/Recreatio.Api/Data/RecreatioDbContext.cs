@@ -99,7 +99,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaCreationProject> CogitaCreationProjects => Set<Data.Cogita.CogitaCreationProject>();
     public DbSet<Data.Cogita.CogitaItemDependency> CogitaItemDependencies => Set<Data.Cogita.CogitaItemDependency>();
     public DbSet<Data.Cogita.CogitaKnowledgeTypeSpec> CogitaKnowledgeTypeSpecs => Set<Data.Cogita.CogitaKnowledgeTypeSpec>();
-    public DbSet<Data.Cogita.CogitaKnowledgeItem> CogitaKnowledgeItems => Set<Data.Cogita.CogitaKnowledgeItem>();
+    public DbSet<Data.Cogita.CogitaNotion> CogitaNotions => Set<Data.Cogita.CogitaNotion>();
     public DbSet<Data.Cogita.CogitaRevisionRun> CogitaRevisionRuns => Set<Data.Cogita.CogitaRevisionRun>();
     public DbSet<Data.Cogita.CogitaRunAttempt> CogitaRunAttempts => Set<Data.Cogita.CogitaRunAttempt>();
     public DbSet<Data.Cogita.CogitaRunExposure> CogitaRunExposures => Set<Data.Cogita.CogitaRunExposure>();
@@ -126,7 +126,7 @@ public sealed class RecreatioDbContext : DbContext
         // These Core entities map to the same tables as active runtime entities.
         // Keep them out of the EF runtime model to avoid shared-table conflicts.
         modelBuilder.Ignore<Data.Cogita.Core.CogitaKnowledgeTypeSpecCore>();
-        modelBuilder.Ignore<Data.Cogita.Core.CogitaKnowledgeItemCore>();
+        modelBuilder.Ignore<Data.Cogita.Core.CogitaNotionCore>();
         modelBuilder.Ignore<Data.Cogita.Core.CogitaRevisionShareCore>();
         modelBuilder.Ignore<Data.Cogita.Core.CogitaRevisionRunCore>();
         modelBuilder.Ignore<Data.Cogita.Core.CogitaRunAttemptCore>();
@@ -294,9 +294,9 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Cogita.CogitaKnowledgeTypeSpec>()
             .HasIndex(x => new { x.LibraryId, x.TypeKey, x.Version })
             .IsUnique();
-        modelBuilder.Entity<Data.Cogita.CogitaKnowledgeItem>()
+        modelBuilder.Entity<Data.Cogita.CogitaNotion>()
             .HasIndex(x => new { x.LibraryId, x.UpdatedUtc });
-        modelBuilder.Entity<Data.Cogita.CogitaKnowledgeItem>()
+        modelBuilder.Entity<Data.Cogita.CogitaNotion>()
             .HasIndex(x => new { x.LibraryId, x.TypeKey, x.UpdatedUtc });
         modelBuilder.Entity<Data.Cogita.CogitaRevisionRun>()
             .HasIndex(x => new { x.LibraryId, x.Status, x.UpdatedUtc });

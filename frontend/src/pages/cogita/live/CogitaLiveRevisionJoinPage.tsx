@@ -11,18 +11,18 @@ import {
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
-import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
-import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
+import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
+import { CogitaStatisticsPanel } from '../components/shared/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer } from '../components/workspace/checkcards/checkcardRuntime';
 import { parseLiveRules } from './liveSessionRules';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
 import { buildLiveStatisticsResponse } from './liveStatistics';
 import { computeLiveRoundBreakdown } from './liveScoring';
-import { resolveLiveRunStage } from '../../../cogita/revision/runCore';
+import { resolveLiveRunStage } from '../features/revision/runCore';
 
 function readJoinNameFromHash() {
   if (typeof window === 'undefined') return '';

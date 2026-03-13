@@ -1392,7 +1392,7 @@ public static class CogitaCoreRuntimeEndpoints
         var runByKey = new Dictionary<string, CogitaRevisionRun>(StringComparer.Ordinal);
         var participantByRunAndRole = new Dictionary<string, CogitaRunParticipantCore>(StringComparer.Ordinal);
         var typeSpecByType = new Dictionary<string, CogitaKnowledgeTypeSpec>(StringComparer.Ordinal);
-        var knowledgeItemByLegacyKey = new Dictionary<string, CogitaKnowledgeItem>(StringComparer.Ordinal);
+        var notionByLegacyKey = new Dictionary<string, CogitaNotion>(StringComparer.Ordinal);
         var checkcardByKey = new Dictionary<string, CogitaCheckcardDefinitionCore>(StringComparer.Ordinal);
         var requestAttemptKeys = new HashSet<string>(StringComparer.Ordinal);
 
@@ -1473,14 +1473,14 @@ public static class CogitaCoreRuntimeEndpoints
                 itemType,
                 typeSpecByType,
                 ct);
-            var legacyItem = await EnsureLegacyKnowledgeItemAsync(
+            var legacyItem = await EnsureLegacyNotionAsync(
                 dbContext,
                 libraryId,
                 libraryRoleId,
                 typeSpec,
                 itemType,
                 entry.ItemId,
-                knowledgeItemByLegacyKey,
+                notionByLegacyKey,
                 ct);
             _ = await EnsureLegacyCheckcardDefinitionAsync(
                 dbContext,
@@ -1865,14 +1865,14 @@ public static class CogitaCoreRuntimeEndpoints
         return created;
     }
 
-    private static async Task<CogitaKnowledgeItem> EnsureLegacyKnowledgeItemAsync(
+    private static async Task<CogitaNotion> EnsureLegacyNotionAsync(
         RecreatioDbContext dbContext,
         Guid libraryId,
         Guid roleId,
         CogitaKnowledgeTypeSpec typeSpec,
         string itemType,
         Guid legacyItemId,
-        IDictionary<string, CogitaKnowledgeItem> itemCache,
+        IDictionary<string, CogitaNotion> itemCache,
         CancellationToken ct)
     {
         var legacyItemKey = $"{itemType}:{legacyItemId:D}";
@@ -1881,7 +1881,7 @@ public static class CogitaCoreRuntimeEndpoints
             return cached;
         }
 
-        var existing = await dbContext.CogitaKnowledgeItems
+        var existing = await dbContext.CogitaNotions
             .FirstOrDefaultAsync(x => x.LibraryId == libraryId && x.SearchText == legacyItemKey, ct);
         if (existing is not null)
         {
@@ -1890,7 +1890,7 @@ public static class CogitaCoreRuntimeEndpoints
         }
 
         var now = DateTimeOffset.UtcNow;
-        var created = new CogitaKnowledgeItem
+        var created = new CogitaNotion
         {
             Id = Guid.NewGuid(),
             LibraryId = libraryId,
@@ -1909,7 +1909,7 @@ public static class CogitaCoreRuntimeEndpoints
             CreatedUtc = now,
             UpdatedUtc = now
         };
-        dbContext.CogitaKnowledgeItems.Add(created);
+        dbContext.CogitaNotions.Add(created);
         itemCache[legacyItemKey] = created;
         return created;
     }

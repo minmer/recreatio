@@ -104,7 +104,7 @@ public static class CogitaCoreEndpoints
             var normalizedQuery = (q ?? string.Empty).Trim();
             var normalizedType = (typeKey ?? string.Empty).Trim();
 
-            var query = dbContext.CogitaKnowledgeItems
+            var query = dbContext.CogitaNotions
                 .AsNoTracking()
                 .Where(x => x.LibraryId == libraryId);
             if (normalizedType.Length > 0)
@@ -127,7 +127,7 @@ public static class CogitaCoreEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             Guid libraryId,
-            UpsertKnowledgeItemRequest request,
+            UpsertNotionRequest request,
             CancellationToken ct) =>
         {
             if (!await HasLibraryAccess(context, dbContext, libraryId, ct))
@@ -165,7 +165,7 @@ public static class CogitaCoreEndpoints
                 return Results.BadRequest(new { error = "roleId is required" });
             }
 
-            var item = new Data.Cogita.CogitaKnowledgeItem
+            var item = new Data.Cogita.CogitaNotion
             {
                 Id = Guid.NewGuid(),
                 LibraryId = libraryId,
@@ -179,7 +179,7 @@ public static class CogitaCoreEndpoints
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
-            dbContext.CogitaKnowledgeItems.Add(item);
+            dbContext.CogitaNotions.Add(item);
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok(item);
         });
@@ -343,7 +343,7 @@ public static class CogitaCoreEndpoints
         [property: JsonPropertyName("displayName")] string? DisplayName,
         [property: JsonPropertyName("specJson")] string? SpecJson);
 
-    public sealed record UpsertKnowledgeItemRequest(
+    public sealed record UpsertNotionRequest(
         [property: JsonPropertyName("roleId")] Guid RoleId,
         [property: JsonPropertyName("typeKey")] string TypeKey,
         [property: JsonPropertyName("title")] string Title,

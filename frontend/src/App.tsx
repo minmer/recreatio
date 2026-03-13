@@ -29,7 +29,7 @@ const CogitaWorkspacePage = lazy(() =>
   import('./pages/cogita/CogitaWorkspacePage').then((module) => ({ default: module.CogitaWorkspacePage }))
 );
 const CogitaRevisionSharedRuntimeEntryPage = lazy(() =>
-  import('./pages/cogita/library/revision/CogitaRevisionSharedRuntimeEntry').then((module) => ({
+  import('./pages/cogita/components/workspace/revision/CogitaRevisionSharedRuntimeEntry').then((module) => ({
     default: module.CogitaRevisionSharedRuntimeEntry
   }))
 );
@@ -201,9 +201,9 @@ export default function App() {
     pathname.startsWith('/cogita/live/sessions/');
   const chatPublicCode = isChatPublicPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardLibraryId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[2]) : undefined;
-  const cogitaStoryboardProjectId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[3]) : undefined;
+  const cogitaStoryboardId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[3]) : undefined;
   const cogitaStoryboardRuntimeLibraryId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[3]) : undefined;
-  const cogitaStoryboardRuntimeProjectId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[4]) : undefined;
+  const cogitaStoryboardRuntimeId = isCogitaStoryboardRuntimePath ? decodeRouteSegment(pathSegments[4]) : undefined;
   const cogitaStoryboardShareCode = isCogitaStoryboardSharedPath ? decodeRouteSegment(pathSegments[3]) : undefined;
   const cogitaWritingLibraryId = isCogitaWritingPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaWritingProjectId = isCogitaWritingPath ? decodeRouteSegment(pathSegments[3]) : undefined;
@@ -882,7 +882,7 @@ export default function App() {
               language={language}
               onLanguageChange={setLanguage}
               libraryId={cogitaStoryboardRuntimeLibraryId}
-              projectId={cogitaStoryboardRuntimeProjectId}
+              storyboardId={cogitaStoryboardRuntimeId}
             />
           ) : (
             <CogitaPage
@@ -915,7 +915,7 @@ export default function App() {
               language={language}
               onLanguageChange={setLanguage}
               libraryId={cogitaStoryboardLibraryId}
-              projectId={cogitaStoryboardProjectId}
+              storyboardId={cogitaStoryboardId}
             />
           ) : (
             <CogitaPage

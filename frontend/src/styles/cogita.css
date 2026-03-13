@@ -4600,18 +4600,18 @@
   top: 1rem;
 }
 
-.cogita-storyboard-project-list {
+.cogita-storyboard-list {
   display: grid;
   gap: 0.45rem;
   margin-top: 0.45rem;
 }
 
-.cogita-storyboard-project-list .ghost {
+.cogita-storyboard-list .ghost {
   width: 100%;
   text-align: left;
 }
 
-.cogita-storyboard-project-list .ghost.active:not(.cta) {
+.cogita-storyboard-list .ghost.active:not(.cta) {
   border-color: rgba(171, 221, 255, 0.78);
   background: rgba(16, 43, 67, 0.92);
 }

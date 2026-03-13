@@ -480,8 +480,8 @@ export type Copy = {
           staticTypeLabel: string;
           staticBodyLabel: string;
           mediaUrlLabel: string;
-          selectedKnowledgeItemLabel: string;
-          selectKnowledgeItemAction: string;
+          selectedNotionLabel: string;
+          selectNotionAction: string;
           checkcardsLoading: string;
           checkcardsLoadFailed: string;
           checkcardsEmpty: string;
@@ -491,7 +491,7 @@ export type Copy = {
           overlaySearching: string;
           overlayNoLinkedCheckcards: string;
           overlayResultCardsSuffix: string;
-          knowledgeItemIdLabel: string;
+          notionIdLabel: string;
           directionLabel: string;
           enterGroupAction: string;
           structuralNodeHelp: string;
@@ -543,8 +543,8 @@ export type Copy = {
           loading: string;
           blockUntitled: string;
           openMediaAction: string;
-          knowledgeItemLabel: string;
-          knowledgeItemNotSet: string;
+          notionLabel: string;
+          notionNotSet: string;
           directionLabel: string;
           directionFrontToBack: string;
           directionBackToFront: string;

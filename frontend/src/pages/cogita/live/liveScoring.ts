@@ -1,5 +1,5 @@
 import type { LiveRules } from './liveSessionRules';
-import { computeStreakContribution } from '../../../cogita/revision/runCore';
+import { computeStreakContribution } from '../features/revision/runCore';
 
 export type LiveBreakdownRowKey = 'base' | 'first' | 'speed' | 'streak' | 'wrong' | 'first-wrong' | 'wrong-streak';
 

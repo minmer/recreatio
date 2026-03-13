@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { anchorMaskValueToRgb } from '../../../../cogita/revision/compare';
+import { anchorMaskValueToRgb } from '../../features/revision/compare';
 
 export type LivePrompt = Record<string, unknown> & {
   kind?: string;

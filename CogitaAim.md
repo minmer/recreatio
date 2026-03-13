@@ -95,18 +95,18 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +1. Identity metadata.
 +2. Type/schema metadata.
 +3. Payload section for single-use fields.
-+4. Link/reference section to other knowledge items.
++4. Link/reference section to other notions.
 +5. Derived card metadata (0..N cards).
 +
 +### I.5.1 Payload principle
 +Fields that are local-only and not used as cross-item selectors **MUST** be stored in item payload.
 +
 +### I.5.2 Link/reference principle
-+Fields linking to other knowledge items **MUST** use encrypted link storage and deterministic hash indexing for performant relation lookup.
++Fields linking to other notions **MUST** use encrypted link storage and deterministic hash indexing for performant relation lookup.
 +
 +## I.6 Cards
 +
-+Cards are generated from knowledge items and power revision checks.
++Cards are generated from notions and power revision checks.
 +
 +Card cardinality per item:
 +- 0 cards,
@@ -164,8 +164,8 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +Dependencies are foundational and apply beyond runtime selection.
 +
 +Dependency relationships **MAY** exist:
-+1. Between cards inside one knowledge item.
-+2. Between knowledge items.
++1. Between cards inside one notion.
++2. Between notions.
 +3. Between collections.
 +
 +### I.9.1 Selection gating semantics
@@ -381,7 +381,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +
 +Cogita API families (logical):
 +1. libraries,
-+2. knowledge items,
++2. notions,
 +3. cards,
 +4. dependencies,
 +5. collections,
@@ -414,7 +414,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +## II.15 Search contract
 +
 +Search **MUST** support cross-entity queries across:
-+- knowledge items,
++- notions,
 +- cards,
 +- collections,
 +- revisions,
@@ -588,7 +588,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +1. workspace authoring domains,
 +2. user-facing execution/editing surfaces.
 +
-+Both **SHOULD** integrate knowledge item insertion and reference browsing.
++Both **SHOULD** integrate notion insertion and reference browsing.
 +
 +## III.9 Page catalog with display type and functionality
 +
@@ -1013,7 +1013,7 @@ index 0000000000000000000000000000000000000000..a1947fb67d7d37a94119670a43c696be
 +- `/cogita/workspace`
 +- `/cogita/workspace/libraries`
 +- `/cogita/workspace/libraries/{libraryId}`
-+- `/cogita/workspace/libraries/{libraryId}/knowledge-items`
++- `/cogita/workspace/libraries/{libraryId}/notions`
 +- `/cogita/workspace/libraries/{libraryId}/cards`
 +- `/cogita/workspace/libraries/{libraryId}/dependencies`
 +- `/cogita/workspace/libraries/{libraryId}/collections`

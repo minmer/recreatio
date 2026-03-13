@@ -241,7 +241,7 @@ export function CogitaWritingRuntimePage({
       });
       setReferenceResults(list);
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : 'Failed to search knowledge items.');
+      setStatus(err instanceof Error ? err.message : 'Failed to search notions.');
     } finally {
       setSearchingReferences(false);
     }
@@ -363,7 +363,7 @@ export function CogitaWritingRuntimePage({
                   type="text"
                   value={referenceQuery}
                   onChange={(event) => setReferenceQuery(event.target.value)}
-                  placeholder="Search knowledge items"
+                  placeholder="Search notions"
                 />
                 <button type="button" className="ghost" onClick={() => void searchReferences()} disabled={searchingReferences || !selectedLibraryId}>
                   {searchingReferences ? 'Searching...' : 'Search'}

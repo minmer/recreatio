@@ -148,7 +148,7 @@ export function CogitaUserPage({
                         <a className="ghost" href={`/#/cogita/workspace/libraries/${library.libraryId}`}>
                           {copy.cogita.user.openOverview}
                         </a>
-                        <a className="ghost" href={`/#/cogita/workspace/libraries/${library.libraryId}/knowledge-items`}>
+                        <a className="ghost" href={`/#/cogita/workspace/libraries/${library.libraryId}/notions`}>
                           {copy.cogita.user.openCards}
                         </a>
                       </div>

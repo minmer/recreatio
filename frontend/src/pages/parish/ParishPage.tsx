@@ -19,7 +19,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import type { Copy } from '../../content/types';
-import { getParishSacramentContent, sacramentPanelMenuCopy, type SacramentContentKey } from '../../content/parishSacraments';
+import { getParishSacramentContent, sacramentPanelMenuCopy, type SacramentContentKey } from './content/parishSacraments';
 import type { RouteKey } from '../../types/navigation';
 import {
   DndContext,

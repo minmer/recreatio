@@ -16,14 +16,14 @@ import {
   type CogitaComputedSample
 } from '../../../lib/api';
 import { clampInt, parseLiveRules } from './liveSessionRules';
-import { evaluateCheckcardAnswer } from '../library/checkcards/checkcardRuntime';
-import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
+import { evaluateCheckcardAnswer } from '../components/workspace/checkcards/checkcardRuntime';
+import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../cogita/revision/quote';
-import { selectNextCardIndexByMode } from '../../../cogita/revision/nextCardRoutine';
-import { getRevisionType, normalizeRevisionSettings } from '../../../cogita/revision/registry';
-import { buildRevisionQuestionRuntime } from '../library/revision/revisionShared';
-import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../../../cogita/revision/cardLoader';
+import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../features/revision/quote';
+import { selectNextCardIndexByMode } from '../features/revision/nextCardRoutine';
+import { getRevisionType, normalizeRevisionSettings } from '../features/revision/registry';
+import { buildRevisionQuestionRuntime } from '../components/workspace/revision/revisionShared';
+import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../features/revision/cardLoader';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';

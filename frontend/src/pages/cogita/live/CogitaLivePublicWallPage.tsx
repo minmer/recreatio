@@ -5,9 +5,9 @@ import {
   type CogitaLiveRevisionPublicState,
   type CogitaLiveRevisionReviewRound
 } from '../../../lib/api';
-import { CogitaCheckcardSurface } from '../library/revision/components/CogitaCheckcardSurface';
+import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { CogitaStatisticsPanel } from '../library/components/CogitaStatisticsPanel';
+import { CogitaStatisticsPanel } from '../components/shared/CogitaStatisticsPanel';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';

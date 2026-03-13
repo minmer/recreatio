@@ -1242,7 +1242,7 @@ export function searchCogitaInfos(payload: {
   if (payload.limit) params.set('limit', String(payload.limit));
   const qs = params.toString();
   return request<CogitaInfoSearchResult[]>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items${qs ? `?${qs}` : ''}`,
+    `/cogita/libraries/${payload.libraryId}/notions${qs ? `?${qs}` : ''}`,
     {
       method: 'GET'
     }
@@ -1323,7 +1323,7 @@ export function getCogitaCollection(libraryId: string, collectionId: string) {
 
 export function getCogitaInfoCollections(payload: { libraryId: string; infoId: string }) {
   return request<CogitaCollectionSummary[]>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}/collections`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/collections`,
     { method: 'GET' }
   );
 }
@@ -1954,7 +1954,7 @@ export function getCogitaPublicRevisionInfos(payload: { shareId: string; key?: s
   if (payload.type) params.set('type', payload.type);
   if (payload.query) params.set('query', payload.query);
   return request<CogitaInfoSearchResult[]>(
-    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/knowledge-items${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareId)}/notions${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -2122,7 +2122,7 @@ export function createCogitaInfo(payload: {
   links?: Record<string, string | string[] | null | undefined>;
   signatureBase64?: string | null;
 }) {
-  return request<CogitaInfoCreateResponse>(`/cogita/libraries/${payload.libraryId}/knowledge-items`, {
+  return request<CogitaInfoCreateResponse>(`/cogita/libraries/${payload.libraryId}/notions`, {
     method: 'POST',
     body: JSON.stringify({
       infoType: payload.infoType,
@@ -2136,7 +2136,7 @@ export function createCogitaInfo(payload: {
 
 export function getCogitaInfoDetail(payload: { libraryId: string; infoId: string }) {
   return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
     { method: 'GET' }
   );
 }
@@ -2150,21 +2150,21 @@ export function getCogitaApproachSpecifications(payload: { libraryId: string }) 
 
 export function getCogitaInfoApproachProjection(payload: { libraryId: string; infoId: string; approachKey: string }) {
   return request<CogitaInfoApproachProjection>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
     { method: 'GET' }
   );
 }
 
 export function getCogitaInfoCheckcards(payload: { libraryId: string; infoId: string }) {
   return request<CogitaCardSearchBundle>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}/cards`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/cards`,
     { method: 'GET' }
   );
 }
 
 export function getCogitaInfoCheckcardDependencies(payload: { libraryId: string; infoId: string }) {
   return request<CogitaItemDependencyBundle>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}/cards/dependencies`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/cards/dependencies`,
     { method: 'GET' }
   );
 }
@@ -2173,7 +2173,7 @@ export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: 
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
   return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
-    `/cogita/public/revision/${encodeURIComponent(payload.shareCode)}/knowledge-items/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
+    `/cogita/public/revision/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}${params.toString() ? `?${params.toString()}` : ''}`,
     { method: 'GET' }
   );
 }
@@ -2194,7 +2194,7 @@ export function updateCogitaInfo(payload: {
   signatureBase64?: string | null;
 }) {
   return request<{ infoId: string; infoType: string }>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
     {
       method: 'PUT',
       body: JSON.stringify({
@@ -2209,7 +2209,7 @@ export function updateCogitaInfo(payload: {
 
 export function deleteCogitaInfo(payload: { libraryId: string; infoId: string }) {
   return request<{ deleted: boolean }>(
-    `/cogita/libraries/${payload.libraryId}/knowledge-items/${payload.infoId}`,
+    `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}`,
     { method: 'DELETE' }
   );
 }

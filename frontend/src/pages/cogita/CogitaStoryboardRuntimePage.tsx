@@ -12,7 +12,7 @@ import {
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
-import { evaluateAnchorTextAnswer } from '../../cogita/revision/compare';
+import { evaluateAnchorTextAnswer } from './features/revision/compare';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
 
 type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
@@ -43,7 +43,7 @@ type StoryboardNodeRecord = {
   staticType: StoryboardStaticType;
   staticBody: string;
   mediaUrl: string;
-  knowledgeItemId: string;
+  notionId: string;
   cardCheckType: string;
   cardDirection: StoryboardCardDirection;
   groupGraph?: StoryboardGraph;
@@ -73,7 +73,7 @@ type RuntimeBlock = {
   staticType: StoryboardStaticType;
   staticBody: string;
   mediaUrl: string;
-  knowledgeItemId: string;
+  notionId: string;
   cardCheckType: string;
   cardDirection: StoryboardCardDirection;
 };
@@ -126,7 +126,7 @@ function createStartNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
-    knowledgeItemId: '',
+    notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
   };
@@ -142,7 +142,7 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
-    knowledgeItemId: '',
+    notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
   };
@@ -284,7 +284,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticType: normalizeStaticType(item.staticType ?? item.nodeType),
       staticBody: toString(item.staticBody ?? item.text),
       mediaUrl: toString(item.mediaUrl ?? item.videoUrl),
-      knowledgeItemId: toString(item.knowledgeItemId),
+      notionId: toString(item.notionId),
       cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection),
       groupGraph: kind === 'group' && item.groupGraph ? parseGraph(item.groupGraph) : undefined
@@ -424,7 +424,7 @@ function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): Run
     staticType: node.staticType,
     staticBody: node.staticBody,
     mediaUrl: node.mediaUrl,
-    knowledgeItemId: node.knowledgeItemId,
+    notionId: node.notionId,
     cardCheckType: node.cardCheckType,
     cardDirection: node.cardDirection
   };
@@ -575,7 +575,7 @@ export function CogitaStoryboardRuntimePage({
   language,
   onLanguageChange,
   libraryId,
-  projectId,
+  storyboardId,
   shareCode
 }: {
   copy: Copy;
@@ -589,7 +589,7 @@ export function CogitaStoryboardRuntimePage({
   language: 'pl' | 'en' | 'de';
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
   libraryId?: string;
-  projectId?: string;
+  storyboardId?: string;
   shareCode?: string;
 }) {
   const navigate = useNavigate();
@@ -613,7 +613,7 @@ export function CogitaStoryboardRuntimePage({
           if (cancelled) return;
           const normalized = normalizeDocument(share.content);
           setProject({
-            projectId: share.projectId,
+            projectId: share.storyboardId,
             projectType: 'storyboard',
             name: share.projectName,
             content: share.content ?? null,
@@ -638,7 +638,7 @@ export function CogitaStoryboardRuntimePage({
       };
     }
 
-    if (!libraryId || !projectId) {
+    if (!libraryId || !storyboardId) {
       setLoading(false);
       setStatus(runtimeCopy.statusMissingParams);
       return;
@@ -651,7 +651,7 @@ export function CogitaStoryboardRuntimePage({
     getCogitaCreationProjects({ libraryId, projectType: 'storyboard' })
       .then((projects) => {
         if (cancelled) return;
-        const found = projects.find((item) => item.projectId === projectId) ?? null;
+        const found = projects.find((item) => item.projectId === storyboardId) ?? null;
         if (!found) {
           setProject(null);
           setDocumentState(null);
@@ -679,7 +679,7 @@ export function CogitaStoryboardRuntimePage({
     return () => {
       cancelled = true;
     };
-  }, [libraryId, projectId, shareCode]);
+  }, [libraryId, storyboardId, shareCode]);
 
   useEffect(() => {
     return () => {
@@ -720,11 +720,11 @@ export function CogitaStoryboardRuntimePage({
       let prompt = currentNode.description.trim() || currentNode.title;
       let expected = currentNode.title;
 
-      if (libraryId && currentNode.knowledgeItemId.trim()) {
+      if (libraryId && currentNode.notionId.trim()) {
         try {
           const [cardsBundle, detail] = await Promise.all([
-            getCogitaInfoCheckcards({ libraryId, infoId: currentNode.knowledgeItemId.trim() }),
-            getCogitaInfoDetail({ libraryId, infoId: currentNode.knowledgeItemId.trim() }).catch(() => null)
+            getCogitaInfoCheckcards({ libraryId, infoId: currentNode.notionId.trim() }),
+            getCogitaInfoDetail({ libraryId, infoId: currentNode.notionId.trim() }).catch(() => null)
           ]);
           const selectedCard = pickNodeCard(currentNode, cardsBundle.items);
           let vocabProjection: Record<string, unknown> | null = null;
@@ -732,7 +732,7 @@ export function CogitaStoryboardRuntimePage({
             try {
               const projection = await getCogitaInfoApproachProjection({
                 libraryId,
-                infoId: currentNode.knowledgeItemId.trim(),
+                infoId: currentNode.notionId.trim(),
                 approachKey: 'vocab-card'
               });
               vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
@@ -867,7 +867,7 @@ export function CogitaStoryboardRuntimePage({
           <button
             type="button"
             className="ghost"
-            onClick={() => navigate(`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/storyboards${projectId ? `/${encodeURIComponent(projectId)}` : ''}`)}
+            onClick={() => navigate(`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/storyboards${storyboardId ? `/${encodeURIComponent(storyboardId)}` : ''}`)}
           >
             {runtimeCopy.backAction}
           </button>
@@ -907,7 +907,7 @@ export function CogitaStoryboardRuntimePage({
                   {block.kind === 'card' ? (
                     <>
                       <p style={{ margin: 0 }}>
-                        {runtimeCopy.knowledgeItemLabel}: <strong>{block.knowledgeItemId || runtimeCopy.knowledgeItemNotSet}</strong>
+                        {runtimeCopy.notionLabel}: <strong>{block.notionId || runtimeCopy.notionNotSet}</strong>
                       </p>
                       <p className="cogita-help" style={{ margin: 0 }}>
                         {runtimeCopy.directionLabel}: {block.cardDirection === 'back_to_front' ? runtimeCopy.directionBackToFront : runtimeCopy.directionFrontToBack}
