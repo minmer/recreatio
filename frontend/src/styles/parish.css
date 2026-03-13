@@ -2202,15 +2202,20 @@
 }
 
 @media print {
-  .parish-portal.print-confirmation-cards .parish-header,
-  .parish-portal.print-confirmation-cards .parish-mock-notice-section,
-  .parish-portal.print-confirmation-cards .sacrament-shortcuts,
-  .parish-portal.print-confirmation-cards .confirmation-form-card,
-  .parish-portal.print-confirmation-cards .confirmation-admin-tabs,
-  .parish-portal.print-confirmation-cards .confirmation-admin-actions,
-  .parish-portal.print-confirmation-cards .confirmation-print-toolbar,
-  .parish-portal.print-confirmation-cards .confirmation-info {
-    display: none !important;
+  .parish-portal.print-confirmation-cards * {
+    visibility: hidden !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-root,
+  .parish-portal.print-confirmation-cards .confirmation-print-root * {
+    visibility: visible !important;
+  }
+
+  .parish-portal.print-confirmation-cards .confirmation-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
   }
 
   .parish-portal.print-confirmation-cards .parish-main {
