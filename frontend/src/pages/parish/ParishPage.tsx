@@ -1139,6 +1139,14 @@ const confirmationRodoClauseDraft = {
   acknowledgment: 'Oświadczam, że zapoznałem / zapoznałam się z treścią powyższej klauzuli informacyjnej.'
 };
 
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+
 const parseConfirmationSection = (value?: string | null): SacramentPanelSection => {
   if (value === 'parish-info') return 'parish';
   if (value === 'faq') return 'faq';
@@ -2173,7 +2181,203 @@ export function ParishPage({
   };
 
   const handlePrintConfirmationCards = () => {
-    window.print();
+    if (confirmationCandidates.length === 0) return;
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    if (!printWindow) {
+      setConfirmationTransferError('Przeglądarka zablokowała okno wydruku. Zezwól na wyskakujące okna i spróbuj ponownie.');
+      return;
+    }
+
+    const printedAt = new Date().toLocaleString('pl-PL');
+    const parentParagraphsHtml = confirmationParentConsentDraft
+      .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+      .join('');
+    const rodoPurposesHtml = confirmationRodoClauseDraft.purposes
+      .map((item) => `<li>${escapeHtml(item)}</li>`)
+      .join('');
+
+    const sheetsHtml = confirmationCandidates
+      .map((candidate) => {
+        const phonesHtml = candidate.phoneNumbers.map((phone) => `<li>${escapeHtml(phone.number)}</li>`).join('');
+        const fullName = `${candidate.name} ${candidate.surname}`.trim();
+        return `
+          <article class="sheet">
+            <section class="page page-front">
+              <p class="tag">Bierzmowanie</p>
+              <h1>Oświadczenie rodzica / opiekuna prawnego</h1>
+              <p class="lead">OŚWIADCZENIE RODZICA / OPIEKUNA PRAWNEGO DOTYCZĄCE UDZIAŁU DZIECKA W PRZYGOTOWANIU DO SAKRAMENTU BIERZMOWANIA</p>
+              <p><strong>Imię i nazwisko:</strong> ${escapeHtml(fullName)}</p>
+              <p><strong>Adres zamieszkania:</strong> ${escapeHtml(candidate.address)}</p>
+              <p><strong>Szkoła (skrót):</strong> ${escapeHtml(candidate.schoolShort)}</p>
+              <p><strong>Numery kontaktowe:</strong></p>
+              <ul>${phonesHtml}</ul>
+              <p><strong>Data zgłoszenia:</strong> ${escapeHtml(new Date(candidate.createdUtc).toLocaleDateString('pl-PL'))}</p>
+              ${parentParagraphsHtml}
+              <div class="signature-block">
+                <p>Miejscowość, data: .............................................................</p>
+                <p>Podpis rodzica / opiekuna prawnego: .............................................................</p>
+              </div>
+            </section>
+            <section class="page page-back">
+              <p class="tag">RODO</p>
+              <h1>Klauzula informacyjna RODO</h1>
+              <p class="lead">KLAUZULA INFORMACYJNA DOTYCZĄCA PRZETWARZANIA DANYCH OSOBOWYCH</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.intro)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.admin)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.iod)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.purposesLead)}</p>
+              <ul>${rodoPurposesHtml}</ul>
+              <p>${escapeHtml(confirmationRodoClauseDraft.recipients)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.retention)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.rights)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.supervision)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.automation)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.required)}</p>
+              <p>${escapeHtml(confirmationRodoClauseDraft.acknowledgment)}</p>
+            </section>
+          </article>
+        `;
+      })
+      .join('');
+
+    const html = `<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Karty bierzmowanie - wydruk</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #f3f4f7;
+      color: #111;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.35;
+    }
+    .print-info {
+      max-width: 860px;
+      margin: 16px auto;
+      padding: 10px 14px;
+      border: 1px solid #d6dae2;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 0.9rem;
+    }
+    .print-info p {
+      margin: 0;
+    }
+    .sheet {
+      margin: 14px auto;
+      width: 148mm;
+    }
+    .page {
+      width: 148mm;
+      min-height: 210mm;
+      padding: 10mm;
+      background: #fff;
+      border: 1px solid #cfd5df;
+      overflow: hidden;
+    }
+    .page + .page {
+      margin-top: 8mm;
+    }
+    .tag {
+      margin: 0 0 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #31527f;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.08rem;
+      line-height: 1.25;
+    }
+    p {
+      margin: 0 0 7px;
+      font-size: 0.87rem;
+    }
+    .lead {
+      margin-bottom: 10px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      font-weight: 700;
+    }
+    ul {
+      margin: 0 0 10px 18px;
+      padding: 0;
+      font-size: 0.86rem;
+    }
+    li {
+      margin: 0 0 4px;
+    }
+    .page-back {
+      font-size: 0.82rem;
+    }
+    .page-back p,
+    .page-back ul {
+      font-size: 0.82rem;
+    }
+    .signature-block {
+      margin-top: 16px;
+    }
+    @page {
+      size: A5 portrait;
+      margin: 8mm;
+    }
+    @media print {
+      html, body {
+        background: #fff;
+      }
+      .print-info {
+        display: none;
+      }
+      .sheet {
+        margin: 0;
+        width: auto;
+      }
+      .page {
+        width: auto;
+        min-height: 0;
+        border: none;
+        padding: 0;
+        border-radius: 0;
+        break-after: page;
+        page-break-after: always;
+      }
+      .sheet:last-child .page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-info">
+    <p>Dokument do druku dwustronnego A5. Wygenerowano: ${escapeHtml(printedAt)}. Liczba kart: ${confirmationCandidates.length}.</p>
+  </div>
+  ${sheetsHtml}
+  <script>
+    window.addEventListener('load', function () {
+      window.print();
+    });
+  </script>
+</body>
+</html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setConfirmationTransferError(null);
   };
 
   useEffect(() => {
@@ -2315,11 +2519,6 @@ export function ParishPage({
 
   const activeSacramentPanelSection =
     selectedSacrament.id === 'confirmation' ? confirmationPanelSection : sacramentPanelSection;
-  const isConfirmationPrintMode =
-    isAuthenticated &&
-    selectedSacrament.id === 'confirmation' &&
-    activeSacramentPanelSection === 'form' &&
-    confirmationAdminTab === 'print';
 
   const selectPage = (next: PageId) => {
     setActivePage(next);
@@ -3809,7 +4008,7 @@ export function ParishPage({
   }, [resizeState, baseColumns, gridColumns]);
 
   return (
-    <div className={`parish-portal theme-${theme} ${isConfirmationPrintMode ? 'print-confirmation-cards' : ''}`} lang={language}>
+    <div className={`parish-portal theme-${theme}`} lang={language}>
       {view === 'chooser' ? (
         <>
           <header className="parish-header parish-header--chooser">
@@ -6611,7 +6810,7 @@ export function ParishPage({
                           <div className="confirmation-print-panel">
                             <div className="confirmation-print-toolbar">
                               <p className="note">
-                                Widok do druku kart kandydatów (A5, dwustronnie). Każda karta ma stronę danych i stronę zgody rodziców.
+                                Wydruk otwiera się w nowej karcie jako osobny dokument A5 (dwustronnie).
                               </p>
                               <button type="button" className="parish-login" onClick={handlePrintConfirmationCards}>
                                 Drukuj wszystkie karty
