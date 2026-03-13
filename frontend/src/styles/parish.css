@@ -2235,25 +2235,36 @@
   }
 
   .parish-portal.print-confirmation-cards .confirmation-print-root {
-    gap: 0 !important;
+    display: block !important;
+    width: 128mm;
+    margin: 0 auto;
   }
 
   .parish-portal.print-confirmation-cards .confirmation-print-sheet {
-    gap: 0 !important;
+    display: block !important;
+    margin: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .parish-portal.print-confirmation-cards .confirmation-print-side {
-    width: auto !important;
-    min-height: auto !important;
-    margin: 0 !important;
+    display: block;
+    width: 128mm !important;
+    min-height: 190mm !important;
+    margin: 0 auto !important;
     border: none !important;
     border-radius: 0 !important;
     padding: 0 !important;
+    box-sizing: border-box;
+    break-inside: avoid;
+    page-break-inside: avoid;
     break-after: page;
+    page-break-after: always;
   }
 
   .parish-portal.print-confirmation-cards .confirmation-print-sheet:last-child .confirmation-print-side:last-child {
     break-after: auto;
+    page-break-after: auto;
   }
 }
 
