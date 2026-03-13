@@ -1844,6 +1844,7 @@ IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.Cogit
 IF OBJECT_ID(N'dbo.CogitaRevisionPatterns', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionPatterns;
 IF OBJECT_ID(N'dbo.CogitaReferenceCryptoFields', N'U') IS NOT NULL DROP TABLE dbo.CogitaReferenceCryptoFields;
 IF OBJECT_ID(N'dbo.CogitaCreationArtifacts', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationArtifacts;
+IF OBJECT_ID(N'dbo.CogitaStoryboardShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaStoryboardShares;
 IF OBJECT_ID(N'dbo.CogitaCreationProjects', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationProjects;
 IF OBJECT_ID(N'dbo.CogitaDependencyEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaDependencyEdges;
 IF OBJECT_ID(N'dbo.CogitaCheckcardDefinitions', N'U') IS NOT NULL DROP TABLE dbo.CogitaCheckcardDefinitions;
@@ -2041,6 +2042,46 @@ CREATE TABLE dbo.CogitaRevisionPatterns
 GO
 
 CREATE INDEX IX_CogitaRevisionPatterns_Library ON dbo.CogitaRevisionPatterns (LibraryId, UpdatedUtc DESC);
+GO
+
+IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE [name] = N'PK_CogitaRevisionShares')
+BEGIN
+    DECLARE @pkDropTable NVARCHAR(517);
+    SELECT TOP (1)
+        @pkDropTable = QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+    FROM sys.key_constraints
+    WHERE [name] = N'PK_CogitaRevisionShares';
+
+    IF @pkDropTable IS NOT NULL
+        EXEC(N'ALTER TABLE ' + @pkDropTable + N' DROP CONSTRAINT [PK_CogitaRevisionShares];');
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE [name] = N'UX_CogitaRevisionShares_CodeHash')
+BEGIN
+    DECLARE @uxCodeHashTable NVARCHAR(517);
+    SELECT TOP (1)
+        @uxCodeHashTable = QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+    FROM sys.key_constraints
+    WHERE [name] = N'UX_CogitaRevisionShares_CodeHash';
+
+    IF @uxCodeHashTable IS NOT NULL
+        EXEC(N'ALTER TABLE ' + @uxCodeHashTable + N' DROP CONSTRAINT [UX_CogitaRevisionShares_CodeHash];');
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'UX_CogitaRevisionShares_CodeHash')
+BEGIN
+    DECLARE @uxCodeHashIndexTable NVARCHAR(517);
+    SELECT TOP (1)
+        @uxCodeHashIndexTable = QUOTENAME(OBJECT_SCHEMA_NAME(object_id)) + N'.' + QUOTENAME(OBJECT_NAME(object_id))
+    FROM sys.indexes
+    WHERE [name] = N'UX_CogitaRevisionShares_CodeHash';
+
+    IF @uxCodeHashIndexTable IS NOT NULL
+        EXEC(N'DROP INDEX [UX_CogitaRevisionShares_CodeHash] ON ' + @uxCodeHashIndexTable + N';');
+END
 GO
 
 CREATE TABLE dbo.CogitaRevisionShares
