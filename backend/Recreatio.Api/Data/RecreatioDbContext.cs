@@ -196,6 +196,11 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingSlot>()
             .HasIndex(x => new { x.ParishId, x.StartsAtUtc });
 
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingSlot>()
+            .HasIndex(x => x.HostInviteToken)
+            .IsUnique()
+            .HasFilter("[HostInviteToken] IS NOT NULL");
+
         modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
             .HasIndex(x => x.BookingToken)
             .IsUnique();

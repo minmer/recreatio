@@ -284,7 +284,8 @@ public sealed record ParishConfirmationMeetingSummaryResponse(
     int UnassignedCount);
 
 public sealed record ParishConfirmationMeetingAvailabilityRequest(
-    string Token);
+    string Token,
+    string? InviteToken);
 
 public sealed record ParishConfirmationMeetingPublicSlotResponse(
     Guid Id,
@@ -295,6 +296,7 @@ public sealed record ParishConfirmationMeetingPublicSlotResponse(
     string Stage,
     int ReservedCount,
     bool IsAvailable,
+    bool RequiresInviteLink,
     bool IsSelected);
 
 public sealed record ParishConfirmationMeetingAvailabilityResponse(
@@ -302,11 +304,15 @@ public sealed record ParishConfirmationMeetingAvailabilityResponse(
     string CandidateName,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,
+    bool CanInviteToSelectedSlot,
+    string? SelectedSlotInviteToken,
+    DateTimeOffset? SelectedSlotInviteExpiresUtc,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> Slots);
 
 public sealed record ParishConfirmationMeetingBookRequest(
     string Token,
-    Guid SlotId);
+    Guid SlotId,
+    string? InviteToken);
 
 public sealed record ParishConfirmationMeetingBookResponse(
     string Status,
@@ -349,7 +355,10 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     string SchoolShort,
     string PortalToken,
     Guid? SelectedSlotId,
-    DateTimeOffset? BookedUtc);
+    DateTimeOffset? BookedUtc,
+    bool CanInviteToSelectedSlot,
+    string? SelectedSlotInviteToken,
+    DateTimeOffset? SelectedSlotInviteExpiresUtc);
 
 public sealed record ParishConfirmationPortalResponse(
     ParishConfirmationPortalCandidateDataResponse Candidate,
@@ -360,7 +369,8 @@ public sealed record ParishConfirmationPortalResponse(
     IReadOnlyList<ParishConfirmationNoteResponse>? PrivateNotes);
 
 public sealed record ParishConfirmationPortalRequest(
-    string Token);
+    string Token,
+    string? InviteToken);
 
 public sealed record ParishConfirmationPortalMessageCreateRequest(
     string Token,

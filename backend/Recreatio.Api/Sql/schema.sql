@@ -311,17 +311,31 @@ CREATE TABLE dbo.ParishConfirmationMeetingSlots
     Capacity INT NOT NULL,
     Label NVARCHAR(160) NULL,
     Stage NVARCHAR(32) NOT NULL,
+    HostCandidateId UNIQUEIDENTIFIER NULL,
+    HostInviteToken NVARCHAR(128) NULL,
+    HostInviteExpiresUtc DATETIMEOFFSET NULL,
     IsActive BIT NOT NULL,
     CreatedUtc DATETIMEOFFSET NOT NULL,
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishConfirmationMeetingSlots_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT FK_ParishConfirmationMeetingSlots_HostCandidate FOREIGN KEY (HostCandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
     CONSTRAINT CK_ParishConfirmationMeetingSlots_Duration CHECK (DurationMinutes >= 10 AND DurationMinutes <= 180),
     CONSTRAINT CK_ParishConfirmationMeetingSlots_Capacity CHECK (Capacity >= 2 AND Capacity <= 3),
-    CONSTRAINT CK_ParishConfirmationMeetingSlots_Stage CHECK (Stage IN ('year1-start', 'year1-end'))
+    CONSTRAINT CK_ParishConfirmationMeetingSlots_Stage CHECK (Stage IN ('year1-start', 'year1-end')),
+    CONSTRAINT CK_ParishConfirmationMeetingSlots_HostInvite CHECK (
+        (HostInviteToken IS NULL AND HostInviteExpiresUtc IS NULL)
+        OR
+        (HostInviteToken IS NOT NULL AND HostInviteExpiresUtc IS NOT NULL AND HostCandidateId IS NOT NULL)
+    )
 );
 GO
 
 CREATE INDEX IX_ParishConfirmationMeetingSlots_ParishStarts ON dbo.ParishConfirmationMeetingSlots(ParishId, StartsAtUtc);
+GO
+
+CREATE UNIQUE INDEX UX_ParishConfirmationMeetingSlots_InviteToken
+    ON dbo.ParishConfirmationMeetingSlots(HostInviteToken)
+    WHERE HostInviteToken IS NOT NULL;
 GO
 
 CREATE TABLE dbo.ParishConfirmationMeetingLinks

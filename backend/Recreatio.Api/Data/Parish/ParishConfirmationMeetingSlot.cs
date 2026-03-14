@@ -21,6 +21,13 @@ public sealed class ParishConfirmationMeetingSlot
     [MaxLength(32)]
     public string Stage { get; set; } = "year1-start";
 
+    public Guid? HostCandidateId { get; set; }
+
+    [MaxLength(128)]
+    public string? HostInviteToken { get; set; }
+
+    public DateTimeOffset? HostInviteExpiresUtc { get; set; }
+
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedUtc { get; set; }

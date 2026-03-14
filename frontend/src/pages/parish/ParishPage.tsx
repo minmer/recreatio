@@ -1847,6 +1847,7 @@ export function ParishPage({
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
   const [confirmationCopiedMeetingToken, setConfirmationCopiedMeetingToken] = useState<string | null>(null);
+  const [confirmationCopiedInviteToken, setConfirmationCopiedInviteToken] = useState<string | null>(null);
   const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'print'>('submissions');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
@@ -1912,6 +1913,10 @@ export function ParishPage({
   );
   const confirmationMeetingToken = useMemo(() => {
     const token = new URLSearchParams(location.search).get('meeting');
+    return token?.trim() ? token.trim() : null;
+  }, [location.search]);
+  const confirmationMeetingInviteToken = useMemo(() => {
+    const token = new URLSearchParams(location.search).get('invite');
     return token?.trim() ? token.trim() : null;
   }, [location.search]);
   const confirmationPortalToken = useMemo(() => {
@@ -2204,6 +2209,11 @@ export function ParishPage({
     return `${window.location.origin}/#/parish/${parishSlug}/confirmation/candidate?portal=${encodeURIComponent(token)}`;
   };
 
+  const buildConfirmationMeetingInviteLink = (inviteToken: string): string => {
+    if (!parishSlug) return '';
+    return `${window.location.origin}/#/parish/${parishSlug}/confirmation/candidate?invite=${encodeURIComponent(inviteToken)}`;
+  };
+
   const handleCopyConfirmationMeetingLink = async (token: string) => {
     const link = buildConfirmationMeetingLink(token);
     if (!link) return;
@@ -2215,6 +2225,20 @@ export function ParishPage({
       }, 2200);
     } catch {
       setConfirmationCandidatesError('Nie udało się skopiować linku spotkania.');
+    }
+  };
+
+  const handleCopyConfirmationMeetingInviteLink = async (inviteToken: string) => {
+    const link = buildConfirmationMeetingInviteLink(inviteToken);
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setConfirmationCopiedInviteToken(inviteToken);
+      window.setTimeout(() => {
+        setConfirmationCopiedInviteToken((current) => (current === inviteToken ? null : current));
+      }, 2200);
+    } catch {
+      setConfirmationCandidatesError('Nie udało się skopiować linku zaproszenia.');
     }
   };
 
@@ -2285,12 +2309,12 @@ export function ParishPage({
     }
   };
 
-  const loadConfirmationMeetingAvailability = async (token: string) => {
+  const loadConfirmationMeetingAvailability = async (token: string, inviteToken?: string | null) => {
     if (!parishSlug) return;
     setConfirmationMeetingPublicLoading(true);
     setConfirmationMeetingPublicError(null);
     try {
-      const data = await getParishConfirmationMeetingAvailability(parishSlug, token);
+      const data = await getParishConfirmationMeetingAvailability(parishSlug, token, inviteToken ?? null);
       setConfirmationMeetingPublicData(data);
     } catch {
       setConfirmationMeetingPublicData(null);
@@ -2300,12 +2324,12 @@ export function ParishPage({
     }
   };
 
-  const loadConfirmationCandidatePortal = async (token: string) => {
+  const loadConfirmationCandidatePortal = async (token: string, inviteToken?: string | null) => {
     if (!parishSlug) return;
     setConfirmationPortalLoading(true);
     setConfirmationPortalError(null);
     try {
-      const portal = await getParishConfirmationCandidatePortal(parishSlug, token);
+      const portal = await getParishConfirmationCandidatePortal(parishSlug, token, inviteToken ?? null);
       setConfirmationPortalData(portal);
     } catch {
       setConfirmationPortalData(null);
@@ -2346,10 +2370,19 @@ export function ParishPage({
     try {
       const result = await bookParishConfirmationMeetingSlot(parishSlug, {
         token: bookingToken,
-        slotId
+        slotId,
+        inviteToken: confirmationMeetingInviteToken
       });
       if (result.status === 'slot-full') {
         const message = 'Wybrany termin jest już pełny. Wybierz inny dostępny termin.';
+        setConfirmationMeetingPublicError(message);
+        setConfirmationPortalError(message);
+      } else if (result.status === 'invite-required') {
+        const message = 'Ten termin wymaga linku zaproszenia od administratora terminu.';
+        setConfirmationMeetingPublicError(message);
+        setConfirmationPortalError(message);
+      } else if (result.status === 'slot-locked') {
+        const message = 'Ten termin jest zamknięty i nie przyjmuje nowych zapisów.';
         setConfirmationMeetingPublicError(message);
         setConfirmationPortalError(message);
       } else if (result.status === 'already-selected') {
@@ -2361,8 +2394,8 @@ export function ParishPage({
         setConfirmationMeetingPublicInfo(message);
         setConfirmationPortalInfo(message);
       }
-      await loadConfirmationMeetingAvailability(bookingToken);
-      await loadConfirmationCandidatePortal(bookingToken);
+      await loadConfirmationMeetingAvailability(bookingToken, confirmationMeetingInviteToken);
+      await loadConfirmationCandidatePortal(bookingToken, confirmationMeetingInviteToken);
       if (isAuthenticated) {
         await loadConfirmationMeetingSummary();
         await loadConfirmationCandidates();
@@ -2879,8 +2912,8 @@ export function ParishPage({
       return;
     }
 
-    void loadConfirmationMeetingAvailability(confirmationMeetingToken);
-  }, [isConfirmationSubpage, confirmationPanelSection, confirmationMeetingToken, parishSlug]);
+    void loadConfirmationMeetingAvailability(confirmationMeetingToken, confirmationMeetingInviteToken);
+  }, [isConfirmationSubpage, confirmationPanelSection, confirmationMeetingToken, confirmationMeetingInviteToken, parishSlug]);
 
   useEffect(() => {
     if (!isConfirmationSubpage || confirmationPanelSection !== 'candidate') {
@@ -2891,11 +2924,17 @@ export function ParishPage({
     }
     if (!confirmationPortalToken) {
       setConfirmationPortalData(null);
-      setConfirmationPortalError('Aby otworzyć portal kandydata, użyj indywidualnego linku parafii.');
+      if (confirmationMeetingInviteToken) {
+        setConfirmationPortalError(
+          'Link zaproszenia wykryty. Otwórz swój indywidualny link kandydata i dodaj parametr invite, aby dołączyć do tego terminu.'
+        );
+      } else {
+        setConfirmationPortalError('Aby otworzyć portal kandydata, użyj indywidualnego linku parafii.');
+      }
       return;
     }
-    void loadConfirmationCandidatePortal(confirmationPortalToken);
-  }, [isConfirmationSubpage, confirmationPanelSection, confirmationPortalToken, parishSlug]);
+    void loadConfirmationCandidatePortal(confirmationPortalToken, confirmationMeetingInviteToken);
+  }, [isConfirmationSubpage, confirmationPanelSection, confirmationPortalToken, confirmationMeetingInviteToken, parishSlug]);
 
   useEffect(() => {
     if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
@@ -7500,12 +7539,39 @@ export function ParishPage({
                             </article>
                             <article className="confirmation-portal-card">
                               <h4>Spotkanie początkowe (1. rok)</h4>
+                              {confirmationPortalData.candidate.canInviteToSelectedSlot &&
+                              confirmationPortalData.candidate.selectedSlotInviteToken ? (
+                                <div className="confirmation-candidate-links">
+                                  <p className="note">
+                                    Jesteś administratorem wybranego terminu przez 3 dni. Zaproszenia wygasają:
+                                    {' '}
+                                    {confirmationPortalData.candidate.selectedSlotInviteExpiresUtc
+                                      ? new Date(confirmationPortalData.candidate.selectedSlotInviteExpiresUtc).toLocaleString('pl-PL')
+                                      : 'wkrótce'}
+                                    . Osoba zaproszona używa swojego indywidualnego linku kandydata oraz parametru `invite`.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() =>
+                                      void handleCopyConfirmationMeetingInviteLink(
+                                        confirmationPortalData.candidate.selectedSlotInviteToken
+                                      )
+                                    }
+                                  >
+                                    {confirmationCopiedInviteToken === confirmationPortalData.candidate.selectedSlotInviteToken
+                                      ? 'Skopiowano link zaproszenia'
+                                      : 'Kopiuj link zaproszenia do terminu'}
+                                  </button>
+                                </div>
+                              ) : null}
                               {confirmationPortalData.firstYearStartSlots.length === 0 ? (
                                 <p className="muted">Brak aktywnych terminów spotkań.</p>
                               ) : (
                                 <div className="confirmation-meeting-slot-list">
                                   {confirmationPortalData.firstYearStartSlots.map((slot) => {
                                     const starts = new Date(slot.startsAtUtc);
+                                    const availablePlaces = Math.max(slot.capacity - slot.reservedCount, 0);
                                     return (
                                       <article key={`portal-slot-${slot.id}`} className="confirmation-meeting-slot">
                                         <p>
@@ -7514,6 +7580,15 @@ export function ParishPage({
                                         <p className="note">
                                           Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
                                           {slot.label ? ` • ${slot.label}` : ''}
+                                        </p>
+                                        <p className="note">
+                                          {slot.isSelected
+                                            ? 'To jest Twój aktualny termin.'
+                                            : slot.isAvailable
+                                            ? `Możesz dołączyć. Pozostało miejsc: ${availablePlaces}.`
+                                            : slot.requiresInviteLink
+                                            ? 'Termin wymaga aktywnego linku zaproszenia od administratora terminu.'
+                                            : 'Termin jest zamknięty lub pełny.'}
                                         </p>
                                         <button
                                           type="button"
@@ -7649,6 +7724,22 @@ export function ParishPage({
                                   ? 'Skopiowano link portalu'
                                   : 'Kopiuj link portalu kandydata'}
                               </button>
+                              {confirmationAdminPortalData.candidate.canInviteToSelectedSlot &&
+                              confirmationAdminPortalData.candidate.selectedSlotInviteToken ? (
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={() =>
+                                    void handleCopyConfirmationMeetingInviteLink(
+                                      confirmationAdminPortalData.candidate.selectedSlotInviteToken
+                                    )
+                                  }
+                                >
+                                  {confirmationCopiedInviteToken === confirmationAdminPortalData.candidate.selectedSlotInviteToken
+                                    ? 'Skopiowano link zaproszenia'
+                                    : 'Kopiuj link zaproszenia'}
+                                </button>
+                              ) : null}
                             </div>
                             <div className="admin-form-grid">
                               <label>
@@ -7891,6 +7982,32 @@ export function ParishPage({
                           <p className="note">
                             Kandydat: <strong>{confirmationMeetingPublicData.candidateName}</strong>
                           </p>
+                          {confirmationMeetingPublicData.canInviteToSelectedSlot &&
+                          confirmationMeetingPublicData.selectedSlotInviteToken ? (
+                            <div className="confirmation-candidate-links">
+                              <p className="note">
+                                Jesteś administratorem terminu przez 3 dni. Zaproszenia wygasają:
+                                {' '}
+                                {confirmationMeetingPublicData.selectedSlotInviteExpiresUtc
+                                  ? new Date(confirmationMeetingPublicData.selectedSlotInviteExpiresUtc).toLocaleString('pl-PL')
+                                  : 'wkrótce'}
+                                . Osoba zaproszona używa swojego indywidualnego linku kandydata oraz parametru `invite`.
+                              </p>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  void handleCopyConfirmationMeetingInviteLink(
+                                    confirmationMeetingPublicData.selectedSlotInviteToken
+                                  )
+                                }
+                              >
+                                {confirmationCopiedInviteToken === confirmationMeetingPublicData.selectedSlotInviteToken
+                                  ? 'Skopiowano link zaproszenia'
+                                  : 'Kopiuj link zaproszenia do terminu'}
+                              </button>
+                            </div>
+                          ) : null}
                           {confirmationMeetingPublicData.slots.length === 0 ? (
                             <p className="muted">Brak dostępnych terminów. Skontaktuj się z parafią.</p>
                           ) : (
@@ -7912,7 +8029,11 @@ export function ParishPage({
                                         ? 'To jest aktualnie wybrany termin.'
                                         : slot.isAvailable
                                         ? `Pozostało miejsc: ${availablePlaces}.`
-                                        : 'Termin pełny.'}
+                                        : slot.requiresInviteLink
+                                        ? 'Termin jest dostępny tylko z aktywnym linkiem zaproszenia.'
+                                        : slot.reservedCount >= slot.capacity
+                                        ? 'Termin pełny.'
+                                        : 'Termin jest obecnie zamknięty.'}
                                     </p>
                                     <button
                                       type="button"

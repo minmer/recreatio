@@ -27,6 +27,7 @@ public static class ParishEndpoints
     private const int ConfirmationMeetingMaxCapacity = 3;
     private const int ConfirmationMeetingMinDurationMinutes = 10;
     private const int ConfirmationMeetingMaxDurationMinutes = 180;
+    private const int ConfirmationMeetingInviteHostHours = 72;
     private const string ConfirmationMeetingStageYear1Start = "year1-start";
     private const string ConfirmationMeetingStageYear1End = "year1-end";
     private const string ConfirmationSecondMeetingAnnouncement =
@@ -426,6 +427,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -474,17 +476,30 @@ public static class ParishEndpoints
                     .GroupBy(x => x.SlotId!.Value)
                     .ToDictionaryAsync(group => group.Key, group => group.Count(), ct);
 
+            var now = DateTimeOffset.UtcNow;
             var selectedSlotId = link.SlotId;
+            var selectedSlot = selectedSlotId is null
+                ? null
+                : slots.FirstOrDefault(slot => slot.Id == selectedSlotId.Value);
+            var canInviteToSelectedSlot = selectedSlot is not null
+                && CanCandidateInviteToConfirmationSlot(selectedSlot, link.CandidateId, now);
             var response = new ParishConfirmationMeetingAvailabilityResponse(
                 link.CandidateId,
                 $"{payload.Name} {payload.Surname}".Trim(),
                 selectedSlotId,
                 link.BookedUtc,
+                canInviteToSelectedSlot,
+                canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
+                canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null,
                 slots.Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
                     var isSelected = selectedSlotId == slot.Id;
-                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    var joinStatus = isSelected
+                        ? ConfirmationMeetingJoinStatus.Allowed
+                        : EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reserved, inviteToken, now);
+                    var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
+                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -494,6 +509,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
+                        requiresInviteLink,
                         isSelected);
                 }).ToList());
 
@@ -513,6 +529,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -550,24 +567,54 @@ public static class ParishEndpoints
                 return Results.Ok(new ParishConfirmationMeetingBookResponse("already-selected", link.SlotId, link.BookedUtc));
             }
 
+            var now = DateTimeOffset.UtcNow;
+            var previousSlotId = link.SlotId;
             var reservedCount = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .Where(x => x.ParishId == parish.Id && x.SlotId == slot.Id && x.CandidateId != link.CandidateId)
                 .CountAsync(ct);
-            if (reservedCount >= slot.Capacity)
+            var joinStatus = EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reservedCount, inviteToken, now);
+            if (joinStatus == ConfirmationMeetingJoinStatus.Full)
             {
                 return Results.Ok(new ParishConfirmationMeetingBookResponse("slot-full", link.SlotId, link.BookedUtc));
             }
+            if (joinStatus == ConfirmationMeetingJoinStatus.InviteRequired)
+            {
+                return Results.Ok(new ParishConfirmationMeetingBookResponse("invite-required", link.SlotId, link.BookedUtc));
+            }
+            if (joinStatus == ConfirmationMeetingJoinStatus.Locked)
+            {
+                return Results.Ok(new ParishConfirmationMeetingBookResponse("slot-locked", link.SlotId, link.BookedUtc));
+            }
 
             link.SlotId = slot.Id;
-            link.BookedUtc = DateTimeOffset.UtcNow;
-            link.UpdatedUtc = link.BookedUtc.Value;
+            link.BookedUtc = now;
+            link.UpdatedUtc = now;
+
+            if (reservedCount == 0)
+            {
+                slot.HostCandidateId = link.CandidateId;
+                slot.HostInviteToken = await CreateUniqueConfirmationMeetingSlotInviteTokenAsync(dbContext, null, ct);
+                slot.HostInviteExpiresUtc = now.AddHours(ConfirmationMeetingInviteHostHours);
+                slot.UpdatedUtc = now;
+            }
+
+            if (previousSlotId is not null && previousSlotId != slot.Id)
+            {
+                await RefreshConfirmationMeetingSlotHostAsync(
+                    parish.Id,
+                    previousSlotId.Value,
+                    dbContext,
+                    now,
+                    ct);
+            }
+
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
                 parish.Id,
                 "ConfirmationMeetingSlotSelected",
                 "public",
-                JsonSerializer.Serialize(new { link.CandidateId, slot.Id }),
+                JsonSerializer.Serialize(new { link.CandidateId, slot.Id, Status = "selected" }),
                 ct);
 
             return Results.Ok(new ParishConfirmationMeetingBookResponse("selected", link.SlotId, link.BookedUtc));
@@ -586,6 +633,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
+            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Portal token is required." });
@@ -668,6 +716,13 @@ public static class ParishEndpoints
                 .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
                 .ToListAsync(ct);
 
+            var now = DateTimeOffset.UtcNow;
+            var selectedSlot = link.SlotId is null
+                ? null
+                : slots.FirstOrDefault(slot => slot.Id == link.SlotId.Value);
+            var canInviteToSelectedSlot = selectedSlot is not null
+                && CanCandidateInviteToConfirmationSlot(selectedSlot, candidate.Id, now);
+
             var portal = new ParishConfirmationPortalResponse(
                 new ParishConfirmationPortalCandidateDataResponse(
                     candidate.Id,
@@ -678,12 +733,19 @@ public static class ParishEndpoints
                     payload.SchoolShort,
                     link.BookingToken,
                     link.SlotId,
-                    link.BookedUtc),
+                    link.BookedUtc,
+                    canInviteToSelectedSlot,
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
                 slots.Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
                     var isSelected = link.SlotId == slot.Id;
-                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    var joinStatus = isSelected
+                        ? ConfirmationMeetingJoinStatus.Allowed
+                        : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteToken, now);
+                    var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
+                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -693,6 +755,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
+                        requiresInviteLink,
                         isSelected);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
@@ -1802,6 +1865,13 @@ public static class ParishEndpoints
                 .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
                 .ToListAsync(ct);
 
+            var now = DateTimeOffset.UtcNow;
+            var selectedSlot = link.SlotId is null
+                ? null
+                : slots.FirstOrDefault(slot => slot.Id == link.SlotId.Value);
+            var canInviteToSelectedSlot = selectedSlot is not null
+                && CanCandidateInviteToConfirmationSlot(selectedSlot, candidateId, now);
+
             var portal = new ParishConfirmationPortalResponse(
                 new ParishConfirmationPortalCandidateDataResponse(
                     candidateId,
@@ -1812,12 +1882,19 @@ public static class ParishEndpoints
                     payload.SchoolShort,
                     link.BookingToken,
                     link.SlotId,
-                    link.BookedUtc),
+                    link.BookedUtc,
+                    canInviteToSelectedSlot,
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteToken : null,
+                    canInviteToSelectedSlot ? selectedSlot?.HostInviteExpiresUtc : null),
                 slots.Select(slot =>
                 {
                     var reserved = reservedCounts.GetValueOrDefault(slot.Id);
                     var isSelected = link.SlotId == slot.Id;
-                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    var joinStatus = isSelected
+                        ? ConfirmationMeetingJoinStatus.Allowed
+                        : EvaluateConfirmationMeetingJoinStatus(slot, candidateId, reserved, null, now);
+                    var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
+                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -1827,6 +1904,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
+                        requiresInviteLink,
                         isSelected);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
@@ -3663,6 +3741,99 @@ public static class ParishEndpoints
         await dbContext.SaveChangesAsync(ct);
     }
 
+    private static ConfirmationMeetingJoinStatus EvaluateConfirmationMeetingJoinStatus(
+        ParishConfirmationMeetingSlot slot,
+        Guid candidateId,
+        int reservedCount,
+        string? inviteToken,
+        DateTimeOffset nowUtc)
+    {
+        if (reservedCount >= slot.Capacity)
+        {
+            return ConfirmationMeetingJoinStatus.Full;
+        }
+
+        if (reservedCount == 0)
+        {
+            return ConfirmationMeetingJoinStatus.Allowed;
+        }
+
+        if (IsConfirmationMeetingInviteActive(slot, nowUtc))
+        {
+            if (slot.HostCandidateId == candidateId || string.Equals(slot.HostInviteToken, inviteToken, StringComparison.Ordinal))
+            {
+                return ConfirmationMeetingJoinStatus.Allowed;
+            }
+
+            return ConfirmationMeetingJoinStatus.InviteRequired;
+        }
+
+        return reservedCount == 1
+            ? ConfirmationMeetingJoinStatus.Allowed
+            : ConfirmationMeetingJoinStatus.Locked;
+    }
+
+    private static bool CanCandidateInviteToConfirmationSlot(
+        ParishConfirmationMeetingSlot slot,
+        Guid candidateId,
+        DateTimeOffset nowUtc)
+    {
+        return slot.HostCandidateId == candidateId
+            && IsConfirmationMeetingInviteActive(slot, nowUtc);
+    }
+
+    private static bool IsConfirmationMeetingInviteActive(ParishConfirmationMeetingSlot slot, DateTimeOffset nowUtc)
+    {
+        return !string.IsNullOrWhiteSpace(slot.HostInviteToken)
+            && slot.HostInviteExpiresUtc is not null
+            && slot.HostInviteExpiresUtc > nowUtc;
+    }
+
+    private static async Task RefreshConfirmationMeetingSlotHostAsync(
+        Guid parishId,
+        Guid slotId,
+        RecreatioDbContext dbContext,
+        DateTimeOffset nowUtc,
+        CancellationToken ct)
+    {
+        var slot = await dbContext.ParishConfirmationMeetingSlots
+            .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == slotId, ct);
+        if (slot is null)
+        {
+            return;
+        }
+
+        var links = await dbContext.ParishConfirmationMeetingLinks
+            .Where(x => x.ParishId == parishId && x.SlotId == slotId)
+            .OrderBy(x => x.BookedUtc ?? x.CreatedUtc)
+            .ToListAsync(ct);
+        if (links.Count == 0)
+        {
+            slot.HostCandidateId = null;
+            slot.HostInviteToken = null;
+            slot.HostInviteExpiresUtc = null;
+            slot.UpdatedUtc = nowUtc;
+            return;
+        }
+
+        if (slot.HostCandidateId is not null && links.Any(link => link.CandidateId == slot.HostCandidateId.Value))
+        {
+            if (string.IsNullOrWhiteSpace(slot.HostInviteToken) || slot.HostInviteExpiresUtc is null)
+            {
+                slot.HostInviteToken = await CreateUniqueConfirmationMeetingSlotInviteTokenAsync(dbContext, null, ct);
+                slot.HostInviteExpiresUtc = nowUtc.AddHours(ConfirmationMeetingInviteHostHours);
+                slot.UpdatedUtc = nowUtc;
+            }
+            return;
+        }
+
+        var newHost = links[0];
+        slot.HostCandidateId = newHost.CandidateId;
+        slot.HostInviteToken = await CreateUniqueConfirmationMeetingSlotInviteTokenAsync(dbContext, null, ct);
+        slot.HostInviteExpiresUtc = nowUtc.AddHours(ConfirmationMeetingInviteHostHours);
+        slot.UpdatedUtc = nowUtc;
+    }
+
     private static IDataProtector CreateParishConfirmationProtector(IDataProtectionProvider dataProtectionProvider, Guid parishId)
     {
         return dataProtectionProvider.CreateProtector("parish", "confirmation-candidate", parishId.ToString("N"));
@@ -3719,7 +3890,41 @@ public static class ParishEndpoints
         }
     }
 
+    private static async Task<string> CreateUniqueConfirmationMeetingSlotInviteTokenAsync(
+        RecreatioDbContext dbContext,
+        HashSet<string>? usedTokens,
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            var token = CreateMeetingInviteToken();
+            if (usedTokens is not null && usedTokens.Contains(token))
+            {
+                continue;
+            }
+
+            var exists = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .AnyAsync(x => x.HostInviteToken == token, ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            usedTokens?.Add(token);
+            return token;
+        }
+    }
+
     private static string CreateMeetingBookingToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(22);
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string CreateMeetingInviteToken()
     {
         var bytes = RandomNumberGenerator.GetBytes(22);
         return Convert.ToBase64String(bytes)
@@ -3733,6 +3938,14 @@ public static class ParishEndpoints
         return keyRing.ReadKeys.ContainsKey(parish.AdminRoleId)
             || keyRing.ReadKeys.ContainsKey(parish.PriestRoleId)
             || keyRing.ReadKeys.ContainsKey(parish.OfficeRoleId);
+    }
+
+    private enum ConfirmationMeetingJoinStatus
+    {
+        Allowed,
+        Full,
+        InviteRequired,
+        Locked
     }
 
     private sealed record RoleBundle(Guid RoleId, byte[] ReadKey, byte[] WriteKey, byte[] OwnerKey);
