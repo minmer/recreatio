@@ -2234,6 +2234,12 @@
   border-top: 1px dashed var(--parish-line);
 }
 
+.confirmation-phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .confirmation-meetings-public,
 .confirmation-meetings-admin {
   margin-top: 16px;
@@ -2260,6 +2266,18 @@
 
 .confirmation-portal-card h4 {
   margin: 0 0 10px;
+}
+
+.confirmation-candidate-instruction {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px dashed var(--parish-line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.confirmation-candidate-instruction .confirmation-meeting-candidate-list {
+  margin-bottom: 0;
 }
 
 .confirmation-portal-message-list {

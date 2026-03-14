@@ -2205,7 +2205,7 @@ export function ParishPage({
   };
 
   const buildConfirmationMeetingLink = (token: string): string => {
-    if (!parishSlug) return '';
+    if (!parishSlug || !token.trim()) return '';
     return `${window.location.origin}/#/parish/${parishSlug}/confirmation/candidate?portal=${encodeURIComponent(token)}`;
   };
 
@@ -2280,7 +2280,6 @@ export function ParishPage({
         stage: confirmationMeetingStage
       });
       setConfirmationMeetingInfo('Dodano nowy termin spotkania.');
-      setConfirmationMeetingStartsLocal('');
       setConfirmationMeetingDuration('30');
       setConfirmationMeetingCapacity('3');
       setConfirmationMeetingLabel('');
@@ -4406,17 +4405,45 @@ export function ParishPage({
     return `${window.location.origin}/#/parish/${parishSlug}/confirmation/form?verifyPhone=${encodeURIComponent(token)}`;
   };
 
-  const buildConfirmationSmsHref = (phoneNumber: string, token: string) => {
+  const buildConfirmationSmsHref = (phoneNumber: string, messageText: string) => {
+    if (!messageText.trim()) return '';
+    const normalizedPhone = normalizePolishPhone(phoneNumber) ?? phoneNumber.replace(/[^\d+]/g, '');
+    const smsTarget = normalizedPhone.length > 0 ? `sms:${normalizedPhone}` : 'sms:';
+    return `${smsTarget}?body=${encodeURIComponent(messageText)}`;
+  };
+
+  const buildConfirmationVerificationSmsHref = (phoneNumber: string, token: string) => {
     const verificationLink = buildConfirmationVerificationLink(token);
     if (!verificationLink) return '';
-    const normalizedPhone = normalizePolishPhone(phoneNumber) ?? phoneNumber.replace(/[^\d+]/g, '');
     const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
     const message =
       `Szczęść Boże!\n` +
       `Ten numer telefonu został podany przy zgłoszeniu do przygotowania do bierzmowania w ${parishLabel}.\n` +
       `Aby potwierdzić numer, proszę kliknąć w poniższy link:\n${verificationLink}`;
-    const smsTarget = normalizedPhone.length > 0 ? `sms:${normalizedPhone}` : 'sms:';
-    return `${smsTarget}?body=${encodeURIComponent(message)}`;
+    return buildConfirmationSmsHref(phoneNumber, message);
+  };
+
+  const buildConfirmationVerificationWarningSmsHref = (phoneNumber: string, token: string) => {
+    const verificationLink = buildConfirmationVerificationLink(token);
+    if (!verificationLink) return '';
+    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
+    const message =
+      `Szczęść Boże!\n` +
+      `Przypominamy o konieczności potwierdzenia numeru telefonu dla przygotowania do bierzmowania w ${parishLabel}.\n` +
+      `Brak weryfikacji spowoduje usunięcie numeru z listy kontaktowej.\n` +
+      `Link do weryfikacji:\n${verificationLink}`;
+    return buildConfirmationSmsHref(phoneNumber, message);
+  };
+
+  const buildConfirmationPortalInviteSmsHref = (phoneNumber: string, portalToken: string) => {
+    const portalLink = buildConfirmationMeetingLink(portalToken);
+    if (!portalLink) return '';
+    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
+    const message =
+      `Szczęść Boże!\n` +
+      `Numer telefonu został potwierdzony. Zapraszamy do portalu kandydata przygotowania do bierzmowania w ${parishLabel}.\n` +
+      `Twój indywidualny link:\n${portalLink}`;
+    return buildConfirmationSmsHref(phoneNumber, message);
   };
 
   const handleCopyConfirmationVerificationLink = async (token: string) => {
@@ -7382,27 +7409,56 @@ export function ParishPage({
                                   </div>
                                   <ul className="confirmation-phone-list">
                                     {candidate.phoneNumbers.map((phone) => {
-                                      const smsHref = buildConfirmationSmsHref(phone.number, phone.verificationToken);
+                                      const verificationSmsHref = buildConfirmationVerificationSmsHref(
+                                        phone.number,
+                                        phone.verificationToken
+                                      );
+                                      const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
+                                        phone.number,
+                                        phone.verificationToken
+                                      );
+                                      const portalSmsHref = buildConfirmationPortalInviteSmsHref(
+                                        phone.number,
+                                        candidate.meetingToken
+                                      );
                                       return (
                                         <li key={`${candidate.id}-${phone.index}`}>
                                           <span>{phone.number}</span>
                                           {phone.isVerified ? (
-                                            <span className="pill">Zweryfikowany</span>
+                                            <>
+                                              <span className="pill">Zweryfikowany</span>
+                                              <div className="confirmation-phone-actions">
+                                                {portalSmsHref ? (
+                                                  <a className="ghost" href={portalSmsHref}>
+                                                    SMS: portal kandydata
+                                                  </a>
+                                                ) : null}
+                                              </div>
+                                            </>
                                           ) : (
                                             <>
                                               <span className="pill">Niezweryfikowany</span>
-                                              {smsHref ? (
-                                                <a className="ghost" href={smsHref}>
-                                                  Utwórz SMS
-                                                </a>
-                                              ) : null}
-                                              <button
-                                                type="button"
-                                                className="ghost"
-                                                onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
-                                              >
-                                                {confirmationCopiedToken === phone.verificationToken ? 'Skopiowano' : 'Kopiuj link SMS'}
-                                              </button>
+                                              <div className="confirmation-phone-actions">
+                                                {verificationSmsHref ? (
+                                                  <a className="ghost" href={verificationSmsHref}>
+                                                    SMS: weryfikacja
+                                                  </a>
+                                                ) : null}
+                                                {warningSmsHref ? (
+                                                  <a className="ghost" href={warningSmsHref}>
+                                                    SMS: brak weryfikacji
+                                                  </a>
+                                                ) : null}
+                                                <button
+                                                  type="button"
+                                                  className="ghost"
+                                                  onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                                >
+                                                  {confirmationCopiedToken === phone.verificationToken
+                                                    ? 'Skopiowano'
+                                                    : 'Kopiuj link weryfikacji'}
+                                                </button>
+                                              </div>
                                             </>
                                           )}
                                         </li>
@@ -7539,6 +7595,17 @@ export function ParishPage({
                             </article>
                             <article className="confirmation-portal-card">
                               <h4>Spotkanie początkowe (1. rok)</h4>
+                              <div className="confirmation-candidate-instruction">
+                                <p className="note">
+                                  <strong>Instrukcja dla kandydata:</strong>
+                                </p>
+                                <ul className="confirmation-meeting-candidate-list">
+                                  <li>Wybierz jeden termin i nie wysyłaj ponownie formularza dla tej samej osoby.</li>
+                                  <li>Jeśli termin wymaga zaproszenia, użyj swojego linku kandydata z parametrem `invite`.</li>
+                                  <li>Po wyborze terminu sprawdź, czy przy terminie widnieje status „Wybrany termin”.</li>
+                                  <li>W razie problemów napisz wiadomość do parafii w tym portalu.</li>
+                                </ul>
+                              </div>
                               {confirmationPortalData.candidate.canInviteToSelectedSlot &&
                               confirmationPortalData.candidate.selectedSlotInviteToken ? (
                                 <div className="confirmation-candidate-links">
