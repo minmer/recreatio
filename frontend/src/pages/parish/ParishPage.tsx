@@ -46,14 +46,29 @@ import {
   listParishes,
   applyParishMassRule,
   createParishConfirmationCandidate,
+  createParishConfirmationMeetingSlot,
+  deleteParishConfirmationMeetingSlot,
   exportParishConfirmationCandidates,
+  getParishConfirmationCandidatePortal,
+  getParishConfirmationCandidatePortalAdmin,
+  getParishConfirmationMeetingAvailability,
   importParishConfirmationCandidates,
   simulateParishMassRule,
+  sendParishConfirmationAdminMessage,
+  sendParishConfirmationCandidateMessage,
+  bookParishConfirmationMeetingSlot,
+  listParishConfirmationMeetingSlots,
   listParishConfirmationCandidates,
+  addParishConfirmationNote,
+  updateParishConfirmationNote,
+  updateParishConfirmationCandidate,
   updateParishMassRule,
   updateParishSite,
   verifyParishConfirmationPhone,
   type ParishConfirmationCandidate,
+  type ParishConfirmationMeetingAvailability,
+  type ParishConfirmationPortal,
+  type ParishConfirmationMeetingSummary,
   type ParishConfirmationExportCandidate,
   type ParishHomepageConfig,
   type ParishLayoutItem,
@@ -71,7 +86,7 @@ type ModuleWidth = 'one-third' | 'one-half' | 'two-thirds' | 'full';
 type ModuleHeight = 'one' | 'three' | 'five';
 type MassNodeCategory = 'filter' | 'mass' | 'intention' | 'save' | 'stop';
 type ValidationFinding = { level: 'error' | 'warning'; message: string };
-type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form';
+type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form' | 'meetings' | 'candidate';
 type MassRuleNodeData = {
   label: string;
   type: string;
@@ -1103,7 +1118,9 @@ const confirmationSectionPath: Record<SacramentPanelSection, string> = {
   overall: 'overall',
   parish: 'parish-info',
   faq: 'faq',
-  form: 'form'
+  form: 'form',
+  meetings: 'meetings',
+  candidate: 'candidate'
 };
 
 const confirmationParentConsentDraft = [
@@ -1151,11 +1168,18 @@ const parseConfirmationSection = (value?: string | null): SacramentPanelSection 
   if (value === 'parish-info') return 'parish';
   if (value === 'faq') return 'faq';
   if (value === 'form') return 'form';
+  if (value === 'meetings') return 'meetings';
+  if (value === 'candidate') return 'candidate';
   return 'overall';
 };
 
 const isKnownConfirmationSectionPath = (value?: string | null): boolean =>
-  value === 'overall' || value === 'parish-info' || value === 'faq' || value === 'form';
+  value === 'overall' ||
+  value === 'parish-info' ||
+  value === 'faq' ||
+  value === 'form' ||
+  value === 'meetings' ||
+  value === 'candidate';
 
 const sacramentPageMap: Record<PageId, string> = {
   'sacrament-baptism': 'baptism',
@@ -1822,11 +1846,51 @@ export function ParishPage({
   const [confirmationCandidates, setConfirmationCandidates] = useState<ParishConfirmationCandidate[]>([]);
   const [confirmationCandidatesError, setConfirmationCandidatesError] = useState<string | null>(null);
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
+  const [confirmationCopiedMeetingToken, setConfirmationCopiedMeetingToken] = useState<string | null>(null);
   const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'print'>('submissions');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
   const [confirmationImportReplaceExisting, setConfirmationImportReplaceExisting] = useState(false);
+  const [confirmationMeetingSummary, setConfirmationMeetingSummary] = useState<ParishConfirmationMeetingSummary | null>(null);
+  const [confirmationMeetingLoading, setConfirmationMeetingLoading] = useState(false);
+  const [confirmationMeetingSaving, setConfirmationMeetingSaving] = useState(false);
+  const [confirmationMeetingError, setConfirmationMeetingError] = useState<string | null>(null);
+  const [confirmationMeetingInfo, setConfirmationMeetingInfo] = useState<string | null>(null);
+  const [confirmationMeetingStartsLocal, setConfirmationMeetingStartsLocal] = useState('');
+  const [confirmationMeetingDuration, setConfirmationMeetingDuration] = useState('30');
+  const [confirmationMeetingCapacity, setConfirmationMeetingCapacity] = useState<'2' | '3'>('3');
+  const [confirmationMeetingLabel, setConfirmationMeetingLabel] = useState('');
+  const [confirmationMeetingStage, setConfirmationMeetingStage] = useState<'year1-start' | 'year1-end'>('year1-start');
+  const [confirmationMeetingPublicData, setConfirmationMeetingPublicData] = useState<ParishConfirmationMeetingAvailability | null>(null);
+  const [confirmationMeetingPublicLoading, setConfirmationMeetingPublicLoading] = useState(false);
+  const [confirmationMeetingPublicSaving, setConfirmationMeetingPublicSaving] = useState(false);
+  const [confirmationMeetingPublicError, setConfirmationMeetingPublicError] = useState<string | null>(null);
+  const [confirmationMeetingPublicInfo, setConfirmationMeetingPublicInfo] = useState<string | null>(null);
+  const [confirmationPortalData, setConfirmationPortalData] = useState<ParishConfirmationPortal | null>(null);
+  const [confirmationPortalLoading, setConfirmationPortalLoading] = useState(false);
+  const [confirmationPortalError, setConfirmationPortalError] = useState<string | null>(null);
+  const [confirmationPortalInfo, setConfirmationPortalInfo] = useState<string | null>(null);
+  const [confirmationPortalMessageDraft, setConfirmationPortalMessageDraft] = useState('');
+  const [confirmationPortalSendingMessage, setConfirmationPortalSendingMessage] = useState(false);
+  const [confirmationAdminCandidateSearch, setConfirmationAdminCandidateSearch] = useState('');
+  const [confirmationAdminSelectedCandidateId, setConfirmationAdminSelectedCandidateId] = useState<string | null>(null);
+  const [confirmationAdminPortalData, setConfirmationAdminPortalData] = useState<ParishConfirmationPortal | null>(null);
+  const [confirmationAdminPortalLoading, setConfirmationAdminPortalLoading] = useState(false);
+  const [confirmationAdminPortalError, setConfirmationAdminPortalError] = useState<string | null>(null);
+  const [confirmationAdminPortalInfo, setConfirmationAdminPortalInfo] = useState<string | null>(null);
+  const [confirmationAdminEditName, setConfirmationAdminEditName] = useState('');
+  const [confirmationAdminEditSurname, setConfirmationAdminEditSurname] = useState('');
+  const [confirmationAdminEditPhonesRaw, setConfirmationAdminEditPhonesRaw] = useState('');
+  const [confirmationAdminEditAddress, setConfirmationAdminEditAddress] = useState('');
+  const [confirmationAdminEditSchoolShort, setConfirmationAdminEditSchoolShort] = useState('');
+  const [confirmationAdminSendingAction, setConfirmationAdminSendingAction] = useState(false);
+  const [confirmationAdminMessageDraft, setConfirmationAdminMessageDraft] = useState('');
+  const [confirmationAdminPublicNoteDraft, setConfirmationAdminPublicNoteDraft] = useState('');
+  const [confirmationAdminPrivateNoteDraft, setConfirmationAdminPrivateNoteDraft] = useState('');
+  const [confirmationAdminEditingNoteId, setConfirmationAdminEditingNoteId] = useState<string | null>(null);
+  const [confirmationAdminEditingNoteText, setConfirmationAdminEditingNoteText] = useState('');
+  const [confirmationAdminEditingNoteIsPublic, setConfirmationAdminEditingNoteIsPublic] = useState(true);
   const [sacramentParishEditTitle, setSacramentParishEditTitle] = useState('');
   const [sacramentParishEditLead, setSacramentParishEditLead] = useState('');
   const [sacramentParishEditNotice, setSacramentParishEditNotice] = useState('');
@@ -1846,6 +1910,15 @@ export function ParishPage({
     () => parseConfirmationSection(confirmationPathSection),
     [confirmationPathSection]
   );
+  const confirmationMeetingToken = useMemo(() => {
+    const token = new URLSearchParams(location.search).get('meeting');
+    return token?.trim() ? token.trim() : null;
+  }, [location.search]);
+  const confirmationPortalToken = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('portal') ?? params.get('meeting');
+    return token?.trim() ? token.trim() : null;
+  }, [location.search]);
   const baseColumns = 6;
   const [gridColumns, setGridColumns] = useState(baseColumns);
   const [gridRowHeight, setGridRowHeight] = useState(90);
@@ -2108,6 +2181,357 @@ export function ParishPage({
     }
   };
 
+  const loadConfirmationMeetingSummary = async () => {
+    if (!parish || !isAuthenticated) {
+      setConfirmationMeetingSummary(null);
+      return;
+    }
+    setConfirmationMeetingLoading(true);
+    try {
+      const summary = await listParishConfirmationMeetingSlots(parish.id);
+      setConfirmationMeetingSummary(summary);
+      setConfirmationMeetingError(null);
+    } catch {
+      setConfirmationMeetingSummary(null);
+      setConfirmationMeetingError('Nie udało się pobrać terminów spotkań.');
+    } finally {
+      setConfirmationMeetingLoading(false);
+    }
+  };
+
+  const buildConfirmationMeetingLink = (token: string): string => {
+    if (!parishSlug) return '';
+    return `${window.location.origin}/#/parish/${parishSlug}/confirmation/candidate?portal=${encodeURIComponent(token)}`;
+  };
+
+  const handleCopyConfirmationMeetingLink = async (token: string) => {
+    const link = buildConfirmationMeetingLink(token);
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setConfirmationCopiedMeetingToken(token);
+      window.setTimeout(() => {
+        setConfirmationCopiedMeetingToken((current) => (current === token ? null : current));
+      }, 2200);
+    } catch {
+      setConfirmationCandidatesError('Nie udało się skopiować linku spotkania.');
+    }
+  };
+
+  const handleCreateConfirmationMeetingSlot = async () => {
+    if (!parish || !isAuthenticated) return;
+    const startsLocal = confirmationMeetingStartsLocal.trim();
+    if (!startsLocal) {
+      setConfirmationMeetingError('Podaj datę i godzinę terminu.');
+      return;
+    }
+
+    const startsDate = new Date(startsLocal);
+    if (Number.isNaN(startsDate.getTime())) {
+      setConfirmationMeetingError('Nieprawidłowa data lub godzina.');
+      return;
+    }
+
+    const durationMinutes = Number.parseInt(confirmationMeetingDuration, 10);
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 10 || durationMinutes > 180) {
+      setConfirmationMeetingError('Czas spotkania musi mieścić się w zakresie 10-180 minut.');
+      return;
+    }
+
+    const capacity = Number.parseInt(confirmationMeetingCapacity, 10);
+    if (capacity < 2 || capacity > 3) {
+      setConfirmationMeetingError('Pojemność terminu może wynosić 2 lub 3 osoby.');
+      return;
+    }
+
+    setConfirmationMeetingSaving(true);
+    setConfirmationMeetingError(null);
+    setConfirmationMeetingInfo(null);
+    try {
+      await createParishConfirmationMeetingSlot(parish.id, {
+        startsAtUtc: startsDate.toISOString(),
+        durationMinutes,
+        capacity,
+        label: confirmationMeetingLabel.trim() || null,
+        stage: confirmationMeetingStage
+      });
+      setConfirmationMeetingInfo('Dodano nowy termin spotkania.');
+      setConfirmationMeetingStartsLocal('');
+      setConfirmationMeetingDuration('30');
+      setConfirmationMeetingCapacity('3');
+      setConfirmationMeetingLabel('');
+      setConfirmationMeetingStage('year1-start');
+      await loadConfirmationMeetingSummary();
+    } catch {
+      setConfirmationMeetingError('Nie udało się dodać terminu spotkania.');
+    } finally {
+      setConfirmationMeetingSaving(false);
+    }
+  };
+
+  const handleDeleteConfirmationMeetingSlot = async (slotId: string) => {
+    if (!parish || !isAuthenticated) return;
+    setConfirmationMeetingSaving(true);
+    setConfirmationMeetingError(null);
+    setConfirmationMeetingInfo(null);
+    try {
+      await deleteParishConfirmationMeetingSlot(parish.id, slotId);
+      setConfirmationMeetingInfo('Usunięto termin spotkania. Kandydaci z tego terminu zostali odpięci.');
+      await loadConfirmationMeetingSummary();
+    } catch {
+      setConfirmationMeetingError('Nie udało się usunąć terminu spotkania.');
+    } finally {
+      setConfirmationMeetingSaving(false);
+    }
+  };
+
+  const loadConfirmationMeetingAvailability = async (token: string) => {
+    if (!parishSlug) return;
+    setConfirmationMeetingPublicLoading(true);
+    setConfirmationMeetingPublicError(null);
+    try {
+      const data = await getParishConfirmationMeetingAvailability(parishSlug, token);
+      setConfirmationMeetingPublicData(data);
+    } catch {
+      setConfirmationMeetingPublicData(null);
+      setConfirmationMeetingPublicError('Link do zapisów na spotkanie jest nieprawidłowy lub wygasł.');
+    } finally {
+      setConfirmationMeetingPublicLoading(false);
+    }
+  };
+
+  const loadConfirmationCandidatePortal = async (token: string) => {
+    if (!parishSlug) return;
+    setConfirmationPortalLoading(true);
+    setConfirmationPortalError(null);
+    try {
+      const portal = await getParishConfirmationCandidatePortal(parishSlug, token);
+      setConfirmationPortalData(portal);
+    } catch {
+      setConfirmationPortalData(null);
+      setConfirmationPortalError('Portal kandydata jest niedostępny. Sprawdź poprawność linku.');
+    } finally {
+      setConfirmationPortalLoading(false);
+    }
+  };
+
+  const loadConfirmationAdminCandidatePortal = async (candidateId: string) => {
+    if (!parish || !isAuthenticated) return;
+    setConfirmationAdminPortalLoading(true);
+    setConfirmationAdminPortalError(null);
+    try {
+      const portal = await getParishConfirmationCandidatePortalAdmin(parish.id, candidateId);
+      setConfirmationAdminPortalData(portal);
+      setConfirmationAdminEditName(portal.candidate.name);
+      setConfirmationAdminEditSurname(portal.candidate.surname);
+      setConfirmationAdminEditAddress(portal.candidate.address);
+      setConfirmationAdminEditSchoolShort(portal.candidate.schoolShort);
+      setConfirmationAdminEditPhonesRaw(portal.candidate.phoneNumbers.map((item) => item.number).join('\n'));
+    } catch {
+      setConfirmationAdminPortalData(null);
+      setConfirmationAdminPortalError('Nie udało się pobrać portalu kandydata.');
+    } finally {
+      setConfirmationAdminPortalLoading(false);
+    }
+  };
+
+  const handleBookConfirmationMeetingSlot = async (slotId: string) => {
+    const bookingToken = confirmationPortalToken ?? confirmationMeetingToken;
+    if (!parishSlug || !bookingToken) return;
+    setConfirmationMeetingPublicSaving(true);
+    setConfirmationMeetingPublicError(null);
+    setConfirmationMeetingPublicInfo(null);
+    setConfirmationPortalError(null);
+    setConfirmationPortalInfo(null);
+    try {
+      const result = await bookParishConfirmationMeetingSlot(parishSlug, {
+        token: bookingToken,
+        slotId
+      });
+      if (result.status === 'slot-full') {
+        const message = 'Wybrany termin jest już pełny. Wybierz inny dostępny termin.';
+        setConfirmationMeetingPublicError(message);
+        setConfirmationPortalError(message);
+      } else if (result.status === 'already-selected') {
+        const message = 'Ten termin był już wybrany wcześniej.';
+        setConfirmationMeetingPublicInfo(message);
+        setConfirmationPortalInfo(message);
+      } else {
+        const message = 'Termin spotkania został zapisany.';
+        setConfirmationMeetingPublicInfo(message);
+        setConfirmationPortalInfo(message);
+      }
+      await loadConfirmationMeetingAvailability(bookingToken);
+      await loadConfirmationCandidatePortal(bookingToken);
+      if (isAuthenticated) {
+        await loadConfirmationMeetingSummary();
+        await loadConfirmationCandidates();
+      }
+    } catch {
+      setConfirmationMeetingPublicError('Nie udało się zapisać terminu spotkania.');
+    } finally {
+      setConfirmationMeetingPublicSaving(false);
+    }
+  };
+
+  const handleSendConfirmationPortalMessage = async () => {
+    if (!parishSlug || !confirmationPortalToken) return;
+    const messageText = confirmationPortalMessageDraft.trim();
+    if (!messageText) {
+      setConfirmationPortalError('Wpisz wiadomość przed wysłaniem.');
+      return;
+    }
+    setConfirmationPortalSendingMessage(true);
+    setConfirmationPortalError(null);
+    setConfirmationPortalInfo(null);
+    try {
+      await sendParishConfirmationCandidateMessage(parishSlug, {
+        token: confirmationPortalToken,
+        messageText
+      });
+      setConfirmationPortalMessageDraft('');
+      setConfirmationPortalInfo('Wiadomość została wysłana do parafii.');
+      await loadConfirmationCandidatePortal(confirmationPortalToken);
+      if (isAuthenticated && confirmationAdminSelectedCandidateId) {
+        await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      }
+    } catch {
+      setConfirmationPortalError('Nie udało się wysłać wiadomości.');
+    } finally {
+      setConfirmationPortalSendingMessage(false);
+    }
+  };
+
+  const handleAdminUpdateCandidateData = async () => {
+    if (!parish || !confirmationAdminSelectedCandidateId) return;
+    const phoneNumbers = confirmationAdminEditPhonesRaw
+      .split('\n')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((item) => normalizePolishPhone(item))
+      .filter((item): item is string => Boolean(item));
+
+    if (
+      !confirmationAdminEditName.trim() ||
+      !confirmationAdminEditSurname.trim() ||
+      !confirmationAdminEditAddress.trim() ||
+      !confirmationAdminEditSchoolShort.trim() ||
+      phoneNumbers.length === 0
+    ) {
+      setConfirmationAdminPortalError('Uzupełnij wszystkie dane kandydata oraz poprawne numery telefonów.');
+      return;
+    }
+
+    setConfirmationAdminSendingAction(true);
+    setConfirmationAdminPortalError(null);
+    setConfirmationAdminPortalInfo(null);
+    try {
+      await updateParishConfirmationCandidate(parish.id, confirmationAdminSelectedCandidateId, {
+        name: confirmationAdminEditName.trim(),
+        surname: confirmationAdminEditSurname.trim(),
+        phoneNumbers,
+        address: confirmationAdminEditAddress.trim(),
+        schoolShort: confirmationAdminEditSchoolShort.trim()
+      });
+      setConfirmationAdminPortalInfo('Dane kandydata zostały zapisane.');
+      await loadConfirmationCandidates();
+      await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+    } catch {
+      setConfirmationAdminPortalError('Nie udało się zapisać danych kandydata.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleAdminSendMessageToCandidate = async () => {
+    if (!parish || !confirmationAdminSelectedCandidateId) return;
+    const messageText = confirmationAdminMessageDraft.trim();
+    if (!messageText) {
+      setConfirmationAdminPortalError('Wpisz wiadomość do kandydata.');
+      return;
+    }
+    setConfirmationAdminSendingAction(true);
+    setConfirmationAdminPortalError(null);
+    setConfirmationAdminPortalInfo(null);
+    try {
+      await sendParishConfirmationAdminMessage(parish.id, confirmationAdminSelectedCandidateId, messageText);
+      setConfirmationAdminMessageDraft('');
+      setConfirmationAdminPortalInfo('Wiadomość została wysłana do kandydata.');
+      await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+    } catch {
+      setConfirmationAdminPortalError('Nie udało się wysłać wiadomości.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleAdminAddCandidateNote = async (isPublic: boolean) => {
+    if (!parish || !confirmationAdminSelectedCandidateId) return;
+    const noteText = (isPublic ? confirmationAdminPublicNoteDraft : confirmationAdminPrivateNoteDraft).trim();
+    if (!noteText) {
+      setConfirmationAdminPortalError('Wpisz treść adnotacji.');
+      return;
+    }
+    setConfirmationAdminSendingAction(true);
+    setConfirmationAdminPortalError(null);
+    setConfirmationAdminPortalInfo(null);
+    try {
+      await addParishConfirmationNote(parish.id, confirmationAdminSelectedCandidateId, {
+        noteText,
+        isPublic
+      });
+      if (isPublic) {
+        setConfirmationAdminPublicNoteDraft('');
+      } else {
+        setConfirmationAdminPrivateNoteDraft('');
+      }
+      setConfirmationAdminPortalInfo(isPublic ? 'Dodano publiczną adnotację.' : 'Dodano prywatną adnotację.');
+      await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      if (confirmationPortalToken && confirmationAdminPortalData?.candidate.portalToken === confirmationPortalToken) {
+        await loadConfirmationCandidatePortal(confirmationPortalToken);
+      }
+    } catch {
+      setConfirmationAdminPortalError('Nie udało się dodać adnotacji.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
+  const handleAdminStartEditNote = (noteId: string, noteText: string, isPublic: boolean) => {
+    setConfirmationAdminEditingNoteId(noteId);
+    setConfirmationAdminEditingNoteText(noteText);
+    setConfirmationAdminEditingNoteIsPublic(isPublic);
+  };
+
+  const handleAdminSaveEditedNote = async () => {
+    if (!parish || !confirmationAdminSelectedCandidateId || !confirmationAdminEditingNoteId) return;
+    const noteText = confirmationAdminEditingNoteText.trim();
+    if (!noteText) {
+      setConfirmationAdminPortalError('Treść adnotacji nie może być pusta.');
+      return;
+    }
+    setConfirmationAdminSendingAction(true);
+    setConfirmationAdminPortalError(null);
+    setConfirmationAdminPortalInfo(null);
+    try {
+      await updateParishConfirmationNote(parish.id, confirmationAdminSelectedCandidateId, confirmationAdminEditingNoteId, {
+        noteText,
+        isPublic: confirmationAdminEditingNoteIsPublic
+      });
+      setConfirmationAdminPortalInfo('Adnotacja została zaktualizowana.');
+      setConfirmationAdminEditingNoteId(null);
+      setConfirmationAdminEditingNoteText('');
+      await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
+      if (confirmationPortalToken && confirmationAdminPortalData?.candidate.portalToken === confirmationPortalToken) {
+        await loadConfirmationCandidatePortal(confirmationPortalToken);
+      }
+    } catch {
+      setConfirmationAdminPortalError('Nie udało się zaktualizować adnotacji.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
+    }
+  };
+
   const parseConfirmationImportCandidates = (value: unknown): ParishConfirmationExportCandidate[] | null => {
     if (Array.isArray(value)) {
       return value as ParishConfirmationExportCandidate[];
@@ -2170,6 +2594,7 @@ export function ParishPage({
         `Import zakończony: ${result.importedCandidates} zgłoszeń, ${result.importedPhoneNumbers} numerów, pominięto ${result.skippedCandidates}.`
       );
       await loadConfirmationCandidates();
+      await loadConfirmationMeetingSummary();
     } catch {
       setConfirmationTransferError('Nie udało się zaimportować zgłoszeń.');
     } finally {
@@ -2423,6 +2848,107 @@ export function ParishPage({
   }, [isConfirmationSubpage, isAuthenticated, parish?.id]);
 
   useEffect(() => {
+    if (!isConfirmationSubpage || !isAuthenticated || !parish) {
+      setConfirmationMeetingSummary(null);
+      return;
+    }
+    if (
+      confirmationPanelSection !== 'meetings' &&
+      confirmationPanelSection !== 'form' &&
+      confirmationPanelSection !== 'candidate'
+    ) {
+      return;
+    }
+    void loadConfirmationMeetingSummary();
+  }, [isConfirmationSubpage, isAuthenticated, parish?.id, confirmationPanelSection]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || confirmationPanelSection !== 'meetings') {
+      setConfirmationMeetingPublicData(null);
+      setConfirmationMeetingPublicError(null);
+      setConfirmationMeetingPublicInfo(null);
+      return;
+    }
+
+    if (!confirmationMeetingToken) {
+      setConfirmationMeetingPublicData(null);
+      setConfirmationMeetingPublicError(
+        'Aby zapisać się na spotkanie, użyj indywidualnego linku przekazanego przez parafię.'
+      );
+      setConfirmationMeetingPublicInfo(null);
+      return;
+    }
+
+    void loadConfirmationMeetingAvailability(confirmationMeetingToken);
+  }, [isConfirmationSubpage, confirmationPanelSection, confirmationMeetingToken, parishSlug]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || confirmationPanelSection !== 'candidate') {
+      setConfirmationPortalData(null);
+      setConfirmationPortalError(null);
+      setConfirmationPortalInfo(null);
+      return;
+    }
+    if (!confirmationPortalToken) {
+      setConfirmationPortalData(null);
+      setConfirmationPortalError('Aby otworzyć portal kandydata, użyj indywidualnego linku parafii.');
+      return;
+    }
+    void loadConfirmationCandidatePortal(confirmationPortalToken);
+  }, [isConfirmationSubpage, confirmationPanelSection, confirmationPortalToken, parishSlug]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
+      setConfirmationAdminSelectedCandidateId(null);
+      setConfirmationAdminPortalData(null);
+      setConfirmationAdminPortalError(null);
+      return;
+    }
+
+    if (confirmationCandidates.length === 0) {
+      setConfirmationAdminSelectedCandidateId(null);
+      setConfirmationAdminPortalData(null);
+      return;
+    }
+
+    const normalizedQuery = confirmationAdminCandidateSearch.trim().toLowerCase();
+    const filtered = normalizedQuery.length === 0
+      ? confirmationCandidates
+      : confirmationCandidates.filter((candidate) =>
+          `${candidate.name} ${candidate.surname} ${candidate.address} ${candidate.schoolShort}`
+            .toLowerCase()
+            .includes(normalizedQuery)
+        );
+
+    if (filtered.length === 0) {
+      setConfirmationAdminSelectedCandidateId(null);
+      setConfirmationAdminPortalData(null);
+      return;
+    }
+
+    const selectedStillExists = filtered.some((candidate) => candidate.id === confirmationAdminSelectedCandidateId);
+    const nextSelectedId = selectedStillExists
+      ? confirmationAdminSelectedCandidateId
+      : filtered[0].id;
+    if (!nextSelectedId) {
+      return;
+    }
+    if (nextSelectedId !== confirmationAdminSelectedCandidateId) {
+      setConfirmationAdminSelectedCandidateId(nextSelectedId);
+      return;
+    }
+    void loadConfirmationAdminCandidatePortal(nextSelectedId);
+  }, [
+    isConfirmationSubpage,
+    isAuthenticated,
+    parish?.id,
+    confirmationPanelSection,
+    confirmationCandidates,
+    confirmationAdminCandidateSearch,
+    confirmationAdminSelectedCandidateId
+  ]);
+
+  useEffect(() => {
     if (!isConfirmationSubpage || !parishSlug) return;
     if (isKnownConfirmationSectionPath(confirmationPathSection)) return;
     const nextSection = 'overall';
@@ -2478,6 +3004,15 @@ export function ParishPage({
     [parish?.name]
   );
   const selectedSacramentParishPage = siteConfig?.sacramentParishPages?.[selectedSacrament.id] ?? null;
+  const filteredConfirmationCandidates = useMemo(() => {
+    const query = confirmationAdminCandidateSearch.trim().toLowerCase();
+    if (!query) return confirmationCandidates;
+    return confirmationCandidates.filter((candidate) =>
+      `${candidate.name} ${candidate.surname} ${candidate.address} ${candidate.schoolShort}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [confirmationCandidates, confirmationAdminCandidateSearch]);
   const selectedSacramentOverallInfo = useMemo(
     () => [
       sacramentDescriptions[selectedSacrament.id],
@@ -3818,6 +4353,7 @@ export function ParishPage({
       setConfirmationFormSuccess('Zgłoszenie zostało wysłane.');
       if (isAuthenticated && parish) {
         await loadConfirmationCandidates();
+        await loadConfirmationMeetingSummary();
       }
     } catch {
       setConfirmationFormError('Nie udało się wysłać zgłoszenia.');
@@ -6376,9 +6912,27 @@ export function ParishPage({
                         {sacramentMenuLabels.form}
                       </button>
                     )}
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'meetings' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('meetings')}
+                      >
+                        {sacramentMenuLabels.meetings}
+                      </button>
+                    )}
+                    {selectedSacrament.id === 'confirmation' && (
+                      <button
+                        type="button"
+                        className={activeSacramentPanelSection === 'candidate' ? 'is-active' : undefined}
+                        onClick={() => openSacramentPanelSection('candidate')}
+                      >
+                        {sacramentMenuLabels.candidatePortal}
+                      </button>
+                    )}
                   </div>
                   <p className="muted">
-                    Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie formularz online jest dostępny dla bierzmowania.
+                    Sekcje będą rozwijane o kolejne części dla wszystkich sakramentów. Aktualnie dla bierzmowania dostępny jest formularz online, panel zapisów na spotkania i indywidualny portal kandydata.
                   </p>
                 </div>
                 {selectedSacrament.id === 'confirmation' && confirmationVerifyInfo ? (
@@ -6772,6 +7326,21 @@ export function ParishPage({
                                   <p className="note">
                                     <strong>Szkoła:</strong> {candidate.schoolShort}
                                   </p>
+                                  <p className="note">
+                                    <strong>Spotkanie:</strong>{' '}
+                                    {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
+                                  </p>
+                                  <div className="confirmation-candidate-links">
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => void handleCopyConfirmationMeetingLink(candidate.meetingToken)}
+                                    >
+                                      {confirmationCopiedMeetingToken === candidate.meetingToken
+                                        ? 'Skopiowano link portalu'
+                                        : 'Kopiuj link portalu'}
+                                    </button>
+                                  </div>
                                   <ul className="confirmation-phone-list">
                                     {candidate.phoneNumbers.map((phone) => {
                                       const smsHref = buildConfirmationSmsHref(phone.number, phone.verificationToken);
@@ -6887,6 +7456,607 @@ export function ParishPage({
                             )}
                           </div>
                         )}
+                      </div>
+                    )}
+                  </>
+                )}
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'candidate' && (
+                  <>
+                    <div className="parish-card confirmation-candidate-portal">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Portal kandydata</p>
+                          <h3>Indywidualny portal przygotowania</h3>
+                        </div>
+                        <span className="pill">Mock / w budowie</span>
+                      </div>
+                      {confirmationPortalLoading ? <p className="muted">Ładowanie portalu kandydata...</p> : null}
+                      {confirmationPortalError ? <p className="confirmation-info confirmation-info-error">{confirmationPortalError}</p> : null}
+                      {confirmationPortalInfo ? <p className="confirmation-info confirmation-info-success">{confirmationPortalInfo}</p> : null}
+                      {confirmationPortalData ? (
+                        <>
+                          <div className="confirmation-portal-columns">
+                            <article className="confirmation-portal-card">
+                              <h4>Dane kandydata</h4>
+                              <p>
+                                <strong>Imię i nazwisko:</strong> {confirmationPortalData.candidate.name} {confirmationPortalData.candidate.surname}
+                              </p>
+                              <p>
+                                <strong>Adres:</strong> {confirmationPortalData.candidate.address}
+                              </p>
+                              <p>
+                                <strong>Szkoła:</strong> {confirmationPortalData.candidate.schoolShort}
+                              </p>
+                              <p>
+                                <strong>Telefony:</strong>
+                              </p>
+                              <ul className="confirmation-meeting-candidate-list">
+                                {confirmationPortalData.candidate.phoneNumbers.map((phone) => (
+                                  <li key={`portal-phone-${phone.index}`}>
+                                    {phone.number} {phone.isVerified ? '(zweryfikowany)' : '(oczekuje na weryfikację)'}
+                                  </li>
+                                ))}
+                              </ul>
+                            </article>
+                            <article className="confirmation-portal-card">
+                              <h4>Spotkanie początkowe (1. rok)</h4>
+                              {confirmationPortalData.firstYearStartSlots.length === 0 ? (
+                                <p className="muted">Brak aktywnych terminów spotkań.</p>
+                              ) : (
+                                <div className="confirmation-meeting-slot-list">
+                                  {confirmationPortalData.firstYearStartSlots.map((slot) => {
+                                    const starts = new Date(slot.startsAtUtc);
+                                    return (
+                                      <article key={`portal-slot-${slot.id}`} className="confirmation-meeting-slot">
+                                        <p>
+                                          <strong>{starts.toLocaleString('pl-PL')}</strong>
+                                        </p>
+                                        <p className="note">
+                                          Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
+                                          {slot.label ? ` • ${slot.label}` : ''}
+                                        </p>
+                                        <button
+                                          type="button"
+                                          className="parish-login"
+                                          disabled={confirmationMeetingPublicSaving || (!slot.isAvailable && !slot.isSelected)}
+                                          onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
+                                        >
+                                          {slot.isSelected
+                                            ? 'Wybrany termin'
+                                            : confirmationMeetingPublicSaving
+                                            ? 'Zapisywanie...'
+                                            : 'Wybierz termin'}
+                                        </button>
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </article>
+                          </div>
+                          <article className="confirmation-portal-card">
+                            <h4>Spotkanie końcowe (1. rok)</h4>
+                            <p className="note">{confirmationPortalData.secondMeetingAnnouncement}</p>
+                          </article>
+                          <div className="confirmation-portal-columns">
+                            <article className="confirmation-portal-card">
+                              <h4>Wiadomości kandydat ↔ parafia</h4>
+                              {confirmationPortalData.messages.length === 0 ? (
+                                <p className="muted">Brak wiadomości.</p>
+                              ) : (
+                                <ul className="confirmation-portal-message-list">
+                                  {confirmationPortalData.messages.map((message) => (
+                                    <li key={`portal-msg-${message.id}`}>
+                                      <strong>{message.senderType === 'admin' ? 'Parafia' : 'Kandydat'}:</strong> {message.messageText}
+                                      <br />
+                                      <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              <label>
+                                <span>Nowa wiadomość do parafii</span>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationPortalMessageDraft}
+                                  onChange={(event) => setConfirmationPortalMessageDraft(event.target.value)}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationPortalSendingMessage}
+                                onClick={() => void handleSendConfirmationPortalMessage()}
+                              >
+                                {confirmationPortalSendingMessage ? 'Wysyłanie...' : 'Wyślij wiadomość'}
+                              </button>
+                            </article>
+                            <article className="confirmation-portal-card">
+                              <h4>Publiczne adnotacje parafii</h4>
+                              {confirmationPortalData.publicNotes.length === 0 ? (
+                                <p className="muted">Brak publicznych adnotacji.</p>
+                              ) : (
+                                <ul className="confirmation-portal-message-list">
+                                  {confirmationPortalData.publicNotes.map((note) => (
+                                    <li key={`portal-public-note-${note.id}`}>
+                                      {note.noteText}
+                                      <br />
+                                      <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </article>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-candidate-admin-portal">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Wyszukiwarka i edycja kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationCandidates()}>
+                            Odśwież kandydatów
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label className="admin-form-full">
+                            <span>Szukaj kandydata</span>
+                            <input
+                              type="text"
+                              value={confirmationAdminCandidateSearch}
+                              onChange={(event) => setConfirmationAdminCandidateSearch(event.target.value)}
+                              placeholder="Imię, nazwisko, adres, szkoła"
+                            />
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Wybierz kandydata</span>
+                            <select
+                              value={confirmationAdminSelectedCandidateId ?? ''}
+                              onChange={(event) => setConfirmationAdminSelectedCandidateId(event.target.value || null)}
+                            >
+                              {filteredConfirmationCandidates.length === 0 ? (
+                                <option value="">Brak kandydatów dla tego filtra</option>
+                              ) : (
+                                filteredConfirmationCandidates.map((candidate) => (
+                                  <option key={`portal-candidate-${candidate.id}`} value={candidate.id}>
+                                    {candidate.name} {candidate.surname} • {candidate.schoolShort}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </label>
+                        </div>
+                        {confirmationAdminPortalLoading ? <p className="muted">Ładowanie danych kandydata...</p> : null}
+                        {confirmationAdminPortalError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationAdminPortalError}</p>
+                        ) : null}
+                        {confirmationAdminPortalInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationAdminPortalInfo}</p>
+                        ) : null}
+                        {confirmationAdminPortalData ? (
+                          <>
+                            <div className="confirmation-candidate-links">
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() => void handleCopyConfirmationMeetingLink(confirmationAdminPortalData.candidate.portalToken)}
+                              >
+                                {confirmationCopiedMeetingToken === confirmationAdminPortalData.candidate.portalToken
+                                  ? 'Skopiowano link portalu'
+                                  : 'Kopiuj link portalu kandydata'}
+                              </button>
+                            </div>
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Imię</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditName}
+                                  onChange={(event) => setConfirmationAdminEditName(event.target.value)}
+                                />
+                              </label>
+                              <label>
+                                <span>Nazwisko</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSurname}
+                                  onChange={(event) => setConfirmationAdminEditSurname(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Numery telefonów (linia po linii)</span>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminEditPhonesRaw}
+                                  onChange={(event) => setConfirmationAdminEditPhonesRaw(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Adres</span>
+                                <textarea
+                                  rows={2}
+                                  value={confirmationAdminEditAddress}
+                                  onChange={(event) => setConfirmationAdminEditAddress(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Szkoła (skrót)</span>
+                                <input
+                                  type="text"
+                                  value={confirmationAdminEditSchoolShort}
+                                  onChange={(event) => setConfirmationAdminEditSchoolShort(event.target.value)}
+                                />
+                              </label>
+                            </div>
+                            <div className="builder-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationAdminSendingAction}
+                                onClick={() => void handleAdminUpdateCandidateData()}
+                              >
+                                {confirmationAdminSendingAction ? 'Zapisywanie...' : 'Zapisz dane kandydata'}
+                              </button>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Wyślij wiadomość do kandydata</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminMessageDraft}
+                                  onChange={(event) => setConfirmationAdminMessageDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminSendMessageToCandidate()}
+                                >
+                                  Wyślij wiadomość
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPublicNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPublicNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(true)}
+                                >
+                                  Dodaj adnotację publiczną
+                                </button>
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne</h4>
+                                <textarea
+                                  rows={3}
+                                  value={confirmationAdminPrivateNoteDraft}
+                                  onChange={(event) => setConfirmationAdminPrivateNoteDraft(event.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationAdminSendingAction}
+                                  onClick={() => void handleAdminAddCandidateNote(false)}
+                                >
+                                  Dodaj adnotację prywatną
+                                </button>
+                              </article>
+                            </div>
+                            <div className="confirmation-portal-columns">
+                              <article className="confirmation-portal-card">
+                                <h4>Historia wiadomości</h4>
+                                {confirmationAdminPortalData.messages.length === 0 ? (
+                                  <p className="muted">Brak wiadomości.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.messages.map((message) => (
+                                      <li key={`admin-msg-${message.id}`}>
+                                        <strong>{message.senderType === 'admin' ? 'Admin' : 'Kandydat'}:</strong> {message.messageText}
+                                        <br />
+                                        <span className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje publiczne (lista)</h4>
+                                {confirmationAdminPortalData.publicNotes.length === 0 ? (
+                                  <p className="muted">Brak publicznych adnotacji.</p>
+                                ) : (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.publicNotes.map((note) => (
+                                      <li key={`admin-public-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </article>
+                              <article className="confirmation-portal-card">
+                                <h4>Adnotacje prywatne (lista)</h4>
+                                {confirmationAdminPortalData.privateNotes && confirmationAdminPortalData.privateNotes.length > 0 ? (
+                                  <ul className="confirmation-portal-message-list">
+                                    {confirmationAdminPortalData.privateNotes.map((note) => (
+                                      <li key={`admin-private-note-${note.id}`}>
+                                        {note.noteText}
+                                        <br />
+                                        <span className="muted">{new Date(note.updatedUtc).toLocaleString('pl-PL')}</span>
+                                        <br />
+                                        <button
+                                          type="button"
+                                          className="ghost"
+                                          onClick={() => handleAdminStartEditNote(note.id, note.noteText, note.isPublic)}
+                                        >
+                                          Edytuj
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="muted">Brak prywatnych adnotacji.</p>
+                                )}
+                              </article>
+                            </div>
+                            {confirmationAdminEditingNoteId ? (
+                              <article className="confirmation-portal-card">
+                                <h4>Edycja adnotacji</h4>
+                                <label>
+                                  <span>Treść</span>
+                                  <textarea
+                                    rows={4}
+                                    value={confirmationAdminEditingNoteText}
+                                    onChange={(event) => setConfirmationAdminEditingNoteText(event.target.value)}
+                                  />
+                                </label>
+                                <label className="mass-require-intentions">
+                                  <input
+                                    type="checkbox"
+                                    checked={confirmationAdminEditingNoteIsPublic}
+                                    onChange={(event) => setConfirmationAdminEditingNoteIsPublic(event.target.checked)}
+                                  />
+                                  <span>Adnotacja publiczna (widoczna dla kandydata)</span>
+                                </label>
+                                <div className="builder-actions">
+                                  <button
+                                    type="button"
+                                    className="parish-login"
+                                    disabled={confirmationAdminSendingAction}
+                                    onClick={() => void handleAdminSaveEditedNote()}
+                                  >
+                                    Zapisz adnotację
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost"
+                                    onClick={() => {
+                                      setConfirmationAdminEditingNoteId(null);
+                                      setConfirmationAdminEditingNoteText('');
+                                    }}
+                                  >
+                                    Anuluj
+                                  </button>
+                                </div>
+                              </article>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    )}
+                  </>
+                )}
+                {selectedSacrament.id === 'confirmation' && activeSacramentPanelSection === 'meetings' && (
+                  <>
+                    <div className="parish-card confirmation-meetings-public">
+                      <div className="section-header">
+                        <div>
+                          <p className="tag">Bierzmowanie</p>
+                          <h3>Zapisy na spotkanie z kandydatami</h3>
+                        </div>
+                        {confirmationMeetingPublicData?.selectedSlotId ? (
+                          <span className="pill">Termin wybrany</span>
+                        ) : (
+                          <span className="pill">Wybierz termin</span>
+                        )}
+                      </div>
+                      {confirmationMeetingPublicLoading ? <p className="muted">Ładowanie terminów...</p> : null}
+                      {confirmationMeetingPublicError ? (
+                        <p className="confirmation-info confirmation-info-error">{confirmationMeetingPublicError}</p>
+                      ) : null}
+                      {confirmationMeetingPublicInfo ? (
+                        <p className="confirmation-info confirmation-info-success">{confirmationMeetingPublicInfo}</p>
+                      ) : null}
+                      {confirmationMeetingPublicData ? (
+                        <>
+                          <p className="note">
+                            Kandydat: <strong>{confirmationMeetingPublicData.candidateName}</strong>
+                          </p>
+                          {confirmationMeetingPublicData.slots.length === 0 ? (
+                            <p className="muted">Brak dostępnych terminów. Skontaktuj się z parafią.</p>
+                          ) : (
+                            <div className="confirmation-meeting-slot-list">
+                              {confirmationMeetingPublicData.slots.map((slot) => {
+                                const starts = new Date(slot.startsAtUtc);
+                                const availablePlaces = Math.max(slot.capacity - slot.reservedCount, 0);
+                                return (
+                                  <article key={slot.id} className="confirmation-meeting-slot">
+                                    <p>
+                                      <strong>{starts.toLocaleString('pl-PL')}</strong>
+                                    </p>
+                                    <p className="note">
+                                      Czas: {slot.durationMinutes} min • Miejsca: {slot.reservedCount}/{slot.capacity}
+                                      {slot.label ? ` • ${slot.label}` : ''}
+                                    </p>
+                                    <p className="note">
+                                      {slot.isSelected
+                                        ? 'To jest aktualnie wybrany termin.'
+                                        : slot.isAvailable
+                                        ? `Pozostało miejsc: ${availablePlaces}.`
+                                        : 'Termin pełny.'}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      className="parish-login"
+                                      disabled={confirmationMeetingPublicSaving || (!slot.isAvailable && !slot.isSelected)}
+                                      onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
+                                    >
+                                      {slot.isSelected
+                                        ? 'Wybrany termin'
+                                        : confirmationMeetingPublicSaving
+                                        ? 'Zapisywanie...'
+                                        : 'Wybierz ten termin'}
+                                    </button>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      ) : null}
+                    </div>
+                    {isAuthenticated && (
+                      <div className="parish-card confirmation-meetings-admin">
+                        <div className="section-header">
+                          <div>
+                            <p className="tag">Panel admina</p>
+                            <h3>Terminy spotkań kandydatów</h3>
+                          </div>
+                          <button type="button" className="ghost" onClick={() => void loadConfirmationMeetingSummary()}>
+                            Odśwież terminy
+                          </button>
+                        </div>
+                        <div className="admin-form-grid">
+                          <label>
+                            <span>Data i godzina</span>
+                            <input
+                              type="datetime-local"
+                              value={confirmationMeetingStartsLocal}
+                              onChange={(event) => setConfirmationMeetingStartsLocal(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Czas trwania (min)</span>
+                            <input
+                              type="number"
+                              min={10}
+                              max={180}
+                              value={confirmationMeetingDuration}
+                              onChange={(event) => setConfirmationMeetingDuration(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            <span>Pojemność slotu</span>
+                            <select
+                              value={confirmationMeetingCapacity}
+                              onChange={(event) => setConfirmationMeetingCapacity(event.target.value === '2' ? '2' : '3')}
+                            >
+                              <option value="2">2 osoby</option>
+                              <option value="3">3 osoby</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Etap spotkania</span>
+                            <select
+                              value={confirmationMeetingStage}
+                              onChange={(event) =>
+                                setConfirmationMeetingStage(
+                                  event.target.value === 'year1-end' ? 'year1-end' : 'year1-start'
+                                )
+                              }
+                            >
+                              <option value="year1-start">Początek 1. roku</option>
+                              <option value="year1-end">Koniec 1. roku</option>
+                            </select>
+                          </label>
+                          <label className="admin-form-full">
+                            <span>Opis slotu (opcjonalnie)</span>
+                            <input
+                              type="text"
+                              value={confirmationMeetingLabel}
+                              onChange={(event) => setConfirmationMeetingLabel(event.target.value)}
+                              placeholder="np. sala katechetyczna, grupa A"
+                            />
+                          </label>
+                        </div>
+                        <div className="builder-actions">
+                          <button
+                            type="button"
+                            className="parish-login"
+                            disabled={confirmationMeetingSaving}
+                            onClick={() => void handleCreateConfirmationMeetingSlot()}
+                          >
+                            {confirmationMeetingSaving ? 'Zapisywanie...' : 'Dodaj termin'}
+                          </button>
+                        </div>
+                        {confirmationMeetingError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationMeetingError}</p>
+                        ) : null}
+                        {confirmationMeetingInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationMeetingInfo}</p>
+                        ) : null}
+                        {confirmationMeetingLoading ? <p className="muted">Ładowanie slotów...</p> : null}
+                        {confirmationMeetingSummary ? (
+                          <>
+                            <p className="note">Kandydaci bez wybranego terminu: {confirmationMeetingSummary.unassignedCount}</p>
+                            {confirmationMeetingSummary.slots.length === 0 ? (
+                              <p className="muted">Brak zdefiniowanych terminów.</p>
+                            ) : (
+                              <div className="confirmation-meeting-slot-list admin">
+                                {confirmationMeetingSummary.slots.map((slot) => (
+                                  <article key={`admin-slot-${slot.id}`} className="confirmation-meeting-slot">
+                                    <p>
+                                      <strong>{new Date(slot.startsAtUtc).toLocaleString('pl-PL')}</strong>
+                                    </p>
+                                    <p className="note">
+                                      Czas: {slot.durationMinutes} min • Zajętość: {slot.reservedCount}/{slot.capacity}
+                                      {slot.label ? ` • ${slot.label}` : ''} •
+                                      {slot.stage === 'year1-end' ? ' Koniec 1. roku' : ' Początek 1. roku'}
+                                    </p>
+                                    {slot.candidates.length > 0 ? (
+                                      <ul className="confirmation-meeting-candidate-list">
+                                        {slot.candidates.map((candidate) => (
+                                          <li key={`${slot.id}-${candidate.candidateId}`}>
+                                            {candidate.name} {candidate.surname}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="muted">Brak zapisanych kandydatów.</p>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      disabled={confirmationMeetingSaving}
+                                      onClick={() => void handleDeleteConfirmationMeetingSlot(slot.id)}
+                                    >
+                                      Usuń termin
+                                    </button>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : null}
                       </div>
                     )}
                   </>

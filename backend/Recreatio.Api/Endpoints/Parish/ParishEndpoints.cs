@@ -23,6 +23,14 @@ public static class ParishEndpoints
     private const string RoleKindParishFinance = "parish-finance";
     private const string RoleKindParishPublic = "parish-public";
     private const int ConfirmationPhoneLimit = 6;
+    private const int ConfirmationMeetingMinCapacity = 2;
+    private const int ConfirmationMeetingMaxCapacity = 3;
+    private const int ConfirmationMeetingMinDurationMinutes = 10;
+    private const int ConfirmationMeetingMaxDurationMinutes = 180;
+    private const string ConfirmationMeetingStageYear1Start = "year1-start";
+    private const string ConfirmationMeetingStageYear1End = "year1-end";
+    private const string ConfirmationSecondMeetingAnnouncement =
+        "Spotkanie na zakończenie 1. roku formacji zostanie udostępnione do zapisów w czerwcu 2026.";
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -30,6 +38,14 @@ public static class ParishEndpoints
         return new ParishSacramentSection(
             (section?.Title ?? string.Empty).Trim(),
             (section?.Body ?? string.Empty).Trim());
+    }
+
+    private static string NormalizeConfirmationMeetingStage(string? stage)
+    {
+        var normalized = (stage ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized == ConfirmationMeetingStageYear1End
+            ? ConfirmationMeetingStageYear1End
+            : ConfirmationMeetingStageYear1Start;
     }
 
     private static ParishSacramentParishPage NormalizeSacramentParishPage(ParishSacramentParishPage? page)
@@ -319,6 +335,22 @@ public static class ParishEndpoints
                     CreatedUtc = now
                 });
             }
+
+            var meetingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(
+                dbContext,
+                null,
+                ct);
+            dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parish.Id,
+                CandidateId = candidateId,
+                BookingToken = meetingToken,
+                SlotId = null,
+                BookedUtc = null,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            });
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
@@ -379,6 +411,355 @@ public static class ParishEndpoints
                 ct);
 
             return Results.Ok(new { status = "verified", verifiedUtc = verification.VerifiedUtc });
+        });
+
+        group.MapPost("/{slug}/public/confirmation-meeting-availability", async (
+            string slug,
+            ParishConfirmationMeetingAvailabilityRequest request,
+            RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Meeting token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var slots = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parish.Id &&
+                    x.IsActive &&
+                    x.Stage == ConfirmationMeetingStageYear1Start)
+                .OrderBy(x => x.StartsAtUtc)
+                .ToListAsync(ct);
+            var slotIds = slots.Select(x => x.Id).ToList();
+            var reservedCounts = slotIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                    .Where(x => x.ParishId == parish.Id && x.SlotId != null && slotIds.Contains(x.SlotId.Value))
+                    .GroupBy(x => x.SlotId!.Value)
+                    .ToDictionaryAsync(group => group.Key, group => group.Count(), ct);
+
+            var selectedSlotId = link.SlotId;
+            var response = new ParishConfirmationMeetingAvailabilityResponse(
+                link.CandidateId,
+                $"{payload.Name} {payload.Surname}".Trim(),
+                selectedSlotId,
+                link.BookedUtc,
+                slots.Select(slot =>
+                {
+                    var reserved = reservedCounts.GetValueOrDefault(slot.Id);
+                    var isSelected = selectedSlotId == slot.Id;
+                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    return new ParishConfirmationMeetingPublicSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        reserved,
+                        isAvailable,
+                        isSelected);
+                }).ToList());
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/{slug}/public/confirmation-meeting-book", async (
+            string slug,
+            ParishConfirmationMeetingBookRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Meeting token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var slot = await dbContext.ParishConfirmationMeetingSlots
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.ParishId == parish.Id &&
+                        x.Id == request.SlotId &&
+                        x.IsActive &&
+                        x.Stage == ConfirmationMeetingStageYear1Start,
+                    ct);
+            if (slot is null)
+            {
+                return Results.NotFound(new { status = "slot-not-found" });
+            }
+
+            if (link.SlotId == slot.Id)
+            {
+                return Results.Ok(new ParishConfirmationMeetingBookResponse("already-selected", link.SlotId, link.BookedUtc));
+            }
+
+            var reservedCount = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.SlotId == slot.Id && x.CandidateId != link.CandidateId)
+                .CountAsync(ct);
+            if (reservedCount >= slot.Capacity)
+            {
+                return Results.Ok(new ParishConfirmationMeetingBookResponse("slot-full", link.SlotId, link.BookedUtc));
+            }
+
+            link.SlotId = slot.Id;
+            link.BookedUtc = DateTimeOffset.UtcNow;
+            link.UpdatedUtc = link.BookedUtc.Value;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationMeetingSlotSelected",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId, slot.Id }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMeetingBookResponse("selected", link.SlotId, link.BookedUtc));
+        });
+
+        group.MapPost("/{slug}/public/confirmation-candidate-portal", async (
+            string slug,
+            ParishConfirmationPortalRequest request,
+            RecreatioDbContext dbContext,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Portal token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == link.CandidateId && x.ParishId == parish.Id, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parish.Id);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var verificationRows = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.CandidateId == candidate.Id)
+                .OrderBy(x => x.PhoneIndex)
+                .ToListAsync(ct);
+            var verificationByIndex = verificationRows
+                .GroupBy(x => x.PhoneIndex)
+                .ToDictionary(group => group.Key, group => group.First());
+            var phones = payload.PhoneNumbers
+                .Select((number, index) =>
+                {
+                    var verification = verificationByIndex.GetValueOrDefault(index);
+                    return new ParishConfirmationPhoneResponse(
+                        index,
+                        number,
+                        verification?.VerifiedUtc is not null,
+                        verification?.VerifiedUtc,
+                        verification?.VerificationToken ?? string.Empty);
+                })
+                .ToList();
+
+            var slots = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parish.Id &&
+                    x.IsActive &&
+                    x.Stage == ConfirmationMeetingStageYear1Start)
+                .OrderBy(x => x.StartsAtUtc)
+                .ToListAsync(ct);
+            var slotIds = slots.Select(x => x.Id).ToList();
+            var reservedCounts = slotIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                    .Where(x => x.ParishId == parish.Id && x.SlotId != null && slotIds.Contains(x.SlotId.Value))
+                    .GroupBy(x => x.SlotId!.Value)
+                    .ToDictionaryAsync(group => group.Key, group => group.Count(), ct);
+
+            var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.CandidateId == candidate.Id)
+                .OrderByDescending(x => x.CreatedUtc)
+                .Take(200)
+                .Select(x => new ParishConfirmationMessageResponse(x.Id, x.SenderType, x.MessageText, x.CreatedUtc))
+                .ToListAsync(ct);
+
+            var publicNotes = await dbContext.ParishConfirmationNotes.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.CandidateId == candidate.Id && x.IsPublic)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .Take(200)
+                .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
+                .ToListAsync(ct);
+
+            var portal = new ParishConfirmationPortalResponse(
+                new ParishConfirmationPortalCandidateDataResponse(
+                    candidate.Id,
+                    payload.Name,
+                    payload.Surname,
+                    phones,
+                    payload.Address,
+                    payload.SchoolShort,
+                    link.BookingToken,
+                    link.SlotId,
+                    link.BookedUtc),
+                slots.Select(slot =>
+                {
+                    var reserved = reservedCounts.GetValueOrDefault(slot.Id);
+                    var isSelected = link.SlotId == slot.Id;
+                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    return new ParishConfirmationMeetingPublicSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        reserved,
+                        isAvailable,
+                        isSelected);
+                }).ToList(),
+                ConfirmationSecondMeetingAnnouncement,
+                messages,
+                publicNotes,
+                null);
+
+            return Results.Ok(portal);
+        });
+
+        group.MapPost("/{slug}/public/confirmation-candidate-message", async (
+            string slug,
+            ParishConfirmationPortalMessageCreateRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            var messageText = NormalizeConfirmationText(request.MessageText, 2000);
+            if (token is null || messageText is null)
+            {
+                return Results.BadRequest(new { error = "Token and message are required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var message = new ParishConfirmationMessage
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parish.Id,
+                CandidateId = link.CandidateId,
+                SenderType = "candidate",
+                MessageText = messageText,
+                CreatedUtc = DateTimeOffset.UtcNow
+            };
+            dbContext.ParishConfirmationMessages.Add(message);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationCandidateMessageSent",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMessageResponse(
+                message.Id,
+                message.SenderType,
+                message.MessageText,
+                message.CreatedUtc));
         });
 
         group.MapPost("", async (
@@ -764,6 +1145,8 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
             var candidates = await LoadParishConfirmationCandidateViewsAsync(
                 parishId,
                 dbContext,
@@ -782,7 +1165,9 @@ public static class ParishEndpoints
                     candidate.Address,
                     candidate.SchoolShort,
                     candidate.AcceptedRodo,
-                    candidate.CreatedUtc))
+                    candidate.CreatedUtc,
+                    candidate.MeetingToken,
+                    candidate.MeetingSlotId))
                 .ToList();
 
             return Results.Ok(responses);
@@ -815,13 +1200,15 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
             var candidates = await LoadParishConfirmationCandidateViewsAsync(
                 parishId,
                 dbContext,
                 dataProtectionProvider,
                 ct);
             var response = new ParishConfirmationExportResponse(
-                1,
+                2,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
@@ -838,7 +1225,9 @@ public static class ParishEndpoints
                         candidate.SchoolShort,
                         candidate.AcceptedRodo,
                         candidate.CreatedUtc,
-                        candidate.UpdatedUtc))
+                        candidate.UpdatedUtc,
+                        candidate.MeetingToken,
+                        candidate.MeetingSlotId))
                     .ToList());
 
             return Results.Ok(response);
@@ -886,6 +1275,30 @@ public static class ParishEndpoints
 
             if (request.ReplaceExisting)
             {
+                var existingNotes = await dbContext.ParishConfirmationNotes
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingNotes.Count > 0)
+                {
+                    dbContext.ParishConfirmationNotes.RemoveRange(existingNotes);
+                }
+
+                var existingMessages = await dbContext.ParishConfirmationMessages
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingMessages.Count > 0)
+                {
+                    dbContext.ParishConfirmationMessages.RemoveRange(existingMessages);
+                }
+
+                var existingMeetingLinks = await dbContext.ParishConfirmationMeetingLinks
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingMeetingLinks.Count > 0)
+                {
+                    dbContext.ParishConfirmationMeetingLinks.RemoveRange(existingMeetingLinks);
+                }
+
                 var existingVerifications = await dbContext.ParishConfirmationPhoneVerifications
                     .Where(x => x.ParishId == parishId)
                     .ToListAsync(ct);
@@ -902,7 +1315,12 @@ public static class ParishEndpoints
                     dbContext.ParishConfirmationCandidates.RemoveRange(existingCandidates);
                 }
 
-                if (existingVerifications.Count > 0 || existingCandidates.Count > 0)
+                if (
+                    existingNotes.Count > 0 ||
+                    existingMessages.Count > 0 ||
+                    existingMeetingLinks.Count > 0 ||
+                    existingVerifications.Count > 0 ||
+                    existingCandidates.Count > 0)
                 {
                     await dbContext.SaveChangesAsync(ct);
                 }
@@ -930,6 +1348,20 @@ public static class ParishEndpoints
                 existingTokens = new HashSet<string>(existingTokenRows, StringComparer.Ordinal);
             }
             var usedTokens = new HashSet<string>(StringComparer.Ordinal);
+            var sourceMeetingTokens = sourceCandidates
+                .Select(candidate => NormalizeConfirmationToken(GetJsonCandidateMeetingToken(candidate)))
+                .Where(token => token is not null)
+                .Distinct(StringComparer.Ordinal)
+                .Cast<string>()
+                .ToList();
+            var existingMeetingTokenRows = sourceMeetingTokens.Count == 0
+                ? new List<string>()
+                : await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                    .Where(x => sourceMeetingTokens.Contains(x.BookingToken))
+                    .Select(x => x.BookingToken)
+                    .ToListAsync(ct);
+            var existingMeetingTokens = new HashSet<string>(existingMeetingTokenRows, StringComparer.Ordinal);
+            var usedMeetingTokens = new HashSet<string>(StringComparer.Ordinal);
 
             var importedCandidates = 0;
             var importedPhoneNumbers = 0;
@@ -974,6 +1406,34 @@ public static class ParishEndpoints
                     ParishId = parishId,
                     PayloadEnc = payloadEnc,
                     AcceptedRodo = true,
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = updatedUtc
+                });
+
+                var sourceMeetingToken = NormalizeConfirmationToken(GetJsonCandidateMeetingToken(sourceCandidate));
+                var meetingToken = sourceMeetingToken;
+                if (string.IsNullOrWhiteSpace(meetingToken) ||
+                    existingMeetingTokens.Contains(meetingToken) ||
+                    usedMeetingTokens.Contains(meetingToken))
+                {
+                    meetingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(
+                        dbContext,
+                        usedMeetingTokens,
+                        ct);
+                }
+                else
+                {
+                    usedMeetingTokens.Add(meetingToken);
+                }
+
+                dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = candidateId,
+                    BookingToken = meetingToken,
+                    SlotId = null,
+                    BookedUtc = null,
                     CreatedUtc = createdUtc,
                     UpdatedUtc = updatedUtc
                 });
@@ -1029,6 +1489,651 @@ public static class ParishEndpoints
                 importedPhoneNumbers,
                 skippedCandidates,
                 request.ReplaceExisting));
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-meeting-slots", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
+            var candidates = await LoadParishConfirmationCandidateViewsAsync(parishId, dbContext, dataProtectionProvider, ct);
+            var candidatesById = candidates.ToDictionary(x => x.CandidateId);
+            var slots = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.IsActive)
+                .OrderBy(x => x.StartsAtUtc)
+                .ToListAsync(ct);
+            var slotIds = slots.Select(x => x.Id).ToList();
+            var links = slotIds.Count == 0
+                ? new List<ParishConfirmationMeetingLink>()
+                : await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                    .Where(x => x.ParishId == parishId && x.SlotId != null && slotIds.Contains(x.SlotId.Value))
+                    .ToListAsync(ct);
+            var linksBySlot = links.GroupBy(x => x.SlotId!.Value).ToDictionary(group => group.Key, group => group.ToList());
+
+            var response = new ParishConfirmationMeetingSummaryResponse(
+                slots.Select(slot =>
+                {
+                    var slotLinks = linksBySlot.GetValueOrDefault(slot.Id) ?? [];
+                    var slotCandidates = slotLinks
+                        .Select(link => candidatesById.GetValueOrDefault(link.CandidateId))
+                        .Where(view => view is not null)
+                        .Select(view => new ParishConfirmationMeetingSlotCandidateResponse(
+                            view!.CandidateId,
+                            view.Name,
+                            view.Surname))
+                        .ToList();
+                    return new ParishConfirmationMeetingSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        slot.IsActive,
+                        slotLinks.Count,
+                        slotCandidates);
+                }).ToList(),
+                candidates.Count(candidate => candidate.MeetingSlotId is null));
+
+            return Results.Ok(response);
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-meeting-slots", async (
+            Guid parishId,
+            ParishConfirmationMeetingSlotCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var durationMinutes = Math.Clamp(
+                request.DurationMinutes,
+                ConfirmationMeetingMinDurationMinutes,
+                ConfirmationMeetingMaxDurationMinutes);
+            var capacity = Math.Clamp(
+                request.Capacity,
+                ConfirmationMeetingMinCapacity,
+                ConfirmationMeetingMaxCapacity);
+            var label = NormalizeConfirmationText(request.Label, 160);
+            var stage = NormalizeConfirmationMeetingStage(request.Stage);
+
+            var slot = new ParishConfirmationMeetingSlot
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                StartsAtUtc = request.StartsAtUtc,
+                DurationMinutes = durationMinutes,
+                Capacity = capacity,
+                Label = label,
+                Stage = stage,
+                IsActive = true,
+                CreatedUtc = DateTimeOffset.UtcNow,
+                UpdatedUtc = DateTimeOffset.UtcNow
+            };
+
+            dbContext.ParishConfirmationMeetingSlots.Add(slot);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationMeetingSlotCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { slot.Id, slot.StartsAtUtc, slot.DurationMinutes, slot.Capacity, slot.Stage }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMeetingSlotResponse(
+                slot.Id,
+                slot.StartsAtUtc,
+                slot.DurationMinutes,
+                slot.Capacity,
+                slot.Label,
+                slot.Stage,
+                slot.IsActive,
+                0,
+                Array.Empty<ParishConfirmationMeetingSlotCandidateResponse>()));
+        }).RequireAuthorization();
+
+        group.MapDelete("/{parishId:guid}/confirmation-meeting-slots/{slotId:guid}", async (
+            Guid parishId,
+            Guid slotId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var slot = await dbContext.ParishConfirmationMeetingSlots
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == slotId, ct);
+            if (slot is null)
+            {
+                return Results.NotFound();
+            }
+
+            var links = await dbContext.ParishConfirmationMeetingLinks
+                .Where(x => x.ParishId == parishId && x.SlotId == slotId)
+                .ToListAsync(ct);
+            foreach (var link in links)
+            {
+                link.SlotId = null;
+                link.BookedUtc = null;
+                link.UpdatedUtc = DateTimeOffset.UtcNow;
+            }
+
+            dbContext.ParishConfirmationMeetingSlots.Remove(slot);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationMeetingSlotDeleted",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { slotId, UnassignedCandidates = links.Count }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/portal", async (
+            Guid parishId,
+            Guid candidateId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
+            var candidate = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.CandidateId == candidateId, ct);
+            if (link is null)
+            {
+                return Results.NotFound();
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+            var payload = TryUnprotectConfirmationPayload(candidate.PayloadEnc, protector);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var verificationRows = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                .OrderBy(x => x.PhoneIndex)
+                .ToListAsync(ct);
+            var verificationByIndex = verificationRows
+                .GroupBy(x => x.PhoneIndex)
+                .ToDictionary(group => group.Key, group => group.First());
+            var phones = payload.PhoneNumbers
+                .Select((number, index) =>
+                {
+                    var verification = verificationByIndex.GetValueOrDefault(index);
+                    return new ParishConfirmationPhoneResponse(
+                        index,
+                        number,
+                        verification?.VerifiedUtc is not null,
+                        verification?.VerifiedUtc,
+                        verification?.VerificationToken ?? string.Empty);
+                })
+                .ToList();
+
+            var slots = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    x.IsActive &&
+                    x.Stage == ConfirmationMeetingStageYear1Start)
+                .OrderBy(x => x.StartsAtUtc)
+                .ToListAsync(ct);
+            var slotIds = slots.Select(x => x.Id).ToList();
+            var reservedCounts = slotIds.Count == 0
+                ? new Dictionary<Guid, int>()
+                : await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                    .Where(x => x.ParishId == parishId && x.SlotId != null && slotIds.Contains(x.SlotId.Value))
+                    .GroupBy(x => x.SlotId!.Value)
+                    .ToDictionaryAsync(group => group.Key, group => group.Count(), ct);
+
+            var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                .OrderByDescending(x => x.CreatedUtc)
+                .Take(500)
+                .Select(x => new ParishConfirmationMessageResponse(x.Id, x.SenderType, x.MessageText, x.CreatedUtc))
+                .ToListAsync(ct);
+
+            var publicNotes = await dbContext.ParishConfirmationNotes.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.CandidateId == candidateId && x.IsPublic)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .Take(200)
+                .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
+                .ToListAsync(ct);
+
+            var privateNotes = await dbContext.ParishConfirmationNotes.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.CandidateId == candidateId && !x.IsPublic)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .Take(200)
+                .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
+                .ToListAsync(ct);
+
+            var portal = new ParishConfirmationPortalResponse(
+                new ParishConfirmationPortalCandidateDataResponse(
+                    candidateId,
+                    payload.Name,
+                    payload.Surname,
+                    phones,
+                    payload.Address,
+                    payload.SchoolShort,
+                    link.BookingToken,
+                    link.SlotId,
+                    link.BookedUtc),
+                slots.Select(slot =>
+                {
+                    var reserved = reservedCounts.GetValueOrDefault(slot.Id);
+                    var isSelected = link.SlotId == slot.Id;
+                    var isAvailable = isSelected || reserved < slot.Capacity;
+                    return new ParishConfirmationMeetingPublicSlotResponse(
+                        slot.Id,
+                        slot.StartsAtUtc,
+                        slot.DurationMinutes,
+                        slot.Capacity,
+                        slot.Label,
+                        slot.Stage,
+                        reserved,
+                        isAvailable,
+                        isSelected);
+                }).ToList(),
+                ConfirmationSecondMeetingAnnouncement,
+                messages,
+                publicNotes,
+                privateNotes);
+
+            return Results.Ok(portal);
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationCandidateUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
+            var name = NormalizeConfirmationText(request.Name, 120);
+            var surname = NormalizeConfirmationText(request.Surname, 120);
+            var address = NormalizeConfirmationText(request.Address, 260);
+            var schoolShort = NormalizeConfirmationText(request.SchoolShort, 140);
+            var phoneNumbers = NormalizeConfirmationPhones(request.PhoneNumbers);
+            if (name is null || surname is null || address is null || schoolShort is null || phoneNumbers.Count == 0)
+            {
+                return Results.BadRequest(new { error = "Invalid candidate personal data." });
+            }
+
+            var payload = new ParishConfirmationPayload(
+                name,
+                surname,
+                phoneNumbers,
+                address,
+                schoolShort,
+                true);
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+            candidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(payload));
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+
+            var verifications = await dbContext.ParishConfirmationPhoneVerifications
+                .Where(x => x.ParishId == parishId && x.CandidateId == candidateId)
+                .ToListAsync(ct);
+            if (verifications.Count > 0)
+            {
+                dbContext.ParishConfirmationPhoneVerifications.RemoveRange(verifications);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            for (var index = 0; index < phoneNumbers.Count; index += 1)
+            {
+                dbContext.ParishConfirmationPhoneVerifications.Add(new ParishConfirmationPhoneVerification
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = candidateId,
+                    PhoneIndex = index,
+                    VerificationToken = CreatePhoneVerificationToken(),
+                    VerifiedUtc = null,
+                    CreatedUtc = now
+                });
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidateUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, PhoneCount = phoneNumbers.Count }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/messages", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationMessageCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var messageText = NormalizeConfirmationText(request.MessageText, 2000);
+            if (messageText is null)
+            {
+                return Results.BadRequest(new { error = "Message text is required." });
+            }
+
+            var candidateExists = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .AnyAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (!candidateExists)
+            {
+                return Results.NotFound();
+            }
+
+            var message = new ParishConfirmationMessage
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                CandidateId = candidateId,
+                SenderType = "admin",
+                MessageText = messageText,
+                CreatedUtc = DateTimeOffset.UtcNow
+            };
+            dbContext.ParishConfirmationMessages.Add(message);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationAdminMessageSent",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMessageResponse(
+                message.Id,
+                message.SenderType,
+                message.MessageText,
+                message.CreatedUtc));
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/notes", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationNoteCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var noteText = NormalizeConfirmationText(request.NoteText, 2000);
+            if (noteText is null)
+            {
+                return Results.BadRequest(new { error = "Note text is required." });
+            }
+
+            var candidateExists = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+                .AnyAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (!candidateExists)
+            {
+                return Results.NotFound();
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var note = new ParishConfirmationNote
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                CandidateId = candidateId,
+                NoteText = noteText,
+                IsPublic = request.IsPublic,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.ParishConfirmationNotes.Add(note);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationNoteAdded",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, note.IsPublic }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationNoteResponse(
+                note.Id,
+                note.NoteText,
+                note.IsPublic,
+                note.CreatedUtc,
+                note.UpdatedUtc));
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/notes/{noteId:guid}", async (
+            Guid parishId,
+            Guid candidateId,
+            Guid noteId,
+            ParishConfirmationNoteCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var noteText = NormalizeConfirmationText(request.NoteText, 2000);
+            if (noteText is null)
+            {
+                return Results.BadRequest(new { error = "Note text is required." });
+            }
+
+            var note = await dbContext.ParishConfirmationNotes
+                .FirstOrDefaultAsync(
+                    x => x.Id == noteId && x.ParishId == parishId && x.CandidateId == candidateId,
+                    ct);
+            if (note is null)
+            {
+                return Results.NotFound();
+            }
+
+            note.NoteText = noteText;
+            note.IsPublic = request.IsPublic;
+            note.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationNoteUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, noteId, note.IsPublic }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationNoteResponse(
+                note.Id,
+                note.NoteText,
+                note.IsPublic,
+                note.CreatedUtc,
+                note.UpdatedUtc));
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/intentions", async (
@@ -2256,6 +3361,8 @@ public static class ParishEndpoints
             var acceptedRodo = GetJsonBoolean(candidateElement, "acceptedRodo") ?? true;
             var createdUtc = GetJsonDateTimeOffset(candidateElement, "createdUtc");
             var updatedUtc = GetJsonDateTimeOffset(candidateElement, "updatedUtc");
+            var meetingToken = GetJsonString(candidateElement, "meetingToken")
+                ?? GetJsonString(candidateElement, "bookingToken");
             var phones = ParseConfirmationImportPhoneRequests(candidateElement);
 
             candidates.Add(new ParishConfirmationImportCandidateRequest(
@@ -2266,7 +3373,8 @@ public static class ParishEndpoints
                 schoolShort,
                 acceptedRodo,
                 createdUtc,
-                updatedUtc));
+                updatedUtc,
+                meetingToken));
         }
 
         request = new ParishConfirmationImportRequest(candidates, replaceExisting);
@@ -2326,6 +3434,11 @@ public static class ParishEndpoints
         }
 
         return phones;
+    }
+
+    private static string? GetJsonCandidateMeetingToken(ParishConfirmationImportCandidateRequest candidate)
+    {
+        return candidate.MeetingToken;
     }
 
     private static bool TryGetJsonProperty(JsonElement element, string propertyName, out JsonElement value)
@@ -2445,11 +3558,17 @@ public static class ParishEndpoints
         var verificationRows = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
             .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
             .ToListAsync(ct);
+        var meetingLinks = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+            .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
+            .ToListAsync(ct);
         var verificationsByCandidate = verificationRows
             .GroupBy(x => x.CandidateId)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderBy(x => x.PhoneIndex).ToList());
+        var meetingLinksByCandidate = meetingLinks
+            .GroupBy(x => x.CandidateId)
+            .ToDictionary(group => group.Key, group => group.First());
         var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
         var results = new List<ParishConfirmationCandidateView>();
 
@@ -2478,6 +3597,7 @@ public static class ParishEndpoints
                         verification?.CreatedUtc);
                 })
                 .ToList();
+            var meetingLink = meetingLinksByCandidate.GetValueOrDefault(candidate.Id);
 
             results.Add(new ParishConfirmationCandidateView(
                 candidate.Id,
@@ -2488,10 +3608,59 @@ public static class ParishEndpoints
                 payload.SchoolShort,
                 payload.AcceptedRodo,
                 candidate.CreatedUtc,
-                candidate.UpdatedUtc));
+                candidate.UpdatedUtc,
+                meetingLink?.BookingToken ?? string.Empty,
+                meetingLink?.SlotId,
+                meetingLink?.BookedUtc));
         }
 
         return results;
+    }
+
+    private static async Task EnsureConfirmationMeetingLinksAsync(
+        Guid parishId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var candidateIds = await dbContext.ParishConfirmationCandidates.AsNoTracking()
+            .Where(x => x.ParishId == parishId)
+            .Select(x => x.Id)
+            .ToListAsync(ct);
+        if (candidateIds.Count == 0)
+        {
+            return;
+        }
+
+        var linkedCandidateIds = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+            .Where(x => x.ParishId == parishId && candidateIds.Contains(x.CandidateId))
+            .Select(x => x.CandidateId)
+            .ToListAsync(ct);
+        var linkedSet = new HashSet<Guid>(linkedCandidateIds);
+        var missingCandidateIds = candidateIds.Where(id => !linkedSet.Contains(id)).ToList();
+        if (missingCandidateIds.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var usedTokens = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var candidateId in missingCandidateIds)
+        {
+            var token = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, usedTokens, ct);
+            dbContext.ParishConfirmationMeetingLinks.Add(new ParishConfirmationMeetingLink
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                CandidateId = candidateId,
+                BookingToken = token,
+                SlotId = null,
+                BookedUtc = null,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            });
+        }
+
+        await dbContext.SaveChangesAsync(ct);
     }
 
     private static IDataProtector CreateParishConfirmationProtector(IDataProtectionProvider dataProtectionProvider, Guid parishId)
@@ -2519,6 +3688,40 @@ public static class ParishEndpoints
     private static string CreatePhoneVerificationToken()
     {
         var bytes = RandomNumberGenerator.GetBytes(18);
+        return Convert.ToBase64String(bytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static async Task<string> CreateUniqueConfirmationMeetingBookingTokenAsync(
+        RecreatioDbContext dbContext,
+        HashSet<string>? usedTokens,
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            var token = CreateMeetingBookingToken();
+            if (usedTokens is not null && usedTokens.Contains(token))
+            {
+                continue;
+            }
+
+            var exists = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .AnyAsync(x => x.BookingToken == token, ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            usedTokens?.Add(token);
+            return token;
+        }
+    }
+
+    private static string CreateMeetingBookingToken()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(22);
         return Convert.ToBase64String(bytes)
             .TrimEnd('=')
             .Replace('+', '-')
@@ -2553,7 +3756,10 @@ public static class ParishEndpoints
         string SchoolShort,
         bool AcceptedRodo,
         DateTimeOffset CreatedUtc,
-        DateTimeOffset UpdatedUtc);
+        DateTimeOffset UpdatedUtc,
+        string MeetingToken,
+        Guid? MeetingSlotId,
+        DateTimeOffset? MeetingBookedUtc);
 
     private sealed record ParishConfirmationImportPhone(
         string Number,

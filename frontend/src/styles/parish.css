@@ -2210,6 +2210,13 @@
   align-items: baseline;
 }
 
+.confirmation-candidate-links {
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .confirmation-phone-list {
   margin: 8px 0 0;
   padding: 0;
@@ -2225,6 +2232,75 @@
   gap: 8px;
   padding-top: 8px;
   border-top: 1px dashed var(--parish-line);
+}
+
+.confirmation-meetings-public,
+.confirmation-meetings-admin {
+  margin-top: 16px;
+}
+
+.confirmation-candidate-portal,
+.confirmation-candidate-admin-portal {
+  margin-top: 16px;
+}
+
+.confirmation-portal-columns {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-top: 12px;
+}
+
+.confirmation-portal-card {
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--parish-surface);
+}
+
+.confirmation-portal-card h4 {
+  margin: 0 0 10px;
+}
+
+.confirmation-portal-message-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.confirmation-portal-message-list li {
+  border: 1px dashed var(--parish-line);
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+}
+
+.confirmation-meeting-slot-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.confirmation-meeting-slot {
+  border: 1px solid var(--parish-line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--parish-surface);
+}
+
+.confirmation-meeting-slot p {
+  margin: 0 0 8px;
+}
+
+.confirmation-meeting-candidate-list {
+  margin: 0 0 10px 18px;
+  padding: 0;
+}
+
+.confirmation-meeting-candidate-list li {
+  margin: 0 0 4px;
 }
 
 .builder-layout {

@@ -44,6 +44,8 @@ export type SacramentPanelMenuCopy = {
   parish: string;
   faq: string;
   form: string;
+  meetings: string;
+  candidatePortal: string;
 };
 
 const confirmationPl: SacramentContentBundle = {
@@ -367,21 +369,27 @@ export const sacramentPanelMenuCopy: Record<ParishLanguage, SacramentPanelMenuCo
     overall: 'Informacje ogólne',
     parish: 'Informacje parafii',
     faq: 'FAQ',
-    form: 'Formularz kandydata'
+    form: 'Formularz kandydata',
+    meetings: 'Spotkania kandydatów',
+    candidatePortal: 'Portal kandydata'
   },
   en: {
     panelTitle: 'Sacrament panel',
     overall: 'General info',
     parish: 'Parish info',
     faq: 'FAQ',
-    form: 'Candidate form'
+    form: 'Candidate form',
+    meetings: 'Candidate meetings',
+    candidatePortal: 'Candidate portal'
   },
   de: {
     panelTitle: 'Sakrament-Panel',
     overall: 'Allgemeine Infos',
     parish: 'Pfarrei-Infos',
     faq: 'FAQ',
-    form: 'Kandidatenformular'
+    form: 'Kandidatenformular',
+    meetings: 'Treffen der Kandidaten',
+    candidatePortal: 'Kandidatenportal'
   }
 };
 

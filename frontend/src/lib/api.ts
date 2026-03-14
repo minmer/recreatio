@@ -2960,6 +2960,87 @@ export type ParishConfirmationCandidate = {
   schoolShort: string;
   acceptedRodo: boolean;
   createdUtc: string;
+  meetingToken: string;
+  meetingSlotId?: string | null;
+};
+
+export type ParishConfirmationMeetingSlotCandidate = {
+  candidateId: string;
+  name: string;
+  surname: string;
+};
+
+export type ParishConfirmationMeetingSlot = {
+  id: string;
+  startsAtUtc: string;
+  durationMinutes: number;
+  capacity: number;
+  label?: string | null;
+  stage: string;
+  isActive: boolean;
+  reservedCount: number;
+  candidates: ParishConfirmationMeetingSlotCandidate[];
+};
+
+export type ParishConfirmationMeetingSummary = {
+  slots: ParishConfirmationMeetingSlot[];
+  unassignedCount: number;
+};
+
+export type ParishConfirmationMeetingPublicSlot = {
+  id: string;
+  startsAtUtc: string;
+  durationMinutes: number;
+  capacity: number;
+  label?: string | null;
+  stage: string;
+  reservedCount: number;
+  isAvailable: boolean;
+  isSelected: boolean;
+};
+
+export type ParishConfirmationMeetingAvailability = {
+  candidateId: string;
+  candidateName: string;
+  selectedSlotId?: string | null;
+  bookedUtc?: string | null;
+  slots: ParishConfirmationMeetingPublicSlot[];
+};
+
+export type ParishConfirmationPortalCandidate = {
+  candidateId: string;
+  name: string;
+  surname: string;
+  phoneNumbers: ParishConfirmationPhone[];
+  address: string;
+  schoolShort: string;
+  portalToken: string;
+  selectedSlotId?: string | null;
+  bookedUtc?: string | null;
+};
+
+export type ParishConfirmationMessage = {
+  id: string;
+  senderType: 'candidate' | 'admin' | string;
+  messageText: string;
+  createdUtc: string;
+};
+
+export type ParishConfirmationNote = {
+  id: string;
+  noteText: string;
+  isPublic: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationPortal = {
+  candidate: ParishConfirmationPortalCandidate;
+  firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
+  secondMeetingAnnouncement: string;
+  messages: ParishConfirmationMessage[];
+  publicNotes: ParishConfirmationNote[];
+  privateNotes?: ParishConfirmationNote[] | null;
 };
 
 export type ParishConfirmationExportPhone = {
@@ -2980,6 +3061,8 @@ export type ParishConfirmationExportCandidate = {
   acceptedRodo: boolean;
   createdUtc: string;
   updatedUtc: string;
+  meetingToken?: string | null;
+  meetingSlotId?: string | null;
 };
 
 export type ParishConfirmationExport = {
@@ -3126,6 +3209,130 @@ export function importParishConfirmationCandidates(parishId: string, payload: Pa
       candidates: payload.candidates,
       replaceExisting: payload.replaceExisting
     })
+  });
+}
+
+export function listParishConfirmationMeetingSlots(parishId: string) {
+  return request<ParishConfirmationMeetingSummary>(`/parish/${parishId}/confirmation-meeting-slots`, {
+    method: 'GET'
+  });
+}
+
+export function createParishConfirmationMeetingSlot(
+  parishId: string,
+  payload: {
+    startsAtUtc: string;
+    durationMinutes: number;
+    capacity: number;
+    label?: string | null;
+    stage?: string | null;
+  }
+) {
+  return request<ParishConfirmationMeetingSlot>(`/parish/${parishId}/confirmation-meeting-slots`, {
+    method: 'POST',
+    body: JSON.stringify({
+      startsAtUtc: payload.startsAtUtc,
+      durationMinutes: payload.durationMinutes,
+      capacity: payload.capacity,
+      label: payload.label ?? null,
+      stage: payload.stage ?? null
+    })
+  });
+}
+
+export function deleteParishConfirmationMeetingSlot(parishId: string, slotId: string) {
+  return request<void>(`/parish/${parishId}/confirmation-meeting-slots/${slotId}`, {
+    method: 'DELETE'
+  });
+}
+
+export function getParishConfirmationMeetingAvailability(slug: string, token: string) {
+  return request<ParishConfirmationMeetingAvailability>(`/parish/${slug}/public/confirmation-meeting-availability`, {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function bookParishConfirmationMeetingSlot(slug: string, payload: { token: string; slotId: string }) {
+  return request<{ status: string; slotId?: string | null; bookedUtc?: string | null }>(
+    `/parish/${slug}/public/confirmation-meeting-book`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        token: payload.token,
+        slotId: payload.slotId
+      })
+    }
+  );
+}
+
+export function getParishConfirmationCandidatePortal(slug: string, token: string) {
+  return request<ParishConfirmationPortal>(`/parish/${slug}/public/confirmation-candidate-portal`, {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function sendParishConfirmationCandidateMessage(slug: string, payload: { token: string; messageText: string }) {
+  return request<ParishConfirmationMessage>(`/parish/${slug}/public/confirmation-candidate-message`, {
+    method: 'POST',
+    body: JSON.stringify({
+      token: payload.token,
+      messageText: payload.messageText
+    })
+  });
+}
+
+export function getParishConfirmationCandidatePortalAdmin(parishId: string, candidateId: string) {
+  return request<ParishConfirmationPortal>(`/parish/${parishId}/confirmation-candidates/${candidateId}/portal`, {
+    method: 'GET'
+  });
+}
+
+export function updateParishConfirmationCandidate(
+  parishId: string,
+  candidateId: string,
+  payload: {
+    name: string;
+    surname: string;
+    phoneNumbers: string[];
+    address: string;
+    schoolShort: string;
+  }
+) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function sendParishConfirmationAdminMessage(parishId: string, candidateId: string, messageText: string) {
+  return request<ParishConfirmationMessage>(`/parish/${parishId}/confirmation-candidates/${candidateId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ messageText })
+  });
+}
+
+export function addParishConfirmationNote(
+  parishId: string,
+  candidateId: string,
+  payload: { noteText: string; isPublic: boolean }
+) {
+  return request<ParishConfirmationNote>(`/parish/${parishId}/confirmation-candidates/${candidateId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateParishConfirmationNote(
+  parishId: string,
+  candidateId: string,
+  noteId: string,
+  payload: { noteText: string; isPublic: boolean }
+) {
+  return request<ParishConfirmationNote>(`/parish/${parishId}/confirmation-candidates/${candidateId}/notes/${noteId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
   });
 }
 

@@ -38,6 +38,14 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Parish.ParishConfirmationCandidate> ParishConfirmationCandidates => Set<Data.Parish.ParishConfirmationCandidate>();
     public DbSet<Data.Parish.ParishConfirmationPhoneVerification> ParishConfirmationPhoneVerifications =>
         Set<Data.Parish.ParishConfirmationPhoneVerification>();
+    public DbSet<Data.Parish.ParishConfirmationMeetingSlot> ParishConfirmationMeetingSlots =>
+        Set<Data.Parish.ParishConfirmationMeetingSlot>();
+    public DbSet<Data.Parish.ParishConfirmationMeetingLink> ParishConfirmationMeetingLinks =>
+        Set<Data.Parish.ParishConfirmationMeetingLink>();
+    public DbSet<Data.Parish.ParishConfirmationMessage> ParishConfirmationMessages =>
+        Set<Data.Parish.ParishConfirmationMessage>();
+    public DbSet<Data.Parish.ParishConfirmationNote> ParishConfirmationNotes =>
+        Set<Data.Parish.ParishConfirmationNote>();
     public DbSet<Data.Pilgrimage.PilgrimageEvent> PilgrimageEvents => Set<Data.Pilgrimage.PilgrimageEvent>();
     public DbSet<Data.Pilgrimage.PilgrimageSiteConfig> PilgrimageSiteConfigs => Set<Data.Pilgrimage.PilgrimageSiteConfig>();
     public DbSet<Data.Pilgrimage.PilgrimageParticipant> PilgrimageParticipants => Set<Data.Pilgrimage.PilgrimageParticipant>();
@@ -184,6 +192,26 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Parish.ParishConfirmationPhoneVerification>()
             .HasIndex(x => new { x.CandidateId, x.PhoneIndex })
             .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingSlot>()
+            .HasIndex(x => new { x.ParishId, x.StartsAtUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
+            .HasIndex(x => x.BookingToken)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
+            .HasIndex(x => x.CandidateId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
+            .HasIndex(x => new { x.ParishId, x.SlotId });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMessage>()
+            .HasIndex(x => new { x.ParishId, x.CandidateId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationNote>()
+            .HasIndex(x => new { x.ParishId, x.CandidateId, x.IsPublic, x.UpdatedUtc });
 
         modelBuilder.Entity<Data.Pilgrimage.PilgrimageEvent>()
             .HasIndex(x => x.Slug)

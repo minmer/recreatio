@@ -199,7 +199,9 @@ public sealed record ParishConfirmationCandidateResponse(
     string Address,
     string SchoolShort,
     bool AcceptedRodo,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    string MeetingToken,
+    Guid? MeetingSlotId);
 
 public sealed record ParishConfirmationExportPhoneResponse(
     int Index,
@@ -217,7 +219,9 @@ public sealed record ParishConfirmationExportCandidateResponse(
     string SchoolShort,
     bool AcceptedRodo,
     DateTimeOffset CreatedUtc,
-    DateTimeOffset UpdatedUtc);
+    DateTimeOffset UpdatedUtc,
+    string? MeetingToken,
+    Guid? MeetingSlotId);
 
 public sealed record ParishConfirmationExportResponse(
     int Version,
@@ -239,7 +243,8 @@ public sealed record ParishConfirmationImportCandidateRequest(
     string SchoolShort,
     bool AcceptedRodo,
     DateTimeOffset? CreatedUtc,
-    DateTimeOffset? UpdatedUtc);
+    DateTimeOffset? UpdatedUtc,
+    string? MeetingToken);
 
 public sealed record ParishConfirmationImportRequest(
     IReadOnlyList<ParishConfirmationImportCandidateRequest> Candidates,
@@ -250,3 +255,113 @@ public sealed record ParishConfirmationImportResponse(
     int ImportedPhoneNumbers,
     int SkippedCandidates,
     bool ReplaceExisting);
+
+public sealed record ParishConfirmationMeetingSlotCreateRequest(
+    DateTimeOffset StartsAtUtc,
+    int DurationMinutes,
+    int Capacity,
+    string? Label,
+    string? Stage);
+
+public sealed record ParishConfirmationMeetingSlotCandidateResponse(
+    Guid CandidateId,
+    string Name,
+    string Surname);
+
+public sealed record ParishConfirmationMeetingSlotResponse(
+    Guid Id,
+    DateTimeOffset StartsAtUtc,
+    int DurationMinutes,
+    int Capacity,
+    string? Label,
+    string Stage,
+    bool IsActive,
+    int ReservedCount,
+    IReadOnlyList<ParishConfirmationMeetingSlotCandidateResponse> Candidates);
+
+public sealed record ParishConfirmationMeetingSummaryResponse(
+    IReadOnlyList<ParishConfirmationMeetingSlotResponse> Slots,
+    int UnassignedCount);
+
+public sealed record ParishConfirmationMeetingAvailabilityRequest(
+    string Token);
+
+public sealed record ParishConfirmationMeetingPublicSlotResponse(
+    Guid Id,
+    DateTimeOffset StartsAtUtc,
+    int DurationMinutes,
+    int Capacity,
+    string? Label,
+    string Stage,
+    int ReservedCount,
+    bool IsAvailable,
+    bool IsSelected);
+
+public sealed record ParishConfirmationMeetingAvailabilityResponse(
+    Guid CandidateId,
+    string CandidateName,
+    Guid? SelectedSlotId,
+    DateTimeOffset? BookedUtc,
+    IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> Slots);
+
+public sealed record ParishConfirmationMeetingBookRequest(
+    string Token,
+    Guid SlotId);
+
+public sealed record ParishConfirmationMeetingBookResponse(
+    string Status,
+    Guid? SlotId,
+    DateTimeOffset? BookedUtc);
+
+public sealed record ParishConfirmationCandidateUpdateRequest(
+    string Name,
+    string Surname,
+    IReadOnlyList<string> PhoneNumbers,
+    string Address,
+    string SchoolShort);
+
+public sealed record ParishConfirmationMessageCreateRequest(
+    string MessageText);
+
+public sealed record ParishConfirmationNoteCreateRequest(
+    string NoteText,
+    bool IsPublic);
+
+public sealed record ParishConfirmationMessageResponse(
+    Guid Id,
+    string SenderType,
+    string MessageText,
+    DateTimeOffset CreatedUtc);
+
+public sealed record ParishConfirmationNoteResponse(
+    Guid Id,
+    string NoteText,
+    bool IsPublic,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishConfirmationPortalCandidateDataResponse(
+    Guid CandidateId,
+    string Name,
+    string Surname,
+    IReadOnlyList<ParishConfirmationPhoneResponse> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    string PortalToken,
+    Guid? SelectedSlotId,
+    DateTimeOffset? BookedUtc);
+
+public sealed record ParishConfirmationPortalResponse(
+    ParishConfirmationPortalCandidateDataResponse Candidate,
+    IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
+    string SecondMeetingAnnouncement,
+    IReadOnlyList<ParishConfirmationMessageResponse> Messages,
+    IReadOnlyList<ParishConfirmationNoteResponse> PublicNotes,
+    IReadOnlyList<ParishConfirmationNoteResponse>? PrivateNotes);
+
+public sealed record ParishConfirmationPortalRequest(
+    string Token);
+
+public sealed record ParishConfirmationPortalMessageCreateRequest(
+    string Token,
+    string MessageText);
