@@ -1,5 +1,5 @@
-import type { CogitaComputedSample } from '../../../../../lib/api';
-import type { ComputedGraphDefinition } from '../../shared/ComputedGraphEditor';
+import type { CogitaComputedSample } from '../../../../lib/api';
+import type { ComputedGraphDefinition } from '../shared/ComputedGraphEditor';
 
 type ComputedSample = {
   prompt: string;

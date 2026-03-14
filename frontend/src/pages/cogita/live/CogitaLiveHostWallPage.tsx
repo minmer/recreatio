@@ -16,7 +16,7 @@ import {
   type CogitaComputedSample
 } from '../../../lib/api';
 import { clampInt, parseLiveRules } from './liveSessionRules';
-import { evaluateCheckcardAnswer } from '../components/workspace/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer } from '../components/checkcards/checkcardRuntime';
 import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../features/revision/quote';

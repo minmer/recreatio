@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
+import type { Copy } from '../../../../../conte../../types';
+import type { RouteKey } from '../../../../../../types/navigation';
 import { getRevisionType, revisionTypes } from '../../../features/revision/registry';
-import { getCachedCollections } from '../cogitaMetaCache';
+import { getCachedCollections } from '../../cogitaMetaCache';
 import { CogitaRevisionSearch as CogitaRevisionSearchList } from '../../shared/search/CogitaRevisionSearch';
 
 export function CogitaRevisionSearch({

@@ -5,7 +5,7 @@ import {
   parseQuestionDefinition,
   shuffleQuestionDefinitionForRuntime
 } from '../questions/questionRuntime';
-import type { CheckcardExpectedModel, CheckcardPromptModel } from '../workspace/checkcards/checkcardRuntime';
+import type { CheckcardExpectedModel, CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 export { normalizeQuestionType } from '../questions/questionRuntime';
 
 export type RevisionQuestionPrompt = {

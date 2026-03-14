@@ -19,9 +19,9 @@ import { toBase64 } from '../../../../lib/crypto';
 import { CogitaShell } from '../../CogitaShell';
 import type { Copy } from '../../../../content/types';
 import type { RouteKey } from '../../../../types/navigation';
-import type { CogitaInfoType } from '../workspace/types';
-import { getInfoTypeLabel } from '../workspace/libraryOptions';
-import { buildComputedSampleFromGraph, toComputedSample } from '../workspace/utils/computedGraph';
+import type { CogitaInfoType } from '../types';
+import { getInfoTypeLabel } from '../libraryOptions';
+import { buildComputedSampleFromGraph, toComputedSample } from '../utils/computedGraph';
 import type { ComputedGraphDefinition } from '../shared/ComputedGraphEditor';
 import { CogitaRevisionCard } from '../workspace/revision/components/CogitaRevisionCard';
 import { CogitaCheckcardSurface } from '../workspace/revision/components/CogitaCheckcardSurface';
@@ -58,7 +58,7 @@ import {
 } from '../../features/revision/runCore';
 import { loadInfoSelectionRevisionSeed } from '../../features/revision/scope';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree, pickQuoteFragment, type QuoteFragmentTree } from '../../features/revision/quote';
-import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../workspace/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
 import {
   applyScriptMode,
   buildRevisionQuestionRuntime,

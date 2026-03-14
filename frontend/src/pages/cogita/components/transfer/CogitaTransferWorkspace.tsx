@@ -5,10 +5,10 @@ import {
   importCogitaLibraryStream,
   type CogitaImportProgress,
   type TransferProgress
-} from '../../../../../lib/api';
-import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
+} from '../../../../lib/api';
+import { CogitaShell } from '../../CogitaShell';
+import type { Copy } from '../../../../content/types';
+import type { RouteKey } from '../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
 
 export function CogitaTransferWorkspace({
@@ -206,4 +206,3 @@ export function CogitaTransferWorkspace({
     </CogitaShell>
   );
 }
-

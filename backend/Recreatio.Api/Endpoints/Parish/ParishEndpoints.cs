@@ -1641,7 +1641,18 @@ public static class ParishEndpoints
                     (x.CandidateId == targetCandidate.Id || x.CandidateId == sourceCandidate.Id))
                 .ToListAsync(ct);
             var now = DateTimeOffset.UtcNow;
-            var targetLink = links.FirstOrDefault(x => x.CandidateId == targetCandidate.Id);
+            var targetLinks = links
+                .Where(x => x.CandidateId == targetCandidate.Id)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .ThenByDescending(x => x.CreatedUtc)
+                .ToList();
+            var sourceLinks = links
+                .Where(x => x.CandidateId == sourceCandidate.Id)
+                .OrderByDescending(x => x.UpdatedUtc)
+                .ThenByDescending(x => x.CreatedUtc)
+                .ToList();
+
+            var targetLink = targetLinks.FirstOrDefault();
             if (targetLink is null)
             {
                 targetLink = new ParishConfirmationMeetingLink
@@ -1656,9 +1667,10 @@ public static class ParishEndpoints
                     UpdatedUtc = now
                 };
                 dbContext.ParishConfirmationMeetingLinks.Add(targetLink);
+                targetLinks.Add(targetLink);
             }
 
-            var sourceLink = links.FirstOrDefault(x => x.CandidateId == sourceCandidate.Id);
+            var sourceLink = sourceLinks.FirstOrDefault();
             if (sourceLink is null)
             {
                 sourceLink = new ParishConfirmationMeetingLink
@@ -1673,7 +1685,49 @@ public static class ParishEndpoints
                     UpdatedUtc = now
                 };
                 dbContext.ParishConfirmationMeetingLinks.Add(sourceLink);
+                sourceLinks.Add(sourceLink);
             }
+
+            if (string.IsNullOrWhiteSpace(targetLink.BookingToken))
+            {
+                targetLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+                targetLink.UpdatedUtc = now;
+            }
+
+            if (string.IsNullOrWhiteSpace(sourceLink.BookingToken))
+            {
+                sourceLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+                sourceLink.UpdatedUtc = now;
+            }
+
+            var linksToRemoveById = new Dictionary<Guid, ParishConfirmationMeetingLink>();
+            void QueueLinkRemoval(ParishConfirmationMeetingLink link)
+            {
+                if (link.Id == targetLink.Id)
+                {
+                    return;
+                }
+
+                linksToRemoveById.TryAdd(link.Id, link);
+            }
+
+            foreach (var extraTargetLink in targetLinks.Skip(1))
+            {
+                QueueLinkRemoval(extraTargetLink);
+            }
+
+            foreach (var existingSourceLink in sourceLinks)
+            {
+                QueueLinkRemoval(existingSourceLink);
+            }
+
+            if (sourceLink.Id != targetLink.Id)
+            {
+                QueueLinkRemoval(sourceLink);
+            }
+
+            var linksToRemove = linksToRemoveById.Values.ToList();
+            var allCandidateLinks = targetLinks.Concat(sourceLinks).ToList();
 
             var portalTokenSourceId = request.PortalTokenFromCandidateId == sourceCandidate.Id
                 ? sourceCandidate.Id
@@ -1686,19 +1740,23 @@ public static class ParishEndpoints
                 selectedToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
             }
 
-            var oldTargetSlotId = targetLink.SlotId;
-            var oldSourceSlotId = sourceLink.SlotId;
+            var oldSlotIds = allCandidateLinks
+                .Where(x => x.SlotId is not null)
+                .Select(x => x.SlotId!.Value)
+                .Distinct()
+                .ToList();
             var selectedSlotId = request.SelectedMeetingSlotId;
             DateTimeOffset? selectedBookedUtc = null;
             if (selectedSlotId is not null)
             {
-                if (oldTargetSlotId == selectedSlotId)
+                var historicalBookedUtc = allCandidateLinks
+                    .Where(x => x.SlotId == selectedSlotId && x.BookedUtc is not null)
+                    .Select(x => x.BookedUtc!.Value)
+                    .OrderByDescending(x => x)
+                    .ToList();
+                if (historicalBookedUtc.Count > 0)
                 {
-                    selectedBookedUtc = targetLink.BookedUtc;
-                }
-                else if (oldSourceSlotId == selectedSlotId)
-                {
-                    selectedBookedUtc = sourceLink.BookedUtc;
+                    selectedBookedUtc = historicalBookedUtc[0];
                 }
 
                 selectedBookedUtc ??= now;
@@ -1825,16 +1883,7 @@ public static class ParishEndpoints
                 note.CandidateId = targetCandidate.Id;
             }
 
-            var affectedSlotIds = new HashSet<Guid>();
-            if (oldTargetSlotId is not null)
-            {
-                affectedSlotIds.Add(oldTargetSlotId.Value);
-            }
-
-            if (oldSourceSlotId is not null)
-            {
-                affectedSlotIds.Add(oldSourceSlotId.Value);
-            }
+            var affectedSlotIds = new HashSet<Guid>(oldSlotIds);
 
             if (selectedSlotId is not null)
             {
@@ -1853,10 +1902,15 @@ public static class ParishEndpoints
                 affectedSlotIds.Add(slot.Id);
             }
 
-            if (sourceLink.Id != targetLink.Id && string.Equals(sourceLink.BookingToken, selectedToken, StringComparison.Ordinal))
+            foreach (var removableLink in linksToRemove)
             {
-                sourceLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
-                sourceLink.UpdatedUtc = now;
+                if (!string.Equals(removableLink.BookingToken, selectedToken, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                removableLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+                removableLink.UpdatedUtc = now;
             }
 
             targetLink.BookingToken = selectedToken;
@@ -1864,10 +1918,23 @@ public static class ParishEndpoints
             targetLink.BookedUtc = selectedSlotId is null ? null : selectedBookedUtc;
             targetLink.UpdatedUtc = now;
 
-            dbContext.ParishConfirmationMeetingLinks.Remove(sourceLink);
+            if (linksToRemove.Count > 0)
+            {
+                dbContext.ParishConfirmationMeetingLinks.RemoveRange(linksToRemove);
+            }
             dbContext.ParishConfirmationCandidates.Remove(sourceCandidate);
 
-            await dbContext.SaveChangesAsync(ct);
+            try
+            {
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                return Results.BadRequest(new
+                {
+                    error = "Merge failed because of inconsistent candidate data. Refresh the list and try again."
+                });
+            }
 
             foreach (var slotId in affectedSlotIds)
             {

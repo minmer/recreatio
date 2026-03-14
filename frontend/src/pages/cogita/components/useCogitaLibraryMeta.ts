@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CogitaLibraryStats } from '../../../../lib/api';
+import type { CogitaLibraryStats } from '../../../lib/api';
 import { getCachedLibraryName, getCachedLibraryStats } from './cogitaMetaCache';
 
 export function useCogitaLibraryMeta(libraryId: string) {

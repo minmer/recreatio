@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
 import { createCogitaInfo, searchCogitaInfos } from '../../../../lib/api';
-import type { CogitaInfoOption, CogitaInfoType } from '../workspace/types';
+import type { CogitaInfoOption, CogitaInfoType } from '../types';
 
 type InfoSearchSelectCommonProps = {
   libraryId: string;

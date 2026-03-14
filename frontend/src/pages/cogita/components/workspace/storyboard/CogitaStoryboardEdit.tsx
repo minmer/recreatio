@@ -14,9 +14,9 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import type { Copy } from '../../../../../conte../../types';
+import type { RouteKey } from '../../../../../../types/navigation';
+import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import {
   createCogitaStoryboardShare,
   createCogitaCreationProject,
@@ -33,7 +33,7 @@ import { CogitaCheckcardList } from '../../shared/CogitaCheckcardList';
 import { CogitaNotionSearch, type CogitaNotionSearchResult } from '../../shared/search/CogitaNotionSearch';
 import { CogitaWorkspaceComponentOverlay } from '../../shared/search/overlays/CogitaWorkspaceComponentOverlay';
 import { CogitaStoryboardSearch } from '../../shared/search/CogitaStoryboardSearch';
-import { buildCheckcardKey } from '../checkcards/checkcardDisplay';
+import { buildCheckcardKey } from '../../checkcards/checkcardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
 export type CogitaStoryboardEditProps = {

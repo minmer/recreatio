@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useNavigate } from 'react-router-dom';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
+import type { Copy } from '../../../../../conte../../types';
+import type { RouteKey } from '../../../../../../types/navigation';
 import { CogitaShell } from '../../../CogitaShell';
 import { CogitaCheckcardSurface } from '../revision/components/CogitaCheckcardSurface';
 import { CogitaRevisionCard } from '../revision/components/CogitaRevisionCard';
-import { getInfoTypeLabel } from '../libraryOptions';
+import { getInfoTypeLabel } from '../../libraryOptions';
 import { CogitaStatisticsPanel } from '../../shared/CogitaStatisticsPanel';
 import { CogitaCheckcardList } from '../../shared/CogitaCheckcardList';
 import {
@@ -19,7 +19,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../../../lib/api';
-import { buildCheckcardKey, formatCheckTarget } from '../checkcards/checkcardDisplay';
+import { buildCheckcardKey, formatCheckTarget } from '../../checkcards/checkcardDisplay';
 import { evaluateAnchorTextAnswer } from '../../../features/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
@@ -28,7 +28,7 @@ import {
   type RevisionQuestionAnswers,
   type RevisionQuestionPrompt
 } from '../../revision/revisionShared';
-import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../../checkcards/checkcardRuntime';
 
 type CheckcardNodeData = {
   label: string;

@@ -1,4 +1,4 @@
-import type { CogitaInfoSearchResult } from '../../../../lib/api';
+import type { CogitaInfoSearchResult } from '../../../lib/api';
 import type { CogitaInfoType } from './types';
 
 export type InfoEntityKind = 'single' | 'connection' | 'complex';

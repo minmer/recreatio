@@ -1,4 +1,4 @@
-import { evaluateAnchorTextAnswer } from '../../../features/revision/compare';
+import { evaluateAnchorTextAnswer } from '../../features/revision/compare';
 
 export type CheckcardPromptKind = 'text' | 'selection' | 'boolean' | 'ordering' | 'matching' | 'citation-fragment';
 

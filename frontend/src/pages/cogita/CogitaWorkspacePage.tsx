@@ -40,7 +40,7 @@ import { CogitaDependencyEdit } from './components/workspace/dependency/CogitaDe
 import { CogitaDependencyOverview } from './components/workspace/dependency/CogitaDependencyOverview';
 import { CogitaNotionCards } from './components/workspace/notion/CogitaNotionCards';
 import { CogitaPersonsPage } from './CogitaPersonsPage';
-import { CogitaTransferWorkspace } from './components/workspace/transfer/CogitaTransferWorkspace';
+import { CogitaTransferWorkspace } from './components/transfer/CogitaTransferWorkspace';
 import { CogitaStoryboardEdit, type StoryboardWorkspaceMode } from './components/workspace/storyboard/CogitaStoryboardEdit';
 import { CogitaTextWorkspace } from './components/workspace/text/CogitaTextWorkspace';
 import { CogitaCollectionSearch } from './components/workspace/collection/CogitaCollectionSearch';
@@ -51,8 +51,8 @@ import { CogitaRevisionOverview } from './components/workspace/revision/CogitaRe
 import { CogitaRevisionEdit } from './components/workspace/revision/CogitaRevisionEdit';
 import { CogitaRevisionLiveSessions } from './components/workspace/revision/livesessions/CogitaRevisionLiveSessions';
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
-import type { CogitaLibraryMode } from './components/workspace/types';
-import { primeCachedCollections } from './components/workspace/cogitaMetaCache';
+import type { CogitaLibraryMode } from './components/types';
+import { primeCachedCollections } from './components/cogitaMetaCache';
 import { createWorkspaceTransfer } from './features/workspace/transfer';
 
 type RevisionView = 'detail' | 'graph' | 'settings' | 'live' | 'new';

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import bibleBooks from '../../../../content/bibleBooks.json';
 import type { Copy } from '../../../../content/types';
-import type { CogitaInfoOption } from '../workspace/types';
+import type { CogitaInfoOption } from '../types';
 import { InfoSearchSelect } from './InfoSearchSelect';
 
 export type ReferenceSourceForm = {

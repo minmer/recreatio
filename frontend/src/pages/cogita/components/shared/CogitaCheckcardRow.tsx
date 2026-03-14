@@ -1,5 +1,5 @@
 import type { CogitaCardSearchResult } from '../../../../lib/api';
-import { formatCheckTarget } from '../workspace/checkcards/checkcardDisplay';
+import { formatCheckTarget } from '../checkcards/checkcardDisplay';
 
 export function CogitaCheckcardRow({
   card,

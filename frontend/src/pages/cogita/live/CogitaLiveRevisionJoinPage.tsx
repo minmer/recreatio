@@ -16,7 +16,7 @@ import { CogitaStatisticsPanel } from '../components/shared/CogitaStatisticsPane
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { evaluateCheckcardAnswer } from '../components/workspace/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer } from '../components/checkcards/checkcardRuntime';
 import { parseLiveRules } from './liveSessionRules';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';

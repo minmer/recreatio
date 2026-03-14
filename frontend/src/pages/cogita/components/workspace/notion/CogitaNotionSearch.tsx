@@ -19,11 +19,11 @@ import {
   type CogitaReviewSummary
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
-import type { CogitaInfoType, CogitaLibraryMode } from '../types';
-import { getInfoTypeLabel, getInfoTypeOptions } from '../libraryOptions';
-import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from '../infoSchemas';
+import type { Copy } from '../../../../../conte../../types';
+import type { RouteKey } from '../../../../../../types/navigation';
+import type { CogitaInfoType, CogitaLibraryMode } from '../../types';
+import { getInfoTypeLabel, getInfoTypeOptions } from '../../libraryOptions';
+import { getInfoSchema, resolveSchemaFieldOptions, type InfoFilterLabelKey } from '../../infoSchemas';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { saveCollectionDraftFromInfos } from '../../../features/collections/draft';
 import { createWorkspaceTransfer, loadWorkspaceTransfer, updateWorkspaceTransfer } from '../../../features/workspace/transfer';

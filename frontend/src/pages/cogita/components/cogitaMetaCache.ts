@@ -4,7 +4,7 @@ import {
   getCogitaLibraryStats,
   type CogitaCollectionSummary,
   type CogitaLibraryStats
-} from '../../../../lib/api';
+} from '../../../lib/api';
 
 const libraryNameById = new Map<string, string>();
 let librariesPromise: Promise<void> | null = null;

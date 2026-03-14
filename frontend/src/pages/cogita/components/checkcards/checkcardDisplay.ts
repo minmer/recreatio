@@ -1,4 +1,4 @@
-import type { CogitaCardSearchResult } from '../../../../../lib/api';
+import type { CogitaCardSearchResult } from '../../../../lib/api';
 
 export function buildCheckcardKey(card: Pick<CogitaCardSearchResult, 'cardId' | 'checkType' | 'direction'>) {
   return [card.cardId, card.checkType ?? '', card.direction ?? ''].join('|');

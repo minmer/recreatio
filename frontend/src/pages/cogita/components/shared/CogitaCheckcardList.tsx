@@ -1,5 +1,5 @@
 import type { CogitaCardSearchResult } from '../../../../lib/api';
-import { buildCheckcardKey } from '../workspace/checkcards/checkcardDisplay';
+import { buildCheckcardKey } from '../checkcards/checkcardDisplay';
 import { CogitaCheckcardRow } from './CogitaCheckcardRow';
 
 export function CogitaCheckcardList({

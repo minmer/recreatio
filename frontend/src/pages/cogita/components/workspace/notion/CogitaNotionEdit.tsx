@@ -10,13 +10,13 @@ import {
   type CogitaInfoTypeSpecification
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../types/navigation';
-import type { CogitaInfoOption, CogitaInfoType } from '../types';
+import type { Copy } from '../../../../../conte../../types';
+import type { RouteKey } from '../../../../../../types/navigation';
+import type { CogitaInfoOption, CogitaInfoType } from '../../types';
 import { InfoSearchSelect } from '../../shared/InfoSearchSelect';
 import { ReferencePanel, type ReferenceSourceForm } from '../../shared/ReferencePanel';
-import { getInfoTypeLabel } from '../libraryOptions';
-import { useCogitaLibraryMeta } from '../useCogitaLibraryMeta';
+import { getInfoTypeLabel } from '../../libraryOptions';
+import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 
 type LinkTypeSelectionState = Record<string, CogitaInfoType>;
 type QuestionKind = 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'matching' | 'ordering';

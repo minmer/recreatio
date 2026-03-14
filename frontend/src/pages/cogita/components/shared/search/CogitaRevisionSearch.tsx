@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getCogitaRevisions, type CogitaRevision } from '../../../../../lib/api';
 import { revisionTypes } from '../../../features/revision/registry';
-import { getCachedCollections } from '../../workspace/cogitaMetaCache';
+import { getCachedCollections } from '../../cogitaMetaCache';
 
 export function CogitaRevisionSearch({
   libraryId,
