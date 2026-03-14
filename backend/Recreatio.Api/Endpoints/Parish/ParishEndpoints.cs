@@ -1338,7 +1338,7 @@ public static class ParishEndpoints
 
             if (request.ReplaceExisting)
             {
-                var now = DateTimeOffset.UtcNow;
+                var replaceCleanupNow = DateTimeOffset.UtcNow;
                 var existingNotes = await dbContext.ParishConfirmationNotes
                     .Where(x => x.ParishId == parishId)
                     .ToListAsync(ct);
@@ -1379,7 +1379,7 @@ public static class ParishEndpoints
                     slot.HostCandidateId = null;
                     slot.HostInviteToken = null;
                     slot.HostInviteExpiresUtc = null;
-                    slot.UpdatedUtc = now;
+                    slot.UpdatedUtc = replaceCleanupNow;
                 }
 
                 var existingCandidates = await dbContext.ParishConfirmationCandidates
