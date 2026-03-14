@@ -1338,6 +1338,7 @@ public static class ParishEndpoints
 
             if (request.ReplaceExisting)
             {
+                var now = DateTimeOffset.UtcNow;
                 var existingNotes = await dbContext.ParishConfirmationNotes
                     .Where(x => x.ParishId == parishId)
                     .ToListAsync(ct);
@@ -1370,21 +1371,34 @@ public static class ParishEndpoints
                     dbContext.ParishConfirmationPhoneVerifications.RemoveRange(existingVerifications);
                 }
 
+                var hostedSlots = await dbContext.ParishConfirmationMeetingSlots
+                    .Where(x => x.ParishId == parishId && x.HostCandidateId != null)
+                    .ToListAsync(ct);
+                foreach (var slot in hostedSlots)
+                {
+                    slot.HostCandidateId = null;
+                    slot.HostInviteToken = null;
+                    slot.HostInviteExpiresUtc = null;
+                    slot.UpdatedUtc = now;
+                }
+
                 var existingCandidates = await dbContext.ParishConfirmationCandidates
                     .Where(x => x.ParishId == parishId)
                     .ToListAsync(ct);
-                if (existingCandidates.Count > 0)
-                {
-                    dbContext.ParishConfirmationCandidates.RemoveRange(existingCandidates);
-                }
 
                 if (
                     existingNotes.Count > 0 ||
                     existingMessages.Count > 0 ||
                     existingMeetingLinks.Count > 0 ||
                     existingVerifications.Count > 0 ||
-                    existingCandidates.Count > 0)
+                    hostedSlots.Count > 0)
                 {
+                    await dbContext.SaveChangesAsync(ct);
+                }
+
+                if (existingCandidates.Count > 0)
+                {
+                    dbContext.ParishConfirmationCandidates.RemoveRange(existingCandidates);
                     await dbContext.SaveChangesAsync(ct);
                 }
             }
@@ -1922,10 +1936,21 @@ public static class ParishEndpoints
             {
                 dbContext.ParishConfirmationMeetingLinks.RemoveRange(linksToRemove);
             }
-            dbContext.ParishConfirmationCandidates.Remove(sourceCandidate);
 
             try
             {
+                await dbContext.SaveChangesAsync(ct);
+
+                var staleSourceVerifications = await dbContext.ParishConfirmationPhoneVerifications
+                    .Where(x => x.ParishId == parishId && x.CandidateId == sourceCandidate.Id)
+                    .ToListAsync(ct);
+                if (staleSourceVerifications.Count > 0)
+                {
+                    dbContext.ParishConfirmationPhoneVerifications.RemoveRange(staleSourceVerifications);
+                    await dbContext.SaveChangesAsync(ct);
+                }
+
+                dbContext.ParishConfirmationCandidates.Remove(sourceCandidate);
                 await dbContext.SaveChangesAsync(ct);
             }
             catch (DbUpdateException)
