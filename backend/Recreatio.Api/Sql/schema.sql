@@ -2172,6 +2172,19 @@ BEGIN
 END
 GO
 
+IF EXISTS (SELECT 1 FROM sys.key_constraints WHERE [name] = N'UX_CogitaRevisionShares_Pattern')
+BEGIN
+    DECLARE @uxPatternTable NVARCHAR(517);
+    SELECT TOP (1)
+        @uxPatternTable = QUOTENAME(OBJECT_SCHEMA_NAME(parent_object_id)) + N'.' + QUOTENAME(OBJECT_NAME(parent_object_id))
+    FROM sys.key_constraints
+    WHERE [name] = N'UX_CogitaRevisionShares_Pattern';
+
+    IF @uxPatternTable IS NOT NULL
+        EXEC(N'ALTER TABLE ' + @uxPatternTable + N' DROP CONSTRAINT [UX_CogitaRevisionShares_Pattern];');
+END
+GO
+
 IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'UX_CogitaRevisionShares_CodeHash')
 BEGIN
     DECLARE @uxCodeHashIndexTable NVARCHAR(517);
@@ -2182,6 +2195,19 @@ BEGIN
 
     IF @uxCodeHashIndexTable IS NOT NULL
         EXEC(N'DROP INDEX [UX_CogitaRevisionShares_CodeHash] ON ' + @uxCodeHashIndexTable + N';');
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE [name] = N'UX_CogitaRevisionShares_Pattern')
+BEGIN
+    DECLARE @uxPatternIndexTable NVARCHAR(517);
+    SELECT TOP (1)
+        @uxPatternIndexTable = QUOTENAME(OBJECT_SCHEMA_NAME(object_id)) + N'.' + QUOTENAME(OBJECT_NAME(object_id))
+    FROM sys.indexes
+    WHERE [name] = N'UX_CogitaRevisionShares_Pattern';
+
+    IF @uxPatternIndexTable IS NOT NULL
+        EXEC(N'DROP INDEX [UX_CogitaRevisionShares_Pattern] ON ' + @uxPatternIndexTable + N';');
 END
 GO
 
