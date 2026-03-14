@@ -53,6 +53,7 @@ import {
   getParishConfirmationCandidatePortalAdmin,
   getParishConfirmationMeetingAvailability,
   importParishConfirmationCandidates,
+  mergeParishConfirmationCandidates,
   simulateParishMassRule,
   sendParishConfirmationAdminMessage,
   sendParishConfirmationCandidateMessage,
@@ -87,6 +88,11 @@ type ModuleHeight = 'one' | 'three' | 'five';
 type MassNodeCategory = 'filter' | 'mass' | 'intention' | 'save' | 'stop';
 type ValidationFinding = { level: 'error' | 'warning'; message: string };
 type SacramentPanelSection = 'overall' | 'parish' | 'faq' | 'form' | 'meetings' | 'candidate';
+type ConfirmationDuplicateGroup = {
+  key: string;
+  displayName: string;
+  candidates: ParishConfirmationCandidate[];
+};
 type MassRuleNodeData = {
   label: string;
   type: string;
@@ -1868,6 +1874,19 @@ export function ParishPage({
   const [confirmationMeetingPublicSaving, setConfirmationMeetingPublicSaving] = useState(false);
   const [confirmationMeetingPublicError, setConfirmationMeetingPublicError] = useState<string | null>(null);
   const [confirmationMeetingPublicInfo, setConfirmationMeetingPublicInfo] = useState<string | null>(null);
+  const [confirmationMergeGroupKey, setConfirmationMergeGroupKey] = useState<string | null>(null);
+  const [confirmationMergeTargetId, setConfirmationMergeTargetId] = useState<string | null>(null);
+  const [confirmationMergeSourceId, setConfirmationMergeSourceId] = useState<string | null>(null);
+  const [confirmationMergeNameSource, setConfirmationMergeNameSource] = useState<'target' | 'source'>('target');
+  const [confirmationMergeSurnameSource, setConfirmationMergeSurnameSource] = useState<'target' | 'source'>('target');
+  const [confirmationMergeAddressSource, setConfirmationMergeAddressSource] = useState<'target' | 'source'>('target');
+  const [confirmationMergeSchoolSource, setConfirmationMergeSchoolSource] = useState<'target' | 'source'>('target');
+  const [confirmationMergeMeetingSource, setConfirmationMergeMeetingSource] = useState<'none' | 'target' | 'source'>('none');
+  const [confirmationMergePortalSource, setConfirmationMergePortalSource] = useState<'target' | 'source'>('target');
+  const [confirmationMergeSelectedPhones, setConfirmationMergeSelectedPhones] = useState<string[]>([]);
+  const [confirmationMergeBusy, setConfirmationMergeBusy] = useState(false);
+  const [confirmationMergeError, setConfirmationMergeError] = useState<string | null>(null);
+  const [confirmationMergeInfo, setConfirmationMergeInfo] = useState<string | null>(null);
   const [confirmationPortalData, setConfirmationPortalData] = useState<ParishConfirmationPortal | null>(null);
   const [confirmationPortalLoading, setConfirmationPortalLoading] = useState(false);
   const [confirmationPortalError, setConfirmationPortalError] = useState<string | null>(null);
@@ -2185,6 +2204,80 @@ export function ParishPage({
       setConfirmationCandidatesError('Nie udało się pobrać zgłoszeń do bierzmowania.');
     }
   };
+
+  const confirmationDuplicateGroups = useMemo<ConfirmationDuplicateGroup[]>(() => {
+    const grouped = new Map<string, ParishConfirmationCandidate[]>();
+    for (const candidate of confirmationCandidates) {
+      const normalizedName = candidate.name.trim().toLowerCase();
+      const normalizedSurname = candidate.surname.trim().toLowerCase();
+      if (!normalizedName || !normalizedSurname) {
+        continue;
+      }
+
+      const key = `${normalizedName}|${normalizedSurname}`;
+      const current = grouped.get(key);
+      if (current) {
+        current.push(candidate);
+      } else {
+        grouped.set(key, [candidate]);
+      }
+    }
+
+    return Array.from(grouped.entries())
+      .filter(([, candidates]) => candidates.length > 1)
+      .map(([key, candidates]) => ({
+        key,
+        displayName: `${candidates[0]?.name ?? ''} ${candidates[0]?.surname ?? ''}`.trim(),
+        candidates
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pl'));
+  }, [confirmationCandidates]);
+
+  const selectedConfirmationDuplicateGroup = useMemo(
+    () => confirmationDuplicateGroups.find((group) => group.key === confirmationMergeGroupKey) ?? null,
+    [confirmationDuplicateGroups, confirmationMergeGroupKey]
+  );
+
+  const confirmationMergeTargetCandidate = useMemo(
+    () =>
+      selectedConfirmationDuplicateGroup?.candidates.find((candidate) => candidate.id === confirmationMergeTargetId) ??
+      null,
+    [selectedConfirmationDuplicateGroup, confirmationMergeTargetId]
+  );
+
+  const confirmationMergeSourceCandidate = useMemo(
+    () =>
+      selectedConfirmationDuplicateGroup?.candidates.find((candidate) => candidate.id === confirmationMergeSourceId) ??
+      null,
+    [selectedConfirmationDuplicateGroup, confirmationMergeSourceId]
+  );
+
+  const confirmationMergePhoneOptions = useMemo(() => {
+    const options = new Map<string, { number: string; target: boolean; source: boolean; verified: boolean }>();
+    if (confirmationMergeTargetCandidate) {
+      for (const phone of confirmationMergeTargetCandidate.phoneNumbers) {
+        const current = options.get(phone.number);
+        options.set(phone.number, {
+          number: phone.number,
+          target: true,
+          source: current?.source ?? false,
+          verified: (current?.verified ?? false) || phone.isVerified
+        });
+      }
+    }
+    if (confirmationMergeSourceCandidate) {
+      for (const phone of confirmationMergeSourceCandidate.phoneNumbers) {
+        const current = options.get(phone.number);
+        options.set(phone.number, {
+          number: phone.number,
+          target: current?.target ?? false,
+          source: true,
+          verified: (current?.verified ?? false) || phone.isVerified
+        });
+      }
+    }
+    return Array.from(options.values()).sort((a, b) => a.number.localeCompare(b.number));
+  }, [confirmationMergeSourceCandidate, confirmationMergeTargetCandidate]);
 
   const loadConfirmationMeetingSummary = async () => {
     if (!parish || !isAuthenticated) {
@@ -2564,6 +2657,104 @@ export function ParishPage({
     }
   };
 
+  const handleToggleConfirmationMergePhone = (number: string, checked: boolean) => {
+    setConfirmationMergeSelectedPhones((current) => {
+      if (checked) {
+        if (current.includes(number)) {
+          return current;
+        }
+        return [...current, number];
+      }
+
+      return current.filter((item) => item !== number);
+    });
+  };
+
+  const handleMergeDuplicateConfirmationCandidates = async () => {
+    if (!parish || !confirmationMergeTargetCandidate || !confirmationMergeSourceCandidate) {
+      return;
+    }
+    if (confirmationMergeTargetCandidate.id === confirmationMergeSourceCandidate.id) {
+      setConfirmationMergeError('Rekord docelowy i źródłowy muszą być różne.');
+      return;
+    }
+
+    const selectedPhones = confirmationMergeSelectedPhones
+      .map((phone) => normalizePolishPhone(phone))
+      .filter((phone): phone is string => Boolean(phone));
+    const mergedPhones = Array.from(new Set(selectedPhones));
+    if (mergedPhones.length === 0) {
+      setConfirmationMergeError('Wybierz co najmniej jeden numer telefonu do zachowania.');
+      return;
+    }
+
+    const mergedName =
+      (confirmationMergeNameSource === 'source'
+        ? confirmationMergeSourceCandidate.name
+        : confirmationMergeTargetCandidate.name).trim();
+    const mergedSurname =
+      (confirmationMergeSurnameSource === 'source'
+        ? confirmationMergeSourceCandidate.surname
+        : confirmationMergeTargetCandidate.surname).trim();
+    const mergedAddress =
+      (confirmationMergeAddressSource === 'source'
+        ? confirmationMergeSourceCandidate.address
+        : confirmationMergeTargetCandidate.address).trim();
+    const mergedSchool =
+      (confirmationMergeSchoolSource === 'source'
+        ? confirmationMergeSourceCandidate.schoolShort
+        : confirmationMergeTargetCandidate.schoolShort).trim();
+
+    if (!mergedName || !mergedSurname || !mergedAddress || !mergedSchool) {
+      setConfirmationMergeError('Dane scalone są niekompletne. Wybierz wartości dla każdego pola.');
+      return;
+    }
+
+    const selectedMeetingSlotId =
+      confirmationMergeMeetingSource === 'target'
+        ? confirmationMergeTargetCandidate.meetingSlotId ?? null
+        : confirmationMergeMeetingSource === 'source'
+        ? confirmationMergeSourceCandidate.meetingSlotId ?? null
+        : null;
+    const portalTokenFromCandidateId =
+      confirmationMergePortalSource === 'source'
+        ? confirmationMergeSourceCandidate.id
+        : confirmationMergeTargetCandidate.id;
+
+    setConfirmationMergeBusy(true);
+    setConfirmationMergeError(null);
+    setConfirmationMergeInfo(null);
+    try {
+      const result = await mergeParishConfirmationCandidates(parish.id, {
+        targetCandidateId: confirmationMergeTargetCandidate.id,
+        sourceCandidateId: confirmationMergeSourceCandidate.id,
+        name: mergedName,
+        surname: mergedSurname,
+        phoneNumbers: mergedPhones,
+        address: mergedAddress,
+        schoolShort: mergedSchool,
+        selectedMeetingSlotId,
+        portalTokenFromCandidateId
+      });
+
+      setConfirmationMergeInfo(
+        `Scalono zgłoszenia. Zachowano rekord ${result.candidateId}, usunięto ${result.removedCandidateId}.`
+      );
+      await loadConfirmationCandidates();
+      await loadConfirmationMeetingSummary();
+      if (confirmationAdminSelectedCandidateId === confirmationMergeSourceCandidate.id) {
+        setConfirmationAdminSelectedCandidateId(result.candidateId);
+      }
+      if (confirmationAdminSelectedCandidateId === confirmationMergeTargetCandidate.id) {
+        await loadConfirmationAdminCandidatePortal(confirmationMergeTargetCandidate.id);
+      }
+    } catch {
+      setConfirmationMergeError('Nie udało się scalić zgłoszeń kandydatów.');
+    } finally {
+      setConfirmationMergeBusy(false);
+    }
+  };
+
   const parseConfirmationImportCandidates = (value: unknown): ParishConfirmationExportCandidate[] | null => {
     if (Array.isArray(value)) {
       return value as ParishConfirmationExportCandidate[];
@@ -2878,6 +3069,79 @@ export function ParishPage({
     }
     void loadConfirmationCandidates();
   }, [isConfirmationSubpage, isAuthenticated, parish?.id]);
+
+  useEffect(() => {
+    if (confirmationDuplicateGroups.length === 0) {
+      setConfirmationMergeGroupKey(null);
+      setConfirmationMergeTargetId(null);
+      setConfirmationMergeSourceId(null);
+      return;
+    }
+
+    if (!confirmationMergeGroupKey || !confirmationDuplicateGroups.some((group) => group.key === confirmationMergeGroupKey)) {
+      setConfirmationMergeGroupKey(confirmationDuplicateGroups[0].key);
+    }
+  }, [confirmationDuplicateGroups, confirmationMergeGroupKey]);
+
+  useEffect(() => {
+    if (!selectedConfirmationDuplicateGroup) {
+      setConfirmationMergeTargetId(null);
+      setConfirmationMergeSourceId(null);
+      return;
+    }
+
+    const candidates = selectedConfirmationDuplicateGroup.candidates;
+    const fallbackTarget = candidates[0]?.id ?? null;
+    const nextTargetId = candidates.some((candidate) => candidate.id === confirmationMergeTargetId)
+      ? confirmationMergeTargetId
+      : fallbackTarget;
+    if (nextTargetId !== confirmationMergeTargetId) {
+      setConfirmationMergeTargetId(nextTargetId);
+      return;
+    }
+
+    const fallbackSource =
+      candidates.find((candidate) => candidate.id !== nextTargetId)?.id ??
+      null;
+    const nextSourceId =
+      confirmationMergeSourceId &&
+      confirmationMergeSourceId !== nextTargetId &&
+      candidates.some((candidate) => candidate.id === confirmationMergeSourceId)
+        ? confirmationMergeSourceId
+        : fallbackSource;
+    if (nextSourceId !== confirmationMergeSourceId) {
+      setConfirmationMergeSourceId(nextSourceId);
+    }
+  }, [selectedConfirmationDuplicateGroup, confirmationMergeTargetId, confirmationMergeSourceId]);
+
+  useEffect(() => {
+    if (!confirmationMergeTargetCandidate || !confirmationMergeSourceCandidate) {
+      setConfirmationMergeSelectedPhones([]);
+      return;
+    }
+
+    const mergedPhones = Array.from(
+      new Set([
+        ...confirmationMergeTargetCandidate.phoneNumbers.map((phone) => phone.number),
+        ...confirmationMergeSourceCandidate.phoneNumbers.map((phone) => phone.number)
+      ])
+    );
+    setConfirmationMergeNameSource('target');
+    setConfirmationMergeSurnameSource('target');
+    setConfirmationMergeAddressSource('target');
+    setConfirmationMergeSchoolSource('target');
+    setConfirmationMergeMeetingSource(
+      confirmationMergeTargetCandidate.meetingSlotId
+        ? 'target'
+        : confirmationMergeSourceCandidate.meetingSlotId
+        ? 'source'
+        : 'none'
+    );
+    setConfirmationMergePortalSource('target');
+    setConfirmationMergeSelectedPhones(mergedPhones);
+    setConfirmationMergeError(null);
+    setConfirmationMergeInfo(null);
+  }, [confirmationMergeTargetCandidate, confirmationMergeSourceCandidate]);
 
   useEffect(() => {
     if (!isConfirmationSubpage || !isAuthenticated || !parish) {
@@ -7372,103 +7636,299 @@ export function ParishPage({
                           <p className="confirmation-info confirmation-info-error">{confirmationCandidatesError}</p>
                         ) : null}
                         {confirmationAdminTab === 'submissions' ? (
-                          confirmationCandidates.length === 0 ? (
-                            <p className="muted">Brak zgłoszeń.</p>
-                          ) : (
-                            <div className="confirmation-candidate-list">
-                              {confirmationCandidates.map((candidate) => (
-                                <article key={candidate.id} className="confirmation-candidate-item">
-                                  <div className="confirmation-candidate-head">
-                                    <strong>
-                                      {candidate.name} {candidate.surname}
-                                    </strong>
-                                    <span className="muted">
-                                      {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
-                                    </span>
+                          <>
+                            <div className="confirmation-duplicate-panel">
+                              <div className="section-header">
+                                <div>
+                                  <p className="tag">Duplikaty</p>
+                                  <h4>Wykryte zgłoszenia o tym samym imieniu i nazwisku</h4>
+                                </div>
+                              </div>
+                              {confirmationDuplicateGroups.length === 0 ? (
+                                <p className="muted">Brak wykrytych duplikatów kandydatów.</p>
+                              ) : (
+                                <>
+                                  <div className="admin-form-grid">
+                                    <label className="admin-form-full">
+                                      <span>Grupa duplikatów</span>
+                                      <select
+                                        value={confirmationMergeGroupKey ?? ''}
+                                        onChange={(event) => setConfirmationMergeGroupKey(event.target.value || null)}
+                                      >
+                                        {confirmationDuplicateGroups.map((group) => (
+                                          <option key={`dup-group-${group.key}`} value={group.key}>
+                                            {group.displayName} ({group.candidates.length})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      <span>Rekord docelowy (zostaje)</span>
+                                      <select
+                                        value={confirmationMergeTargetId ?? ''}
+                                        onChange={(event) => setConfirmationMergeTargetId(event.target.value || null)}
+                                      >
+                                        {(selectedConfirmationDuplicateGroup?.candidates ?? []).map((candidate) => (
+                                          <option key={`merge-target-${candidate.id}`} value={candidate.id}>
+                                            {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label>
+                                      <span>Rekord źródłowy (zniknie)</span>
+                                      <select
+                                        value={confirmationMergeSourceId ?? ''}
+                                        onChange={(event) => setConfirmationMergeSourceId(event.target.value || null)}
+                                      >
+                                        {(selectedConfirmationDuplicateGroup?.candidates ?? [])
+                                          .filter((candidate) => candidate.id !== confirmationMergeTargetId)
+                                          .map((candidate) => (
+                                            <option key={`merge-source-${candidate.id}`} value={candidate.id}>
+                                              {candidate.name} {candidate.surname} • {new Date(candidate.createdUtc).toLocaleDateString('pl-PL')}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </label>
                                   </div>
-                                  <p className="note">
-                                    <strong>Adres:</strong> {candidate.address}
-                                  </p>
-                                  <p className="note">
-                                    <strong>Szkoła:</strong> {candidate.schoolShort}
-                                  </p>
-                                  <p className="note">
-                                    <strong>Spotkanie:</strong>{' '}
-                                    {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
-                                  </p>
-                                  <div className="confirmation-candidate-links">
-                                    <button
-                                      type="button"
-                                      className="ghost"
-                                      onClick={() => void handleCopyConfirmationMeetingLink(candidate.meetingToken)}
-                                    >
-                                      {confirmationCopiedMeetingToken === candidate.meetingToken
-                                        ? 'Skopiowano link portalu'
-                                        : 'Kopiuj link portalu'}
-                                    </button>
-                                  </div>
-                                  <ul className="confirmation-phone-list">
-                                    {candidate.phoneNumbers.map((phone) => {
-                                      const verificationSmsHref = buildConfirmationVerificationSmsHref(
-                                        phone.number,
-                                        phone.verificationToken
-                                      );
-                                      const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
-                                        phone.number,
-                                        phone.verificationToken
-                                      );
-                                      const portalSmsHref = buildConfirmationPortalInviteSmsHref(
-                                        phone.number,
-                                        candidate.meetingToken
-                                      );
-                                      return (
-                                        <li key={`${candidate.id}-${phone.index}`}>
-                                          <span>{phone.number}</span>
-                                          {phone.isVerified ? (
-                                            <>
-                                              <span className="pill">Zweryfikowany</span>
-                                              <div className="confirmation-phone-actions">
-                                                {portalSmsHref ? (
-                                                  <a className="ghost" href={portalSmsHref}>
-                                                    SMS: portal kandydata
-                                                  </a>
-                                                ) : null}
-                                              </div>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <span className="pill">Niezweryfikowany</span>
-                                              <div className="confirmation-phone-actions">
-                                                {verificationSmsHref ? (
-                                                  <a className="ghost" href={verificationSmsHref}>
-                                                    SMS: weryfikacja
-                                                  </a>
-                                                ) : null}
-                                                {warningSmsHref ? (
-                                                  <a className="ghost" href={warningSmsHref}>
-                                                    SMS: brak weryfikacji
-                                                  </a>
-                                                ) : null}
-                                                <button
-                                                  type="button"
-                                                  className="ghost"
-                                                  onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
-                                                >
-                                                  {confirmationCopiedToken === phone.verificationToken
-                                                    ? 'Skopiowano'
-                                                    : 'Kopiuj link weryfikacji'}
-                                                </button>
-                                              </div>
-                                            </>
-                                          )}
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                </article>
-                              ))}
+                                  {confirmationMergeTargetCandidate && confirmationMergeSourceCandidate ? (
+                                    <>
+                                      <div className="admin-form-grid">
+                                        <label>
+                                          <span>Imię</span>
+                                          <select
+                                            value={confirmationMergeNameSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeNameSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.name}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.name}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Nazwisko</span>
+                                          <select
+                                            value={confirmationMergeSurnameSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeSurnameSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.surname}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.surname}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Adres</span>
+                                          <select
+                                            value={confirmationMergeAddressSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeAddressSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.address}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.address}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Szkoła</span>
+                                          <select
+                                            value={confirmationMergeSchoolSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeSchoolSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">{confirmationMergeTargetCandidate.schoolShort}</option>
+                                            <option value="source">{confirmationMergeSourceCandidate.schoolShort}</option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Termin spotkania</span>
+                                          <select
+                                            value={confirmationMergeMeetingSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergeMeetingSource(
+                                                event.target.value === 'target'
+                                                  ? 'target'
+                                                  : event.target.value === 'source'
+                                                  ? 'source'
+                                                  : 'none'
+                                              )
+                                            }
+                                          >
+                                            <option value="none">Brak terminu</option>
+                                            <option value="target">
+                                              Rekord docelowy {confirmationMergeTargetCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                            <option value="source">
+                                              Rekord źródłowy {confirmationMergeSourceCandidate.meetingSlotId ? '(ma termin)' : '(bez terminu)'}
+                                            </option>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Link portalu po scaleniu</span>
+                                          <select
+                                            value={confirmationMergePortalSource}
+                                            onChange={(event) =>
+                                              setConfirmationMergePortalSource(
+                                                event.target.value === 'source' ? 'source' : 'target'
+                                              )
+                                            }
+                                          >
+                                            <option value="target">Z rekordu docelowego</option>
+                                            <option value="source">Z rekordu źródłowego</option>
+                                          </select>
+                                        </label>
+                                        <label className="admin-form-full">
+                                          <span>Numery telefonów do zachowania</span>
+                                          <div className="confirmation-merge-phone-list">
+                                            {confirmationMergePhoneOptions.map((option) => (
+                                              <label key={`merge-phone-${option.number}`} className="mass-require-intentions">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={confirmationMergeSelectedPhones.includes(option.number)}
+                                                  onChange={(event) =>
+                                                    handleToggleConfirmationMergePhone(option.number, event.target.checked)
+                                                  }
+                                                />
+                                                <span>
+                                                  {option.number}
+                                                  {option.target ? ' [docelowy]' : ''}
+                                                  {option.source ? ' [źródłowy]' : ''}
+                                                  {option.verified ? ' • zweryfikowany' : ' • niezweryfikowany'}
+                                                </span>
+                                              </label>
+                                            ))}
+                                          </div>
+                                        </label>
+                                      </div>
+                                      <div className="builder-actions">
+                                        <button
+                                          type="button"
+                                          className="parish-login"
+                                          disabled={confirmationMergeBusy || !confirmationMergeSourceId || !confirmationMergeTargetId}
+                                          onClick={() => void handleMergeDuplicateConfirmationCandidates()}
+                                        >
+                                          {confirmationMergeBusy ? 'Scalanie...' : 'Scal wybrane zgłoszenia'}
+                                        </button>
+                                      </div>
+                                    </>
+                                  ) : null}
+                                  {confirmationMergeError ? (
+                                    <p className="confirmation-info confirmation-info-error">{confirmationMergeError}</p>
+                                  ) : null}
+                                  {confirmationMergeInfo ? (
+                                    <p className="confirmation-info confirmation-info-success">{confirmationMergeInfo}</p>
+                                  ) : null}
+                                </>
+                              )}
                             </div>
-                          )
+                            {confirmationCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń.</p>
+                            ) : (
+                              <div className="confirmation-candidate-list">
+                                {confirmationCandidates.map((candidate) => (
+                                  <article key={candidate.id} className="confirmation-candidate-item">
+                                    <div className="confirmation-candidate-head">
+                                      <strong>
+                                        {candidate.name} {candidate.surname}
+                                      </strong>
+                                      <span className="muted">
+                                        {new Date(candidate.createdUtc).toLocaleString('pl-PL')}
+                                      </span>
+                                    </div>
+                                    <p className="note">
+                                      <strong>Adres:</strong> {candidate.address}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Szkoła:</strong> {candidate.schoolShort}
+                                    </p>
+                                    <p className="note">
+                                      <strong>Spotkanie:</strong>{' '}
+                                      {candidate.meetingSlotId ? 'Termin wybrany' : 'Brak wybranego terminu'}
+                                    </p>
+                                    <div className="confirmation-candidate-links">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() => void handleCopyConfirmationMeetingLink(candidate.meetingToken)}
+                                      >
+                                        {confirmationCopiedMeetingToken === candidate.meetingToken
+                                          ? 'Skopiowano link portalu'
+                                          : 'Kopiuj link portalu'}
+                                      </button>
+                                    </div>
+                                    <ul className="confirmation-phone-list">
+                                      {candidate.phoneNumbers.map((phone) => {
+                                        const verificationSmsHref = buildConfirmationVerificationSmsHref(
+                                          phone.number,
+                                          phone.verificationToken
+                                        );
+                                        const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
+                                          phone.number,
+                                          phone.verificationToken
+                                        );
+                                        const portalSmsHref = buildConfirmationPortalInviteSmsHref(
+                                          phone.number,
+                                          candidate.meetingToken
+                                        );
+                                        return (
+                                          <li key={`${candidate.id}-${phone.index}`}>
+                                            <span>{phone.number}</span>
+                                            {phone.isVerified ? (
+                                              <>
+                                                <span className="pill">Zweryfikowany</span>
+                                                <div className="confirmation-phone-actions">
+                                                  {portalSmsHref ? (
+                                                    <a className="ghost" href={portalSmsHref}>
+                                                      SMS: portal kandydata
+                                                    </a>
+                                                  ) : null}
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span className="pill">Niezweryfikowany</span>
+                                                <div className="confirmation-phone-actions">
+                                                  {verificationSmsHref ? (
+                                                    <a className="ghost" href={verificationSmsHref}>
+                                                      SMS: weryfikacja
+                                                    </a>
+                                                  ) : null}
+                                                  {warningSmsHref ? (
+                                                    <a className="ghost" href={warningSmsHref}>
+                                                      SMS: brak weryfikacji
+                                                    </a>
+                                                  ) : null}
+                                                  <button
+                                                    type="button"
+                                                    className="ghost"
+                                                    onClick={() => void handleCopyConfirmationVerificationLink(phone.verificationToken)}
+                                                  >
+                                                    {confirmationCopiedToken === phone.verificationToken
+                                                      ? 'Skopiowano'
+                                                      : 'Kopiuj link weryfikacji'}
+                                                  </button>
+                                                </div>
+                                              </>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </article>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="confirmation-print-panel">
                             <div className="confirmation-print-toolbar">

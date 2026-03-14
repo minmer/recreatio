@@ -3323,6 +3323,36 @@ export function updateParishConfirmationCandidate(
   });
 }
 
+export function mergeParishConfirmationCandidates(
+  parishId: string,
+  payload: {
+    targetCandidateId: string;
+    sourceCandidateId: string;
+    name: string;
+    surname: string;
+    phoneNumbers: string[];
+    address: string;
+    schoolShort: string;
+    selectedMeetingSlotId?: string | null;
+    portalTokenFromCandidateId?: string | null;
+  }
+) {
+  return request<{ candidateId: string; removedCandidateId: string }>(`/parish/${parishId}/confirmation-candidates/merge`, {
+    method: 'POST',
+    body: JSON.stringify({
+      targetCandidateId: payload.targetCandidateId,
+      sourceCandidateId: payload.sourceCandidateId,
+      name: payload.name,
+      surname: payload.surname,
+      phoneNumbers: payload.phoneNumbers,
+      address: payload.address,
+      schoolShort: payload.schoolShort,
+      selectedMeetingSlotId: payload.selectedMeetingSlotId ?? null,
+      portalTokenFromCandidateId: payload.portalTokenFromCandidateId ?? null
+    })
+  });
+}
+
 export function sendParishConfirmationAdminMessage(parishId: string, candidateId: string, messageText: string) {
   return request<ParishConfirmationMessage>(`/parish/${parishId}/confirmation-candidates/${candidateId}/messages`, {
     method: 'POST',

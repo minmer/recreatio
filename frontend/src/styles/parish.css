@@ -2203,6 +2203,14 @@
   background: var(--parish-surface);
 }
 
+.confirmation-duplicate-panel {
+  border: 1px solid var(--parish-line);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--parish-surface);
+  margin-bottom: 12px;
+}
+
 .confirmation-candidate-head {
   display: flex;
   justify-content: space-between;
@@ -2238,6 +2246,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.confirmation-merge-phone-list {
+  display: grid;
+  gap: 6px;
 }
 
 .confirmation-meetings-public,
@@ -2326,6 +2339,80 @@
 
 .confirmation-meeting-candidate-list li {
   margin: 0 0 4px;
+}
+
+@media (max-width: 900px) {
+  .confirmation-candidate-portal .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 0.9rem;
+  }
+
+  .confirmation-candidate-portal .section-header .pill {
+    align-self: flex-start;
+  }
+
+  .confirmation-candidate-portal .confirmation-portal-columns {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .confirmation-candidate-portal .confirmation-portal-card {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .confirmation-candidate-portal .confirmation-candidate-instruction {
+    padding: 9px;
+  }
+
+  .confirmation-candidate-portal .confirmation-candidate-links {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .confirmation-candidate-portal .confirmation-candidate-links .ghost,
+  .confirmation-candidate-portal .confirmation-meeting-slot .parish-login {
+    width: 100%;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .confirmation-candidate-portal .confirmation-meeting-slot-list:not(.admin) {
+    max-height: min(52vh, 360px);
+  }
+
+  .confirmation-candidate-portal .confirmation-meeting-slot {
+    padding: 10px;
+    border-radius: 10px;
+  }
+
+  .confirmation-candidate-portal .confirmation-portal-message-list li {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 560px) {
+  .confirmation-candidate-portal .confirmation-portal-card h4 {
+    margin-bottom: 8px;
+    font-size: 1rem;
+  }
+
+  .confirmation-candidate-portal .confirmation-meeting-slot p {
+    line-height: 1.35;
+  }
+
+  .confirmation-candidate-portal .confirmation-meeting-candidate-list {
+    margin-left: 16px;
+  }
+
+  .confirmation-candidate-portal .confirmation-meeting-slot-list:not(.admin) {
+    max-height: 48vh;
+  }
 }
 
 .builder-layout {

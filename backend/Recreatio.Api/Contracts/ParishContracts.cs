@@ -326,6 +326,21 @@ public sealed record ParishConfirmationCandidateUpdateRequest(
     string Address,
     string SchoolShort);
 
+public sealed record ParishConfirmationCandidateMergeRequest(
+    Guid TargetCandidateId,
+    Guid SourceCandidateId,
+    string Name,
+    string Surname,
+    IReadOnlyList<string> PhoneNumbers,
+    string Address,
+    string SchoolShort,
+    Guid? SelectedMeetingSlotId,
+    Guid? PortalTokenFromCandidateId);
+
+public sealed record ParishConfirmationCandidateMergeResponse(
+    Guid CandidateId,
+    Guid RemovedCandidateId);
+
 public sealed record ParishConfirmationMessageCreateRequest(
     string MessageText);
 

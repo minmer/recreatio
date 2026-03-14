@@ -1554,6 +1554,346 @@ public static class ParishEndpoints
                 request.ReplaceExisting));
         }).RequireAuthorization();
 
+        group.MapPost("/{parishId:guid}/confirmation-candidates/merge", async (
+            Guid parishId,
+            ParishConfirmationCandidateMergeRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (request.TargetCandidateId == request.SourceCandidateId)
+            {
+                return Results.BadRequest(new { error = "Target and source candidate must be different." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 120);
+            var surname = NormalizeConfirmationText(request.Surname, 120);
+            var address = NormalizeConfirmationText(request.Address, 260);
+            var schoolShort = NormalizeConfirmationText(request.SchoolShort, 140);
+            var phoneNumbers = NormalizeConfirmationPhones(request.PhoneNumbers);
+            if (name is null || surname is null || address is null || schoolShort is null || phoneNumbers.Count == 0)
+            {
+                return Results.BadRequest(new { error = "Invalid merged candidate data." });
+            }
+
+            if (request.SelectedMeetingSlotId is not null)
+            {
+                var slotExists = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                    .AnyAsync(x => x.ParishId == parishId && x.Id == request.SelectedMeetingSlotId.Value, ct);
+                if (!slotExists)
+                {
+                    return Results.BadRequest(new { error = "Selected meeting slot does not exist." });
+                }
+            }
+
+            await EnsureConfirmationMeetingLinksAsync(parishId, dbContext, ct);
+
+            var candidates = await dbContext.ParishConfirmationCandidates
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    (x.Id == request.TargetCandidateId || x.Id == request.SourceCandidateId))
+                .ToListAsync(ct);
+            if (candidates.Count != 2)
+            {
+                return Results.NotFound(new { error = "Candidates to merge not found." });
+            }
+
+            var targetCandidate = candidates.FirstOrDefault(x => x.Id == request.TargetCandidateId);
+            var sourceCandidate = candidates.FirstOrDefault(x => x.Id == request.SourceCandidateId);
+            if (targetCandidate is null || sourceCandidate is null)
+            {
+                return Results.NotFound(new { error = "Candidates to merge not found." });
+            }
+
+            var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
+            var targetPayload = TryUnprotectConfirmationPayload(targetCandidate.PayloadEnc, protector);
+            var sourcePayload = TryUnprotectConfirmationPayload(sourceCandidate.PayloadEnc, protector);
+            if (targetPayload is null || sourcePayload is null)
+            {
+                return Results.BadRequest(new { error = "Cannot read candidate payload for merge." });
+            }
+
+            var links = await dbContext.ParishConfirmationMeetingLinks
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    (x.CandidateId == targetCandidate.Id || x.CandidateId == sourceCandidate.Id))
+                .ToListAsync(ct);
+            var now = DateTimeOffset.UtcNow;
+            var targetLink = links.FirstOrDefault(x => x.CandidateId == targetCandidate.Id);
+            if (targetLink is null)
+            {
+                targetLink = new ParishConfirmationMeetingLink
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = targetCandidate.Id,
+                    BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                    SlotId = null,
+                    BookedUtc = null,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.ParishConfirmationMeetingLinks.Add(targetLink);
+            }
+
+            var sourceLink = links.FirstOrDefault(x => x.CandidateId == sourceCandidate.Id);
+            if (sourceLink is null)
+            {
+                sourceLink = new ParishConfirmationMeetingLink
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = sourceCandidate.Id,
+                    BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct),
+                    SlotId = null,
+                    BookedUtc = null,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.ParishConfirmationMeetingLinks.Add(sourceLink);
+            }
+
+            var portalTokenSourceId = request.PortalTokenFromCandidateId == sourceCandidate.Id
+                ? sourceCandidate.Id
+                : targetCandidate.Id;
+            var selectedToken = portalTokenSourceId == sourceCandidate.Id
+                ? sourceLink.BookingToken
+                : targetLink.BookingToken;
+            if (string.IsNullOrWhiteSpace(selectedToken))
+            {
+                selectedToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+            }
+
+            var oldTargetSlotId = targetLink.SlotId;
+            var oldSourceSlotId = sourceLink.SlotId;
+            var selectedSlotId = request.SelectedMeetingSlotId;
+            DateTimeOffset? selectedBookedUtc = null;
+            if (selectedSlotId is not null)
+            {
+                if (oldTargetSlotId == selectedSlotId)
+                {
+                    selectedBookedUtc = targetLink.BookedUtc;
+                }
+                else if (oldSourceSlotId == selectedSlotId)
+                {
+                    selectedBookedUtc = sourceLink.BookedUtc;
+                }
+
+                selectedBookedUtc ??= now;
+            }
+
+            var mergedPayload = new ParishConfirmationPayload(
+                name,
+                surname,
+                phoneNumbers,
+                address,
+                schoolShort,
+                true);
+            targetCandidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(mergedPayload));
+            targetCandidate.AcceptedRodo = true;
+            targetCandidate.CreatedUtc = targetCandidate.CreatedUtc <= sourceCandidate.CreatedUtc
+                ? targetCandidate.CreatedUtc
+                : sourceCandidate.CreatedUtc;
+            targetCandidate.UpdatedUtc = now;
+
+            var verifications = await dbContext.ParishConfirmationPhoneVerifications
+                .Where(x =>
+                    x.ParishId == parishId &&
+                    (x.CandidateId == targetCandidate.Id || x.CandidateId == sourceCandidate.Id))
+                .ToListAsync(ct);
+
+            var verificationMeta = new Dictionary<string, (bool Verified, DateTimeOffset? VerifiedUtc, DateTimeOffset CreatedUtc)>(
+                StringComparer.OrdinalIgnoreCase);
+            void AddVerificationMeta(
+                ParishConfirmationPayload payload,
+                IReadOnlyList<ParishConfirmationPhoneVerification> candidateVerifications)
+            {
+                var byIndex = candidateVerifications
+                    .GroupBy(x => x.PhoneIndex)
+                    .ToDictionary(group => group.Key, group => group.First());
+                for (var i = 0; i < payload.PhoneNumbers.Count; i += 1)
+                {
+                    var number = payload.PhoneNumbers[i];
+                    if (string.IsNullOrWhiteSpace(number))
+                    {
+                        continue;
+                    }
+
+                    byIndex.TryGetValue(i, out var verification);
+                    var isVerified = verification?.VerifiedUtc is not null;
+                    var verifiedUtc = verification?.VerifiedUtc;
+                    var createdUtc = verification?.CreatedUtc ?? now;
+
+                    if (!verificationMeta.TryGetValue(number, out var current))
+                    {
+                        verificationMeta[number] = (isVerified, verifiedUtc, createdUtc);
+                        continue;
+                    }
+
+                    var mergedVerified = current.Verified || isVerified;
+                    DateTimeOffset? mergedVerifiedUtc;
+                    if (current.VerifiedUtc is null)
+                    {
+                        mergedVerifiedUtc = verifiedUtc;
+                    }
+                    else if (verifiedUtc is null)
+                    {
+                        mergedVerifiedUtc = current.VerifiedUtc;
+                    }
+                    else
+                    {
+                        mergedVerifiedUtc = current.VerifiedUtc >= verifiedUtc
+                            ? current.VerifiedUtc
+                            : verifiedUtc;
+                    }
+
+                    var mergedCreatedUtc = current.CreatedUtc <= createdUtc
+                        ? current.CreatedUtc
+                        : createdUtc;
+                    verificationMeta[number] = (mergedVerified, mergedVerifiedUtc, mergedCreatedUtc);
+                }
+            }
+
+            AddVerificationMeta(
+                targetPayload,
+                verifications.Where(x => x.CandidateId == targetCandidate.Id).ToList());
+            AddVerificationMeta(
+                sourcePayload,
+                verifications.Where(x => x.CandidateId == sourceCandidate.Id).ToList());
+
+            if (verifications.Count > 0)
+            {
+                dbContext.ParishConfirmationPhoneVerifications.RemoveRange(verifications);
+            }
+
+            var usedVerificationTokens = new HashSet<string>(StringComparer.Ordinal);
+            for (var phoneIndex = 0; phoneIndex < phoneNumbers.Count; phoneIndex += 1)
+            {
+                var number = phoneNumbers[phoneIndex];
+                var meta = verificationMeta.GetValueOrDefault(number);
+                var token = await CreateUniqueConfirmationPhoneVerificationTokenAsync(
+                    dbContext,
+                    usedVerificationTokens,
+                    ct);
+                dbContext.ParishConfirmationPhoneVerifications.Add(new ParishConfirmationPhoneVerification
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = targetCandidate.Id,
+                    PhoneIndex = phoneIndex,
+                    VerificationToken = token,
+                    VerifiedUtc = meta.Verified ? meta.VerifiedUtc : null,
+                    CreatedUtc = meta.CreatedUtc == default ? now : meta.CreatedUtc
+                });
+            }
+
+            var sourceMessages = await dbContext.ParishConfirmationMessages
+                .Where(x => x.ParishId == parishId && x.CandidateId == sourceCandidate.Id)
+                .ToListAsync(ct);
+            foreach (var message in sourceMessages)
+            {
+                message.CandidateId = targetCandidate.Id;
+            }
+
+            var sourceNotes = await dbContext.ParishConfirmationNotes
+                .Where(x => x.ParishId == parishId && x.CandidateId == sourceCandidate.Id)
+                .ToListAsync(ct);
+            foreach (var note in sourceNotes)
+            {
+                note.CandidateId = targetCandidate.Id;
+            }
+
+            var affectedSlotIds = new HashSet<Guid>();
+            if (oldTargetSlotId is not null)
+            {
+                affectedSlotIds.Add(oldTargetSlotId.Value);
+            }
+
+            if (oldSourceSlotId is not null)
+            {
+                affectedSlotIds.Add(oldSourceSlotId.Value);
+            }
+
+            if (selectedSlotId is not null)
+            {
+                affectedSlotIds.Add(selectedSlotId.Value);
+            }
+
+            var hostedBySource = await dbContext.ParishConfirmationMeetingSlots
+                .Where(x => x.ParishId == parishId && x.HostCandidateId == sourceCandidate.Id)
+                .ToListAsync(ct);
+            foreach (var slot in hostedBySource)
+            {
+                slot.HostCandidateId = null;
+                slot.HostInviteToken = null;
+                slot.HostInviteExpiresUtc = null;
+                slot.UpdatedUtc = now;
+                affectedSlotIds.Add(slot.Id);
+            }
+
+            if (sourceLink.Id != targetLink.Id && string.Equals(sourceLink.BookingToken, selectedToken, StringComparison.Ordinal))
+            {
+                sourceLink.BookingToken = await CreateUniqueConfirmationMeetingBookingTokenAsync(dbContext, null, ct);
+                sourceLink.UpdatedUtc = now;
+            }
+
+            targetLink.BookingToken = selectedToken;
+            targetLink.SlotId = selectedSlotId;
+            targetLink.BookedUtc = selectedSlotId is null ? null : selectedBookedUtc;
+            targetLink.UpdatedUtc = now;
+
+            dbContext.ParishConfirmationMeetingLinks.Remove(sourceLink);
+            dbContext.ParishConfirmationCandidates.Remove(sourceCandidate);
+
+            await dbContext.SaveChangesAsync(ct);
+
+            foreach (var slotId in affectedSlotIds)
+            {
+                await RefreshConfirmationMeetingSlotHostAsync(parishId, slotId, dbContext, now, ct);
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidatesMerged",
+                userId.ToString(),
+                JsonSerializer.Serialize(new
+                {
+                    TargetCandidateId = targetCandidate.Id,
+                    RemovedCandidateId = sourceCandidate.Id,
+                    PhoneCount = phoneNumbers.Count,
+                    SelectedMeetingSlotId = selectedSlotId
+                }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationCandidateMergeResponse(
+                targetCandidate.Id,
+                sourceCandidate.Id));
+        }).RequireAuthorization();
+
         group.MapGet("/{parishId:guid}/confirmation-meeting-slots", async (
             Guid parishId,
             HttpContext context,
@@ -3863,6 +4203,31 @@ public static class ParishEndpoints
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
+    }
+
+    private static async Task<string> CreateUniqueConfirmationPhoneVerificationTokenAsync(
+        RecreatioDbContext dbContext,
+        HashSet<string>? usedTokens,
+        CancellationToken ct)
+    {
+        while (true)
+        {
+            var token = CreatePhoneVerificationToken();
+            if (usedTokens is not null && usedTokens.Contains(token))
+            {
+                continue;
+            }
+
+            var exists = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                .AnyAsync(x => x.VerificationToken == token, ct);
+            if (exists)
+            {
+                continue;
+            }
+
+            usedTokens?.Add(token);
+            return token;
+        }
     }
 
     private static async Task<string> CreateUniqueConfirmationMeetingBookingTokenAsync(
