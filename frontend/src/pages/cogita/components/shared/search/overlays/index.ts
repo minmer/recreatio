@@ -1,1 +1,0 @@
-export { CogitaWorkspaceComponentOverlay } from './CogitaWorkspaceComponentOverlay';

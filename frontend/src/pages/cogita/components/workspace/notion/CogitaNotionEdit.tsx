@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import bibleBooks from '../../../../../content/bibleBooks.json';
 import {
   ApiError,
   createCogitaInfo,
   getCogitaInfoDetail,
   getCogitaInfoTypeSpecification,
+  searchCogitaInfos,
   updateCogitaInfo,
   type CogitaInfoLinkFieldSpec,
   type CogitaInfoPayloadFieldSpec,
@@ -11,288 +13,638 @@ import {
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
 import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../../types/navigation';
+import type { RouteKey } from '../../../../../types/navigation';
 import type { CogitaInfoOption, CogitaInfoType } from '../../types';
-import { InfoSearchSelect } from '../../shared/InfoSearchSelect';
-import { ReferencePanel, type ReferenceSourceForm } from '../../shared/ReferencePanel';
 import { getInfoTypeLabel } from '../../libraryOptions';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
+import {
+  SOURCE_KIND_OPTIONS,
+  buildReferenceSourceLabel,
+  buildSourceLocatorPayload,
+  createEmptyReferenceSourceForm,
+  getReferenceResource,
+  parseReferenceFormFromSourceValues,
+  NotionTypePayloadShell,
+  type ReferenceSourceForm
+} from './types/shell';
+import {
+  createDefaultComputedDefinition,
+  parseComputedDefinitionFromPayload,
+  serializeComputedDefinition,
+  type ComputedDefinition
+} from './types/notionComputed';
+import {
+  createDefaultQuestionDefinition,
+  normalizeQuestionDefinition,
+  parseQuestionDefinitionFromPayload,
+  QUESTION_DEFINITION_TEMPLATE,
+  serializeQuestionDefinition,
+  type QuestionDefinition
+} from './types/notionQuestion';
 
-type LinkTypeSelectionState = Record<string, CogitaInfoType>;
-type QuestionKind = 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'matching' | 'ordering';
-type QuestionDefinition = {
-  type: QuestionKind;
-  title?: string;
-  question: string;
-  options?: string[];
-  answer?: number[] | string | number | boolean | { paths: number[][] };
-  columns?: string[][];
-  matchingPaths?: string[][];
+type InfoSearchSelectCommonProps = {
+  libraryId: string;
+  infoType: CogitaInfoType;
+  label: string;
+  placeholder?: string;
+  helperText?: string;
+  searchFailedText?: string;
+  createFailedText?: string;
+  createLabel?: string;
+  savingLabel?: string;
+  loadMoreLabel?: string;
+  allowCreate?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+  autoAdvance?: boolean;
+  onCommit?: () => void;
 };
 
-const QUESTION_DEFINITION_TEMPLATE = JSON.stringify(
-  {
-    type: 'selection',
-    title: 'Question title',
-    question: 'Question text',
-    options: ['Option A', 'Option B', 'Option C'],
-    answer: [0]
-  },
-  null,
-  2
-);
+type InfoSearchSelectSingleProps = InfoSearchSelectCommonProps & {
+  multiple?: false;
+  value: CogitaInfoOption | null;
+  onChange: (value: CogitaInfoOption | null) => void;
+  values?: never;
+  onChangeMultiple?: never;
+};
 
-function createDefaultQuestionDefinition(kind: QuestionKind = 'selection'): QuestionDefinition {
-  if (kind === 'matching') {
-    return { type: kind, title: '', question: '', columns: [[''], ['']], answer: { paths: [] }, matchingPaths: [['', '']] };
-  }
-  if (kind === 'ordering') {
-    return { type: kind, title: '', question: '', options: [''] };
-  }
-  if (kind === 'truefalse') {
-    return { type: kind, title: '', question: '', answer: true };
-  }
-  if (kind === 'text' || kind === 'date') {
-    return { type: kind, title: '', question: '', answer: '' };
-  }
-  if (kind === 'number') {
-    return { type: kind, title: '', question: '', answer: '' };
-  }
-  return { type: kind, title: '', question: '', options: [''], answer: [] };
-}
+type InfoSearchSelectMultiProps = InfoSearchSelectCommonProps & {
+  multiple: true;
+  values: CogitaInfoOption[];
+  onChangeMultiple: (values: CogitaInfoOption[]) => void;
+  value?: never;
+  onChange?: never;
+};
 
-function isQuestionKind(value: string): value is QuestionKind {
-  return ['selection', 'truefalse', 'text', 'number', 'date', 'matching', 'ordering'].includes(value);
-}
+type InfoSearchSelectProps = InfoSearchSelectSingleProps | InfoSearchSelectMultiProps;
 
-function normalizeQuestionDefinition(value: unknown): QuestionDefinition | null {
-  if (!value || typeof value !== 'object') return null;
-  const raw = value as Record<string, unknown>;
-  const rawTypeValue =
-    typeof raw.type === 'string'
-      ? raw.type
-      : typeof raw.kind === 'string'
-        ? raw.kind
-        : 'selection';
-  const kindAlias =
-    rawTypeValue === 'multi_select' || rawTypeValue === 'single_select'
-      ? 'selection'
-      : rawTypeValue === 'boolean'
-        ? 'truefalse'
-        : rawTypeValue === 'order'
-          ? 'ordering'
-          : rawTypeValue === 'short' || rawTypeValue === 'open' || rawTypeValue === 'short_text'
-            ? 'text'
-          : rawTypeValue;
-  const kind = isQuestionKind(kindAlias) ? kindAlias : 'selection';
-  const title = typeof raw.title === 'string' ? raw.title : '';
-  const question = typeof raw.question === 'string' ? raw.question : '';
-  if (kind === 'matching') {
-    let columns: string[][] = [];
-    if (Array.isArray(raw.columns)) {
-      columns = raw.columns.map((column) =>
-        Array.isArray(column) ? column.map((item) => (typeof item === 'string' ? item : '')) : ['']
-      );
-    } else if (Array.isArray(raw.left) && Array.isArray(raw.right)) {
-      columns = [
-        raw.left.map((item) => (typeof item === 'string' ? item : '')),
-        raw.right.map((item) => (typeof item === 'string' ? item : ''))
-      ];
+const MAX_INFO_RESULTS = 5;
+const MAX_INFO_RESULTS_PER_REQUEST = 50;
+const MIN_INFO_QUERY_LENGTH = 2;
+const EMPTY_INFO_OPTIONS: CogitaInfoOption[] = [];
+
+export function InfoSearchSelect({
+  libraryId,
+  infoType,
+  label,
+  placeholder,
+  value,
+  onChange,
+  values,
+  onChangeMultiple,
+  helperText,
+  searchFailedText,
+  createFailedText,
+  createLabel,
+  savingLabel,
+  loadMoreLabel,
+  allowCreate = true,
+  inputRef,
+  autoAdvance,
+  onCommit,
+  multiple
+}: InfoSearchSelectProps) {
+  const selectedValues = multiple ? values ?? EMPTY_INFO_OPTIONS : EMPTY_INFO_OPTIONS;
+  const [query, setQuery] = useState(multiple ? '' : value?.label ?? '');
+  const [results, setResults] = useState<CogitaInfoOption[]>([]);
+  const [visibleCount, setVisibleCount] = useState(MAX_INFO_RESULTS);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const lastRequest = useRef(0);
+  const cacheRef = useRef(new Map<string, CogitaInfoOption[]>());
+
+  const showCreate = useMemo(() => {
+    if (!allowCreate) return false;
+    if (multiple) {
+      return query.trim().length > 0;
     }
-    if (columns.length < 2) {
-      columns = [[''], ['']];
-    }
-    const answerRaw = raw.answer && typeof raw.answer === 'object' ? (raw.answer as Record<string, unknown>) : null;
-    const pathSource = Array.isArray(answerRaw?.paths)
-      ? answerRaw?.paths
-      : Array.isArray(raw.correctPairs)
-        ? raw.correctPairs
-        : [];
-    const paths = pathSource
-      .map((path) => (Array.isArray(path) ? path.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0) : []))
-      .filter((path) => path.length > 0);
-    const rawMatchingPaths = Array.isArray(raw.matchingPaths)
-      ? raw.matchingPaths.map((row) =>
-          Array.isArray(row) ? Array.from({ length: columns.length }, (_, index) => String(row[index] ?? '')) : new Array(columns.length).fill('')
-        )
-      : null;
-    const matchingPaths =
-      rawMatchingPaths && rawMatchingPaths.length > 0
-        ? rawMatchingPaths
-        : [...paths.map((path) => path.map(String)), new Array(columns.length).fill('')];
-    return { type: kind, title, question, columns, answer: { paths }, matchingPaths };
-  }
-  if (kind === 'ordering') {
-    const items = Array.isArray(raw.options)
-      ? raw.options.map((item) => (typeof item === 'string' ? item : ''))
-      : Array.isArray(raw.items)
-        ? raw.items.map((item) => (typeof item === 'string' ? item : ''))
-        : [''];
-    return { type: kind, title, question, options: items.length ? items : [''] };
-  }
-  if (kind === 'truefalse') {
-    const answer = typeof raw.answer === 'boolean' ? raw.answer : typeof raw.expected === 'boolean' ? raw.expected : true;
-    return { type: kind, title, question, answer };
-  }
-  if (kind === 'number') {
-    if (typeof raw.answer === 'number') return { type: kind, title, question, answer: raw.answer };
-    if (typeof raw.answer === 'string') return { type: kind, title, question, answer: raw.answer };
-    if (typeof raw.expected === 'number') return { type: kind, title, question, answer: raw.expected };
-    return { type: kind, title, question, answer: '' };
-  }
-  if (kind === 'text' || kind === 'date') {
-    const answer = typeof raw.answer === 'string' ? raw.answer : typeof raw.expected === 'string' ? raw.expected : '';
-    return { type: kind, title, question, answer };
-  }
-  const options = Array.isArray(raw.options) ? raw.options.map((item) => (typeof item === 'string' ? item : '')) : [''];
-  const answer = Array.isArray(raw.answer)
-    ? raw.answer.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
-    : Array.isArray(raw.correct)
-      ? raw.correct.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
-    : [];
-  return { type: kind, title, question, options: options.length ? options : [''], answer };
-}
+    return query.trim().length > 0 && !value;
+  }, [allowCreate, query, value, multiple]);
 
-function parseQuestionDefinitionFromPayload(rawValue: unknown): QuestionDefinition | null {
-  if (rawValue === null || rawValue === undefined) return null;
-  if (typeof rawValue === 'object') {
-    return normalizeQuestionDefinition(rawValue);
-  }
-  if (typeof rawValue !== 'string') return null;
-  const trimmed = rawValue.trim();
-  if (!trimmed) return null;
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    const normalized = normalizeQuestionDefinition(parsed);
-    if (normalized) return normalized;
-    if (typeof parsed === 'string') {
-      const nested = JSON.parse(parsed) as unknown;
-      return normalizeQuestionDefinition(nested);
+  useEffect(() => {
+    if (!multiple) {
+      setQuery(value?.label ?? '');
     }
-  } catch {
-    return null;
-  }
-  return null;
-}
+  }, [value, multiple]);
 
-function serializeQuestionDefinition(definition: QuestionDefinition): string {
-  const title = (definition.title ?? '').trim();
-  const question = (definition.question ?? '').trim();
-  switch (definition.type) {
-    case 'matching': {
-      const columns = (definition.columns ?? [[''], ['']])
-        .map((column) => column.map((item) => item.trim()).filter(Boolean))
-        .filter((column) => column.length > 0);
-      const normalizedColumns = columns.length >= 2 ? columns : [[''], ['']];
-      const rawPaths = definition.answer && typeof definition.answer === 'object' && 'paths' in definition.answer ? definition.answer.paths : [];
-      const editableRows = (definition.matchingPaths ?? []).map((row) => row.map((value) => String(value ?? '')));
-      const width = normalizedColumns.length;
-      const fromRows = editableRows
-        .map((row) => row.slice(0, width).map((value) => value.trim()))
-        .filter((row) => row.some(Boolean))
-        .map((row) => row.map((value) => Number(value)))
-        .filter((row) => row.length === width && row.every((value) => Number.isInteger(value) && value >= 0)) as number[][];
-      const paths = (Array.isArray(rawPaths) ? rawPaths : [])
-        .map((path) =>
-          Array.isArray(path)
-            ? path.map((value) => Number(value)).filter((value) => Number.isInteger(value) && value >= 0)
-            : []
-        )
-        .filter((path) => path.length === width);
-      const unique = Array.from(new Set([...paths, ...fromRows].map((path) => JSON.stringify(path)))).map((encoded) => JSON.parse(encoded) as number[]);
-      return JSON.stringify(
-        {
-          type: definition.type,
-          ...(title ? { title } : {}),
-          question,
-          columns: normalizedColumns,
-          answer: { paths: unique }
-        },
-        null,
-        2
-      );
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < MIN_INFO_QUERY_LENGTH) {
+      setResults([]);
+      setIsOpen(false);
+      setVisibleCount(MAX_INFO_RESULTS);
+      setHighlightedIndex(-1);
+      setIsLoading(false);
+      setError(null);
+      return;
     }
-    case 'ordering': {
-      const items = (definition.options ?? []).map((item) => item.trim()).filter(Boolean);
-      return JSON.stringify(
-        {
-          type: definition.type,
-          ...(title ? { title } : {}),
-          question,
-          options: items
-        },
-        null,
-        2
-      );
-    }
-    case 'truefalse':
-      return JSON.stringify(
-        { type: definition.type, ...(title ? { title } : {}), question, answer: Boolean(definition.answer) },
-        null,
-        2
-      );
-    case 'number':
-      return JSON.stringify(
-        {
-          type: definition.type,
-          ...(title ? { title } : {}),
-          question,
-          answer:
-            typeof definition.answer === 'number'
-              ? definition.answer
-              : typeof definition.answer === 'string'
-                ? definition.answer
-                : ''
-        },
-        null,
-        2
-      );
-    case 'date':
-    case 'text':
-      return JSON.stringify(
-        { type: definition.type, ...(title ? { title } : {}), question, answer: String(definition.answer ?? '') },
-        null,
-        2
-      );
-    case 'selection':
-    default: {
-      const options = (definition.options ?? []).map((option) => option.trim()).filter(Boolean);
-      const answerRaw = Array.isArray(definition.answer) ? definition.answer : [];
-      const correct = Array.from(
-        new Set(answerRaw.filter((index) => Number.isInteger(index) && index >= 0 && index < options.length))
-      ).sort((a, b) => a - b);
-      return JSON.stringify(
-        { type: definition.type, ...(title ? { title } : {}), question, options, answer: correct },
-        null,
-        2
-      );
-    }
-  }
-}
 
-const SOURCE_KIND_OPTIONS = [
-  { value: 'string', label: 'string' },
-  { value: 'book', label: 'book' },
-  { value: 'website', label: 'website' },
-  { value: 'bible', label: 'bible' },
-  { value: 'number_document', label: 'number_document' },
-  { value: 'work', label: 'work' },
-  { value: 'other', label: 'other' }
-] as const;
+    const normalizedQuery = trimmed.toLowerCase();
+    const cacheKey = `${libraryId}:${infoType}:${normalizedQuery}`;
+    const cached = cacheRef.current.get(cacheKey);
+    if (cached) {
+      if (multiple && selectedValues.length > 0) {
+        const selectedIds = new Set(selectedValues.map((item) => item.id));
+        setResults(cached.filter((item) => !selectedIds.has(item.id)));
+      } else {
+        setResults(cached);
+      }
+      setVisibleCount(MAX_INFO_RESULTS);
+      setHighlightedIndex(-1);
+      setIsOpen(cached.length > 0);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
 
-function createEmptyReferenceSourceForm(): ReferenceSourceForm {
-  return {
-    sourceKind: 'string',
-    locatorValue: '',
-    locatorAux: '',
-    bibleBookDisplay: '',
-    sourceUrl: '',
-    sourceAccessedDate: '',
-    churchDocument: null,
-    bookMedia: null,
-    work: null
+    const requestId = window.setTimeout(async () => {
+      const currentRequest = Date.now();
+      lastRequest.current = currentRequest;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const matches = await searchCogitaInfos({
+          libraryId,
+          type: infoType,
+          query: trimmed,
+          limit: MAX_INFO_RESULTS_PER_REQUEST
+        });
+        if (lastRequest.current !== currentRequest) return;
+        const mapped = matches.slice(0, MAX_INFO_RESULTS_PER_REQUEST).map((match) => ({
+          id: match.infoId,
+          label: match.label,
+          infoType: match.infoType as CogitaInfoType
+        }));
+        cacheRef.current.set(cacheKey, mapped);
+        if (multiple && selectedValues.length > 0) {
+          const selectedIds = new Set(selectedValues.map((item) => item.id));
+          setResults(mapped.filter((item) => !selectedIds.has(item.id)));
+        } else {
+          setResults(mapped);
+        }
+        setVisibleCount(MAX_INFO_RESULTS);
+        setHighlightedIndex(-1);
+        setIsOpen(true);
+      } catch {
+        if (lastRequest.current !== currentRequest) return;
+        setError(searchFailedText ?? 'Search failed.');
+      } finally {
+        if (lastRequest.current === currentRequest) {
+          setIsLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => window.clearTimeout(requestId);
+  }, [libraryId, infoType, query, selectedValues, searchFailedText, multiple]);
+
+  const handleSelect = (option: CogitaInfoOption) => {
+    if (multiple) {
+      const next = selectedValues.some((item) => item.id === option.id)
+        ? selectedValues
+        : [...selectedValues, option];
+      onChangeMultiple?.(next);
+      setQuery('');
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+      return;
+    }
+    onChange?.(option);
+    setQuery(option.label);
+    setIsOpen(false);
+    setHighlightedIndex(-1);
+    if (autoAdvance) {
+      onCommit?.();
+    }
   };
+
+  const handleCreate = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const created = await createCogitaInfo({
+        libraryId,
+        infoType,
+        payload: { label: trimmed }
+      });
+      const createdOption = { id: created.infoId, label: trimmed, infoType: created.infoType as CogitaInfoType };
+      if (trimmed.length >= MIN_INFO_QUERY_LENGTH) {
+        const cacheKey = `${libraryId}:${infoType}:${trimmed.toLowerCase()}`;
+        const existing = cacheRef.current.get(cacheKey) ?? [];
+        cacheRef.current.set(cacheKey, [createdOption, ...existing]);
+      }
+      if (multiple) {
+        onChangeMultiple?.([...selectedValues, createdOption]);
+        setQuery('');
+        setIsOpen(false);
+        setHighlightedIndex(-1);
+        return;
+      }
+      onChange?.(createdOption);
+      setIsOpen(false);
+      setHighlightedIndex(-1);
+      if (autoAdvance) {
+        onCommit?.();
+      }
+    } catch {
+      setError(createFailedText ?? 'Create failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="cogita-lookup">
+      <label className="cogita-field">
+        <span>{label}</span>
+        <input
+          ref={inputRef}
+          value={query}
+          placeholder={placeholder}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            if (!multiple && value) onChange?.(null);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              if (!results.length) return;
+              setIsOpen(true);
+              setHighlightedIndex((prev) => {
+                const maxVisibleIndex = Math.min(results.length, visibleCount) - 1;
+                const next = prev < 0 ? 0 : Math.min(prev + 1, maxVisibleIndex);
+                if (next === maxVisibleIndex && results.length > visibleCount) {
+                  setVisibleCount((count) => Math.min(count + MAX_INFO_RESULTS, results.length));
+                  return Math.min(prev + 1, Math.min(results.length, visibleCount + MAX_INFO_RESULTS) - 1);
+                }
+                return next;
+              });
+              return;
+            }
+            if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              if (!results.length) return;
+              setIsOpen(true);
+              setHighlightedIndex((prev) => (prev <= 0 ? 0 : prev - 1));
+              return;
+            }
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            if (highlightedIndex >= 0 && results[highlightedIndex]) {
+              handleSelect(results[highlightedIndex]);
+              return;
+            }
+            if (showCreate) {
+              handleCreate();
+            }
+          }}
+          onFocus={() => {
+            if (results.length > 0) {
+              setIsOpen(true);
+            }
+          }}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+        />
+      </label>
+      {helperText ? <p className="cogita-help">{helperText}</p> : null}
+      {error ? <p className="cogita-form-error">{error}</p> : null}
+      {multiple && selectedValues.length > 0 ? (
+        <div className="cogita-lookup-values">
+          {selectedValues.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className="ghost"
+              onClick={() => onChangeMultiple?.(selectedValues.filter((item) => item.id !== option.id))}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {isOpen && (results.length > 0 || showCreate) ? (
+        <div className="cogita-lookup-results">
+          {results.slice(0, visibleCount).map((option, index) => (
+            <button
+              key={option.id}
+              type="button"
+              className="cogita-lookup-option"
+              data-active={index === highlightedIndex}
+              onMouseDown={() => handleSelect(option)}
+            >
+              <strong>{option.label}</strong>
+              <span>{option.infoType}</span>
+            </button>
+          ))}
+          {results.length > visibleCount ? (
+            <button type="button" className="cogita-lookup-more" onMouseDown={() => setVisibleCount((count) => count + MAX_INFO_RESULTS)}>
+              {loadMoreLabel ?? 'Load more'}
+            </button>
+          ) : null}
+          {showCreate ? (
+            <button type="button" className="cogita-lookup-create" onMouseDown={handleCreate} disabled={isLoading}>
+              {isLoading ? savingLabel ?? 'Saving…' : createLabel ?? `Create "${query.trim()}"`}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
+
+const MAX_BIBLE_RESULTS = 8;
+
+function ReferencePanel({
+  libraryId,
+  copy,
+  language,
+  sourceKindOptions,
+  value,
+  onChange,
+  labels
+}: {
+  libraryId: string;
+  copy: Copy;
+  language: 'pl' | 'en' | 'de';
+  sourceKindOptions: Array<{ value: string; label: string }>;
+  value: ReferenceSourceForm;
+  onChange: (next: ReferenceSourceForm) => void;
+  labels: {
+    sourceKindLabel: string;
+    bibleBookLabel: string;
+    bibleBookPlaceholder: string;
+    bibleRestLabel: string;
+    bibleRestPlaceholder: string;
+    churchDocumentLabel: string;
+    churchDocumentPlaceholder: string;
+    workLabel: string;
+    workPlaceholder: string;
+    bookLabel: string;
+    bookPlaceholder: string;
+    locatorLabel: string;
+    locatorPlaceholder: string;
+  };
+}) {
+  const [bibleFocus, setBibleFocus] = useState(false);
+  const [bibleIndex, setBibleIndex] = useState(-1);
+
+  const bibleBookOptions = useMemo(() => {
+    const lang = language;
+    return (bibleBooks as Array<any>).map((book) => {
+      const entry = book?.[lang] ?? book?.en ?? book?.la;
+      const label = `${entry.abbr} — ${entry.name}`;
+      return { label, latin: book?.la?.abbr ?? entry.abbr };
+    });
+  }, [language]);
+
+  const filterBibleBooks = (query: string, includeAllIfEmpty = false) => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      return includeAllIfEmpty ? bibleBookOptions.slice(0, MAX_BIBLE_RESULTS) : [];
+    }
+    return bibleBookOptions.filter((option) => option.label.toLowerCase().includes(trimmed)).slice(0, MAX_BIBLE_RESULTS);
+  };
+
+  const resolveBibleBook = (input: string, lang: 'pl' | 'en' | 'de') => {
+    const trimmed = input.trim().toLowerCase();
+    if (!trimmed) return null;
+    const books = bibleBooks as Array<any>;
+    for (const book of books) {
+      const la = book?.la;
+      const entry = book?.[lang] ?? book?.en ?? la;
+      const abbr = entry?.abbr ?? '';
+      const name = entry?.name ?? '';
+      if (
+        abbr.toLowerCase() === trimmed ||
+        name.toLowerCase() === trimmed ||
+        `${abbr} — ${name}`.toLowerCase() === trimmed
+      ) {
+        return { book, entry, la };
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    if (value.sourceKind === 'bible' && value.locatorValue && !bibleFocus) {
+      const match = resolveBibleBook(value.locatorValue, language);
+      if (match) {
+        const display = `${match.entry.abbr} — ${match.entry.name}`;
+        if (display !== value.bibleBookDisplay) {
+          onChange({ ...value, bibleBookDisplay: display });
+        }
+      }
+    }
+  }, [language, value, bibleFocus, onChange]);
+
+  const update = (patch: Partial<ReferenceSourceForm>) => onChange({ ...value, ...patch });
+
+  return (
+    <>
+      <label className="cogita-field full">
+        <span>{labels.sourceKindLabel}</span>
+        <select
+          value={value.sourceKind}
+          onChange={(event) =>
+            update({
+              sourceKind: event.target.value,
+              churchDocument: null,
+              bookMedia: null,
+              work: null,
+              locatorValue: '',
+              locatorAux: '',
+              bibleBookDisplay: ''
+            })
+          }
+        >
+          {sourceKindOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {value.sourceKind === 'bible' && (
+        <>
+          <div className="cogita-lookup full">
+            <label className="cogita-field full">
+              <span>{labels.bibleBookLabel}</span>
+              <input
+                type="text"
+                value={value.bibleBookDisplay}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  update({ bibleBookDisplay: nextValue, locatorValue: '' });
+                  setBibleFocus(true);
+                  setBibleIndex(-1);
+                }}
+                onKeyDown={(event) => {
+                  const options = filterBibleBooks(value.bibleBookDisplay);
+                  if (!options.length) return;
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setBibleIndex((prev) => Math.min(prev + 1, options.length - 1));
+                  } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setBibleIndex((prev) => Math.max(prev - 1, 0));
+                  } else if (event.key === 'Enter' || event.key === 'Tab') {
+                    if (bibleIndex >= 0 && options[bibleIndex]) {
+                      const option = options[bibleIndex];
+                      const match = resolveBibleBook(option.label, language);
+                      if (!match) return;
+                      update({ bibleBookDisplay: option.label, locatorValue: match.la?.abbr ?? value.locatorValue });
+                      setBibleFocus(false);
+                    }
+                  }
+                }}
+                onFocus={() => setBibleFocus(true)}
+                onBlur={() => window.setTimeout(() => setBibleFocus(false), 100)}
+                placeholder={labels.bibleBookPlaceholder}
+              />
+            </label>
+            {bibleFocus && filterBibleBooks(value.bibleBookDisplay, true).length > 0 && (
+              <div className="cogita-lookup-results">
+                {filterBibleBooks(value.bibleBookDisplay, true).map((option, index) => (
+                  <button
+                    key={option.latin}
+                    type="button"
+                    className="cogita-lookup-option"
+                    data-active={index === bibleIndex}
+                    tabIndex={-1}
+                    onMouseDown={() => {
+                      const match = resolveBibleBook(option.label, language);
+                      if (!match) return;
+                      update({ bibleBookDisplay: option.label, locatorValue: match.la?.abbr ?? value.locatorValue });
+                    }}
+                  >
+                    <strong>{option.label}</strong>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <label className="cogita-field full">
+            <span>{labels.bibleRestLabel}</span>
+            <input
+              type="text"
+              value={value.locatorAux}
+              onChange={(event) => update({ locatorAux: event.target.value })}
+              placeholder={labels.bibleRestPlaceholder}
+            />
+          </label>
+        </>
+      )}
+      {value.sourceKind === 'website' && (
+        <>
+          <label className="cogita-field full">
+            <span>{copy.cogita.library.add.info.sourceUrlLabel}</span>
+            <input
+              type="text"
+              value={value.sourceUrl}
+              onChange={(event) => update({ sourceUrl: event.target.value })}
+              placeholder={copy.cogita.library.add.info.sourceUrlPlaceholder}
+            />
+          </label>
+          <label className="cogita-field full">
+            <span>{copy.cogita.library.add.info.sourceAccessedDateLabel}</span>
+            <input
+              type="text"
+              value={value.sourceAccessedDate}
+              onChange={(event) => update({ sourceAccessedDate: event.target.value })}
+              placeholder={copy.cogita.library.add.info.sourceAccessedDatePlaceholder}
+            />
+          </label>
+        </>
+      )}
+      {value.sourceKind === 'number_document' && (
+        <>
+          <InfoSearchSelect
+            libraryId={libraryId}
+            infoType="work"
+            label={labels.churchDocumentLabel}
+            placeholder={labels.churchDocumentPlaceholder}
+            value={value.churchDocument}
+            onChange={(next) => update({ churchDocument: next })}
+            searchFailedText={copy.cogita.library.lookup.searchFailed}
+            createFailedText={copy.cogita.library.lookup.createFailed}
+            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
+            savingLabel={copy.cogita.library.lookup.saving}
+            loadMoreLabel={copy.cogita.library.lookup.loadMore}
+          />
+          <label className="cogita-field full">
+            <span>{labels.locatorLabel}</span>
+            <input
+              type="text"
+              value={value.locatorValue}
+              onChange={(event) => update({ locatorValue: event.target.value })}
+              placeholder={labels.locatorPlaceholder}
+            />
+          </label>
+        </>
+      )}
+      {value.sourceKind === 'work' && (
+        <InfoSearchSelect
+          libraryId={libraryId}
+          infoType="work"
+          label={labels.workLabel}
+          placeholder={labels.workPlaceholder}
+          value={value.work}
+          onChange={(next) => update({ work: next })}
+          searchFailedText={copy.cogita.library.lookup.searchFailed}
+          createFailedText={copy.cogita.library.lookup.createFailed}
+          createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.work)}
+          savingLabel={copy.cogita.library.lookup.saving}
+          loadMoreLabel={copy.cogita.library.lookup.loadMore}
+        />
+      )}
+      {value.sourceKind === 'book' && (
+        <>
+          <InfoSearchSelect
+            libraryId={libraryId}
+            infoType="media"
+            label={labels.bookLabel}
+            placeholder={labels.bookPlaceholder}
+            value={value.bookMedia}
+            onChange={(next) => update({ bookMedia: next })}
+            searchFailedText={copy.cogita.library.lookup.searchFailed}
+            createFailedText={copy.cogita.library.lookup.createFailed}
+            createLabel={copy.cogita.library.lookup.createNew.replace('{type}', copy.cogita.library.infoTypes.media)}
+            savingLabel={copy.cogita.library.lookup.saving}
+            loadMoreLabel={copy.cogita.library.lookup.loadMore}
+          />
+          <label className="cogita-field full">
+            <span>{labels.locatorLabel}</span>
+            <input
+              type="text"
+              value={value.locatorValue}
+              onChange={(event) => update({ locatorValue: event.target.value })}
+              placeholder={labels.locatorPlaceholder}
+            />
+          </label>
+        </>
+      )}
+      {value.sourceKind !== 'website' &&
+        value.sourceKind !== 'bible' &&
+        value.sourceKind !== 'book' &&
+        value.sourceKind !== 'number_document' && (
+          <label className="cogita-field full">
+            <span>{labels.locatorLabel}</span>
+            <input
+              type="text"
+              value={value.locatorValue}
+              onChange={(event) => update({ locatorValue: event.target.value })}
+              placeholder={labels.locatorPlaceholder}
+            />
+          </label>
+        )}
+    </>
+  );
+}
+
+type LinkTypeSelectionState = Record<string, CogitaInfoType>;
 
 function normalizePayloadValue(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -336,135 +688,6 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
   }
 
   return raw;
-}
-
-function tryParseJsonObject(raw: string): Record<string, unknown> | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
-function stringValue(node: Record<string, unknown> | null, key: string): string {
-  const value = node?.[key];
-  return typeof value === 'string' ? value : '';
-}
-
-function resourceOptionForKind(sourceKind: string, resource: CogitaInfoOption | null): Partial<ReferenceSourceForm> {
-  if (!resource) return {};
-  if (sourceKind === 'book' && resource.infoType === 'media') return { bookMedia: resource };
-  if (sourceKind === 'work' && resource.infoType === 'work') return { work: resource };
-  if (sourceKind === 'number_document' && resource.infoType === 'work') return { churchDocument: resource };
-  return {};
-}
-
-function parseReferenceFormFromSourceValues(
-  payloadValues: Record<string, string>,
-  resource: CogitaInfoOption | null
-): ReferenceSourceForm {
-  const base = createEmptyReferenceSourceForm();
-  const sourceKind = (payloadValues.sourceKind ?? '').trim() || base.sourceKind;
-  const locatorRaw = payloadValues.locator ?? '';
-  const locatorObject = tryParseJsonObject(locatorRaw);
-  let locatorValue = '';
-  let locatorAux = '';
-  let bibleBookDisplay = '';
-  let sourceUrl = '';
-  let sourceAccessedDate = '';
-
-  if (sourceKind === 'website') {
-    sourceUrl = stringValue(locatorObject, 'url');
-    sourceAccessedDate = stringValue(locatorObject, 'accessedDate');
-    locatorValue = stringValue(locatorObject, 'value');
-  } else if (sourceKind === 'bible') {
-    locatorValue = stringValue(locatorObject, 'book') || locatorRaw.trim();
-    locatorAux = stringValue(locatorObject, 'passage') || stringValue(locatorObject, 'rest');
-    bibleBookDisplay = stringValue(locatorObject, 'bookDisplay');
-  } else if (locatorObject) {
-    locatorValue = stringValue(locatorObject, 'value') || stringValue(locatorObject, 'locator');
-    locatorAux = stringValue(locatorObject, 'aux');
-  } else {
-    locatorValue = locatorRaw;
-  }
-
-  return {
-    ...base,
-    sourceKind,
-    locatorValue,
-    locatorAux,
-    bibleBookDisplay,
-    sourceUrl,
-    sourceAccessedDate,
-    ...resourceOptionForKind(sourceKind, resource)
-  };
-}
-
-function getReferenceResource(form: ReferenceSourceForm): CogitaInfoOption | null {
-  if (form.sourceKind === 'book') return form.bookMedia;
-  if (form.sourceKind === 'work') return form.work;
-  if (form.sourceKind === 'number_document') return form.churchDocument;
-  return null;
-}
-
-function buildSourceLocatorPayload(form: ReferenceSourceForm): unknown {
-  const locatorValue = form.locatorValue.trim();
-  const locatorAux = form.locatorAux.trim();
-  const sourceUrl = form.sourceUrl.trim();
-  const sourceAccessedDate = form.sourceAccessedDate.trim();
-
-  switch (form.sourceKind) {
-    case 'website':
-      return {
-        url: sourceUrl,
-        accessedDate: sourceAccessedDate
-      };
-    case 'bible':
-      return {
-        book: locatorValue,
-        bookDisplay: form.bibleBookDisplay.trim(),
-        passage: locatorAux
-      };
-    case 'book':
-    case 'work':
-    case 'number_document':
-      return locatorAux ? { value: locatorValue, aux: locatorAux } : locatorValue;
-    default:
-      return locatorAux ? { value: locatorValue, aux: locatorAux } : locatorValue;
-  }
-}
-
-function buildReferenceSourceLabel(form: ReferenceSourceForm): string {
-  const locatorValue = form.locatorValue.trim();
-  const locatorAux = form.locatorAux.trim();
-  const locatorTail = [locatorValue, locatorAux].filter(Boolean).join(' ');
-  switch (form.sourceKind) {
-    case 'website':
-      return form.sourceUrl.trim() || 'website';
-    case 'bible':
-      return locatorTail || 'bible';
-    case 'book':
-      return [form.bookMedia?.label, locatorTail].filter(Boolean).join(' · ') || 'book';
-    case 'work':
-      return [form.work?.label, locatorTail].filter(Boolean).join(' · ') || 'work';
-    case 'number_document':
-      return [form.churchDocument?.label, locatorTail].filter(Boolean).join(' · ') || 'number_document';
-    default:
-      return locatorTail || form.sourceKind || 'source';
-  }
-}
-
-function validateReferenceSourceForm(form: ReferenceSourceForm): boolean {
-  if (!form.sourceKind.trim()) return false;
-  if (form.sourceKind === 'website') return Boolean(form.sourceUrl.trim());
-  if (form.sourceKind === 'bible') return Boolean(form.locatorValue.trim() && form.locatorAux.trim());
-  if (form.sourceKind === 'book') return Boolean(form.bookMedia);
-  if (form.sourceKind === 'work') return Boolean(form.work);
-  if (form.sourceKind === 'number_document') return Boolean(form.churchDocument && form.locatorValue.trim());
-  return Boolean(form.locatorValue.trim());
 }
 
 export type CogitaNotionCreated = {
@@ -519,6 +742,7 @@ export function CogitaNotionEdit({
   const [inlineReferenceForms, setInlineReferenceForms] = useState<Record<string, ReferenceSourceForm>>({});
   const [inlineReferenceStatus, setInlineReferenceStatus] = useState<Record<string, string | null>>({});
   const [inlineReferenceSavingField, setInlineReferenceSavingField] = useState<string | null>(null);
+  const [computedDefinition, setComputedDefinition] = useState<ComputedDefinition>(createDefaultComputedDefinition);
   const [questionDefinition, setQuestionDefinition] = useState<QuestionDefinition>(() =>
     normalizeQuestionDefinition(JSON.parse(QUESTION_DEFINITION_TEMPLATE)) ?? createDefaultQuestionDefinition()
   );
@@ -580,6 +804,8 @@ export function CogitaNotionEdit({
     for (const field of currentSpec.payloadFields) {
       if (currentSpec.infoType === 'question' && field.key === 'definition' && field.inputType === 'json') {
         payload[field.key] = QUESTION_DEFINITION_TEMPLATE;
+      } else if (currentSpec.infoType === 'computed' && field.key === 'definition' && field.inputType === 'json') {
+        payload[field.key] = serializeComputedDefinition(createDefaultComputedDefinition());
       } else {
         payload[field.key] = '';
       }
@@ -616,6 +842,20 @@ export function CogitaNotionEdit({
       setQuestionImportJson(serializeQuestionDefinition(normalized));
     }
   }, [payloadValues.definition, questionImportQueue.length, selectedInfoType]);
+
+  useEffect(() => {
+    if (selectedInfoType !== 'computed') return;
+    const normalized = parseComputedDefinitionFromPayload(payloadValues.definition);
+    if (!normalized) {
+      const fallback = createDefaultComputedDefinition();
+      setComputedDefinition(fallback);
+      if (!String(payloadValues.definition ?? '').trim()) {
+        setPayloadValues((prev) => ({ ...prev, definition: serializeComputedDefinition(fallback) }));
+      }
+      return;
+    }
+    setComputedDefinition(normalized);
+  }, [payloadValues.definition, selectedInfoType]);
 
   useEffect(() => {
     if (!isEditMode || !editInfoId || specifications.length === 0) return;
@@ -1000,387 +1240,73 @@ export function CogitaNotionEdit({
     }
   };
 
+  const handleInterpretQuestionJson = () => {
+    try {
+      const parsed = JSON.parse(questionImportJson);
+      if (Array.isArray(parsed)) {
+        const normalizedItems = parsed
+          .map((item) => normalizeQuestionDefinition(item))
+          .filter((item): item is QuestionDefinition => Boolean(item));
+        if (normalizedItems.length === 0) {
+          setStatus('Question JSON array must contain at least one valid question object.');
+          return;
+        }
+        const first = normalizedItems[0];
+        setQuestionImportQueue(normalizedItems);
+        setQuestionImportQueueIndex(0);
+        applyQuestionDefinition(first);
+        setStatus(`Loaded question array (${normalizedItems.length} items).`);
+        return;
+      }
+      const normalized = normalizeQuestionDefinition(parsed);
+      if (!normalized) {
+        setStatus('Question JSON must be an object or an array of question objects.');
+        return;
+      }
+      setQuestionImportQueue([]);
+      setQuestionImportQueueIndex(0);
+      applyQuestionDefinition(normalized);
+      setStatus(null);
+    } catch {
+      setStatus('Question JSON is invalid.');
+    }
+  };
+
   const renderPayloadField = (field: CogitaInfoPayloadFieldSpec) => {
     const value = payloadValues[field.key] ?? '';
-    if (selectedInfoType === 'question' && field.key === 'definition' && field.inputType === 'json') {
-      const kind = questionDefinition.type;
-      const setKind = (nextKind: QuestionKind) => {
-        if (!isQuestionKind(nextKind)) return;
-        const currentTitle = questionDefinition.title ?? '';
-        const currentQuestion = questionDefinition.question ?? '';
-        applyQuestionDefinition({
-          ...createDefaultQuestionDefinition(nextKind),
-          title: currentTitle,
-          question: currentQuestion
-        });
-      };
-      const ensureTrailing = (items: string[]) => {
-        if (items.length === 0) return [''];
-        return items[items.length - 1].trim() ? [...items, ''] : items;
-      };
-      const ensureTrailingColumns = (columns: string[][]) => {
-        const normalized = (columns.length ? columns : [[''], ['']]).map((column) => ensureTrailing(column));
-        return normalized.length >= 2 ? normalized : [...normalized, ['']];
-      };
-      const ensureTrailingPathRows = (rows: string[][], width: number) => {
-        const normalized = rows
-          .map((row) => Array.from({ length: width }, (_, index) => row[index] ?? ''))
-          .filter((row) => row.some((value) => value.trim()) || row === rows[rows.length - 1]);
-        if (normalized.length === 0) return [new Array(width).fill('')];
-        const last = normalized[normalized.length - 1];
-        return last.some((value) => value.trim()) ? [...normalized, new Array(width).fill('')] : normalized;
-      };
-      const selectionAnswer = Array.isArray(questionDefinition.answer) ? questionDefinition.answer : [];
-      const matchingColumns = ensureTrailingColumns(questionDefinition.columns ?? [[''], ['']]);
-      const matchingPathRows = ensureTrailingPathRows(questionDefinition.matchingPaths ?? [[]], matchingColumns.length);
-      return (
-        <div key={`payload:${field.key}`} className="cogita-field full">
-          <span>{field.label}</span>
-          <div className="cogita-library-panel" style={{ display: 'grid', gap: '0.8rem' }}>
-            <label className="cogita-field">
-              <span>Question type</span>
-              <select value={kind} onChange={(event) => setKind(event.target.value as QuestionKind)}>
-                <option value="selection">Selection</option>
-                <option value="truefalse">{copy.cogita.library.revision.live.trueLabel} / {copy.cogita.library.revision.live.falseLabel}</option>
-                <option value="text">Text answer</option>
-                <option value="number">Number answer</option>
-                <option value="date">Date answer</option>
-                <option value="matching">Matching</option>
-                <option value="ordering">Right order</option>
-              </select>
-            </label>
-            <label className="cogita-field">
-              <span>Title</span>
-              <input
-                type="text"
-                value={questionDefinition.title ?? ''}
-                onChange={(event) => applyQuestionDefinition({ ...questionDefinition, title: event.target.value })}
-                placeholder="Optional title"
-              />
-            </label>
-            <label className="cogita-field">
-              <span>Question</span>
-              <textarea
-                rows={3}
-                value={questionDefinition.question ?? ''}
-                onChange={(event) => applyQuestionDefinition({ ...questionDefinition, question: event.target.value })}
-                placeholder="Question text"
-              />
-            </label>
-
-            {kind === 'selection' ? (
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>Options / correct indices</span>
-                {ensureTrailing(questionDefinition.options ?? ['']).map((option, index, all) => {
-                  const selected = new Set(selectionAnswer.filter((item): item is number => Number.isInteger(item)));
-                  const isLast = index === all.length - 1;
-                  return (
-                    <div key={`question-option:${index}`} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(index)}
-                        disabled={!option.trim()}
-                        onChange={(event) => {
-                          const nextSelected =
-                            event.target.checked ? [...selected, index] : [...selected].filter((item) => item !== index);
-                          applyQuestionDefinition({ ...questionDefinition, answer: nextSelected });
-                        }}
-                      />
-                      <input
-                        type="text"
-                        value={option}
-                        placeholder={`Answer ${index + 1}`}
-                        onChange={(event) => {
-                          const next = [...(questionDefinition.options ?? [''])];
-                          next[index] = event.target.value;
-                          const withTail = ensureTrailing(next);
-                          const maxIndex = withTail.length - 1;
-                          const nextCorrect = selectionAnswer.filter((item) => item >= 0 && item < maxIndex);
-                          applyQuestionDefinition({ ...questionDefinition, options: withTail, answer: nextCorrect });
-                        }}
-                      />
-                      {!isLast ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => {
-                            const source = questionDefinition.options ?? [''];
-                            const next = source.filter((_, itemIndex) => itemIndex !== index);
-                            const reindexed = selectionAnswer
-                              .filter((item) => item !== index)
-                              .map((item) => (item > index ? item - 1 : item));
-                            applyQuestionDefinition({
-                              ...questionDefinition,
-                              options: ensureTrailing(next),
-                              answer: reindexed
-                            });
-                          }}
-                        >
-                          Remove
-                        </button>
-                      ) : <span />}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {(kind === 'text' || kind === 'date' || kind === 'number') ? (
-              <label className="cogita-field">
-                <span>Answer</span>
-                <input
-                  type={kind === 'date' ? 'date' : 'text'}
-                  value={typeof questionDefinition.answer === 'string' || typeof questionDefinition.answer === 'number' ? String(questionDefinition.answer) : ''}
-                  onChange={(event) => applyQuestionDefinition({ ...questionDefinition, answer: event.target.value })}
-                />
-              </label>
-            ) : null}
-
-            {kind === 'truefalse' ? (
-              <label className="cogita-field">
-                <span>Answer</span>
-                <select
-                  value={String(Boolean(questionDefinition.answer))}
-                  onChange={(event) => applyQuestionDefinition({ ...questionDefinition, answer: event.target.value === 'true' })}
-                >
-                  <option value="true">{copy.cogita.library.revision.live.trueLabel}</option>
-                  <option value="false">{copy.cogita.library.revision.live.falseLabel}</option>
-                </select>
-              </label>
-            ) : null}
-
-            {kind === 'matching' ? (
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>Columns</span>
-                {matchingColumns.map((column, columnIndex) => (
-                  <div key={`question-column:${columnIndex}`} style={{ display: 'grid', gap: '0.35rem', border: '1px solid rgba(120,170,220,0.22)', borderRadius: '0.6rem', padding: '0.55rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: 'rgba(184,209,234,0.85)' }}>Column {columnIndex + 1}</span>
-                      {matchingColumns.length > 2 ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => {
-                            const nextColumns = matchingColumns.filter((_, idx) => idx !== columnIndex);
-                            const nextRows = matchingPathRows.map((row) => row.filter((_, idx) => idx !== columnIndex));
-                            applyQuestionDefinition({ ...questionDefinition, columns: ensureTrailingColumns(nextColumns), matchingPaths: ensureTrailingPathRows(nextRows, Math.max(2, nextColumns.length)) });
-                          }}
-                        >
-                          Remove column
-                        </button>
-                      ) : null}
-                    </div>
-                    {column.map((cell, rowIndex) => {
-                      const isLast = rowIndex === column.length - 1;
-                      return (
-                        <div key={`question-column:${columnIndex}:row:${rowIndex}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.4rem', alignItems: 'center' }}>
-                          <input
-                            type="text"
-                            value={cell}
-                            placeholder={`Option ${rowIndex + 1}`}
-                            onChange={(event) => {
-                              const nextColumns = matchingColumns.map((items) => [...items]);
-                              nextColumns[columnIndex][rowIndex] = event.target.value;
-                              applyQuestionDefinition({ ...questionDefinition, columns: ensureTrailingColumns(nextColumns), matchingPaths: ensureTrailingPathRows(matchingPathRows, matchingColumns.length) });
-                            }}
-                          />
-                          {!isLast ? (
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={() => {
-                                const nextColumns = matchingColumns.map((items) => [...items]);
-                                nextColumns[columnIndex] = nextColumns[columnIndex].filter((_, idx) => idx !== rowIndex);
-                                applyQuestionDefinition({ ...questionDefinition, columns: ensureTrailingColumns(nextColumns), matchingPaths: ensureTrailingPathRows(matchingPathRows, matchingColumns.length) });
-                              }}
-                            >
-                              Remove
-                            </button>
-                          ) : <span />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-                <div className="cogita-form-actions" style={{ justifyContent: 'flex-start' }}>
-                  <button
-                    type="button"
-                    className="cta ghost"
-                    onClick={() => {
-                      const nextColumns = [...matchingColumns.map((column) => [...column]), ['']];
-                      const nextRows = matchingPathRows.map((row) => [...row, '']);
-                      applyQuestionDefinition({ ...questionDefinition, columns: ensureTrailingColumns(nextColumns), matchingPaths: ensureTrailingPathRows(nextRows, nextColumns.length) });
-                    }}
-                  >
-                    Add column
-                  </button>
-                </div>
-
-                <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>Correct paths (0-based indices)</span>
-                {matchingPathRows.map((row, rowIndex) => {
-                  const isLast = rowIndex === matchingPathRows.length - 1;
-                  return (
-                    <div key={`question-path:${rowIndex}`} style={{ display: 'grid', gridTemplateColumns: `repeat(${matchingColumns.length}, minmax(0,1fr)) auto`, gap: '0.35rem', alignItems: 'center' }}>
-                      {row.map((value, columnIndex) => (
-                        <input
-                          key={`question-path:${rowIndex}:${columnIndex}`}
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={value}
-                          placeholder={`${columnIndex}`}
-                          onChange={(event) => {
-                            const nextRows = matchingPathRows.map((items) => [...items]);
-                            nextRows[rowIndex][columnIndex] = event.target.value;
-                            const normalizedRows = ensureTrailingPathRows(nextRows, matchingColumns.length);
-                            const parsedPaths = normalizedRows
-                              .map((r) => r.map((cell) => cell.trim()))
-                              .filter((r) => r.every((cell) => cell !== ''))
-                              .map((r) => r.map((cell) => Number(cell)))
-                              .filter((r) => r.every((cell) => Number.isInteger(cell) && cell >= 0));
-                            applyQuestionDefinition({ ...questionDefinition, matchingPaths: normalizedRows, answer: { paths: parsedPaths } });
-                          }}
-                        />
-                      ))}
-                      {!isLast ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() => {
-                            const nextRows = matchingPathRows.filter((_, idx) => idx !== rowIndex);
-                            const normalizedRows = ensureTrailingPathRows(nextRows, matchingColumns.length);
-                            const parsedPaths = normalizedRows
-                              .map((r) => r.map((cell) => cell.trim()))
-                              .filter((r) => r.every((cell) => cell !== ''))
-                              .map((r) => r.map((cell) => Number(cell)))
-                              .filter((r) => r.every((cell) => Number.isInteger(cell) && cell >= 0));
-                            applyQuestionDefinition({ ...questionDefinition, matchingPaths: normalizedRows, answer: { paths: parsedPaths } });
-                          }}
-                        >
-                          Remove
-                        </button>
-                      ) : <span />}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {kind === 'ordering' ? (
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>Ordered options (correct order = listed order)</span>
-                {ensureTrailing(questionDefinition.options ?? ['']).map((item, index, all) => {
-                  const isLast = index === all.length - 1;
-                  return (
-                    <div key={`question-order:${index}`} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
-                      <span style={{ color: 'rgba(184,209,234,0.75)', minWidth: '1.5rem' }}>{index + 1}.</span>
-                      <input
-                        type="text"
-                        value={item}
-                        placeholder={`Step ${index + 1}`}
-                        onChange={(event) => {
-                          const next = [...(questionDefinition.options ?? [''])];
-                          next[index] = event.target.value;
-                          applyQuestionDefinition({ ...questionDefinition, options: ensureTrailing(next) });
-                        }}
-                      />
-                      {!isLast ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() =>
-                            applyQuestionDefinition({
-                              ...questionDefinition,
-                              options: ensureTrailing((questionDefinition.options ?? []).filter((_, itemIndex) => itemIndex !== index))
-                            })
-                          }
-                        >
-                          Remove
-                        </button>
-                      ) : <span />}
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            <div style={{ display: 'grid', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>JSON import</span>
-              <textarea
-                rows={8}
-                value={questionImportJson}
-                onChange={(event) => setQuestionImportJson(event.target.value)}
-                placeholder="Paste question JSON"
-              />
-              <div className="cogita-form-actions" style={{ justifyContent: 'flex-start' }}>
-                <button
-                  type="button"
-                  className="cta ghost"
-                  onClick={() => {
-                    try {
-                      const parsed = JSON.parse(questionImportJson);
-                      if (Array.isArray(parsed)) {
-                        const normalizedItems = parsed
-                          .map((item) => normalizeQuestionDefinition(item))
-                          .filter((item): item is QuestionDefinition => Boolean(item));
-                        if (normalizedItems.length === 0) {
-                          setStatus('Question JSON array must contain at least one valid question object.');
-                          return;
-                        }
-                        const first = normalizedItems[0];
-                        setQuestionImportQueue(normalizedItems);
-                        setQuestionImportQueueIndex(0);
-                        applyQuestionDefinition(first);
-                        setStatus(`Loaded question array (${normalizedItems.length} items).`);
-                        return;
-                      }
-                      const normalized = normalizeQuestionDefinition(parsed);
-                      if (!normalized) {
-                        setStatus('Question JSON must be an object or an array of question objects.');
-                        return;
-                      }
-                      setQuestionImportQueue([]);
-                      setQuestionImportQueueIndex(0);
-                      applyQuestionDefinition(normalized);
-                      setStatus(null);
-                    } catch {
-                      setStatus('Question JSON is invalid.');
-                    }
-                  }}
-                >
-                  Interpret JSON
-                </button>
-                {questionImportQueue.length > 0 ? (
-                  <span className="cogita-library-hint">
-                    Queue: {Math.min(questionImportQueueIndex + 1, questionImportQueue.length)} / {questionImportQueue.length}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    const isLong = field.inputType === 'textarea' || field.inputType === 'json';
     return (
-      <label key={`payload:${field.key}`} className="cogita-field full">
-        <span>{field.label}</span>
-        {isLong ? (
-          <textarea
-            rows={field.inputType === 'json' ? 8 : 4}
-            value={value}
-            onChange={(event) => setPayloadValues((prev) => ({ ...prev, [field.key]: event.target.value }))}
-            placeholder={field.key}
-          />
-        ) : (
-          <input
-            type="text"
-            value={value}
-            onChange={(event) => setPayloadValues((prev) => ({ ...prev, [field.key]: event.target.value }))}
-            placeholder={field.key}
-          />
-        )}
-      </label>
+      <NotionTypePayloadShell
+        key={`payload:${field.key}`}
+        copy={copy}
+        infoType={selectedInfoType}
+        field={field}
+        value={value}
+        onValueChange={(nextValue) => setPayloadValues((prev) => ({ ...prev, [field.key]: nextValue }))}
+        questionEditor={
+          selectedInfoType === 'question'
+            ? {
+                definition: questionDefinition,
+                onDefinitionChange: applyQuestionDefinition,
+                importJson: questionImportJson,
+                onImportJsonChange: setQuestionImportJson,
+                onInterpretJson: handleInterpretQuestionJson,
+                importQueueLength: questionImportQueue.length,
+                importQueueIndex: questionImportQueueIndex
+              }
+            : undefined
+        }
+        computedEditor={
+          selectedInfoType === 'computed'
+            ? {
+                definition: computedDefinition,
+                onDefinitionChange: (next) => {
+                  setComputedDefinition(next);
+                  setPayloadValues((prev) => ({ ...prev, definition: serializeComputedDefinition(next) }));
+                }
+              }
+            : undefined
+        }
+      />
     );
   };
 

@@ -2,11 +2,9 @@ import { type ReactNode } from 'react';
 import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../../lib/api';
 import { buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
-  normalizeQuestionType,
-  parseQuestionDefinition,
-  shuffleQuestionDefinitionForRuntime
-} from '../../questions/questionRuntime';
-import type { CheckcardExpectedModel, CheckcardPromptModel } from '../../checkcards/checkcardRuntime';
+  type CheckcardExpectedModel,
+  type CheckcardPromptModel
+} from './primitives/RevisionCheckcardShell';
 
 export type RevisionRuntimeView = 'lobby' | 'question' | 'scoreboard' | 'host';
 
@@ -70,7 +68,175 @@ export function RevisionRuntimeShell({
   );
 }
 
-export { normalizeQuestionType };
+export type QuestionType = 'selection' | 'truefalse' | 'text' | 'number' | 'date' | 'ordering' | 'matching';
+
+export type ParsedQuestionDefinition = {
+  type: QuestionType;
+  title?: string;
+  question: string;
+  options?: string[];
+  answer?: number[] | string | number | boolean | { paths: number[][] };
+  columns?: string[][];
+};
+
+export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
+  if (typeof rawType !== 'string') return '';
+  const value = rawType.trim().toLowerCase();
+  if (value === 'selection' || value === 'truefalse' || value === 'text' || value === 'number' || value === 'date' || value === 'ordering' || value === 'matching') {
+    return value;
+  }
+  return '';
+};
+
+const tryParseJsonObject = (raw: unknown): Record<string, unknown> | null => {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    if (typeof parsed === 'string') {
+      const nested = JSON.parse(parsed) as unknown;
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        return nested as Record<string, unknown>;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinition | null {
+  const data = tryParseJsonObject(value);
+  if (!data) return null;
+  let root: Record<string, unknown> = data;
+  const parsedDefinition = tryParseJsonObject(data.definition);
+  if (parsedDefinition) {
+    root = parsedDefinition;
+  } else if (Array.isArray(data.questionTypes) && data.questionTypes.length > 0) {
+    const first = tryParseJsonObject(data.questionTypes[0]);
+    if (first) {
+      root = first;
+    }
+  }
+  const type = normalizeQuestionType(root.type);
+  if (!type) return null;
+
+  const title = typeof root.title === 'string' ? root.title : undefined;
+  const question = typeof root.question === 'string' ? root.question : '';
+  if (!question.trim()) return null;
+
+  const options = Array.isArray(root.options)
+    ? root.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
+    : undefined;
+
+  const columns = Array.isArray(root.columns)
+    ? root.columns
+        .map((col) =>
+          Array.isArray(col)
+            ? col.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
+            : []
+        )
+        .filter((col) => col.length > 0)
+    : undefined;
+
+  const answer = (() => {
+    if (type === 'selection') {
+      const source = Array.isArray(root.answer) ? root.answer : [];
+      return source
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x >= 0)
+        .sort((a, b) => a - b);
+    }
+
+    if (type === 'truefalse') {
+      if (typeof root.answer === 'boolean') return root.answer;
+      return false;
+    }
+
+    if (type === 'matching') {
+      const answerNode = root.answer && typeof root.answer === 'object'
+        ? (root.answer as Record<string, unknown>)
+        : null;
+      const source = Array.isArray(answerNode?.paths) ? answerNode.paths : [];
+      const paths = source
+        .map((row) =>
+          Array.isArray(row)
+            ? row
+                .map((x) => Number(x))
+                .filter((x) => Number.isInteger(x) && x >= 0)
+            : []
+        )
+        .filter((row) => row.length > 0);
+      return { paths };
+    }
+
+    if (typeof root.answer === 'string' || typeof root.answer === 'number') return root.answer;
+    return undefined;
+  })();
+
+  return {
+    type,
+    title,
+    question,
+    options,
+    answer,
+    columns
+  };
+}
+
+function shuffleWithIndexMap<T>(items: T[]) {
+  const indexed = items.map((value, oldIndex) => ({ value, oldIndex }));
+  for (let i = indexed.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+  }
+  const values = indexed.map((entry) => entry.value);
+  const oldToNew = new Map<number, number>();
+  indexed.forEach((entry, newIndex) => oldToNew.set(entry.oldIndex, newIndex));
+  return { values, oldToNew };
+}
+
+export function shuffleQuestionDefinitionForRuntime(def: ParsedQuestionDefinition): ParsedQuestionDefinition {
+  if (def.type === 'selection') {
+    const options = def.options ?? [];
+    const shuffled = shuffleWithIndexMap(options);
+    const expected = Array.isArray(def.answer) ? def.answer : [];
+    return {
+      ...def,
+      options: shuffled.values,
+      answer: expected
+        .map((index) => shuffled.oldToNew.get(index))
+        .filter((index): index is number => Number.isInteger(index))
+        .sort((a, b) => a - b)
+    };
+  }
+
+  if (def.type === 'matching') {
+    const columns = def.columns ?? [];
+    const shuffledColumns = columns.map((column) => shuffleWithIndexMap(column));
+    const paths =
+      def.answer && typeof def.answer === 'object' && 'paths' in def.answer
+        ? def.answer.paths
+        : [];
+    const remappedPaths = paths.map((path) =>
+      path.map((oldIndex, columnIndex) => shuffledColumns[columnIndex]?.oldToNew.get(oldIndex) ?? oldIndex)
+    );
+    return {
+      ...def,
+      columns: shuffledColumns.map((entry) => entry.values),
+      answer: { paths: remappedPaths }
+    };
+  }
+
+  return def;
+}
 
 export type RevisionQuestionPrompt = {
   kind: 'text' | 'selection' | 'boolean' | 'ordering' | 'matching';

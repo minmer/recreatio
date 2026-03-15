@@ -12,7 +12,7 @@ import {
 import { CogitaShell } from '../../../CogitaShell';
 import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../types/navigation';
-import { InfoSearchSelect } from '../../shared/InfoSearchSelect';
+import { InfoSearchSelect } from '../notion/CogitaNotionEdit';
 import { useLocation } from 'react-router-dom';
 import { loadCollectionDraftFromInfos } from '../../../features/collections/draft';
 

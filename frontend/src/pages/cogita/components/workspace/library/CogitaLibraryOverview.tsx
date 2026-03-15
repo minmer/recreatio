@@ -7,9 +7,9 @@ import {
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
 import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../../types/navigation';
+import type { RouteKey } from '../../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
-import { CogitaStatisticsPanel } from '../../shared/CogitaStatisticsPanel';
+import { CogitaStatisticsPanel } from '../../runtime/revision/primitives/RevisionStatistics';
 
 type MetricKey = 'infos' | 'collections' | 'revisions' | 'storyboards' | 'texts';
 

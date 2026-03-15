@@ -16,7 +16,7 @@ import {
   type CogitaComputedSample
 } from '../../../lib/api';
 import { clampInt, parseLiveRules } from './liveSessionRules';
-import { evaluateCheckcardAnswer } from '../components/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer } from '../components/runtime/revision/primitives/RevisionCheckcardShell';
 import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../features/revision/quote';
@@ -459,8 +459,7 @@ async function buildLiveRounds(payload: {
     }
 
     if (normalizedInfoType === 'question' || normalizedCheckType.startsWith('question')) {
-      const def = parseQuestionDefinition(sourcePayload);
-      const round = def ? buildQuestionRound(card.cardId, card.label, def, rounds.length) : null;
+      const round = buildQuestionRound(card.cardId, card.label, sourcePayload, rounds.length);
       if (round) {
         round.roundIndex = rounds.length;
         rounds.push(round);

@@ -7,7 +7,7 @@ import {
 } from '../../../lib/api';
 import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { CogitaStatisticsPanel } from '../components/shared/CogitaStatisticsPanel';
+import { CogitaStatisticsPanel } from '../components/runtime/revision/primitives/RevisionStatistics';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLiveWallLayout } from './components/CogitaLiveWallLayout';

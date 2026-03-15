@@ -13,7 +13,7 @@ import ReactFlow, {
   type NodeProps
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import type { Copy } from '../../../../content/types';
+import type { Copy } from '../../../../../../content/types';
 
 export type ComputedGraphNodePayload = {
   id: string;
@@ -36,14 +36,142 @@ export type ComputedGraphDefinition = {
   answerTemplate?: string;
 };
 
-type ComputedGraphEditorProps = {
-  copy: Copy;
-  value: ComputedGraphDefinition | null;
-  onChange: (definition: ComputedGraphDefinition) => void;
+export type ComputedDefinition = {
+  graph: ComputedGraphDefinition;
+  extras: Record<string, unknown>;
 };
 
-const defaultNodes: Node[] = [];
-const defaultEdges: Edge[] = [];
+export function createDefaultComputedDefinition(): ComputedDefinition {
+  return {
+    graph: {
+      nodes: [],
+      outputs: []
+    },
+    extras: {}
+  };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeGraphNode(value: unknown): ComputedGraphNodePayload | null {
+  if (!isObject(value)) return null;
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const type = typeof value.type === 'string' ? value.type.trim() : '';
+  if (!id || !type) return null;
+  const position = isObject(value.position)
+    ? {
+        x: Number.isFinite(Number(value.position.x)) ? Number(value.position.x) : 0,
+        y: Number.isFinite(Number(value.position.y)) ? Number(value.position.y) : 0
+      }
+    : undefined;
+  const list = Array.isArray(value.list)
+    ? value.list.map((item) => (typeof item === 'string' ? item : '')).filter((item) => item.length > 0)
+    : undefined;
+  const inputs = Array.isArray(value.inputs)
+    ? value.inputs.map((item) => (typeof item === 'string' ? item : '')).filter((item) => item.length > 0)
+    : undefined;
+  const inputsByHandle = isObject(value.inputsByHandle)
+    ? Object.entries(value.inputsByHandle).reduce<Record<string, string[]>>((acc, [handle, ids]) => {
+        if (!Array.isArray(ids)) return acc;
+        const normalized = ids
+          .map((item) => (typeof item === 'string' ? item : ''))
+          .filter((item) => item.length > 0);
+        if (normalized.length > 0) {
+          acc[handle] = normalized;
+        }
+        return acc;
+      }, {})
+    : undefined;
+
+  return {
+    id,
+    type,
+    ...(position ? { position } : {}),
+    ...(typeof value.name === 'string' ? { name: value.name } : {}),
+    ...(typeof value.outputLabel === 'string' ? { outputLabel: value.outputLabel } : {}),
+    ...(Number.isFinite(Number(value.min)) ? { min: Number(value.min) } : {}),
+    ...(Number.isFinite(Number(value.max)) ? { max: Number(value.max) } : {}),
+    ...(Number.isFinite(Number(value.value)) ? { value: Number(value.value) } : {}),
+    ...(list ? { list } : {}),
+    ...(inputs ? { inputs } : {}),
+    ...(inputsByHandle && Object.keys(inputsByHandle).length > 0 ? { inputsByHandle } : {})
+  };
+}
+
+function normalizeGraphDefinition(value: unknown): ComputedGraphDefinition | null {
+  if (!isObject(value)) return null;
+  const nodes = Array.isArray(value.nodes)
+    ? value.nodes.map(normalizeGraphNode).filter((item): item is ComputedGraphNodePayload => item !== null)
+    : [];
+  const outputs = Array.isArray(value.outputs)
+    ? value.outputs.map((item) => (typeof item === 'string' ? item : '')).filter((item) => item.length > 0)
+    : [];
+  const output = typeof value.output === 'string' ? value.output : null;
+  const answerTemplate = typeof value.answerTemplate === 'string' ? value.answerTemplate : undefined;
+  return {
+    nodes,
+    output,
+    outputs,
+    ...(answerTemplate ? { answerTemplate } : {})
+  };
+}
+
+export function normalizeComputedDefinition(value: unknown): ComputedDefinition | null {
+  if (!isObject(value)) return null;
+
+  const graphFromDefinition = normalizeGraphDefinition(value.graph);
+  const graphFromRoot = normalizeGraphDefinition(value);
+  const graph = graphFromDefinition ?? graphFromRoot;
+  if (!graph) return null;
+
+  const extras = Object.entries(value).reduce<Record<string, unknown>>((acc, [key, entry]) => {
+    if (key !== 'graph' && key !== 'nodes' && key !== 'outputs' && key !== 'output' && key !== 'answerTemplate') {
+      acc[key] = entry;
+    }
+    return acc;
+  }, {});
+
+  return {
+    graph,
+    extras
+  };
+}
+
+export function parseComputedDefinitionFromPayload(rawValue: unknown): ComputedDefinition | null {
+  if (isObject(rawValue)) {
+    return normalizeComputedDefinition(rawValue);
+  }
+  if (typeof rawValue !== 'string') return null;
+  const trimmed = rawValue.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    const normalized = normalizeComputedDefinition(parsed);
+    if (normalized) return normalized;
+    if (typeof parsed === 'string') {
+      const nested = JSON.parse(parsed) as unknown;
+      return normalizeComputedDefinition(nested);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function serializeComputedDefinition(definition: ComputedDefinition): string {
+  return JSON.stringify(
+    {
+      ...definition.extras,
+      graph: definition.graph
+    },
+    null,
+    2
+  );
+}
 
 type NodeInputHandle = { id: string; label: string; limitOne?: boolean };
 
@@ -51,6 +179,12 @@ type ComputedNodeMeta = {
   label: string;
   handles: NodeInputHandle[];
   output?: boolean;
+};
+
+type ComputedGraphEditorProps = {
+  copy: Copy;
+  value: ComputedGraphDefinition | null;
+  onChange: (definition: ComputedGraphDefinition) => void;
 };
 
 function ComputedGraphNode({
@@ -100,7 +234,7 @@ function ComputedGraphNode({
   );
 }
 
-export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEditorProps) {
+function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEditorProps) {
   const nodeMeta = useMemo<Record<string, ComputedNodeMeta>>(
     () => ({
       'input.random': { label: copy.cogita.library.graph.nodeTypes.inputRandom, handles: [], output: true },
@@ -230,8 +364,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     }),
     [copy]
   );
+
   const buildNodesFromValue = (definition: ComputedGraphDefinition | null) => {
-    if (!definition || definition.nodes.length === 0) return defaultNodes;
+    if (!definition || definition.nodes.length === 0) return [];
     return definition.nodes.map((node, index) => ({
       id: node.id,
       type: 'computed',
@@ -253,7 +388,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   };
 
   const buildEdgesFromValue = (definition: ComputedGraphDefinition | null) => {
-    if (!definition || definition.nodes.length === 0) return defaultEdges;
+    if (!definition || definition.nodes.length === 0) return [];
     const nodeIds = new Set(definition.nodes.map((node) => node.id));
     const edges: Edge[] = [];
     let counter = 0;
@@ -276,6 +411,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
 
   const initialNodes = useMemo(() => buildNodesFromValue(value), [value, nodeMeta]);
   const initialEdges = useMemo(() => buildEdgesFromValue(value), [value]);
+
   const buildDefinitionSignature = (definition: ComputedGraphDefinition | null, includePosition: boolean) => {
     if (!definition) return 'null';
     const nodeParts = definition.nodes
@@ -307,10 +443,12 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     const outputs = definition.outputs ? [...definition.outputs].sort().join(',') : definition.output ?? '';
     return `${nodeParts}::${outputs}`;
   };
+
   const valueSignature = useMemo(() => {
     const hasPositions = !!value?.nodes?.some((node) => !!node.position);
     return buildDefinitionSignature(value, hasPositions);
   }, [value]);
+
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -323,10 +461,12 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   const lastValueSignatureRef = useRef(valueSignature);
   const lastEmittedSignatureRef = useRef(valueSignature);
   const lastEmittedSignatureNoPosRef = useRef(buildDefinitionSignature(value, false));
+
   const selectedNode = useMemo(
     () => (selectedNodeId ? nodes.find((node) => node.id === selectedNodeId) ?? null : null),
     [nodes, selectedNodeId]
   );
+
   const displayNodes = useMemo(() => {
     const concatHandleIds = ['in1', 'in2', 'in3', 'in4', 'in5', 'in6'];
     const connectedByNode = new Map<string, Set<string>>();
@@ -383,7 +523,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedEdgeIds, setEdges]);
+  }, [selectedEdgeIds]);
 
   useEffect(() => {
     onChangeRef.current = onChange;
@@ -405,7 +545,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     setNameError(null);
     setRandomValues({});
     setRefreshTick((prev) => prev + 1);
-  }, [initialNodes, initialEdges, setEdges, setNodes, valueSignature]);
+  }, [initialNodes, initialEdges, valueSignature]);
 
   useEffect(() => {
     const outputs = nodes
@@ -428,6 +568,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
     inputsByHandle.forEach((handles) => {
       Object.values(handles).forEach((list) => list.sort());
     });
+
     const definition: ComputedGraphDefinition = {
       nodes: nodes.map((node) => ({
         id: node.id,
@@ -445,12 +586,10 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
       output: outputs[0] ?? null,
       outputs
     };
+
     const signature = buildDefinitionSignature(definition, true);
     const signatureNoPos = buildDefinitionSignature(definition, false);
-    if (
-      signature === lastEmittedSignatureRef.current ||
-      signatureNoPos === lastEmittedSignatureNoPosRef.current
-    ) {
+    if (signature === lastEmittedSignatureRef.current || signatureNoPos === lastEmittedSignatureNoPosRef.current) {
       return;
     }
     lastEmittedSignatureRef.current = signature;
@@ -497,9 +636,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
   }, [nodes]);
 
   const edgeSignature = useMemo(() => {
-    const list = edges
-      .map((edge) => `${edge.source}:${edge.target}:${edge.targetHandle ?? ''}`)
-      .sort();
+    const list = edges.map((edge) => `${edge.source}:${edge.target}:${edge.targetHandle ?? ''}`).sort();
     return list.join('|');
   }, [edges]);
 
@@ -565,23 +702,23 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           break;
         }
         case 'compute.add': {
-          result = resolveInputs(node, 'in').reduce((sum: number, value: number) => sum + value, 0);
+          result = resolveInputs(node, 'in').reduce((sum: number, valueNumber: number) => sum + valueNumber, 0);
           break;
         }
         case 'compute.sub': {
           result =
-            resolveInputs(node, 'add').reduce((sum: number, value: number) => sum + value, 0) -
-            resolveInputs(node, 'sub').reduce((sum: number, value: number) => sum + value, 0);
+            resolveInputs(node, 'add').reduce((sum: number, valueNumber: number) => sum + valueNumber, 0) -
+            resolveInputs(node, 'sub').reduce((sum: number, valueNumber: number) => sum + valueNumber, 0);
           break;
         }
         case 'compute.mul': {
           const list = resolveInputs(node, 'in');
-          result = list.length ? list.reduce((prod: number, value: number) => prod * value, 1) : 0;
+          result = list.length ? list.reduce((prod: number, valueNumber: number) => prod * valueNumber, 1) : 0;
           break;
         }
         case 'compute.div': {
           const numerator = resolveInputs(node, 'num')[0] ?? 0;
-          const denominator = resolveInputs(node, 'den').reduce((sum: number, value: number) => sum + value, 0);
+          const denominator = resolveInputs(node, 'den').reduce((sum: number, valueNumber: number) => sum + valueNumber, 0);
           result = Math.abs(denominator) < Number.EPSILON ? 0 : numerator / denominator;
           break;
         }
@@ -598,9 +735,9 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           break;
         }
         case 'compute.log': {
-          const value = resolveInputs(node, 'value')[0] ?? 0;
+          const valueNumber = resolveInputs(node, 'value')[0] ?? 0;
           const base = resolveInputs(node, 'base')[0] ?? 0;
-          const safeValue = Math.max(value, Number.EPSILON);
+          const safeValue = Math.max(valueNumber, Number.EPSILON);
           result = Math.abs(base) < Number.EPSILON ? Math.log(safeValue) : Math.log(safeValue) / Math.log(base);
           break;
         }
@@ -641,7 +778,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           const orderedInputs = orderedIds.flatMap((handle) => resolveInputsRaw(node, handle));
           const inputs = orderedInputs.length ? orderedInputs : resolveInputsRaw(node, 'in');
           const list = inputs.length ? inputs : resolveInputsRaw(node);
-          const parts = list.map((value) => (value === undefined || value === null ? '' : String(value)));
+          const parts = list.map((entry) => (entry === undefined || entry === null ? '' : String(entry)));
           result = parts.join('');
           break;
         }
@@ -753,9 +890,7 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
               data: {
                 ...node.data,
                 ...updates,
-                title: updates.name
-                  ? updates.name
-                  : node.data?.title,
+                title: updates.name ? updates.name : node.data?.title,
                 subtitle: nodeMeta[updates.type ?? node.data?.type ?? '']?.label ?? node.data?.subtitle
               }
             }
@@ -1009,6 +1144,29 @@ export function ComputedGraphEditor({ copy, value, onChange }: ComputedGraphEdit
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+export type NotionComputedEditorProps = {
+  copy: Copy;
+  definition: ComputedDefinition;
+  onDefinitionChange: (next: ComputedDefinition) => void;
+};
+
+export function NotionComputedEditor({ copy, definition, onDefinitionChange }: NotionComputedEditorProps) {
+  return (
+    <div className="cogita-library-panel" style={{ display: 'grid', gap: '0.8rem' }}>
+      <ComputedGraphEditor
+        copy={copy}
+        value={definition.graph}
+        onChange={(nextGraph) =>
+          onDefinitionChange({
+            ...definition,
+            graph: nextGraph
+          })
+        }
+      />
     </div>
   );
 }

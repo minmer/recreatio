@@ -3,13 +3,12 @@ import ReactFlow, { Background, Controls, type Edge, type Node } from 'reactflow
 import 'reactflow/dist/style.css';
 import { useNavigate } from 'react-router-dom';
 import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../../types/navigation';
+import type { RouteKey } from '../../../../../types/navigation';
 import { CogitaShell } from '../../../CogitaShell';
 import { CogitaCheckcardSurface } from '../revision/components/CogitaCheckcardSurface';
 import { CogitaRevisionCard } from '../revision/components/CogitaRevisionCard';
 import { getInfoTypeLabel } from '../../libraryOptions';
-import { CogitaStatisticsPanel } from '../../shared/CogitaStatisticsPanel';
-import { CogitaCheckcardList } from '../../shared/CogitaCheckcardList';
+import { CogitaStatisticsPanel } from '../../runtime/revision/primitives/RevisionStatistics';
 import {
   createCogitaReviewOutcome,
   getCogitaInfoCheckcardDependencies,
@@ -19,7 +18,7 @@ import {
   type CogitaCardSearchResult,
   type CogitaItemDependency
 } from '../../../../../lib/api';
-import { buildCheckcardKey, formatCheckTarget } from '../../checkcards/checkcardDisplay';
+import { buildCheckcardKey, formatCheckTarget } from '../../../features/revision/checkcardDisplay';
 import { evaluateAnchorTextAnswer } from '../../../features/revision/compare';
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
@@ -34,7 +33,7 @@ import {
   type CheckcardExpectedModel,
   type CheckcardInteractionAction,
   type CheckcardPromptModel
-} from '../../checkcards/checkcardRuntime';
+} from '../../runtime/revision/primitives/RevisionCheckcardShell';
 
 type CheckcardNodeData = {
   label: string;
@@ -721,12 +720,20 @@ export function CogitaNotionCards({
                   <aside className="cogita-info-checkcards-panel">
                     <h3>Checking cards</h3>
                     <div className="cogita-info-tree">
-                      <CogitaCheckcardList
-                        cards={cards}
-                        keyForCard={(card) => buildCheckcardKey(card)}
-                        isActive={(card) => selectedNodeId === buildCheckcardKey(card)}
-                        onSelect={(card) => setSelectedNodeId(buildCheckcardKey(card))}
-                      />
+                      {cards.map((card) => {
+                        const cardKey = buildCheckcardKey(card);
+                        return (
+                          <button
+                            key={cardKey}
+                            type="button"
+                            className={`ghost cogita-checkcard-row ${selectedNodeId === cardKey ? 'active' : ''}`}
+                            onClick={() => setSelectedNodeId(cardKey)}
+                          >
+                            <span>{card.label}</span>
+                            <small>{formatCheckTarget(card)}</small>
+                          </button>
+                        );
+                      })}
                     </div>
                     <CogitaStatisticsPanel
                       libraryId={libraryId}

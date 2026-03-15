@@ -12,11 +12,11 @@ import {
 } from '../../../lib/api';
 import { CogitaShell } from '../CogitaShell';
 import { CogitaCheckcardSurface } from '../components/workspace/revision/components/CogitaCheckcardSurface';
-import { CogitaStatisticsPanel } from '../components/shared/CogitaStatisticsPanel';
+import { CogitaStatisticsPanel } from '../components/runtime/revision/primitives/RevisionStatistics';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
-import { evaluateCheckcardAnswer } from '../components/checkcards/checkcardRuntime';
+import { evaluateCheckcardAnswer } from '../components/runtime/revision/primitives/RevisionCheckcardShell';
 import { parseLiveRules } from './liveSessionRules';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';

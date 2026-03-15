@@ -3,7 +3,7 @@ import { ApiError, deleteCogitaCollection, getCogitaCollection, getCogitaCollect
 import { useNavigate } from 'react-router-dom';
 import { getCardKey } from '../../../features/revision/cards';
 import { CogitaShell } from '../../../CogitaShell';
-import { CogitaStatisticsPanel } from '../../shared/CogitaStatisticsPanel';
+import { CogitaStatisticsPanel } from '../../runtime/revision/primitives/RevisionStatistics';
 import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../types/navigation';
 

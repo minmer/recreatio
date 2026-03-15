@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactFlow, {
   Background,
@@ -14,8 +14,9 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { CogitaShell } from '../../../CogitaShell';
+import { CogitaOverlay } from '../../CogitaOverlay';
 import type { Copy } from '../../../../../content/types';
-import type { RouteKey } from '../../../../../../types/navigation';
+import type { RouteKey } from '../../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import {
   createCogitaStoryboardShare,
@@ -29,11 +30,8 @@ import {
   type CogitaCreationProject,
   type CogitaStoryboardShare
 } from '../../../../../lib/api';
-import { CogitaCheckcardList } from '../../shared/CogitaCheckcardList';
-import { CogitaNotionSearch, type CogitaNotionSearchResult } from '../../shared/search/CogitaNotionSearch';
-import { CogitaWorkspaceComponentOverlay } from '../../shared/search/overlays/CogitaWorkspaceComponentOverlay';
-import { CogitaStoryboardSearch } from '../../shared/search/CogitaStoryboardSearch';
-import { buildCheckcardKey } from '../../checkcards/checkcardDisplay';
+import { CogitaNotionSearchList as CogitaNotionSearch, type CogitaNotionSearchResult } from '../notion/CogitaNotionSearch';
+import { buildCheckcardKey } from '../../../features/revision/checkcardDisplay';
 
 export type StoryboardWorkspaceMode = 'search' | 'create' | 'overview' | 'edit';
 export type CogitaStoryboardEditProps = {
@@ -2016,29 +2014,30 @@ export function CogitaStoryboardEdit({
                               <div className="cogita-storyboard-checkcards-panel">
                                 <p className="cogita-help">{storyboardEditorCopy.selectCheckingcardHint}</p>
                                 <div className="cogita-storyboard-checkcards-list">
-                                  <CogitaCheckcardList
-                                    cards={selectedNodeCards}
-                                    keyForCard={(card) => buildCheckcardKey(card)}
-                                    isActive={(card) => {
-                                      const mappedDirection: StoryboardCardDirection =
-                                        card.direction === 'back_to_front' || card.direction === 'front_to_back'
-                                          ? card.direction
-                                          : selectedNode.cardDirection;
-                                      const key = `${card.checkType ?? ''}|${mappedDirection}`;
-                                      return key === selectedCardKey;
-                                    }}
-                                    onSelect={(card) => {
-                                      const mappedDirection: StoryboardCardDirection =
-                                        card.direction === 'back_to_front' || card.direction === 'front_to_back'
-                                          ? card.direction
-                                          : selectedNode.cardDirection;
-                                      updateSelectedNode((node) => ({
-                                        ...node,
-                                        cardCheckType: card.checkType ?? '',
-                                        cardDirection: mappedDirection
-                                      }));
-                                    }}
-                                  />
+                                  {selectedNodeCards.map((card) => {
+                                    const mappedDirection: StoryboardCardDirection =
+                                      card.direction === 'back_to_front' || card.direction === 'front_to_back'
+                                        ? card.direction
+                                        : selectedNode.cardDirection;
+                                    const key = `${card.checkType ?? ''}|${mappedDirection}`;
+                                    return (
+                                      <button
+                                        key={buildCheckcardKey(card)}
+                                        type="button"
+                                        className={`ghost cogita-checkcard-row ${key === selectedCardKey ? 'active' : ''}`}
+                                        onClick={() => {
+                                          updateSelectedNode((node) => ({
+                                            ...node,
+                                            cardCheckType: card.checkType ?? '',
+                                            cardDirection: mappedDirection
+                                          }));
+                                        }}
+                                      >
+                                        <span>{card.label}</span>
+                                        <small>{card.checkType ?? ''}</small>
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             ) : null}
@@ -2219,5 +2218,165 @@ export function CogitaStoryboardEdit({
         )}
       </CogitaWorkspaceComponentOverlay>
     </CogitaShell>
+  );
+}
+
+function CogitaStoryboardSearch({
+  items,
+  query,
+  onQueryChange,
+  defaultQuery = '',
+  searchLabel,
+  searchPlaceholder,
+  loading,
+  loadingLabel,
+  loadFailed,
+  failedLabel,
+  emptyLabel,
+  showInput = true,
+  hideResultsList = false,
+  inputAriaLabel,
+  inputClassName,
+  buildStoryboardHref,
+  openActionLabel = 'Open',
+  showOpenAction = false,
+  onStoryboardSelect,
+  onStoryboardOpen,
+  onResultsChange
+}: {
+  items: CogitaCreationProject[];
+  query?: string;
+  onQueryChange?: (query: string) => void;
+  defaultQuery?: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  loading: boolean;
+  loadingLabel: string;
+  loadFailed: boolean;
+  failedLabel: string;
+  emptyLabel: string;
+  showInput?: boolean;
+  hideResultsList?: boolean;
+  inputAriaLabel?: string;
+  inputClassName?: string;
+  buildStoryboardHref?: (item: CogitaCreationProject) => string;
+  openActionLabel?: string;
+  showOpenAction?: boolean;
+  onStoryboardSelect?: (item: CogitaCreationProject) => void;
+  onStoryboardOpen?: (item: CogitaCreationProject) => void;
+  onResultsChange?: (items: CogitaCreationProject[]) => void;
+}) {
+  const [localQuery, setLocalQuery] = useState(defaultQuery);
+  const onResultsChangeRef = useRef(onResultsChange);
+  const effectiveQuery = query ?? localQuery;
+
+  useEffect(() => {
+    onResultsChangeRef.current = onResultsChange;
+  }, [onResultsChange]);
+
+  const filtered = useMemo(() => {
+    const needle = effectiveQuery.trim().toLowerCase();
+    return !needle
+      ? items
+      : items.filter((item) => item.name.toLowerCase().includes(needle) || item.projectId.toLowerCase().includes(needle));
+  }, [effectiveQuery, items]);
+
+  useEffect(() => {
+    onResultsChangeRef.current?.(filtered);
+  }, [filtered]);
+
+  const handleQueryChange = (next: string) => {
+    if (onQueryChange) {
+      onQueryChange(next);
+      return;
+    }
+    setLocalQuery(next);
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: '0.6rem' }}>
+      {showInput ? (
+        <div className="cogita-search-field">
+          <input
+            aria-label={inputAriaLabel ?? searchLabel}
+            className={inputClassName}
+            value={effectiveQuery}
+            onChange={(event) => handleQueryChange(event.target.value)}
+            placeholder={searchPlaceholder}
+            autoFocus
+          />
+        </div>
+      ) : null}
+
+      {loading ? <p>{loadingLabel}</p> : null}
+      {!loading && loadFailed ? <p>{failedLabel}</p> : null}
+      {!loading && !loadFailed && filtered.length === 0 ? <p>{emptyLabel}</p> : null}
+
+      {!hideResultsList ? (
+        <div className="cogita-card-list" data-view="list">
+          {filtered.map((item) => {
+            const href = buildStoryboardHref ? buildStoryboardHref(item) : null;
+            return (
+              <div key={item.projectId} className="cogita-card-item">
+                <div className="cogita-info-result-row">
+                  {href && !onStoryboardSelect ? (
+                    <a className="cogita-info-result-main" href={href}>
+                      <h3 className="cogita-card-title">{item.name}</h3>
+                      <p className="cogita-card-subtitle">{item.projectId}</p>
+                    </a>
+                  ) : (
+                    <button type="button" className="cogita-info-result-main" onClick={() => onStoryboardSelect?.(item)}>
+                      <h3 className="cogita-card-title">{item.name}</h3>
+                      <p className="cogita-card-subtitle">{item.projectId}</p>
+                    </button>
+                  )}
+                  {showOpenAction && href ? (
+                    <a className="ghost" href={href}>
+                      {openActionLabel}
+                    </a>
+                  ) : showOpenAction && onStoryboardOpen ? (
+                    <button type="button" className="ghost" onClick={() => onStoryboardOpen(item)}>
+                      {openActionLabel}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CogitaWorkspaceComponentOverlay({
+  open,
+  title,
+  closeLabel,
+  onClose,
+  workspaceLinkTo,
+  workspaceLinkLabel,
+  children
+}: {
+  open: boolean;
+  title: string;
+  closeLabel: string;
+  onClose: () => void;
+  workspaceLinkTo?: string;
+  workspaceLinkLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <CogitaOverlay
+      open={open}
+      title={title}
+      closeLabel={closeLabel}
+      onClose={onClose}
+      size="wide"
+      workspaceActionLabel={workspaceLinkLabel}
+      workspaceActionTo={workspaceLinkTo}
+    >
+      {children}
+    </CogitaOverlay>
   );
 }
