@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import { getRevisionType, revisionTypes } from '../../../features/revision/registry';
 import { getCachedCollections } from '../../cogitaMetaCache';

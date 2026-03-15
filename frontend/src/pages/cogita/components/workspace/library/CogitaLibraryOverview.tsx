@@ -6,7 +6,7 @@ import {
   searchCogitaCards
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import { CogitaStatisticsPanel } from '../../shared/CogitaStatisticsPanel';

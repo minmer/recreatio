@@ -2959,6 +2959,7 @@ export type ParishConfirmationCandidate = {
   address: string;
   schoolShort: string;
   acceptedRodo: boolean;
+  paperConsentReceived?: boolean;
   createdUtc: string;
   meetingToken: string;
   meetingSlotId?: string | null;
@@ -2996,17 +2997,18 @@ export type ParishConfirmationMeetingPublicSlot = {
   stage: string;
   reservedCount: number;
   isAvailable: boolean;
-  requiresInviteLink: boolean;
+  requiresInviteCode: boolean;
   isSelected: boolean;
 };
 
 export type ParishConfirmationMeetingAvailability = {
   candidateId: string;
   candidateName: string;
+  paperConsentReceived: boolean;
   selectedSlotId?: string | null;
   bookedUtc?: string | null;
   canInviteToSelectedSlot: boolean;
-  selectedSlotInviteToken?: string | null;
+  selectedSlotInviteCode?: string | null;
   selectedSlotInviteExpiresUtc?: string | null;
   slots: ParishConfirmationMeetingPublicSlot[];
 };
@@ -3018,11 +3020,12 @@ export type ParishConfirmationPortalCandidate = {
   phoneNumbers: ParishConfirmationPhone[];
   address: string;
   schoolShort: string;
+  paperConsentReceived: boolean;
   portalToken: string;
   selectedSlotId?: string | null;
   bookedUtc?: string | null;
   canInviteToSelectedSlot: boolean;
-  selectedSlotInviteToken?: string | null;
+  selectedSlotInviteCode?: string | null;
   selectedSlotInviteExpiresUtc?: string | null;
 };
 
@@ -3066,6 +3069,7 @@ export type ParishConfirmationExportCandidate = {
   address: string;
   schoolShort: string;
   acceptedRodo: boolean;
+  paperConsentReceived: boolean;
   createdUtc: string;
   updatedUtc: string;
   meetingToken?: string | null;
@@ -3253,19 +3257,19 @@ export function deleteParishConfirmationMeetingSlot(parishId: string, slotId: st
   });
 }
 
-export function getParishConfirmationMeetingAvailability(slug: string, token: string, inviteToken?: string | null) {
+export function getParishConfirmationMeetingAvailability(slug: string, token: string, inviteCode?: string | null) {
   return request<ParishConfirmationMeetingAvailability>(`/parish/${slug}/public/confirmation-meeting-availability`, {
     method: 'POST',
     body: JSON.stringify({
       token,
-      inviteToken: inviteToken ?? null
+      inviteCode: inviteCode ?? null
     })
   });
 }
 
 export function bookParishConfirmationMeetingSlot(
   slug: string,
-  payload: { token: string; slotId: string; inviteToken?: string | null }
+  payload: { token: string; slotId: string; inviteCode?: string | null }
 ) {
   return request<{ status: string; slotId?: string | null; bookedUtc?: string | null }>(
     `/parish/${slug}/public/confirmation-meeting-book`,
@@ -3274,18 +3278,25 @@ export function bookParishConfirmationMeetingSlot(
       body: JSON.stringify({
         token: payload.token,
         slotId: payload.slotId,
-        inviteToken: payload.inviteToken ?? null
+        inviteCode: payload.inviteCode ?? null
       })
     }
   );
 }
 
-export function getParishConfirmationCandidatePortal(slug: string, token: string, inviteToken?: string | null) {
+export function releaseParishConfirmationMeetingHost(slug: string, token: string) {
+  return request<{ status: string; slotId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-release-host`, {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function getParishConfirmationCandidatePortal(slug: string, token: string, inviteCode?: string | null) {
   return request<ParishConfirmationPortal>(`/parish/${slug}/public/confirmation-candidate-portal`, {
     method: 'POST',
     body: JSON.stringify({
       token,
-      inviteToken: inviteToken ?? null
+      inviteCode: inviteCode ?? null
     })
   });
 }
@@ -3320,6 +3331,17 @@ export function updateParishConfirmationCandidate(
   return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}`, {
     method: 'PUT',
     body: JSON.stringify(payload)
+  });
+}
+
+export function updateParishConfirmationCandidatePaperConsent(
+  parishId: string,
+  candidateId: string,
+  paperConsentReceived: boolean
+) {
+  return request<void>(`/parish/${parishId}/confirmation-candidates/${candidateId}/paper-consent`, {
+    method: 'PUT',
+    body: JSON.stringify({ paperConsentReceived })
   });
 }
 

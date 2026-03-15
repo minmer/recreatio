@@ -1,12 +1,76 @@
-import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../lib/api';
-import { buildQuoteFragmentTree } from '../../features/revision/quote';
+import { type ReactNode } from 'react';
+import type { CogitaCardSearchResult, CogitaItemDependency } from '../../../../../lib/api';
+import { buildQuoteFragmentTree } from '../../../features/revision/quote';
 import {
   normalizeQuestionType,
   parseQuestionDefinition,
   shuffleQuestionDefinitionForRuntime
-} from '../questions/questionRuntime';
-import type { CheckcardExpectedModel, CheckcardPromptModel } from '../checkcards/checkcardRuntime';
-export { normalizeQuestionType } from '../questions/questionRuntime';
+} from '../../questions/questionRuntime';
+import type { CheckcardExpectedModel, CheckcardPromptModel } from '../../checkcards/checkcardRuntime';
+
+export type RevisionRuntimeView = 'lobby' | 'question' | 'scoreboard' | 'host';
+
+export type RevisionRuntimeViewOption = {
+  key: RevisionRuntimeView;
+  label: string;
+  enabled: boolean;
+};
+
+export function RevisionRuntimeShell({
+  title,
+  subtitle,
+  meta,
+  participantLabel,
+  actions,
+  views,
+  activeView,
+  onViewChange,
+  children
+}: {
+  title: string;
+  subtitle?: string | null;
+  meta?: string | null;
+  participantLabel?: string | null;
+  actions?: ReactNode;
+  views: RevisionRuntimeViewOption[];
+  activeView: RevisionRuntimeView;
+  onViewChange: (view: RevisionRuntimeView) => void;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <header className="cogita-core-run-header">
+        <div>
+          {subtitle ? <p className="cogita-core-run-kicker">{subtitle}</p> : null}
+          <h1>{title}</h1>
+          {meta ? <p>{meta}</p> : null}
+          {participantLabel ? <p>{participantLabel}</p> : null}
+        </div>
+        <div className="cogita-core-run-actions">{actions}</div>
+      </header>
+
+      <nav className="cogita-core-run-outcomes" aria-label="Revision runtime views">
+        {views
+          .filter((view) => view.enabled)
+          .map((view) => (
+            <button
+              key={view.key}
+              type="button"
+              className="ghost"
+              onClick={() => onViewChange(view.key)}
+              style={activeView === view.key ? { borderColor: 'rgba(111, 214, 255, 0.85)' } : undefined}
+            >
+              {view.label}
+            </button>
+          ))}
+      </nav>
+
+      {children}
+    </>
+  );
+}
+
+export { normalizeQuestionType };
 
 export type RevisionQuestionPrompt = {
   kind: 'text' | 'selection' | 'boolean' | 'ordering' | 'matching';
@@ -63,7 +127,7 @@ export function buildRevisionQuestionRuntime(value: unknown, fallbackPrompt: str
     const expected = Array.isArray(def.answer) ? def.answer : [];
     return {
       promptText,
-      promptModel: { kind: 'selection', options },
+      promptModel: { kind: 'selection', options, allowMultiple: expected.length !== 1 },
       expectedModel: expected,
       promptPayload: { kind: 'selection', prompt: promptText, options, multiple: expected.length !== 1 },
       initialAnswers: emptyQuestionAnswers()

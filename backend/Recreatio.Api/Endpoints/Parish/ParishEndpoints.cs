@@ -28,10 +28,12 @@ public static class ParishEndpoints
     private const int ConfirmationMeetingMinDurationMinutes = 10;
     private const int ConfirmationMeetingMaxDurationMinutes = 180;
     private const int ConfirmationMeetingInviteHostHours = 72;
+    private const int ConfirmationMeetingInviteCodeLength = 6;
     private const string ConfirmationMeetingStageYear1Start = "year1-start";
     private const string ConfirmationMeetingStageYear1End = "year1-end";
     private const string ConfirmationSecondMeetingAnnouncement =
         "Spotkanie na zakończenie 1. roku formacji zostanie udostępnione do zapisów w czerwcu 2026.";
+    private const string ConfirmationMeetingInviteCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -319,6 +321,7 @@ public static class ParishEndpoints
                 ParishId = parish.Id,
                 PayloadEnc = payloadEnc,
                 AcceptedRodo = true,
+                PaperConsentReceived = false,
                 CreatedUtc = now,
                 UpdatedUtc = now
             });
@@ -427,7 +430,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
-            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
+            var inviteCode = NormalizeConfirmationInviteCode(request.InviteCode);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -486,6 +489,7 @@ public static class ParishEndpoints
             var response = new ParishConfirmationMeetingAvailabilityResponse(
                 link.CandidateId,
                 $"{payload.Name} {payload.Surname}".Trim(),
+                candidate.PaperConsentReceived,
                 selectedSlotId,
                 link.BookedUtc,
                 canInviteToSelectedSlot,
@@ -497,9 +501,9 @@ public static class ParishEndpoints
                     var isSelected = selectedSlotId == slot.Id;
                     var joinStatus = isSelected
                         ? ConfirmationMeetingJoinStatus.Allowed
-                        : EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reserved, inviteToken, now);
+                        : EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reserved, inviteCode, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
-                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -509,7 +513,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
-                        requiresInviteLink,
+                        requiresInviteCode,
                         isSelected);
                 }).ToList());
 
@@ -529,7 +533,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
-            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
+            var inviteCode = NormalizeConfirmationInviteCode(request.InviteCode);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Meeting token is required." });
@@ -572,7 +576,7 @@ public static class ParishEndpoints
             var reservedCount = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
                 .Where(x => x.ParishId == parish.Id && x.SlotId == slot.Id && x.CandidateId != link.CandidateId)
                 .CountAsync(ct);
-            var joinStatus = EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reservedCount, inviteToken, now);
+            var joinStatus = EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reservedCount, inviteCode, now);
             if (joinStatus == ConfirmationMeetingJoinStatus.Full)
             {
                 return Results.Ok(new ParishConfirmationMeetingBookResponse("slot-full", link.SlotId, link.BookedUtc));
@@ -620,6 +624,92 @@ public static class ParishEndpoints
             return Results.Ok(new ParishConfirmationMeetingBookResponse("selected", link.SlotId, link.BookedUtc));
         });
 
+        group.MapPost("/{slug}/public/confirmation-meeting-release-host", async (
+            string slug,
+            ParishConfirmationMeetingReleaseHostRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Meeting token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            if (link.SlotId is null)
+            {
+                return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("no-slot-selected", null));
+            }
+
+            var slot = await dbContext.ParishConfirmationMeetingSlots
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.ParishId == parish.Id &&
+                        x.Id == link.SlotId.Value &&
+                        x.IsActive &&
+                        x.Stage == ConfirmationMeetingStageYear1Start,
+                    ct);
+            if (slot is null)
+            {
+                return Results.NotFound(new { status = "slot-not-found" });
+            }
+
+            if (slot.HostCandidateId is null)
+            {
+                return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("already-public", slot.Id));
+            }
+
+            if (slot.HostCandidateId != link.CandidateId)
+            {
+                return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("not-host", slot.Id));
+            }
+
+            var reservedCount = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .Where(x => x.ParishId == parish.Id && x.SlotId == slot.Id)
+                .CountAsync(ct);
+            if (reservedCount != 1)
+            {
+                return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("not-eligible", slot.Id));
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            slot.HostCandidateId = null;
+            slot.HostInviteToken = null;
+            slot.HostInviteExpiresUtc = null;
+            slot.UpdatedUtc = now;
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationMeetingHostReleased",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId, slot.Id }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("released", slot.Id));
+        });
+
         group.MapPost("/{slug}/public/confirmation-candidate-portal", async (
             string slug,
             ParishConfirmationPortalRequest request,
@@ -633,7 +723,7 @@ public static class ParishEndpoints
             }
 
             var token = NormalizeConfirmationToken(request.Token);
-            var inviteToken = NormalizeConfirmationToken(request.InviteToken);
+            var inviteCode = NormalizeConfirmationInviteCode(request.InviteCode);
             if (token is null)
             {
                 return Results.BadRequest(new { error = "Portal token is required." });
@@ -731,6 +821,7 @@ public static class ParishEndpoints
                     phones,
                     payload.Address,
                     payload.SchoolShort,
+                    candidate.PaperConsentReceived,
                     link.BookingToken,
                     link.SlotId,
                     link.BookedUtc,
@@ -743,9 +834,9 @@ public static class ParishEndpoints
                     var isSelected = link.SlotId == slot.Id;
                     var joinStatus = isSelected
                         ? ConfirmationMeetingJoinStatus.Allowed
-                        : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteToken, now);
+                        : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteCode, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
-                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -755,7 +846,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
-                        requiresInviteLink,
+                        requiresInviteCode,
                         isSelected);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
@@ -1228,6 +1319,7 @@ public static class ParishEndpoints
                     candidate.Address,
                     candidate.SchoolShort,
                     candidate.AcceptedRodo,
+                    candidate.PaperConsentReceived,
                     candidate.CreatedUtc,
                     candidate.MeetingToken,
                     candidate.MeetingSlotId))
@@ -1271,7 +1363,7 @@ public static class ParishEndpoints
                 dataProtectionProvider,
                 ct);
             var response = new ParishConfirmationExportResponse(
-                2,
+                3,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
@@ -1287,6 +1379,7 @@ public static class ParishEndpoints
                         candidate.Address,
                         candidate.SchoolShort,
                         candidate.AcceptedRodo,
+                        candidate.PaperConsentReceived,
                         candidate.CreatedUtc,
                         candidate.UpdatedUtc,
                         candidate.MeetingToken,
@@ -1483,6 +1576,7 @@ public static class ParishEndpoints
                     ParishId = parishId,
                     PayloadEnc = payloadEnc,
                     AcceptedRodo = true,
+                    PaperConsentReceived = sourceCandidate.PaperConsentReceived,
                     CreatedUtc = createdUtc,
                     UpdatedUtc = updatedUtc
                 });
@@ -1785,6 +1879,7 @@ public static class ParishEndpoints
                 true);
             targetCandidate.PayloadEnc = protector.Protect(JsonSerializer.SerializeToUtf8Bytes(mergedPayload));
             targetCandidate.AcceptedRodo = true;
+            targetCandidate.PaperConsentReceived = targetCandidate.PaperConsentReceived || sourceCandidate.PaperConsentReceived;
             targetCandidate.CreatedUtc = targetCandidate.CreatedUtc <= sourceCandidate.CreatedUtc
                 ? targetCandidate.CreatedUtc
                 : sourceCandidate.CreatedUtc;
@@ -2312,6 +2407,7 @@ public static class ParishEndpoints
                     phones,
                     payload.Address,
                     payload.SchoolShort,
+                    candidate.PaperConsentReceived,
                     link.BookingToken,
                     link.SlotId,
                     link.BookedUtc,
@@ -2326,7 +2422,7 @@ public static class ParishEndpoints
                         ? ConfirmationMeetingJoinStatus.Allowed
                         : EvaluateConfirmationMeetingJoinStatus(slot, candidateId, reserved, null, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
-                    var requiresInviteLink = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -2336,7 +2432,7 @@ public static class ParishEndpoints
                         slot.Stage,
                         reserved,
                         isAvailable,
-                        requiresInviteLink,
+                        requiresInviteCode,
                         isSelected);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
@@ -2345,6 +2441,56 @@ public static class ParishEndpoints
                 privateNotes);
 
             return Results.Ok(portal);
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}/paper-consent", async (
+            Guid parishId,
+            Guid candidateId,
+            ParishConfirmationCandidatePaperConsentUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidate = await dbContext.ParishConfirmationCandidates
+                .FirstOrDefaultAsync(x => x.Id == candidateId && x.ParishId == parishId, ct);
+            if (candidate is null)
+            {
+                return Results.NotFound();
+            }
+
+            candidate.PaperConsentReceived = request.PaperConsentReceived;
+            candidate.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCandidatePaperConsentUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { candidateId, request.PaperConsentReceived }),
+                ct);
+
+            return Results.Ok();
         }).RequireAuthorization();
 
         group.MapPut("/{parishId:guid}/confirmation-candidates/{candidateId:guid}", async (
@@ -3733,6 +3879,26 @@ public static class ParishEndpoints
         return normalized;
     }
 
+    private static string? NormalizeConfirmationInviteCode(string? inviteCode)
+    {
+        if (string.IsNullOrWhiteSpace(inviteCode))
+        {
+            return null;
+        }
+
+        var normalized = new string(inviteCode
+            .Trim()
+            .ToUpperInvariant()
+            .Where(ch => char.IsLetterOrDigit(ch))
+            .ToArray());
+        if (normalized.Length != ConfirmationMeetingInviteCodeLength)
+        {
+            return null;
+        }
+
+        return normalized;
+    }
+
     private static List<ParishConfirmationImportPhone> NormalizeConfirmationImportPhones(
         IReadOnlyList<ParishConfirmationImportPhoneRequest>? phoneNumbers)
     {
@@ -3869,6 +4035,9 @@ public static class ParishEndpoints
                 ?? GetJsonString(candidateElement, "school")
                 ?? string.Empty;
             var acceptedRodo = GetJsonBoolean(candidateElement, "acceptedRodo") ?? true;
+            var paperConsentReceived = GetJsonBoolean(candidateElement, "paperConsentReceived")
+                ?? GetJsonBoolean(candidateElement, "paperConsent")
+                ?? false;
             var createdUtc = GetJsonDateTimeOffset(candidateElement, "createdUtc");
             var updatedUtc = GetJsonDateTimeOffset(candidateElement, "updatedUtc");
             var meetingToken = GetJsonString(candidateElement, "meetingToken")
@@ -3882,6 +4051,7 @@ public static class ParishEndpoints
                 address,
                 schoolShort,
                 acceptedRodo,
+                paperConsentReceived,
                 createdUtc,
                 updatedUtc,
                 meetingToken));
@@ -4117,6 +4287,7 @@ public static class ParishEndpoints
                 payload.Address,
                 payload.SchoolShort,
                 payload.AcceptedRodo,
+                candidate.PaperConsentReceived,
                 candidate.CreatedUtc,
                 candidate.UpdatedUtc,
                 meetingLink?.BookingToken ?? string.Empty,
@@ -4177,7 +4348,7 @@ public static class ParishEndpoints
         ParishConfirmationMeetingSlot slot,
         Guid candidateId,
         int reservedCount,
-        string? inviteToken,
+        string? inviteCode,
         DateTimeOffset nowUtc)
     {
         if (reservedCount >= slot.Capacity)
@@ -4192,7 +4363,7 @@ public static class ParishEndpoints
 
         if (IsConfirmationMeetingInviteActive(slot, nowUtc))
         {
-            if (slot.HostCandidateId == candidateId || string.Equals(slot.HostInviteToken, inviteToken, StringComparison.Ordinal))
+            if (slot.HostCandidateId == candidateId || string.Equals(slot.HostInviteToken, inviteCode, StringComparison.OrdinalIgnoreCase))
             {
                 return ConfirmationMeetingJoinStatus.Allowed;
             }
@@ -4383,11 +4554,14 @@ public static class ParishEndpoints
 
     private static string CreateMeetingInviteToken()
     {
-        var bytes = RandomNumberGenerator.GetBytes(22);
-        return Convert.ToBase64String(bytes)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
+        var chars = new char[ConfirmationMeetingInviteCodeLength];
+        for (var i = 0; i < chars.Length; i += 1)
+        {
+            var index = RandomNumberGenerator.GetInt32(ConfirmationMeetingInviteCodeAlphabet.Length);
+            chars[i] = ConfirmationMeetingInviteCodeAlphabet[index];
+        }
+
+        return new string(chars);
     }
 
     private static bool HasParishMassWriteAccess(RoleKeyRing keyRing, Parish parish)
@@ -4425,6 +4599,7 @@ public static class ParishEndpoints
         string Address,
         string SchoolShort,
         bool AcceptedRodo,
+        bool PaperConsentReceived,
         DateTimeOffset CreatedUtc,
         DateTimeOffset UpdatedUtc,
         string MeetingToken,

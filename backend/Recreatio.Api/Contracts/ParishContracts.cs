@@ -199,6 +199,7 @@ public sealed record ParishConfirmationCandidateResponse(
     string Address,
     string SchoolShort,
     bool AcceptedRodo,
+    bool PaperConsentReceived,
     DateTimeOffset CreatedUtc,
     string MeetingToken,
     Guid? MeetingSlotId);
@@ -218,6 +219,7 @@ public sealed record ParishConfirmationExportCandidateResponse(
     string Address,
     string SchoolShort,
     bool AcceptedRodo,
+    bool PaperConsentReceived,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc,
     string? MeetingToken,
@@ -242,6 +244,7 @@ public sealed record ParishConfirmationImportCandidateRequest(
     string Address,
     string SchoolShort,
     bool AcceptedRodo,
+    bool PaperConsentReceived,
     DateTimeOffset? CreatedUtc,
     DateTimeOffset? UpdatedUtc,
     string? MeetingToken);
@@ -285,7 +288,7 @@ public sealed record ParishConfirmationMeetingSummaryResponse(
 
 public sealed record ParishConfirmationMeetingAvailabilityRequest(
     string Token,
-    string? InviteToken);
+    string? InviteCode);
 
 public sealed record ParishConfirmationMeetingPublicSlotResponse(
     Guid Id,
@@ -296,23 +299,24 @@ public sealed record ParishConfirmationMeetingPublicSlotResponse(
     string Stage,
     int ReservedCount,
     bool IsAvailable,
-    bool RequiresInviteLink,
+    bool RequiresInviteCode,
     bool IsSelected);
 
 public sealed record ParishConfirmationMeetingAvailabilityResponse(
     Guid CandidateId,
     string CandidateName,
+    bool PaperConsentReceived,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,
     bool CanInviteToSelectedSlot,
-    string? SelectedSlotInviteToken,
+    string? SelectedSlotInviteCode,
     DateTimeOffset? SelectedSlotInviteExpiresUtc,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> Slots);
 
 public sealed record ParishConfirmationMeetingBookRequest(
     string Token,
     Guid SlotId,
-    string? InviteToken);
+    string? InviteCode);
 
 public sealed record ParishConfirmationMeetingBookResponse(
     string Status,
@@ -325,6 +329,9 @@ public sealed record ParishConfirmationCandidateUpdateRequest(
     IReadOnlyList<string> PhoneNumbers,
     string Address,
     string SchoolShort);
+
+public sealed record ParishConfirmationCandidatePaperConsentUpdateRequest(
+    bool PaperConsentReceived);
 
 public sealed record ParishConfirmationCandidateMergeRequest(
     Guid TargetCandidateId,
@@ -368,11 +375,12 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     IReadOnlyList<ParishConfirmationPhoneResponse> PhoneNumbers,
     string Address,
     string SchoolShort,
+    bool PaperConsentReceived,
     string PortalToken,
     Guid? SelectedSlotId,
     DateTimeOffset? BookedUtc,
     bool CanInviteToSelectedSlot,
-    string? SelectedSlotInviteToken,
+    string? SelectedSlotInviteCode,
     DateTimeOffset? SelectedSlotInviteExpiresUtc);
 
 public sealed record ParishConfirmationPortalResponse(
@@ -385,7 +393,14 @@ public sealed record ParishConfirmationPortalResponse(
 
 public sealed record ParishConfirmationPortalRequest(
     string Token,
-    string? InviteToken);
+    string? InviteCode);
+
+public sealed record ParishConfirmationMeetingReleaseHostRequest(
+    string Token);
+
+public sealed record ParishConfirmationMeetingReleaseHostResponse(
+    string Status,
+    Guid? SlotId);
 
 public sealed record ParishConfirmationPortalMessageCreateRequest(
     string Token,

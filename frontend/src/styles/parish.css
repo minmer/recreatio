@@ -2225,6 +2225,27 @@
   gap: 8px;
 }
 
+.confirmation-candidate-links label {
+  display: grid;
+  gap: 4px;
+  min-width: min(320px, 100%);
+}
+
+.confirmation-candidate-links input {
+  border-radius: 10px;
+  border: 1px solid var(--parish-line);
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.confirmation-selected-slot {
+  margin-bottom: 10px;
+  border: 2px solid var(--parish-accent);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+}
+
 .confirmation-phone-list {
   margin: 8px 0 0;
   padding: 0;

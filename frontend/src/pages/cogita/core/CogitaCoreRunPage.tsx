@@ -18,6 +18,17 @@ import {
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';
 import { CogitaShell } from '../CogitaShell';
+import { RevisionRuntimeHost } from '../components/runtime/revision/RevisionRuntimeHost';
+import { RevisionRuntimeLobby } from '../components/runtime/revision/RevisionRuntimeLobby';
+import { RevisionRuntimeInterrogate } from '../components/runtime/revision/RevisionRuntimeInterrogate';
+import { RevisionRuntimeScoreboard } from '../components/runtime/revision/RevisionRuntimeScoreboard';
+import { RevisionRuntimeShell, type RevisionRuntimeViewOption, type RevisionRuntimeView } from '../components/runtime/revision/RevisionRuntimeShell';
+import { RevisionProgressBars, type RevisionProgressBar } from '../components/runtime/revision/primitives/RevisionProgress';
+import { RevisionCheckcardSlider, type RevisionCheckcardSlide } from '../components/runtime/revision/primitives/RevisionCheckcardSlider';
+import {
+  buildRevisionStatisticsModel,
+  RevisionStatistics
+} from '../components/runtime/revision/primitives/RevisionStatistics';
 
 const DISPLAY_NAME_STORAGE_KEY = 'cogita.revision.displayName';
 const LEGACY_DISPLAY_NAME_STORAGE_KEY = 'cogita.core.displayName';
@@ -169,6 +180,7 @@ export function CogitaCoreRunPage({
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<RevisionRuntimeView>('question');
 
   const participantKey = useMemo(() => participantStorageKey(libraryId, runId), [libraryId, runId]);
   const legacyParticipantKey = useMemo(() => legacyParticipantStorageKey(libraryId, runId), [libraryId, runId]);
@@ -183,12 +195,84 @@ export function CogitaCoreRunPage({
   );
   const isGroupScope = runState?.run.runScope === 'group_sync';
   const isGroupSyncScope = runState?.run.runScope === 'group_sync';
+  const isHost = participant?.isHost ?? false;
   const interactionLocked = working || joiningParticipant;
+  const runtimeViews = useMemo<RevisionRuntimeViewOption[]>(
+    () => [
+      { key: 'lobby', label: 'Lobby', enabled: true },
+      { key: 'question', label: 'Question / Reveal', enabled: true },
+      { key: 'scoreboard', label: 'Scoreboard', enabled: true },
+      { key: 'host', label: 'Host', enabled: isHost }
+    ],
+    [isHost]
+  );
   const visibleGroupParticipants = useMemo(() => {
     if (!isGroupScope) return [];
     if (groupParticipants.length > 0) return groupParticipants;
     return runState?.participants ?? [];
   }, [groupParticipants, isGroupScope, runState]);
+  const averageDurationMs = useMemo(() => {
+    const ownAverage = participant
+      ? statistics?.participants.find((item) => item.participantId === participant.participantId)?.averageDurationMs ?? null
+      : null;
+    if (typeof ownAverage === 'number' && Number.isFinite(ownAverage) && ownAverage > 0) {
+      return ownAverage;
+    }
+    const durationSamples = (statistics?.timeline ?? [])
+      .map((item) => Number(item.durationMs))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    if (durationSamples.length === 0) {
+      return 30000;
+    }
+    return durationSamples.reduce((sum, value) => sum + value, 0) / durationSamples.length;
+  }, [participant, statistics]);
+  const progressBars = useMemo<RevisionProgressBar[]>(() => {
+    const bars: RevisionProgressBar[] = [];
+    if (promptShownUtc && nextCard?.cardKey && !reveal) {
+      bars.push({
+        id: 'question-timer',
+        label: copy.cogita.library.revision.live.timerLabel,
+        startedUtc: promptShownUtc,
+        durationMs: averageDurationMs,
+        tone: 'info'
+      });
+    }
+    return bars;
+  }, [averageDurationMs, copy.cogita.library.revision.live.timerLabel, nextCard?.cardKey, promptShownUtc, reveal]);
+  const checkcardSlides = useMemo<RevisionCheckcardSlide[]>(() => {
+    const map = new Map<string, RevisionCheckcardSlide>();
+    (statistics?.timeline ?? []).forEach((item) => {
+      const cardKey = String(item.cardKey ?? '').trim();
+      if (!cardKey) return;
+      const outcome = String(item.outcomeClass ?? '').trim().toLowerCase();
+      const status: RevisionCheckcardSlide['status'] =
+        outcome === 'correct'
+          ? 'correct'
+          : outcome === 'wrong'
+            ? 'wrong'
+            : outcome === 'blank_timeout'
+              ? 'blank'
+              : 'seen';
+      map.set(cardKey, {
+        cardKey,
+        status,
+        points: Number(item.points ?? 0)
+      });
+    });
+
+    const activeCardKey = reveal?.cardKey ?? nextCard?.cardKey ?? null;
+    if (activeCardKey) {
+      const current = map.get(activeCardKey);
+      map.set(activeCardKey, {
+        cardKey: activeCardKey,
+        status: reveal ? 'revealed' : 'active',
+        points: current?.points ?? null
+      });
+    }
+
+    return Array.from(map.values());
+  }, [nextCard?.cardKey, reveal, statistics?.timeline]);
+  const runtimeStats = useMemo(() => buildRevisionStatisticsModel({ runState, statistics }), [runState, statistics]);
 
   const refreshRunState = useCallback(
     async (participantId?: string | null) => {
@@ -581,6 +665,56 @@ export function CogitaCoreRunPage({
     visibleGroupParticipants.length
   ]);
 
+  useEffect(() => {
+    if (runtimeViews.some((view) => view.enabled && view.key === activeView)) {
+      return;
+    }
+
+    const fallback = runtimeViews.find((view) => view.enabled)?.key ?? 'question';
+    if (fallback !== activeView) {
+      setActiveView(fallback);
+    }
+  }, [activeView, runtimeViews]);
+
+  const handleHostSetStatus = useCallback(
+    async (status: 'lobby' | 'active' | 'paused' | 'finished') => {
+      if (!participant?.isHost) {
+        return;
+      }
+
+      setWorking(true);
+      setError(null);
+      try {
+        await setCogitaCoreRunStatus({ libraryId, runId, status });
+        await refreshRunState(participant.participantId);
+        await refreshStatistics();
+        if (status === 'active') {
+          await loadNextCard(participant.participantId);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : coreCopy.submitFailed;
+        setError(message);
+      } finally {
+        setWorking(false);
+      }
+    },
+    [coreCopy.submitFailed, libraryId, loadNextCard, participant, refreshRunState, refreshStatistics, runId]
+  );
+
+  const handleHostRefresh = useCallback(async () => {
+    setWorking(true);
+    setError(null);
+    try {
+      await refreshRunState(participant?.participantId ?? null);
+      await refreshStatistics();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : coreCopy.initFailed;
+      setError(message);
+    } finally {
+      setWorking(false);
+    }
+  }, [coreCopy.initFailed, participant?.participantId, refreshRunState, refreshStatistics]);
+
   return (
     <CogitaShell
       copy={copy}
@@ -595,170 +729,174 @@ export function CogitaCoreRunPage({
       onLanguageChange={onLanguageChange}
     >
       <section className="cogita-core-run">
-        <header className="cogita-core-run-header">
-          <div>
-            <p className="cogita-core-run-kicker">{coreCopy.kicker}</p>
-            <h1>{runState?.run.title ?? `${coreCopy.defaultRunTitle} ${runId}`}</h1>
-            <p>
-              {coreCopy.scopeLabel}: <strong>{runState?.run.runScope ?? '-'}</strong> · {coreCopy.statusLabel}: <strong>{runState?.run.status ?? '-'}</strong>
-            </p>
-            {participant ? <p>{coreCopy.participantLabel}: {participant.displayName}</p> : null}
-          </div>
-          <div className="cogita-core-run-actions">
-            <a className="ghost" href="/#/">{coreCopy.returnToRecreatio}</a>
-            <a className="ghost" href="/#/cogita/revision">{coreCopy.backToCogita}</a>
-          </div>
-        </header>
-
-        {loading ? <p>{coreCopy.loading}</p> : null}
-        {error ? <p className="cogita-core-run-error">{error}</p> : null}
-
-        {!loading && isGroupSyncScope ? (
-          <article className="cogita-core-run-card">
-            <p className="cogita-core-run-kicker">Group sync participants</p>
-            <p className="cogita-core-run-trace">Select the active participant before each question.</p>
-            <div className="cogita-core-run-outcomes" style={{ flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-              {visibleGroupParticipants.map((item) => (
-                <button
-                  key={item.participantId}
-                  type="button"
-                  className="ghost"
-                  onClick={() => void handleSelectGroupParticipant(item)}
-                  disabled={interactionLocked || participant?.participantId === item.participantId}
-                  style={participant?.participantId === item.participantId ? { borderColor: 'rgba(111, 214, 255, 0.8)' } : undefined}
-                >
-                  {item.displayName}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr auto' }}>
-              <input
-                type="text"
-                value={newParticipantName}
-                onChange={(event) => setNewParticipantName(event.target.value)}
-                placeholder="New participant name"
-                disabled={interactionLocked}
+        <RevisionRuntimeShell
+          title={runState?.run.title ?? `${coreCopy.defaultRunTitle} ${runId}`}
+          subtitle={coreCopy.kicker}
+          meta={`${coreCopy.scopeLabel}: ${runState?.run.runScope ?? '-'} · ${coreCopy.statusLabel}: ${runState?.run.status ?? '-'}`}
+          participantLabel={participant ? `${coreCopy.participantLabel}: ${participant.displayName}` : null}
+          views={runtimeViews}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          actions={
+            <>
+              <a className="ghost" href="/#/">
+                {coreCopy.returnToRecreatio}
+              </a>
+              <a className="ghost" href="/#/cogita/revision">
+                {coreCopy.backToCogita}
+              </a>
+            </>
+          }
+        >
+          {loading ? <p>{coreCopy.loading}</p> : null}
+          {error ? <p className="cogita-core-run-error">{error}</p> : null}
+          {!loading ? (
+            <section className="cogita-core-run-primitives">
+              <RevisionProgressBars bars={progressBars} title={copy.cogita.library.revision.live.timerLabel} />
+              <RevisionCheckcardSlider
+                cards={checkcardSlides}
+                activeCardKey={reveal?.cardKey ?? nextCard?.cardKey ?? null}
+                title={coreCopy.currentPrompt}
+                labels={{
+                  previousAction: copy.cogita.library.revision.live.previousQuestionAction,
+                  nextAction: coreCopy.nextCardAction,
+                  noCardsLabel: coreCopy.noCardSelected
+                }}
               />
-              <button type="button" className="ghost" onClick={() => void handleAddGroupParticipant()} disabled={interactionLocked}>
-                Add participant
-              </button>
-            </div>
-          </article>
-        ) : null}
+              <RevisionStatistics
+                stats={activeView === 'scoreboard' ? null : runtimeStats}
+                title={coreCopy.statsTitle}
+                labels={{
+                  attemptsLabel: coreCopy.attemptsLabel,
+                  correctLabel: coreCopy.correctLabel,
+                  wrongLabel: coreCopy.wrongLabel,
+                  blankLabel: coreCopy.blankLabel,
+                  knownessLabel: coreCopy.knownessLabel,
+                  pointsLabel: coreCopy.pointsLabel,
+                  participantsLabel: copy.cogita.library.revision.live.participantsTitle
+                }}
+              />
+            </section>
+          ) : null}
 
-        {!loading && nextCard?.cardKey ? (
-          <article className="cogita-core-run-card">
-            <p className="cogita-core-run-kicker">{coreCopy.currentPrompt}</p>
-            <h2>{nextCard.cardKey}</h2>
-            {nextCard.reasonTrace.length > 0 ? (
-              <p className="cogita-core-run-trace">{nextCard.reasonTrace.join(' · ')}</p>
-            ) : null}
-
-            <label className="cogita-core-run-label" htmlFor="core-answer">
-              {coreCopy.answerLabel}
-            </label>
-            <textarea
-              id="core-answer"
-              value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
-              disabled={interactionLocked}
-              placeholder={coreCopy.answerPlaceholder}
-              rows={4}
-            />
-
-            <div className="cogita-core-run-outcomes">
-              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('correct')}>
-                {coreCopy.correctAction}
-              </button>
-              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('wrong')}>
-                {coreCopy.wrongAction}
-              </button>
-              <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void submitOutcome('blank_timeout')}>
-                {coreCopy.blankTimeoutAction}
-              </button>
-            </div>
-          </article>
-        ) : null}
-
-        {!loading && !nextCard?.cardKey && !reveal ? (
-          <article className="cogita-core-run-card">
-            <p>{coreCopy.noCardSelected}</p>
-            <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void handleNext()}>
-              {coreCopy.selectNextCardAction}
-            </button>
-          </article>
-        ) : null}
-
-        {reveal ? (
-          <article className="cogita-core-run-reveal">
-            <p className="cogita-core-run-kicker">{coreCopy.revealTitle}</p>
-            <h2>{reveal.cardKey}</h2>
-            <p>
-              {coreCopy.correctAnswerLabel}: <strong>{reveal.correctAnswer ?? '-'}</strong>
-            </p>
-            <p>
-              {coreCopy.participantAnswerLabel}: <strong>{reveal.participantAnswer ?? '-'}</strong>
-            </p>
-            {charComparison ? (
-              <p>
-                Character match: {charComparison.similarityPct.toFixed(2)}% ({charComparison.mismatchCount}/{charComparison.comparedLength} mismatches)
-              </p>
-            ) : null}
-            {charComparison && charComparison.mismatchesPreview.length > 0 ? (
-              <p className="cogita-core-run-trace">
-                Mismatch preview:{' '}
-                {charComparison.mismatchesPreview
-                  .slice(0, 6)
-                  .map((entry) => `#${entry.index} '${entry.expected ?? '∅'}'→'${entry.actual ?? '∅'}'`)
-                  .join(' · ')}
-              </p>
-            ) : null}
-            <p>
-              {coreCopy.distributionLabel}: {reveal.outcomeDistribution.correctPct.toFixed(1)}% {coreCopy.correctLabel.toLowerCase()} · {reveal.outcomeDistribution.wrongPct.toFixed(1)}% {coreCopy.wrongLabel.toLowerCase()} ·{' '}
-              {reveal.outcomeDistribution.blankTimeoutPct.toFixed(1)}% {coreCopy.blankLabel.toLowerCase()}
-            </p>
-            {reveal.scoreFactors.length > 0 ? (
-              <p>
-                {coreCopy.scoreFactorsLabel}:{' '}
-                {reveal.scoreFactors
-                  .map((factor) => `${factor.factor} ${factor.points >= 0 ? '+' : ''}${factor.points}`)
-                  .join(' · ')}
-              </p>
-            ) : null}
-            <p>{coreCopy.totalPointsLabel}: {reveal.totalPoints}</p>
-            <button type="button" className="ghost" disabled={interactionLocked} onClick={() => void handleNext()}>
-              {coreCopy.nextCardAction}
-            </button>
-          </article>
-        ) : null}
-
-        {statistics ? (
-          <article className="cogita-core-run-stats">
-            <p className="cogita-core-run-kicker">{coreCopy.statsTitle}</p>
-            <p>
-              {coreCopy.attemptsLabel}: {statistics.totalAttempts} · {coreCopy.correctLabel}: {statistics.totalCorrect} · {coreCopy.wrongLabel}: {statistics.totalWrong} · {coreCopy.blankLabel}: {statistics.totalBlankTimeout}
-            </p>
-            <p>
-              {coreCopy.knownessLabel}: {statistics.knownessScore.toFixed(2)}% · {coreCopy.pointsLabel}: {statistics.totalPoints}
-            </p>
-            {statistics.participants.length > 0 ? (
-              <div className="cogita-core-run-participants">
-                {statistics.participants.map((item) => (
-                  <div
-                    key={item.participantId}
-                    className="cogita-core-run-participant-row"
-                    style={participant?.participantId === item.participantId ? { borderColor: 'rgba(111, 214, 255, 0.75)' } : undefined}
-                  >
-                    <strong>{item.displayName}</strong>
-                    <span>
-                      {item.correctCount}/{item.attemptCount} {coreCopy.correctLabel.toLowerCase()} · {coreCopy.knownessLabel.toLowerCase()} {item.knownessScore.toFixed(1)} · {coreCopy.pointsLabel.toLowerCase()} {item.totalPoints}
-                    </span>
+          {!loading && activeView === 'lobby' ? (
+            <>
+              {isGroupSyncScope ? (
+                <article className="cogita-core-run-card">
+                  <p className="cogita-core-run-kicker">Group sync participants</p>
+                  <p className="cogita-core-run-trace">Select the active participant before each question.</p>
+                  <div className="cogita-core-run-outcomes" style={{ flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    {visibleGroupParticipants.map((item) => (
+                      <button
+                        key={item.participantId}
+                        type="button"
+                        className="ghost"
+                        onClick={() => void handleSelectGroupParticipant(item)}
+                        disabled={interactionLocked || participant?.participantId === item.participantId}
+                        style={participant?.participantId === item.participantId ? { borderColor: 'rgba(111, 214, 255, 0.8)' } : undefined}
+                      >
+                        {item.displayName}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        ) : null}
+                  <div style={{ display: 'grid', gap: '0.5rem', gridTemplateColumns: '1fr auto' }}>
+                    <input
+                      type="text"
+                      value={newParticipantName}
+                      onChange={(event) => setNewParticipantName(event.target.value)}
+                      placeholder="New participant name"
+                      disabled={interactionLocked}
+                    />
+                    <button type="button" className="ghost" onClick={() => void handleAddGroupParticipant()} disabled={interactionLocked}>
+                      Add participant
+                    </button>
+                  </div>
+                </article>
+              ) : null}
+              <RevisionRuntimeLobby
+                title={coreCopy.currentPrompt}
+                description={coreCopy.noCardSelected}
+                canSelectNext={!interactionLocked}
+                onSelectNext={() => void handleNext()}
+                actionLabel={coreCopy.selectNextCardAction}
+              >
+                {nextCard?.cardKey || reveal ? (
+                  <p className="cogita-core-run-trace">Question is already active. Switch to Question / Reveal.</p>
+                ) : null}
+              </RevisionRuntimeLobby>
+            </>
+          ) : null}
+
+          {!loading && activeView === 'question' ? (
+            nextCard?.cardKey || reveal ? (
+              <RevisionRuntimeInterrogate
+                cardKey={reveal?.cardKey ?? nextCard?.cardKey ?? null}
+                reasonTrace={nextCard?.reasonTrace ?? []}
+                answer={answer}
+                onAnswerChange={setAnswer}
+                interactionLocked={interactionLocked}
+                reveal={reveal}
+                charComparison={charComparison}
+                onOutcome={(outcomeClass) => void submitOutcome(outcomeClass)}
+                onNext={() => void handleNext()}
+                labels={{
+                  currentPrompt: coreCopy.currentPrompt,
+                  answerLabel: coreCopy.answerLabel,
+                  answerPlaceholder: coreCopy.answerPlaceholder,
+                  correctAction: coreCopy.correctAction,
+                  wrongAction: coreCopy.wrongAction,
+                  blankTimeoutAction: coreCopy.blankTimeoutAction,
+                  revealTitle: coreCopy.revealTitle,
+                  correctAnswerLabel: coreCopy.correctAnswerLabel,
+                  participantAnswerLabel: coreCopy.participantAnswerLabel,
+                  distributionLabel: coreCopy.distributionLabel,
+                  correctLabel: coreCopy.correctLabel,
+                  wrongLabel: coreCopy.wrongLabel,
+                  blankLabel: coreCopy.blankLabel,
+                  scoreFactorsLabel: coreCopy.scoreFactorsLabel,
+                  totalPointsLabel: coreCopy.totalPointsLabel,
+                  nextCardAction: coreCopy.nextCardAction
+                }}
+              />
+            ) : (
+              <RevisionRuntimeLobby
+                title={coreCopy.currentPrompt}
+                description={coreCopy.noCardSelected}
+                canSelectNext={!interactionLocked}
+                onSelectNext={() => void handleNext()}
+                actionLabel={coreCopy.selectNextCardAction}
+              />
+            )
+          ) : null}
+
+          {!loading && activeView === 'scoreboard' ? (
+            <RevisionRuntimeScoreboard
+              statistics={statistics}
+              participantId={participant?.participantId}
+              labels={{
+                statsTitle: coreCopy.statsTitle,
+                attemptsLabel: coreCopy.attemptsLabel,
+                correctLabel: coreCopy.correctLabel,
+                wrongLabel: coreCopy.wrongLabel,
+                blankLabel: coreCopy.blankLabel,
+                knownessLabel: coreCopy.knownessLabel,
+                pointsLabel: coreCopy.pointsLabel
+              }}
+            />
+          ) : null}
+
+          {!loading && activeView === 'host' ? (
+            <RevisionRuntimeHost
+              isHost={isHost}
+              runScope={runState?.run.runScope}
+              runStatus={runState?.run.status}
+              interactionLocked={interactionLocked}
+              onRefresh={() => void handleHostRefresh()}
+              onSetStatus={(status) => void handleHostSetStatus(status)}
+              onSelectNext={() => void handleNext()}
+            />
+          ) : null}
+        </RevisionRuntimeShell>
       </section>
     </CogitaShell>
   );

@@ -29,7 +29,7 @@ const CogitaWorkspacePage = lazy(() =>
   import('./pages/cogita/CogitaWorkspacePage').then((module) => ({ default: module.CogitaWorkspacePage }))
 );
 const CogitaRevisionSharedRuntimeEntryPage = lazy(() =>
-  import('./pages/cogita/components/revision/CogitaRevisionSharedRuntimeEntry').then((module) => ({
+  import('./pages/cogita/components/runtime/revision/RevisionRuntimeSharedEntry').then((module) => ({
     default: module.CogitaRevisionSharedRuntimeEntry
   }))
 );

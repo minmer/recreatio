@@ -13,6 +13,8 @@ public sealed class ParishConfirmationCandidate
 
     public bool AcceptedRodo { get; set; }
 
+    public bool PaperConsentReceived { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset UpdatedUtc { get; set; }

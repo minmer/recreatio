@@ -22,7 +22,7 @@ import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePr
 import { buildQuoteFragmentContext, buildQuoteFragmentTree } from '../features/revision/quote';
 import { selectNextCardIndexByMode } from '../features/revision/nextCardRoutine';
 import { getRevisionType, normalizeRevisionSettings } from '../features/revision/registry';
-import { buildRevisionQuestionRuntime } from '../components/revision/revisionShared';
+import { buildRevisionQuestionRuntime } from '../components/runtime/revision/RevisionRuntimeShell';
 import { collectCardsWithSharedLoader, normalizeLoadedCards } from '../features/revision/cardLoader';
 import type { Copy } from '../../../content/types';
 import type { RouteKey } from '../../../types/navigation';

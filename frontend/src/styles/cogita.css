@@ -6271,12 +6271,164 @@
   padding-bottom: 0;
 }
 
+.cogita-core-run-primitives {
+  display: grid;
+  gap: 1rem;
+}
+
+.cogita-core-run-progress-stack {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.cogita-core-run-progress-card {
+  border: 1px solid rgba(168, 196, 224, 0.22);
+  border-radius: 12px;
+  background: rgba(7, 28, 47, 0.45);
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cogita-core-run-progress-card progress {
+  width: 100%;
+  height: 0.55rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cogita-core-run-progress-card progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.cogita-core-run-progress-card progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: rgba(111, 214, 255, 0.85);
+}
+
+.cogita-core-run-progress-card progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: rgba(111, 214, 255, 0.85);
+}
+
+.cogita-core-run-progress-card.tone-success progress::-webkit-progress-value {
+  background: rgba(130, 230, 160, 0.9);
+}
+
+.cogita-core-run-progress-card.tone-success progress::-moz-progress-bar {
+  background: rgba(130, 230, 160, 0.9);
+}
+
+.cogita-core-run-progress-card.tone-warning progress::-webkit-progress-value {
+  background: rgba(255, 208, 120, 0.92);
+}
+
+.cogita-core-run-progress-card.tone-warning progress::-moz-progress-bar {
+  background: rgba(255, 208, 120, 0.92);
+}
+
+.cogita-core-run-progress-card.tone-danger progress::-webkit-progress-value {
+  background: rgba(255, 140, 140, 0.92);
+}
+
+.cogita-core-run-progress-card.tone-danger progress::-moz-progress-bar {
+  background: rgba(255, 140, 140, 0.92);
+}
+
+.cogita-core-run-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.cogita-core-run-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  opacity: 0.85;
+}
+
+.cogita-core-run-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.cogita-core-run-slider-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cogita-core-run-slider-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.cogita-core-run-slider-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+
+.cogita-core-run-slider-item[data-active='true'] {
+  border-color: rgba(111, 214, 255, 0.85);
+}
+
+.cogita-core-run-slider-item[data-status='correct'] {
+  border-color: rgba(130, 230, 160, 0.65);
+}
+
+.cogita-core-run-slider-item[data-status='wrong'],
+.cogita-core-run-slider-item[data-status='blank'] {
+  border-color: rgba(255, 140, 140, 0.55);
+}
+
+.cogita-core-run-slider-item[data-status='revealed'] {
+  border-color: rgba(255, 208, 120, 0.68);
+}
+
+.cogita-core-run-stat-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.cogita-core-run-stat-grid > div {
+  border: 1px solid rgba(168, 196, 224, 0.2);
+  border-radius: 10px;
+  padding: 0.55rem 0.6rem;
+  background: rgba(7, 28, 47, 0.45);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.cogita-core-run-stat-grid small {
+  opacity: 0.78;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cogita-core-run-stat-grid strong {
+  font-size: 1rem;
+}
+
 @media (max-width: 720px) {
   .cogita-core-run-header {
     flex-direction: column;
   }
 
   .cogita-core-run-participant-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cogita-core-run-slider-head {
     flex-direction: column;
     align-items: flex-start;
   }

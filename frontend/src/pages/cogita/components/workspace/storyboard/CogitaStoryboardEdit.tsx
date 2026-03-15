@@ -14,7 +14,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import {

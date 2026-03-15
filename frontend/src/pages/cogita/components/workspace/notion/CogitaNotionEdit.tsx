@@ -10,7 +10,7 @@ import {
   type CogitaInfoTypeSpecification
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import type { CogitaInfoOption, CogitaInfoType } from '../../types';
 import { InfoSearchSelect } from '../../shared/InfoSearchSelect';

@@ -19,7 +19,7 @@ import {
   type CogitaReviewSummary
 } from '../../../../../lib/api';
 import { CogitaShell } from '../../../CogitaShell';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import type { CogitaInfoType, CogitaLibraryMode } from '../../types';
 import { getInfoTypeLabel, getInfoTypeOptions } from '../../libraryOptions';

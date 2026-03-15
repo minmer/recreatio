@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, { Background, Controls, type Edge, type Node } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useNavigate } from 'react-router-dom';
-import type { Copy } from '../../../../../conte../../types';
+import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../../types/navigation';
 import { CogitaShell } from '../../../CogitaShell';
 import { CogitaCheckcardSurface } from '../revision/components/CogitaCheckcardSurface';
@@ -27,8 +27,14 @@ import {
   emptyQuestionAnswers,
   type RevisionQuestionAnswers,
   type RevisionQuestionPrompt
-} from '../../revision/revisionShared';
-import { evaluateCheckcardAnswer, type CheckcardExpectedModel, type CheckcardPromptModel } from '../../checkcards/checkcardRuntime';
+} from '../../runtime/revision/RevisionRuntimeShell';
+import {
+  applyCheckcardInteraction,
+  evaluateCheckcardAnswer,
+  type CheckcardExpectedModel,
+  type CheckcardInteractionAction,
+  type CheckcardPromptModel
+} from '../../checkcards/checkcardRuntime';
 
 type CheckcardNodeData = {
   label: string;
@@ -446,49 +452,67 @@ export function CogitaNotionCards({
     return { ...selectedCard, description: selectedCard.label };
   }, [selectedCard, title]);
 
+  const applyQuestionCheckcardAction = (
+    prev: RevisionQuestionAnswers,
+    action: CheckcardInteractionAction
+  ): RevisionQuestionAnswers => {
+    if (cardPreview?.kind !== 'question') {
+      return prev;
+    }
+    const interaction = applyCheckcardInteraction({
+      prompt: cardPreview.promptModel,
+      expected: null,
+      answer: {
+        text: prev.text,
+        selection: prev.selection,
+        booleanAnswer: prev.booleanAnswer,
+        ordering: prev.ordering,
+        matchingPaths: prev.matchingRows,
+        matchingSelection: prev.matchingSelection
+      },
+      action
+    });
+    return {
+      text: interaction.answer.text ?? '',
+      selection: interaction.answer.selection ?? [],
+      booleanAnswer: interaction.answer.booleanAnswer ?? null,
+      ordering: interaction.answer.ordering ?? [],
+      matchingRows: interaction.answer.matchingPaths ?? [],
+      matchingSelection: interaction.answer.matchingSelection ?? prev.matchingSelection
+    };
+  };
+
   const handleQuestionSelectionToggle = (index: number) => {
     if (selectedCardAlreadyChecked || showCorrectAnswer) return;
-    setQuestionState((prev) => {
-      const multiple = cardPreview?.kind === 'question' && cardPreview.promptPayload.multiple;
-      if (multiple) {
-        const selected = prev.selection.includes(index)
-          ? prev.selection.filter((item) => item !== index)
-          : Array.from(new Set([...prev.selection, index]));
-        return { ...prev, selection: selected };
-      }
-      return { ...prev, selection: prev.selection[0] === index ? [] : [index] };
-    });
+    setQuestionState((prev) =>
+      applyQuestionCheckcardAction(prev, {
+        type: 'selection_toggle',
+        index,
+        allowMultiple: cardPreview?.kind === 'question' ? cardPreview.promptPayload.multiple : undefined
+      })
+    );
   };
 
   const handleQuestionMatchingPick = (columnIndex: number, optionIndex: number) => {
     if (selectedCardAlreadyChecked || showCorrectAnswer) return;
-    setQuestionState((prev) => {
-      const width = Math.max(2, cardPreview?.kind === 'question' ? (cardPreview.promptPayload.columns?.length ?? 2) : 2);
-      const nextSelection = Array.from({ length: width }, (_, index) => prev.matchingSelection[index] ?? null);
-      nextSelection[columnIndex] = nextSelection[columnIndex] === optionIndex ? null : optionIndex;
-      if (nextSelection.some((value) => value == null)) {
-        return { ...prev, matchingSelection: nextSelection };
-      }
-      const completedPath = nextSelection.map((value) => Number(value));
-      const completedKey = completedPath.join('|');
-      const exists = prev.matchingRows.some((row) => row.join('|') === completedKey);
-      return {
-        ...prev,
-        matchingRows: exists ? prev.matchingRows : [...prev.matchingRows, completedPath],
-        matchingSelection: new Array(width).fill(null)
-      };
-    });
+    setQuestionState((prev) =>
+      applyQuestionCheckcardAction(prev, {
+        type: 'matching_pick',
+        columnIndex,
+        optionIndex
+      })
+    );
   };
 
   const handleQuestionOrderingMove = (index: number, delta: -1 | 1) => {
     if (selectedCardAlreadyChecked || showCorrectAnswer) return;
-    setQuestionState((prev) => {
-      const next = [...prev.ordering];
-      const target = index + delta;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, ordering: next };
-    });
+    setQuestionState((prev) =>
+      applyQuestionCheckcardAction(prev, {
+        type: 'ordering_move',
+        index,
+        delta
+      })
+    );
   };
 
   const infoTypeLabel = useMemo(() => {
