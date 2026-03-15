@@ -2329,6 +2329,28 @@
   background: #fff;
 }
 
+.confirmation-notes-feed-list li p {
+  margin: 0 0 8px;
+}
+
+.confirmation-note-feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.confirmation-note-feed-head .pill.is-public {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.confirmation-note-feed-head .pill.is-private {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .confirmation-meeting-slot-list {
   margin-top: 12px;
   display: grid;
@@ -2366,6 +2388,15 @@
 
 .confirmation-meeting-slot p {
   margin: 0 0 8px;
+}
+
+.confirmation-slot-join.is-light {
+  opacity: 0.72;
+  filter: saturate(0.7);
+}
+
+.confirmation-slot-join.is-light:hover:not(:disabled) {
+  opacity: 0.86;
 }
 
 .confirmation-meeting-candidate-list {

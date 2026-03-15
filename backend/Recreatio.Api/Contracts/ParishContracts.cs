@@ -420,6 +420,16 @@ public sealed record ParishConfirmationNoteResponse(
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
 
+public sealed record ParishConfirmationAggregatedNoteResponse(
+    Guid Id,
+    Guid CandidateId,
+    string CandidateName,
+    string CandidateSurname,
+    string NoteText,
+    bool IsPublic,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
 public sealed record ParishConfirmationPortalCandidateDataResponse(
     Guid CandidateId,
     string Name,
