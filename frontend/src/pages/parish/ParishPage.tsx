@@ -2917,7 +2917,11 @@ export function ParishPage({
       anchor.download = `confirmation-candidates-${parish.slug}-${new Date().toISOString().slice(0, 10)}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
-      setConfirmationTransferInfo(`Wyeksportowano ${exportPayload.candidates.length} zgłoszeń.`);
+      setConfirmationTransferInfo(
+        `Wyeksportowano pełny zestaw danych: kandydaci ${exportPayload.candidates.length}, ` +
+          `sloty ${exportPayload.meetingSlots?.length ?? 0}, wiadomości ${exportPayload.messages?.length ?? 0}, ` +
+          `notatki ${exportPayload.notes?.length ?? 0}.`
+      );
     } catch {
       setConfirmationTransferError('Nie udało się wyeksportować zgłoszeń.');
     } finally {

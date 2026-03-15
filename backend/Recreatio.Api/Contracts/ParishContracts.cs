@@ -225,11 +225,62 @@ public sealed record ParishConfirmationExportCandidateResponse(
     string? MeetingToken,
     Guid? MeetingSlotId);
 
+public sealed record ParishConfirmationExportPhoneVerificationResponse(
+    Guid Id,
+    Guid CandidateId,
+    int PhoneIndex,
+    string VerificationToken,
+    DateTimeOffset? VerifiedUtc,
+    DateTimeOffset CreatedUtc);
+
+public sealed record ParishConfirmationExportMeetingSlotResponse(
+    Guid Id,
+    DateTimeOffset StartsAtUtc,
+    int DurationMinutes,
+    int Capacity,
+    string? Label,
+    string Stage,
+    Guid? HostCandidateId,
+    string? HostInviteCode,
+    DateTimeOffset? HostInviteExpiresUtc,
+    bool IsActive,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishConfirmationExportMeetingLinkResponse(
+    Guid Id,
+    Guid CandidateId,
+    string BookingToken,
+    Guid? SlotId,
+    DateTimeOffset? BookedUtc,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishConfirmationExportMessageResponse(
+    Guid Id,
+    Guid CandidateId,
+    string SenderType,
+    string MessageText,
+    DateTimeOffset CreatedUtc);
+
+public sealed record ParishConfirmationExportNoteResponse(
+    Guid Id,
+    Guid CandidateId,
+    string NoteText,
+    bool IsPublic,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
 public sealed record ParishConfirmationExportResponse(
     int Version,
     Guid ParishId,
     DateTimeOffset ExportedUtc,
-    IReadOnlyList<ParishConfirmationExportCandidateResponse> Candidates);
+    IReadOnlyList<ParishConfirmationExportCandidateResponse> Candidates,
+    IReadOnlyList<ParishConfirmationExportPhoneVerificationResponse> PhoneVerifications,
+    IReadOnlyList<ParishConfirmationExportMeetingSlotResponse> MeetingSlots,
+    IReadOnlyList<ParishConfirmationExportMeetingLinkResponse> MeetingLinks,
+    IReadOnlyList<ParishConfirmationExportMessageResponse> Messages,
+    IReadOnlyList<ParishConfirmationExportNoteResponse> Notes);
 
 public sealed record ParishConfirmationImportPhoneRequest(
     string Number,

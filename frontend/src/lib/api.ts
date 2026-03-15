@@ -3076,11 +3076,67 @@ export type ParishConfirmationExportCandidate = {
   meetingSlotId?: string | null;
 };
 
+export type ParishConfirmationExportPhoneVerification = {
+  id: string;
+  candidateId: string;
+  phoneIndex: number;
+  verificationToken: string;
+  verifiedUtc?: string | null;
+  createdUtc: string;
+};
+
+export type ParishConfirmationExportMeetingSlot = {
+  id: string;
+  startsAtUtc: string;
+  durationMinutes: number;
+  capacity: number;
+  label?: string | null;
+  stage: string;
+  hostCandidateId?: string | null;
+  hostInviteCode?: string | null;
+  hostInviteExpiresUtc?: string | null;
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationExportMeetingLink = {
+  id: string;
+  candidateId: string;
+  bookingToken: string;
+  slotId?: string | null;
+  bookedUtc?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationExportMessage = {
+  id: string;
+  candidateId: string;
+  senderType: string;
+  messageText: string;
+  createdUtc: string;
+};
+
+export type ParishConfirmationExportNote = {
+  id: string;
+  candidateId: string;
+  noteText: string;
+  isPublic: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
 export type ParishConfirmationExport = {
   version: number;
   parishId: string;
   exportedUtc: string;
   candidates: ParishConfirmationExportCandidate[];
+  phoneVerifications?: ParishConfirmationExportPhoneVerification[];
+  meetingSlots?: ParishConfirmationExportMeetingSlot[];
+  meetingLinks?: ParishConfirmationExportMeetingLink[];
+  messages?: ParishConfirmationExportMessage[];
+  notes?: ParishConfirmationExportNote[];
 };
 
 export type ParishConfirmationImport = {

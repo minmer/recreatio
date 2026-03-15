@@ -1362,8 +1362,73 @@ public static class ParishEndpoints
                 dbContext,
                 dataProtectionProvider,
                 ct);
+            var phoneVerifications = await dbContext.ParishConfirmationPhoneVerifications.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.CandidateId)
+                .ThenBy(x => x.PhoneIndex)
+                .ThenBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationExportPhoneVerificationResponse(
+                    x.Id,
+                    x.CandidateId,
+                    x.PhoneIndex,
+                    x.VerificationToken,
+                    x.VerifiedUtc,
+                    x.CreatedUtc))
+                .ToListAsync(ct);
+            var meetingSlots = await dbContext.ParishConfirmationMeetingSlots.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.StartsAtUtc)
+                .ThenBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationExportMeetingSlotResponse(
+                    x.Id,
+                    x.StartsAtUtc,
+                    x.DurationMinutes,
+                    x.Capacity,
+                    x.Label,
+                    x.Stage,
+                    x.HostCandidateId,
+                    x.HostInviteToken,
+                    x.HostInviteExpiresUtc,
+                    x.IsActive,
+                    x.CreatedUtc,
+                    x.UpdatedUtc))
+                .ToListAsync(ct);
+            var meetingLinks = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationExportMeetingLinkResponse(
+                    x.Id,
+                    x.CandidateId,
+                    x.BookingToken,
+                    x.SlotId,
+                    x.BookedUtc,
+                    x.CreatedUtc,
+                    x.UpdatedUtc))
+                .ToListAsync(ct);
+            var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationExportMessageResponse(
+                    x.Id,
+                    x.CandidateId,
+                    x.SenderType,
+                    x.MessageText,
+                    x.CreatedUtc))
+                .ToListAsync(ct);
+            var notes = await dbContext.ParishConfirmationNotes.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.CreatedUtc)
+                .ThenBy(x => x.UpdatedUtc)
+                .Select(x => new ParishConfirmationExportNoteResponse(
+                    x.Id,
+                    x.CandidateId,
+                    x.NoteText,
+                    x.IsPublic,
+                    x.CreatedUtc,
+                    x.UpdatedUtc))
+                .ToListAsync(ct);
             var response = new ParishConfirmationExportResponse(
-                3,
+                4,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
@@ -1384,7 +1449,12 @@ public static class ParishEndpoints
                         candidate.UpdatedUtc,
                         candidate.MeetingToken,
                         candidate.MeetingSlotId))
-                    .ToList());
+                    .ToList(),
+                phoneVerifications,
+                meetingSlots,
+                meetingLinks,
+                messages,
+                notes);
 
             return Results.Ok(response);
         }).RequireAuthorization();
