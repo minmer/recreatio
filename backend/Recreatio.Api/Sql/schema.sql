@@ -90,6 +90,7 @@ IF OBJECT_ID(N'dbo.ParishConfirmationPhoneVerifications', N'U') IS NOT NULL DROP
 IF OBJECT_ID(N'dbo.ParishConfirmationCandidates', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationCandidates;
 IF OBJECT_ID(N'dbo.ParishOfferings', N'U') IS NOT NULL DROP TABLE dbo.ParishOfferings;
 IF OBJECT_ID(N'dbo.ParishIntentions', N'U') IS NOT NULL DROP TABLE dbo.ParishIntentions;
+IF OBJECT_ID(N'dbo.ParishMassRules', N'U') IS NOT NULL DROP TABLE dbo.ParishMassRules;
 IF OBJECT_ID(N'dbo.ParishMasses', N'U') IS NOT NULL DROP TABLE dbo.ParishMasses;
 IF OBJECT_ID(N'dbo.ParishSiteConfigs', N'U') IS NOT NULL DROP TABLE dbo.ParishSiteConfigs;
 IF OBJECT_ID(N'dbo.ParishLedger', N'U') IS NOT NULL DROP TABLE dbo.ParishLedger;
@@ -412,6 +413,22 @@ CREATE TABLE dbo.ParishMasses
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT FK_ParishMasses_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
 );
+GO
+
+CREATE TABLE dbo.ParishMassRules
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    Name NVARCHAR(160) NOT NULL,
+    Description NVARCHAR(600) NULL,
+    GraphJson NVARCHAR(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT FK_ParishMassRules_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE INDEX IX_ParishMassRules_ParishName ON dbo.ParishMassRules(ParishId, Name);
 GO
 
 CREATE TABLE dbo.UserAccounts

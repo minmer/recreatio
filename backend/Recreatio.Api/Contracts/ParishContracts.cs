@@ -351,7 +351,8 @@ public sealed record ParishConfirmationMeetingPublicSlotResponse(
     int ReservedCount,
     bool IsAvailable,
     bool RequiresInviteCode,
-    bool IsSelected);
+    bool IsSelected,
+    string VisualStatus);
 
 public sealed record ParishConfirmationMeetingAvailabilityResponse(
     Guid CandidateId,
@@ -450,6 +451,13 @@ public sealed record ParishConfirmationMeetingReleaseHostRequest(
     string Token);
 
 public sealed record ParishConfirmationMeetingReleaseHostResponse(
+    string Status,
+    Guid? SlotId);
+
+public sealed record ParishConfirmationMeetingResignRequest(
+    string Token);
+
+public sealed record ParishConfirmationMeetingResignResponse(
     string Status,
     Guid? SlotId);
 

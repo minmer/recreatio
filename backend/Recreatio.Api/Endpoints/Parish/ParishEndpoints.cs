@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Recreatio.Api.Contracts;
@@ -504,6 +505,7 @@ public static class ParishEndpoints
                         : EvaluateConfirmationMeetingJoinStatus(slot, link.CandidateId, reserved, inviteCode, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
                     var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var visualStatus = ResolveConfirmationMeetingVisualStatus(slot, reserved, now);
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -514,7 +516,8 @@ public static class ParishEndpoints
                         reserved,
                         isAvailable,
                         requiresInviteCode,
-                        isSelected);
+                        isSelected,
+                        visualStatus);
                 }).ToList());
 
             return Results.Ok(response);
@@ -710,6 +713,68 @@ public static class ParishEndpoints
             return Results.Ok(new ParishConfirmationMeetingReleaseHostResponse("released", slot.Id));
         });
 
+        group.MapPost("/{slug}/public/confirmation-meeting-resign", async (
+            string slug,
+            ParishConfirmationMeetingResignRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            if (token is null)
+            {
+                return Results.BadRequest(new { error = "Meeting token is required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            if (link.SlotId is null)
+            {
+                return Results.Ok(new ParishConfirmationMeetingResignResponse("no-slot-selected", null));
+            }
+
+            var previousSlotId = link.SlotId.Value;
+            var now = DateTimeOffset.UtcNow;
+            link.SlotId = null;
+            link.BookedUtc = null;
+            link.UpdatedUtc = now;
+
+            await RefreshConfirmationMeetingSlotHostAsync(
+                parish.Id,
+                previousSlotId,
+                dbContext,
+                now,
+                ct);
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationMeetingSlotResigned",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId, SlotId = previousSlotId }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationMeetingResignResponse("resigned", previousSlotId));
+        });
+
         group.MapPost("/{slug}/public/confirmation-candidate-portal", async (
             string slug,
             ParishConfirmationPortalRequest request,
@@ -837,6 +902,7 @@ public static class ParishEndpoints
                         : EvaluateConfirmationMeetingJoinStatus(slot, candidate.Id, reserved, inviteCode, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
                     var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var visualStatus = ResolveConfirmationMeetingVisualStatus(slot, reserved, now);
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -847,7 +913,8 @@ public static class ParishEndpoints
                         reserved,
                         isAvailable,
                         requiresInviteCode,
-                        isSelected);
+                        isSelected,
+                        visualStatus);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
                 messages,
@@ -2493,6 +2560,7 @@ public static class ParishEndpoints
                         : EvaluateConfirmationMeetingJoinStatus(slot, candidateId, reserved, null, now);
                     var isAvailable = isSelected || joinStatus == ConfirmationMeetingJoinStatus.Allowed;
                     var requiresInviteCode = !isSelected && joinStatus == ConfirmationMeetingJoinStatus.InviteRequired;
+                    var visualStatus = ResolveConfirmationMeetingVisualStatus(slot, reserved, now);
                     return new ParishConfirmationMeetingPublicSlotResponse(
                         slot.Id,
                         slot.StartsAtUtc,
@@ -2503,7 +2571,8 @@ public static class ParishEndpoints
                         reserved,
                         isAvailable,
                         requiresInviteCode,
-                        isSelected);
+                        isSelected,
+                        visualStatus);
                 }).ToList(),
                 ConfirmationSecondMeetingAnnouncement,
                 messages,
@@ -3187,10 +3256,19 @@ public static class ParishEndpoints
                 return Results.Forbid();
             }
 
-            var rulesRaw = await dbContext.ParishMassRules.AsNoTracking()
-                .Where(x => x.ParishId == parishId)
-                .OrderBy(x => x.Name)
-                .ToListAsync(ct);
+            List<ParishMassRule> rulesRaw;
+            try
+            {
+                rulesRaw = await dbContext.ParishMassRules.AsNoTracking()
+                    .Where(x => x.ParishId == parishId)
+                    .OrderBy(x => x.Name)
+                    .ToListAsync(ct);
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                // Legacy databases may miss this table. Do not crash the parish panel.
+                return Results.Ok(Array.Empty<ParishMassRuleResponse>());
+            }
             var rules = rulesRaw
                 .Select(x =>
                 {
@@ -4460,6 +4538,34 @@ public static class ParishEndpoints
         return !string.IsNullOrWhiteSpace(slot.HostInviteToken)
             && slot.HostInviteExpiresUtc is not null
             && slot.HostInviteExpiresUtc > nowUtc;
+    }
+
+    private static string ResolveConfirmationMeetingVisualStatus(
+        ParishConfirmationMeetingSlot slot,
+        int reservedCount,
+        DateTimeOffset nowUtc)
+    {
+        if (reservedCount <= 0)
+        {
+            return "free";
+        }
+
+        if (reservedCount >= slot.Capacity)
+        {
+            return "closed";
+        }
+
+        if (slot.HostCandidateId is not null && IsConfirmationMeetingInviteActive(slot, nowUtc))
+        {
+            return "hosted";
+        }
+
+        if (reservedCount > 1)
+        {
+            return "closed";
+        }
+
+        return "free";
     }
 
     private static async Task RefreshConfirmationMeetingSlotHostAsync(

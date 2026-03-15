@@ -2349,6 +2349,21 @@
   background: var(--parish-surface);
 }
 
+.confirmation-meeting-slot.is-free {
+  border-color: #16a34a;
+  background: #ecfdf3;
+}
+
+.confirmation-meeting-slot.is-hosted {
+  border-color: #f59e0b;
+  background: #fff7e5;
+}
+
+.confirmation-meeting-slot.is-closed {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
 .confirmation-meeting-slot p {
   margin: 0 0 8px;
 }

@@ -2999,6 +2999,7 @@ export type ParishConfirmationMeetingPublicSlot = {
   isAvailable: boolean;
   requiresInviteCode: boolean;
   isSelected: boolean;
+  visualStatus: 'free' | 'hosted' | 'closed' | string;
 };
 
 export type ParishConfirmationMeetingAvailability = {
@@ -3342,6 +3343,13 @@ export function bookParishConfirmationMeetingSlot(
 
 export function releaseParishConfirmationMeetingHost(slug: string, token: string) {
   return request<{ status: string; slotId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-release-host`, {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function resignParishConfirmationMeetingSlot(slug: string, token: string) {
+  return request<{ status: string; slotId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-resign`, {
     method: 'POST',
     body: JSON.stringify({ token })
   });
