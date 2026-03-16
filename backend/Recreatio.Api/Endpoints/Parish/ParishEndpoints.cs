@@ -3334,11 +3334,12 @@ public static class ParishEndpoints
             var candidateById = candidateViews.ToDictionary(x => x.CandidateId, x => x);
 
             var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
-                .Where(x => x.ParishId == parishId && x.SenderType == "candidate")
+                .Where(x => x.ParishId == parishId)
                 .OrderByDescending(x => x.CreatedUtc)
                 .ToListAsync(ct);
 
             var response = messages
+                .Where(message => IsConfirmationCandidatePortalSenderType(message.SenderType))
                 .Select(message =>
                 {
                     var candidate = candidateById.GetValueOrDefault(message.CandidateId);
@@ -4481,6 +4482,25 @@ public static class ParishEndpoints
             ConfirmationJoinDecisionReject => ConfirmationJoinDecisionReject,
             _ => null
         };
+    }
+
+    private static bool IsConfirmationCandidatePortalSenderType(string? senderType)
+    {
+        var normalized = (senderType ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            // Keep legacy imports visible even if sender type was omitted.
+            return true;
+        }
+
+        if (normalized is "admin" or "parish" or "priest" or "office")
+        {
+            return false;
+        }
+
+        return normalized is "candidate" or "kandydat" or "candidate-portal" or "candidateportal" or "portal" or "public"
+            || normalized.Contains("candidate")
+            || normalized.Contains("kandydat");
     }
 
     private static List<ParishConfirmationImportPhone> NormalizeConfirmationImportPhones(

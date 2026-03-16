@@ -2339,6 +2339,16 @@
   border-top: 1px dashed var(--parish-line);
 }
 
+.confirmation-message-reply-box {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.confirmation-message-reply-box textarea {
+  width: 100%;
+}
+
 .confirmation-portal-message-list {
   margin: 0 0 12px;
   padding: 0;

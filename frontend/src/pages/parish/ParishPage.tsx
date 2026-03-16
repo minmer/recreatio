@@ -1866,6 +1866,8 @@ export function ParishPage({
   const [confirmationMessagesFeed, setConfirmationMessagesFeed] = useState<ParishConfirmationAggregatedMessage[]>([]);
   const [confirmationMessagesFeedLoading, setConfirmationMessagesFeedLoading] = useState(false);
   const [confirmationMessagesFeedError, setConfirmationMessagesFeedError] = useState<string | null>(null);
+  const [confirmationMessagesFeedInfo, setConfirmationMessagesFeedInfo] = useState<string | null>(null);
+  const [confirmationMessagesReplyDrafts, setConfirmationMessagesReplyDrafts] = useState<Record<string, string>>({});
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
   const [confirmationCopiedMeetingToken, setConfirmationCopiedMeetingToken] = useState<string | null>(null);
   const [confirmationCopiedInviteToken, setConfirmationCopiedInviteToken] = useState<string | null>(null);
@@ -2272,6 +2274,7 @@ export function ParishPage({
     if (!parish || !isAuthenticated) {
       setConfirmationMessagesFeed([]);
       setConfirmationMessagesFeedError(null);
+      setConfirmationMessagesFeedInfo(null);
       return;
     }
 
@@ -2286,8 +2289,45 @@ export function ParishPage({
     } catch {
       setConfirmationMessagesFeed([]);
       setConfirmationMessagesFeedError('Nie udało się pobrać zbiorczej listy wiadomości kandydatów.');
+      setConfirmationMessagesFeedInfo(null);
     } finally {
       setConfirmationMessagesFeedLoading(false);
+    }
+  };
+
+  const updateConfirmationMessagesReplyDraft = (candidateId: string, value: string) => {
+    setConfirmationMessagesReplyDrafts((current) => ({
+      ...current,
+      [candidateId]: value
+    }));
+  };
+
+  const handleAdminReplyFromMessagesFeed = async (candidateId: string) => {
+    if (!parish) return;
+    const messageText = (confirmationMessagesReplyDrafts[candidateId] ?? '').trim();
+    if (!messageText) {
+      setConfirmationMessagesFeedError('Wpisz wiadomość, aby odpowiedzieć kandydatowi.');
+      return;
+    }
+
+    setConfirmationAdminSendingAction(true);
+    setConfirmationMessagesFeedError(null);
+    setConfirmationMessagesFeedInfo(null);
+    try {
+      await sendParishConfirmationAdminMessage(parish.id, candidateId, messageText);
+      setConfirmationMessagesReplyDrafts((current) => ({
+        ...current,
+        [candidateId]: ''
+      }));
+      setConfirmationMessagesFeedInfo('Wiadomość została wysłana.');
+      await loadConfirmationMessagesFeed();
+      if (confirmationAdminSelectedCandidateId === candidateId) {
+        await loadConfirmationAdminCandidatePortal(candidateId);
+      }
+    } catch {
+      setConfirmationMessagesFeedError('Nie udało się wysłać wiadomości do kandydata.');
+    } finally {
+      setConfirmationAdminSendingAction(false);
     }
   };
 
@@ -8058,6 +8098,9 @@ export function ParishPage({
                         {confirmationMessagesFeedError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationMessagesFeedError}</p>
                         ) : null}
+                        {confirmationMessagesFeedInfo ? (
+                          <p className="confirmation-info confirmation-info-success">{confirmationMessagesFeedInfo}</p>
+                        ) : null}
                         {confirmationAdminTab === 'submissions' ? (
                           <>
                             <div className="confirmation-duplicate-panel">
@@ -8387,15 +8430,36 @@ export function ParishPage({
                                     </div>
                                     <p>{message.messageText}</p>
                                     <p className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</p>
+                                    <div className="confirmation-phone-actions">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        onClick={() => {
+                                          setConfirmationAdminSelectedCandidateId(message.candidateId);
+                                          openSacramentPanelSection('candidate');
+                                        }}
+                                      >
+                                        Otwórz kandydata
+                                      </button>
+                                    </div>
+                                    <label className="confirmation-message-reply-box">
+                                      <span>Odpowiedź do kandydata</span>
+                                      <textarea
+                                        rows={2}
+                                        value={confirmationMessagesReplyDrafts[message.candidateId] ?? ''}
+                                        onChange={(event) =>
+                                          updateConfirmationMessagesReplyDraft(message.candidateId, event.target.value)
+                                        }
+                                        placeholder="Napisz krótką odpowiedź..."
+                                      />
+                                    </label>
                                     <button
                                       type="button"
-                                      className="ghost"
-                                      onClick={() => {
-                                        setConfirmationAdminSelectedCandidateId(message.candidateId);
-                                        openSacramentPanelSection('candidate');
-                                      }}
+                                      className="parish-login"
+                                      disabled={confirmationAdminSendingAction}
+                                      onClick={() => void handleAdminReplyFromMessagesFeed(message.candidateId)}
                                     >
-                                      Otwórz kandydata
+                                      {confirmationAdminSendingAction ? 'Wysyłanie...' : 'Wyślij odpowiedź'}
                                     </button>
                                   </li>
                                 ))}
