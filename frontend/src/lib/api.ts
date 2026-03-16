@@ -3002,6 +3002,16 @@ export type ParishConfirmationMeetingPublicSlot = {
   visualStatus: 'free' | 'hosted' | 'closed' | string;
 };
 
+export type ParishConfirmationMeetingJoinRequest = {
+  id: string;
+  slotId: string;
+  candidateId: string;
+  candidateName: string;
+  candidateSurname: string;
+  createdUtc: string;
+  status: string;
+};
+
 export type ParishConfirmationMeetingAvailability = {
   candidateId: string;
   candidateName: string;
@@ -3011,6 +3021,7 @@ export type ParishConfirmationMeetingAvailability = {
   canInviteToSelectedSlot: boolean;
   selectedSlotInviteCode?: string | null;
   selectedSlotInviteExpiresUtc?: string | null;
+  pendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
   slots: ParishConfirmationMeetingPublicSlot[];
 };
 
@@ -3059,6 +3070,7 @@ export type ParishConfirmationAggregatedNote = {
 export type ParishConfirmationPortal = {
   candidate: ParishConfirmationPortalCandidate;
   firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
+  pendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
   secondMeetingAnnouncement: string;
   messages: ParishConfirmationMessage[];
   publicNotes: ParishConfirmationNote[];
@@ -3364,6 +3376,33 @@ export function resignParishConfirmationMeetingSlot(slug: string, token: string)
     method: 'POST',
     body: JSON.stringify({ token })
   });
+}
+
+export function requestParishConfirmationMeetingJoin(slug: string, payload: { token: string; slotId: string }) {
+  return request<{ status: string; requestId?: string | null }>(`/parish/${slug}/public/confirmation-meeting-join-request`, {
+    method: 'POST',
+    body: JSON.stringify({
+      token: payload.token,
+      slotId: payload.slotId
+    })
+  });
+}
+
+export function decideParishConfirmationMeetingJoinRequest(
+  slug: string,
+  payload: { token: string; requestId: string; decision: 'accept' | 'reject' }
+) {
+  return request<{ status: string; requestId?: string | null; candidateId?: string | null }>(
+    `/parish/${slug}/public/confirmation-meeting-join-request-decision`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        token: payload.token,
+        requestId: payload.requestId,
+        decision: payload.decision
+      })
+    }
+  );
 }
 
 export function getParishConfirmationCandidatePortal(slug: string, token: string, inviteCode?: string | null) {

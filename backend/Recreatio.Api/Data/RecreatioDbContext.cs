@@ -42,6 +42,8 @@ public sealed class RecreatioDbContext : DbContext
         Set<Data.Parish.ParishConfirmationMeetingSlot>();
     public DbSet<Data.Parish.ParishConfirmationMeetingLink> ParishConfirmationMeetingLinks =>
         Set<Data.Parish.ParishConfirmationMeetingLink>();
+    public DbSet<Data.Parish.ParishConfirmationMeetingJoinRequest> ParishConfirmationMeetingJoinRequests =>
+        Set<Data.Parish.ParishConfirmationMeetingJoinRequest>();
     public DbSet<Data.Parish.ParishConfirmationMessage> ParishConfirmationMessages =>
         Set<Data.Parish.ParishConfirmationMessage>();
     public DbSet<Data.Parish.ParishConfirmationNote> ParishConfirmationNotes =>
@@ -211,6 +213,18 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingLink>()
             .HasIndex(x => new { x.ParishId, x.SlotId });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingJoinRequest>()
+            .HasIndex(x => new { x.ParishId, x.SlotId, x.Status, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingJoinRequest>()
+            .HasIndex(x => new { x.ParishId, x.HostCandidateId, x.Status, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingJoinRequest>()
+            .HasIndex(x => new { x.ParishId, x.RequestedByCandidateId, x.Status, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationMeetingJoinRequest>()
+            .HasIndex(x => new { x.SlotId, x.RequestedByCandidateId, x.Status });
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationMessage>()
             .HasIndex(x => new { x.ParishId, x.CandidateId, x.CreatedUtc });

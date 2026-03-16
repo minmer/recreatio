@@ -2314,6 +2314,31 @@
   margin-bottom: 0;
 }
 
+.confirmation-slot-invite-card {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px dashed var(--parish-line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  display: grid;
+  gap: 8px;
+}
+
+.confirmation-slot-invite-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.confirmation-slot-invite-card input {
+  max-width: 220px;
+}
+
+.confirmation-join-request-list {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--parish-line);
+}
+
 .confirmation-portal-message-list {
   margin: 0 0 12px;
   padding: 0;
@@ -2391,12 +2416,17 @@
 }
 
 .confirmation-slot-join.is-light {
-  opacity: 0.72;
-  filter: saturate(0.7);
+  opacity: 0.42;
+  filter: saturate(0.35) brightness(1.12);
 }
 
 .confirmation-slot-join.is-light:hover:not(:disabled) {
-  opacity: 0.86;
+  opacity: 0.56;
+}
+
+.confirmation-meeting-slot.is-closed .confirmation-slot-join {
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .confirmation-meeting-candidate-list {
@@ -2456,6 +2486,20 @@
   .confirmation-candidate-portal .confirmation-meeting-slot {
     padding: 10px;
     border-radius: 10px;
+  }
+
+  .confirmation-candidate-portal .confirmation-slot-invite-card input {
+    max-width: 100%;
+  }
+
+  .confirmation-candidate-portal .confirmation-slot-invite-card .confirmation-phone-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .confirmation-candidate-portal .confirmation-slot-invite-card .ghost {
+    width: 100%;
+    min-height: 44px;
   }
 
   .confirmation-candidate-portal .confirmation-portal-message-list li {

@@ -84,6 +84,7 @@ IF OBJECT_ID(N'dbo.DataItems', N'U') IS NOT NULL DROP TABLE dbo.DataItems;
 IF OBJECT_ID(N'dbo.SharedViews', N'U') IS NOT NULL DROP TABLE dbo.SharedViews;
 IF OBJECT_ID(N'dbo.ParishConfirmationNotes', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationNotes;
 IF OBJECT_ID(N'dbo.ParishConfirmationMessages', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMessages;
+IF OBJECT_ID(N'dbo.ParishConfirmationMeetingJoinRequests', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMeetingJoinRequests;
 IF OBJECT_ID(N'dbo.ParishConfirmationMeetingLinks', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMeetingLinks;
 IF OBJECT_ID(N'dbo.ParishConfirmationMeetingSlots', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationMeetingSlots;
 IF OBJECT_ID(N'dbo.ParishConfirmationPhoneVerifications', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationPhoneVerifications;
@@ -363,6 +364,41 @@ CREATE UNIQUE INDEX UX_ParishConfirmationMeetingLinks_Candidate ON dbo.ParishCon
 GO
 
 CREATE INDEX IX_ParishConfirmationMeetingLinks_ParishSlot ON dbo.ParishConfirmationMeetingLinks(ParishId, SlotId);
+GO
+
+CREATE TABLE dbo.ParishConfirmationMeetingJoinRequests
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    SlotId UNIQUEIDENTIFIER NOT NULL,
+    RequestedByCandidateId UNIQUEIDENTIFIER NOT NULL,
+    HostCandidateId UNIQUEIDENTIFIER NOT NULL,
+    Status NVARCHAR(16) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    DecidedUtc DATETIMEOFFSET NULL,
+    CONSTRAINT FK_ParishConfirmationMeetingJoinRequests_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id),
+    CONSTRAINT FK_ParishConfirmationMeetingJoinRequests_Slot FOREIGN KEY (SlotId) REFERENCES dbo.ParishConfirmationMeetingSlots(Id),
+    CONSTRAINT FK_ParishConfirmationMeetingJoinRequests_RequestedCandidate FOREIGN KEY (RequestedByCandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
+    CONSTRAINT FK_ParishConfirmationMeetingJoinRequests_HostCandidate FOREIGN KEY (HostCandidateId) REFERENCES dbo.ParishConfirmationCandidates(Id),
+    CONSTRAINT CK_ParishConfirmationMeetingJoinRequests_Status CHECK (Status IN ('pending', 'accepted', 'rejected', 'cancelled'))
+);
+GO
+
+CREATE INDEX IX_ParishConfirmationMeetingJoinRequests_ParishSlotStatusCreated
+    ON dbo.ParishConfirmationMeetingJoinRequests(ParishId, SlotId, Status, CreatedUtc);
+GO
+
+CREATE INDEX IX_ParishConfirmationMeetingJoinRequests_ParishHostStatusCreated
+    ON dbo.ParishConfirmationMeetingJoinRequests(ParishId, HostCandidateId, Status, CreatedUtc);
+GO
+
+CREATE INDEX IX_ParishConfirmationMeetingJoinRequests_ParishRequestedStatusCreated
+    ON dbo.ParishConfirmationMeetingJoinRequests(ParishId, RequestedByCandidateId, Status, CreatedUtc);
+GO
+
+CREATE INDEX IX_ParishConfirmationMeetingJoinRequests_SlotRequestedStatus
+    ON dbo.ParishConfirmationMeetingJoinRequests(SlotId, RequestedByCandidateId, Status);
 GO
 
 CREATE TABLE dbo.ParishConfirmationMessages

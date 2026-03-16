@@ -354,6 +354,15 @@ public sealed record ParishConfirmationMeetingPublicSlotResponse(
     bool IsSelected,
     string VisualStatus);
 
+public sealed record ParishConfirmationMeetingJoinRequestResponse(
+    Guid Id,
+    Guid SlotId,
+    Guid CandidateId,
+    string CandidateName,
+    string CandidateSurname,
+    DateTimeOffset CreatedUtc,
+    string Status);
+
 public sealed record ParishConfirmationMeetingAvailabilityResponse(
     Guid CandidateId,
     string CandidateName,
@@ -363,6 +372,7 @@ public sealed record ParishConfirmationMeetingAvailabilityResponse(
     bool CanInviteToSelectedSlot,
     string? SelectedSlotInviteCode,
     DateTimeOffset? SelectedSlotInviteExpiresUtc,
+    IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> Slots);
 
 public sealed record ParishConfirmationMeetingBookRequest(
@@ -448,6 +458,7 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
 public sealed record ParishConfirmationPortalResponse(
     ParishConfirmationPortalCandidateDataResponse Candidate,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
+    IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
     string SecondMeetingAnnouncement,
     IReadOnlyList<ParishConfirmationMessageResponse> Messages,
     IReadOnlyList<ParishConfirmationNoteResponse> PublicNotes,
@@ -470,6 +481,24 @@ public sealed record ParishConfirmationMeetingResignRequest(
 public sealed record ParishConfirmationMeetingResignResponse(
     string Status,
     Guid? SlotId);
+
+public sealed record ParishConfirmationMeetingJoinRequestCreateRequest(
+    string Token,
+    Guid SlotId);
+
+public sealed record ParishConfirmationMeetingJoinRequestCreateResponse(
+    string Status,
+    Guid? RequestId);
+
+public sealed record ParishConfirmationMeetingJoinRequestDecisionRequest(
+    string Token,
+    Guid RequestId,
+    string Decision);
+
+public sealed record ParishConfirmationMeetingJoinRequestDecisionResponse(
+    string Status,
+    Guid? RequestId,
+    Guid? CandidateId);
 
 public sealed record ParishConfirmationPortalMessageCreateRequest(
     string Token,
