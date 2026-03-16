@@ -1942,7 +1942,7 @@ public static class ParishEndpoints
 
             var protector = CreateParishConfirmationProtector(dataProtectionProvider, parishId);
             var sourceTokens = sourceCandidates
-                .SelectMany(candidate => candidate.PhoneNumbers ?? Array.Empty<ParishConfirmationExportPhone>())
+                .SelectMany(candidate => candidate.PhoneNumbers ?? Array.Empty<ParishConfirmationImportPhoneRequest>())
                 .Select(phone => NormalizeConfirmationToken(phone.VerificationToken))
                 .Where(token => token is not null)
                 .Distinct(StringComparer.Ordinal)
