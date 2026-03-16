@@ -2420,6 +2420,18 @@
   filter: saturate(0.35) brightness(1.12);
 }
 
+.confirmation-slot-host-action {
+  width: 100%;
+  margin-top: 8px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.16);
+}
+
+.confirmation-slot-host-action:disabled {
+  opacity: 0.68;
+  box-shadow: none;
+}
+
 .confirmation-slot-join.is-light:hover:not(:disabled) {
   opacity: 0.56;
 }
@@ -2471,6 +2483,7 @@
   }
 
   .confirmation-candidate-portal .confirmation-candidate-links .ghost,
+  .confirmation-candidate-portal .confirmation-meeting-slot .confirmation-slot-host-action,
   .confirmation-candidate-portal .confirmation-meeting-slot .parish-login {
     width: 100%;
     min-height: 44px;

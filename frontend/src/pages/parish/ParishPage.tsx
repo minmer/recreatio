@@ -53,6 +53,7 @@ import {
   getParishConfirmationCandidatePortalAdmin,
   getParishConfirmationMeetingAvailability,
   importParishConfirmationCandidates,
+  listParishConfirmationMessages,
   listParishConfirmationNotes,
   mergeParishConfirmationCandidates,
   decideParishConfirmationMeetingJoinRequest,
@@ -73,6 +74,7 @@ import {
   updateParishSite,
   verifyParishConfirmationPhone,
   type ParishConfirmationCandidate,
+  type ParishConfirmationAggregatedMessage,
   type ParishConfirmationMeetingAvailability,
   type ParishConfirmationPortal,
   type ParishConfirmationMeetingSummary,
@@ -1861,13 +1863,16 @@ export function ParishPage({
   const [confirmationNotesFeed, setConfirmationNotesFeed] = useState<ParishConfirmationAggregatedNote[]>([]);
   const [confirmationNotesFeedLoading, setConfirmationNotesFeedLoading] = useState(false);
   const [confirmationNotesFeedError, setConfirmationNotesFeedError] = useState<string | null>(null);
+  const [confirmationMessagesFeed, setConfirmationMessagesFeed] = useState<ParishConfirmationAggregatedMessage[]>([]);
+  const [confirmationMessagesFeedLoading, setConfirmationMessagesFeedLoading] = useState(false);
+  const [confirmationMessagesFeedError, setConfirmationMessagesFeedError] = useState<string | null>(null);
   const [confirmationCopiedToken, setConfirmationCopiedToken] = useState<string | null>(null);
   const [confirmationCopiedMeetingToken, setConfirmationCopiedMeetingToken] = useState<string | null>(null);
   const [confirmationCopiedInviteToken, setConfirmationCopiedInviteToken] = useState<string | null>(null);
   const [confirmationMeetingInviteCodeApplied, setConfirmationMeetingInviteCodeApplied] = useState<string | null>(null);
   const [confirmationMeetingSlotInviteInputs, setConfirmationMeetingSlotInviteInputs] = useState<Record<string, string>>({});
   const [confirmationMeetingJoinTargetSlotId, setConfirmationMeetingJoinTargetSlotId] = useState<string | null>(null);
-  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'notes' | 'print'>('submissions');
+  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'messages' | 'notes' | 'print'>('submissions');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
@@ -2260,6 +2265,29 @@ export function ParishPage({
       setConfirmationNotesFeedError('Nie udało się pobrać zbiorczej listy adnotacji.');
     } finally {
       setConfirmationNotesFeedLoading(false);
+    }
+  };
+
+  const loadConfirmationMessagesFeed = async () => {
+    if (!parish || !isAuthenticated) {
+      setConfirmationMessagesFeed([]);
+      setConfirmationMessagesFeedError(null);
+      return;
+    }
+
+    setConfirmationMessagesFeedLoading(true);
+    try {
+      const messages = await listParishConfirmationMessages(parish.id);
+      const sorted = [...messages].sort(
+        (a, b) => new Date(b.createdUtc).getTime() - new Date(a.createdUtc).getTime()
+      );
+      setConfirmationMessagesFeed(sorted);
+      setConfirmationMessagesFeedError(null);
+    } catch {
+      setConfirmationMessagesFeed([]);
+      setConfirmationMessagesFeedError('Nie udało się pobrać zbiorczej listy wiadomości kandydatów.');
+    } finally {
+      setConfirmationMessagesFeedLoading(false);
     }
   };
 
@@ -3412,12 +3440,17 @@ export function ParishPage({
       !isAuthenticated ||
       !parish ||
       confirmationPanelSection !== 'form' ||
-      confirmationAdminTab !== 'notes'
+      (confirmationAdminTab !== 'notes' && confirmationAdminTab !== 'messages')
     ) {
       return;
     }
 
-    void loadConfirmationNotesFeed();
+    if (confirmationAdminTab === 'notes') {
+      void loadConfirmationNotesFeed();
+      return;
+    }
+
+    void loadConfirmationMessagesFeed();
   }, [isConfirmationSubpage, isAuthenticated, parish?.id, confirmationPanelSection, confirmationAdminTab]);
 
   useEffect(() => {
@@ -7940,6 +7973,10 @@ export function ParishPage({
                               void loadConfirmationCandidates();
                               if (confirmationAdminTab === 'notes') {
                                 void loadConfirmationNotesFeed();
+                                return;
+                              }
+                              if (confirmationAdminTab === 'messages') {
+                                void loadConfirmationMessagesFeed();
                               }
                             }}
                           >
@@ -7953,6 +7990,13 @@ export function ParishPage({
                             onClick={() => setConfirmationAdminTab('submissions')}
                           >
                             Zgłoszenia
+                          </button>
+                          <button
+                            type="button"
+                            className={confirmationAdminTab === 'messages' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('messages')}
+                          >
+                            Wiadomości kandydatów (łącznie)
                           </button>
                           <button
                             type="button"
@@ -8010,6 +8054,9 @@ export function ParishPage({
                         ) : null}
                         {confirmationNotesFeedError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationNotesFeedError}</p>
+                        ) : null}
+                        {confirmationMessagesFeedError ? (
+                          <p className="confirmation-info confirmation-info-error">{confirmationMessagesFeedError}</p>
                         ) : null}
                         {confirmationAdminTab === 'submissions' ? (
                           <>
@@ -8322,6 +8369,39 @@ export function ParishPage({
                               </div>
                             )}
                           </>
+                        ) : confirmationAdminTab === 'messages' ? (
+                          <div className="confirmation-notes-feed-panel">
+                            {confirmationMessagesFeedLoading ? <p className="muted">Ładowanie wiadomości kandydatów...</p> : null}
+                            {!confirmationMessagesFeedLoading && confirmationMessagesFeed.length === 0 ? (
+                              <p className="muted">Brak wiadomości od kandydatów.</p>
+                            ) : null}
+                            {confirmationMessagesFeed.length > 0 ? (
+                              <ul className="confirmation-portal-message-list confirmation-notes-feed-list">
+                                {confirmationMessagesFeed.map((message) => (
+                                  <li key={`confirmation-message-feed-${message.id}`}>
+                                    <div className="confirmation-note-feed-head">
+                                      <strong>
+                                        {message.candidateName} {message.candidateSurname}
+                                      </strong>
+                                      <span className="pill is-public">Kandydat</span>
+                                    </div>
+                                    <p>{message.messageText}</p>
+                                    <p className="muted">{new Date(message.createdUtc).toLocaleString('pl-PL')}</p>
+                                    <button
+                                      type="button"
+                                      className="ghost"
+                                      onClick={() => {
+                                        setConfirmationAdminSelectedCandidateId(message.candidateId);
+                                        openSacramentPanelSection('candidate');
+                                      }}
+                                    >
+                                      Otwórz kandydata
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
                         ) : confirmationAdminTab === 'notes' ? (
                           <div className="confirmation-notes-feed-panel">
                             {confirmationNotesFeedLoading ? <p className="muted">Ładowanie adnotacji...</p> : null}
@@ -8683,7 +8763,7 @@ export function ParishPage({
                                             {slot.visualStatus === 'hosted' && !slot.isSelected ? (
                                               <button
                                                 type="button"
-                                                className="ghost"
+                                                className="parish-login confirmation-slot-host-action"
                                                 disabled={confirmationMeetingPublicSaving}
                                                 onClick={() =>
                                                   setConfirmationMeetingJoinTargetSlotId((current) =>
@@ -8735,27 +8815,29 @@ export function ParishPage({
                                                 </div>
                                               </div>
                                             ) : null}
-                                            <button
-                                              type="button"
-                                              className={`parish-login confirmation-slot-join ${
-                                                slot.visualStatus === 'hosted' ? 'is-light' : ''
-                                              }`}
-                                              disabled={
-                                                confirmationMeetingPublicSaving ||
-                                                !slot.isAvailable ||
-                                                slot.visualStatus === 'closed' ||
-                                                (slot.visualStatus === 'hosted' && !slot.isSelected)
-                                              }
-                                              onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
-                                            >
-                                              {confirmationMeetingPublicSaving
-                                                ? 'Zapisywanie...'
-                                                : slot.isSelected
-                                                ? 'Wybrany termin'
-                                                : slot.visualStatus === 'hosted'
-                                                ? 'Wymaga kodu lub akceptacji'
-                                                : 'Wybierz ten termin'}
-                                            </button>
+                                            {slot.visualStatus !== 'closed' &&
+                                            !(slot.visualStatus === 'hosted' && !slot.isSelected) ? (
+                                              <button
+                                                type="button"
+                                                className={`parish-login confirmation-slot-join ${
+                                                  slot.visualStatus === 'hosted' ? 'is-light' : ''
+                                                }`}
+                                                disabled={
+                                                  confirmationMeetingPublicSaving ||
+                                                  !slot.isAvailable ||
+                                                  (slot.visualStatus === 'hosted' && !slot.isSelected)
+                                                }
+                                                onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
+                                              >
+                                                {confirmationMeetingPublicSaving
+                                                  ? 'Zapisywanie...'
+                                                  : slot.isSelected
+                                                  ? 'Wybrany termin'
+                                                  : slot.visualStatus === 'hosted'
+                                                  ? 'Wymaga kodu lub akceptacji'
+                                                  : 'Wybierz ten termin'}
+                                              </button>
+                                            ) : null}
                                           </article>
                                         );
                                       })}
@@ -9356,7 +9438,7 @@ export function ParishPage({
                                         {slot.visualStatus === 'hosted' && !slot.isSelected ? (
                                           <button
                                             type="button"
-                                            className="ghost"
+                                            className="parish-login confirmation-slot-host-action"
                                             disabled={confirmationMeetingPublicSaving}
                                             onClick={() =>
                                               setConfirmationMeetingJoinTargetSlotId((current) =>
@@ -9408,27 +9490,29 @@ export function ParishPage({
                                             </div>
                                           </div>
                                         ) : null}
-                                        <button
-                                          type="button"
-                                          className={`parish-login confirmation-slot-join ${
-                                            slot.visualStatus === 'hosted' ? 'is-light' : ''
-                                          }`}
-                                          disabled={
-                                            confirmationMeetingPublicSaving ||
-                                            !slot.isAvailable ||
-                                            slot.visualStatus === 'closed' ||
-                                            (slot.visualStatus === 'hosted' && !slot.isSelected)
-                                          }
-                                          onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
-                                        >
-                                          {confirmationMeetingPublicSaving
-                                            ? 'Zapisywanie...'
-                                            : slot.isSelected
-                                            ? 'Wybrany termin'
-                                            : slot.visualStatus === 'hosted'
-                                            ? 'Wymaga kodu lub akceptacji'
-                                            : 'Wybierz ten termin'}
-                                        </button>
+                                        {slot.visualStatus !== 'closed' &&
+                                        !(slot.visualStatus === 'hosted' && !slot.isSelected) ? (
+                                          <button
+                                            type="button"
+                                            className={`parish-login confirmation-slot-join ${
+                                              slot.visualStatus === 'hosted' ? 'is-light' : ''
+                                            }`}
+                                            disabled={
+                                              confirmationMeetingPublicSaving ||
+                                              !slot.isAvailable ||
+                                              (slot.visualStatus === 'hosted' && !slot.isSelected)
+                                            }
+                                            onClick={() => void handleBookConfirmationMeetingSlot(slot.id)}
+                                          >
+                                            {confirmationMeetingPublicSaving
+                                              ? 'Zapisywanie...'
+                                              : slot.isSelected
+                                              ? 'Wybrany termin'
+                                              : slot.visualStatus === 'hosted'
+                                              ? 'Wymaga kodu lub akceptacji'
+                                              : 'Wybierz ten termin'}
+                                          </button>
+                                        ) : null}
                                       </article>
                                     );
                                   })}

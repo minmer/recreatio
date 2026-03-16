@@ -3303,6 +3303,59 @@ public static class ParishEndpoints
             return Results.Ok(response);
         }).RequireAuthorization();
 
+        group.MapGet("/{parishId:guid}/confirmation-messages", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IDataProtectionProvider dataProtectionProvider,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var candidateViews = await LoadParishConfirmationCandidateViewsAsync(parishId, dbContext, dataProtectionProvider, ct);
+            var candidateById = candidateViews.ToDictionary(x => x.CandidateId, x => x);
+
+            var messages = await dbContext.ParishConfirmationMessages.AsNoTracking()
+                .Where(x => x.ParishId == parishId && x.SenderType == "candidate")
+                .OrderByDescending(x => x.CreatedUtc)
+                .ToListAsync(ct);
+
+            var response = messages
+                .Select(message =>
+                {
+                    var candidate = candidateById.GetValueOrDefault(message.CandidateId);
+                    return new ParishConfirmationAggregatedMessageResponse(
+                        message.Id,
+                        message.CandidateId,
+                        candidate?.Name ?? "Nieznany",
+                        candidate?.Surname ?? "kandydat",
+                        message.SenderType,
+                        message.MessageText,
+                        message.CreatedUtc);
+                })
+                .ToList();
+
+            return Results.Ok(response);
+        }).RequireAuthorization();
+
         group.MapPost("/{parishId:guid}/intentions", async (
             Guid parishId,
             ParishIntentionCreateRequest request,

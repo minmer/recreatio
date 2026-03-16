@@ -3067,6 +3067,16 @@ export type ParishConfirmationAggregatedNote = {
   updatedUtc: string;
 };
 
+export type ParishConfirmationAggregatedMessage = {
+  id: string;
+  candidateId: string;
+  candidateName: string;
+  candidateSurname: string;
+  senderType: string;
+  messageText: string;
+  createdUtc: string;
+};
+
 export type ParishConfirmationPortal = {
   candidate: ParishConfirmationPortalCandidate;
   firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
@@ -3521,6 +3531,12 @@ export function updateParishConfirmationNote(
 
 export function listParishConfirmationNotes(parishId: string) {
   return request<ParishConfirmationAggregatedNote[]>(`/parish/${parishId}/confirmation-notes`, {
+    method: 'GET'
+  });
+}
+
+export function listParishConfirmationMessages(parishId: string) {
+  return request<ParishConfirmationAggregatedMessage[]>(`/parish/${parishId}/confirmation-messages`, {
     method: 'GET'
   });
 }
