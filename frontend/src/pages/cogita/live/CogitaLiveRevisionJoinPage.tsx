@@ -389,6 +389,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [matchingRows, setMatchingRows] = useState<number[][]>([]);
   const [matchingSelection, setMatchingSelection] = useState<Array<number | null>>([]);
   const [showScoreOverlay, setShowScoreOverlay] = useState(false);
+  const [pendingParticipantAction, setPendingParticipantAction] = useState<'submit' | 'next' | null>(null);
   const [introAcknowledged, setIntroAcknowledged] = useState(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [localTimerPauseHold, setLocalTimerPauseHold] = useState(false);
@@ -414,6 +415,7 @@ export function CogitaLiveRevisionJoinPage(props: {
   const prevRanksRef = useRef<Map<string, number>>(new Map());
   const timeoutSubmitKeyRef = useRef<string | null>(null);
   const timeoutNextKeyRef = useRef<string | null>(null);
+  const submitMutationInFlightRef = useRef(false);
   const introTimerSyncRef = useRef<'idle' | 'pause' | 'resume'>('idle');
   const participantRecoverRef = useRef(false);
   const participantRecoverLastAttemptRef = useRef(0);
@@ -470,6 +472,28 @@ export function CogitaLiveRevisionJoinPage(props: {
     const count = Math.max(0, Number(state?.currentRoundIndex ?? 0)) + 1;
     return String(liveCopy.roundsLabel ?? '').replace('{count}', String(count));
   }, [liveCopy.roundsLabel, state?.currentRoundIndex]);
+  const roundsLeftCount = useMemo(() => {
+    if (!prompt) return null;
+    const promptRoot = prompt as Record<string, unknown>;
+    const fromPrompt = Number(promptRoot.roundsLeft);
+    if (Number.isFinite(fromPrompt)) {
+      return Math.max(0, Math.round(fromPrompt));
+    }
+    const totalRounds = Number(promptRoot.totalRounds);
+    if (!Number.isFinite(totalRounds) || totalRounds <= 0) return null;
+    const askedRaw = Array.isArray(promptRoot.askedCardKeys) ? (promptRoot.askedCardKeys as unknown[]) : [];
+    if (askedRaw.length > 0) {
+      const askedCount = new Set(askedRaw.map((key) => String(key))).size;
+      return Math.max(0, Math.round(totalRounds) - askedCount);
+    }
+    const roundIndexValue = Number(promptRoot.roundIndex ?? state?.currentRoundIndex ?? 0);
+    const roundIndex = Number.isFinite(roundIndexValue) ? Math.max(0, Math.round(roundIndexValue)) : 0;
+    return Math.max(0, Math.round(totalRounds) - (roundIndex + 1));
+  }, [prompt, state?.currentRoundIndex]);
+  const cardsLeftLabelResolved = useMemo(() => {
+    if (roundsLeftCount == null) return '';
+    return String(liveCopy.cardsLeftLabel ?? 'Cards left: {count}').replace('{count}', String(roundsLeftCount));
+  }, [liveCopy.cardsLeftLabel, roundsLeftCount]);
   const effectiveQuestionTimer = useMemo(() => {
     if (state?.status !== 'running') return null;
     if (reveal) return null;
@@ -1090,15 +1114,28 @@ export function CogitaLiveRevisionJoinPage(props: {
     });
   };
 
-  const submitAnswer = async (options?: { force?: boolean; answerOverride?: unknown; acknowledgeOnly?: boolean }) => {
+  const submitAnswer = async (options?: {
+    force?: boolean;
+    answerOverride?: unknown;
+    acknowledgeOnly?: boolean;
+    showPendingOverlay?: boolean;
+    pendingAction?: 'submit' | 'next';
+  }) => {
     if (!participantToken || !prompt || typeof prompt.cardKey !== 'string') return;
+    if (submitMutationInFlightRef.current) return;
     const manualNextStep = isAsyncSession && Boolean(reveal) && prompt.nextQuestionMode === 'manual';
     if (!options?.force && timerExpired && effectiveQuestionTimer != null && !manualNextStep) return;
     if (state?.answerSubmitted && !manualNextStep && !options?.force) return;
+    const showPendingOverlay = Boolean(options?.showPendingOverlay);
+    const pendingAction = options?.pendingAction ?? (options?.acknowledgeOnly || manualNextStep ? 'next' : 'submit');
 
     let answer: unknown = null;
     let includeAnswer = !Boolean(options?.acknowledgeOnly);
     const hasAnswerOverride = options && Object.prototype.hasOwnProperty.call(options, 'answerOverride');
+    submitMutationInFlightRef.current = true;
+    if (showPendingOverlay) {
+      setPendingParticipantAction(pendingAction);
+    }
     if (includeAnswer) {
       if (hasAnswerOverride) {
         answer = options?.answerOverride;
@@ -1143,6 +1180,11 @@ export function CogitaLiveRevisionJoinPage(props: {
         setStatus('ready');
       } catch {
         setStatus('error');
+      }
+    } finally {
+      submitMutationInFlightRef.current = false;
+      if (showPendingOverlay) {
+        setPendingParticipantAction(null);
       }
     }
   };
@@ -1876,6 +1918,7 @@ export function CogitaLiveRevisionJoinPage(props: {
                       <>
                         <p className="cogita-user-kicker">{liveCopy.questionTitle}</p>
                         <h3 className="cogita-detail-title">{typeof prompt?.title === 'string' ? prompt.title : liveCopy.waitingForPublishedRound}</h3>
+                        {prompt && cardsLeftLabelResolved ? <p className="cogita-help">{cardsLeftLabelResolved}</p> : null}
                         {sessionStage === 'active' && prompt
                           ? timerBlocks.map((timer) => (
                               <div className="cogita-live-timer" key={`timer:${timer.id}`}>
@@ -1987,12 +2030,13 @@ export function CogitaLiveRevisionJoinPage(props: {
                   <button
                     type="button"
                     className="cta"
+                    disabled={pendingParticipantAction != null}
                     onClick={() => {
                       if (revealStep) {
-                        void submitAnswer({ force: true, acknowledgeOnly: true });
+                        void submitAnswer({ force: true, acknowledgeOnly: true, showPendingOverlay: true, pendingAction: 'next' });
                         return;
                       }
-                      void submitAnswer();
+                      void submitAnswer({ showPendingOverlay: true, pendingAction: 'submit' });
                     }}
                   >
                     {revealStep
@@ -2017,6 +2061,17 @@ export function CogitaLiveRevisionJoinPage(props: {
                     {liveCopy.showScoreOverlayAction}
                   </button>
                 ) : null}
+              </div>
+            ) : null}
+                {pendingParticipantAction ? (
+              <div className="cogita-live-action-overlay" role="status" aria-live="polite" aria-busy="true">
+                <div className="cogita-live-action-overlay-card">
+                  <span className="cogita-live-action-overlay-spinner" aria-hidden="true" />
+                  <p className="cogita-user-kicker">
+                    {pendingParticipantAction === 'next' ? liveCopy.nextQuestionAction : liveCopy.submitAnswer}
+                  </p>
+                  <h3 className="cogita-detail-title">{liveCopy.loading}</h3>
+                </div>
               </div>
             ) : null}
                 {showScoreOverlay && sessionStage !== 'lobby' && !showIntroPanel ? (

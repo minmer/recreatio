@@ -503,7 +503,29 @@ async function buildLiveRounds(payload: {
     }
   }
 
-  const preparedRounds = rounds.map((round, index) => ({ ...round, roundIndex: index }));
+  const targetRoundCount = Math.max(1, revisionLimit);
+  let normalizedRounds = [...rounds];
+  if (normalizedRounds.length > targetRoundCount) {
+    normalizedRounds = normalizedRounds.slice(0, targetRoundCount);
+  } else if (normalizedRounds.length > 0 && normalizedRounds.length < targetRoundCount) {
+    const source = [...normalizedRounds];
+    let cycle = 1;
+    while (normalizedRounds.length < targetRoundCount) {
+      const sourceIndex = (normalizedRounds.length - source.length * (cycle - 1)) % source.length;
+      const baseRound = source[(sourceIndex + source.length) % source.length];
+      const repeatIndex = normalizedRounds.length;
+      normalizedRounds.push({
+        ...baseRound,
+        roundIndex: repeatIndex,
+        cardKey: `${baseRound.cardKey}::repeat:${cycle}:${repeatIndex}`
+      });
+      if ((repeatIndex + 1) % source.length === 0) {
+        cycle += 1;
+      }
+    }
+  }
+
+  const preparedRounds = normalizedRounds.map((round, index) => ({ ...round, roundIndex: index }));
   notifyPreparedCount();
   return {
     rounds: preparedRounds,
@@ -1125,6 +1147,9 @@ export function CogitaLiveHostWallPage({
   ) => {
     const round = rounds[index];
     if (!round || !session) return;
+    const askedCardKeys = Array.from(
+      new Set((options?.askedCardKeys ?? [round.cardKey]).map((key) => String(key)).filter((key) => key.length > 0))
+    );
     const activeParticipants = session.participants.filter((participant) => participant.isConnected);
     const participantCount = activeParticipants.length > 0 ? activeParticipants.length : session.participants.length;
     const actionTimerRelevant =
@@ -1183,7 +1208,9 @@ export function CogitaLiveHostWallPage({
         streakState: { ...streakByParticipantRef.current },
         wrongStreakState: { ...wrongStreakByParticipantRef.current },
         knownessByCardKey: options?.knownessByCardKey ?? {},
-        askedCardKeys: options?.askedCardKeys ?? [round.cardKey]
+        askedCardKeys,
+        totalRounds: rounds.length,
+        roundsLeft: Math.max(0, rounds.length - askedCardKeys.length)
       }
     });
   };
@@ -1448,7 +1475,9 @@ export function CogitaLiveHostWallPage({
         {};
       const askedCardKeysRaw =
         Array.isArray(promptState?.askedCardKeys) ? (promptState?.askedCardKeys as unknown[]) : [];
-      const askedCardKeys = askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? []);
+      const askedCardKeys = Array.from(
+        new Set(askedCardKeysRaw.map((key) => String(key)).concat(currentRound?.cardKey ?? '').filter((key) => key.length > 0))
+      );
       const nextIndex = selectNextCardIndexByMode({
         mode: revisionMode,
         currentIndex: session.currentRoundIndex,

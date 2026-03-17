@@ -2396,6 +2396,48 @@
   padding: 0.75rem;
 }
 
+.cogita-live-action-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 253;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(2, 10, 20, 0.58);
+  backdrop-filter: blur(3px);
+}
+
+.cogita-live-action-overlay-card {
+  min-width: min(420px, 100%);
+  max-width: 520px;
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 170, 220, 0.3);
+  background: rgba(7, 20, 36, 0.98);
+  box-shadow: 0 14px 36px rgba(3, 11, 22, 0.45);
+}
+
+.cogita-live-action-overlay-spinner {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 2px solid rgba(120, 170, 220, 0.34);
+  border-top-color: rgba(224, 240, 255, 0.95);
+  animation: cogita-live-action-spin 0.9s linear infinite;
+}
+
+@keyframes cogita-live-action-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .cogita-live-score-overlay-card {
   width: min(980px, 100%);
   margin: 0 auto;
