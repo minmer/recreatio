@@ -523,9 +523,12 @@ public sealed class RecreatioDbContext : DbContext
             .Property(x => x.DisplayName)
             .HasMaxLength(120);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
-            .HasIndex(x => new { x.SessionId, x.DisplayNameHash });
+            .Property(x => x.GroupName)
+            .HasMaxLength(120);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
-            .HasIndex(x => new { x.SessionId, x.DisplayName });
+            .HasIndex(x => new { x.SessionId, x.DisplayNameHash, x.GroupName });
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
+            .HasIndex(x => new { x.SessionId, x.DisplayName, x.GroupName });
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionParticipant>()
             .HasIndex(x => x.JoinTokenHash)
             .IsUnique();
@@ -538,12 +541,15 @@ public sealed class RecreatioDbContext : DbContext
             .Property(x => x.DisplayName)
             .HasMaxLength(120);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
+            .Property(x => x.GroupName)
+            .HasMaxLength(120);
+        modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
             .Property(x => x.Status)
             .HasMaxLength(24);
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
-            .HasIndex(x => new { x.SessionId, x.DisplayNameHash, x.Status });
+            .HasIndex(x => new { x.SessionId, x.DisplayNameHash, x.GroupName, x.Status });
         modelBuilder.Entity<Data.Cogita.CogitaLiveRevisionReloginRequest>()
-            .HasIndex(x => new { x.SessionId, x.DisplayName, x.Status });
+            .HasIndex(x => new { x.SessionId, x.DisplayName, x.GroupName, x.Status });
         modelBuilder.Entity<Data.Cogita.CogitaCreationProject>()
             .Property(x => x.ProjectType)
             .HasMaxLength(32);

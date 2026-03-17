@@ -32,6 +32,12 @@ import {
   type TimerExpireAction
 } from '../../../../live/liveSessionRules';
 import { buildLiveSessionSummaryLines } from '../../../../live/liveSessionDescription';
+import {
+  formatLiveParticipantGroupsText,
+  parseLiveParticipantGroups,
+  parseLiveParticipantGroupsText,
+  withLiveParticipantGroups
+} from '../../../../live/liveSessionGroups';
 
 export type LiveSessionsMode = 'search' | 'create' | 'detail' | 'edit';
 
@@ -86,6 +92,7 @@ export function CogitaRevisionLiveSessions({
   const [formTitle, setFormTitle] = useState('');
   const [formSessionMode, setFormSessionMode] = useState<'simultaneous' | 'asynchronous'>('simultaneous');
   const [formLiveRules, setFormLiveRules] = useState<LiveRules>(DEFAULT_LIVE_RULES);
+  const [formParticipantGroupsText, setFormParticipantGroupsText] = useState('');
   const [formPresetId, setFormPresetId] = useState<LivePresetId>('balanced_duel');
   const [showSpecialSettings, setShowSpecialSettings] = useState(false);
   const [detailStatus, setDetailStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -164,6 +171,7 @@ export function CogitaRevisionLiveSessions({
         setFormTitle(selectedItem?.title ?? '');
         setFormSessionMode(parsedMode);
         setFormLiveRules(parsedRules);
+        setFormParticipantGroupsText(formatLiveParticipantGroupsText(parseLiveParticipantGroups(session.sessionSettings)));
         setFormPresetId(detectLivePreset(parsedMode, FIXED_HOST_VIEW_MODE, FIXED_PARTICIPANT_VIEW_MODE, parsedRules));
         setShowSpecialSettings(false);
         setDetailStatus('ready');
@@ -195,6 +203,7 @@ export function CogitaRevisionLiveSessions({
     }
     setShowSpecialSettings(false);
     setFormTitle('');
+    setFormParticipantGroupsText('');
   }, [mode]);
 
   const applyPreset = (presetId: LivePresetId) => {
@@ -229,6 +238,14 @@ export function CogitaRevisionLiveSessions({
       bonusTimer: { ...formLiveRules.bonusTimer, startMode: 'round_start' }
     };
   }, [formLiveRules, formSessionMode]);
+  const normalizedParticipantGroupsForSave = useMemo(
+    () => parseLiveParticipantGroupsText(formParticipantGroupsText),
+    [formParticipantGroupsText]
+  );
+  const normalizedSessionSettingsForSave = useMemo(
+    () => withLiveParticipantGroups(withLiveRulesSettings(normalizedRulesForSave), normalizedParticipantGroupsForSave),
+    [normalizedParticipantGroupsForSave, normalizedRulesForSave]
+  );
 
   const statusOptions = useMemo(() => {
     const values = new Set<string>();
@@ -247,7 +264,7 @@ export function CogitaRevisionLiveSessions({
         sessionMode: formSessionMode,
         hostViewMode: FIXED_HOST_VIEW_MODE,
         participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+        sessionSettings: normalizedSessionSettingsForSave
       });
       await loadSessions();
       onCreated?.(created.sessionId);
@@ -271,7 +288,7 @@ export function CogitaRevisionLiveSessions({
         sessionMode: formSessionMode,
         hostViewMode: FIXED_HOST_VIEW_MODE,
         participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+        sessionSettings: normalizedSessionSettingsForSave
       });
       await loadSessions();
       if (mode === 'edit') {
@@ -302,7 +319,7 @@ export function CogitaRevisionLiveSessions({
         sessionMode: formSessionMode,
         hostViewMode: FIXED_HOST_VIEW_MODE,
         participantViewMode: FIXED_PARTICIPANT_VIEW_MODE,
-        sessionSettings: withLiveRulesSettings(normalizedRulesForSave)
+        sessionSettings: normalizedSessionSettingsForSave
       });
       setFormTitle(duplicateName);
       await loadSessions();
@@ -427,7 +444,7 @@ export function CogitaRevisionLiveSessions({
   );
   const reloginUrl =
     reloginParticipant && publicJoinUrl
-      ? `${publicJoinUrl}?name=${encodeURIComponent(reloginParticipant.displayName)}`
+      ? `${publicJoinUrl}?name=${encodeURIComponent(reloginParticipant.displayName)}${reloginParticipant.groupName ? `&group=${encodeURIComponent(reloginParticipant.groupName)}` : ''}`
       : '';
 
   return (
@@ -499,6 +516,16 @@ export function CogitaRevisionLiveSessions({
                           <span>{copy.cogita.library.revision.nameLabel}</span>
                           <input value={formTitle} onChange={(event) => setFormTitle(event.target.value)} />
                         </label>
+                        <label className="cogita-field">
+                          <span>{liveCopy.classGroupsLabel}</span>
+                          <textarea
+                            rows={4}
+                            value={formParticipantGroupsText}
+                            onChange={(event) => setFormParticipantGroupsText(event.target.value)}
+                            placeholder={liveCopy.classGroupsPlaceholder}
+                          />
+                        </label>
+                        <p className="cogita-help">{liveCopy.classGroupsHelp}</p>
                         <label className="cogita-field">
                           <span>{liveCopy.sessionModeLabel}</span>
                           <select
@@ -1191,6 +1218,11 @@ export function CogitaRevisionLiveSessions({
                                     <div className="cogita-share-meta">
                                       {copy.cogita.library.revision.live.participantPointsLabel}: {participant.score} {copy.cogita.library.revision.live.scoreUnit}
                                     </div>
+                                    {participant.groupName ? (
+                                      <div className="cogita-share-meta">
+                                        {copy.cogita.library.revision.live.classNameLabel}: {participant.groupName}
+                                      </div>
+                                    ) : null}
                                     <div className="cogita-share-meta">
                                       {participant.isConnected
                                         ? copy.cogita.library.revision.live.connectedLabel

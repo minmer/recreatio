@@ -11,6 +11,8 @@ public sealed class CogitaLiveRevisionReloginRequest
     public string DisplayName { get; set; } = string.Empty;
     public byte[]? DisplayNameHash { get; set; }
     public string? DisplayNameCipher { get; set; }
+    [MaxLength(120)]
+    public string? GroupName { get; set; }
     [MaxLength(24)]
     public string Status { get; set; } = "pending"; // pending|approved|used|rejected
     public DateTimeOffset RequestedUtc { get; set; }

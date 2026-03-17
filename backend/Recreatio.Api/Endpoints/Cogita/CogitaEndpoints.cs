@@ -8156,13 +8156,41 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var meta = ParseLiveSessionMeta(liveSession.SessionMetaJson);
+            var configuredGroups = ParseLiveParticipantGroups(meta.SessionSettings);
+            var requestedGroupName = NormalizeLiveParticipantGroupName(request.GroupName);
+            if (configuredGroups.Count > 0)
+            {
+                if (string.IsNullOrWhiteSpace(requestedGroupName))
+                {
+                    return Results.BadRequest(new { error = "Class is required." });
+                }
+
+                var matchedGroup = configuredGroups.FirstOrDefault(x => string.Equals(x, requestedGroupName, StringComparison.OrdinalIgnoreCase));
+                if (matchedGroup is null)
+                {
+                    return Results.BadRequest(new { error = "Class is invalid." });
+                }
+
+                requestedGroupName = matchedGroup;
+            }
+            else
+            {
+                requestedGroupName = null;
+            }
             var nameHash = HashToken(name);
 
             var exists = (await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
                     .Where(x => x.SessionId == liveSession.Id)
-                    .Select(x => new { x.DisplayName, x.DisplayNameHash })
+                    .Select(x => new { x.DisplayName, x.DisplayNameHash, x.GroupName })
                     .ToListAsync(ct))
-                .Any(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
+                .Any(x => MatchesStoredLiveParticipantIdentity(
+                    x.DisplayName,
+                    x.DisplayNameHash,
+                    x.GroupName,
+                    name,
+                    nameHash,
+                    requestedGroupName));
             if (exists)
             {
                 return Results.Conflict(new { error = "Name already used in this live session." });
@@ -8177,6 +8205,7 @@ public static class CogitaEndpoints
                 DisplayName = "[encrypted]",
                 DisplayNameHash = nameHash,
                 DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, liveSession.Id, "participant-name"),
+                GroupName = requestedGroupName,
                 UserId = null,
                 JoinTokenHash = HashToken(participantToken),
                 Score = 0,
@@ -8272,11 +8301,13 @@ public static class CogitaEndpoints
                 .Where(x => x.SessionId == liveSession.Id)
                 .ToListAsync(ct);
             var reloginRequests = reloginRequestCandidates
-                .Where(x => MatchesStoredLiveName(
+                .Where(x => MatchesStoredLiveParticipantIdentity(
                     x.DisplayName,
                     x.DisplayNameHash,
+                    x.GroupName,
                     participant.DisplayName,
-                    participant.DisplayNameHash))
+                    participant.DisplayNameHash,
+                    participant.GroupName))
                 .ToList();
             var participantStatistics = await dbContext.CogitaStatisticEvents
                 .Where(x => x.SessionId == liveSession.Id && x.ParticipantId == participantId)
@@ -8317,12 +8348,40 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var sessionMeta = ParseLiveSessionMeta(session.SessionMetaJson);
+            var configuredGroups = ParseLiveParticipantGroups(sessionMeta.SessionSettings);
+            var requestedGroupName = NormalizeLiveParticipantGroupName(request.GroupName);
+            if (configuredGroups.Count > 0)
+            {
+                if (string.IsNullOrWhiteSpace(requestedGroupName))
+                {
+                    return Results.BadRequest(new { error = "Class is required." });
+                }
+
+                var matchedGroup = configuredGroups.FirstOrDefault(x => string.Equals(x, requestedGroupName, StringComparison.OrdinalIgnoreCase));
+                if (matchedGroup is null)
+                {
+                    return Results.BadRequest(new { error = "Class is invalid." });
+                }
+
+                requestedGroupName = matchedGroup;
+            }
+            else
+            {
+                requestedGroupName = null;
+            }
             var nameHash = HashToken(name);
 
             var existingParticipant = (await dbContext.CogitaLiveRevisionParticipants
                     .Where(x => x.SessionId == session.Id)
                     .ToListAsync(ct))
-                .FirstOrDefault(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
+                .FirstOrDefault(x => MatchesStoredLiveParticipantIdentity(
+                    x.DisplayName,
+                    x.DisplayNameHash,
+                    x.GroupName,
+                    name,
+                    nameHash,
+                    requestedGroupName));
             if (existingParticipant is not null)
             {
                 if (!request.UseExistingName)
@@ -8344,8 +8403,8 @@ public static class CogitaEndpoints
                 existingParticipant.DisplayNameHash = nameHash;
                 existingParticipant.DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "participant-name");
                 existingParticipant.DisplayName = "[encrypted]";
+                existingParticipant.GroupName = requestedGroupName;
 
-                var sessionMeta = ParseLiveSessionMeta(session.SessionMetaJson);
                 if (string.Equals(sessionMeta.SessionMode, "asynchronous", StringComparison.Ordinal) &&
                     string.Equals(session.Status, "running", StringComparison.Ordinal))
                 {
@@ -8417,7 +8476,7 @@ public static class CogitaEndpoints
                 });
                 await dbContext.SaveChangesAsync(ct);
 
-                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, reloginParticipantToken, name));
+                return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, existingParticipant.Id, reloginParticipantToken, name, requestedGroupName));
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -8429,6 +8488,7 @@ public static class CogitaEndpoints
                 DisplayName = "[encrypted]",
                 DisplayNameHash = nameHash,
                 DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "participant-name"),
+                GroupName = requestedGroupName,
                 UserId = EndpointHelpers.TryGetUserId(context, out var userId) ? userId : null,
                 JoinTokenHash = HashToken(participantToken),
                 Score = 0,
@@ -8453,7 +8513,7 @@ public static class CogitaEndpoints
             });
             await dbContext.SaveChangesAsync(ct);
 
-            return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, participant.Id, participantToken, name));
+            return Results.Ok(new CogitaLiveRevisionJoinResponse(session.Id, participant.Id, participantToken, name, requestedGroupName));
         }).AllowAnonymous();
 
         group.MapPost("/public/live-revision/{code}/relogin-request", async (
@@ -8479,13 +8539,41 @@ public static class CogitaEndpoints
             {
                 return Results.BadRequest(new { error = "Name is required." });
             }
+            var sessionMeta = ParseLiveSessionMeta(session.SessionMetaJson);
+            var configuredGroups = ParseLiveParticipantGroups(sessionMeta.SessionSettings);
+            var requestedGroupName = NormalizeLiveParticipantGroupName(request.GroupName);
+            if (configuredGroups.Count > 0)
+            {
+                if (string.IsNullOrWhiteSpace(requestedGroupName))
+                {
+                    return Results.BadRequest(new { error = "Class is required." });
+                }
+
+                var matchedGroup = configuredGroups.FirstOrDefault(x => string.Equals(x, requestedGroupName, StringComparison.OrdinalIgnoreCase));
+                if (matchedGroup is null)
+                {
+                    return Results.BadRequest(new { error = "Class is invalid." });
+                }
+
+                requestedGroupName = matchedGroup;
+            }
+            else
+            {
+                requestedGroupName = null;
+            }
             var nameHash = HashToken(name);
 
             var participantExists = (await dbContext.CogitaLiveRevisionParticipants.AsNoTracking()
                     .Where(x => x.SessionId == session.Id)
-                    .Select(x => new { x.DisplayName, x.DisplayNameHash })
+                    .Select(x => new { x.DisplayName, x.DisplayNameHash, x.GroupName })
                     .ToListAsync(ct))
-                .Any(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
+                .Any(x => MatchesStoredLiveParticipantIdentity(
+                    x.DisplayName,
+                    x.DisplayNameHash,
+                    x.GroupName,
+                    name,
+                    nameHash,
+                    requestedGroupName));
             if (!participantExists)
             {
                 return Results.NotFound(new { error = "Participant not found." });
@@ -8495,7 +8583,13 @@ public static class CogitaEndpoints
                     .Where(x => x.SessionId == session.Id && (x.Status == "pending" || x.Status == "approved"))
                     .OrderByDescending(x => x.RequestedUtc)
                     .ToListAsync(ct))
-                .FirstOrDefault(x => MatchesStoredLiveName(x.DisplayName, x.DisplayNameHash, name, nameHash));
+                .FirstOrDefault(x => MatchesStoredLiveParticipantIdentity(
+                    x.DisplayName,
+                    x.DisplayNameHash,
+                    x.GroupName,
+                    name,
+                    nameHash,
+                    requestedGroupName));
 
             if (reloginRequest is null)
             {
@@ -8507,6 +8601,7 @@ public static class CogitaEndpoints
                     DisplayName = "[encrypted]",
                     DisplayNameHash = nameHash,
                     DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "relogin-name"),
+                    GroupName = requestedGroupName,
                     Status = "pending",
                     RequestedUtc = now,
                     UpdatedUtc = now,
@@ -8516,11 +8611,17 @@ public static class CogitaEndpoints
                 session.UpdatedUtc = now;
                 await dbContext.SaveChangesAsync(ct);
             }
-            else if (reloginRequest.DisplayNameHash is null || string.IsNullOrWhiteSpace(reloginRequest.DisplayNameCipher))
+            else if (reloginRequest.DisplayNameHash is null ||
+                     string.IsNullOrWhiteSpace(reloginRequest.DisplayNameCipher) ||
+                     !string.Equals(
+                         NormalizeLiveParticipantGroupName(reloginRequest.GroupName) ?? string.Empty,
+                         requestedGroupName ?? string.Empty,
+                         StringComparison.OrdinalIgnoreCase))
             {
                 reloginRequest.DisplayNameHash = nameHash;
                 reloginRequest.DisplayNameCipher = ProtectLiveSessionScopedText(name, dataProtectionProvider, session.Id, "relogin-name");
                 reloginRequest.DisplayName = "[encrypted]";
+                reloginRequest.GroupName = requestedGroupName;
                 reloginRequest.UpdatedUtc = DateTimeOffset.UtcNow;
                 session.UpdatedUtc = reloginRequest.UpdatedUtc;
                 await dbContext.SaveChangesAsync(ct);
@@ -8530,7 +8631,8 @@ public static class CogitaEndpoints
                 session.Id,
                 reloginRequest.Id,
                 reloginRequest.Status,
-                name
+                name,
+                requestedGroupName
             ));
         }).AllowAnonymous();
 
@@ -8558,6 +8660,7 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaLiveRevisionReloginRequestResponse(
                 reloginRequest.Id,
                 ResolveLiveReloginDisplayName(reloginRequest, dataProtectionProvider, session.Id),
+                reloginRequest.GroupName,
                 reloginRequest.Status,
                 reloginRequest.RequestedUtc,
                 reloginRequest.ApprovedUtc
@@ -8584,6 +8687,7 @@ public static class CogitaEndpoints
             var answerSubmitted = false;
             Guid? participantId = null;
             string? participantName = null;
+            string? participantGroupName = null;
             string? participantTokenIssued = null;
             CogitaLiveRevisionParticipant? participant = null;
             if (!string.IsNullOrWhiteSpace(participantToken))
@@ -8594,6 +8698,7 @@ public static class CogitaEndpoints
                 {
                     participantId = participant.Id;
                     participantName = ResolveLiveParticipantDisplayName(participant, dataProtectionProvider, session.Id);
+                    participantGroupName = participant.GroupName;
                 }
             }
 
@@ -8831,6 +8936,7 @@ public static class CogitaEndpoints
                     answerSubmitted,
                     participantId,
                     participantName,
+                    participantGroupName,
                     participantTokenIssued
                 ));
             }
@@ -8934,6 +9040,7 @@ public static class CogitaEndpoints
                 answerSubmitted,
                 participantId,
                 participantName,
+                participantGroupName,
                 participantTokenIssued
             ));
         }).AllowAnonymous();
@@ -18585,6 +18692,24 @@ public static class CogitaEndpoints
         return string.Equals(storedName.Trim(), requestedName.Trim(), StringComparison.Ordinal);
     }
 
+    private static bool MatchesStoredLiveParticipantIdentity(
+        string? storedName,
+        byte[]? storedNameHash,
+        string? storedGroupName,
+        string? requestedName,
+        byte[]? requestedNameHash,
+        string? requestedGroupName)
+    {
+        if (!MatchesStoredLiveName(storedName, storedNameHash, requestedName, requestedNameHash))
+        {
+            return false;
+        }
+
+        var storedGroup = NormalizeLiveParticipantGroupName(storedGroupName) ?? string.Empty;
+        var requestedGroup = NormalizeLiveParticipantGroupName(requestedGroupName) ?? string.Empty;
+        return string.Equals(storedGroup, requestedGroup, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string GenerateAlphaNumericCode(int length)
     {
         if (length <= 0)
@@ -18776,6 +18901,64 @@ public static class CogitaEndpoints
         }
 
         return value;
+    }
+
+    private static string? NormalizeLiveParticipantGroupName(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
+
+        var value = raw.Trim();
+        if (value.Length > 120)
+        {
+            value = value[..120];
+        }
+
+        return value;
+    }
+
+    private static List<string> ParseLiveParticipantGroups(JsonElement? sessionSettings)
+    {
+        if (!sessionSettings.HasValue || sessionSettings.Value.ValueKind != JsonValueKind.Object)
+        {
+            return new List<string>();
+        }
+
+        var root = sessionSettings.Value;
+        JsonElement groupsElement;
+        if (!root.TryGetProperty("participantGroups", out groupsElement) ||
+            groupsElement.ValueKind != JsonValueKind.Array)
+        {
+            if (!root.TryGetProperty("groups", out groupsElement) || groupsElement.ValueKind != JsonValueKind.Array)
+            {
+                if (!root.TryGetProperty("classes", out groupsElement) || groupsElement.ValueKind != JsonValueKind.Array)
+                {
+                    return new List<string>();
+                }
+            }
+        }
+
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var element in groupsElement.EnumerateArray())
+        {
+            if (element.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var normalized = NormalizeLiveParticipantGroupName(element.GetString());
+            if (string.IsNullOrWhiteSpace(normalized) || !seen.Add(normalized))
+            {
+                continue;
+            }
+
+            result.Add(normalized);
+        }
+
+        return result;
     }
 
     private static JsonElement? ParseJsonNullable(string? raw)
@@ -21741,6 +21924,7 @@ public static class CogitaEndpoints
         return participants.Select(x => new CogitaLiveRevisionParticipantResponse(
             x.Id,
             ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
+            x.GroupName,
             scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0,
             x.IsConnected,
             x.JoinedUtc)).ToList();
@@ -21762,6 +21946,7 @@ public static class CogitaEndpoints
             .Select(x => new CogitaLiveRevisionParticipantScoreResponse(
                 x.Id,
                 ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
+                x.GroupName,
                 scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -21852,6 +22037,7 @@ public static class CogitaEndpoints
                 .Select(x => new CogitaLiveRevisionParticipantScoreResponse(
                     x.Id,
                     ResolveLiveParticipantDisplayName(x, dataProtectionProvider, sessionId),
+                    x.GroupName,
                     scoreByParticipant.TryGetValue(x.Id, out var score) ? score : 0))
                 .ToList();
 
@@ -21994,6 +22180,7 @@ public static class CogitaEndpoints
         return requests.Select(x => new CogitaLiveRevisionReloginRequestResponse(
             x.Id,
             ResolveLiveReloginDisplayName(x, dataProtectionProvider, sessionId),
+            x.GroupName,
             x.Status,
             x.RequestedUtc,
             x.ApprovedUtc)).ToList();
@@ -22014,7 +22201,7 @@ public static class CogitaEndpoints
         var scoreboard = participants
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.JoinedUtc)
-            .Select(x => new CogitaLiveRevisionParticipantScoreResponse(x.ParticipantId, x.DisplayName, x.Score))
+            .Select(x => new CogitaLiveRevisionParticipantScoreResponse(x.ParticipantId, x.DisplayName, x.GroupName, x.Score))
             .ToList();
         var answers = await dbContext.CogitaLiveRevisionAnswers.AsNoTracking()
             .Where(x => x.SessionId == session.Id && x.RoundIndex == session.CurrentRoundIndex)

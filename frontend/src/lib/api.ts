@@ -929,12 +929,14 @@ export type CogitaPublicStoryboardShare = {
 export type CogitaLiveRevisionParticipantScore = {
   participantId: string;
   displayName: string;
+  groupName?: string | null;
   score: number;
 };
 
 export type CogitaLiveRevisionParticipant = {
   participantId: string;
   displayName: string;
+  groupName?: string | null;
   score: number;
   isConnected: boolean;
   joinedUtc: string;
@@ -953,6 +955,7 @@ export type CogitaLiveRevisionAnswer = {
 export type CogitaLiveRevisionReloginRequest = {
   requestId: string;
   displayName: string;
+  groupName?: string | null;
   status: string;
   requestedUtc: string;
   approvedUtc?: string | null;
@@ -1018,6 +1021,7 @@ export type CogitaLiveRevisionJoinResponse = {
   participantId: string;
   participantToken: string;
   name: string;
+  groupName?: string | null;
 };
 
 export type CogitaLiveRevisionReloginRequestCreateResponse = {
@@ -1025,6 +1029,7 @@ export type CogitaLiveRevisionReloginRequestCreateResponse = {
   requestId: string;
   status: string;
   name: string;
+  groupName?: string | null;
 };
 
 export type CogitaLiveRevisionPublicState = {
@@ -1063,6 +1068,7 @@ export type CogitaLiveRevisionPublicState = {
   answerSubmitted: boolean;
   participantId?: string | null;
   participantName?: string | null;
+  participantGroupName?: string | null;
   participantToken?: string | null;
 };
 
@@ -1777,13 +1783,14 @@ export function addCogitaLiveRevisionParticipant(payload: {
   sessionId: string;
   hostSecret: string;
   name: string;
+  groupName?: string | null;
 }) {
   const params = new URLSearchParams({ hostSecret: payload.hostSecret });
   return request<CogitaLiveRevisionSession>(
     `/cogita/libraries/${payload.libraryId}/live-sessions/${payload.sessionId}/host/participants?${params.toString()}`,
     {
       method: 'POST',
-      body: JSON.stringify({ name: payload.name })
+      body: JSON.stringify({ name: payload.name, groupName: payload.groupName ?? null })
     }
   );
 }
@@ -1825,23 +1832,24 @@ export function resetCogitaLiveRevisionSession(payload: {
   );
 }
 
-export function joinCogitaLiveRevision(payload: { code: string; name: string; useExistingName?: boolean }) {
+export function joinCogitaLiveRevision(payload: { code: string; name: string; groupName?: string | null; useExistingName?: boolean }) {
   return request<CogitaLiveRevisionJoinResponse>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/join`,
     {
       method: 'POST',
       body: JSON.stringify({
         name: payload.name,
+        groupName: payload.groupName ?? null,
         useExistingName: Boolean(payload.useExistingName)
       })
     }
   );
 }
 
-export function createCogitaLiveRevisionReloginRequest(payload: { code: string; name: string }) {
+export function createCogitaLiveRevisionReloginRequest(payload: { code: string; name: string; groupName?: string | null }) {
   return request<CogitaLiveRevisionReloginRequestCreateResponse>(
     `/cogita/public/live-revision/${encodeURIComponent(payload.code)}/relogin-request`,
-    { method: 'POST', body: JSON.stringify({ name: payload.name }) }
+    { method: 'POST', body: JSON.stringify({ name: payload.name, groupName: payload.groupName ?? null }) }
   );
 }
 

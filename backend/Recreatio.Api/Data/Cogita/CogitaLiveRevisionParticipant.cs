@@ -11,6 +11,8 @@ public sealed class CogitaLiveRevisionParticipant
     public string DisplayName { get; set; } = string.Empty;
     public byte[]? DisplayNameHash { get; set; }
     public string? DisplayNameCipher { get; set; }
+    [MaxLength(120)]
+    public string? GroupName { get; set; }
     public Guid? UserId { get; set; }
     public byte[] JoinTokenHash { get; set; } = Array.Empty<byte>();
     public int Score { get; set; }

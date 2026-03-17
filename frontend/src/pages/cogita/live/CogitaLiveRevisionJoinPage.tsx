@@ -18,6 +18,7 @@ import type { RouteKey } from '../../../types/navigation';
 import { CogitaLivePromptCard, type LivePrompt } from './components/CogitaLivePromptCard';
 import { evaluateCheckcardAnswer } from '../components/runtime/revision/primitives/RevisionCheckcardShell';
 import { parseLiveRules } from './liveSessionRules';
+import { parseLiveParticipantGroups } from './liveSessionGroups';
 import { buildLiveSessionSummaryLines } from './liveSessionDescription';
 import { useScreenWakeLock } from './useScreenWakeLock';
 import { buildLiveStatisticsResponse } from './liveStatistics';
@@ -31,6 +32,15 @@ function readJoinNameFromHash() {
   if (queryIndex < 0) return '';
   const params = new URLSearchParams(hash.slice(queryIndex + 1));
   return params.get('name')?.trim() ?? '';
+}
+
+function readJoinGroupFromHash() {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash ?? '';
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex < 0) return '';
+  const params = new URLSearchParams(hash.slice(queryIndex + 1));
+  return params.get('group')?.trim() ?? '';
 }
 
 function tokenStorageKey(code: string) {
@@ -52,12 +62,13 @@ function formatTemplate(template: string, values: Record<string, string | number
   );
 }
 
-function normalizeJoinResponse(raw: unknown): { participantToken: string; participantId?: string; name?: string } | null {
+function normalizeJoinResponse(raw: unknown): { participantToken: string; participantId?: string; name?: string; groupName?: string } | null {
   if (!raw || typeof raw !== 'object') return null;
   const root = raw as Record<string, unknown>;
   const tokenCandidate = root.participantToken ?? root.ParticipantToken;
   const participantIdCandidate = root.participantId ?? root.ParticipantId;
   const nameCandidate = root.name ?? root.Name;
+  const groupNameCandidate = root.groupName ?? root.GroupName;
   const participantToken =
     typeof tokenCandidate === 'string' && tokenCandidate.trim()
       ? tokenCandidate.trim()
@@ -66,7 +77,8 @@ function normalizeJoinResponse(raw: unknown): { participantToken: string; partic
   return {
     participantToken,
     participantId: typeof participantIdCandidate === 'string' && participantIdCandidate.trim() ? participantIdCandidate.trim() : undefined,
-    name: typeof nameCandidate === 'string' && nameCandidate.trim() ? nameCandidate.trim() : undefined
+    name: typeof nameCandidate === 'string' && nameCandidate.trim() ? nameCandidate.trim() : undefined,
+    groupName: typeof groupNameCandidate === 'string' && groupNameCandidate.trim() ? groupNameCandidate.trim() : undefined
   };
 }
 
@@ -356,17 +368,18 @@ export function CogitaLiveRevisionJoinPage(props: {
   const [participantToken, setParticipantToken] = useState<string | null>(() =>
     typeof localStorage === 'undefined' ? null : localStorage.getItem(tokenStorageKey(code))
   );
-  const [participantMeta, setParticipantMeta] = useState<{ participantId?: string; name?: string } | null>(() => {
+  const [participantMeta, setParticipantMeta] = useState<{ participantId?: string; name?: string; groupName?: string } | null>(() => {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(participantMetaStorageKey(code));
     if (!raw) return null;
     try {
-      const parsed = JSON.parse(raw) as { participantId?: string; name?: string };
+      const parsed = JSON.parse(raw) as { participantId?: string; name?: string; groupName?: string };
       return parsed && typeof parsed === 'object' ? parsed : null;
     } catch {
       return null;
     }
   });
+  const [joinGroupName, setJoinGroupName] = useState(() => readJoinGroupFromHash());
   const [state, setState] = useState<CogitaLiveRevisionPublicState | null>(null);
   const [status, setStatus] = useState<'idle' | 'joining' | 'ready' | 'error'>('idle');
   const [textAnswer, setTextAnswer] = useState('');
@@ -419,6 +432,11 @@ export function CogitaLiveRevisionJoinPage(props: {
   // Do not auto-force participant rejoin on transient polling mismatch.
   // A joined participant should remain in-session unless they explicitly switch participant.
   const showJoinPanel = !participantToken;
+  const availableJoinGroups = useMemo(
+    () => parseLiveParticipantGroups(state?.sessionSettings),
+    [state?.sessionSettings]
+  );
+  const requiresJoinGroup = availableJoinGroups.length > 0;
   const showIntroPanel =
     !showJoinPanel &&
     sessionStage !== 'finished' &&
@@ -657,6 +675,23 @@ export function CogitaLiveRevisionJoinPage(props: {
   }, [hasStoredTokenMismatch, participantMeta?.name]);
 
   useEffect(() => {
+    if (!requiresJoinGroup) {
+      if (joinGroupName) setJoinGroupName('');
+      return;
+    }
+    const storedGroup = participantMeta?.groupName?.trim() ?? '';
+    const selected = joinGroupName.trim();
+    if (selected && availableJoinGroups.some((group) => group.toLocaleLowerCase() === selected.toLocaleLowerCase())) {
+      return;
+    }
+    if (storedGroup && availableJoinGroups.some((group) => group.toLocaleLowerCase() === storedGroup.toLocaleLowerCase())) {
+      setJoinGroupName(storedGroup);
+      return;
+    }
+    setJoinGroupName(availableJoinGroups[0] ?? '');
+  }, [availableJoinGroups, joinGroupName, participantMeta?.groupName, requiresJoinGroup]);
+
+  useEffect(() => {
     if (!participantToken || !state || state.participantId || manualParticipantSwitch) return;
     if (status === 'joining' || participantRecoverRef.current) return;
     const nowMs = Date.now();
@@ -668,12 +703,22 @@ export function CogitaLiveRevisionJoinPage(props: {
     setStatus('joining');
     void (async () => {
       try {
-        const joinedRaw = await joinCogitaLiveRevision({ code, name: fallbackName, useExistingName: true });
+        const fallbackGroupName = participantMeta?.groupName ?? (requiresJoinGroup ? joinGroupName : '');
+        const joinedRaw = await joinCogitaLiveRevision({
+          code,
+          name: fallbackName,
+          groupName: fallbackGroupName || null,
+          useExistingName: true
+        });
         const joined = normalizeJoinResponse(joinedRaw);
         if (joined) {
           setParticipantToken(joined.participantToken);
           localStorage.setItem(tokenStorageKey(code), joined.participantToken);
-          const meta = { participantId: joined.participantId, name: joined.name ?? fallbackName };
+          const meta = {
+            participantId: joined.participantId,
+            name: joined.name ?? fallbackName,
+            groupName: joined.groupName ?? participantMeta?.groupName ?? (joinGroupName || undefined)
+          };
           setParticipantMeta(meta);
           localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
           const refreshed = await getCogitaLiveRevisionPublicState({ code, participantToken: joined.participantToken });
@@ -686,7 +731,7 @@ export function CogitaLiveRevisionJoinPage(props: {
         setStatus('ready');
       }
     })();
-  }, [code, joinName, manualParticipantSwitch, participantMeta?.name, participantToken, state?.participantId, status]);
+  }, [code, joinGroupName, joinName, manualParticipantSwitch, participantMeta?.groupName, participantMeta?.name, participantToken, requiresJoinGroup, state?.participantId, status]);
 
   useEffect(() => {
     setTextAnswer('');
@@ -717,7 +762,8 @@ export function CogitaLiveRevisionJoinPage(props: {
         if (!manualParticipantSwitch && (next.participantId || next.participantName)) {
           const meta = {
             participantId: next.participantId ?? undefined,
-            name: next.participantName ?? undefined
+            name: next.participantName ?? undefined,
+            groupName: next.participantGroupName ?? undefined
           };
           setParticipantMeta(meta);
           localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
@@ -738,7 +784,13 @@ export function CogitaLiveRevisionJoinPage(props: {
   const handleJoin = async (useExistingName = false) => {
     setStatus('joining');
     try {
-      const joinedRaw = await joinCogitaLiveRevision({ code, name: joinName, useExistingName });
+      const selectedGroupName = requiresJoinGroup ? joinGroupName.trim() : '';
+      const joinedRaw = await joinCogitaLiveRevision({
+        code,
+        name: joinName,
+        groupName: selectedGroupName || null,
+        useExistingName
+      });
       const joined = normalizeJoinResponse(joinedRaw);
       if (!joined) {
         throw new Error('Missing participant token in join response.');
@@ -746,7 +798,11 @@ export function CogitaLiveRevisionJoinPage(props: {
       setManualParticipantSwitch(false);
       setParticipantToken(joined.participantToken);
       localStorage.setItem(tokenStorageKey(code), joined.participantToken);
-      const meta = { participantId: joined.participantId, name: joined.name ?? joinName.trim() };
+      const meta = {
+        participantId: joined.participantId,
+        name: joined.name ?? joinName.trim(),
+        groupName: joined.groupName ?? (selectedGroupName || undefined)
+      };
       setParticipantMeta(meta);
       localStorage.setItem(participantMetaStorageKey(code), JSON.stringify(meta));
       try {
@@ -1546,8 +1602,14 @@ export function CogitaLiveRevisionJoinPage(props: {
   const canToggleNextTimer = revealStep && prompt?.nextQuestionMode === 'timer' && Boolean(nextQuestionTimer);
   const hasFooterActions = canSubmitPrimary || canToggleNextTimer || canSwitchParticipant || canShowScoreButton;
   const normalizedJoinName = joinName.trim().toLocaleLowerCase();
+  const normalizedJoinGroupName = (requiresJoinGroup ? joinGroupName : '').trim().toLocaleLowerCase();
   const typedDuplicateJoinName = normalizedJoinName
-    ? (state?.scoreboard ?? []).find((row) => row.displayName.trim().toLocaleLowerCase() === normalizedJoinName)?.displayName ?? null
+    ? (state?.scoreboard ?? []).find((row) => {
+      if (row.displayName.trim().toLocaleLowerCase() !== normalizedJoinName) return false;
+      if (!requiresJoinGroup) return true;
+      const rowGroup = (row.groupName ?? '').trim().toLocaleLowerCase();
+      return rowGroup === normalizedJoinGroupName;
+    })?.displayName ?? null
     : null;
   const duplicateNameCandidate = duplicateJoinName ?? typedDuplicateJoinName;
 
@@ -1565,6 +1627,24 @@ export function CogitaLiveRevisionJoinPage(props: {
               <div className="cogita-library-panel cogita-live-join-only-panel">
                 <h2 className="cogita-detail-title cogita-live-join-only-title">{sessionTitle}</h2>
                 <div className="cogita-live-join-only-card">
+                  {requiresJoinGroup ? (
+                    <label className="cogita-field">
+                      <span>{liveCopy.classNameLabel}</span>
+                      <select
+                        value={joinGroupName}
+                        onChange={(event) => {
+                          if (duplicateJoinName) setDuplicateJoinName(null);
+                          setJoinGroupName(event.target.value);
+                        }}
+                      >
+                        {availableJoinGroups.map((group) => (
+                          <option key={`join-group:${group}`} value={group}>
+                            {group}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <label className="cogita-field">
                     <span>{liveCopy.participantNameLabel}</span>
                     <input
@@ -1591,7 +1671,12 @@ export function CogitaLiveRevisionJoinPage(props: {
                     </>
                   ) : (
                     <div className="cogita-form-actions">
-                      <button type="button" className="cta" onClick={handleJoin} disabled={!joinName.trim() || status === 'joining'}>
+                      <button
+                        type="button"
+                        className="cta"
+                        onClick={handleJoin}
+                        disabled={!joinName.trim() || status === 'joining' || (requiresJoinGroup && !joinGroupName.trim())}
+                      >
                         {status === 'joining' ? liveCopy.joiningAction : liveCopy.joinAction}
                       </button>
                     </div>

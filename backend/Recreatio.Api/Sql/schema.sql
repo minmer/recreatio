@@ -1848,6 +1848,7 @@ BEGIN
         DisplayName NVARCHAR(120) NOT NULL,
         DisplayNameHash VARBINARY(64) NULL,
         DisplayNameCipher NVARCHAR(MAX) NULL,
+        GroupName NVARCHAR(120) NULL,
         UserId UNIQUEIDENTIFIER NULL,
         JoinTokenHash VARBINARY(64) NOT NULL,
         Score INT NOT NULL CONSTRAINT DF_CogitaLiveRevisionParticipants_Score DEFAULT (0),
@@ -1871,6 +1872,12 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaLiveRevisionParticipants', 'GroupName') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionParticipants ADD GroupName NVARCHAR(120) NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionName' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionName ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayName);
@@ -1880,6 +1887,18 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionNameHash' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionNameHash ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayNameHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionNameGroup' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionNameGroup ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayName, GroupName);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionParticipants_SessionNameHashGroup' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionParticipants'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionParticipants_SessionNameHashGroup ON dbo.CogitaLiveRevisionParticipants(SessionId, DisplayNameHash, GroupName);
 END
 GO
 
@@ -1929,6 +1948,7 @@ BEGIN
         DisplayName NVARCHAR(120) NOT NULL,
         DisplayNameHash VARBINARY(64) NULL,
         DisplayNameCipher NVARCHAR(MAX) NULL,
+        GroupName NVARCHAR(120) NULL,
         Status NVARCHAR(24) NOT NULL CONSTRAINT DF_CogitaLiveRevisionReloginRequests_Status DEFAULT (N'pending'),
         RequestedUtc DATETIMEOFFSET NOT NULL,
         UpdatedUtc DATETIMEOFFSET NOT NULL,
@@ -1950,6 +1970,12 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.CogitaLiveRevisionReloginRequests', 'GroupName') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaLiveRevisionReloginRequests ADD GroupName NVARCHAR(120) NULL;
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayName, Status);
@@ -1959,6 +1985,18 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameHashStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
 BEGIN
     CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameHashStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayNameHash, Status);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameGroupStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameGroupStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayName, GroupName, Status);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaLiveRevisionReloginRequests_SessionNameHashGroupStatus' AND object_id = OBJECT_ID('dbo.CogitaLiveRevisionReloginRequests'))
+BEGIN
+    CREATE INDEX IX_CogitaLiveRevisionReloginRequests_SessionNameHashGroupStatus ON dbo.CogitaLiveRevisionReloginRequests(SessionId, DisplayNameHash, GroupName, Status);
 END
 GO
 

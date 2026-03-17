@@ -1109,6 +1109,10 @@ export type Copy = {
           hiddenBeforeStart: string;
           noParticipants: string;
           participantNameLabel: string;
+          classNameLabel: string;
+          classGroupsLabel: string;
+          classGroupsPlaceholder: string;
+          classGroupsHelp: string;
           joinAction: string;
           joiningAction: string;
           joinedWaiting: string;

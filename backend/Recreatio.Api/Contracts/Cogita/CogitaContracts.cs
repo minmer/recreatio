@@ -516,12 +516,14 @@ public sealed record CogitaLiveRevisionSessionUpdateRequest(
 public sealed record CogitaLiveRevisionParticipantScoreResponse(
     Guid ParticipantId,
     string DisplayName,
+    string? GroupName,
     int Score
 );
 
 public sealed record CogitaLiveRevisionParticipantResponse(
     Guid ParticipantId,
     string DisplayName,
+    string? GroupName,
     int Score,
     bool IsConnected,
     DateTimeOffset JoinedUtc
@@ -540,6 +542,7 @@ public sealed record CogitaLiveRevisionAnswerResponse(
 public sealed record CogitaLiveRevisionReloginRequestResponse(
     Guid RequestId,
     string DisplayName,
+    string? GroupName,
     string Status,
     DateTimeOffset RequestedUtc,
     DateTimeOffset? ApprovedUtc
@@ -584,6 +587,7 @@ public sealed record CogitaLiveRevisionSessionResponse(
 
 public sealed record CogitaLiveRevisionJoinRequest(
     string Name,
+    string? GroupName,
     bool UseExistingName = false
 );
 
@@ -591,7 +595,8 @@ public sealed record CogitaLiveRevisionJoinResponse(
     Guid SessionId,
     Guid ParticipantId,
     string ParticipantToken,
-    string Name
+    string Name,
+    string? GroupName
 );
 
 public sealed record CogitaLiveRevisionLeaveRequest(
@@ -599,13 +604,14 @@ public sealed record CogitaLiveRevisionLeaveRequest(
     int? RoundIndex
 );
 
-public sealed record CogitaLiveRevisionReloginRequestCreateRequest(string Name);
+public sealed record CogitaLiveRevisionReloginRequestCreateRequest(string Name, string? GroupName);
 
 public sealed record CogitaLiveRevisionReloginRequestCreateResponse(
     Guid SessionId,
     Guid RequestId,
     string Status,
-    string Name
+    string Name,
+    string? GroupName
 );
 
 public sealed record CogitaLiveRevisionPublicStateResponse(
@@ -625,6 +631,7 @@ public sealed record CogitaLiveRevisionPublicStateResponse(
     bool AnswerSubmitted,
     Guid? ParticipantId,
     string? ParticipantName,
+    string? ParticipantGroupName,
     string? ParticipantToken
 );
 
@@ -704,7 +711,8 @@ public sealed record CogitaLiveRevisionTimerControlRequest(
 );
 
 public sealed record CogitaLiveRevisionHostParticipantCreateRequest(
-    string Name
+    string Name,
+    string? GroupName
 );
 
 public sealed record CogitaLiveRevisionRevealScoreRequest(
