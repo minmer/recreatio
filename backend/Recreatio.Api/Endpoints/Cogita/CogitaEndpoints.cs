@@ -1112,6 +1112,7 @@ public static class CogitaEndpoints
                 ValidateNotionReferenceAsync,
                 warnings,
                 ct);
+            rootGraph = await NormalizeStoryboardImportCardCheckTypesAsync(rootGraph, libraryId, dbContext, warnings, ct);
 
             var description = ReadFirstNonEmptyString(storyboardElement, "description")
                 ?? descriptionOverride
@@ -23243,6 +23244,78 @@ public static class CogitaEndpoints
             ["steps"] = stepsArray,
             ["rootGraph"] = BuildStoryboardImportGraphNode(rootGraph)
         };
+    }
+
+    private static async Task<StoryboardImportGraph> NormalizeStoryboardImportCardCheckTypesAsync(
+        StoryboardImportGraph graph,
+        Guid libraryId,
+        RecreatioDbContext dbContext,
+        List<string> warnings,
+        CancellationToken ct)
+    {
+        var notionIds = graph.Nodes
+            .Where(node => string.Equals(node.Kind, "card", StringComparison.Ordinal) &&
+                           Guid.TryParse(node.NotionId, out _))
+            .Select(node => Guid.Parse(node.NotionId))
+            .Distinct()
+            .ToList();
+
+        var infoTypeByNotionId = notionIds.Count == 0
+            ? new Dictionary<Guid, string>(0)
+            : await dbContext.CogitaInfos.AsNoTracking()
+                .Where(x => x.LibraryId == libraryId && notionIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.InfoType })
+                .ToDictionaryAsync(x => x.Id, x => x.InfoType, ct);
+
+        var normalizedNodes = new List<StoryboardImportNode>(graph.Nodes.Count);
+        foreach (var node in graph.Nodes)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!string.Equals(node.Kind, "card", StringComparison.Ordinal) ||
+                !Guid.TryParse(node.NotionId, out var notionId))
+            {
+                var nestedGraph = node.GroupGraph is null
+                    ? null
+                    : await NormalizeStoryboardImportCardCheckTypesAsync(node.GroupGraph, libraryId, dbContext, warnings, ct);
+                normalizedNodes.Add(node with { GroupGraph = nestedGraph });
+                continue;
+            }
+
+            var normalizedCheckType = node.CardCheckType?.Trim() ?? string.Empty;
+            if (!infoTypeByNotionId.TryGetValue(notionId, out var infoType))
+            {
+                var nestedGraph = node.GroupGraph is null
+                    ? null
+                    : await NormalizeStoryboardImportCardCheckTypesAsync(node.GroupGraph, libraryId, dbContext, warnings, ct);
+                normalizedNodes.Add(node with { GroupGraph = nestedGraph });
+                continue;
+            }
+
+            if (string.Equals(infoType, "question", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.Equals(normalizedCheckType, "question", StringComparison.Ordinal))
+                {
+                    if (!string.IsNullOrWhiteSpace(normalizedCheckType))
+                    {
+                        warnings.Add(
+                            $"Node '{node.NodeId}': question notion uses checkcard type 'question'. Replaced '{normalizedCheckType}' with 'question'.");
+                    }
+                    normalizedCheckType = "question";
+                }
+            }
+
+            var normalizedGroupGraph = node.GroupGraph is null
+                ? null
+                : await NormalizeStoryboardImportCardCheckTypesAsync(node.GroupGraph, libraryId, dbContext, warnings, ct);
+
+            normalizedNodes.Add(node with
+            {
+                CardCheckType = normalizedCheckType,
+                GroupGraph = normalizedGroupGraph
+            });
+        }
+
+        return graph with { Nodes = normalizedNodes };
     }
 
     private static JsonObject BuildStoryboardImportGraphNode(StoryboardImportGraph graph)
