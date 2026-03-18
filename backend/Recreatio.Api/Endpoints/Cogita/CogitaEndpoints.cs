@@ -1267,6 +1267,7 @@ public static class CogitaEndpoints
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
             IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
             IHashingService hashingService,
             CancellationToken ct) =>
         {
@@ -1383,6 +1384,8 @@ public static class CogitaEndpoints
 
             var shareId = Guid.NewGuid();
             var encShareCode = encryptionService.Encrypt(ownerKey, shareCodeBytes, shareId.ToByteArray());
+            var shareKey = masterKeyService.DeriveSharedViewKey(shareCodeBytes, shareId);
+            var encLibraryReadKey = encryptionService.Encrypt(shareKey, readKey, library.RoleId.ToByteArray());
             dbContext.CogitaStoryboardShares.Add(new CogitaStoryboardShare
             {
                 Id = shareId,
@@ -1391,6 +1394,7 @@ public static class CogitaEndpoints
                 OwnerRoleId = library.RoleId,
                 PublicCodeHash = secretHash,
                 EncShareCode = encShareCode,
+                EncLibraryReadKey = encLibraryReadKey,
                 CreatedUtc = now,
                 RevokedUtc = null
             });
@@ -10576,6 +10580,176 @@ public static class CogitaEndpoints
                 ParseOptionalJson(project.ContentJson),
                 share.CreatedUtc
             ));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard/{code}/notions/{infoId:guid}", async (
+            string code,
+            Guid infoId,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveStoryboardShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, readKey) = shareContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == share.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyEntry = await dbContext.Keys.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+            if (keyEntry is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            JsonElement payloadJson;
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+                using var doc = JsonDocument.Parse(plain);
+                payloadJson = doc.RootElement.Clone();
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            var linksJson = await LoadInfoLinksAsJsonAsync(share.LibraryId, info.Id, info.InfoType, dbContext, ct);
+            return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard/{code}/notions/{infoId:guid}/cards", async (
+            string code,
+            Guid infoId,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveStoryboardShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, readKey) = shareContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == share.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var cards = await BuildEffectiveInfoCheckcardsAsync(
+                share.LibraryId,
+                info,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
+
+            return Results.Ok(new CogitaCardSearchBundleResponse(cards.Count, cards.Count, null, cards));
+        }).AllowAnonymous();
+
+        group.MapGet("/public/storyboard/{code}/notions/{infoId:guid}/approaches/{approachKey}", async (
+            string code,
+            Guid infoId,
+            string approachKey,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveStoryboardShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, readKey) = shareContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == share.LibraryId, ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var approach = CogitaApproachRegistry.Get(approachKey.Trim());
+            if (approach is null)
+            {
+                return Results.NotFound();
+            }
+
+            if (!approach.SourceInfoTypes.Contains(info.InfoType, StringComparer.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = $"Approach '{approach.ApproachKey}' is not valid for info type '{info.InfoType}'." });
+            }
+
+            var projection = await BuildInfoApproachProjectionAsync(
+                share.LibraryId,
+                info,
+                approach.ApproachKey,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
+            if (projection is null)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         }).AllowAnonymous();
 
         group.MapGet("/public/revision/{code}/notions", async (
@@ -23873,6 +24047,63 @@ public static class CogitaEndpoints
         return new string(digits);
     }
 
+    private static async Task<(CogitaStoryboardShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveStoryboardShareAsync(
+        string? code,
+        RecreatioDbContext dbContext,
+        IEncryptionService encryptionService,
+        IMasterKeyService masterKeyService,
+        IHashingService hashingService,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        if (!await HasCogitaStoryboardShareRuntimeSchemaAsync(dbContext, ct))
+        {
+            return null;
+        }
+
+        code = code.Trim();
+        if (code.Length < 6 || code.Length > 128)
+        {
+            return null;
+        }
+
+        var codeBytes = Encoding.UTF8.GetBytes(code);
+        var codeHash = hashingService.Hash(codeBytes);
+
+        var share = await dbContext.CogitaStoryboardShares.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PublicCodeHash == codeHash && x.RevokedUtc == null, ct);
+        if (share is null ||
+            share.EncLibraryReadKey is null ||
+            share.EncLibraryReadKey.Length == 0)
+        {
+            return null;
+        }
+
+        var library = await dbContext.CogitaLibraries.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == share.LibraryId, ct);
+        if (library is null)
+        {
+            return null;
+        }
+
+        byte[] libraryReadKey;
+        try
+        {
+            var shareKey = masterKeyService.DeriveSharedViewKey(codeBytes, share.Id);
+            libraryReadKey = encryptionService.Decrypt(shareKey, share.EncLibraryReadKey, library.RoleId.ToByteArray());
+        }
+        catch (CryptographicException)
+        {
+            return null;
+        }
+
+        return (share, library, libraryReadKey);
+    }
+
     private static async Task<(CogitaRevisionShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveRevisionShareAsync(
         string? code,
         string? key,
@@ -24026,6 +24257,7 @@ public static class CogitaEndpoints
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'OwnerRoleId') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'PublicCodeHash') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'EncShareCode') IS NOT NULL AND
+                COL_LENGTH('dbo.CogitaStoryboardShares', 'EncLibraryReadKey') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'CreatedUtc') IS NOT NULL AND
                 COL_LENGTH('dbo.CogitaStoryboardShares', 'RevokedUtc') IS NOT NULL
             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END;";

@@ -2220,6 +2220,31 @@ export function getCogitaPublicInfoDetail(payload: { shareCode: string; infoId: 
   );
 }
 
+export function getCogitaPublicStoryboardInfoDetail(payload: { shareCode: string; infoId: string }) {
+  return request<{ infoId: string; infoType: string; payload: unknown; links?: Record<string, string | string[] | null> | null }>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaPublicStoryboardInfoCheckcards(payload: { shareCode: string; infoId: string }) {
+  return request<CogitaCardSearchBundle>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}/cards`,
+    { method: 'GET' }
+  );
+}
+
+export function getCogitaPublicStoryboardInfoApproachProjection(payload: {
+  shareCode: string;
+  infoId: string;
+  approachKey: string;
+}) {
+  return request<CogitaInfoApproachProjection>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}/approaches/${encodeURIComponent(payload.approachKey)}`,
+    { method: 'GET' }
+  );
+}
+
 export function getCogitaInfoTypeSpecification(payload: { libraryId: string }) {
   return request<CogitaInfoTypeSpecification[]>(
     `/cogita/libraries/${payload.libraryId}/info-types/specification`,

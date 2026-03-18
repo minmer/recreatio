@@ -5,6 +5,9 @@ import {
   getCogitaInfoApproachProjection,
   getCogitaInfoCheckcards,
   getCogitaInfoDetail,
+  getCogitaPublicStoryboardInfoApproachProjection,
+  getCogitaPublicStoryboardInfoCheckcards,
+  getCogitaPublicStoryboardInfoDetail,
   getCogitaPublicStoryboardShare,
   type CogitaCardSearchResult,
   type CogitaCreationProject
@@ -885,16 +888,23 @@ export function CogitaStoryboardRuntimePage({
       let notionType: string | null = null;
       let cardType: string | null = null;
       let checkType: string | null = currentNode.cardCheckType.trim() || null;
+      const isSharedRuntime = Boolean(shareCode);
+      const notionId = currentNode.notionId.trim();
       const publicNotionPayload =
-        currentNode.notionId.trim() && documentState?.publicNotionPayloads
-          ? documentState.publicNotionPayloads[currentNode.notionId.trim()]
+        notionId && documentState?.publicNotionPayloads
+          ? documentState.publicNotionPayloads[notionId]
           : undefined;
 
-      if (runtimeLibraryId && currentNode.notionId.trim()) {
+      if ((isSharedRuntime || runtimeLibraryId) && notionId) {
         try {
           const [cardsBundle, detail] = await Promise.all([
-            getCogitaInfoCheckcards({ libraryId: runtimeLibraryId, infoId: currentNode.notionId.trim() }),
-            getCogitaInfoDetail({ libraryId: runtimeLibraryId, infoId: currentNode.notionId.trim() }).catch(() => null)
+            isSharedRuntime
+              ? getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
+              : getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId }),
+            (isSharedRuntime
+              ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
+              : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
+            ).catch(() => null)
           ]);
           const preferredQuestionCheckType =
             currentNode.cardCheckType.trim().toLowerCase() === 'question'
@@ -908,11 +918,17 @@ export function CogitaStoryboardRuntimePage({
           let vocabProjection: Record<string, unknown> | null = null;
           if (detail?.infoType === 'translation') {
             try {
-              const projection = await getCogitaInfoApproachProjection({
-                libraryId: runtimeLibraryId,
-                infoId: currentNode.notionId.trim(),
-                approachKey: 'vocab-card'
-              });
+              const projection = isSharedRuntime
+                ? await getCogitaPublicStoryboardInfoApproachProjection({
+                    shareCode: shareCode!,
+                    infoId: notionId,
+                    approachKey: 'vocab-card'
+                  })
+                : await getCogitaInfoApproachProjection({
+                    libraryId: runtimeLibraryId!,
+                    infoId: notionId,
+                    approachKey: 'vocab-card'
+                  });
               vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
             } catch {
               vocabProjection = null;
@@ -999,7 +1015,7 @@ export function CogitaStoryboardRuntimePage({
     return () => {
       cancelled = true;
     };
-  }, [currentNode, documentState, runtimeLibraryId, runtime]);
+  }, [currentNode, documentState, runtimeLibraryId, runtime, shareCode]);
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];

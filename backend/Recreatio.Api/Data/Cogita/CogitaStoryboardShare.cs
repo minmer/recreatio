@@ -17,6 +17,8 @@ public sealed class CogitaStoryboardShare
 
     public byte[] EncShareCode { get; set; } = Array.Empty<byte>();
 
+    public byte[]? EncLibraryReadKey { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset? RevokedUtc { get; set; }

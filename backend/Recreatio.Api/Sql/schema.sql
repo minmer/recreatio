@@ -1691,12 +1691,20 @@ BEGIN
         OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
         PublicCodeHash VARBINARY(64) NOT NULL,
         EncShareCode VARBINARY(MAX) NOT NULL,
+        EncLibraryReadKey VARBINARY(MAX) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         RevokedUtc DATETIMEOFFSET NULL,
         CONSTRAINT FK_CogitaStoryboardShares_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
         CONSTRAINT FK_CogitaStoryboardShares_Project FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id),
         CONSTRAINT FK_CogitaStoryboardShares_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
     );
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardShares', 'EncLibraryReadKey') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardShares
+        ADD EncLibraryReadKey VARBINARY(MAX) NULL;
 END
 GO
 
@@ -3083,12 +3091,20 @@ BEGIN
         OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
         PublicCodeHash VARBINARY(64) NOT NULL,
         EncShareCode VARBINARY(MAX) NOT NULL,
+        EncLibraryReadKey VARBINARY(MAX) NULL,
         CreatedUtc DATETIMEOFFSET NOT NULL,
         RevokedUtc DATETIMEOFFSET NULL,
         FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
         FOREIGN KEY (ProjectId) REFERENCES dbo.CogitaCreationProjects(Id),
         FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id)
     );
+END
+GO
+
+IF COL_LENGTH('dbo.CogitaStoryboardShares', 'EncLibraryReadKey') IS NULL
+BEGIN
+    ALTER TABLE dbo.CogitaStoryboardShares
+        ADD EncLibraryReadKey VARBINARY(MAX) NULL;
 END
 GO
 
