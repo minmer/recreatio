@@ -314,7 +314,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticType: normalizeStaticType(node.staticType ?? node.nodeType),
       staticBody: toString(node.staticBody ?? node.text),
       mediaUrl: toString(node.mediaUrl ?? node.videoUrl),
-      notionId: toString(node.notionId),
+      notionId: toString(node.notionId ?? node.infoId ?? node.itemId),
       cardCheckType: toString(node.cardCheckType ?? node.checkType),
       cardDirection: normalizeCardDirection(node.cardDirection),
       groupGraph: kind === 'group' && node.groupGraph ? parseGraph(node.groupGraph) : undefined
@@ -435,7 +435,7 @@ function buildLegacyGraphFromV1(root: Record<string, unknown>): StoryboardGraph 
       staticType: normalizeStaticType(item.nodeType, 'text'),
       staticBody: toString(item.text),
       mediaUrl: toString(item.videoUrl),
-      notionId: toString(item.notionId),
+      notionId: toString(item.notionId ?? item.infoId ?? item.itemId),
       cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection)
     } satisfies StoryboardNodeRecord;

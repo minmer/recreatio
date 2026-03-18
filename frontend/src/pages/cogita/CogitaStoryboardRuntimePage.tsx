@@ -13,7 +13,7 @@ import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
-import { buildRevisionQuestionRuntime } from './components/runtime/revision/RevisionRuntimeShell';
+import { buildRevisionQuestionRuntime, parseQuestionDefinition } from './components/runtime/revision/RevisionRuntimeShell';
 import {
   evaluateCheckcardDetailed,
   type CheckcardAnswerModel,
@@ -216,9 +216,29 @@ function directionMatchesNode(direction: string | null | undefined, nodeDirectio
   return normalized === 'back_to_front' || normalized === 'b-to-a' || normalized === 'reverse';
 }
 
-function pickNodeCard(node: StoryboardNodeRecord, cards: CogitaCardSearchResult[]) {
+function toQuestionCheckTypeFromPayload(payload: unknown): string | null {
+  const parsed = parseQuestionDefinition(payload);
+  if (!parsed) return null;
+  return `question-${parsed.type}`;
+}
+
+function pickNodeCard(
+  node: StoryboardNodeRecord,
+  cards: CogitaCardSearchResult[],
+  preferredQuestionCheckType?: string | null
+) {
   if (cards.length === 0) return null;
   const wantedCheckType = node.cardCheckType.trim().toLowerCase();
+  const preferredCheckType = (preferredQuestionCheckType ?? '').trim().toLowerCase();
+  if (wantedCheckType === 'question' && preferredCheckType) {
+    const exactPreferred = cards.filter(
+      (card) => (card.checkType ?? '').trim().toLowerCase() === preferredCheckType
+    );
+    const directionPreferred = exactPreferred.filter((card) => directionMatchesNode(card.direction, node.cardDirection));
+    if (directionPreferred.length > 0) return directionPreferred[0];
+    if (exactPreferred.length > 0) return exactPreferred[0];
+  }
+
   const checkFiltered = wantedCheckType
     ? cards.filter((card) => {
         const cardCheckType = (card.checkType ?? '').trim().toLowerCase();
@@ -378,7 +398,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticType: normalizeStaticType(item.staticType ?? item.nodeType),
       staticBody: toString(item.staticBody ?? item.text),
       mediaUrl: toString(item.mediaUrl ?? item.videoUrl),
-      notionId: toString(item.notionId),
+      notionId: toString(item.notionId ?? item.infoId ?? item.itemId),
       cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection),
       groupGraph: kind === 'group' && item.groupGraph ? parseGraph(item.groupGraph) : undefined
@@ -830,7 +850,15 @@ export function CogitaStoryboardRuntimePage({
             getCogitaInfoCheckcards({ libraryId, infoId: currentNode.notionId.trim() }),
             getCogitaInfoDetail({ libraryId, infoId: currentNode.notionId.trim() }).catch(() => null)
           ]);
-          const selectedCard = pickNodeCard(currentNode, cardsBundle.items);
+          const preferredQuestionCheckType =
+            currentNode.cardCheckType.trim().toLowerCase() === 'question'
+              ? toQuestionCheckTypeFromPayload(
+                  detail?.payload ??
+                    cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                    null
+                )
+              : null;
+          const selectedCard = pickNodeCard(currentNode, cardsBundle.items, preferredQuestionCheckType);
           let vocabProjection: Record<string, unknown> | null = null;
           if (detail?.infoType === 'translation') {
             try {
@@ -859,7 +887,13 @@ export function CogitaStoryboardRuntimePage({
 
           const questionRuntime =
             (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
-              ? buildRevisionQuestionRuntime(detail?.payload ?? selectedCard?.payload ?? null, prompt)
+              ? buildRevisionQuestionRuntime(
+                  detail?.payload ??
+                    selectedCard?.payload ??
+                    cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                    null,
+                  prompt
+                )
               : null;
           if (questionRuntime) {
             prompt = questionRuntime.promptText || prompt;
