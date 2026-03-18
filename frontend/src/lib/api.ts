@@ -563,6 +563,21 @@ export type CogitaCreationProject = {
   updatedUtc: string;
 };
 
+export type CogitaStoryboardImportNotionResult = {
+  reference: string;
+  notionId: string;
+  created: boolean;
+  infoType: string;
+};
+
+export type CogitaStoryboardImportResult = {
+  project: CogitaCreationProject;
+  createdNotions: number;
+  reusedNotions: number;
+  notions: CogitaStoryboardImportNotionResult[];
+  warnings: string[];
+};
+
 export type CogitaInfoSearchResult = {
   infoId: string;
   infoType: string;
@@ -1233,6 +1248,25 @@ export function deleteCogitaCreationProject(payload: { libraryId: string; projec
   return request<{ deleted: boolean }>(
     `/cogita/libraries/${payload.libraryId}/creation-projects/${payload.projectId}`,
     { method: 'DELETE' }
+  );
+}
+
+export function importCogitaStoryboardFromJson(payload: {
+  libraryId: string;
+  projectId?: string | null;
+  name?: string | null;
+  json: unknown;
+}) {
+  return request<CogitaStoryboardImportResult>(
+    `/cogita/libraries/${payload.libraryId}/storyboard-imports`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: payload.projectId ?? null,
+        name: payload.name ?? null,
+        json: payload.json
+      })
+    }
   );
 }
 

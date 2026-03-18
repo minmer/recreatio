@@ -25,6 +25,7 @@ import {
   getCogitaInfoCheckcards,
   getCogitaCreationProjects,
   getCogitaStoryboardShares,
+  importCogitaStoryboardFromJson,
   revokeCogitaStoryboardShare,
   updateCogitaCreationProject,
   type CogitaCardSearchResult,
@@ -1071,6 +1072,10 @@ export function CogitaStoryboardEdit({
   const [activeShare, setActiveShare] = useState<CogitaStoryboardShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [importOverlayOpen, setImportOverlayOpen] = useState(false);
+  const [importJsonInput, setImportJsonInput] = useState('');
+  const [importStatus, setImportStatus] = useState<'idle' | 'working'>('idle');
+  const [importError, setImportError] = useState<string | null>(null);
   const authExpiredStatus = useMemo(
     () =>
       language === 'pl'
@@ -1078,6 +1083,48 @@ export function CogitaStoryboardEdit({
         : language === 'de'
           ? 'Sitzung abgelaufen. Melde dich erneut an und lade das Storyboard neu.'
           : 'Session expired. Sign in again and reload the storyboard.',
+    [language]
+  );
+  const importUiCopy = useMemo(
+    () =>
+      language === 'pl'
+        ? {
+            openAction: 'Import JSON',
+            title: 'Import storyboardu z JSON',
+            hint: 'Wklej JSON storyboardu lub import envelope. Import może utworzyć notions i połączyć je z card node.',
+            invalidJson: 'Wklejony tekst nie jest poprawnym JSON.',
+            submitAction: 'Importuj',
+            submittingAction: 'Importowanie...',
+            clearAction: 'Wyczyść',
+            statusDone: 'Import zakończony.',
+            statusWarnings: (count: number) => `Import zakończony z ostrzeżeniami (${count}).`,
+            workspaceAction: 'Otwórz workspace'
+          }
+        : language === 'de'
+          ? {
+              openAction: 'JSON importieren',
+              title: 'Storyboard aus JSON importieren',
+              hint: 'Füge ein Storyboard-JSON oder ein Import-Envelope ein. Der Import kann Notions erstellen und mit Card-Nodes verknüpfen.',
+              invalidJson: 'Der eingefügte Text ist kein gültiges JSON.',
+              submitAction: 'Importieren',
+              submittingAction: 'Import läuft...',
+              clearAction: 'Leeren',
+              statusDone: 'Import abgeschlossen.',
+              statusWarnings: (count: number) => `Import mit Warnungen abgeschlossen (${count}).`,
+              workspaceAction: 'Workspace öffnen'
+            }
+          : {
+              openAction: 'Import JSON',
+              title: 'Import Storyboard From JSON',
+              hint: 'Paste a storyboard JSON or import envelope. Import can create notions and attach them to card nodes.',
+              invalidJson: 'The provided text is not valid JSON.',
+              submitAction: 'Import',
+              submittingAction: 'Importing...',
+              clearAction: 'Clear',
+              statusDone: 'Import completed.',
+              statusWarnings: (count: number) => `Import completed with warnings (${count}).`,
+              workspaceAction: 'Open workspace'
+            },
     [language]
   );
 
@@ -1123,6 +1170,10 @@ export function CogitaStoryboardEdit({
       setCardNodeCards({});
       setCardNodeInfoLabels({});
       setCardNodeCardsStatus('idle');
+      setImportOverlayOpen(false);
+      setImportJsonInput('');
+      setImportStatus('idle');
+      setImportError(null);
       return;
     }
 
@@ -1141,6 +1192,10 @@ export function CogitaStoryboardEdit({
     setActiveShare(null);
     setShareStatus('idle');
     setShareCopyStatus('idle');
+    setImportOverlayOpen(false);
+    setImportJsonInput('');
+    setImportStatus('idle');
+    setImportError(null);
   }, [selectedProject]);
 
   useEffect(() => {
@@ -1689,6 +1744,87 @@ export function CogitaStoryboardEdit({
     }
   };
 
+  const handleImportJson = async () => {
+    if (!canEdit || importStatus === 'working') return;
+
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(importJsonInput);
+    } catch {
+      setImportError(importUiCopy.invalidJson);
+      return;
+    }
+
+    setImportError(null);
+    setImportStatus('working');
+    setSaveFailed(false);
+    setStatus(null);
+
+    try {
+      const result = await importCogitaStoryboardFromJson({
+        libraryId,
+        projectId: isEditMode ? selectedProject?.projectId ?? storyboardId ?? null : null,
+        name: projectTitle.trim() || selectedProject?.name || null,
+        json: parsedJson
+      });
+
+      const importedProject = result.project;
+      setItems((current) => {
+        const index = current.findIndex((item) => item.projectId === importedProject.projectId);
+        if (index < 0) {
+          return [importedProject, ...current];
+        }
+        const next = current.slice();
+        next[index] = importedProject;
+        return next;
+      });
+
+      const warningCount = result.warnings.length;
+      const statusText = warningCount > 0 ? importUiCopy.statusWarnings(warningCount) : importUiCopy.statusDone;
+      const notionStats = ` notions: +${result.createdNotions} / =${result.reusedNotions}`;
+      const warningText = warningCount > 0 ? ` ${result.warnings[0]}` : '';
+      setStatus(`${statusText}${notionStats}${warningText}`);
+
+      setImportOverlayOpen(false);
+      setImportJsonInput('');
+      setImportError(null);
+
+      if (isCreateMode) {
+        if (onCreated) {
+          onCreated(importedProject);
+        } else {
+          navigateToEdit(importedProject.projectId);
+        }
+        return;
+      }
+
+      if (storyboardId && storyboardId !== importedProject.projectId) {
+        navigateToEdit(importedProject.projectId);
+        return;
+      }
+
+      const normalized = normalizeStoryboardDocument(importedProject.content);
+      setProjectTitle(importedProject.name);
+      setProjectDescription(normalized.description);
+      setDocumentState(normalized);
+      setActiveGroupPath([]);
+      setSelectedNodeId(normalized.rootGraph.startNodeId);
+      setSelectedEdgeId('');
+      setCardPickerOpen(false);
+      setCardNodeCards({});
+      setCardNodeInfoLabels({});
+      setCardNodeCardsStatus('idle');
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setImportError(authExpiredStatus);
+      } else {
+        setImportError(copy.cogita.library.modules.createFailed);
+      }
+    } finally {
+      setImportStatus('idle');
+    }
+  };
+
   return (
     <CogitaShell
       copy={copy}
@@ -1751,6 +1887,19 @@ export function CogitaStoryboardEdit({
               {!isCreateMode && !isEditMode ? (
                 <button type="button" className="ghost" onClick={navigateToSearch}>
                   {copy.cogita.workspace.infoMode.search}
+                </button>
+              ) : null}
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setImportOverlayOpen(true);
+                    setImportError(null);
+                  }}
+                  disabled={importStatus === 'working'}
+                >
+                  {importUiCopy.openAction}
                 </button>
               ) : null}
               {isCreateMode ? (
@@ -2234,6 +2383,53 @@ export function CogitaStoryboardEdit({
             onNotionSelect={handleOverlayKnowledgeSelect}
           />
         )}
+      </CogitaWorkspaceComponentOverlay>
+      <CogitaWorkspaceComponentOverlay
+        open={importOverlayOpen && canEdit}
+        title={importUiCopy.title}
+        closeLabel={copy.cogita.shell.back}
+        workspaceLinkTo={`/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/storyboards`}
+        workspaceLinkLabel={importUiCopy.workspaceAction}
+        onClose={() => {
+          setImportOverlayOpen(false);
+          setImportError(null);
+        }}
+      >
+        <div className="cogita-storyboard-meta-form">
+          <p className="cogita-help">{importUiCopy.hint}</p>
+          <label className="cogita-field full">
+            <span>JSON</span>
+            <textarea
+              value={importJsonInput}
+              onChange={(event) => setImportJsonInput(event.target.value)}
+              rows={18}
+              placeholder="{ ... }"
+              disabled={importStatus === 'working'}
+            />
+          </label>
+          {importError ? <p className="cogita-form-error">{importError}</p> : null}
+          <div className="cogita-form-actions">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setImportJsonInput('');
+                setImportError(null);
+              }}
+              disabled={importStatus === 'working'}
+            >
+              {importUiCopy.clearAction}
+            </button>
+            <button
+              type="button"
+              className="cta"
+              onClick={() => void handleImportJson()}
+              disabled={importStatus === 'working' || !importJsonInput.trim()}
+            >
+              {importStatus === 'working' ? importUiCopy.submittingAction : importUiCopy.submitAction}
+            </button>
+          </div>
+        </div>
       </CogitaWorkspaceComponentOverlay>
     </CogitaShell>
   );

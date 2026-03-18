@@ -57,6 +57,27 @@ public sealed record CogitaCreationProjectResponse(
     DateTimeOffset UpdatedUtc
 );
 
+public sealed record CogitaStoryboardImportRequest(
+    Guid? ProjectId,
+    string? Name,
+    JsonElement Json
+);
+
+public sealed record CogitaStoryboardImportNotionResultResponse(
+    string Reference,
+    Guid NotionId,
+    bool Created,
+    string InfoType
+);
+
+public sealed record CogitaStoryboardImportResponse(
+    CogitaCreationProjectResponse Project,
+    int CreatedNotions,
+    int ReusedNotions,
+    List<CogitaStoryboardImportNotionResultResponse> Notions,
+    List<string> Warnings
+);
+
 public sealed record CogitaInfoSearchResponse(
     Guid InfoId,
     string InfoType,

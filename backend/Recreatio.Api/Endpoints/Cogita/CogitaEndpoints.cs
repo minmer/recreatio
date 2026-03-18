@@ -836,6 +836,370 @@ public static class CogitaEndpoints
                 row.UpdatedUtc));
         });
 
+        group.MapPost("/libraries/{libraryId:guid}/storyboard-imports", async (
+            Guid libraryId,
+            CogitaStoryboardImportRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey) ||
+                !keyRing.TryGetWriteKey(library.RoleId, out _) ||
+                !keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            {
+                return Results.Forbid();
+            }
+
+            if (request.Json.ValueKind != JsonValueKind.Object)
+            {
+                return Results.BadRequest(new { error = "Json must be an object." });
+            }
+
+            var warnings = new List<string>();
+            var notionReferences = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+            var notionResults = new List<CogitaStoryboardImportNotionResultResponse>();
+            var notionResultKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var notionTypeCache = new Dictionary<Guid, string?>();
+
+            void AddNotionResult(string reference, Guid notionId, bool created, string infoType)
+            {
+                var normalizedReference = string.IsNullOrWhiteSpace(reference) ? notionId.ToString("D") : reference.Trim();
+                var uniqueKey = $"{normalizedReference}:{notionId:D}";
+                if (!notionResultKeys.Add(uniqueKey))
+                {
+                    return;
+                }
+
+                notionResults.Add(new CogitaStoryboardImportNotionResultResponse(
+                    normalizedReference,
+                    notionId,
+                    created,
+                    infoType));
+            }
+
+            async Task<string?> TryGetNotionTypeAsync(Guid notionId)
+            {
+                if (notionTypeCache.TryGetValue(notionId, out var cachedType))
+                {
+                    return cachedType;
+                }
+
+                var foundType = await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.Id == notionId && x.LibraryId == libraryId)
+                    .Select(x => x.InfoType)
+                    .FirstOrDefaultAsync(ct);
+                notionTypeCache[notionId] = foundType;
+                return foundType;
+            }
+
+            async Task<Guid?> ResolveNotionFromJsonAsync(JsonElement notionElement, string contextLabel)
+            {
+                if (notionElement.ValueKind != JsonValueKind.Object)
+                {
+                    warnings.Add($"{contextLabel}: notion must be an object.");
+                    return null;
+                }
+
+                var reference = ReadFirstNonEmptyString(notionElement, "ref", "reference");
+                if (!string.IsNullOrWhiteSpace(reference) &&
+                    notionReferences.TryGetValue(reference, out var existingFromReference))
+                {
+                    return existingFromReference;
+                }
+
+                if (TryReadGuidProperty(notionElement, "notionId", out var existingNotionId))
+                {
+                    var existingType = await TryGetNotionTypeAsync(existingNotionId);
+                    if (string.IsNullOrWhiteSpace(existingType))
+                    {
+                        warnings.Add($"{contextLabel}: notionId '{existingNotionId:D}' was not found in this library.");
+                        return null;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(reference))
+                    {
+                        notionReferences[reference] = existingNotionId;
+                    }
+
+                    AddNotionResult(reference ?? contextLabel, existingNotionId, false, existingType);
+                    return existingNotionId;
+                }
+
+                var infoType = (ReadFirstNonEmptyString(notionElement, "infoType", "type") ?? string.Empty)
+                    .Trim()
+                    .ToLowerInvariant();
+                if (!SupportedInfoTypes.Contains(infoType))
+                {
+                    warnings.Add($"{contextLabel}: unsupported infoType '{infoType}'.");
+                    return null;
+                }
+
+                if (!TryGetPropertyCaseInsensitive(notionElement, "payload", out var payloadElement) ||
+                    payloadElement.ValueKind == JsonValueKind.Null ||
+                    payloadElement.ValueKind == JsonValueKind.Undefined)
+                {
+                    warnings.Add($"{contextLabel}: payload is required for notion creation.");
+                    return null;
+                }
+
+                JsonElement? links = null;
+                if (TryGetPropertyCaseInsensitive(notionElement, "links", out var linksElement))
+                {
+                    links = linksElement.Clone();
+                }
+
+                try
+                {
+                    var created = await CreateInfoInternalAsync(
+                        library,
+                        new CogitaCreateInfoRequest(infoType, payloadElement.Clone(), null, null, links),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: true);
+
+                    if (!string.IsNullOrWhiteSpace(reference))
+                    {
+                        notionReferences[reference] = created.InfoId;
+                    }
+
+                    AddNotionResult(reference ?? contextLabel, created.InfoId, true, infoType);
+                    notionTypeCache[created.InfoId] = infoType;
+                    return created.InfoId;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    warnings.Add($"{contextLabel}: notion creation failed ({ex.Message}).");
+                    return null;
+                }
+            }
+
+            var importRoot = request.Json;
+            var rootSchema = ReadFirstNonEmptyString(importRoot, "schema");
+            var isImportEnvelope = string.Equals(rootSchema, "cogita_storyboard_import", StringComparison.OrdinalIgnoreCase);
+            var targetProjectId = request.ProjectId;
+            var targetProjectName = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
+            string? descriptionOverride = null;
+
+            if (TryGetPropertyCaseInsensitive(importRoot, "project", out var projectElement) &&
+                projectElement.ValueKind == JsonValueKind.Object)
+            {
+                if (!targetProjectId.HasValue && TryReadGuidProperty(projectElement, "projectId", out var projectIdFromJson))
+                {
+                    targetProjectId = projectIdFromJson;
+                }
+
+                if (string.IsNullOrWhiteSpace(targetProjectName))
+                {
+                    targetProjectName = ReadFirstNonEmptyString(projectElement, "name", "title");
+                }
+
+                descriptionOverride = ReadFirstNonEmptyString(projectElement, "description");
+            }
+
+            if (!targetProjectId.HasValue && TryReadGuidProperty(importRoot, "projectId", out var projectIdFromRoot))
+            {
+                targetProjectId = projectIdFromRoot;
+            }
+
+            if (string.IsNullOrWhiteSpace(targetProjectName))
+            {
+                targetProjectName = ReadFirstNonEmptyString(importRoot, "name", "title");
+            }
+
+            if (TryGetPropertyCaseInsensitive(importRoot, "notions", out var rootNotions) &&
+                rootNotions.ValueKind == JsonValueKind.Array)
+            {
+                var notionIndex = 0;
+                foreach (var notion in rootNotions.EnumerateArray())
+                {
+                    notionIndex++;
+                    await ResolveNotionFromJsonAsync(notion, $"notions[{notionIndex}]");
+                }
+            }
+
+            JsonElement storyboardElement;
+            if (isImportEnvelope)
+            {
+                if (!TryGetPropertyCaseInsensitive(importRoot, "storyboard", out storyboardElement) ||
+                    storyboardElement.ValueKind != JsonValueKind.Object)
+                {
+                    return Results.BadRequest(new { error = "Import schema requires an object at json.storyboard." });
+                }
+            }
+            else if (TryGetPropertyCaseInsensitive(importRoot, "storyboard", out var nestedStoryboard) &&
+                     nestedStoryboard.ValueKind == JsonValueKind.Object)
+            {
+                storyboardElement = nestedStoryboard;
+            }
+            else
+            {
+                storyboardElement = importRoot;
+            }
+
+            if (isImportEnvelope &&
+                TryGetPropertyCaseInsensitive(storyboardElement, "notions", out var nestedNotions) &&
+                nestedNotions.ValueKind == JsonValueKind.Array)
+            {
+                var notionIndex = 0;
+                foreach (var notion in nestedNotions.EnumerateArray())
+                {
+                    notionIndex++;
+                    await ResolveNotionFromJsonAsync(notion, $"storyboard.notions[{notionIndex}]");
+                }
+            }
+
+            JsonElement rootGraphElement;
+            if (TryGetPropertyCaseInsensitive(storyboardElement, "rootGraph", out var rootGraphValue) &&
+                rootGraphValue.ValueKind == JsonValueKind.Object)
+            {
+                rootGraphElement = rootGraphValue;
+            }
+            else if (TryGetPropertyCaseInsensitive(storyboardElement, "nodes", out var nodesElement) &&
+                     nodesElement.ValueKind == JsonValueKind.Array)
+            {
+                rootGraphElement = storyboardElement;
+            }
+            else
+            {
+                return Results.BadRequest(new { error = "Storyboard graph is missing. Provide storyboard.rootGraph or storyboard.nodes." });
+            }
+
+            async Task<bool> ValidateNotionReferenceAsync(Guid notionId)
+            {
+                var notionType = await TryGetNotionTypeAsync(notionId);
+                return !string.IsNullOrWhiteSpace(notionType);
+            }
+
+            var rootGraph = await ParseStoryboardImportGraphAsync(
+                rootGraphElement,
+                "storyboard.rootGraph",
+                notionReferences,
+                ResolveNotionFromJsonAsync,
+                ValidateNotionReferenceAsync,
+                warnings,
+                ct);
+
+            var description = ReadFirstNonEmptyString(storyboardElement, "description")
+                ?? descriptionOverride
+                ?? ReadFirstNonEmptyString(importRoot, "description")
+                ?? string.Empty;
+            var script = ReadFirstNonEmptyString(storyboardElement, "script")
+                ?? ReadFirstNonEmptyString(importRoot, "script")
+                ?? string.Empty;
+            var steps = ReadStringArray(storyboardElement, "steps");
+            if (steps.Count == 0)
+            {
+                steps = BuildStoryboardImportScriptLines(rootGraph);
+            }
+            if (string.IsNullOrWhiteSpace(script) && steps.Count > 0)
+            {
+                script = string.Join("\n\n---\n\n", steps);
+            }
+
+            var documentNode = BuildStoryboardImportDocumentNode(rootGraph, description, script, steps);
+            var documentJson = documentNode.ToJsonString();
+
+            var now = DateTimeOffset.UtcNow;
+            CogitaCreationProject row;
+            if (targetProjectId.HasValue && targetProjectId.Value != Guid.Empty)
+            {
+                var existingRow = await dbContext.CogitaCreationProjects
+                    .FirstOrDefaultAsync(x => x.Id == targetProjectId.Value && x.LibraryId == libraryId, ct);
+                if (existingRow is null)
+                {
+                    return Results.NotFound();
+                }
+                row = existingRow;
+                if (!string.Equals(row.ProjectType, "storyboard", StringComparison.Ordinal))
+                {
+                    return Results.BadRequest(new { error = "Target project must be a storyboard." });
+                }
+
+                if (!string.IsNullOrWhiteSpace(targetProjectName))
+                {
+                    row.Name = targetProjectName.Length > 256 ? targetProjectName[..256] : targetProjectName;
+                }
+                row.ContentJson = documentJson;
+                row.UpdatedUtc = now;
+            }
+            else
+            {
+                var resolvedName = string.IsNullOrWhiteSpace(targetProjectName)
+                    ? $"Imported storyboard {now:yyyy-MM-dd HH:mm}"
+                    : targetProjectName.Trim();
+                if (resolvedName.Length > 256)
+                {
+                    resolvedName = resolvedName[..256];
+                }
+
+                row = new CogitaCreationProject
+                {
+                    Id = Guid.NewGuid(),
+                    LibraryId = libraryId,
+                    ProjectType = "storyboard",
+                    Name = resolvedName,
+                    ContentJson = documentJson,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.CogitaCreationProjects.Add(row);
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            var responseProject = new CogitaCreationProjectResponse(
+                row.Id,
+                row.ProjectType,
+                row.Name,
+                ParseOptionalJson(row.ContentJson),
+                row.CreatedUtc,
+                row.UpdatedUtc);
+
+            var createdCount = notionResults.Count(x => x.Created);
+            var reusedCount = notionResults.Count - createdCount;
+            var response = new CogitaStoryboardImportResponse(
+                responseProject,
+                createdCount,
+                reusedCount,
+                notionResults,
+                warnings);
+            return Results.Ok(response);
+        });
+
         group.MapDelete("/libraries/{libraryId:guid}/creation-projects/{projectId:guid}", async (
             Guid libraryId,
             Guid projectId,
@@ -22265,6 +22629,677 @@ public static class CogitaEndpoints
             currentRoundAnswers,
             pendingReloginRequests
         );
+    }
+
+    private sealed record StoryboardImportNode(
+        string NodeId,
+        string Title,
+        string Kind,
+        string Description,
+        double PositionX,
+        double PositionY,
+        string StaticType,
+        string StaticBody,
+        string MediaUrl,
+        string NotionId,
+        string CardCheckType,
+        string CardDirection,
+        StoryboardImportGraph? GroupGraph);
+
+    private sealed record StoryboardImportEdge(
+        string EdgeId,
+        string FromNodeId,
+        string ToNodeId,
+        string Kind,
+        string SourcePort,
+        string TargetPort,
+        string Label,
+        string DisplayMode);
+
+    private sealed record StoryboardImportGraph(
+        string StartNodeId,
+        string EndNodeId,
+        List<StoryboardImportNode> Nodes,
+        List<StoryboardImportEdge> Edges);
+
+    private static string CreateStoryboardImportId(string prefix)
+    {
+        return $"{prefix}-{Guid.NewGuid():N}";
+    }
+
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static string? ReadFirstNonEmptyString(JsonElement element, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (!TryGetPropertyCaseInsensitive(element, propertyName, out var value) ||
+                value.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var text = value.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryReadGuidProperty(JsonElement element, string propertyName, out Guid value)
+    {
+        if (TryGetPropertyCaseInsensitive(element, propertyName, out var node) &&
+            node.ValueKind == JsonValueKind.String &&
+            Guid.TryParse(node.GetString(), out value))
+        {
+            return true;
+        }
+
+        value = Guid.Empty;
+        return false;
+    }
+
+    private static List<string> ReadStringArray(JsonElement element, string propertyName)
+    {
+        var result = new List<string>();
+        if (!TryGetPropertyCaseInsensitive(element, propertyName, out var arrayNode) ||
+            arrayNode.ValueKind != JsonValueKind.Array)
+        {
+            return result;
+        }
+
+        foreach (var item in arrayNode.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var text = item.GetString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                result.Add(text);
+            }
+        }
+
+        return result;
+    }
+
+    private static string NormalizeStoryboardImportNodeKind(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "start" => "start",
+            "end" => "end",
+            "card" => "card",
+            "group" => "group",
+            "text" => "static",
+            "video" => "static",
+            "audio" => "static",
+            "image" => "static",
+            "revision" => "static",
+            _ => "static"
+        };
+    }
+
+    private static string NormalizeStoryboardImportStaticType(string? value, string fallback = "text")
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "text" => "text",
+            "video" => "video",
+            "audio" => "audio",
+            "image" => "image",
+            "other" => "other",
+            "revision" => "other",
+            _ => fallback
+        };
+    }
+
+    private static string NormalizeStoryboardImportCardDirection(string? value)
+    {
+        return string.Equals(value, "back_to_front", StringComparison.OrdinalIgnoreCase)
+            ? "back_to_front"
+            : "front_to_back";
+    }
+
+    private static string DeriveStoryboardImportEdgeKind(string sourcePort, string targetPort)
+    {
+        if (string.Equals(targetPort, "in-dependency", StringComparison.Ordinal))
+        {
+            return "dependency";
+        }
+        if (string.Equals(sourcePort, "out-right", StringComparison.Ordinal))
+        {
+            return "card_right";
+        }
+        if (string.Equals(sourcePort, "out-wrong", StringComparison.Ordinal))
+        {
+            return "card_wrong";
+        }
+        return "path";
+    }
+
+    private static string InferStoryboardImportSourcePort(string? rawSourcePort, string? rawKind, string sourceNodeKind)
+    {
+        var sourcePort = (rawSourcePort ?? string.Empty).Trim();
+        if (sourcePort is "out-path" or "out-right" or "out-wrong")
+        {
+            return sourcePort;
+        }
+
+        var edgeKind = (rawKind ?? string.Empty).Trim().ToLowerInvariant();
+        if (edgeKind == "card_right")
+        {
+            return "out-right";
+        }
+        if (edgeKind == "card_wrong")
+        {
+            return "out-wrong";
+        }
+        if (string.Equals(sourceNodeKind, "card", StringComparison.Ordinal))
+        {
+            return "out-right";
+        }
+        return "out-path";
+    }
+
+    private static string InferStoryboardImportTargetPort(string? rawTargetPort, string? rawKind)
+    {
+        var targetPort = (rawTargetPort ?? string.Empty).Trim();
+        if (targetPort is "in-path" or "in-dependency")
+        {
+            return targetPort;
+        }
+
+        var edgeKind = (rawKind ?? string.Empty).Trim().ToLowerInvariant();
+        return edgeKind == "dependency" ? "in-dependency" : "in-path";
+    }
+
+    private static bool IsStoryboardImportStructuralNode(StoryboardImportNode node)
+    {
+        return string.Equals(node.Kind, "start", StringComparison.Ordinal) ||
+               string.Equals(node.Kind, "end", StringComparison.Ordinal);
+    }
+
+    private static StoryboardImportNode CreateStoryboardImportStartNode(string? nodeId = null)
+    {
+        return new StoryboardImportNode(
+            nodeId ?? CreateStoryboardImportId("start"),
+            "Start",
+            "start",
+            string.Empty,
+            80,
+            200,
+            "text",
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            "front_to_back",
+            null);
+    }
+
+    private static StoryboardImportNode CreateStoryboardImportEndNode(string? nodeId = null)
+    {
+        return new StoryboardImportNode(
+            nodeId ?? CreateStoryboardImportId("end"),
+            "End",
+            "end",
+            string.Empty,
+            760,
+            200,
+            "text",
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            "front_to_back",
+            null);
+    }
+
+    private static StoryboardImportGraph CreateStoryboardImportDefaultGraph()
+    {
+        var start = CreateStoryboardImportStartNode();
+        var end = CreateStoryboardImportEndNode();
+        return new StoryboardImportGraph(
+            start.NodeId,
+            end.NodeId,
+            new List<StoryboardImportNode> { start, end },
+            new List<StoryboardImportEdge>
+            {
+                new(
+                    CreateStoryboardImportId("edge"),
+                    start.NodeId,
+                    end.NodeId,
+                    "path",
+                    "out-path",
+                    "in-path",
+                    string.Empty,
+                    "new_screen")
+            });
+    }
+
+    private static async Task<StoryboardImportGraph> ParseStoryboardImportGraphAsync(
+        JsonElement rawGraph,
+        string graphPath,
+        Dictionary<string, Guid> notionReferences,
+        Func<JsonElement, string, Task<Guid?>> resolveInlineNotionAsync,
+        Func<Guid, Task<bool>> validateNotionReferenceAsync,
+        List<string> warnings,
+        CancellationToken ct)
+    {
+        var fallback = CreateStoryboardImportDefaultGraph();
+        if (rawGraph.ValueKind != JsonValueKind.Object)
+        {
+            warnings.Add($"{graphPath}: graph must be an object.");
+            return fallback;
+        }
+
+        var provisionalNodes = new List<StoryboardImportNode>();
+        if (TryGetPropertyCaseInsensitive(rawGraph, "nodes", out var nodesElement) &&
+            nodesElement.ValueKind == JsonValueKind.Array)
+        {
+            var index = 0;
+            foreach (var nodeElement in nodesElement.EnumerateArray())
+            {
+                ct.ThrowIfCancellationRequested();
+                index++;
+                if (nodeElement.ValueKind != JsonValueKind.Object)
+                {
+                    warnings.Add($"{graphPath}.nodes[{index}]: node must be an object.");
+                    continue;
+                }
+
+                var kind = NormalizeStoryboardImportNodeKind(ReadFirstNonEmptyString(nodeElement, "kind", "nodeType"));
+                var nodeId = ReadFirstNonEmptyString(nodeElement, "nodeId", "id");
+                if (string.IsNullOrWhiteSpace(nodeId))
+                {
+                    nodeId = CreateStoryboardImportId($"node-{index}");
+                }
+
+                var title = ReadFirstNonEmptyString(nodeElement, "title", "name");
+                if (string.IsNullOrWhiteSpace(title))
+                {
+                    title = kind switch
+                    {
+                        "start" => "Start",
+                        "end" => "End",
+                        _ => $"Node {index}"
+                    };
+                }
+
+                var description = ReadFirstNonEmptyString(nodeElement, "description") ?? string.Empty;
+                var staticType = NormalizeStoryboardImportStaticType(ReadFirstNonEmptyString(nodeElement, "staticType", "nodeType"));
+                var staticBody = ReadFirstNonEmptyString(nodeElement, "staticBody", "text", "body") ?? string.Empty;
+                var mediaUrl = ReadFirstNonEmptyString(nodeElement, "mediaUrl", "videoUrl", "url") ?? string.Empty;
+                var notionId = ReadFirstNonEmptyString(nodeElement, "notionId") ?? string.Empty;
+                var cardCheckType = ReadFirstNonEmptyString(nodeElement, "cardCheckType", "checkType") ?? string.Empty;
+                var cardDirection = NormalizeStoryboardImportCardDirection(ReadFirstNonEmptyString(nodeElement, "cardDirection"));
+
+                var posX = 120 + ((index - 1) % 4) * 220;
+                var posY = 80 + ((index - 1) / 4) * 170;
+                if (TryGetPropertyCaseInsensitive(nodeElement, "position", out var posElement) &&
+                    posElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (TryGetPropertyCaseInsensitive(posElement, "x", out var xElement) &&
+                        xElement.ValueKind == JsonValueKind.Number &&
+                        xElement.TryGetDouble(out var parsedX) &&
+                        !double.IsNaN(parsedX) &&
+                        !double.IsInfinity(parsedX))
+                    {
+                        posX = parsedX;
+                    }
+                    if (TryGetPropertyCaseInsensitive(posElement, "y", out var yElement) &&
+                        yElement.ValueKind == JsonValueKind.Number &&
+                        yElement.TryGetDouble(out var parsedY) &&
+                        !double.IsNaN(parsedY) &&
+                        !double.IsInfinity(parsedY))
+                    {
+                        posY = parsedY;
+                    }
+                }
+
+                StoryboardImportGraph? groupGraph = null;
+                if (string.Equals(kind, "group", StringComparison.Ordinal) &&
+                    TryGetPropertyCaseInsensitive(nodeElement, "groupGraph", out var groupGraphElement) &&
+                    groupGraphElement.ValueKind == JsonValueKind.Object)
+                {
+                    groupGraph = await ParseStoryboardImportGraphAsync(
+                        groupGraphElement,
+                        $"{graphPath}.nodes[{index}].groupGraph",
+                        notionReferences,
+                        resolveInlineNotionAsync,
+                        validateNotionReferenceAsync,
+                        warnings,
+                        ct);
+                }
+
+                if (string.Equals(kind, "card", StringComparison.Ordinal))
+                {
+                    if (Guid.TryParse(notionId, out var explicitNotionId))
+                    {
+                        if (!await validateNotionReferenceAsync(explicitNotionId))
+                        {
+                            warnings.Add($"{graphPath}.nodes[{index}]: notionId '{explicitNotionId:D}' not found in this library.");
+                            notionId = string.Empty;
+                        }
+                        else
+                        {
+                            notionId = explicitNotionId.ToString("D");
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(notionId))
+                    {
+                        var notionRef = ReadFirstNonEmptyString(nodeElement, "notionRef", "ref");
+                        if (!string.IsNullOrWhiteSpace(notionRef) &&
+                            notionReferences.TryGetValue(notionRef, out var mappedNotionId))
+                        {
+                            notionId = mappedNotionId.ToString("D");
+                        }
+                        else if (!string.IsNullOrWhiteSpace(notionRef))
+                        {
+                            warnings.Add($"{graphPath}.nodes[{index}]: notionRef '{notionRef}' was not defined.");
+                        }
+                    }
+
+                    if (string.IsNullOrWhiteSpace(notionId) &&
+                        TryGetPropertyCaseInsensitive(nodeElement, "notion", out var notionElement) &&
+                        notionElement.ValueKind == JsonValueKind.Object)
+                    {
+                        var inlineNotionId = await resolveInlineNotionAsync(notionElement, $"{graphPath}.nodes[{index}].notion");
+                        if (inlineNotionId.HasValue)
+                        {
+                            notionId = inlineNotionId.Value.ToString("D");
+                        }
+                    }
+                }
+
+                provisionalNodes.Add(new StoryboardImportNode(
+                    nodeId,
+                    title,
+                    kind,
+                    description,
+                    posX,
+                    posY,
+                    staticType,
+                    staticBody,
+                    mediaUrl,
+                    notionId,
+                    cardCheckType,
+                    cardDirection,
+                    groupGraph));
+            }
+        }
+
+        var uniqueNodes = new List<StoryboardImportNode>();
+        var knownNodeIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in provisionalNodes)
+        {
+            if (!knownNodeIds.Add(node.NodeId))
+            {
+                warnings.Add($"{graphPath}: duplicate nodeId '{node.NodeId}' was ignored.");
+                continue;
+            }
+            uniqueNodes.Add(node);
+        }
+
+        var configuredStartNodeId = ReadFirstNonEmptyString(rawGraph, "startNodeId");
+        var configuredEndNodeId = ReadFirstNonEmptyString(rawGraph, "endNodeId");
+        var explicitStart = uniqueNodes.FirstOrDefault(node => string.Equals(node.Kind, "start", StringComparison.Ordinal));
+        var explicitEnd = uniqueNodes.FirstOrDefault(node => string.Equals(node.Kind, "end", StringComparison.Ordinal));
+
+        var startNodeId =
+            (!string.IsNullOrWhiteSpace(configuredStartNodeId) &&
+             uniqueNodes.Any(node => string.Equals(node.NodeId, configuredStartNodeId, StringComparison.Ordinal) &&
+                                     string.Equals(node.Kind, "start", StringComparison.Ordinal)))
+                ? configuredStartNodeId
+                : explicitStart?.NodeId ?? CreateStoryboardImportId("start");
+
+        var endNodeId =
+            (!string.IsNullOrWhiteSpace(configuredEndNodeId) &&
+             uniqueNodes.Any(node => string.Equals(node.NodeId, configuredEndNodeId, StringComparison.Ordinal) &&
+                                     string.Equals(node.Kind, "end", StringComparison.Ordinal)))
+                ? configuredEndNodeId
+                : explicitEnd?.NodeId ?? CreateStoryboardImportId("end");
+
+        var normalizedNodes = uniqueNodes
+            .Where(node =>
+                !string.Equals(node.Kind, "start", StringComparison.Ordinal) &&
+                !string.Equals(node.Kind, "end", StringComparison.Ordinal))
+            .ToList();
+
+        normalizedNodes.Insert(0, explicitStart is not null && string.Equals(explicitStart.NodeId, startNodeId, StringComparison.Ordinal)
+            ? explicitStart
+            : CreateStoryboardImportStartNode(startNodeId));
+        normalizedNodes.Add(explicitEnd is not null && string.Equals(explicitEnd.NodeId, endNodeId, StringComparison.Ordinal)
+            ? explicitEnd
+            : CreateStoryboardImportEndNode(endNodeId));
+
+        var nodeById = normalizedNodes.ToDictionary(node => node.NodeId, node => node, StringComparer.Ordinal);
+        var normalizedEdges = new List<StoryboardImportEdge>();
+        var edgeUniqueKeys = new HashSet<string>(StringComparer.Ordinal);
+        if (TryGetPropertyCaseInsensitive(rawGraph, "edges", out var edgesElement) &&
+            edgesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var edgeElement in edgesElement.EnumerateArray())
+            {
+                if (edgeElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var fromNodeId = ReadFirstNonEmptyString(edgeElement, "fromNodeId", "source");
+                var toNodeId = ReadFirstNonEmptyString(edgeElement, "toNodeId", "target");
+                if (string.IsNullOrWhiteSpace(fromNodeId) || string.IsNullOrWhiteSpace(toNodeId))
+                {
+                    continue;
+                }
+                if (!nodeById.TryGetValue(fromNodeId, out var sourceNode) ||
+                    !nodeById.TryGetValue(toNodeId, out var targetNode))
+                {
+                    continue;
+                }
+                if (string.Equals(fromNodeId, toNodeId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                if (string.Equals(targetNode.Kind, "start", StringComparison.Ordinal) ||
+                    string.Equals(sourceNode.Kind, "end", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var rawKind = ReadFirstNonEmptyString(edgeElement, "kind");
+                var sourcePort = InferStoryboardImportSourcePort(
+                    ReadFirstNonEmptyString(edgeElement, "sourcePort", "sourceHandle"),
+                    rawKind,
+                    sourceNode.Kind);
+                var targetPort = InferStoryboardImportTargetPort(
+                    ReadFirstNonEmptyString(edgeElement, "targetPort", "targetHandle"),
+                    rawKind);
+                var edgeKey = $"{fromNodeId}:{sourcePort}->{toNodeId}:{targetPort}";
+                if (!edgeUniqueKeys.Add(edgeKey))
+                {
+                    continue;
+                }
+
+                var edgeId = ReadFirstNonEmptyString(edgeElement, "edgeId", "id") ?? CreateStoryboardImportId("edge");
+                var label = ReadFirstNonEmptyString(edgeElement, "label", "buttonLabel", "edgeLabel") ?? string.Empty;
+                var displayMode = string.Equals(ReadFirstNonEmptyString(edgeElement, "displayMode"), "expand", StringComparison.OrdinalIgnoreCase)
+                    ? "expand"
+                    : "new_screen";
+                var kind = DeriveStoryboardImportEdgeKind(sourcePort, targetPort);
+
+                normalizedEdges.Add(new StoryboardImportEdge(
+                    edgeId,
+                    fromNodeId,
+                    toNodeId,
+                    kind,
+                    sourcePort,
+                    targetPort,
+                    label,
+                    displayMode));
+            }
+        }
+
+        if (normalizedEdges.Count == 0)
+        {
+            normalizedEdges.Add(new StoryboardImportEdge(
+                CreateStoryboardImportId("edge"),
+                startNodeId,
+                endNodeId,
+                "path",
+                "out-path",
+                "in-path",
+                string.Empty,
+                "new_screen"));
+        }
+
+        return new StoryboardImportGraph(startNodeId, endNodeId, normalizedNodes, normalizedEdges);
+    }
+
+    private static List<string> BuildStoryboardImportScriptLines(StoryboardImportGraph graph, int depth = 0)
+    {
+        var lines = new List<string>();
+        var prefix = depth > 0 ? $"{new string(' ', depth * 2)}- " : string.Empty;
+        foreach (var node in graph.Nodes
+                     .Where(node => !IsStoryboardImportStructuralNode(node))
+                     .OrderBy(node => node.PositionY)
+                     .ThenBy(node => node.PositionX))
+        {
+            if (string.Equals(node.Kind, "static", StringComparison.Ordinal))
+            {
+                var payload = !string.IsNullOrWhiteSpace(node.StaticBody)
+                    ? node.StaticBody.Trim()
+                    : !string.IsNullOrWhiteSpace(node.Description)
+                        ? node.Description.Trim()
+                        : node.Title;
+                lines.Add($"{prefix}Static ({node.StaticType}): {payload}");
+                continue;
+            }
+
+            if (string.Equals(node.Kind, "card", StringComparison.Ordinal))
+            {
+                var payload = !string.IsNullOrWhiteSpace(node.NotionId) ? node.NotionId : node.Title;
+                var checkTag = !string.IsNullOrWhiteSpace(node.CardCheckType) ? $" / {node.CardCheckType.Trim()}" : string.Empty;
+                lines.Add($"{prefix}Card ({node.CardDirection}{checkTag}): {payload}");
+                continue;
+            }
+
+            if (string.Equals(node.Kind, "group", StringComparison.Ordinal))
+            {
+                lines.Add($"{prefix}Group: {node.Title}");
+                if (node.GroupGraph is not null)
+                {
+                    lines.AddRange(BuildStoryboardImportScriptLines(node.GroupGraph, depth + 1));
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    private static JsonObject BuildStoryboardImportDocumentNode(
+        StoryboardImportGraph rootGraph,
+        string description,
+        string script,
+        List<string> steps)
+    {
+        var stepsArray = new JsonArray();
+        foreach (var step in steps)
+        {
+            stepsArray.Add(step);
+        }
+
+        return new JsonObject
+        {
+            ["schema"] = "cogita_storyboard_graph",
+            ["version"] = 2,
+            ["description"] = description,
+            ["script"] = script,
+            ["steps"] = stepsArray,
+            ["rootGraph"] = BuildStoryboardImportGraphNode(rootGraph)
+        };
+    }
+
+    private static JsonObject BuildStoryboardImportGraphNode(StoryboardImportGraph graph)
+    {
+        var nodes = new JsonArray();
+        foreach (var node in graph.Nodes)
+        {
+            var nodeObject = new JsonObject
+            {
+                ["nodeId"] = node.NodeId,
+                ["title"] = node.Title,
+                ["kind"] = node.Kind,
+                ["description"] = node.Description,
+                ["position"] = new JsonObject
+                {
+                    ["x"] = node.PositionX,
+                    ["y"] = node.PositionY
+                },
+                ["staticType"] = node.StaticType,
+                ["staticBody"] = node.StaticBody,
+                ["mediaUrl"] = node.MediaUrl,
+                ["notionId"] = node.NotionId,
+                ["cardCheckType"] = node.CardCheckType,
+                ["cardDirection"] = node.CardDirection
+            };
+
+            if (string.Equals(node.Kind, "group", StringComparison.Ordinal) && node.GroupGraph is not null)
+            {
+                nodeObject["groupGraph"] = BuildStoryboardImportGraphNode(node.GroupGraph);
+            }
+
+            nodes.Add(nodeObject);
+        }
+
+        var edges = new JsonArray();
+        foreach (var edge in graph.Edges)
+        {
+            edges.Add(new JsonObject
+            {
+                ["edgeId"] = edge.EdgeId,
+                ["fromNodeId"] = edge.FromNodeId,
+                ["toNodeId"] = edge.ToNodeId,
+                ["kind"] = edge.Kind,
+                ["sourcePort"] = edge.SourcePort,
+                ["targetPort"] = edge.TargetPort,
+                ["label"] = edge.Label,
+                ["displayMode"] = edge.DisplayMode
+            });
+        }
+
+        return new JsonObject
+        {
+            ["startNodeId"] = graph.StartNodeId,
+            ["endNodeId"] = graph.EndNodeId,
+            ["nodes"] = nodes,
+            ["edges"] = edges
+        };
     }
 
     private static string GenerateNumericShareCode(int length)
