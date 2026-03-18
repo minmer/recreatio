@@ -13,6 +13,7 @@ import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
+import { buildRevisionQuestionRuntime } from './components/runtime/revision/RevisionRuntimeShell';
 import { parseQuestionDefinitionFromPayload } from './components/workspace/notion/types/notionQuestion';
 import {
   evaluateCheckcardDetailed,
@@ -232,77 +233,20 @@ function buildStoryboardQuestionRuntime(
   expectedModel: CheckcardExpectedModel;
   initialAnswers: CheckcardAnswerModel;
 } | null {
-  const parsed = parseQuestionDefinitionFromPayload(value);
-  if (!parsed) return null;
-
-  const promptText = (parsed.question || parsed.title || fallbackPrompt || '').trim();
-  const emptyAnswers = (): CheckcardAnswerModel => ({
-    text: '',
-    selection: [],
-    booleanAnswer: null,
-    ordering: [],
-    matchingPaths: [],
-    matchingSelection: []
-  });
-
-  if (parsed.type === 'selection') {
-    const options = (parsed.options ?? []).map((entry) => entry.trim()).filter(Boolean);
-    const expectedRaw = Array.isArray(parsed.answer) ? parsed.answer : [];
-    const expected = Array.from(
-      new Set(expectedRaw.filter((entry): entry is number => Number.isInteger(entry) && entry >= 0 && entry < options.length))
-    ).sort((a, b) => a - b);
-    return {
-      promptText,
-      promptModel: { kind: 'selection', options, allowMultiple: expected.length !== 1 },
-      expectedModel: expected,
-      initialAnswers: emptyAnswers()
-    };
-  }
-
-  if (parsed.type === 'truefalse') {
-    return {
-      promptText,
-      promptModel: { kind: 'boolean' },
-      expectedModel: typeof parsed.answer === 'boolean' ? parsed.answer : false,
-      initialAnswers: emptyAnswers()
-    };
-  }
-
-  if (parsed.type === 'ordering') {
-    const options = (parsed.options ?? []).map((entry) => entry.trim()).filter(Boolean);
-    return {
-      promptText,
-      promptModel: { kind: 'ordering', options },
-      expectedModel: options,
-      initialAnswers: { ...emptyAnswers(), ordering: [...options] }
-    };
-  }
-
-  if (parsed.type === 'matching') {
-    const columns = (parsed.columns ?? []).map((col) => col.map((entry) => entry.trim()).filter(Boolean)).filter((col) => col.length > 0);
-    const answerNode = parsed.answer && typeof parsed.answer === 'object' && 'paths' in parsed.answer
-      ? parsed.answer
-      : null;
-    const paths = Array.isArray(answerNode?.paths)
-      ? answerNode.paths
-          .map((row) => (Array.isArray(row) ? row.filter((entry): entry is number => Number.isInteger(entry) && entry >= 0) : []))
-          .filter((row) => row.length > 0)
-      : [];
-    return {
-      promptText,
-      promptModel: { kind: 'matching', columns },
-      expectedModel: { paths },
-      initialAnswers: { ...emptyAnswers(), matchingSelection: new Array(Math.max(2, columns.length)).fill(null) }
-    };
-  }
-
-  const expected = typeof parsed.answer === 'string' || typeof parsed.answer === 'number' ? parsed.answer : '';
-  const inputType = parsed.type === 'number' ? 'number' : parsed.type === 'date' ? 'date' : 'text';
+  const runtime = buildRevisionQuestionRuntime(value, fallbackPrompt);
+  if (!runtime) return null;
   return {
-    promptText,
-    promptModel: { kind: 'text', inputType },
-    expectedModel: expected,
-    initialAnswers: emptyAnswers()
+    promptText: runtime.promptText,
+    promptModel: runtime.promptModel,
+    expectedModel: runtime.expectedModel,
+    initialAnswers: {
+      text: runtime.initialAnswers.text,
+      selection: runtime.initialAnswers.selection,
+      booleanAnswer: runtime.initialAnswers.booleanAnswer,
+      ordering: runtime.initialAnswers.ordering,
+      matchingPaths: runtime.initialAnswers.matchingRows,
+      matchingSelection: runtime.initialAnswers.matchingSelection
+    }
   };
 }
 

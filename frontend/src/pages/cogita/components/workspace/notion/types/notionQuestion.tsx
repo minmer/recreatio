@@ -155,20 +155,88 @@ export function normalizeQuestionDefinition(value: unknown): QuestionDefinition 
 }
 
 export function parseQuestionDefinitionFromPayload(rawValue: unknown): QuestionDefinition | null {
+  const isMeaningfulQuestionDefinition = (definition: QuestionDefinition | null): definition is QuestionDefinition => {
+    if (!definition) return false;
+    if (definition.question.trim().length > 0) return true;
+    if (definition.type === 'selection') {
+      return (definition.options ?? []).map((item) => item.trim()).filter(Boolean).length > 0;
+    }
+    if (definition.type === 'ordering') {
+      return (definition.options ?? []).map((item) => item.trim()).filter(Boolean).length > 0;
+    }
+    if (definition.type === 'matching') {
+      return (definition.columns ?? []).some((column) => column.some((item) => item.trim().length > 0));
+    }
+    return definition.answer !== undefined;
+  };
+
+  const parseFromObject = (value: Record<string, unknown>): QuestionDefinition | null => {
+    const direct = normalizeQuestionDefinition(value);
+    if (isMeaningfulQuestionDefinition(direct)) return direct;
+
+    const definitionRaw = value.definition;
+    if (definitionRaw && typeof definitionRaw === 'object' && !Array.isArray(definitionRaw)) {
+      const nested = normalizeQuestionDefinition(definitionRaw as Record<string, unknown>);
+      if (isMeaningfulQuestionDefinition(nested)) return nested;
+    }
+    if (typeof definitionRaw === 'string') {
+      const trimmed = definitionRaw.trim();
+      if (trimmed.length > 0) {
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            const nested = normalizeQuestionDefinition(parsed as Record<string, unknown>);
+            if (isMeaningfulQuestionDefinition(nested)) return nested;
+          }
+        } catch {
+          // ignore invalid nested definition JSON
+        }
+      }
+    }
+
+    if (Array.isArray(value.questionTypes)) {
+      for (const item of value.questionTypes) {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          const nested = normalizeQuestionDefinition(item as Record<string, unknown>);
+          if (isMeaningfulQuestionDefinition(nested)) return nested;
+        }
+        if (typeof item === 'string') {
+          const trimmed = item.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as unknown;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              const nested = normalizeQuestionDefinition(parsed as Record<string, unknown>);
+              if (isMeaningfulQuestionDefinition(nested)) return nested;
+            }
+          } catch {
+            // ignore malformed questionType entry
+          }
+        }
+      }
+    }
+
+    return isMeaningfulQuestionDefinition(direct) ? direct : null;
+  };
+
   if (rawValue === null || rawValue === undefined) return null;
   if (typeof rawValue === 'object') {
-    return normalizeQuestionDefinition(rawValue);
+    return parseFromObject(rawValue as Record<string, unknown>);
   }
   if (typeof rawValue !== 'string') return null;
   const trimmed = rawValue.trim();
   if (!trimmed) return null;
   try {
     const parsed = JSON.parse(trimmed) as unknown;
-    const normalized = normalizeQuestionDefinition(parsed);
-    if (normalized) return normalized;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const normalized = parseFromObject(parsed as Record<string, unknown>);
+      if (normalized) return normalized;
+    }
     if (typeof parsed === 'string') {
       const nested = JSON.parse(parsed) as unknown;
-      return normalizeQuestionDefinition(nested);
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        return parseFromObject(nested as Record<string, unknown>);
+      }
     }
   } catch {
     return null;
