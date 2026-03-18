@@ -14340,11 +14340,309 @@ public static class CogitaEndpoints
         }
     }
 
+    private static JsonElement SanitizeQuestionPayload(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return payload;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
+            if (node is null)
+            {
+                return payload;
+            }
+
+            if (node["definition"] is JsonObject definition)
+            {
+                SanitizeQuestionDefinition(definition);
+            }
+            else
+            {
+                // Accept direct question definition payloads for legacy compatibility.
+                SanitizeQuestionDefinition(node);
+            }
+
+            return JsonSerializer.SerializeToElement(node);
+        }
+        catch
+        {
+            return payload;
+        }
+    }
+
+    private static void SanitizeQuestionDefinition(JsonObject definition)
+    {
+        var rawType = TryReadNodeString(definition["type"]) ?? TryReadNodeString(definition["kind"]) ?? "selection";
+        var normalizedType = NormalizeQuestionKindAlias(rawType);
+        if (!string.IsNullOrWhiteSpace(normalizedType))
+        {
+            definition["type"] = normalizedType;
+            if (definition.ContainsKey("kind"))
+            {
+                definition["kind"] = normalizedType;
+            }
+        }
+
+        if (!string.Equals(normalizedType, "selection", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var options = ReadNodeStringArray(definition["options"]);
+        if (options.Count == 0)
+        {
+            options = ReadNodeStringArray(definition["answers"]);
+        }
+
+        if (options.Count > 0)
+        {
+            definition["options"] = BuildJsonStringArray(options);
+        }
+
+        var correctIndexes = ReadNodeIntArray(definition["answer"]);
+        if (correctIndexes.Count == 0)
+        {
+            correctIndexes = ReadNodeIntArray(definition["correct"]);
+        }
+
+        if (correctIndexes.Count == 0 && options.Count > 0)
+        {
+            var correctValues = ReadNodeStringArray(definition["correctAnswers"]);
+            if (correctValues.Count > 0)
+            {
+                var indexByOptionValue = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                for (var optionIndex = 0; optionIndex < options.Count; optionIndex++)
+                {
+                    var key = options[optionIndex].Trim();
+                    if (key.Length == 0 || indexByOptionValue.ContainsKey(key))
+                    {
+                        continue;
+                    }
+
+                    indexByOptionValue[key] = optionIndex;
+                }
+
+                foreach (var value in correctValues)
+                {
+                    var key = value.Trim();
+                    if (key.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    if (indexByOptionValue.TryGetValue(key, out var resolvedIndex))
+                    {
+                        correctIndexes.Add(resolvedIndex);
+                    }
+                }
+            }
+        }
+
+        if (options.Count > 0)
+        {
+            correctIndexes = correctIndexes.Where(index => index >= 0 && index < options.Count).ToList();
+        }
+        else
+        {
+            correctIndexes = correctIndexes.Where(index => index >= 0).ToList();
+        }
+
+        var isSingleSelection =
+            string.Equals(rawType, "single_select", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(rawType, "selection_single", StringComparison.OrdinalIgnoreCase);
+
+        var seen = new HashSet<int>();
+        var normalizedIndexes = new List<int>();
+        foreach (var index in correctIndexes)
+        {
+            if (!seen.Add(index))
+            {
+                continue;
+            }
+
+            normalizedIndexes.Add(index);
+            if (isSingleSelection)
+            {
+                break;
+            }
+        }
+
+        definition["answer"] = BuildJsonIntArray(normalizedIndexes);
+    }
+
+    private static string NormalizeQuestionKindAlias(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "single_select" => "selection",
+            "multi_select" => "selection",
+            "selection_single" => "selection",
+            "selection_multiple" => "selection",
+            "boolean" => "truefalse",
+            "order" => "ordering",
+            "short" => "text",
+            "open" => "text",
+            "short_text" => "text",
+            _ => normalized
+        };
+    }
+
+    private static string? TryReadNodeString(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var value = node.GetValue<string>();
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static List<string> ReadNodeStringArray(JsonNode? node)
+    {
+        var values = new List<string>();
+        if (node is not JsonArray array)
+        {
+            return values;
+        }
+
+        foreach (var entry in array)
+        {
+            var value = TryReadNodeString(entry);
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            values.Add(value);
+        }
+
+        return values;
+    }
+
+    private static bool TryReadNodeInt(JsonNode? node, out int value)
+    {
+        value = 0;
+        if (node is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            value = node.GetValue<int>();
+            return true;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var rawLong = node.GetValue<long>();
+            if (rawLong is >= int.MinValue and <= int.MaxValue)
+            {
+                value = (int)rawLong;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var rawDouble = node.GetValue<double>();
+            var rounded = Math.Round(rawDouble);
+            if (Math.Abs(rawDouble - rounded) <= 0.0000001d &&
+                rounded is >= int.MinValue and <= int.MaxValue)
+            {
+                value = (int)rounded;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var rawString = node.GetValue<string>();
+            if (int.TryParse(rawString, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                value = parsed;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static List<int> ReadNodeIntArray(JsonNode? node)
+    {
+        var values = new List<int>();
+        if (node is not JsonArray array)
+        {
+            return values;
+        }
+
+        foreach (var entry in array)
+        {
+            if (TryReadNodeInt(entry, out var parsed))
+            {
+                values.Add(parsed);
+            }
+        }
+
+        return values;
+    }
+
+    private static JsonArray BuildJsonStringArray(IEnumerable<string> values)
+    {
+        var array = new JsonArray();
+        foreach (var value in values)
+        {
+            array.Add(value);
+        }
+
+        return array;
+    }
+
+    private static JsonArray BuildJsonIntArray(IEnumerable<int> values)
+    {
+        var array = new JsonArray();
+        foreach (var value in values)
+        {
+            array.Add(value);
+        }
+
+        return array;
+    }
+
     private static JsonElement SanitizePayloadForInfoType(string infoType, JsonElement payload)
     {
         if (infoType == "computed")
         {
             return SanitizeComputedPayload(payload);
+        }
+
+        if (infoType == "question")
+        {
+            return SanitizeQuestionPayload(payload);
         }
 
         if (payload.ValueKind != JsonValueKind.Object)

@@ -12,8 +12,14 @@ import {
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
-import { evaluateAnchorTextAnswer } from './features/revision/compare';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
+import { buildRevisionQuestionRuntime } from './components/runtime/revision/RevisionRuntimeShell';
+import {
+  evaluateCheckcardDetailed,
+  type CheckcardAnswerModel,
+  type CheckcardExpectedModel,
+  type CheckcardPromptModel
+} from './components/runtime/revision/primitives/RevisionCheckcardShell';
 
 type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
@@ -98,9 +104,13 @@ type RuntimeState = {
 type RuntimeCardState = {
   nodeKey: string;
   status: 'loading' | 'ready' | 'error' | 'evaluated';
-  prompt: string;
-  expected: string;
-  answer: string;
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+  expectedModel: CheckcardExpectedModel;
+  answerModel: CheckcardAnswerModel;
+  notionType: string | null;
+  cardType: string | null;
+  checkType: string | null;
   isCorrect: boolean | null;
 };
 
@@ -210,7 +220,12 @@ function pickNodeCard(node: StoryboardNodeRecord, cards: CogitaCardSearchResult[
   if (cards.length === 0) return null;
   const wantedCheckType = node.cardCheckType.trim().toLowerCase();
   const checkFiltered = wantedCheckType
-    ? cards.filter((card) => (card.checkType ?? '').trim().toLowerCase() === wantedCheckType)
+    ? cards.filter((card) => {
+        const cardCheckType = (card.checkType ?? '').trim().toLowerCase();
+        if (cardCheckType === wantedCheckType) return true;
+        if (wantedCheckType === 'question' && cardCheckType.startsWith('question-')) return true;
+        return false;
+      })
     : cards;
   const directionFiltered = checkFiltered.filter((card) => directionMatchesNode(card.direction, node.cardDirection));
   if (directionFiltered.length > 0) return directionFiltered[0];
@@ -262,6 +277,85 @@ function buildCardPromptAndExpected(payload: {
   }
 
   return { prompt, expected };
+}
+
+function buildLivePrompt(payload: {
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+}) {
+  const { promptText, promptModel } = payload;
+  if (promptModel.kind === 'selection') {
+    return {
+      kind: 'selection',
+      prompt: promptText,
+      options: Array.isArray(promptModel.options) ? promptModel.options : [],
+      multiple: Boolean(promptModel.allowMultiple)
+    } as const;
+  }
+  if (promptModel.kind === 'boolean') {
+    return {
+      kind: 'boolean',
+      prompt: promptText
+    } as const;
+  }
+  if (promptModel.kind === 'ordering') {
+    return {
+      kind: 'ordering',
+      prompt: promptText,
+      options: Array.isArray(promptModel.options) ? promptModel.options : []
+    } as const;
+  }
+  if (promptModel.kind === 'matching') {
+    return {
+      kind: 'matching',
+      prompt: promptText,
+      columns: Array.isArray(promptModel.columns) ? promptModel.columns : []
+    } as const;
+  }
+  if (promptModel.kind === 'citation-fragment') {
+    return {
+      kind: 'citation-fragment',
+      prompt: promptText
+    } as const;
+  }
+
+  return {
+    kind: 'text',
+    prompt: promptText,
+    inputType: promptModel.inputType ?? 'text'
+  } as const;
+}
+
+function hasAnswerForPrompt(promptModel: CheckcardPromptModel, answerModel: CheckcardAnswerModel) {
+  if (promptModel.kind === 'selection') {
+    return (answerModel.selection?.length ?? 0) > 0;
+  }
+  if (promptModel.kind === 'boolean') {
+    return typeof answerModel.booleanAnswer === 'boolean';
+  }
+  if (promptModel.kind === 'ordering') {
+    return (answerModel.ordering?.length ?? 0) > 0;
+  }
+  if (promptModel.kind === 'matching') {
+    return (answerModel.matchingPaths?.length ?? 0) > 0;
+  }
+  return (answerModel.text ?? '').trim().length > 0;
+}
+
+function toRevealedAnswer(promptModel: CheckcardPromptModel, answerModel: CheckcardAnswerModel): unknown {
+  if (promptModel.kind === 'selection') {
+    return answerModel.selection ?? [];
+  }
+  if (promptModel.kind === 'boolean') {
+    return answerModel.booleanAnswer ?? null;
+  }
+  if (promptModel.kind === 'ordering') {
+    return answerModel.ordering ?? [];
+  }
+  if (promptModel.kind === 'matching') {
+    return { paths: answerModel.matchingPaths ?? [] };
+  }
+  return answerModel.text ?? '';
 }
 
 function parseGraph(raw: unknown): StoryboardGraph {
@@ -709,9 +803,13 @@ export function CogitaStoryboardRuntimePage({
     setCardState({
       nodeKey,
       status: 'loading',
-      prompt: '',
-      expected: '',
-      answer: '',
+      promptText: '',
+      promptModel: { kind: 'text', inputType: 'text' },
+      expectedModel: '',
+      answerModel: { text: '' },
+      notionType: null,
+      cardType: null,
+      checkType: null,
       isCorrect: null
     });
 
@@ -719,6 +817,12 @@ export function CogitaStoryboardRuntimePage({
     const loadCard = async () => {
       let prompt = currentNode.description.trim() || currentNode.title;
       let expected = currentNode.title;
+      let promptModel: CheckcardPromptModel = { kind: 'text', inputType: 'text' };
+      let expectedModel: CheckcardExpectedModel = expected;
+      let answerModel: CheckcardAnswerModel = { text: '' };
+      let notionType: string | null = null;
+      let cardType: string | null = null;
+      let checkType: string | null = currentNode.cardCheckType.trim() || null;
 
       if (libraryId && currentNode.notionId.trim()) {
         try {
@@ -747,10 +851,31 @@ export function CogitaStoryboardRuntimePage({
             infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
             vocabProjection
           });
+          notionType = detail?.infoType ?? selectedCard?.infoType ?? null;
+          cardType = selectedCard?.cardType ?? null;
+          checkType = selectedCard?.checkType ?? checkType;
           prompt = built.prompt;
           expected = built.expected;
+
+          const questionRuntime =
+            (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
+              ? buildRevisionQuestionRuntime(detail?.payload ?? selectedCard?.payload ?? null, prompt)
+              : null;
+          if (questionRuntime) {
+            prompt = questionRuntime.promptText || prompt;
+            promptModel = questionRuntime.promptModel;
+            expectedModel = questionRuntime.expectedModel;
+            answerModel = questionRuntime.initialAnswers;
+          } else {
+            promptModel = { kind: 'text', inputType: 'text' };
+            expectedModel = expected;
+            answerModel = { text: '' };
+          }
         } catch {
           // Keep fallback prompt/expected from node metadata.
+          promptModel = { kind: 'text', inputType: 'text' };
+          expectedModel = expected;
+          answerModel = { text: '' };
         }
       }
 
@@ -758,9 +883,13 @@ export function CogitaStoryboardRuntimePage({
       setCardState({
         nodeKey,
         status: 'ready',
-        prompt,
-        expected,
-        answer: '',
+        promptText: prompt,
+        promptModel,
+        expectedModel,
+        answerModel,
+        notionType,
+        cardType,
+        checkType,
         isCorrect: null
       });
     };
@@ -820,12 +949,15 @@ export function CogitaStoryboardRuntimePage({
 
   const submitCardAnswer = () => {
     if (!cardState || cardState.status !== 'ready') return;
-    const expected = cardState.expected.trim();
-    const answer = cardState.answer.trim();
-    const evaluation = evaluateAnchorTextAnswer(expected, answer, {
-      thresholdPercent: 90,
-      treatSimilarCharsAsSame: true,
-      ignorePunctuationAndSpacing: true
+    const evaluation = evaluateCheckcardDetailed({
+      prompt: cardState.promptModel,
+      expected: cardState.expectedModel,
+      answer: cardState.answerModel,
+      context: {
+        notionType: cardState.notionType,
+        cardType: cardState.cardType,
+        checkType: cardState.checkType ?? currentNode?.cardCheckType ?? null
+      }
     });
     const isCorrect = evaluation.isCorrect;
     setCardState((current) => {
@@ -891,7 +1023,9 @@ export function CogitaStoryboardRuntimePage({
 
         {!loading && runtime ? (
           <div className="cogita-pane" style={{ display: 'grid', gap: '1rem' }}>
-            {runtime.displayedBlocks.map((block) => (
+            {runtime.displayedBlocks
+              .filter((block) => block.kind !== 'card')
+              .map((block) => (
               <article key={block.key} className="cogita-library-detail" style={{ margin: 0 }}>
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
                   <h3 className="cogita-detail-title" style={{ margin: 0 }}>{block.title || runtimeCopy.blockUntitled}</h3>
@@ -901,21 +1035,6 @@ export function CogitaStoryboardRuntimePage({
                       {block.description ? <p className="cogita-help" style={{ margin: 0 }}>{block.description}</p> : null}
                       {(block.staticType === 'video' || block.staticType === 'audio' || block.staticType === 'image') && block.mediaUrl ? (
                         <a className="ghost" href={block.mediaUrl} target="_blank" rel="noreferrer">{runtimeCopy.openMediaAction}</a>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {block.kind === 'card' ? (
-                    <>
-                      <p style={{ margin: 0 }}>
-                        {runtimeCopy.notionLabel}: <strong>{block.notionId || runtimeCopy.notionNotSet}</strong>
-                      </p>
-                      <p className="cogita-help" style={{ margin: 0 }}>
-                        {runtimeCopy.directionLabel}: {block.cardDirection === 'back_to_front' ? runtimeCopy.directionBackToFront : runtimeCopy.directionFrontToBack}
-                      </p>
-                      {block.cardCheckType ? (
-                        <p className="cogita-help" style={{ margin: 0 }}>
-                          {runtimeCopy.cardCheckTypeLabel}: {block.cardCheckType}
-                        </p>
                       ) : null}
                     </>
                   ) : null}
@@ -942,14 +1061,22 @@ export function CogitaStoryboardRuntimePage({
                   ) : null}
                   {cardState && cardState.status !== 'loading' ? (
                     <>
+                      {(() => {
+                        const livePrompt = buildLivePrompt({
+                          promptText: cardState.promptText,
+                          promptModel: cardState.promptModel
+                        });
+                        const revealExpected = cardState.status === 'evaluated'
+                          ? cardState.expectedModel
+                          : undefined;
+                        const revealedAnswer = cardState.status === 'evaluated'
+                          ? toRevealedAnswer(cardState.promptModel, cardState.answerModel)
+                          : undefined;
+                        return (
                       <CogitaLivePromptCard
-                        prompt={{
-                          kind: 'text',
-                          prompt: cardState.prompt,
-                          inputType: 'text'
-                        }}
-                        revealExpected={cardState.status === 'evaluated' ? cardState.expected : undefined}
-                        revealedAnswer={cardState.status === 'evaluated' ? cardState.answer : undefined}
+                        prompt={livePrompt}
+                        revealExpected={revealExpected}
+                        revealedAnswer={revealedAnswer}
                         surfaceState={cardState.status === 'evaluated' ? (cardState.isCorrect ? 'correct' : 'incorrect') : 'idle'}
                         mode={cardState.status === 'evaluated' ? 'readonly' : 'interactive'}
                         labels={{
@@ -967,26 +1094,117 @@ export function CogitaStoryboardRuntimePage({
                           columnPrefix: ''
                         }}
                         answers={{
-                          text: cardState.answer,
-                          selection: [],
-                          booleanAnswer: null,
-                          ordering: [],
-                          matchingRows: [],
-                          matchingSelection: []
+                          text: cardState.answerModel.text ?? '',
+                          selection: cardState.answerModel.selection ?? [],
+                          booleanAnswer: typeof cardState.answerModel.booleanAnswer === 'boolean' ? cardState.answerModel.booleanAnswer : null,
+                          ordering: cardState.answerModel.ordering ?? [],
+                          matchingRows: cardState.answerModel.matchingPaths ?? [],
+                          matchingSelection: cardState.answerModel.matchingSelection ?? []
                         }}
                         onTextChange={(value) =>
                           setCardState((current) => {
                             if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
-                            return { ...current, answer: value };
+                            return { ...current, answerModel: { ...current.answerModel, text: value } };
+                          })
+                        }
+                        onSelectionToggle={(index) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            const existing = current.answerModel.selection ?? [];
+                            const alreadySelected = existing.includes(index);
+                            const allowMultiple = current.promptModel.kind === 'selection' ? Boolean(current.promptModel.allowMultiple) : false;
+                            const nextSelection = allowMultiple
+                              ? alreadySelected
+                                ? existing.filter((value) => value !== index)
+                                : [...existing, index]
+                              : [index];
+                            return { ...current, answerModel: { ...current.answerModel, selection: nextSelection } };
+                          })
+                        }
+                        onBooleanChange={(value) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            return { ...current, answerModel: { ...current.answerModel, booleanAnswer: value } };
+                          })
+                        }
+                        onOrderingMove={(index, delta) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            const ordering = [...(current.answerModel.ordering ?? [])];
+                            const swapIndex = index + delta;
+                            if (index < 0 || index >= ordering.length || swapIndex < 0 || swapIndex >= ordering.length) {
+                              return current;
+                            }
+                            [ordering[index], ordering[swapIndex]] = [ordering[swapIndex], ordering[index]];
+                            return { ...current, answerModel: { ...current.answerModel, ordering } };
+                          })
+                        }
+                        onMatchingPick={(columnIndex, optionIndex) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            const width =
+                              current.promptModel.kind === 'matching'
+                                ? Math.max(2, current.promptModel.columns?.length ?? 2)
+                                : 2;
+                            const nextSelection = [...(current.answerModel.matchingSelection ?? new Array(width).fill(null))];
+                            if (nextSelection.length < width) {
+                              nextSelection.push(...new Array(width - nextSelection.length).fill(null));
+                            }
+                            nextSelection[columnIndex] = optionIndex;
+                            const allSelected = nextSelection.every((value) => Number.isInteger(value));
+                            if (!allSelected) {
+                              return {
+                                ...current,
+                                answerModel: { ...current.answerModel, matchingSelection: nextSelection }
+                              };
+                            }
+
+                            const nextPath = nextSelection.map((value) => Number(value));
+                            const key = nextPath.join('|');
+                            const existingPaths = current.answerModel.matchingPaths ?? [];
+                            if (existingPaths.some((path) => path.join('|') === key)) {
+                              return {
+                                ...current,
+                                answerModel: {
+                                  ...current.answerModel,
+                                  matchingSelection: new Array(width).fill(null)
+                                }
+                              };
+                            }
+
+                            return {
+                              ...current,
+                              answerModel: {
+                                ...current.answerModel,
+                                matchingPaths: [...existingPaths, nextPath],
+                                matchingSelection: new Array(width).fill(null)
+                              }
+                            };
+                          })
+                        }
+                        onMatchingRemovePath={(pathIndex) =>
+                          setCardState((current) => {
+                            if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
+                            const existingPaths = current.answerModel.matchingPaths ?? [];
+                            if (pathIndex < 0 || pathIndex >= existingPaths.length) return current;
+                            return {
+                              ...current,
+                              answerModel: {
+                                ...current.answerModel,
+                                matchingPaths: existingPaths.filter((_, index) => index !== pathIndex)
+                              }
+                            };
                           })
                         }
                       />
+                        );
+                      })()}
                       <div className="cogita-card-actions">
                         <button
                           type="button"
                           className="cta"
                           onClick={submitCardAnswer}
-                          disabled={cardState.status !== 'ready' || cardState.answer.trim().length === 0}
+                          disabled={cardState.status !== 'ready' || !hasAnswerForPrompt(cardState.promptModel, cardState.answerModel)}
                         >
                           {runtimeCopy.cardSubmitAction}
                         </button>

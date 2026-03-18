@@ -57,7 +57,10 @@ export function normalizeQuestionDefinition(value: unknown): QuestionDefinition 
         ? raw.kind
         : 'selection';
   const kindAlias =
-    rawTypeValue === 'multi_select' || rawTypeValue === 'single_select'
+    rawTypeValue === 'multi_select' ||
+    rawTypeValue === 'single_select' ||
+    rawTypeValue === 'selection_single' ||
+    rawTypeValue === 'selection_multiple'
       ? 'selection'
       : rawTypeValue === 'boolean'
         ? 'truefalse'
@@ -126,12 +129,28 @@ export function normalizeQuestionDefinition(value: unknown): QuestionDefinition 
     const answer = typeof raw.answer === 'string' ? raw.answer : typeof raw.expected === 'string' ? raw.expected : '';
     return { type: kind, title, question, answer };
   }
-  const options = Array.isArray(raw.options) ? raw.options.map((item) => (typeof item === 'string' ? item : '')) : [''];
-  const answer = Array.isArray(raw.answer)
+  const options = Array.isArray(raw.options)
+    ? raw.options.map((item) => (typeof item === 'string' ? item : ''))
+    : Array.isArray(raw.answers)
+      ? raw.answers.map((item) => (typeof item === 'string' ? item : ''))
+      : [''];
+  let answer = Array.isArray(raw.answer)
     ? raw.answer.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
     : Array.isArray(raw.correct)
       ? raw.correct.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0)
       : [];
+  if (answer.length === 0 && Array.isArray(raw.correctAnswers)) {
+    const expectedValues = raw.correctAnswers
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => item.length > 0);
+    if (expectedValues.length > 0) {
+      const expectedSet = new Set(expectedValues.map((item) => item.toLowerCase()));
+      answer = options
+        .map((option, index) => ({ option: option.trim().toLowerCase(), index }))
+        .filter((entry) => entry.option.length > 0 && expectedSet.has(entry.option))
+        .map((entry) => entry.index);
+    }
+  }
   return { type: kind, title, question, options: options.length ? options : [''], answer };
 }
 

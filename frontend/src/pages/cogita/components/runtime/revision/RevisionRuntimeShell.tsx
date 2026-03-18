@@ -82,8 +82,29 @@ export type ParsedQuestionDefinition = {
 export const normalizeQuestionType = (rawType: unknown): QuestionType | '' => {
   if (typeof rawType !== 'string') return '';
   const value = rawType.trim().toLowerCase();
-  if (value === 'selection' || value === 'truefalse' || value === 'text' || value === 'number' || value === 'date' || value === 'ordering' || value === 'matching') {
-    return value;
+  const normalized =
+    value === 'multi_select' ||
+    value === 'single_select' ||
+    value === 'selection_single' ||
+    value === 'selection_multiple'
+      ? 'selection'
+      : value === 'boolean'
+        ? 'truefalse'
+        : value === 'order'
+          ? 'ordering'
+          : value === 'short' || value === 'open' || value === 'short_text'
+            ? 'text'
+            : value;
+  if (
+    normalized === 'selection' ||
+    normalized === 'truefalse' ||
+    normalized === 'text' ||
+    normalized === 'number' ||
+    normalized === 'date' ||
+    normalized === 'ordering' ||
+    normalized === 'matching'
+  ) {
+    return normalized;
   }
   return '';
 };
@@ -134,7 +155,9 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
 
   const options = Array.isArray(root.options)
     ? root.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
-    : undefined;
+    : Array.isArray(root.answers)
+      ? root.answers.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
+      : undefined;
 
   const columns = Array.isArray(root.columns)
     ? root.columns
@@ -148,10 +171,34 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
 
   const answer = (() => {
     if (type === 'selection') {
-      const source = Array.isArray(root.answer) ? root.answer : [];
-      return source
-        .map((x) => Number(x))
-        .filter((x) => Number.isInteger(x) && x >= 0)
+      const indexedAnswer = Array.isArray(root.answer)
+        ? root.answer
+            .map((x) => Number(x))
+            .filter((x) => Number.isInteger(x) && x >= 0)
+        : Array.isArray(root.correct)
+          ? root.correct
+              .map((x) => Number(x))
+              .filter((x) => Number.isInteger(x) && x >= 0)
+          : [];
+      if (indexedAnswer.length > 0) {
+        return indexedAnswer.sort((a, b) => a - b);
+      }
+
+      const expectedValues = Array.isArray(root.correctAnswers)
+        ? root.correctAnswers
+            .map((x) => (typeof x === 'string' ? x : ''))
+            .map((x) => x.trim())
+            .filter(Boolean)
+        : [];
+      if (expectedValues.length === 0 || !options || options.length === 0) {
+        return [];
+      }
+
+      const expectedSet = new Set(expectedValues.map((value) => value.toLocaleLowerCase()));
+      return options
+        .map((option, index) => ({ option: option.trim().toLocaleLowerCase(), index }))
+        .filter((entry) => expectedSet.has(entry.option))
+        .map((entry) => entry.index)
         .sort((a, b) => a - b);
     }
 
