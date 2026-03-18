@@ -1314,7 +1314,8 @@ public static class CogitaEndpoints
                 return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
             }
 
-            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey))
+            if (!keyRing.TryGetOwnerKey(library.RoleId, out var ownerKey) ||
+                !keyRing.TryGetReadKey(library.RoleId, out var readKey))
             {
                 return Results.Forbid();
             }
@@ -1343,8 +1344,31 @@ public static class CogitaEndpoints
             }
 
             var now = DateTimeOffset.UtcNow;
+            var publicContentJson = await BuildStoryboardPublicContentWithQuestionPayloadsAsync(
+                libraryId,
+                project.ContentJson,
+                readKey,
+                keyRingService,
+                encryptionService,
+                dbContext,
+                ct);
 
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
+
+            if (!string.Equals(publicContentJson, project.ContentJson, StringComparison.Ordinal))
+            {
+                var trackedProject = await dbContext.CogitaCreationProjects
+                    .FirstOrDefaultAsync(x =>
+                        x.Id == projectId &&
+                        x.LibraryId == libraryId &&
+                        x.ProjectType == "storyboard", ct);
+                if (trackedProject is not null)
+                {
+                    trackedProject.ContentJson = publicContentJson;
+                    trackedProject.UpdatedUtc = now;
+                    await dbContext.SaveChangesAsync(ct);
+                }
+            }
 
             var previousActiveShare = await dbContext.CogitaStoryboardShares
                 .FirstOrDefaultAsync(x =>
@@ -14738,6 +14762,152 @@ public static class CogitaEndpoints
         }
 
         return trimmed;
+    }
+
+    private static async Task<string?> BuildStoryboardPublicContentWithQuestionPayloadsAsync(
+        Guid libraryId,
+        string? contentJson,
+        byte[] readKey,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(contentJson))
+        {
+            return contentJson;
+        }
+
+        JsonObject? root;
+        try
+        {
+            root = JsonNode.Parse(contentJson) as JsonObject;
+        }
+        catch
+        {
+            return contentJson;
+        }
+
+        if (root is null)
+        {
+            return contentJson;
+        }
+
+        var notionIds = new HashSet<Guid>();
+        CollectStoryboardNotionIds(root, notionIds);
+        if (notionIds.Count == 0)
+        {
+            return contentJson;
+        }
+
+        var questionInfos = await dbContext.CogitaInfos.AsNoTracking()
+            .Where(x =>
+                x.LibraryId == libraryId &&
+                x.InfoType == "question" &&
+                notionIds.Contains(x.Id))
+            .ToListAsync(ct);
+        if (questionInfos.Count == 0)
+        {
+            return contentJson;
+        }
+
+        var payloadLookup = new Dictionary<Guid, (Guid DataKeyId, byte[] EncryptedBlob)>();
+        foreach (var info in questionInfos)
+        {
+            var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+            if (payload is null)
+            {
+                continue;
+            }
+
+            payloadLookup[info.Id] = (payload.Value.DataKeyId, payload.Value.EncryptedBlob);
+        }
+
+        if (payloadLookup.Count == 0)
+        {
+            return contentJson;
+        }
+
+        var dataKeyIds = payloadLookup.Values
+            .Select(entry => entry.DataKeyId)
+            .Distinct()
+            .ToList();
+        var keyEntryById = await dbContext.Keys.AsNoTracking()
+            .Where(x => dataKeyIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, ct);
+
+        var notionPayloadsNode = new JsonObject();
+        foreach (var info in questionInfos)
+        {
+            if (!payloadLookup.TryGetValue(info.Id, out var payload) ||
+                !keyEntryById.TryGetValue(payload.DataKeyId, out var keyEntry))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            try
+            {
+                var plain = encryptionService.Decrypt(dataKey, payload.EncryptedBlob, info.Id.ToByteArray());
+                notionPayloadsNode[info.Id.ToString("D")] = JsonNode.Parse(plain);
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+        }
+
+        if (notionPayloadsNode.Count == 0)
+        {
+            return contentJson;
+        }
+
+        root["publicNotionPayloads"] = notionPayloadsNode;
+        return root.ToJsonString();
+    }
+
+    private static void CollectStoryboardNotionIds(JsonNode? node, HashSet<Guid> notionIds)
+    {
+        if (node is JsonObject obj)
+        {
+            var notionIdRaw =
+                TryReadNodeString(obj["notionId"]) ??
+                TryReadNodeString(obj["infoId"]) ??
+                TryReadNodeString(obj["itemId"]);
+            if (!string.IsNullOrWhiteSpace(notionIdRaw) &&
+                Guid.TryParse(notionIdRaw, out var parsedNotionId))
+            {
+                notionIds.Add(parsedNotionId);
+            }
+
+            foreach (var property in obj)
+            {
+                CollectStoryboardNotionIds(property.Value, notionIds);
+            }
+
+            return;
+        }
+
+        if (node is JsonArray array)
+        {
+            foreach (var item in array)
+            {
+                CollectStoryboardNotionIds(item, notionIds);
+            }
+        }
     }
 
     private static async Task<Dictionary<Guid, string>> ResolveInfoLabelsAsync(

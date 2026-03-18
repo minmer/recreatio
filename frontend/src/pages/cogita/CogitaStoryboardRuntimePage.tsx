@@ -69,6 +69,7 @@ type StoryboardDocument = {
   script: string;
   steps: string[];
   rootGraph: StoryboardGraph;
+  publicNotionPayloads: Record<string, unknown>;
 };
 
 type RuntimeBlock = {
@@ -583,7 +584,11 @@ function normalizeDocument(content: unknown): StoryboardDocument {
         description: toString(root.description),
         script: toString(root.script),
         steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
-        rootGraph: parseGraph(root.rootGraph)
+        rootGraph: parseGraph(root.rootGraph),
+        publicNotionPayloads:
+          root.publicNotionPayloads && typeof root.publicNotionPayloads === 'object' && !Array.isArray(root.publicNotionPayloads)
+            ? (root.publicNotionPayloads as Record<string, unknown>)
+            : {}
       };
     }
     if (root.schema === 'cogita_storyboard_graph' && Array.isArray(root.nodes)) {
@@ -593,7 +598,11 @@ function normalizeDocument(content: unknown): StoryboardDocument {
         description: toString(root.description),
         script: toString(root.script),
         steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
-        rootGraph: parseGraph(root)
+        rootGraph: parseGraph(root),
+        publicNotionPayloads:
+          root.publicNotionPayloads && typeof root.publicNotionPayloads === 'object' && !Array.isArray(root.publicNotionPayloads)
+            ? (root.publicNotionPayloads as Record<string, unknown>)
+            : {}
       };
     }
   }
@@ -604,7 +613,8 @@ function normalizeDocument(content: unknown): StoryboardDocument {
     description: '',
     script: '',
     steps: [],
-    rootGraph: createDefaultGraph()
+    rootGraph: createDefaultGraph(),
+    publicNotionPayloads: {}
   };
 }
 
@@ -931,6 +941,10 @@ export function CogitaStoryboardRuntimePage({
       let notionType: string | null = null;
       let cardType: string | null = null;
       let checkType: string | null = currentNode.cardCheckType.trim() || null;
+      const publicNotionPayload =
+        currentNode.notionId.trim() && documentState?.publicNotionPayloads
+          ? documentState.publicNotionPayloads[currentNode.notionId.trim()]
+          : undefined;
 
       if (runtimeLibraryId && currentNode.notionId.trim()) {
         try {
@@ -979,6 +993,7 @@ export function CogitaStoryboardRuntimePage({
                   detail?.payload ??
                     selectedCard?.payload ??
                     cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                    publicNotionPayload ??
                     null,
                   prompt
                 )
@@ -994,10 +1009,30 @@ export function CogitaStoryboardRuntimePage({
             answerModel = { text: '' };
           }
         } catch {
-          // Keep fallback prompt/expected from node metadata.
-          promptModel = { kind: 'text', inputType: 'text' };
-          expectedModel = expected;
-          answerModel = { text: '' };
+          const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
+          if (sharedQuestionRuntime) {
+            notionType = 'question';
+            checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
+            prompt = sharedQuestionRuntime.promptText || prompt;
+            promptModel = sharedQuestionRuntime.promptModel;
+            expectedModel = sharedQuestionRuntime.expectedModel;
+            answerModel = sharedQuestionRuntime.initialAnswers;
+          } else {
+            // Keep fallback prompt/expected from node metadata.
+            promptModel = { kind: 'text', inputType: 'text' };
+            expectedModel = expected;
+            answerModel = { text: '' };
+          }
+        }
+      } else {
+        const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
+        if (sharedQuestionRuntime) {
+          notionType = 'question';
+          checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
+          prompt = sharedQuestionRuntime.promptText || prompt;
+          promptModel = sharedQuestionRuntime.promptModel;
+          expectedModel = sharedQuestionRuntime.expectedModel;
+          answerModel = sharedQuestionRuntime.initialAnswers;
         }
       }
 
@@ -1020,7 +1055,7 @@ export function CogitaStoryboardRuntimePage({
     return () => {
       cancelled = true;
     };
-  }, [currentNode, runtimeLibraryId, runtime]);
+  }, [currentNode, documentState, runtimeLibraryId, runtime]);
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];
