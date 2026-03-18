@@ -22959,8 +22959,8 @@ public static class CogitaEndpoints
                 var cardCheckType = ReadFirstNonEmptyString(nodeElement, "cardCheckType", "checkType") ?? string.Empty;
                 var cardDirection = NormalizeStoryboardImportCardDirection(ReadFirstNonEmptyString(nodeElement, "cardDirection"));
 
-                var posX = 120 + ((index - 1) % 4) * 220;
-                var posY = 80 + ((index - 1) / 4) * 170;
+                var posX = 120d + ((index - 1) % 4) * 220d;
+                var posY = 80d + ((index - 1) / 4) * 170d;
                 if (TryGetPropertyCaseInsensitive(nodeElement, "position", out var posElement) &&
                     posElement.ValueKind == JsonValueKind.Object)
                 {
