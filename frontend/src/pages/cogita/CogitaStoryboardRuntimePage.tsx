@@ -13,7 +13,7 @@ import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
 import { CogitaShell } from './CogitaShell';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
-import { buildRevisionQuestionRuntime, parseQuestionDefinition } from './components/runtime/revision/RevisionRuntimeShell';
+import { parseQuestionDefinitionFromPayload } from './components/workspace/notion/types/notionQuestion';
 import {
   evaluateCheckcardDetailed,
   type CheckcardAnswerModel,
@@ -217,9 +217,92 @@ function directionMatchesNode(direction: string | null | undefined, nodeDirectio
 }
 
 function toQuestionCheckTypeFromPayload(payload: unknown): string | null {
-  const parsed = parseQuestionDefinition(payload);
+  const parsed = parseQuestionDefinitionFromPayload(payload);
   if (!parsed) return null;
   return `question-${parsed.type}`;
+}
+
+function buildStoryboardQuestionRuntime(
+  value: unknown,
+  fallbackPrompt: string
+): {
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+  expectedModel: CheckcardExpectedModel;
+  initialAnswers: CheckcardAnswerModel;
+} | null {
+  const parsed = parseQuestionDefinitionFromPayload(value);
+  if (!parsed) return null;
+
+  const promptText = (parsed.question || parsed.title || fallbackPrompt || '').trim();
+  const emptyAnswers = (): CheckcardAnswerModel => ({
+    text: '',
+    selection: [],
+    booleanAnswer: null,
+    ordering: [],
+    matchingPaths: [],
+    matchingSelection: []
+  });
+
+  if (parsed.type === 'selection') {
+    const options = (parsed.options ?? []).map((entry) => entry.trim()).filter(Boolean);
+    const expectedRaw = Array.isArray(parsed.answer) ? parsed.answer : [];
+    const expected = Array.from(
+      new Set(expectedRaw.filter((entry): entry is number => Number.isInteger(entry) && entry >= 0 && entry < options.length))
+    ).sort((a, b) => a - b);
+    return {
+      promptText,
+      promptModel: { kind: 'selection', options, allowMultiple: expected.length !== 1 },
+      expectedModel: expected,
+      initialAnswers: emptyAnswers()
+    };
+  }
+
+  if (parsed.type === 'truefalse') {
+    return {
+      promptText,
+      promptModel: { kind: 'boolean' },
+      expectedModel: typeof parsed.answer === 'boolean' ? parsed.answer : false,
+      initialAnswers: emptyAnswers()
+    };
+  }
+
+  if (parsed.type === 'ordering') {
+    const options = (parsed.options ?? []).map((entry) => entry.trim()).filter(Boolean);
+    return {
+      promptText,
+      promptModel: { kind: 'ordering', options },
+      expectedModel: options,
+      initialAnswers: { ...emptyAnswers(), ordering: [...options] }
+    };
+  }
+
+  if (parsed.type === 'matching') {
+    const columns = (parsed.columns ?? []).map((col) => col.map((entry) => entry.trim()).filter(Boolean)).filter((col) => col.length > 0);
+    const answerNode = parsed.answer && typeof parsed.answer === 'object' && 'paths' in parsed.answer
+      ? parsed.answer
+      : null;
+    const paths = Array.isArray(answerNode?.paths)
+      ? answerNode.paths
+          .map((row) => (Array.isArray(row) ? row.filter((entry): entry is number => Number.isInteger(entry) && entry >= 0) : []))
+          .filter((row) => row.length > 0)
+      : [];
+    return {
+      promptText,
+      promptModel: { kind: 'matching', columns },
+      expectedModel: { paths },
+      initialAnswers: { ...emptyAnswers(), matchingSelection: new Array(Math.max(2, columns.length)).fill(null) }
+    };
+  }
+
+  const expected = typeof parsed.answer === 'string' || typeof parsed.answer === 'number' ? parsed.answer : '';
+  const inputType = parsed.type === 'number' ? 'number' : parsed.type === 'date' ? 'date' : 'text';
+  return {
+    promptText,
+    promptModel: { kind: 'text', inputType },
+    expectedModel: expected,
+    initialAnswers: emptyAnswers()
+  };
 }
 
 function pickNodeCard(
@@ -709,6 +792,7 @@ export function CogitaStoryboardRuntimePage({
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
+  const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
   const [runtime, setRuntime] = useState<RuntimeState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -721,13 +805,15 @@ export function CogitaStoryboardRuntimePage({
       let cancelled = false;
       setLoading(true);
       setStatus(null);
+      setRuntimeLibraryId(undefined);
 
       getCogitaPublicStoryboardShare({ shareCode })
         .then((share) => {
           if (cancelled) return;
           const normalized = normalizeDocument(share.content);
+          setRuntimeLibraryId(share.libraryId);
           setProject({
-            projectId: share.storyboardId,
+            projectId: share.projectId,
             projectType: 'storyboard',
             name: share.projectName,
             content: share.content ?? null,
@@ -755,12 +841,14 @@ export function CogitaStoryboardRuntimePage({
     if (!libraryId || !storyboardId) {
       setLoading(false);
       setStatus(runtimeCopy.statusMissingParams);
+      setRuntimeLibraryId(undefined);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
     setStatus(null);
+    setRuntimeLibraryId(libraryId);
 
     getCogitaCreationProjects({ libraryId, projectType: 'storyboard' })
       .then((projects) => {
@@ -844,11 +932,11 @@ export function CogitaStoryboardRuntimePage({
       let cardType: string | null = null;
       let checkType: string | null = currentNode.cardCheckType.trim() || null;
 
-      if (libraryId && currentNode.notionId.trim()) {
+      if (runtimeLibraryId && currentNode.notionId.trim()) {
         try {
           const [cardsBundle, detail] = await Promise.all([
-            getCogitaInfoCheckcards({ libraryId, infoId: currentNode.notionId.trim() }),
-            getCogitaInfoDetail({ libraryId, infoId: currentNode.notionId.trim() }).catch(() => null)
+            getCogitaInfoCheckcards({ libraryId: runtimeLibraryId, infoId: currentNode.notionId.trim() }),
+            getCogitaInfoDetail({ libraryId: runtimeLibraryId, infoId: currentNode.notionId.trim() }).catch(() => null)
           ]);
           const preferredQuestionCheckType =
             currentNode.cardCheckType.trim().toLowerCase() === 'question'
@@ -863,7 +951,7 @@ export function CogitaStoryboardRuntimePage({
           if (detail?.infoType === 'translation') {
             try {
               const projection = await getCogitaInfoApproachProjection({
-                libraryId,
+                libraryId: runtimeLibraryId,
                 infoId: currentNode.notionId.trim(),
                 approachKey: 'vocab-card'
               });
@@ -887,7 +975,7 @@ export function CogitaStoryboardRuntimePage({
 
           const questionRuntime =
             (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
-              ? buildRevisionQuestionRuntime(
+              ? buildStoryboardQuestionRuntime(
                   detail?.payload ??
                     selectedCard?.payload ??
                     cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
@@ -932,7 +1020,7 @@ export function CogitaStoryboardRuntimePage({
     return () => {
       cancelled = true;
     };
-  }, [currentNode, libraryId, runtime]);
+  }, [currentNode, runtimeLibraryId, runtime]);
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];

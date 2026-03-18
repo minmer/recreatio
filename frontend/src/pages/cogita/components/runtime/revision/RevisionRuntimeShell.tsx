@@ -140,24 +140,94 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
   const parsedDefinition = tryParseJsonObject(data.definition);
   if (parsedDefinition) {
     root = parsedDefinition;
+  }
+  for (let depth = 0; depth < 3; depth += 1) {
+    const nestedDefinition = tryParseJsonObject(root.definition);
+    if (!nestedDefinition) break;
+    root = { ...root, ...nestedDefinition };
+  }
+
+  const rootQuestionTypes = Array.isArray(root.questionTypes) ? root.questionTypes : [];
+  if (rootQuestionTypes.length > 0) {
+    const first = tryParseJsonObject(rootQuestionTypes[0]);
+    if (first) {
+      root = { ...root, ...first };
+    }
   } else if (Array.isArray(data.questionTypes) && data.questionTypes.length > 0) {
     const first = tryParseJsonObject(data.questionTypes[0]);
     if (first) {
-      root = first;
+      root = { ...data, ...first };
     }
   }
-  const type = normalizeQuestionType(root.type);
-  if (!type) return null;
 
-  const title = typeof root.title === 'string' ? root.title : undefined;
-  const question = typeof root.question === 'string' ? root.question : '';
-  if (!question.trim()) return null;
+  const explicitType = normalizeQuestionType(root.type ?? root.kind);
+  const inferredType = (() => {
+    if (explicitType) return explicitType;
+    if (
+      Array.isArray(root.options) ||
+      Array.isArray(root.answers) ||
+      Array.isArray(root.correctAnswers) ||
+      Array.isArray(root.correct) ||
+      Array.isArray(root.answer)
+    ) {
+      return 'selection' as const;
+    }
+
+    if (typeof root.answer === 'boolean' || typeof root.expected === 'boolean') {
+      return 'truefalse' as const;
+    }
+
+    const answerNode = root.answer && typeof root.answer === 'object'
+      ? (root.answer as Record<string, unknown>)
+      : null;
+    if (
+      Array.isArray(root.columns) ||
+      (Array.isArray(root.left) && Array.isArray(root.right)) ||
+      Array.isArray(answerNode?.paths) ||
+      Array.isArray(root.correctPairs)
+    ) {
+      return 'matching' as const;
+    }
+
+    if (Array.isArray(root.items)) {
+      return 'ordering' as const;
+    }
+
+    if (typeof root.answer === 'number' || typeof root.expected === 'number') {
+      return 'number' as const;
+    }
+
+    if (typeof root.answer === 'string' || typeof root.expected === 'string') {
+      return 'text' as const;
+    }
+
+    return '' as const;
+  })();
+
+  if (!inferredType) return null;
+  const type = inferredType;
+
+  const title =
+    (typeof root.title === 'string' && root.title) ||
+    (typeof data.title === 'string' && data.title) ||
+    undefined;
+  const question =
+    (typeof root.question === 'string' && root.question) ||
+    (typeof root.prompt === 'string' && root.prompt) ||
+    (typeof root.text === 'string' && root.text) ||
+    (typeof root.label === 'string' && root.label) ||
+    (typeof data.question === 'string' && data.question) ||
+    (typeof data.prompt === 'string' && data.prompt) ||
+    (typeof data.text === 'string' && data.text) ||
+    '';
 
   const options = Array.isArray(root.options)
     ? root.options.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
     : Array.isArray(root.answers)
       ? root.answers.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
-      : undefined;
+      : Array.isArray(root.items)
+        ? root.items.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
+        : undefined;
 
   const columns = Array.isArray(root.columns)
     ? root.columns
@@ -167,19 +237,29 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
             : []
         )
         .filter((col) => col.length > 0)
-    : undefined;
+    : Array.isArray(root.left) && Array.isArray(root.right)
+      ? [
+          root.left.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean),
+          root.right.map((x) => (typeof x === 'string' ? x : '')).filter(Boolean)
+        ]
+      : undefined;
 
   const answer = (() => {
     if (type === 'selection') {
-      const indexedAnswer = Array.isArray(root.answer)
+      const indexedAnswerSource = Array.isArray(root.answer)
         ? root.answer
-            .map((x) => Number(x))
-            .filter((x) => Number.isInteger(x) && x >= 0)
         : Array.isArray(root.correct)
           ? root.correct
-              .map((x) => Number(x))
-              .filter((x) => Number.isInteger(x) && x >= 0)
-          : [];
+          : Array.isArray(root.expected)
+            ? root.expected
+            : typeof root.answer === 'number'
+              ? [root.answer]
+              : typeof root.correct === 'number'
+                ? [root.correct]
+                : [];
+      const indexedAnswer = indexedAnswerSource
+        .map((x) => Number(x))
+        .filter((x) => Number.isInteger(x) && x >= 0);
       if (indexedAnswer.length > 0) {
         return indexedAnswer.sort((a, b) => a - b);
       }
@@ -194,9 +274,9 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
         return [];
       }
 
-      const expectedSet = new Set(expectedValues.map((value) => value.toLocaleLowerCase()));
+      const expectedSet = new Set(expectedValues.map((entry) => entry.toLowerCase()));
       return options
-        .map((option, index) => ({ option: option.trim().toLocaleLowerCase(), index }))
+        .map((option, index) => ({ option: option.trim().toLowerCase(), index }))
         .filter((entry) => expectedSet.has(entry.option))
         .map((entry) => entry.index)
         .sort((a, b) => a - b);
@@ -204,6 +284,7 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
 
     if (type === 'truefalse') {
       if (typeof root.answer === 'boolean') return root.answer;
+      if (typeof root.expected === 'boolean') return root.expected;
       return false;
     }
 
@@ -211,7 +292,11 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
       const answerNode = root.answer && typeof root.answer === 'object'
         ? (root.answer as Record<string, unknown>)
         : null;
-      const source = Array.isArray(answerNode?.paths) ? answerNode.paths : [];
+      const source = Array.isArray(answerNode?.paths)
+        ? answerNode.paths
+        : Array.isArray(root.correctPairs)
+          ? root.correctPairs
+          : [];
       const paths = source
         .map((row) =>
           Array.isArray(row)
@@ -225,6 +310,7 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
     }
 
     if (typeof root.answer === 'string' || typeof root.answer === 'number') return root.answer;
+    if (typeof root.expected === 'string' || typeof root.expected === 'number') return root.expected;
     return undefined;
   })();
 
