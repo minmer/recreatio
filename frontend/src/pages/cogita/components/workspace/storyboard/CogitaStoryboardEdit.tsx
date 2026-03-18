@@ -19,6 +19,7 @@ import type { Copy } from '../../../../../content/types';
 import type { RouteKey } from '../../../../../types/navigation';
 import { useCogitaLibraryMeta } from '../../useCogitaLibraryMeta';
 import {
+  ApiError,
   createCogitaStoryboardShare,
   createCogitaCreationProject,
   getCogitaInfoCheckcards,
@@ -1070,6 +1071,15 @@ export function CogitaStoryboardEdit({
   const [activeShare, setActiveShare] = useState<CogitaStoryboardShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const authExpiredStatus = useMemo(
+    () =>
+      language === 'pl'
+        ? 'Sesja wygasła. Zaloguj się ponownie i odśwież storyboard.'
+        : language === 'de'
+          ? 'Sitzung abgelaufen. Melde dich erneut an und lade das Storyboard neu.'
+          : 'Session expired. Sign in again and reload the storyboard.',
+    [language]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1081,17 +1091,20 @@ export function CogitaStoryboardEdit({
         setItems(projects);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
         setItems([]);
         setLoadFailed(true);
+        if (error instanceof ApiError && error.status === 401) {
+          setStatus(authExpiredStatus);
+        }
         setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [libraryId]);
+  }, [authExpiredStatus, libraryId]);
 
   const selectedProject = useMemo(
     () => (storyboardId ? items.find((item) => item.projectId === storyboardId) ?? null : null),
@@ -1434,9 +1447,14 @@ export function CogitaStoryboardEdit({
         });
         setStatus(storyboardEditorCopy.savedStatus);
       }
-    } catch {
-      setSaveFailed(true);
-      setStatus(copy.cogita.library.modules.createFailed);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setSaveFailed(false);
+        setStatus(authExpiredStatus);
+      } else {
+        setSaveFailed(true);
+        setStatus(copy.cogita.library.modules.createFailed);
+      }
     } finally {
       setSaving(false);
     }
@@ -1623,9 +1641,9 @@ export function CogitaStoryboardEdit({
   const storyboardSharedUrl = useMemo(() => {
     if (!activeShare?.shareCode) return '';
     if (typeof window === 'undefined') {
-      return `/#/cogita/storyboard/shared/${encodeURIComponent(activeShare.shareCode)}`;
+      return `/#/cogita/public/storyboard/${encodeURIComponent(activeShare.shareCode)}`;
     }
-    return `${window.location.origin}/#/cogita/storyboard/shared/${encodeURIComponent(activeShare.shareCode)}`;
+    return `${window.location.origin}/#/cogita/public/storyboard/${encodeURIComponent(activeShare.shareCode)}`;
   }, [activeShare?.shareCode]);
 
   const handleCopySharedLink = async () => {

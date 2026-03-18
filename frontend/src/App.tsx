@@ -101,6 +101,11 @@ function normalizeCogitaLegacyPath(pathname: string, search: string): string | n
     return `/cogita/revision/shared/${tail}${search ?? ''}`;
   }
 
+  if (normalizedPath.startsWith('/cogita/storyboard/shared/')) {
+    const tail = normalizedPath.slice('/cogita/storyboard/shared/'.length);
+    return `/cogita/public/storyboard/${tail}${search ?? ''}`;
+  }
+
   if (normalizedPath.startsWith('/cogita/core/runs/')) {
     const segments = normalizedPath.split('/').filter(Boolean);
     const libraryId = segments[3];
@@ -145,7 +150,10 @@ export default function App() {
   const isHomePath = pathname === '/' || pathname.startsWith('/section-');
   const isCogitaPath = pathname.startsWith('/cogita');
   const isCogitaHomePath = pathname === '/cogita/home' || pathname === '/cogita/home/';
-  const isCogitaStoryboardSharedPath = pathname.startsWith('/cogita/storyboard/shared/') && pathSegments.length >= 4;
+  const isCogitaStoryboardPublicPath = pathname.startsWith('/cogita/public/storyboard/') && pathSegments.length >= 4;
+  const isCogitaStoryboardSharedPath =
+    (pathname.startsWith('/cogita/storyboard/shared/') && pathSegments.length >= 4) ||
+    isCogitaStoryboardPublicPath;
   const isCogitaStoryboardPath =
     (pathname === '/cogita/storyboard' || pathname.startsWith('/cogita/storyboard/')) &&
     !isCogitaStoryboardSharedPath;
