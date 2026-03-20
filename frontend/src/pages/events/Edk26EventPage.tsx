@@ -683,11 +683,11 @@ export function Edk26EventPage({
           <div className="edk-route-meta">
             <article>
               <h4>Start</h4>
-              <p>[do uzupełnienia]</p>
+              <p>św. Jana w Krakowie-Prądnik</p>
             </article>
             <article>
               <h4>Meta</h4>
-              <p>[do uzupełnienia]</p>
+              <p>Dobczyce</p>
             </article>
             <article>
               <h4>Termin</h4>
