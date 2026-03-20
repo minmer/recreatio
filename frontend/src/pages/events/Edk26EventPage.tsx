@@ -55,52 +55,54 @@ const NAV_ITEMS = [
   { id: 'plan-i-logistyka', label: 'Plan i logistyka' },
   { id: 'prowadzacy', label: 'Prowadzący' },
   { id: 'trasa', label: 'Trasa' },
+  { id: 'wazne-informacje', label: 'Ważne informacje' },
+  { id: 'faq', label: 'FAQ' },
   { id: 'zapisy', label: 'Zapisy' },
   { id: 'kontakt', label: 'Kontakt' }
 ] as const;
 
 const EDK26_ROUTE_STRUCTURE: EdkRoutePoint[] = [
-  { type: 'start', title_pl: 'Punkt startowy', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja I — Jezus na śmierć skazany', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja II — Jezus bierze krzyż na swoje ramiona', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja III — Jezus upada po raz pierwszy', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja IV — Jezus spotyka swoją Matkę', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
+  { type: 'start', title_pl: 'Punkt startowy', url: 'https://maps.app.goo.gl/JbKuRvUNriWWKGJH7', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,1 km]' },
+  { type: 'station', title_pl: 'Stacja I — Jezus na śmierć skazany', url: 'https://maps.app.goo.gl/P2Jv3Up112DMAy5PA', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,3 km]' },
+  { type: 'station', title_pl: 'Stacja II — Jezus bierze krzyż na swoje ramiona', url: 'https://maps.app.goo.gl/xjWWJFudVoewKQSj6', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[3,2 km]' },
+  { type: 'station', title_pl: 'Stacja III — Jezus upada po raz pierwszy', url: 'https://maps.app.goo.gl/By6JyayGQByDXHvV7', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,6 km]' },
+  { type: 'station', title_pl: 'Stacja IV — Jezus spotyka swoją Matkę', url: 'https://maps.app.goo.gl/dwfAeLRieQGjZ5eQA', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,5 km]' },
   {
     type: 'station',
     title_pl: 'Stacja V — Szymon z Cyreny pomaga nieść krzyż Jezusowi',
-    url: '',
+    url: 'https://maps.app.goo.gl/eBYb9tSkFLzucwGy8',
     distance_km: ''
   },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja VI — Weronika ociera twarz Jezusowi', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja VII — Jezus upada po raz drugi', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,8 km]' },
+  { type: 'station', title_pl: 'Stacja VI — Weronika ociera twarz Jezusowi', url: 'https://maps.app.goo.gl/T8rbSyY2MLTV77949', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[3,5 km]' },
+  { type: 'station', title_pl: 'Stacja VII — Jezus upada po raz drugi', url: 'https://maps.app.goo.gl/Mq534arWZD8S8hkc6', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,2 km]' },
   {
     type: 'station',
     title_pl: 'Stacja VIII — Jezus pociesza płaczące niewiasty',
-    url: '',
+    url: 'https://maps.app.goo.gl/x4zEUUuRxa1BqJBM7',
     distance_km: ''
   },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja IX — Jezus upada po raz trzeci', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja X — Jezus z szat obnażony', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja XI — Jezus przybity do krzyża', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja XII — Jezus umiera na krzyżu', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja XIII — Jezus zdjęty z krzyża', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[x km]' },
-  { type: 'station', title_pl: 'Stacja XIV — Jezus złożony do grobu', url: '', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do mety', url: '', distance_km: '[x km]' },
-  { type: 'finish', title_pl: 'Punkt końcowy', url: '', distance_km: '' }
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,6 km]' },
+  { type: 'station', title_pl: 'Stacja IX — Jezus upada po raz trzeci', url: 'https://maps.app.goo.gl/op9yy4LwFrFBigq68', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,7 km]' },
+  { type: 'station', title_pl: 'Stacja X — Jezus z szat obnażony', url: 'https://maps.app.goo.gl/9PS81EWU4AJ7D9CW7', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,2 km]' },
+  { type: 'station', title_pl: 'Stacja XI — Jezus przybity do krzyża', url: 'https://maps.app.goo.gl/inh6p8ypkRQXYpzGA', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,7 km]' },
+  { type: 'station', title_pl: 'Stacja XII — Jezus umiera na krzyżu', url: 'https://maps.app.goo.gl/Nbr1DKH7E9ioENvU7', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,9 km]' },
+  { type: 'station', title_pl: 'Stacja XIII — Jezus zdjęty z krzyża', url: 'https://maps.app.goo.gl/rapW9iQ6TBzdXirW9', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,5 km]' },
+  { type: 'station', title_pl: 'Stacja XIV — Jezus złożony do grobu', url: 'https://maps.app.goo.gl/o17uTobMpE3fHyEh8', distance_km: '' },
+  { type: 'distance', title_pl: '+ odległość do mety', url: '', distance_km: '[,6 km]' },
+  { type: 'finish', title_pl: 'Punkt końcowy', url: 'https://maps.app.goo.gl/Ram1tdB3hcbY1D5Y8', distance_km: '' }
 ];
 
 const FAQ_ITEMS: Array<{ question: string; answer: string }> = [
@@ -128,6 +130,11 @@ const FAQ_ITEMS: Array<{ question: string; answer: string }> = [
     question: 'Czy osoby niepełnoletnie mogą wziąć udział?',
     answer:
       'Tak. Osoby niepełnoletnie mogą wziąć udział, jeśli idą pod opieką wskazanej osoby pełnoletniej, która bierze za nie odpowiedzialność organizacyjną podczas wydarzenia.'
+  },
+  {
+    question: 'Nie mam wskazanego opiekuna. Co wtedy?',
+    answer:
+      'Skontaktuj się z ks. Michałem Mleczkiem przed zapisaniem. W razie potrzeby pomożemy znaleźć osobę pełnoletnią, która podejmie się opieki organizacyjnej.'
   },
   {
     question: 'Czy potrzebna jest pisemna zgoda rodziców?',
@@ -449,9 +456,8 @@ export function Edk26EventPage({
               wspólnie rozważając stacje Drogi Krzyżowej.
             </p>
             <p>
-              To będzie droga ciszy, modlitwy i uważności. Nie idziemy po wynik i nie idziemy dla samych wrażeń.
-              Idziemy po spotkanie — z Bogiem, z prawdą o sobie i z drugim człowiekiem, którego nie zostawiamy samego
-              na trasie.
+              To będzie droga ciszy, modlitwy i uważności. Nie idziemy po wynik ani po wrażenia. Idziemy po spotkanie
+              z Bogiem, z prawdą o sobie i z drugim człowiekiem, którego nie zostawiamy samego na trasie.
             </p>
             <div className="edk-hero-actions">
               <button className="cta" type="button" onClick={() => scrollToSection('zapisy')}>Zapisz się</button>
@@ -469,8 +475,7 @@ export function Edk26EventPage({
           <div className="edk-section-body">
             <p>
               EDK 2026 w naszej formule to nocna Droga Krzyżowa przeżywana w sposób kameralny i odpowiedzialny.
-              Zachowujemy ducha tej drogi: prostotę, ciszę, wysiłek, modlitwę i zgodę na to, że nocne przejście ma nas
-              dotknąć głębiej niż zwykły marsz czy wydarzenie „do zaliczenia”.
+              Zachowujemy ducha tej drogi: prostotę, ciszę, wysiłek i modlitwę.
             </p>
             <p>
               Nie będzie to wyjście sportowe ani towarzyska nocna wyprawa. Nie chodzi o tempo, rekord, dystans ani
@@ -478,13 +483,8 @@ export function Edk26EventPage({
               Chrystusa.
             </p>
             <p>
-              Nasza forma jest szczególna, bo nie idziemy całkowicie osobno. Idziemy w małej grupie. Chcemy dbać o
-              siebie nawzajem, nie rozpraszać modlitwy, nie zgubić sensu tej nocy i wspólnie zatrzymywać się przy
-              kolejnych stacjach Drogi Krzyżowej.
-            </p>
-            <p>
-              To propozycja dla tych, którzy chcą wejść głębiej w Wielki Post. Dla tych, którzy nie szukają religijnego
-              hałasu, ale prawdziwej drogi.
+              Idziemy w małej grupie, dbamy o siebie nawzajem i wspólnie zatrzymujemy się przy kolejnych stacjach
+              Drogi Krzyżowej. To propozycja dla tych, którzy chcą wejść głębiej w Wielki Post.
             </p>
           </div>
         </section>
@@ -599,7 +599,7 @@ export function Edk26EventPage({
             </p>
             <p>
               To wydarzenie jest organizowane przez niego i prowadzone w duchu prostoty, skupienia oraz odpowiedzialności
-              za siebie nawzajem. Idziemy jako mała wspólnota, która chce przeżyć tę noc uważnie, dojrzale i naprawdę.
+              za siebie nawzajem.
             </p>
           </div>
         </section>
@@ -612,13 +612,10 @@ export function Edk26EventPage({
           <div className="edk-section-body">
             <p>
               Wyruszamy z Krakowa, od parafii św. Jana na Prądniku, i kierujemy się do Dobczyc. To nocna droga, która
-              ma swój rytm, swoją ciszę i swoje wymagania. Nie chodzi tylko o pokonanie kolejnych kilometrów, ale o to,
-              by każdy etap tej trasy stawał się przestrzenią modlitwy, skupienia i wewnętrznej pracy.
+              ma swój rytm, ciszę i wymagania. Każdy etap trasy ma stać się przestrzenią modlitwy i skupienia.
             </p>
             <p>
-              Poniżej znajduje się układ trasy przygotowany do uzupełnienia o konkretne punkty i odległości. Każdy punkt
-              może prowadzić do odpowiedniego linku, a pomiędzy kolejnymi etapami można dodać informację o liczbie
-              kilometrów.
+              Poniżej znajduje się układ trasy do uzupełnienia o konkretne punkty, linki i odległości.
             </p>
           </div>
 
@@ -678,9 +675,7 @@ export function Edk26EventPage({
           <div className="edk-section-body">
             <p>
               Ta noc wymaga prostego, ale odpowiedzialnego przygotowania. Potrzebne będą wygodne i sprawdzone buty,
-              odpowiedni ubiór na nocne warunki, picie, coś do jedzenia, telefon oraz powerbank. Warto podejść do tego
-              uczciwie: nie po to, by się asekurować na każdą możliwą trudność, ale po to, by nie pomylić odwagi z
-              lekkomyślnością.
+              odpowiedni ubiór, picie, coś do jedzenia, telefon oraz powerbank.
             </p>
             <p>
               Kameralny charakter grupy oznacza także ograniczoną liczbę miejsc. Zależy nam na tym, aby zachować
@@ -700,6 +695,10 @@ export function Edk26EventPage({
               <li>
                 Osoby niepełnoletnie mogą wziąć udział, jeśli idą pod opieką wskazanej osoby pełnoletniej, która bierze
                 za nie odpowiedzialność.
+              </li>
+              <li>
+                Jeśli osoba niepełnoletnia nie ma wskazanego opiekuna, prosimy o kontakt z prowadzącym — pomożemy
+                znaleźć osobę pełnoletnią.
               </li>
               <li>W ramach zasad organizacyjnych tego wyjścia nie wymagamy pisemnej zgody rodziców.</li>
             </ul>
@@ -731,9 +730,8 @@ export function Edk26EventPage({
           </header>
           <div className="edk-section-body">
             <p>
-              Zapisy pomagają nam przygotować wydarzenie w sposób prosty i odpowiedzialny. Dzięki nim możemy zachować
-              kameralny charakter grupy, przekazać uczestnikom ważne informacje organizacyjne i lepiej zadbać o
-              bezpieczeństwo drogi.
+              Zapisy pomagają nam zachować kameralny charakter grupy, przekazać ważne informacje organizacyjne i lepiej
+              zadbać o bezpieczeństwo drogi.
             </p>
           </div>
 
