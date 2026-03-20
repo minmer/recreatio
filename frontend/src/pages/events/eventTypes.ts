@@ -7,7 +7,7 @@ export type EventInnerPage = {
 };
 
 export type EventDefinition = {
-  slug: 'warsztaty26' | 'kal26';
+  slug: 'warsztaty26' | 'kal26' | 'edk26';
   title: string;
   summary: string;
   date: string;

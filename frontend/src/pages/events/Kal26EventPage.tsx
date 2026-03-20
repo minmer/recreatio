@@ -9,6 +9,7 @@ import {
   createPilgrimageParticipantIssue,
   createPilgrimageRegistration,
   createPilgrimageTask,
+  deletePilgrimageInquiry,
   exportPilgrimageRegistrations,
   getPilgrimagePublicInquiryAnswers,
   getPilgrimageExportUrl,
@@ -86,6 +87,24 @@ const defaultContactForm: ContactFormState = {
   topic: 'Pytanie organizacyjne',
   message: ''
 };
+
+function buildInquirySmsHref(phone: string | null | undefined, topic: string, answer: string) {
+  const rawPhone = (phone ?? '').trim();
+  if (!rawPhone) {
+    return '';
+  }
+  const smsPhone = rawPhone.replace(/[^\d+]/g, '');
+  const answerText = answer.trim();
+  if (!answerText) {
+    return '';
+  }
+  const message =
+    `Szczęść Boże,\n` +
+    `odpowiedź na pytanie: ${topic}\n\n` +
+    `${answerText}\n\n` +
+    `Pozdrawiamy,\nOrganizatorzy pielgrzymki`;
+  return `sms:${smsPhone}?body=${encodeURIComponent(message)}`;
+}
 
 function PilgrimageStoneMap() {
   const graphicRef = useRef<HTMLDivElement | null>(null);
@@ -529,6 +548,7 @@ function Kal26ContactPage({
   inquiryDrafts,
   setInquiryDrafts,
   handleInquiryUpdate,
+  handleInquiryDelete,
   organizerSavingId,
   organizerActionError
 }: {
@@ -547,6 +567,7 @@ function Kal26ContactPage({
   inquiryDrafts: Record<string, { status: string; publicAnswer: string }>;
   setInquiryDrafts: Dispatch<SetStateAction<Record<string, { status: string; publicAnswer: string }>>>;
   handleInquiryUpdate: (inquiryId: string) => Promise<void>;
+  handleInquiryDelete: (inquiryId: string) => Promise<void>;
   organizerSavingId: string | null;
   organizerActionError: string | null;
 }) {
@@ -582,6 +603,11 @@ function Kal26ContactPage({
                   onChange={(eventInput) => setContactForm((previous) => ({ ...previous, phone: eventInput.target.value }))}
                   required={!contactForm.isPublicQuestion}
                 />
+                <small>
+                  {contactForm.isPublicQuestion
+                    ? 'Przy pytaniu publicznym telefon jest zalecany (ułatwia szybki kontakt), ale nieobowiązkowy.'
+                    : 'Przy pytaniu prywatnym telefon jest wymagany.'}
+                </small>
               </label>
               <label>
                 Rodzaj odpowiedzi
@@ -592,7 +618,7 @@ function Kal26ContactPage({
                   }
                 >
                   <option value="private">Odpowiedź prywatna (telefon wymagany)</option>
-                  <option value="public">Odpowiedź publiczna (pytanie może być opublikowane)</option>
+                  <option value="public">Odpowiedź publiczna (telefon zalecany, pytanie może być opublikowane)</option>
                 </select>
               </label>
               <label>
@@ -694,6 +720,35 @@ function Kal26ContactPage({
                     disabled={organizerSavingId === `inquiry:${entry.id}`}
                   >
                     {organizerSavingId === `inquiry:${entry.id}` ? 'Zapisywanie...' : 'Zapisz odpowiedz'}
+                  </button>
+                  {entry.phone ? (
+                    <a
+                      className="ghost"
+                      href={buildInquirySmsHref(
+                        entry.phone,
+                        entry.topic,
+                        inquiryDrafts[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                      ) || undefined}
+                      onClick={(eventClick) => {
+                        const href = buildInquirySmsHref(
+                          entry.phone,
+                          entry.topic,
+                          inquiryDrafts[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                        );
+                        if (!href) {
+                          eventClick.preventDefault();
+                        }
+                      }}
+                    >
+                      Wyślij SMS z odpowiedzią
+                    </a>
+                  ) : null}
+                  <button
+                    className="ghost"
+                    onClick={() => void handleInquiryDelete(entry.id)}
+                    disabled={organizerSavingId === `inquiry:${entry.id}`}
+                  >
+                    {organizerSavingId === `inquiry:${entry.id}` ? 'Usuwanie...' : 'Usun pytanie'}
                   </button>
                 </article>
               ))}
@@ -1846,6 +1901,26 @@ export function Kal26EventPage({
       setPublicContactAnswers(answers);
     } catch (error: unknown) {
       setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie zaktualizowac zapytania.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
+  const handleInquiryDelete = async (inquiryId: string) => {
+    if (!site?.id) return;
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`inquiry:${inquiryId}`);
+    try {
+      await deletePilgrimageInquiry(site.id, inquiryId);
+      setInquiryDrafts((previous) => {
+        const next = { ...previous };
+        delete next[inquiryId];
+        return next;
+      });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie usunac pytania.');
     } finally {
       setOrganizerSavingId(null);
     }
@@ -3085,6 +3160,37 @@ export function Kal26EventPage({
                 >
                   {organizerSavingId === `inquiry:${entry.id}` ? 'Zapisywanie...' : 'Zapisz status'}
                 </button>
+                {entry.phone ? (
+                  <a
+                    className="ghost"
+                    href={
+                      buildInquirySmsHref(
+                        entry.phone,
+                        entry.topic,
+                        inquiryDrafts[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                      ) || undefined
+                    }
+                    onClick={(eventClick) => {
+                      const href = buildInquirySmsHref(
+                        entry.phone,
+                        entry.topic,
+                        inquiryDrafts[entry.id]?.publicAnswer ?? entry.publicAnswer ?? ''
+                      );
+                      if (!href) {
+                        eventClick.preventDefault();
+                      }
+                    }}
+                  >
+                    Wyślij SMS z odpowiedzią
+                  </a>
+                ) : null}
+                <button
+                  className="ghost"
+                  onClick={() => void handleInquiryDelete(entry.id)}
+                  disabled={organizerSavingId === `inquiry:${entry.id}`}
+                >
+                  {organizerSavingId === `inquiry:${entry.id}` ? 'Usuwanie...' : 'Usun pytanie'}
+                </button>
               </article>
             ))}
             {organizerDashboard.inquiries.length === 0 ? <p>Brak zapytan kontaktowych.</p> : null}
@@ -3196,6 +3302,7 @@ export function Kal26EventPage({
               inquiryDrafts={inquiryDrafts}
               setInquiryDrafts={setInquiryDrafts}
               handleInquiryUpdate={handleInquiryUpdate}
+              handleInquiryDelete={handleInquiryDelete}
               organizerSavingId={organizerSavingId}
               organizerActionError={organizerActionError}
             />

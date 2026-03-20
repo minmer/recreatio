@@ -22,7 +22,13 @@ public static class PilgrimageEndpoints
     private const string RoleKindMedical = "pilgrimage-medical";
     private const string RoleKindPublic = "pilgrimage-public";
 
-    private static readonly string[] AllowedVariants = ["full", "saturday", "without-lodging", "with-lodging"];
+    private static readonly string[] AllowedVariants =
+    [
+        "full",
+        "saturday",
+        "without-lodging",
+        "with-lodging"
+    ];
     private static readonly string[] AllowedTaskStatuses = ["todo", "doing", "done", "urgent"];
     private static readonly string[] AllowedTaskPriorities = ["low", "normal", "high", "critical"];
     private static readonly string[] AllowedAudiences = ["public", "participant", "organizer", "all"];
@@ -171,7 +177,7 @@ public static class PilgrimageEndpoints
             {
                 if (string.Equals(normalizedSlug, "kal26", StringComparison.OrdinalIgnoreCase))
                 {
-                    var defaultSite = CreateDefaultKal26Site();
+                    var defaultSite = CreateDefaultSiteForSlug("kal26");
                     return Results.Ok(new PilgrimageSiteResponse(
                         null,
                         "kal26",
@@ -192,7 +198,7 @@ public static class PilgrimageEndpoints
 
             var config = await dbContext.PilgrimageSiteConfigs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.EventId == pilgrimage.Id && x.IsPublished, ct);
-            var site = config is null ? CreateDefaultKal26Site() : DeserializeSiteConfig(config);
+            var site = config is null ? CreateDefaultSiteForSlug(pilgrimage.Slug) : DeserializeSiteConfig(config, pilgrimage.Slug);
 
             return Results.Ok(new PilgrimageSiteResponse(
                 pilgrimage.Id,
@@ -260,7 +266,7 @@ public static class PilgrimageEndpoints
             {
                 var config = await dbContext.PilgrimageSiteConfigs.AsNoTracking()
                     .FirstOrDefaultAsync(x => x.EventId == existing.Id && x.IsPublished, ct);
-                var site = config is null ? CreateDefaultKal26Site() : DeserializeSiteConfig(config);
+                var site = config is null ? CreateDefaultSiteForSlug(existing.Slug) : DeserializeSiteConfig(config, existing.Slug);
                 return Results.Ok(new PilgrimageSiteResponse(
                     existing.Id,
                     existing.Slug,
@@ -286,7 +292,7 @@ public static class PilgrimageEndpoints
                 "Kalwaria Zebrzydowska",
                 42,
                 "pilgrimage",
-                CreateDefaultKal26Site());
+                CreateDefaultSiteForSlug("kal26"));
 
             return await CreatePilgrimageInternalAsync(
                 request,
@@ -423,7 +429,10 @@ public static class PilgrimageEndpoints
                 var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
                 var expiresUtc = now.AddDays(120);
 
+                await using var registrationTx = await dbContext.Database.BeginTransactionAsync(ct);
                 dbContext.PilgrimageParticipants.Add(participant);
+                await dbContext.SaveChangesAsync(ct);
+
                 dbContext.PilgrimageParticipantAccessTokens.Add(new PilgrimageParticipantAccessToken
                 {
                     Id = Guid.NewGuid(),
@@ -433,8 +442,8 @@ public static class PilgrimageEndpoints
                     ExpiresUtc = expiresUtc,
                     CreatedUtc = now
                 });
-
                 await dbContext.SaveChangesAsync(ct);
+                await registrationTx.CommitAsync(ct);
 
                 await ledgerService.AppendBusinessAsync(
                     "PilgrimageRegistrationCreated",
@@ -454,6 +463,7 @@ public static class PilgrimageEndpoints
                 var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
                 if (IsPublicFallbackEnabledSlug(normalizedSlug))
                 {
+                    dbContext.ChangeTracker.Clear();
                     await ledgerService.AppendBusinessAsync(
                         "PilgrimageRegistrationFallbackCaptured",
                         "public",
@@ -658,7 +668,7 @@ public static class PilgrimageEndpoints
 
             var config = await dbContext.PilgrimageSiteConfigs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.EventId == pilgrimage.Id && x.IsPublished, ct);
-            var site = config is null ? CreateDefaultKal26Site() : DeserializeSiteConfig(config);
+            var site = config is null ? CreateDefaultSiteForSlug(pilgrimage.Slug) : DeserializeSiteConfig(config, pilgrimage.Slug);
 
             var announcements = await dbContext.PilgrimageAnnouncements.AsNoTracking()
                 .Where(x => x.EventId == pilgrimage.Id && (x.Audience == "participant" || x.Audience == "all"))
@@ -923,7 +933,7 @@ public static class PilgrimageEndpoints
 
             var config = await dbContext.PilgrimageSiteConfigs.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.EventId == pilgrimage.Id && x.IsPublished, ct);
-            var site = config is null ? CreateDefaultKal26Site() : DeserializeSiteConfig(config);
+            var site = config is null ? CreateDefaultSiteForSlug(pilgrimage.Slug) : DeserializeSiteConfig(config, pilgrimage.Slug);
 
             var stats = new PilgrimageOrganizerStatsResponse(
                 participants.Count,
@@ -1383,6 +1393,65 @@ public static class PilgrimageEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        group.MapDelete("/{eventId:guid}/organizer/inquiries/{inquiryId:guid}", async (
+            Guid eventId,
+            Guid inquiryId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eventId, ct);
+            if (pilgrimage is null)
+            {
+                return Results.NotFound();
+            }
+
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
+            {
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+            }
+
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
+            {
+                return Results.Forbid();
+            }
+
+            var inquiry = await dbContext.PilgrimageContactInquiries
+                .FirstOrDefaultAsync(x => x.EventId == eventId && x.Id == inquiryId, ct);
+            if (inquiry is null)
+            {
+                return Results.NotFound();
+            }
+
+            dbContext.PilgrimageContactInquiries.Remove(inquiry);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendBusinessAsync(
+                "PilgrimageContactInquiryDeleted",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { pilgrimageId = pilgrimage.Id, inquiryId }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
         group.MapGet("/{eventId:guid}/organizer/exports/{kind}.csv", async (
             Guid eventId,
             string kind,
@@ -1824,6 +1893,7 @@ public static class PilgrimageEndpoints
 
             var importedRegistrations = 0;
             var skippedRegistrations = 0;
+            var pendingTokens = new List<PilgrimageParticipantAccessToken>();
             var now = DateTimeOffset.UtcNow;
             foreach (var source in sourceRows)
             {
@@ -1896,7 +1966,7 @@ public static class PilgrimageEndpoints
                 dbContext.PilgrimageParticipants.Add(participant);
                 var token = CreateParticipantAccessToken();
                 var tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-                dbContext.PilgrimageParticipantAccessTokens.Add(new PilgrimageParticipantAccessToken
+                pendingTokens.Add(new PilgrimageParticipantAccessToken
                 {
                     Id = Guid.NewGuid(),
                     EventId = pilgrimage.Id,
@@ -1909,7 +1979,17 @@ public static class PilgrimageEndpoints
                 importedRegistrations += 1;
             }
 
-            await dbContext.SaveChangesAsync(ct);
+            await using (var importTx = await dbContext.Database.BeginTransactionAsync(ct))
+            {
+                await dbContext.SaveChangesAsync(ct);
+                if (pendingTokens.Count > 0)
+                {
+                    dbContext.PilgrimageParticipantAccessTokens.AddRange(pendingTokens);
+                    await dbContext.SaveChangesAsync(ct);
+                }
+
+                await importTx.CommitAsync(ct);
+            }
 
             await ledgerService.AppendBusinessAsync(
                 "PilgrimageRegistrationsImported",
@@ -2131,7 +2211,7 @@ public static class PilgrimageEndpoints
         var participantServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "participant", participantData.DataKey);
         var emergencyServerKeyEnc = ProtectEventDataKey(dataProtectionProvider, eventId, "emergency", emergencyData.DataKey);
 
-        var site = NormalizeSiteDocument(request.Site ?? CreateDefaultKal26Site());
+        var site = NormalizeSiteDocument(request.Site ?? CreateDefaultSiteForSlug(normalizedSlug));
         var pilgrimage = new PilgrimageEvent
         {
             Id = eventId,
@@ -2200,21 +2280,22 @@ public static class PilgrimageEndpoints
             true));
     }
 
-    private static PilgrimageSiteDocument DeserializeSiteConfig(PilgrimageSiteConfig config)
+    private static PilgrimageSiteDocument DeserializeSiteConfig(PilgrimageSiteConfig config, string? slug)
     {
         try
         {
+            var defaultSite = CreateDefaultSiteForSlug(slug);
             var publicConfig = JsonSerializer.Deserialize<PilgrimagePublicConfig>(config.PublicConfigJson)
-                ?? CreateDefaultKal26Site().Public;
+                ?? defaultSite.Public;
             var participantConfig = JsonSerializer.Deserialize<PilgrimageZoneConfig>(config.ParticipantConfigJson)
-                ?? CreateDefaultKal26Site().Participant;
+                ?? defaultSite.Participant;
             var organizerConfig = JsonSerializer.Deserialize<PilgrimageZoneConfig>(config.OrganizerConfigJson)
-                ?? CreateDefaultKal26Site().Organizer;
+                ?? defaultSite.Organizer;
             return NormalizeSiteDocument(new PilgrimageSiteDocument(publicConfig, participantConfig, organizerConfig));
         }
         catch (JsonException)
         {
-            return CreateDefaultKal26Site();
+            return CreateDefaultSiteForSlug(slug);
         }
     }
 
@@ -2847,6 +2928,11 @@ public static class PilgrimageEndpoints
         });
 
         await dbContext.SaveChangesAsync(ct);
+    }
+
+    private static PilgrimageSiteDocument CreateDefaultSiteForSlug(string? slug)
+    {
+        return CreateDefaultKal26Site();
     }
 
     private static PilgrimageSiteDocument CreateDefaultKal26Site()

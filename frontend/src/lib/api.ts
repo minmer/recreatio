@@ -4070,6 +4070,91 @@ export type PilgrimageOrganizerDashboard = {
   zone: PilgrimageZoneConfig;
 };
 
+export type EdkRoutePoint = {
+  type: 'start' | 'station' | 'finish' | 'distance';
+  title_pl: string;
+  url: string;
+  distance_km: string;
+};
+
+export type EdkSiteDocument = {
+  routePoints: EdkRoutePoint[];
+};
+
+export type EdkSite = {
+  id?: string | null;
+  slug: string;
+  name: string;
+  motto: string;
+  startDate: string;
+  endDate: string;
+  startLocation: string;
+  endLocation: string;
+  organizerName: string;
+  organizerEmail: string;
+  organizerPhone: string;
+  site: EdkSiteDocument;
+  isProvisioned: boolean;
+};
+
+export type EdkRegistrationRequest = {
+  fullName: string;
+  phone: string;
+  participantStatus: 'adult' | 'minor_with_guardian' | 'adult_guardian_for_minor';
+  additionalInfo?: string | null;
+};
+
+export type EdkRegistrationResponse = {
+  registrationId: string;
+  submittedUtc: string;
+};
+
+export type EdkOrganizerRegistrationRow = {
+  id: string;
+  fullName: string;
+  phone: string;
+  participantStatus: string;
+  additionalInfo?: string | null;
+  createdUtc: string;
+};
+
+export type EdkOrganizerStats = {
+  registrations: number;
+  adults: number;
+  minorsWithGuardian: number;
+  adultGuardiansForMinor: number;
+};
+
+export type EdkOrganizerDashboard = {
+  stats: EdkOrganizerStats;
+  registrations: EdkOrganizerRegistrationRow[];
+};
+
+export type EdkRegistrationExport = {
+  eventId: string;
+  slug: string;
+  exportedUtc: string;
+  rows: EdkOrganizerRegistrationRow[];
+};
+
+export function getEdkSite(slug: string) {
+  return request<EdkSite>(`/edk/${slug}`, {
+    method: 'GET'
+  });
+}
+
+export function createEdkRegistration(slug: string, payload: EdkRegistrationRequest) {
+  return request<EdkRegistrationResponse>(`/edk/${slug}/public/registrations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      participantStatus: payload.participantStatus,
+      additionalInfo: payload.additionalInfo ?? null
+    })
+  });
+}
+
 export function getPilgrimageSite(slug: string) {
   return request<PilgrimageSite>(`/pilgrimage/${slug}`, {
     method: 'GET'
@@ -4160,9 +4245,28 @@ export function claimEventsLimanowaAdmin() {
 }
 
 export function bootstrapKal26Event() {
-  return request('/pilgrimage/admin/events-limanowa/bootstrap-kal26', {
+  return request<PilgrimageSite>('/pilgrimage/admin/events-limanowa/bootstrap-kal26', {
     method: 'POST',
     body: JSON.stringify({})
+  });
+}
+
+export function bootstrapEdk26Event() {
+  return request<EdkSite>('/edk/admin/events-limanowa/bootstrap-edk26', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getEdkOrganizerDashboard(eventId: string) {
+  return request<EdkOrganizerDashboard>(`/edk/${eventId}/organizer/dashboard`, {
+    method: 'GET'
+  });
+}
+
+export function exportEdkRegistrations(eventId: string) {
+  return request<EdkRegistrationExport>(`/edk/${eventId}/organizer/registrations/export`, {
+    method: 'GET'
   });
 }
 
@@ -4300,6 +4404,12 @@ export function updatePilgrimageInquiry(
       status: payload.status,
       publicAnswer: payload.publicAnswer ?? null
     })
+  });
+}
+
+export function deletePilgrimageInquiry(eventId: string, inquiryId: string) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/inquiries/${inquiryId}`, {
+    method: 'DELETE'
   });
 }
 

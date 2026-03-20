@@ -5,9 +5,18 @@ import { AuthAction } from '../../components/AuthAction';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
 import { WarsztatyEventPage } from './WarsztatyEventPage';
 import { Kal26EventPage } from './Kal26EventPage';
+import { Edk26EventPage } from './Edk26EventPage';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
+  {
+    slug: 'edk26',
+    title: 'EDK 2026',
+    summary: 'Nocna droga w małej wspólnocie: Kraków → Dobczyce.',
+    date: '27/28.03.2026',
+    location: 'Kraków - Dobczyce',
+    pages: [{ slug: 'start', title: 'Start' }]
+  },
   {
     slug: 'warsztaty26',
     title: 'Warsztaty Muzyki Liturgicznej 2026',
@@ -78,7 +87,8 @@ const EVENT_PAGE_RENDERERS: Record<
   (props: EventPageRendererProps) => JSX.Element
 > = {
   warsztaty26: WarsztatyEventPage,
-  kal26: Kal26EventPage
+  kal26: Kal26EventPage,
+  edk26: Edk26EventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {
@@ -86,8 +96,9 @@ export function EventsPage(props: SharedEventPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const segments = useMemo(() => location.pathname.split('/').filter(Boolean), [location.pathname]);
+  const routeRoot = segments[0] ?? 'event';
   const selectedEventSlug = segments[1] ?? null;
-  const selectedPageSlugRaw = segments[2] ?? null;
+  const selectedPageSlugRaw = routeRoot === 'event' ? segments[2] ?? null : null;
 
   const selectedEvent = selectedEventSlug ? EVENTS.find((entry) => entry.slug === selectedEventSlug) ?? null : null;
   const selectedPageSlug =
@@ -95,17 +106,25 @@ export function EventsPage(props: SharedEventPageProps) {
       ? (KAL26_ROUTE_ALIASES[selectedPageSlugRaw ?? ''] ?? selectedPageSlugRaw)
       : selectedPageSlugRaw;
   const defaultPage = selectedEvent?.pages[0] ?? null;
+  const isDirectEdkRoute = routeRoot === 'event' && selectedEvent?.slug === 'edk26' && !selectedPageSlugRaw;
   const selectedInnerPage =
     selectedEvent && selectedPageSlug
       ? selectedEvent.pages.find((eventPage) => eventPage.slug === selectedPageSlug) ?? null
       : defaultPage;
 
   useEffect(() => {
+    if (isDirectEdkRoute) return;
     if (!selectedEvent || selectedPageSlug) return;
     const firstPage = selectedEvent.pages[0];
     if (!firstPage) return;
     navigate(`/event/${selectedEvent.slug}/${firstPage.slug}`, { replace: true });
-  }, [navigate, selectedEvent, selectedPageSlugRaw]);
+  }, [isDirectEdkRoute, navigate, selectedEvent, selectedPageSlug]);
+
+  if (selectedEvent?.slug === 'edk26' && routeRoot === 'event') {
+    const EventPageRenderer = EVENT_PAGE_RENDERERS.edk26;
+    const fallbackPage = selectedEvent.pages[0] ?? { slug: 'start', title: 'Start' };
+    return <EventPageRenderer {...props} event={selectedEvent} page={fallbackPage} />;
+  }
 
   if (selectedEvent && selectedInnerPage) {
     const EventPageRenderer = EVENT_PAGE_RENDERERS[selectedEvent.slug];
@@ -150,21 +169,25 @@ export function EventsPage(props: SharedEventPageProps) {
             <div className="events-grid">
               {EVENTS.map((eventEntry) => {
                 const firstPage = eventEntry.pages[0];
+                const eventHref =
+                  eventEntry.slug === 'edk26'
+                    ? '/#/event/edk26'
+                    : `/#/event/${eventEntry.slug}/${firstPage.slug}`;
                 return (
                   <article key={eventEntry.slug} className={`events-card events-card--${eventEntry.slug}`}>
                     <h3>{eventEntry.title}</h3>
                     <p>{eventEntry.summary}</p>
                     <dl>
                       <div>
-                        <dt>Date</dt>
+                        <dt>Data</dt>
                         <dd>{eventEntry.date}</dd>
                       </div>
                       <div>
-                        <dt>Location</dt>
+                        <dt>Miejsce</dt>
                         <dd>{eventEntry.location}</dd>
                       </div>
                     </dl>
-                    <a className="cta" href={`/#/event/${eventEntry.slug}/${firstPage.slug}`}>
+                    <a className="cta" href={eventHref}>
                       {copy.events.openEvent}
                     </a>
                   </article>

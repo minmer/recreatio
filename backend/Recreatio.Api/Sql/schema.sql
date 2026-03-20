@@ -33,6 +33,9 @@ IF OBJECT_ID(N'pilgrimage.PilgrimageParticipantAccessTokens', N'U') IS NOT NULL 
 IF OBJECT_ID(N'pilgrimage.PilgrimageParticipants', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageParticipants;
 IF OBJECT_ID(N'pilgrimage.PilgrimageSiteConfigs', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageSiteConfigs;
 IF OBJECT_ID(N'pilgrimage.PilgrimageEvents', N'U') IS NOT NULL DROP TABLE pilgrimage.PilgrimageEvents;
+IF OBJECT_ID(N'edk.EdkRegistrations', N'U') IS NOT NULL DROP TABLE edk.EdkRegistrations;
+IF OBJECT_ID(N'edk.EdkSiteConfigs', N'U') IS NOT NULL DROP TABLE edk.EdkSiteConfigs;
+IF OBJECT_ID(N'edk.EdkEvents', N'U') IS NOT NULL DROP TABLE edk.EdkEvents;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkMultis;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkSingles;
 IF OBJECT_ID(N'dbo.CogitaCollectionGraphEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaCollectionGraphEdges;
@@ -3004,6 +3007,78 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_PortalAdminAssignments_ScopeKey' AND object_id = OBJECT_ID('pilgrimage.PortalAdminAssignments'))
 BEGIN
     CREATE UNIQUE INDEX UX_PortalAdminAssignments_ScopeKey ON pilgrimage.PortalAdminAssignments(ScopeKey);
+END
+GO
+
+-- EDK event module
+-- Dedicated tables in separate [edk] schema, distinct from pilgrimage data.
+
+SET NOCOUNT ON;
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'edk')
+BEGIN
+    EXEC('CREATE SCHEMA edk AUTHORIZATION dbo;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EdkEvents' AND schema_id = SCHEMA_ID('edk'))
+BEGIN
+    CREATE TABLE edk.EdkEvents
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        Slug NVARCHAR(80) NOT NULL,
+        Name NVARCHAR(200) NOT NULL,
+        Motto NVARCHAR(220) NOT NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        StartLocation NVARCHAR(160) NOT NULL,
+        EndLocation NVARCHAR(160) NOT NULL,
+        OrganizerName NVARCHAR(160) NOT NULL,
+        OrganizerEmail NVARCHAR(180) NOT NULL,
+        OrganizerPhone NVARCHAR(32) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_EdkEvents_Slug UNIQUE (Slug)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EdkSiteConfigs' AND schema_id = SCHEMA_ID('edk'))
+BEGIN
+    CREATE TABLE edk.EdkSiteConfigs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        SiteConfigJson NVARCHAR(MAX) NOT NULL,
+        IsPublished BIT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_EdkSiteConfigs_Event UNIQUE (EventId),
+        CONSTRAINT FK_EdkSiteConfigs_Event FOREIGN KEY (EventId) REFERENCES edk.EdkEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'EdkRegistrations' AND schema_id = SCHEMA_ID('edk'))
+BEGIN
+    CREATE TABLE edk.EdkRegistrations
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        FullName NVARCHAR(200) NOT NULL,
+        Phone NVARCHAR(32) NOT NULL,
+        ParticipantStatus NVARCHAR(64) NOT NULL,
+        AdditionalInfo NVARCHAR(2400) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_EdkRegistrations_Event FOREIGN KEY (EventId) REFERENCES edk.EdkEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_EdkRegistrations_EventCreated' AND object_id = OBJECT_ID('edk.EdkRegistrations'))
+BEGIN
+    CREATE INDEX IX_EdkRegistrations_EventCreated ON edk.EdkRegistrations(EventId, CreatedUtc);
 END
 GO
 

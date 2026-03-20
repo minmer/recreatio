@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
 
 .portal-page.events {
   min-height: 100vh;
@@ -92,6 +93,10 @@
 
 .events-card--kal26 {
   border-color: rgba(20, 90, 44, 0.28);
+}
+
+.events-card--edk26 {
+  border-color: rgba(94, 22, 33, 0.34);
 }
 
 .events-card h3 {
@@ -1165,6 +1170,510 @@
   opacity: 0.95;
 }
 
+.edk-page {
+  --edk-bg: #0E0E10;
+  --edk-bg-alt: #171419;
+  --edk-accent: #5E1621;
+  --edk-accent-hover: #7A2230;
+  --edk-text: #F2EEE8;
+  --edk-muted: #B8AEA4;
+  --edk-divider: #8E7A62;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 14%, rgba(142, 122, 98, 0.18), transparent 42%),
+    radial-gradient(circle at 86% 2%, rgba(94, 22, 33, 0.2), transparent 38%),
+    linear-gradient(180deg, #0E0E10 0%, #111014 48%, #0E0E10 100%);
+  color: var(--edk-text);
+  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+}
+
+.edk-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(10px);
+  background: rgba(14, 14, 16, 0.92);
+  border-bottom: 1px solid rgba(142, 122, 98, 0.35);
+}
+
+.edk-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.75rem 5vw;
+}
+
+.edk-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.edk-back-link {
+  text-decoration: none;
+  color: var(--edk-text);
+  border: 1px solid rgba(142, 122, 98, 0.4);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+}
+
+.edk-top-nav {
+  display: flex;
+  gap: 0.3rem;
+  overflow-x: auto;
+  padding: 0 5vw 0.6rem;
+  scrollbar-width: thin;
+}
+
+.edk-top-nav button {
+  border: 1px solid rgba(142, 122, 98, 0.38);
+  background: transparent;
+  color: var(--edk-text);
+  border-radius: 999px;
+  padding: 0.35rem 0.62rem;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.edk-top-nav button.active {
+  background: rgba(94, 22, 33, 0.95);
+  border-color: rgba(142, 122, 98, 0.6);
+}
+
+.edk-main {
+  display: grid;
+  gap: 1.05rem;
+  padding: 1.1rem 5vw 1.4rem;
+  scroll-behavior: smooth;
+}
+
+.edk-hero {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 18px;
+  overflow: hidden;
+  position: relative;
+  min-height: clamp(470px, 68vh, 720px);
+}
+
+.edk-hero-media {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(185deg, rgba(8, 9, 12, 0.74), rgba(8, 9, 12, 0.9)),
+    linear-gradient(145deg, rgba(94, 22, 33, 0.35), rgba(14, 14, 16, 0.46)),
+    url('/parish/trip.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.edk-hero-overlay {
+  position: relative;
+  z-index: 1;
+  padding: clamp(1.2rem, 4vw, 2.8rem);
+  max-width: 860px;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.edk-hero-badge {
+  margin: 0;
+  width: fit-content;
+  border: 1px solid rgba(142, 122, 98, 0.5);
+  border-radius: 999px;
+  padding: 0.34rem 0.8rem;
+  color: var(--edk-text);
+  background: rgba(14, 14, 16, 0.72);
+  font-size: 0.85rem;
+}
+
+.edk-hero h1 {
+  margin: 0;
+  font-size: clamp(2.05rem, 5vw, 3.8rem);
+  line-height: 1.12;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 600;
+}
+
+.edk-hero h1 span {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: clamp(1.35rem, 2.7vw, 2rem);
+  color: var(--edk-muted);
+}
+
+.edk-hero p {
+  margin: 0;
+  line-height: 1.68;
+  color: var(--edk-text);
+}
+
+.edk-hero-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.edk-hero small {
+  color: var(--edk-muted);
+  font-size: 0.91rem;
+}
+
+.edk-section {
+  border: 1px solid rgba(142, 122, 98, 0.3);
+  border-radius: 16px;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(94, 22, 33, 0.2), transparent 44%),
+    linear-gradient(180deg, rgba(23, 20, 25, 0.94), rgba(14, 14, 16, 0.94));
+}
+
+.edk-reveal {
+  animation: edkFadeIn 360ms ease both;
+}
+
+@keyframes edkFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.edk-section header h2,
+.edk-section header h3 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.edk-section header p {
+  margin: 0.45rem 0 0;
+  color: var(--edk-muted);
+}
+
+.edk-section-body {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.8rem;
+}
+
+.edk-section-body p {
+  margin: 0;
+  line-height: 1.68;
+}
+
+.edk-section-body ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.38rem;
+}
+
+.edk-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.edk-card {
+  border: 1px solid rgba(142, 122, 98, 0.38);
+  border-radius: 12px;
+  background: rgba(14, 14, 16, 0.8);
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.edk-card h3,
+.edk-card p {
+  margin: 0;
+}
+
+.edk-card p {
+  color: var(--edk-muted);
+}
+
+.edk-plan-layout {
+  display: grid;
+  grid-template-columns: 1.3fr 0.9fr;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.edk-timeline,
+.edk-summary-card {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.edk-step-card,
+.edk-summary-card {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 12px;
+  background: rgba(14, 14, 16, 0.72);
+  padding: 0.76rem;
+}
+
+.edk-step-card h3,
+.edk-step-card p,
+.edk-summary-card h3 {
+  margin: 0;
+}
+
+.edk-step-card p,
+.edk-summary-card ul {
+  margin-top: 0.5rem;
+  color: var(--edk-muted);
+}
+
+.edk-summary-card ul {
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.edk-route-meta {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.6rem;
+}
+
+.edk-route-meta article {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 10px;
+  background: rgba(14, 14, 16, 0.74);
+  padding: 0.68rem;
+}
+
+.edk-route-meta h4,
+.edk-route-meta p {
+  margin: 0;
+}
+
+.edk-route-meta p {
+  margin-top: 0.42rem;
+  color: var(--edk-muted);
+}
+
+.edk-route-list {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.edk-route-item {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 10px;
+  background: rgba(14, 14, 16, 0.74);
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.edk-route-item h4,
+.edk-route-item p {
+  margin: 0;
+}
+
+.edk-route-item a {
+  color: var(--edk-text);
+}
+
+.edk-route-item p {
+  color: var(--edk-muted);
+}
+
+.edk-route-distance {
+  border-left: 2px solid rgba(142, 122, 98, 0.5);
+  padding: 0.4rem 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  color: var(--edk-muted);
+}
+
+.edk-faq-list {
+  margin-top: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.edk-faq-list details {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 10px;
+  background: rgba(14, 14, 16, 0.74);
+  padding: 0.58rem 0.7rem;
+}
+
+.edk-faq-list summary {
+  cursor: pointer;
+}
+
+.edk-faq-list p {
+  margin: 0.55rem 0 0;
+  color: var(--edk-muted);
+}
+
+.edk-section-cta {
+  background:
+    radial-gradient(circle at 92% 8%, rgba(94, 22, 33, 0.26), transparent 40%),
+    linear-gradient(180deg, rgba(23, 20, 25, 0.98), rgba(14, 14, 16, 0.96));
+}
+
+.edk-inline-note {
+  margin: 0.65rem 0 0;
+  color: var(--edk-muted);
+}
+
+.edk-form {
+  margin-top: 0.8rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.edk-form label {
+  display: grid;
+  gap: 0.34rem;
+}
+
+.edk-form input,
+.edk-form select,
+.edk-form textarea {
+  border: 1px solid rgba(142, 122, 98, 0.4);
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  color: var(--edk-text);
+  background: rgba(14, 14, 16, 0.78);
+}
+
+.edk-form textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.edk-form small {
+  color: var(--edk-muted);
+}
+
+.edk-consent {
+  margin: 0;
+  color: var(--edk-muted);
+  line-height: 1.58;
+}
+
+.edk-consent a {
+  color: var(--edk-text);
+}
+
+.edk-admin-block {
+  margin-top: 1rem;
+  border: 1px solid rgba(142, 122, 98, 0.36);
+  border-radius: 12px;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.66rem;
+  background: rgba(14, 14, 16, 0.72);
+}
+
+.edk-admin-block header h3,
+.edk-admin-block header p {
+  margin: 0;
+}
+
+.edk-admin-block header p {
+  margin-top: 0.35rem;
+  color: var(--edk-muted);
+}
+
+.edk-admin-warning {
+  border: 1px solid rgba(142, 122, 98, 0.46);
+  border-radius: 10px;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.48rem;
+}
+
+.edk-admin-warning p {
+  margin: 0;
+  color: var(--edk-muted);
+}
+
+.edk-admin-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.edk-admin-table-wrap {
+  overflow-x: auto;
+}
+
+.edk-admin-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.edk-admin-table-wrap th,
+.edk-admin-table-wrap td {
+  border-bottom: 1px solid rgba(142, 122, 98, 0.3);
+  padding: 0.45rem 0.35rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.edk-contact-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.edk-contact-card {
+  border: 1px solid rgba(142, 122, 98, 0.35);
+  border-radius: 12px;
+  background: rgba(14, 14, 16, 0.74);
+  padding: 0.75rem;
+}
+
+.edk-contact-card h3,
+.edk-contact-card p {
+  margin: 0;
+}
+
+.edk-contact-card p {
+  margin-top: 0.46rem;
+}
+
+.edk-contact-card a {
+  color: var(--edk-text);
+}
+
+.edk-contact-actions {
+  margin-top: 0.7rem;
+}
+
+.edk-footer {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(142, 122, 98, 0.35);
+  padding: 1rem 5vw 1.25rem;
+  background: rgba(14, 14, 16, 0.92);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.edk-footer p {
+  margin: 0;
+  color: var(--edk-muted);
+}
+
 .pilgrimage-mobile-sticky {
   display: none;
 }
@@ -1236,6 +1745,25 @@
     bottom: 0.8rem;
     justify-self: start;
     z-index: 5;
+  }
+
+  .edk-header-main,
+  .edk-top-nav,
+  .edk-main,
+  .edk-footer {
+    padding-left: 4vw;
+    padding-right: 4vw;
+  }
+
+  .edk-card-grid,
+  .edk-plan-layout,
+  .edk-contact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edk-admin-tools {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
