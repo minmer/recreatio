@@ -29,24 +29,39 @@ BEGIN TRY
     END;
 
     DECLARE @nowUtc DATETIMEOFFSET = SYSUTCDATETIME();
-    DECLARE @removedLinks TABLE
+    DECLARE @revokedCount INT = 0;
+    DECLARE @deletedCount INT = 0;
+    CREATE TABLE #removedLinks
     (
         LibraryId UNIQUEIDENTIFIER NOT NULL,
         ProjectId UNIQUEIDENTIFIER NOT NULL
     );
 
-    UPDATE dbo.CogitaStoryboardShares
-    SET RevokedUtc = COALESCE(RevokedUtc, @nowUtc)
-    WHERE RevokedUtc IS NULL
-      AND (EncLibraryReadKey IS NULL OR DATALENGTH(EncLibraryReadKey) = 0);
+    DECLARE @sqlRevoke NVARCHAR(MAX) = N'
+        UPDATE dbo.CogitaStoryboardShares
+        SET RevokedUtc = COALESCE(RevokedUtc, @nowUtc)
+        WHERE RevokedUtc IS NULL
+          AND (EncLibraryReadKey IS NULL OR DATALENGTH(EncLibraryReadKey) = 0);
+        SELECT @affected = @@ROWCOUNT;
+    ';
 
-    DECLARE @revokedCount INT = @@ROWCOUNT;
+    EXEC sp_executesql
+        @sqlRevoke,
+        N'@nowUtc DATETIMEOFFSET, @affected INT OUTPUT',
+        @nowUtc = @nowUtc,
+        @affected = @revokedCount OUTPUT;
 
-    DELETE FROM dbo.CogitaStoryboardShares
-    OUTPUT deleted.LibraryId, deleted.ProjectId INTO @removedLinks(LibraryId, ProjectId)
-    WHERE EncLibraryReadKey IS NULL OR DATALENGTH(EncLibraryReadKey) = 0;
+    DECLARE @sqlDelete NVARCHAR(MAX) = N'
+        DELETE FROM dbo.CogitaStoryboardShares
+        OUTPUT deleted.LibraryId, deleted.ProjectId INTO #removedLinks(LibraryId, ProjectId)
+        WHERE EncLibraryReadKey IS NULL OR DATALENGTH(EncLibraryReadKey) = 0;
+        SELECT @affected = @@ROWCOUNT;
+    ';
 
-    DECLARE @deletedCount INT = @@ROWCOUNT;
+    EXEC sp_executesql
+        @sqlDelete,
+        N'@affected INT OUTPUT',
+        @affected = @deletedCount OUTPUT;
 
     COMMIT TRANSACTION;
 
@@ -59,7 +74,7 @@ BEGIN TRY
         removed.LibraryId,
         removed.ProjectId,
         project.Name AS ProjectName
-    FROM @removedLinks AS removed
+    FROM #removedLinks AS removed
     LEFT JOIN dbo.CogitaCreationProjects AS project
         ON project.Id = removed.ProjectId
        AND project.LibraryId = removed.LibraryId

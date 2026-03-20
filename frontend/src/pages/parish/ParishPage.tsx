@@ -1875,6 +1875,10 @@ export function ParishPage({
   const [confirmationMeetingSlotInviteInputs, setConfirmationMeetingSlotInviteInputs] = useState<Record<string, string>>({});
   const [confirmationMeetingJoinTargetSlotId, setConfirmationMeetingJoinTargetSlotId] = useState<string | null>(null);
   const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'messages' | 'notes' | 'print'>('submissions');
+  const [confirmationSubmissionsFilter, setConfirmationSubmissionsFilter] = useState<
+    'all' | 'no-meeting' | 'no-paper-consent' | 'unverified-phone' | 'needs-follow-up'
+  >('all');
+  const [confirmationSubmissionsSearch, setConfirmationSubmissionsSearch] = useState('');
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
@@ -2358,6 +2362,63 @@ export function ParishPage({
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName, 'pl'));
   }, [confirmationCandidates]);
+
+  const confirmationSubmissionStats = useMemo(() => {
+    const noMeetingCount = confirmationCandidates.filter((candidate) => !candidate.meetingSlotId).length;
+    const noPaperConsentCount = confirmationCandidates.filter((candidate) => !candidate.paperConsentReceived).length;
+    const unverifiedPhoneCount = confirmationCandidates.filter((candidate) =>
+      candidate.phoneNumbers.some((phone) => !phone.isVerified)
+    ).length;
+    const needsFollowUpCount = confirmationCandidates.filter((candidate) =>
+      !candidate.meetingSlotId ||
+      !candidate.paperConsentReceived ||
+      candidate.phoneNumbers.some((phone) => !phone.isVerified)
+    ).length;
+
+    return {
+      total: confirmationCandidates.length,
+      noMeetingCount,
+      noPaperConsentCount,
+      unverifiedPhoneCount,
+      needsFollowUpCount
+    };
+  }, [confirmationCandidates]);
+
+  const filteredConfirmationSubmissionCandidates = useMemo(() => {
+    const search = confirmationSubmissionsSearch.trim().toLowerCase();
+    const byFilter = confirmationCandidates.filter((candidate) => {
+      const noMeeting = !candidate.meetingSlotId;
+      const noPaperConsent = !candidate.paperConsentReceived;
+      const unverifiedPhone = candidate.phoneNumbers.some((phone) => !phone.isVerified);
+
+      if (confirmationSubmissionsFilter === 'no-meeting') {
+        return noMeeting;
+      }
+      if (confirmationSubmissionsFilter === 'no-paper-consent') {
+        return noPaperConsent;
+      }
+      if (confirmationSubmissionsFilter === 'unverified-phone') {
+        return unverifiedPhone;
+      }
+      if (confirmationSubmissionsFilter === 'needs-follow-up') {
+        return noMeeting || noPaperConsent || unverifiedPhone;
+      }
+
+      return true;
+    });
+
+    const bySearch = search.length === 0
+      ? byFilter
+      : byFilter.filter((candidate) =>
+          `${candidate.name} ${candidate.surname} ${candidate.address} ${candidate.schoolShort}`
+            .toLowerCase()
+            .includes(search)
+        );
+
+    return [...bySearch].sort(
+      (a, b) => new Date(b.createdUtc).getTime() - new Date(a.createdUtc).getTime()
+    );
+  }, [confirmationCandidates, confirmationSubmissionsFilter, confirmationSubmissionsSearch]);
 
   const selectedConfirmationDuplicateGroup = useMemo(
     () => confirmationDuplicateGroups.find((group) => group.key === confirmationMergeGroupKey) ?? null,
@@ -8297,11 +8358,56 @@ export function ParishPage({
                                 </>
                               )}
                             </div>
+                            <div className="admin-form-grid">
+                              <label>
+                                <span>Filtr statusu</span>
+                                <select
+                                  value={confirmationSubmissionsFilter}
+                                  onChange={(event) =>
+                                    setConfirmationSubmissionsFilter(
+                                      event.target.value === 'no-meeting'
+                                        ? 'no-meeting'
+                                        : event.target.value === 'no-paper-consent'
+                                        ? 'no-paper-consent'
+                                        : event.target.value === 'unverified-phone'
+                                        ? 'unverified-phone'
+                                        : event.target.value === 'needs-follow-up'
+                                        ? 'needs-follow-up'
+                                        : 'all'
+                                    )
+                                  }
+                                >
+                                  <option value="all">Wszystkie zgłoszenia</option>
+                                  <option value="no-meeting">Brak wybranego terminu</option>
+                                  <option value="no-paper-consent">Brak oświadczenia papierowego</option>
+                                  <option value="unverified-phone">Niezweryfikowany numer telefonu</option>
+                                  <option value="needs-follow-up">Wymaga działania admina</option>
+                                </select>
+                              </label>
+                              <label className="admin-form-full">
+                                <span>Szukaj kandydata</span>
+                                <input
+                                  type="text"
+                                  value={confirmationSubmissionsSearch}
+                                  onChange={(event) => setConfirmationSubmissionsSearch(event.target.value)}
+                                  placeholder="Imię, nazwisko, adres, szkoła"
+                                />
+                              </label>
+                            </div>
+                            <p className="note">
+                              Wszystkich: {confirmationSubmissionStats.total} •
+                              Bez terminu: {confirmationSubmissionStats.noMeetingCount} •
+                              Bez oświadczenia papierowego: {confirmationSubmissionStats.noPaperConsentCount} •
+                              Z niezweryfikowanym numerem: {confirmationSubmissionStats.unverifiedPhoneCount} •
+                              Wymaga działania: {confirmationSubmissionStats.needsFollowUpCount}
+                            </p>
                             {confirmationCandidates.length === 0 ? (
                               <p className="muted">Brak zgłoszeń.</p>
+                            ) : filteredConfirmationSubmissionCandidates.length === 0 ? (
+                              <p className="muted">Brak zgłoszeń spełniających wybrany filtr.</p>
                             ) : (
                               <div className="confirmation-candidate-list">
-                                {confirmationCandidates.map((candidate) => (
+                                {filteredConfirmationSubmissionCandidates.map((candidate) => (
                                   <article key={candidate.id} className="confirmation-candidate-item">
                                     <div className="confirmation-candidate-head">
                                       <strong>
