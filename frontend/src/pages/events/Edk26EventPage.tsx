@@ -61,47 +61,112 @@ const NAV_ITEMS = [
   { id: 'kontakt', label: 'Kontakt' }
 ] as const;
 
+const ROUTE_POINT_TYPES = new Set<EdkRoutePoint['type']>(['start', 'station', 'finish', 'distance']);
+
+function normalizeRouteType(value: string | undefined, fallback: EdkRoutePoint['type']): EdkRoutePoint['type'] {
+  if (!value) {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  return ROUTE_POINT_TYPES.has(normalized as EdkRoutePoint['type'])
+    ? (normalized as EdkRoutePoint['type'])
+    : fallback;
+}
+
+function isMissingRouteUrl(value: string): boolean {
+  const normalized = value.trim();
+  return normalized.length === 0 || normalized === '[link / do uzupełnienia]';
+}
+
+function isMissingDistanceValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized.length === 0
+    || normalized === '[x km]'
+    || normalized === 'x km'
+    || normalized === '[xkm]'
+  );
+}
+
+function mergeRoutePointsWithDefaults(
+  configuredRoutePoints: EdkRoutePoint[] | null | undefined,
+  defaultRoutePoints: EdkRoutePoint[]
+): EdkRoutePoint[] {
+  if (!configuredRoutePoints || configuredRoutePoints.length === 0) {
+    return defaultRoutePoints;
+  }
+
+  const length = Math.max(configuredRoutePoints.length, defaultRoutePoints.length);
+  const merged: EdkRoutePoint[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const configured = configuredRoutePoints[index];
+    const fallback = defaultRoutePoints[index];
+    if (!configured && !fallback) {
+      continue;
+    }
+
+    const type = normalizeRouteType(configured?.type, fallback?.type ?? 'station');
+    const title = configured?.title_pl?.trim() || fallback?.title_pl || '';
+    const url = configured ? configured.url : '';
+    const distanceKm = configured ? configured.distance_km : '';
+
+    const resolvedUrl = isMissingRouteUrl(url) ? (fallback?.url ?? '') : url.trim();
+    const resolvedDistanceKm = type === 'distance' && isMissingDistanceValue(distanceKm)
+      ? (fallback?.distance_km ?? '')
+      : distanceKm.trim();
+
+    merged.push({
+      type,
+      title_pl: title,
+      url: resolvedUrl,
+      distance_km: resolvedDistanceKm
+    });
+  }
+
+  return merged;
+}
+
 const EDK26_ROUTE_STRUCTURE: EdkRoutePoint[] = [
   { type: 'start', title_pl: 'Punkt startowy', url: 'https://maps.app.goo.gl/JbKuRvUNriWWKGJH7', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,1 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,1 km' },
   { type: 'station', title_pl: 'Stacja I — Jezus na śmierć skazany', url: 'https://maps.app.goo.gl/P2Jv3Up112DMAy5PA', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,3 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,3 km' },
   { type: 'station', title_pl: 'Stacja II — Jezus bierze krzyż na swoje ramiona', url: 'https://maps.app.goo.gl/xjWWJFudVoewKQSj6', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[3,2 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '3,2 km' },
   { type: 'station', title_pl: 'Stacja III — Jezus upada po raz pierwszy', url: 'https://maps.app.goo.gl/By6JyayGQByDXHvV7', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,6 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '1,6 km' },
   { type: 'station', title_pl: 'Stacja IV — Jezus spotyka swoją Matkę', url: 'https://maps.app.goo.gl/dwfAeLRieQGjZ5eQA', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,5 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,5 km' },
   {
     type: 'station',
     title_pl: 'Stacja V — Szymon z Cyreny pomaga nieść krzyż Jezusowi',
     url: 'https://maps.app.goo.gl/eBYb9tSkFLzucwGy8',
     distance_km: ''
   },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,8 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,8 km' },
   { type: 'station', title_pl: 'Stacja VI — Weronika ociera twarz Jezusowi', url: 'https://maps.app.goo.gl/T8rbSyY2MLTV77949', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[3,5 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '3,5 km' },
   { type: 'station', title_pl: 'Stacja VII — Jezus upada po raz drugi', url: 'https://maps.app.goo.gl/Mq534arWZD8S8hkc6', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,2 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,2 km' },
   {
     type: 'station',
     title_pl: 'Stacja VIII — Jezus pociesza płaczące niewiasty',
     url: 'https://maps.app.goo.gl/x4zEUUuRxa1BqJBM7',
     distance_km: ''
   },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,6 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,6 km' },
   { type: 'station', title_pl: 'Stacja IX — Jezus upada po raz trzeci', url: 'https://maps.app.goo.gl/op9yy4LwFrFBigq68', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,7 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '1,7 km' },
   { type: 'station', title_pl: 'Stacja X — Jezus z szat obnażony', url: 'https://maps.app.goo.gl/9PS81EWU4AJ7D9CW7', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,2 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,2 km' },
   { type: 'station', title_pl: 'Stacja XI — Jezus przybity do krzyża', url: 'https://maps.app.goo.gl/inh6p8ypkRQXYpzGA', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[2,7 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '2,7 km' },
   { type: 'station', title_pl: 'Stacja XII — Jezus umiera na krzyżu', url: 'https://maps.app.goo.gl/Nbr1DKH7E9ioENvU7', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,9 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '1,9 km' },
   { type: 'station', title_pl: 'Stacja XIII — Jezus zdjęty z krzyża', url: 'https://maps.app.goo.gl/rapW9iQ6TBzdXirW9', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '[1,5 km]' },
+  { type: 'distance', title_pl: '+ odległość do kolejnego punktu', url: '', distance_km: '1,5 km' },
   { type: 'station', title_pl: 'Stacja XIV — Jezus złożony do grobu', url: 'https://maps.app.goo.gl/o17uTobMpE3fHyEh8', distance_km: '' },
-  { type: 'distance', title_pl: '+ odległość do mety', url: '', distance_km: '[,6 km]' },
+  { type: 'distance', title_pl: '+ odległość do mety', url: '', distance_km: '0,6 km' },
   { type: 'finish', title_pl: 'Punkt końcowy', url: 'https://maps.app.goo.gl/Ram1tdB3hcbY1D5Y8', distance_km: '' }
 ];
 
@@ -313,11 +378,7 @@ export function Edk26EventPage({
   }, [organizerDashboard]);
 
   const routeStructure = useMemo(() => {
-    const fromConfig = site?.site.routePoints;
-    if (fromConfig && fromConfig.length > 0) {
-      return fromConfig;
-    }
-    return EDK26_ROUTE_STRUCTURE;
+    return mergeRoutePointsWithDefaults(site?.site.routePoints, EDK26_ROUTE_STRUCTURE);
   }, [site?.site.routePoints]);
 
   const scrollToSection = (sectionId: string) => {

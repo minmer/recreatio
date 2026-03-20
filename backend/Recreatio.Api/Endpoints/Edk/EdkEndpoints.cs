@@ -431,9 +431,10 @@ public static class EdkEndpoints
                 return CreateDefaultSiteDocument();
             }
 
-            return new EdkSiteDocument(site.RoutePoints
+            var normalized = site.RoutePoints
                 .Select(NormalizeRoutePoint)
-                .ToList());
+                .ToList();
+            return new EdkSiteDocument(MergeRoutePointsWithDefaults(normalized));
         }
         catch (JsonException)
         {
@@ -469,41 +470,106 @@ public static class EdkEndpoints
         };
     }
 
+    private static bool IsMissingRouteUrl(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        return normalized.Length == 0 || string.Equals(normalized, "[link / do uzupełnienia]", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMissingDistance(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized.Length == 0
+            || normalized == "[x km]"
+            || normalized == "x km"
+            || normalized == "[xkm]";
+    }
+
+    private static IReadOnlyList<EdkRoutePoint> MergeRoutePointsWithDefaults(IReadOnlyList<EdkRoutePoint> configuredPoints)
+    {
+        var defaults = CreateDefaultRoutePoints();
+        var count = Math.Max(configuredPoints.Count, defaults.Count);
+        var merged = new List<EdkRoutePoint>(count);
+
+        for (var index = 0; index < count; index++)
+        {
+            var hasConfigured = index < configuredPoints.Count;
+            var hasDefault = index < defaults.Count;
+            if (!hasConfigured && !hasDefault)
+            {
+                continue;
+            }
+
+            var configured = hasConfigured ? configuredPoints[index] : null;
+            var fallback = hasDefault ? defaults[index] : null;
+
+            var pointType = NormalizeRoutePointType(configured?.Type);
+            if (string.IsNullOrWhiteSpace(configured?.Type) && fallback is not null)
+            {
+                pointType = fallback.Type;
+            }
+
+            var title = NormalizeShort(configured?.TitlePl, 240)
+                ?? NormalizeShort(fallback?.TitlePl, 240)
+                ?? string.Empty;
+            var url = NormalizeShort(configured?.Url, 2000) ?? string.Empty;
+            if (IsMissingRouteUrl(url))
+            {
+                url = NormalizeShort(fallback?.Url, 2000) ?? string.Empty;
+            }
+
+            var distanceKm = NormalizeShort(configured?.DistanceKm, 64) ?? string.Empty;
+            if (string.Equals(pointType, "distance", StringComparison.OrdinalIgnoreCase) && IsMissingDistance(distanceKm))
+            {
+                distanceKm = NormalizeShort(fallback?.DistanceKm, 64) ?? string.Empty;
+            }
+
+            merged.Add(new EdkRoutePoint(pointType, title, url, distanceKm));
+        }
+
+        return merged;
+    }
+
     private static EdkSiteDocument CreateDefaultSiteDocument()
     {
-        return new EdkSiteDocument(
+        return new EdkSiteDocument(CreateDefaultRoutePoints());
+    }
+
+    private static IReadOnlyList<EdkRoutePoint> CreateDefaultRoutePoints()
+    {
+        return
         [
-            new EdkRoutePoint("start", "Punkt startowy", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja I — Jezus na śmierć skazany", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja II — Jezus bierze krzyż na swoje ramiona", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja III — Jezus upada po raz pierwszy", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja IV — Jezus spotyka swoją Matkę", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja V — Szymon z Cyreny pomaga nieść krzyż Jezusowi", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja VI — Weronika ociera twarz Jezusowi", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja VII — Jezus upada po raz drugi", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja VIII — Jezus pociesza płaczące niewiasty", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja IX — Jezus upada po raz trzeci", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja X — Jezus z szat obnażony", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja XI — Jezus przybity do krzyża", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja XII — Jezus umiera na krzyżu", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja XIII — Jezus zdjęty z krzyża", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "[x km]"),
-            new EdkRoutePoint("station", "Stacja XIV — Jezus złożony do grobu", string.Empty, string.Empty),
-            new EdkRoutePoint("distance", "+ odległość do mety", string.Empty, "[x km]"),
-            new EdkRoutePoint("finish", "Punkt końcowy", string.Empty, string.Empty)
-        ]);
+            new EdkRoutePoint("start", "Punkt startowy", "https://maps.app.goo.gl/JbKuRvUNriWWKGJH7", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,1 km"),
+            new EdkRoutePoint("station", "Stacja I — Jezus na śmierć skazany", "https://maps.app.goo.gl/P2Jv3Up112DMAy5PA", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,3 km"),
+            new EdkRoutePoint("station", "Stacja II — Jezus bierze krzyż na swoje ramiona", "https://maps.app.goo.gl/xjWWJFudVoewKQSj6", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "3,2 km"),
+            new EdkRoutePoint("station", "Stacja III — Jezus upada po raz pierwszy", "https://maps.app.goo.gl/By6JyayGQByDXHvV7", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "1,6 km"),
+            new EdkRoutePoint("station", "Stacja IV — Jezus spotyka swoją Matkę", "https://maps.app.goo.gl/dwfAeLRieQGjZ5eQA", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,5 km"),
+            new EdkRoutePoint("station", "Stacja V — Szymon z Cyreny pomaga nieść krzyż Jezusowi", "https://maps.app.goo.gl/eBYb9tSkFLzucwGy8", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,8 km"),
+            new EdkRoutePoint("station", "Stacja VI — Weronika ociera twarz Jezusowi", "https://maps.app.goo.gl/T8rbSyY2MLTV77949", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "3,5 km"),
+            new EdkRoutePoint("station", "Stacja VII — Jezus upada po raz drugi", "https://maps.app.goo.gl/Mq534arWZD8S8hkc6", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,2 km"),
+            new EdkRoutePoint("station", "Stacja VIII — Jezus pociesza płaczące niewiasty", "https://maps.app.goo.gl/x4zEUUuRxa1BqJBM7", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,6 km"),
+            new EdkRoutePoint("station", "Stacja IX — Jezus upada po raz trzeci", "https://maps.app.goo.gl/op9yy4LwFrFBigq68", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "1,7 km"),
+            new EdkRoutePoint("station", "Stacja X — Jezus z szat obnażony", "https://maps.app.goo.gl/9PS81EWU4AJ7D9CW7", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,2 km"),
+            new EdkRoutePoint("station", "Stacja XI — Jezus przybity do krzyża", "https://maps.app.goo.gl/inh6p8ypkRQXYpzGA", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "2,7 km"),
+            new EdkRoutePoint("station", "Stacja XII — Jezus umiera na krzyżu", "https://maps.app.goo.gl/Nbr1DKH7E9ioENvU7", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "1,9 km"),
+            new EdkRoutePoint("station", "Stacja XIII — Jezus zdjęty z krzyża", "https://maps.app.goo.gl/rapW9iQ6TBzdXirW9", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do kolejnego punktu", string.Empty, "1,5 km"),
+            new EdkRoutePoint("station", "Stacja XIV — Jezus złożony do grobu", "https://maps.app.goo.gl/o17uTobMpE3fHyEh8", string.Empty),
+            new EdkRoutePoint("distance", "+ odległość do mety", string.Empty, "0,6 km"),
+            new EdkRoutePoint("finish", "Punkt końcowy", "https://maps.app.goo.gl/Ram1tdB3hcbY1D5Y8", string.Empty)
+        ];
     }
 }
