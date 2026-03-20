@@ -1571,7 +1571,7 @@ export function Kal26EventPage({
         needsBaggageTransport: false
       });
     } catch (error: unknown) {
-      if (error instanceof ApiError && error.status === 404) {
+      if (error instanceof ApiError && (error.status === 404 || error.status === 503)) {
         try {
           await createPilgrimageContactInquiry(event.slug, {
             name: fullName,
@@ -1582,7 +1582,7 @@ export function Kal26EventPage({
             message: mergedNotes
           });
           setRegistrationNotice(
-            'Wydarzenie nie jest jeszcze aktywne w systemie zapisów. Twoje zgłoszenie zostało zapisane awaryjnie i organizator skontaktuje się telefonicznie.'
+            'Zapis główny jest chwilowo niedostępny. Twoje zgłoszenie zostało zapisane awaryjnie i organizator skontaktuje się telefonicznie.'
           );
           setRegistrationError(null);
           setRegistrationResult(null);

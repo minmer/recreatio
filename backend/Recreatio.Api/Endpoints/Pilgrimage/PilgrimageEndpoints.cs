@@ -451,6 +451,31 @@ public static class PilgrimageEndpoints
             catch (DbUpdateException exception)
             {
                 logger.LogError(exception, "Public registration DB failure for slug {Slug}", slug);
+                var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
+                if (IsPublicFallbackEnabledSlug(normalizedSlug))
+                {
+                    await ledgerService.AppendBusinessAsync(
+                        "PilgrimageRegistrationFallbackCaptured",
+                        "public",
+                        JsonSerializer.Serialize(new
+                        {
+                            slug = normalizedSlug,
+                            fullName = NormalizeShort(request.FullName, 200),
+                            phone = NormalizePolishPhone(request.Phone),
+                            emergencyName = NormalizeShort(request.EmergencyContactName, 200),
+                            emergencyPhone = NormalizePolishPhone(request.EmergencyContactPhone),
+                            reason = "db-update-exception",
+                            createdUtc = DateTimeOffset.UtcNow
+                        }),
+                        ct);
+
+                    return Results.Accepted($"/pilgrimage/{normalizedSlug}/public/registrations", new
+                    {
+                        fallback = true,
+                        message = "Registration persistence failed. Data has been captured in fallback inbox."
+                    });
+                }
+
                 return Results.Problem(
                     title: "Registration unavailable",
                     detail: "Database error while saving registration.",
