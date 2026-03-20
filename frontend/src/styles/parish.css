@@ -2460,6 +2460,13 @@
   margin: 0 0 4px;
 }
 
+.confirmation-meeting-candidate-admin-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 @media (max-width: 900px) {
   .confirmation-candidate-portal .section-header {
     flex-direction: column;

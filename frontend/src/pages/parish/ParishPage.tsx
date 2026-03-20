@@ -1973,6 +1973,10 @@ export function ParishPage({
     const token = params.get('portal') ?? params.get('meeting');
     return token?.trim() ? token.trim() : null;
   }, [location.search]);
+  const confirmationAdminNameQuery = useMemo(() => {
+    const queryName = new URLSearchParams(location.search).get('name');
+    return queryName?.trim() ? queryName.trim() : null;
+  }, [location.search]);
   const baseColumns = 6;
   const [gridColumns, setGridColumns] = useState(baseColumns);
   const [gridRowHeight, setGridRowHeight] = useState(90);
@@ -2678,6 +2682,14 @@ export function ParishPage({
     } finally {
       setConfirmationAdminPortalLoading(false);
     }
+  };
+
+  const openConfirmationAdminPortalForCandidate = (candidateId: string, name: string, surname: string) => {
+    if (!parishSlug) return;
+    const fullName = `${name} ${surname}`.trim();
+    setConfirmationAdminCandidateSearch(fullName);
+    setConfirmationAdminSelectedCandidateId(candidateId);
+    navigate(`/parish/${parishSlug}/confirmation/candidate?name=${encodeURIComponent(fullName)}`);
   };
 
   const handleBookConfirmationMeetingSlot = async (slotId: string, inviteCodeOverride?: string | null) => {
@@ -3737,6 +3749,48 @@ export function ParishPage({
     parish?.id,
     confirmationPanelSection,
     confirmationCandidates,
+    confirmationAdminCandidateSearch,
+    confirmationAdminSelectedCandidateId
+  ]);
+
+  useEffect(() => {
+    if (!isConfirmationSubpage || !isAuthenticated || !parish || confirmationPanelSection !== 'candidate') {
+      return;
+    }
+    if (!confirmationAdminNameQuery || confirmationCandidates.length === 0) {
+      return;
+    }
+
+    const normalizedQuery = confirmationAdminNameQuery.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return;
+    }
+
+    const matchedCandidate =
+      confirmationCandidates.find(
+        (candidate) => `${candidate.name} ${candidate.surname}`.trim().toLowerCase() === normalizedQuery
+      ) ??
+      confirmationCandidates.find((candidate) =>
+        `${candidate.name} ${candidate.surname}`.trim().toLowerCase().includes(normalizedQuery)
+      );
+
+    if (!matchedCandidate) {
+      return;
+    }
+
+    if (confirmationAdminCandidateSearch !== confirmationAdminNameQuery) {
+      setConfirmationAdminCandidateSearch(confirmationAdminNameQuery);
+    }
+    if (confirmationAdminSelectedCandidateId !== matchedCandidate.id) {
+      setConfirmationAdminSelectedCandidateId(matchedCandidate.id);
+    }
+  }, [
+    isConfirmationSubpage,
+    isAuthenticated,
+    parish?.id,
+    confirmationPanelSection,
+    confirmationCandidates,
+    confirmationAdminNameQuery,
     confirmationAdminCandidateSearch,
     confirmationAdminSelectedCandidateId
   ]);
@@ -9792,10 +9846,25 @@ export function ParishPage({
                                       {slot.stage === 'year1-end' ? ' Koniec 1. roku' : ' Początek 1. roku'}
                                     </p>
                                     {slot.candidates.length > 0 ? (
-                                      <ul className="confirmation-meeting-candidate-list">
+                                      <ul className="confirmation-meeting-candidate-list confirmation-meeting-candidate-admin-list">
                                         {slot.candidates.map((candidate) => (
                                           <li key={`${slot.id}-${candidate.candidateId}`}>
-                                            {candidate.name} {candidate.surname}
+                                            <span>
+                                              {candidate.name} {candidate.surname}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              className="ghost"
+                                              onClick={() =>
+                                                openConfirmationAdminPortalForCandidate(
+                                                  candidate.candidateId,
+                                                  candidate.name,
+                                                  candidate.surname
+                                                )
+                                              }
+                                            >
+                                              Otwórz portal admina
+                                            </button>
                                           </li>
                                         ))}
                                       </ul>
