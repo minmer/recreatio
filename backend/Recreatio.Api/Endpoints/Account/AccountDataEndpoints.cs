@@ -12,6 +12,10 @@ namespace Recreatio.Api.Endpoints;
 
 public static class AccountDataEndpoints
 {
+    private sealed record DataItemFileMeta(string FileName, string ContentType, long SizeBytes);
+
+    private sealed record DataItemAccessContext(byte[] DataKey, string ItemName, string ItemType);
+
     public static void MapAccountDataEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/roles/{roleId:guid}/data", async (
@@ -91,8 +95,8 @@ public static class AccountDataEndpoints
                 dataSignature = signingService.Sign(privateSigningKey, signatureAlg, encryptedValue);
             }
 
-            var encryptedItemName = keyRingService.EncryptDataItemMeta(roleReadKey, itemName, dataItemId, "item-name");
-            var encryptedItemType = keyRingService.EncryptDataItemMeta(roleReadKey, itemType, dataItemId, "item-type");
+            var encryptedItemName = keyRingService.EncryptDataItemMeta(dataKey, itemName, dataItemId, "item-name");
+            var encryptedItemType = keyRingService.EncryptDataItemMeta(dataKey, itemType, dataItemId, "item-type");
 
             var item = new DataItem
             {
@@ -140,6 +144,190 @@ public static class AccountDataEndpoints
             return Results.Ok(new DataItemResponse(dataItemId, itemName, itemType, responseValue));
         });
 
+        group.MapPost("/roles/{roleId:guid}/data/files", async (
+            Guid roleId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IEncryptedBlobStore encryptedBlobStore,
+            IRoleCryptoService roleCryptoService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!context.Request.HasFormContentType)
+            {
+                return Results.BadRequest(new { error = "Multipart form data is required." });
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(roleId, out var roleReadKey) ||
+                !keyRing.TryGetWriteKey(roleId, out var roleWriteKey) ||
+                !keyRing.TryGetOwnerKey(roleId, out var roleOwnerKey))
+            {
+                return Results.Forbid();
+            }
+
+            var ownerRoleIds = keyRing.OwnerKeys.Keys.ToHashSet();
+            if (!ownerRoleIds.Contains(roleId))
+            {
+                return Results.Forbid();
+            }
+
+            var form = await context.Request.ReadFormAsync(ct);
+            var file = form.Files.GetFile("file");
+            if (file is null || file.Length <= 0)
+            {
+                return Results.BadRequest(new { error = "File is required." });
+            }
+
+            if (file.Length > encryptedBlobStore.MaxUploadBytes)
+            {
+                return Results.BadRequest(new { error = $"File exceeds max size ({encryptedBlobStore.MaxUploadBytes} bytes)." });
+            }
+
+            var itemName = form["itemName"].FirstOrDefault()?.Trim();
+            if (string.IsNullOrWhiteSpace(itemName))
+            {
+                itemName = Path.GetFileName(file.FileName);
+            }
+
+            if (string.IsNullOrWhiteSpace(itemName))
+            {
+                itemName = $"file-{Guid.NewGuid():N}";
+            }
+
+            var fileName = Path.GetFileName(file.FileName);
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                fileName = $"{Guid.NewGuid():N}.bin";
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(file.ContentType)
+                ? "application/octet-stream"
+                : file.ContentType.Trim();
+
+            var now = DateTimeOffset.UtcNow;
+            var dataItemId = Guid.NewGuid();
+            var dataKey = RandomNumberGenerator.GetBytes(32);
+            var encryptedItemName = keyRingService.EncryptDataItemMeta(dataKey, itemName, dataItemId, "item-name");
+            var encryptedItemType = keyRingService.EncryptDataItemMeta(dataKey, "file", dataItemId, "item-type");
+
+            var fileMeta = JsonSerializer.Serialize(new DataItemFileMeta(fileName, contentType, file.Length));
+            var encryptedFileMeta = keyRingService.EncryptDataItemMeta(dataKey, fileMeta, dataItemId, "file-meta");
+
+            string? storagePath = null;
+            EncryptedBlobWriteResult? writeResult = null;
+            await using (var uploadStream = file.OpenReadStream())
+            {
+                try
+                {
+                    writeResult = await encryptedBlobStore.WriteEncryptedAsync(uploadStream, dataKey, dataItemId, ct);
+                    storagePath = writeResult.StoragePath;
+                }
+                catch
+                {
+                    if (!string.IsNullOrWhiteSpace(storagePath))
+                    {
+                        await encryptedBlobStore.DeleteIfExistsAsync(storagePath, ct);
+                    }
+                    throw;
+                }
+            }
+
+            if (writeResult is null || string.IsNullOrWhiteSpace(writeResult.StoragePath))
+            {
+                return Results.Problem("Failed to persist encrypted file.");
+            }
+
+            using var signingRsa = RSA.Create(2048);
+            var publicSigningKey = signingRsa.ExportSubjectPublicKeyInfo();
+            var privateSigningKey = signingRsa.ExportPkcs8PrivateKey();
+            var signatureAlg = "RSA-SHA256";
+
+            var item = new DataItem
+            {
+                Id = dataItemId,
+                OwnerRoleId = roleId,
+                ItemType = string.Empty,
+                ItemName = string.Empty,
+                EncryptedItemType = encryptedItemType,
+                EncryptedItemName = encryptedItemName,
+                EncryptedValue = encryptedFileMeta,
+                StorageProvider = "localfs",
+                StoragePath = writeResult.StoragePath,
+                StorageSizeBytes = writeResult.PlaintextLength,
+                StorageSha256 = writeResult.PlaintextSha256,
+                PublicSigningKey = publicSigningKey,
+                PublicSigningKeyAlg = signatureAlg,
+                DataSignature = null,
+                DataSignatureAlg = null,
+                DataSignatureRoleId = null,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+
+            var encryptedDataKey = encryptionService.Encrypt(roleReadKey, dataKey, dataItemId.ToByteArray());
+            var encryptedSigningKey = encryptionService.Encrypt(roleWriteKey, privateSigningKey, dataItemId.ToByteArray());
+
+            try
+            {
+                var signingContext = await roleCryptoService.TryGetSigningContextAsync(roleId, roleOwnerKey, ct);
+                await ledgerService.AppendKeyAsync(
+                    "DataFileUploaded",
+                    userId.ToString(),
+                    JsonSerializer.Serialize(new { roleId, dataItemId, itemName, fileName, contentType }),
+                    ct,
+                    signingContext);
+
+                dbContext.DataItems.Add(item);
+                dbContext.DataKeyGrants.Add(new DataKeyGrant
+                {
+                    Id = Guid.NewGuid(),
+                    DataItemId = dataItemId,
+                    RoleId = roleId,
+                    PermissionType = RoleRelationships.Owner,
+                    EncryptedDataKeyBlob = encryptedDataKey,
+                    EncryptedSigningKeyBlob = encryptedSigningKey,
+                    CreatedUtc = now
+                });
+
+                await dbContext.SaveChangesAsync(ct);
+            }
+            catch
+            {
+                await encryptedBlobStore.DeleteIfExistsAsync(writeResult.StoragePath, ct);
+                throw;
+            }
+
+            return Results.Ok(new DataFileUploadResponse(
+                dataItemId,
+                itemName,
+                "file",
+                fileName,
+                contentType,
+                writeResult.PlaintextLength));
+        });
+
         group.MapPost("/data/{dataItemId:guid}", async (
             Guid dataItemId,
             UpdateDataItemRequest request,
@@ -183,23 +371,6 @@ public static class AccountDataEndpoints
             {
                 return Results.NotFound();
             }
-            if (!keyRing.TryGetReadKey(dataItem.OwnerRoleId, out var dataItemReadKey))
-            {
-                return Results.Forbid();
-            }
-
-            var itemType = keyRingService.TryDecryptDataItemMeta(dataItemReadKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
-            var itemName = keyRingService.TryDecryptDataItemMeta(dataItemReadKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
-            if (string.IsNullOrWhiteSpace(itemType) || string.IsNullOrWhiteSpace(itemName))
-            {
-                return Results.BadRequest(new { error = "Unable to decrypt data item metadata." });
-            }
-
-            if (itemType.Equals("key", StringComparison.OrdinalIgnoreCase))
-            {
-                return Results.BadRequest(new { error = "Key items do not support values." });
-            }
-
             var grants = await dbContext.DataKeyGrants.AsNoTracking()
                 .Where(x => x.DataItemId == dataItemId && x.RevokedUtc == null)
                 .ToListAsync(ct);
@@ -224,6 +395,32 @@ public static class AccountDataEndpoints
                 return Results.Forbid();
             }
             var privateSigningKey = encryptionService.Decrypt(roleWriteKey, writeGrant.EncryptedSigningKeyBlob, dataItemId.ToByteArray());
+
+            var itemName = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
+            var itemType = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
+            if (string.IsNullOrWhiteSpace(itemName) || string.IsNullOrWhiteSpace(itemType))
+            {
+                if (keyRing.TryGetReadKey(dataItem.OwnerRoleId, out var ownerReadKey))
+                {
+                    itemName ??= keyRingService.TryDecryptDataItemMeta(ownerReadKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
+                    itemType ??= keyRingService.TryDecryptDataItemMeta(ownerReadKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(itemType) || string.IsNullOrWhiteSpace(itemName))
+            {
+                return Results.BadRequest(new { error = "Unable to decrypt data item metadata." });
+            }
+
+            if (itemType.Equals("key", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "Key items do not support values." });
+            }
+
+            if (itemType.Equals("file", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "File items do not support plain-value updates." });
+            }
 
             var encryptedValue = keyRingService.EncryptDataItemValue(dataKey, plainValue, dataItemId, itemName);
             var signatureAlg = dataItem.PublicSigningKeyAlg;
@@ -251,11 +448,128 @@ public static class AccountDataEndpoints
             return Results.Ok(new DataItemResponse(dataItemId, itemName, itemType, plainValue));
         });
 
+        group.MapGet("/data/{dataItemId:guid}/file", async (
+            Guid dataItemId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IEncryptedBlobStore encryptedBlobStore,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            var dataItem = await dbContext.DataItems.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == dataItemId, ct);
+            if (dataItem is null)
+            {
+                return Results.NotFound();
+            }
+
+            var grants = await dbContext.DataKeyGrants.AsNoTracking()
+                .Where(x => x.DataItemId == dataItemId && x.RevokedUtc == null)
+                .ToListAsync(ct);
+
+            if (!TryResolveReadableDataAccess(dataItem, grants, keyRing, keyRingService, encryptionService, out var access))
+            {
+                return Results.Forbid();
+            }
+
+            if (!string.Equals(access.ItemType, "file", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = "Data item is not a file." });
+            }
+
+            if (string.IsNullOrWhiteSpace(dataItem.StoragePath))
+            {
+                return Results.NotFound();
+            }
+
+            var fileName = access.ItemName;
+            var contentType = "application/octet-stream";
+            if (dataItem.EncryptedValue is { Length: > 0 })
+            {
+                var fileMetaJson = keyRingService.TryDecryptDataItemMeta(access.DataKey, dataItem.EncryptedValue, dataItemId, "file-meta");
+                if (!string.IsNullOrWhiteSpace(fileMetaJson))
+                {
+                    try
+                    {
+                        var fileMeta = JsonSerializer.Deserialize<DataItemFileMeta>(fileMetaJson);
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.FileName))
+                        {
+                            fileName = Path.GetFileName(fileMeta.FileName);
+                        }
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.ContentType))
+                        {
+                            contentType = fileMeta.ContentType;
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // keep fallback values
+                    }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                fileName = $"{dataItemId:N}.bin";
+            }
+
+            context.Response.ContentType = contentType;
+            if (dataItem.StorageSizeBytes is > 0)
+            {
+                context.Response.ContentLength = dataItem.StorageSizeBytes.Value;
+            }
+            context.Response.Headers.ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(fileName)}";
+
+            bool downloaded;
+            try
+            {
+                downloaded = await encryptedBlobStore.DecryptToStreamAsync(
+                    dataItem.StoragePath,
+                    access.DataKey,
+                    dataItemId,
+                    context.Response.Body,
+                    ct);
+            }
+            catch (CryptographicException)
+            {
+                return Results.Forbid();
+            }
+
+            if (!downloaded)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Empty;
+        });
+
         group.MapDelete("/data/{dataItemId:guid}", async (
             Guid dataItemId,
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            IEncryptedBlobStore encryptedBlobStore,
             IRoleCryptoService roleCryptoService,
             ILedgerService ledgerService,
             CancellationToken ct) =>
@@ -315,6 +629,10 @@ public static class AccountDataEndpoints
             dbContext.PendingDataShares.RemoveRange(pending);
             dbContext.DataItems.Remove(dataItem);
             await dbContext.SaveChangesAsync(ct);
+            if (!string.IsNullOrWhiteSpace(dataItem.StoragePath))
+            {
+                await encryptedBlobStore.DeleteIfExistsAsync(dataItem.StoragePath, ct);
+            }
 
             return Results.NoContent();
         });
@@ -657,5 +975,54 @@ public static class AccountDataEndpoints
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
         });
+    }
+
+    private static bool TryResolveReadableDataAccess(
+        DataItem dataItem,
+        IReadOnlyList<DataKeyGrant> grants,
+        RoleKeyRing keyRing,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        out DataItemAccessContext access)
+    {
+        foreach (var grant in grants)
+        {
+            if (!keyRing.TryGetReadKey(grant.RoleId, out var roleReadKey))
+            {
+                continue;
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = encryptionService.Decrypt(roleReadKey, grant.EncryptedDataKeyBlob, dataItem.Id.ToByteArray());
+            }
+            catch (CryptographicException)
+            {
+                continue;
+            }
+
+            var itemName = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
+            var itemType = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
+            if (string.IsNullOrWhiteSpace(itemName) || string.IsNullOrWhiteSpace(itemType))
+            {
+                if (keyRing.TryGetReadKey(dataItem.OwnerRoleId, out var ownerReadKey))
+                {
+                    itemName ??= keyRingService.TryDecryptDataItemMeta(ownerReadKey, dataItem.EncryptedItemName, dataItem.Id, "item-name");
+                    itemType ??= keyRingService.TryDecryptDataItemMeta(ownerReadKey, dataItem.EncryptedItemType, dataItem.Id, "item-type");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(itemName) || string.IsNullOrWhiteSpace(itemType))
+            {
+                continue;
+            }
+
+            access = new DataItemAccessContext(dataKey, itemName, itemType);
+            return true;
+        }
+
+        access = new DataItemAccessContext(Array.Empty<byte>(), string.Empty, string.Empty);
+        return false;
     }
 }

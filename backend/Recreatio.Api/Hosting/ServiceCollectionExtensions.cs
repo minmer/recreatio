@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.Configure<CryptoOptions>(configuration.GetSection("Crypto"));
         services.Configure<AuthOptions>(configuration.GetSection("Auth"));
         services.Configure<CsrfOptions>(configuration.GetSection("Csrf"));
+        services.Configure<BlobStorageOptions>(configuration.GetSection("BlobStorage"));
 
         services.AddDbContext<RecreatioDbContext>(options =>
             options.UseSqlServer(
@@ -214,6 +215,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ICsrfService, CsrfService>();
         services.AddScoped<IChatCryptoService, ChatCryptoService>();
+        services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
 
         return services;
     }

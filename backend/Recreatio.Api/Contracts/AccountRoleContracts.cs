@@ -49,6 +49,15 @@ public sealed record DataItemResponse(
     string? PlainValue
 );
 
+public sealed record DataFileUploadResponse(
+    Guid DataItemId,
+    string ItemName,
+    string ItemType,
+    string FileName,
+    string ContentType,
+    long SizeBytes
+);
+
 public sealed record DataItemShareRequest(
     Guid TargetRoleId,
     string PermissionType,

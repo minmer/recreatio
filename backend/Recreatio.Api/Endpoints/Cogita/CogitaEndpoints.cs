@@ -10752,6 +10752,122 @@ public static class CogitaEndpoints
             return Results.Ok(new CogitaInfoApproachProjectionResponse(approach.ApproachKey, info.Id, info.InfoType, projection.Value));
         }).AllowAnonymous();
 
+        group.MapGet("/public/storyboard/{code}/files/{dataItemId:guid}", async (
+            string code,
+            Guid dataItemId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            IEncryptedBlobStore encryptedBlobStore,
+            CancellationToken ct) =>
+        {
+            var shareContext = await TryResolveStoryboardShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (_, library, readKey) = shareContext.Value;
+            var dataItem = await dbContext.DataItems.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == dataItemId && x.OwnerRoleId == library.RoleId, ct);
+            if (dataItem is null || string.IsNullOrWhiteSpace(dataItem.StoragePath))
+            {
+                return Results.NotFound();
+            }
+
+            var readGrant = await dbContext.DataKeyGrants.AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.DataItemId == dataItemId &&
+                    x.RoleId == library.RoleId &&
+                    x.RevokedUtc == null, ct);
+            if (readGrant is null)
+            {
+                return Results.NotFound();
+            }
+
+            byte[] dataKey;
+            try
+            {
+                dataKey = encryptionService.Decrypt(readKey, readGrant.EncryptedDataKeyBlob, dataItemId.ToByteArray());
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            var itemType = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemType, dataItemId, "item-type");
+            if (!string.Equals(itemType, "file", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.NotFound();
+            }
+
+            var itemName = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedItemName, dataItemId, "item-name");
+            var fileName = string.IsNullOrWhiteSpace(itemName) ? $"{dataItemId:N}.bin" : Path.GetFileName(itemName);
+            var contentType = "application/octet-stream";
+
+            if (dataItem.EncryptedValue is { Length: > 0 })
+            {
+                var fileMetaJson = keyRingService.TryDecryptDataItemMeta(dataKey, dataItem.EncryptedValue, dataItemId, "file-meta");
+                if (!string.IsNullOrWhiteSpace(fileMetaJson))
+                {
+                    try
+                    {
+                        var fileMeta = JsonSerializer.Deserialize<CogitaStoryboardMediaFileMeta>(fileMetaJson);
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.FileName))
+                        {
+                            fileName = Path.GetFileName(fileMeta.FileName);
+                        }
+                        if (!string.IsNullOrWhiteSpace(fileMeta?.ContentType))
+                        {
+                            contentType = fileMeta.ContentType;
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // Keep fallback file metadata.
+                    }
+                }
+            }
+
+            context.Response.ContentType = contentType;
+            if (dataItem.StorageSizeBytes is > 0)
+            {
+                context.Response.ContentLength = dataItem.StorageSizeBytes.Value;
+            }
+            context.Response.Headers.ContentDisposition = $"inline; filename*=UTF-8''{Uri.EscapeDataString(fileName)}";
+
+            bool downloaded;
+            try
+            {
+                downloaded = await encryptedBlobStore.DecryptToStreamAsync(
+                    dataItem.StoragePath,
+                    dataKey,
+                    dataItemId,
+                    context.Response.Body,
+                    ct);
+            }
+            catch (CryptographicException)
+            {
+                return Results.NotFound();
+            }
+
+            if (!downloaded)
+            {
+                return Results.NotFound();
+            }
+
+            return Results.Empty;
+        }).AllowAnonymous();
+
         group.MapGet("/public/revision/{code}/notions", async (
             string code,
             string? key,
@@ -23284,6 +23400,10 @@ public static class CogitaEndpoints
         string StaticType,
         string StaticBody,
         string MediaUrl,
+        bool NarrationImageEnabled,
+        string NarrationImageFileId,
+        bool NarrationAudioEnabled,
+        string NarrationAudioFileId,
         string NotionId,
         string CardCheckType,
         string CardDirection,
@@ -23346,6 +23466,64 @@ public static class CogitaEndpoints
         }
 
         return null;
+    }
+
+    private static bool TryReadBoolProperty(JsonElement element, string propertyName, out bool value)
+    {
+        if (!TryGetPropertyCaseInsensitive(element, propertyName, out var node))
+        {
+            value = false;
+            return false;
+        }
+
+        switch (node.ValueKind)
+        {
+            case JsonValueKind.True:
+                value = true;
+                return true;
+            case JsonValueKind.False:
+                value = false;
+                return true;
+            case JsonValueKind.Number:
+                if (node.TryGetInt32(out var intValue))
+                {
+                    value = intValue != 0;
+                    return true;
+                }
+                if (node.TryGetDouble(out var doubleValue))
+                {
+                    value = Math.Abs(doubleValue) > double.Epsilon;
+                    return true;
+                }
+                break;
+            case JsonValueKind.String:
+            {
+                var text = node.GetString()?.Trim();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    break;
+                }
+                if (bool.TryParse(text, out var boolValue))
+                {
+                    value = boolValue;
+                    return true;
+                }
+                if (string.Equals(text, "1", StringComparison.Ordinal))
+                {
+                    value = true;
+                    return true;
+                }
+                if (string.Equals(text, "0", StringComparison.Ordinal))
+                {
+                    value = false;
+                    return true;
+                }
+                break;
+            }
+        }
+
+        value = false;
+        return false;
     }
 
     private static bool TryReadGuidProperty(JsonElement element, string propertyName, out Guid value)
@@ -23498,6 +23676,10 @@ public static class CogitaEndpoints
             "text",
             string.Empty,
             string.Empty,
+            false,
+            string.Empty,
+            false,
+            string.Empty,
             string.Empty,
             string.Empty,
             "front_to_back",
@@ -23515,6 +23697,10 @@ public static class CogitaEndpoints
             200,
             "text",
             string.Empty,
+            string.Empty,
+            false,
+            string.Empty,
+            false,
             string.Empty,
             string.Empty,
             string.Empty,
@@ -23597,9 +23783,42 @@ public static class CogitaEndpoints
                 var staticType = NormalizeStoryboardImportStaticType(ReadFirstNonEmptyString(nodeElement, "staticType", "nodeType"));
                 var staticBody = ReadFirstNonEmptyString(nodeElement, "staticBody", "text", "body") ?? string.Empty;
                 var mediaUrl = ReadFirstNonEmptyString(nodeElement, "mediaUrl", "videoUrl", "url") ?? string.Empty;
+                var narrationImageEnabled = TryReadBoolProperty(nodeElement, "narrationImageEnabled", out var parsedNarrationImageEnabled)
+                    ? parsedNarrationImageEnabled
+                    : false;
+                var narrationImageFileId = ReadFirstNonEmptyString(nodeElement, "narrationImageFileId") ?? string.Empty;
+                var narrationAudioEnabled = TryReadBoolProperty(nodeElement, "narrationAudioEnabled", out var parsedNarrationAudioEnabled)
+                    ? parsedNarrationAudioEnabled
+                    : false;
+                var narrationAudioFileId = ReadFirstNonEmptyString(nodeElement, "narrationAudioFileId") ?? string.Empty;
                 var notionId = ReadFirstNonEmptyString(nodeElement, "notionId") ?? string.Empty;
                 var cardCheckType = ReadFirstNonEmptyString(nodeElement, "cardCheckType", "checkType") ?? string.Empty;
                 var cardDirection = NormalizeStoryboardImportCardDirection(ReadFirstNonEmptyString(nodeElement, "cardDirection"));
+                if (TryGetPropertyCaseInsensitive(nodeElement, "narration", out var narrationElement) &&
+                    narrationElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (!TryReadBoolProperty(nodeElement, "narrationImageEnabled", out _) &&
+                        TryReadBoolProperty(narrationElement, "imageEnabled", out var nestedImageEnabled))
+                    {
+                        narrationImageEnabled = nestedImageEnabled;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(narrationImageFileId))
+                    {
+                        narrationImageFileId = ReadFirstNonEmptyString(narrationElement, "imageFileId") ?? string.Empty;
+                    }
+
+                    if (!TryReadBoolProperty(nodeElement, "narrationAudioEnabled", out _) &&
+                        TryReadBoolProperty(narrationElement, "audioEnabled", out var nestedAudioEnabled))
+                    {
+                        narrationAudioEnabled = nestedAudioEnabled;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(narrationAudioFileId))
+                    {
+                        narrationAudioFileId = ReadFirstNonEmptyString(narrationElement, "audioFileId") ?? string.Empty;
+                    }
+                }
 
                 var posX = 120d + ((index - 1) % 4) * 220d;
                 var posY = 80d + ((index - 1) / 4) * 170d;
@@ -23690,6 +23909,10 @@ public static class CogitaEndpoints
                     staticType,
                     staticBody,
                     mediaUrl,
+                    narrationImageEnabled,
+                    narrationImageFileId,
+                    narrationAudioEnabled,
+                    narrationAudioFileId,
                     notionId,
                     cardCheckType,
                     cardDirection,
@@ -23979,6 +24202,10 @@ public static class CogitaEndpoints
                 ["staticType"] = node.StaticType,
                 ["staticBody"] = node.StaticBody,
                 ["mediaUrl"] = node.MediaUrl,
+                ["narrationImageEnabled"] = node.NarrationImageEnabled,
+                ["narrationImageFileId"] = node.NarrationImageFileId,
+                ["narrationAudioEnabled"] = node.NarrationAudioEnabled,
+                ["narrationAudioFileId"] = node.NarrationAudioFileId,
                 ["notionId"] = node.NotionId,
                 ["cardCheckType"] = node.CardCheckType,
                 ["cardDirection"] = node.CardDirection
@@ -24046,6 +24273,8 @@ public static class CogitaEndpoints
 
         return new string(digits);
     }
+
+    private sealed record CogitaStoryboardMediaFileMeta(string FileName, string ContentType, long SizeBytes);
 
     private static async Task<(CogitaStoryboardShare Share, CogitaLibrary Library, byte[] LibraryReadKey)?> TryResolveStoryboardShareAsync(
         string? code,

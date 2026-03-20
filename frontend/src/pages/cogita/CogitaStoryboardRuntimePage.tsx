@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  downloadCogitaPublicStoryboardFile,
+  downloadDataItemFile,
   getCogitaCreationProjects,
   getCogitaInfoApproachProjection,
   getCogitaInfoCheckcards,
@@ -53,6 +55,10 @@ type StoryboardNodeRecord = {
   staticType: StoryboardStaticType;
   staticBody: string;
   mediaUrl: string;
+  narrationImageEnabled: boolean;
+  narrationImageFileId: string;
+  narrationAudioEnabled: boolean;
+  narrationAudioFileId: string;
   notionId: string;
   cardCheckType: string;
   cardDirection: StoryboardCardDirection;
@@ -84,6 +90,10 @@ type RuntimeBlock = {
   staticType: StoryboardStaticType;
   staticBody: string;
   mediaUrl: string;
+  narrationImageEnabled: boolean;
+  narrationImageFileId: string;
+  narrationAudioEnabled: boolean;
+  narrationAudioFileId: string;
   notionId: string;
   cardCheckType: string;
   cardDirection: StoryboardCardDirection;
@@ -127,6 +137,16 @@ function toFinite(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function toBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+  }
+  return fallback;
+}
+
 function createId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -141,6 +161,10 @@ function createStartNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
+    narrationImageEnabled: false,
+    narrationImageFileId: '',
+    narrationAudioEnabled: false,
+    narrationAudioFileId: '',
     notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
@@ -157,6 +181,10 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
+    narrationImageEnabled: false,
+    narrationImageFileId: '',
+    narrationAudioEnabled: false,
+    narrationAudioFileId: '',
     notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
@@ -417,6 +445,9 @@ function parseGraph(raw: unknown): StoryboardGraph {
   const rawNodes = Array.isArray(root.nodes) ? (root.nodes as Array<Record<string, unknown>>) : [];
   const nodes: StoryboardNodeRecord[] = rawNodes.map((item, index) => {
     const kind = normalizeNodeKind(item.kind ?? item.nodeType);
+    const narration = item.narration && typeof item.narration === 'object' && !Array.isArray(item.narration)
+      ? (item.narration as Record<string, unknown>)
+      : null;
     return {
       nodeId: toString(item.nodeId).trim() || createId(`node-${index + 1}`),
       title: toString(item.title).trim() || `Node ${index + 1}`,
@@ -429,6 +460,10 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticType: normalizeStaticType(item.staticType ?? item.nodeType),
       staticBody: toString(item.staticBody ?? item.text),
       mediaUrl: toString(item.mediaUrl ?? item.videoUrl),
+      narrationImageEnabled: toBoolean(item.narrationImageEnabled ?? narration?.imageEnabled),
+      narrationImageFileId: toString(item.narrationImageFileId ?? narration?.imageFileId),
+      narrationAudioEnabled: toBoolean(item.narrationAudioEnabled ?? narration?.audioEnabled),
+      narrationAudioFileId: toString(item.narrationAudioFileId ?? narration?.audioFileId),
       notionId: toString(item.notionId ?? item.infoId ?? item.itemId),
       cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection),
@@ -578,6 +613,10 @@ function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): Run
     staticType: node.staticType,
     staticBody: node.staticBody,
     mediaUrl: node.mediaUrl,
+    narrationImageEnabled: node.narrationImageEnabled,
+    narrationImageFileId: node.narrationImageFileId,
+    narrationAudioEnabled: node.narrationAudioEnabled,
+    narrationAudioFileId: node.narrationAudioFileId,
     notionId: node.notionId,
     cardCheckType: node.cardCheckType,
     cardDirection: node.cardDirection
@@ -755,7 +794,10 @@ export function CogitaStoryboardRuntimePage({
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [cardState, setCardState] = useState<RuntimeCardState | null>(null);
+  const [mediaObjectUrls, setMediaObjectUrls] = useState<Record<string, string>>({});
   const cardTransitionTimer = useRef<number | null>(null);
+  const mediaObjectUrlsRef = useRef<Record<string, string>>({});
+  const mediaLoadingKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (shareCode) {
@@ -845,6 +887,18 @@ export function CogitaStoryboardRuntimePage({
       if (cardTransitionTimer.current != null) {
         window.clearTimeout(cardTransitionTimer.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    mediaObjectUrlsRef.current = mediaObjectUrls;
+  }, [mediaObjectUrls]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(mediaObjectUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      mediaObjectUrlsRef.current = {};
+      mediaLoadingKeysRef.current.clear();
     };
   }, []);
 
@@ -1017,6 +1071,73 @@ export function CogitaStoryboardRuntimePage({
     };
   }, [currentNode, documentState, runtimeLibraryId, runtime, shareCode]);
 
+  useEffect(() => {
+    const required = new Map<string, { fileId: string; mediaType: 'image' | 'audio' }>();
+    if (runtime) {
+      runtime.displayedBlocks.forEach((block) => {
+        if (block.kind !== 'static') return;
+        if (block.narrationImageEnabled && block.narrationImageFileId.trim()) {
+          const fileId = block.narrationImageFileId.trim();
+          required.set(`image:${fileId}`, { fileId, mediaType: 'image' });
+        }
+        if (block.narrationAudioEnabled && block.narrationAudioFileId.trim()) {
+          const fileId = block.narrationAudioFileId.trim();
+          required.set(`audio:${fileId}`, { fileId, mediaType: 'audio' });
+        }
+      });
+    }
+
+    setMediaObjectUrls((current) => {
+      let changed = false;
+      const next: Record<string, string> = { ...current };
+      Object.entries(current).forEach(([key, url]) => {
+        if (!required.has(key)) {
+          URL.revokeObjectURL(url);
+          delete next[key];
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+
+    let cancelled = false;
+    required.forEach(({ fileId }, key) => {
+      if (mediaObjectUrlsRef.current[key] || mediaLoadingKeysRef.current.has(key)) {
+        return;
+      }
+
+      mediaLoadingKeysRef.current.add(key);
+      const loader = shareCode
+        ? downloadCogitaPublicStoryboardFile({ shareCode, dataItemId: fileId })
+        : downloadDataItemFile(fileId);
+
+      void loader
+        .then((blob) => {
+          if (cancelled) return;
+          const objectUrl = URL.createObjectURL(blob);
+          setMediaObjectUrls((current) => {
+            if (current[key]) {
+              URL.revokeObjectURL(objectUrl);
+              return current;
+            }
+            return { ...current, [key]: objectUrl };
+          });
+        })
+        .catch(() => {
+          if (!cancelled) {
+            // Keep runtime resilient if media file is missing or inaccessible.
+          }
+        })
+        .finally(() => {
+          mediaLoadingKeysRef.current.delete(key);
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [runtime, shareCode]);
+
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];
     return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited).map((edge) => {
@@ -1148,8 +1269,29 @@ export function CogitaStoryboardRuntimePage({
                   <h3 className="cogita-detail-title" style={{ margin: 0 }}>{block.title || runtimeCopy.blockUntitled}</h3>
                   {block.kind === 'static' ? (
                     <>
+                      {block.narrationImageEnabled && block.narrationImageFileId.trim() && mediaObjectUrls[`image:${block.narrationImageFileId.trim()}`] ? (
+                        <img
+                          src={mediaObjectUrls[`image:${block.narrationImageFileId.trim()}`]}
+                          alt={block.title || runtimeCopy.blockUntitled}
+                          style={{
+                            width: '100%',
+                            maxHeight: '300px',
+                            objectFit: 'contain',
+                            borderRadius: '0.85rem',
+                            border: '1px solid rgba(111, 214, 255, 0.2)'
+                          }}
+                        />
+                      ) : null}
                       {block.staticBody ? <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{block.staticBody}</p> : null}
                       {block.description ? <p className="cogita-help" style={{ margin: 0 }}>{block.description}</p> : null}
+                      {block.narrationAudioEnabled && block.narrationAudioFileId.trim() && mediaObjectUrls[`audio:${block.narrationAudioFileId.trim()}`] ? (
+                        <audio
+                          controls
+                          autoPlay
+                          preload="metadata"
+                          src={mediaObjectUrls[`audio:${block.narrationAudioFileId.trim()}`]}
+                        />
+                      ) : null}
                       {(block.staticType === 'video' || block.staticType === 'audio' || block.staticType === 'image') && block.mediaUrl ? (
                         <a className="ghost" href={block.mediaUrl} target="_blank" rel="noreferrer">{runtimeCopy.openMediaAction}</a>
                       ) : null}

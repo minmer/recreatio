@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, useRef, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReactFlow, {
   Background,
@@ -23,10 +23,12 @@ import {
   createCogitaStoryboardShare,
   createCogitaCreationProject,
   getCogitaInfoCheckcards,
+  getCogitaLibraries,
   getCogitaCreationProjects,
   getCogitaStoryboardShares,
   importCogitaStoryboardFromJson,
   revokeCogitaStoryboardShare,
+  uploadDataItemFile,
   updateCogitaCreationProject,
   type CogitaCardSearchResult,
   type CogitaCreationProject,
@@ -82,6 +84,10 @@ type StoryboardNodeRecord = {
   staticType: StoryboardStaticType;
   staticBody: string;
   mediaUrl: string;
+  narrationImageEnabled: boolean;
+  narrationImageFileId: string;
+  narrationAudioEnabled: boolean;
+  narrationAudioFileId: string;
   notionId: string;
   cardCheckType: string;
   cardDirection: StoryboardCardDirection;
@@ -153,6 +159,16 @@ function toFiniteNumber(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+function toBoolean(value: unknown, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+  }
+  return fallback;
+}
+
 function normalizeNodeKind(value: unknown): StoryboardNodeKind {
   if (value === 'start' || value === 'end' || value === 'static' || value === 'card' || value === 'group') {
     return value;
@@ -218,6 +234,10 @@ function createStartNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
+    narrationImageEnabled: false,
+    narrationImageFileId: '',
+    narrationAudioEnabled: false,
+    narrationAudioFileId: '',
     notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
@@ -234,6 +254,10 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
+    narrationImageEnabled: false,
+    narrationImageFileId: '',
+    narrationAudioEnabled: false,
+    narrationAudioFileId: '',
     notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
@@ -253,6 +277,10 @@ function createAuthorNode(kind: 'static' | 'card' | 'group', index: number): Sto
     staticType: 'text',
     staticBody: '',
     mediaUrl: '',
+    narrationImageEnabled: false,
+    narrationImageFileId: '',
+    narrationAudioEnabled: false,
+    narrationAudioFileId: '',
     notionId: '',
     cardCheckType: '',
     cardDirection: 'front_to_back'
@@ -302,6 +330,9 @@ function parseGraph(raw: unknown): StoryboardGraph {
 
   const provisionalNodes = rawNodes.map((node, index) => {
     const kind = normalizeNodeKind(node.kind ?? node.nodeType);
+    const narration = node.narration && typeof node.narration === 'object' && !Array.isArray(node.narration)
+      ? (node.narration as Record<string, unknown>)
+      : null;
     return {
       nodeId: toString(node.nodeId).trim() || createId(`node${index + 1}`),
       title: toString(node.title).trim() || (kind === 'start' ? 'Start' : kind === 'end' ? 'End' : `Node ${index + 1}`),
@@ -314,6 +345,10 @@ function parseGraph(raw: unknown): StoryboardGraph {
       staticType: normalizeStaticType(node.staticType ?? node.nodeType),
       staticBody: toString(node.staticBody ?? node.text),
       mediaUrl: toString(node.mediaUrl ?? node.videoUrl),
+      narrationImageEnabled: toBoolean(node.narrationImageEnabled ?? narration?.imageEnabled),
+      narrationImageFileId: toString(node.narrationImageFileId ?? narration?.imageFileId),
+      narrationAudioEnabled: toBoolean(node.narrationAudioEnabled ?? narration?.audioEnabled),
+      narrationAudioFileId: toString(node.narrationAudioFileId ?? narration?.audioFileId),
       notionId: toString(node.notionId ?? node.infoId ?? node.itemId),
       cardCheckType: toString(node.cardCheckType ?? node.checkType),
       cardDirection: normalizeCardDirection(node.cardDirection),
@@ -435,6 +470,10 @@ function buildLegacyGraphFromV1(root: Record<string, unknown>): StoryboardGraph 
       staticType: normalizeStaticType(item.nodeType, 'text'),
       staticBody: toString(item.text),
       mediaUrl: toString(item.videoUrl),
+      narrationImageEnabled: false,
+      narrationImageFileId: '',
+      narrationAudioEnabled: false,
+      narrationAudioFileId: '',
       notionId: toString(item.notionId ?? item.infoId ?? item.itemId),
       cardCheckType: toString(item.cardCheckType ?? item.checkType),
       cardDirection: normalizeCardDirection(item.cardDirection)
@@ -1069,6 +1108,8 @@ export function CogitaStoryboardEdit({
   const [cardNodeCards, setCardNodeCards] = useState<Record<string, CogitaCardSearchResult[]>>({});
   const [cardNodeInfoLabels, setCardNodeInfoLabels] = useState<Record<string, string>>({});
   const [cardNodeCardsStatus, setCardNodeCardsStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [libraryRoleId, setLibraryRoleId] = useState('');
+  const [mediaUploadTarget, setMediaUploadTarget] = useState<'image' | 'audio' | null>(null);
   const [activeShare, setActiveShare] = useState<CogitaStoryboardShare | null>(null);
   const [shareStatus, setShareStatus] = useState<'idle' | 'working' | 'ready' | 'error'>('idle');
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -1076,6 +1117,8 @@ export function CogitaStoryboardEdit({
   const [importJsonInput, setImportJsonInput] = useState('');
   const [importStatus, setImportStatus] = useState<'idle' | 'working'>('idle');
   const [importError, setImportError] = useState<string | null>(null);
+  const imageUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const audioUploadInputRef = useRef<HTMLInputElement | null>(null);
   const authExpiredStatus = useMemo(
     () =>
       language === 'pl'
@@ -1152,6 +1195,25 @@ export function CogitaStoryboardEdit({
       cancelled = true;
     };
   }, [authExpiredStatus, libraryId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCogitaLibraries()
+      .then((libraries) => {
+        if (cancelled) return;
+        const library = libraries.find((item) => item.libraryId === libraryId);
+        setLibraryRoleId(library?.roleId ?? '');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLibraryRoleId('');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryId]);
 
   const selectedProject = useMemo(
     () => (storyboardId ? items.find((item) => item.projectId === storyboardId) ?? null : null),
@@ -1430,6 +1492,65 @@ export function CogitaStoryboardEdit({
       ...graph,
       nodes: graph.nodes.map((node) => (node.nodeId === selectedNode.nodeId ? updater(node) : node))
     }));
+  };
+
+  const uploadNarrationMedia = async (kind: 'image' | 'audio', file: File | null) => {
+    if (!file || !selectedNode || selectedNode.kind !== 'static') return;
+    if (!canEdit) return;
+    if (!libraryRoleId) {
+      setStatus(language === 'pl'
+        ? 'Brak roli biblioteki. Nie można dodać zasobu.'
+        : language === 'de'
+          ? 'Bibliotheksrolle fehlt. Datei kann nicht angehängt werden.'
+          : 'Library role is missing. Unable to attach media file.');
+      return;
+    }
+
+    setMediaUploadTarget(kind);
+    setStatus(null);
+    try {
+      const itemNameBase = selectedNode.title.trim() || 'storyboard-narration';
+      const uploaded = await uploadDataItemFile(libraryRoleId, {
+        file,
+        itemName: `${itemNameBase}-${kind}`
+      });
+
+      updateSelectedNode((node) =>
+        kind === 'image'
+          ? { ...node, narrationImageEnabled: true, narrationImageFileId: uploaded.dataItemId }
+          : { ...node, narrationAudioEnabled: true, narrationAudioFileId: uploaded.dataItemId }
+      );
+
+      setStatus(language === 'pl'
+        ? `Dodano zaszyfrowany plik ${kind === 'image' ? 'obrazu' : 'audio'}.`
+        : language === 'de'
+          ? `Verschlüsselte ${kind === 'image' ? 'Bild' : 'Audio'}-Datei angehängt.`
+          : `Encrypted ${kind} file attached.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setStatus(
+        message ||
+        (language === 'pl'
+          ? 'Nie udało się przesłać pliku zaszyfrowanego.'
+          : language === 'de'
+            ? 'Verschlüsselte Datei konnte nicht hochgeladen werden.'
+            : 'Failed to upload encrypted file.')
+      );
+    } finally {
+      setMediaUploadTarget(null);
+    }
+  };
+
+  const handleNarrationImagePicked = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    void uploadNarrationMedia('image', file);
+  };
+
+  const handleNarrationAudioPicked = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = '';
+    void uploadNarrationMedia('audio', file);
   };
 
   const navigateToSearch = () => {
@@ -1838,6 +1959,20 @@ export function CogitaStoryboardEdit({
       language={language}
       onLanguageChange={onLanguageChange}
     >
+      <input
+        ref={imageUploadInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleNarrationImagePicked}
+      />
+      <input
+        ref={audioUploadInputRef}
+        type="file"
+        accept="audio/*"
+        style={{ display: 'none' }}
+        onChange={handleNarrationAudioPicked}
+      />
       {isSearchMode ? (
         <section className="cogita-library-dashboard cogita-flat-search-list" data-mode="list">
           <div className="cogita-library-layout">
@@ -2156,6 +2291,96 @@ export function CogitaStoryboardEdit({
                                   placeholder="https://..."
                                 />
                               </label>
+                            ) : null}
+
+                            {selectedNode.staticType === 'text' ? (
+                              <>
+                                <label className="cogita-field full" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedNode.narrationImageEnabled}
+                                    disabled={!canEdit}
+                                    onChange={(event) =>
+                                      updateSelectedNode((node) => ({
+                                        ...node,
+                                        narrationImageEnabled: event.target.checked,
+                                        narrationImageFileId: event.target.checked ? node.narrationImageFileId : ''
+                                      }))
+                                    }
+                                  />
+                                  <span>{language === 'pl' ? 'Włącz obraz nad narracją' : language === 'de' ? 'Bild über Narration aktivieren' : 'Enable image above narration'}</span>
+                                </label>
+
+                                {selectedNode.narrationImageEnabled ? (
+                                  <div className="cogita-field full" style={{ display: 'grid', gap: '0.45rem' }}>
+                                    <span>{language === 'pl' ? 'Zaszyfrowany obraz' : language === 'de' ? 'Verschlüsseltes Bild' : 'Encrypted image'}</span>
+                                    <input type="text" value={selectedNode.narrationImageFileId} readOnly placeholder="dataItemId" />
+                                    <div className="cogita-card-actions">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={!canEdit || mediaUploadTarget === 'image'}
+                                        onClick={() => imageUploadInputRef.current?.click()}
+                                      >
+                                        {mediaUploadTarget === 'image'
+                                          ? (language === 'pl' ? 'Wysyłanie...' : language === 'de' ? 'Wird hochgeladen...' : 'Uploading...')
+                                          : (language === 'pl' ? 'Dodaj zaszyfrowany obraz' : language === 'de' ? 'Verschlüsseltes Bild hochladen' : 'Upload encrypted image')}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={!canEdit}
+                                        onClick={() => updateSelectedNode((node) => ({ ...node, narrationImageFileId: '' }))}
+                                      >
+                                        {language === 'pl' ? 'Wyczyść obraz' : language === 'de' ? 'Bild entfernen' : 'Clear image'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                <label className="cogita-field full" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedNode.narrationAudioEnabled}
+                                    disabled={!canEdit}
+                                    onChange={(event) =>
+                                      updateSelectedNode((node) => ({
+                                        ...node,
+                                        narrationAudioEnabled: event.target.checked,
+                                        narrationAudioFileId: event.target.checked ? node.narrationAudioFileId : ''
+                                      }))
+                                    }
+                                  />
+                                  <span>{language === 'pl' ? 'Włącz audio narracji' : language === 'de' ? 'Narrations-Audio aktivieren' : 'Enable narration audio'}</span>
+                                </label>
+
+                                {selectedNode.narrationAudioEnabled ? (
+                                  <div className="cogita-field full" style={{ display: 'grid', gap: '0.45rem' }}>
+                                    <span>{language === 'pl' ? 'Zaszyfrowane audio' : language === 'de' ? 'Verschlüsseltes Audio' : 'Encrypted audio'}</span>
+                                    <input type="text" value={selectedNode.narrationAudioFileId} readOnly placeholder="dataItemId" />
+                                    <div className="cogita-card-actions">
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={!canEdit || mediaUploadTarget === 'audio'}
+                                        onClick={() => audioUploadInputRef.current?.click()}
+                                      >
+                                        {mediaUploadTarget === 'audio'
+                                          ? (language === 'pl' ? 'Wysyłanie...' : language === 'de' ? 'Wird hochgeladen...' : 'Uploading...')
+                                          : (language === 'pl' ? 'Dodaj zaszyfrowane audio' : language === 'de' ? 'Verschlüsseltes Audio hochladen' : 'Upload encrypted audio')}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="ghost"
+                                        disabled={!canEdit}
+                                        onClick={() => updateSelectedNode((node) => ({ ...node, narrationAudioFileId: '' }))}
+                                      >
+                                        {language === 'pl' ? 'Wyczyść audio' : language === 'de' ? 'Audio entfernen' : 'Clear audio'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </>
                             ) : null}
                           </>
                         ) : null}

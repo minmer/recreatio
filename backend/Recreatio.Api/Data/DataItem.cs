@@ -19,6 +19,17 @@ public sealed class DataItem
 
     public byte[]? EncryptedValue { get; set; }
 
+    [MaxLength(32)]
+    public string? StorageProvider { get; set; }
+
+    [MaxLength(512)]
+    public string? StoragePath { get; set; }
+
+    public long? StorageSizeBytes { get; set; }
+
+    [MaxLength(32)]
+    public byte[]? StorageSha256 { get; set; }
+
     public byte[] PublicSigningKey { get; set; } = Array.Empty<byte>();
 
     public string PublicSigningKeyAlg { get; set; } = string.Empty;

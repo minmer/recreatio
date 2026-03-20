@@ -32,6 +32,7 @@ public static class PilgrimageEndpoints
     private static readonly string[] AllowedIssueKinds = ["problem", "resignation", "pickup", "health-alert", "question"];
     private static readonly string[] AllowedIssueStatuses = ["open", "in-progress", "resolved", "closed"];
     private static readonly string[] AllowedInquiryStatuses = ["new", "in-progress", "resolved", "closed"];
+    private static readonly HashSet<string> PublicFallbackSlugs = new(StringComparer.OrdinalIgnoreCase) { "kal26" };
     private const string GlobalEventsLimanowaAdminScope = "events-limanowa";
 
     public static void MapPilgrimageEndpoints(this WebApplication app)
@@ -46,21 +47,25 @@ public static class PilgrimageEndpoints
             var assignment = await dbContext.PortalAdminAssignments.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ScopeKey == GlobalEventsLimanowaAdminScope, ct);
 
-            var hasAdmin = assignment is not null;
+            var adminAccount = assignment is null
+                ? null
+                : await dbContext.UserAccounts.AsNoTracking()
+                    .Where(x => x.Id == assignment.UserId)
+                    .Select(x => new { x.Id, x.LoginId, x.DisplayName })
+                    .FirstOrDefaultAsync(ct);
+
+            var isSystemLikeAdmin = adminAccount is not null
+                && string.Equals((adminAccount.LoginId ?? string.Empty).Trim(), "system", StringComparison.OrdinalIgnoreCase);
+            var hasAdmin = assignment is not null && adminAccount is not null && !isSystemLikeAdmin;
             var isCurrentUserAdmin = false;
-            if (assignment is not null && EndpointHelpers.TryGetUserId(context, out var maybeUserId))
+            if (hasAdmin && assignment is not null && EndpointHelpers.TryGetUserId(context, out var maybeUserId))
             {
                 isCurrentUserAdmin = assignment.UserId == maybeUserId;
             }
 
-            string? adminDisplayName = null;
-            if (assignment is not null)
-            {
-                adminDisplayName = await dbContext.UserAccounts.AsNoTracking()
-                    .Where(x => x.Id == assignment.UserId)
-                    .Select(x => x.DisplayName ?? x.LoginId)
-                    .FirstOrDefaultAsync(ct);
-            }
+            var adminDisplayName = hasAdmin
+                ? (adminAccount?.DisplayName ?? adminAccount?.LoginId)
+                : null;
 
             var kal26Provisioned = await dbContext.PilgrimageEvents.AsNoTracking()
                 .AnyAsync(x => x.Slug == "kal26", ct);
@@ -79,11 +84,29 @@ public static class PilgrimageEndpoints
                 return Results.Unauthorized();
             }
 
-            var existing = await dbContext.PortalAdminAssignments.AsNoTracking()
+            var existing = await dbContext.PortalAdminAssignments
                 .FirstOrDefaultAsync(x => x.ScopeKey == GlobalEventsLimanowaAdminScope, ct);
             if (existing is not null)
             {
-                return Results.Conflict(new { error = "Admin already assigned." });
+                if (existing.UserId == userId)
+                {
+                    return Results.Ok(new { claimed = true, alreadyOwner = true });
+                }
+
+                var existingAccount = await dbContext.UserAccounts.AsNoTracking()
+                    .Where(x => x.Id == existing.UserId)
+                    .Select(x => new { x.LoginId })
+                    .FirstOrDefaultAsync(ct);
+                var isStaleOrSystem = existingAccount is null
+                    || string.Equals((existingAccount.LoginId ?? string.Empty).Trim(), "system", StringComparison.OrdinalIgnoreCase);
+
+                if (!isStaleOrSystem)
+                {
+                    return Results.Conflict(new { error = "Admin already assigned." });
+                }
+
+                dbContext.PortalAdminAssignments.Remove(existing);
+                await dbContext.SaveChangesAsync(ct);
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -292,13 +315,6 @@ public static class PilgrimageEndpoints
             var logger = loggerFactory.CreateLogger("Pilgrimage.PublicRegistrations");
             try
             {
-                var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
-                var pilgrimage = await dbContext.PilgrimageEvents.FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
-                if (pilgrimage is null)
-                {
-                    return Results.NotFound();
-                }
-
                 var fullName = NormalizeShort(request.FullName, 200);
                 var phone = NormalizePolishPhone(request.Phone);
                 var emergencyName = NormalizeShort(request.EmergencyContactName, 200);
@@ -313,6 +329,40 @@ public static class PilgrimageEndpoints
                 if (!request.AcceptedTerms || !request.AcceptedRodo)
                 {
                     return Results.BadRequest(new { error = "Terms and RODO consent are required." });
+                }
+
+                var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
+                var pilgrimage = await dbContext.PilgrimageEvents.FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
+                if (pilgrimage is null)
+                {
+                    if (!IsPublicFallbackEnabledSlug(normalizedSlug))
+                    {
+                        return Results.NotFound();
+                    }
+
+                    await ledgerService.AppendBusinessAsync(
+                        "PilgrimageRegistrationFallbackCaptured",
+                        "public",
+                        JsonSerializer.Serialize(new
+                        {
+                            slug = normalizedSlug,
+                            fullName,
+                            phone,
+                            emergencyName,
+                            emergencyPhone,
+                            request.ParticipationVariant,
+                            request.NeedsLodging,
+                            request.NeedsBaggageTransport,
+                            notes = NormalizeLong(request.HealthNotes, 1400),
+                            createdUtc = DateTimeOffset.UtcNow
+                        }),
+                        ct);
+
+                    return Results.Accepted($"/pilgrimage/{normalizedSlug}/public/registrations", new
+                    {
+                        fallback = true,
+                        message = "Event is not provisioned yet. Registration has been captured in fallback inbox."
+                    });
                 }
 
                 var variant = NormalizeVariant(request.ParticipationVariant);
@@ -424,13 +474,6 @@ public static class PilgrimageEndpoints
             CancellationToken ct) =>
         {
             var normalizedSlug = (slug ?? string.Empty).Trim().ToLowerInvariant();
-            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
-            if (pilgrimage is null)
-            {
-                return Results.NotFound();
-            }
-
             var name = NormalizeShort(request.Name, 180);
             var topic = NormalizeShort(request.Topic, 120);
             var message = NormalizeLong(request.Message, 2400);
@@ -447,6 +490,35 @@ public static class PilgrimageEndpoints
             if (!string.IsNullOrWhiteSpace(request.Phone) && string.IsNullOrWhiteSpace(phone))
             {
                 return Results.BadRequest(new { error = "Phone must be in +48XXXXXXXXX format." });
+            }
+
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == normalizedSlug, ct);
+            if (pilgrimage is null)
+            {
+                if (!IsPublicFallbackEnabledSlug(normalizedSlug))
+                {
+                    return Results.NotFound();
+                }
+
+                var fallbackInquiryId = Guid.NewGuid();
+                await ledgerService.AppendBusinessAsync(
+                    "PilgrimageContactInquiryFallbackCaptured",
+                    "public",
+                    JsonSerializer.Serialize(new
+                    {
+                        inquiryId = fallbackInquiryId,
+                        slug = normalizedSlug,
+                        name,
+                        phone,
+                        isPublicQuestion,
+                        topic,
+                        message,
+                        createdUtc = DateTimeOffset.UtcNow
+                    }),
+                    ct);
+
+                return Results.Ok(fallbackInquiryId);
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -2274,6 +2346,12 @@ public static class PilgrimageEndpoints
         return $"+48{national}";
     }
 
+    private static bool IsPublicFallbackEnabledSlug(string? slug)
+    {
+        var normalized = (slug ?? string.Empty).Trim();
+        return PublicFallbackSlugs.Contains(normalized);
+    }
+
     private static string? NormalizeShort(string? value, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -2630,8 +2708,8 @@ public static class PilgrimageEndpoints
         var publicSigningKey = signingRsa.ExportSubjectPublicKeyInfo();
         var privateSigningKey = signingRsa.ExportPkcs8PrivateKey();
 
-        var encryptedItemName = keyRingService.EncryptDataItemMeta(eventRole.ReadKey, itemName, dataItemId, "item-name");
-        var encryptedItemType = keyRingService.EncryptDataItemMeta(eventRole.ReadKey, "key", dataItemId, "item-type");
+        var encryptedItemName = keyRingService.EncryptDataItemMeta(dataKey, itemName, dataItemId, "item-name");
+        var encryptedItemType = keyRingService.EncryptDataItemMeta(dataKey, "key", dataItemId, "item-type");
 
         dbContext.DataItems.Add(new DataItem
         {

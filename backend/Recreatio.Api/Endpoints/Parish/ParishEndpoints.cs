@@ -4242,8 +4242,8 @@ public static class ParishEndpoints
         var privateSigningKey = signingRsa.ExportPkcs8PrivateKey();
         var signatureAlg = "RSA-SHA256";
 
-        var encryptedItemName = keyRingService.EncryptDataItemMeta(parishRole.ReadKey, itemName, dataItemId, "item-name");
-        var encryptedItemType = keyRingService.EncryptDataItemMeta(parishRole.ReadKey, "key", dataItemId, "item-type");
+        var encryptedItemName = keyRingService.EncryptDataItemMeta(dataKey, itemName, dataItemId, "item-name");
+        var encryptedItemType = keyRingService.EncryptDataItemMeta(dataKey, "key", dataItemId, "item-type");
 
         dbContext.DataItems.Add(new DataItem
         {

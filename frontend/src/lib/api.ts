@@ -23,11 +23,12 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit): Promise<T> {
   const csrfToken = getCsrfToken();
+  const hasFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(!hasFormDataBody ? { 'Content-Type': 'application/json' } : {}),
       ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
       ...(options.headers ?? {})
     }
@@ -287,6 +288,15 @@ export type DataItemResponse = {
   plainValue?: string | null;
 };
 
+export type DataFileUploadResponse = {
+  dataItemId: string;
+  itemName: string;
+  itemType: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
 export function createDataItem(roleId: string, payload: {
   itemName: string;
   itemType?: string | null;
@@ -296,6 +306,61 @@ export function createDataItem(roleId: string, payload: {
     method: 'POST',
     body: JSON.stringify(payload)
   });
+}
+
+export function uploadDataItemFile(roleId: string, payload: {
+  file: File | Blob;
+  itemName?: string | null;
+  fileName?: string | null;
+}) {
+  const form = new FormData();
+  if (payload.itemName && payload.itemName.trim().length > 0) {
+    form.append('itemName', payload.itemName.trim());
+  }
+
+  const fallbackName = payload.fileName?.trim()
+    || (payload.file instanceof File ? payload.file.name : '')
+    || 'upload.bin';
+  form.append('file', payload.file, fallbackName);
+
+  return request<DataFileUploadResponse>(`/account/roles/${roleId}/data/files`, {
+    method: 'POST',
+    body: form
+  });
+}
+
+export async function downloadDataItemFile(dataItemId: string) {
+  const csrfToken = getCsrfToken();
+  const response = await fetch(`${apiBase}/account/data/${dataItemId}/file`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {})
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  return response.blob();
+}
+
+export async function downloadCogitaPublicStoryboardFile(payload: { shareCode: string; dataItemId: string }) {
+  const response = await fetch(
+    `${apiBase}/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/files/${encodeURIComponent(payload.dataItemId)}`,
+    {
+      method: 'GET'
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(response.status, text || response.statusText);
+  }
+
+  return response.blob();
 }
 
 export function updateDataItem(dataItemId: string, payload: { plainValue?: string | null }) {

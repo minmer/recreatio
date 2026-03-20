@@ -186,41 +186,53 @@ public sealed class RoleQueryService : IRoleQueryService
 
                 string? itemName = null;
                 string itemType = "data";
-                if (keyRing.TryGetReadKey(item.OwnerRoleId, out var ownerReadKey))
+                byte[]? resolvedDataKey = null;
+                foreach (var grant in itemGrants)
                 {
-                    itemName = _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemName, item.Id, "item-name");
-                    var resolvedType = _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemType, item.Id, "item-type");
+                    if (!keyRing.TryGetReadKey(grant.RoleId, out var readKey))
+                    {
+                        continue;
+                    }
+
+                    byte[] dataKey;
+                    try
+                    {
+                        dataKey = _encryptionService.Decrypt(readKey, grant.EncryptedDataKeyBlob, item.Id.ToByteArray());
+                    }
+                    catch
+                    {
+                        continue;
+                    }
+
+                    resolvedDataKey ??= dataKey;
+                    itemName ??= _keyRingService.TryDecryptDataItemMeta(dataKey, item.EncryptedItemName, item.Id, "item-name");
+                    var resolvedType = _keyRingService.TryDecryptDataItemMeta(dataKey, item.EncryptedItemType, item.Id, "item-type");
                     if (!string.IsNullOrWhiteSpace(resolvedType))
                     {
                         itemType = resolvedType;
                     }
                 }
 
-                string? value = null;
-                if (item.EncryptedValue is not null && !string.IsNullOrWhiteSpace(itemName))
+                if ((string.IsNullOrWhiteSpace(itemName) || string.IsNullOrWhiteSpace(itemType)) &&
+                    keyRing.TryGetReadKey(item.OwnerRoleId, out var ownerReadKey))
                 {
-                    foreach (var grant in itemGrants)
+                    itemName ??= _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemName, item.Id, "item-name");
+                    var ownerResolvedType = _keyRingService.TryDecryptDataItemMeta(ownerReadKey, item.EncryptedItemType, item.Id, "item-type");
+                    if (!string.IsNullOrWhiteSpace(ownerResolvedType))
                     {
-                        if (!keyRing.TryGetReadKey(grant.RoleId, out var readKey))
-                        {
-                            continue;
-                        }
-                        try
-                        {
-                            var dataKey = _encryptionService.Decrypt(readKey, grant.EncryptedDataKeyBlob, item.Id.ToByteArray());
-                            var aad = System.Text.Encoding.UTF8.GetBytes($"{item.Id:D}:{itemName}");
-                            var plaintext = _encryptionService.Decrypt(dataKey, item.EncryptedValue, aad);
-                            value = System.Text.Encoding.UTF8.GetString(plaintext);
-                            break;
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                        itemType = ownerResolvedType;
                     }
                 }
 
                 var normalizedType = itemType.Trim().ToLowerInvariant();
+                string? value = null;
+                if (normalizedType == "data" &&
+                    item.EncryptedValue is not null &&
+                    !string.IsNullOrWhiteSpace(itemName) &&
+                    resolvedDataKey is not null)
+                {
+                    value = _keyRingService.TryDecryptDataItemValue(resolvedDataKey, item.EncryptedValue, item.Id, itemName);
+                }
                 var nodeType = normalizedType == "key" || item.EncryptedValue is null ? "key" : "data";
                 var dataNodeId = $"{nodeType}:{item.Id:N}";
                 var label = string.IsNullOrWhiteSpace(itemName) ? $"Data {item.Id.ToString()[..8]}" : itemName;
