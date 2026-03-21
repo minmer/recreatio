@@ -165,10 +165,14 @@
 }
 
 .lim26-slide {
-  min-height: 100svh;
+  min-height: 126svh;
   scroll-snap-align: start;
   scroll-snap-stop: always;
   width: 100%;
+}
+
+.lim26-hero.lim26-slide {
+  min-height: 116svh;
 }
 
 .lim26-scene {
@@ -401,7 +405,7 @@
 
 .lim26-scene:not(.lim26-hero).is-near .lim26-motion-text {
   opacity: calc(0.22 + var(--lim26-scene-visibility) * 0.86);
-  transform: translate3d(0, calc((1 - var(--lim26-scene-enter)) * 34px - var(--lim26-scene-exit) * 16px - var(--lim26-scene-progress) * 14px), 0);
+  transform: translate3d(0, calc((1 - var(--lim26-scene-enter)) * 34px - var(--lim26-scene-exit) * 16px - var(--lim26-scene-progress) * 10svh), 0);
   filter: blur(calc((1 - var(--lim26-scene-visibility)) * 3px));
 }
 
@@ -422,7 +426,7 @@
 }
 
 .lim26-hero.is-near .lim26-hero-content.lim26-motion-text {
-  transform: translate3d(0, calc(var(--lim26-scene-progress) * -18px), 0);
+  transform: translate3d(0, calc(var(--lim26-scene-progress) * -10svh), 0);
 }
 
 .lim26-section h2 {
@@ -852,6 +856,14 @@
 }
 
 @media (max-width: 900px) {
+  .lim26-slide {
+    min-height: 114svh;
+  }
+
+  .lim26-hero.lim26-slide {
+    min-height: 108svh;
+  }
+
   .lim26-header {
     display: grid;
     justify-items: start;

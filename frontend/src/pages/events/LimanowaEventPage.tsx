@@ -364,20 +364,46 @@ function LimanowaStartPage({
       const maxScroll = Math.max(1, viewport.scrollHeight - viewportHeight);
       const scrollTop = viewport.scrollTop;
       const progress = clamp01(scrollTop / maxScroll);
-      const approxIndex = scrollTop / viewportHeight;
+      const viewportCenter = scrollTop + viewportHeight * 0.5;
+      const smooth = (value: number) => {
+        const t = clamp01(value);
+        return t * t * (3 - 2 * t);
+      };
 
-      const index = Math.max(0, Math.min(slides.length - 1, Math.round(approxIndex)));
+      const metrics = slides.map((slide) => {
+        const start = slide.offsetTop;
+        const end = start + Math.max(viewportHeight, slide.offsetHeight);
+        const range = Math.max(1, end - start);
+        const local = clamp01((scrollTop - start) / range);
+        const center = start + range * 0.5;
+        const distance = Math.abs(viewportCenter - center);
+        const visibility = clamp01(1 - distance / Math.max(1, viewportHeight * 0.95));
+        return { slide, start, end, range, local, center, visibility };
+      });
+
+      let index = metrics.findIndex((metric) => viewportCenter >= metric.start && viewportCenter < metric.end);
+      if (index < 0) {
+        let nearestDistance = Number.POSITIVE_INFINITY;
+        for (let metricIndex = 0; metricIndex < metrics.length; metricIndex += 1) {
+          const distance = Math.abs(metrics[metricIndex].center - viewportCenter);
+          if (distance < nearestDistance) {
+            nearestDistance = distance;
+            index = metricIndex;
+          }
+        }
+      }
+      index = Math.max(0, Math.min(slides.length - 1, index));
+
       if (index !== lastIndex) {
         lastIndex = index;
         setActiveSlideIndex(index);
       }
 
-      slides.forEach((slide, slideIndex) => {
-        const local = clamp01((scrollTop - slideIndex * viewportHeight) / viewportHeight);
-        const visibility = clamp01(1 - Math.min(1, Math.abs(local - 0.5) / 0.5));
+      metrics.forEach((metric, slideIndex) => {
+        const { slide, local, visibility } = metric;
         const enter = clamp01((local - 0.05) / 0.24);
         const exit = clamp01((local - 0.74) / 0.22);
-        const intensity = clamp01(1 - Math.min(1, Math.abs(approxIndex - slideIndex)));
+        const intensity = visibility;
         const isActive = slideIndex === index;
 
         slide.style.setProperty('--lim26-scene-progress', local.toFixed(4));
@@ -386,19 +412,21 @@ function LimanowaStartPage({
         slide.style.setProperty('--lim26-scene-visibility', visibility.toFixed(4));
         slide.style.setProperty('--lim26-scene-intensity', intensity.toFixed(4));
         slide.classList.toggle('is-active', isActive);
-        slide.classList.toggle('is-near', intensity > 0.25);
+        slide.classList.toggle('is-near', intensity > 0.42);
         slide.dataset.active = isActive ? 'true' : 'false';
       });
 
-      const activeLocal = clamp01((scrollTop - index * viewportHeight) / viewportHeight);
+      const activeLocal = metrics[index]?.local ?? 0;
       const settle = clamp01(1 - Math.min(1, Math.abs(activeLocal - 0.5) / 0.5));
-      const bgDriftY = (progress - 0.5) * 22;
-      const bgDriftX = Math.sin(progress * Math.PI * 1.75) * 6.2;
-      const bgGrainOpacity = 0.08 + (1 - progress) * 0.05 + settle * 0.02;
-      const bgTopoOpacity = 0.08 + progress * 0.09;
-      const bgHazeOpacity = 0.07 + Math.sin((progress + 0.12) * Math.PI) * 0.08;
+      const transitionToNext = smooth((activeLocal - 0.86) / 0.14);
+      const chapterBlend = (index + transitionToNext) / Math.max(1, slides.length - 1);
+      const bgDriftY = (chapterBlend - 0.5) * 18;
+      const bgDriftX = Math.sin(chapterBlend * Math.PI * 1.75) * 5.2;
+      const bgGrainOpacity = 0.08 + (1 - chapterBlend) * 0.04 + settle * 0.016;
+      const bgTopoOpacity = 0.08 + chapterBlend * 0.08;
+      const bgHazeOpacity = 0.07 + Math.sin((chapterBlend + 0.12) * Math.PI) * 0.07;
       const pointOpacity = 0.78 - settle * 0.08;
-      const pointContrast = 1.02 + progress * 0.08;
+      const pointContrast = 1.02 + chapterBlend * 0.08;
 
       root.style.setProperty('--lim26-bg-drift-y', `${bgDriftY.toFixed(2)}px`);
       root.style.setProperty('--lim26-bg-drift-x', `${bgDriftX.toFixed(2)}px`);

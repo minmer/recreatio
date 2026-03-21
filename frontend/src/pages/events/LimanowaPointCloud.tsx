@@ -43,9 +43,9 @@ type MaskStateOptions = {
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 3.08, scaleY: 2.02, depth: 0.2, jitter: 0.005, offsetY: -0.01, fitMode: 'cover' },
-  { scaleX: 2.12, scaleY: 1.44, depth: 0.21, jitter: 0.005, offsetX: 0.03, offsetY: 0.01, fitMode: 'contain' },
-  { scaleX: 2.22, scaleY: 1.5, depth: 0.21, jitter: 0.005, offsetY: -0.02, fitMode: 'contain' }
+  { scaleX: 1.1, scaleY: 1.1, depth: 0.2, jitter: 0.005, offsetY: -0.01, fitMode: 'cover' },
+  { scaleX: 1.1, scaleY: 1.1, depth: 0.21, jitter: 0.005, offsetX: 0.03, offsetY: 0.01, fitMode: 'contain' },
+  { scaleX: 1.1, scaleY: 1.1, depth: 0.21, jitter: 0.005, offsetY: -0.02, fitMode: 'contain' }
 ];
 
 function clamp01(value: number): number {
@@ -144,13 +144,11 @@ function buildMaskState(count: number, mask: PointMask, options: MaskStateOption
     let baseY = (0.5 - (mask.ys[sourceIndex] / Math.max(1, mask.height - 1))) * 2;
     const lum = mask.luminance[sourceIndex];
 
-    if (options.fitMode !== 'cover') {
-      // Preserve source image proportions so silhouettes are readable.
-      if (maskAspect >= 1) {
-        baseX *= maskAspect;
-      } else {
-        baseY /= Math.max(maskAspect, 0.001);
-      }
+    // Preserve source image proportions from the grayscale source.
+    if (maskAspect >= 1) {
+      baseX *= maskAspect;
+    } else {
+      baseY /= Math.max(maskAspect, 0.001);
     }
 
     const jitterX = (fract(Math.sin((i + 1) * (stateIndex + 2) * 12.9898) * 43758.5453) - 0.5) * options.jitter;
