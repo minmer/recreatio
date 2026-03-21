@@ -180,11 +180,13 @@ body.lim26-scroll-snap {
 
 .lim26-hero {
   min-height: 100svh;
+  width: 100%;
   position: relative;
   display: grid;
   align-items: center;
-  padding: max(6.2rem, 13vh) 6vw 5.2rem;
+  padding: calc(var(--lim26-header-h) + 3.8svh) 6vw 4.4svh;
   border-bottom: 1px solid var(--lim26-line);
+  overflow: hidden;
 }
 
 .lim26-hero-image,
@@ -289,9 +291,9 @@ body.lim26-scroll-snap {
 }
 
 .lim26-section {
-  --lim26-section-pad: clamp(4.2rem, 9vw, 7rem);
+  --lim26-section-pad: clamp(3rem, 6vw, 5.4rem);
   min-height: 100svh;
-  padding: calc(var(--lim26-section-pad) + var(--lim26-header-h) * 0.62) 6vw var(--lim26-section-pad);
+  padding: calc(var(--lim26-section-pad) + var(--lim26-header-h) * 0.2) 6vw var(--lim26-section-pad);
   position: relative;
   display: grid;
   align-items: center;
@@ -307,7 +309,7 @@ body.lim26-scroll-snap {
 }
 
 .lim26-scene:not(.lim26-hero) {
-  min-height: 104svh;
+  min-height: 100svh;
 }
 
 .lim26-scene + .lim26-scene {
@@ -799,11 +801,11 @@ body.lim26-scroll-snap {
   }
 
   .lim26-section {
-    min-height: 92svh;
+    min-height: 96svh;
   }
 
   .lim26-scene:not(.lim26-hero) {
-    min-height: 94svh;
+    min-height: 96svh;
   }
 
   .lim26-scene + .lim26-scene {
@@ -827,11 +829,11 @@ body.lim26-scroll-snap {
   }
 
   .lim26-hero {
-    padding: 6.6rem 5vw 3.2rem;
+    padding: calc(var(--lim26-header-h) + 1.8rem) 5vw 2.8rem;
   }
 
   .lim26-section {
-    padding: calc(2.8rem + var(--lim26-header-h) * 0.5) 5vw 2.8rem;
+    padding: calc(2.2rem + var(--lim26-header-h) * 0.18) 5vw 2.4rem;
   }
 
   .lim26-btn {

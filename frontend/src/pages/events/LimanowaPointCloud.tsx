@@ -8,9 +8,9 @@ const BASE_POINT_COUNT = 12000;
 const DESKTOP_POINT_COUNT = 22000;
 const LARGE_DESKTOP_POINT_COUNT = 32000;
 const POINTER_PARALLAX_STRENGTH = 0.52;
-const POINTER_DEAD_ZONE = 0.1;
+const POINTER_DEAD_ZONE = 0.08;
 const POINTER_CURVE_POWER = 1.8;
-const POINTER_VERTICAL_RATIO = 0.08;
+const POINTER_VERTICAL_RATIO = 0.44;
 const MASK_MAX_DIMENSION = 1400;
 
 const MASK_SOURCE_CANDIDATES: string[][] = [
@@ -40,9 +40,9 @@ type MaskStateOptions = {
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 1.95, scaleY: 1.36, depth: 0.44, jitter: 0.024, offsetY: -0.02 },
-  { scaleX: 1.78, scaleY: 1.22, depth: 0.42, jitter: 0.022, offsetX: 0.2, offsetY: 0.01 },
-  { scaleX: 2.02, scaleY: 1.28, depth: 0.4, jitter: 0.022, offsetY: -0.06 }
+  { scaleX: 1.95, scaleY: 1.36, depth: 0.22, jitter: 0.014, offsetY: -0.02 },
+  { scaleX: 1.78, scaleY: 1.22, depth: 0.24, jitter: 0.014, offsetX: 0.2, offsetY: 0.01 },
+  { scaleX: 2.02, scaleY: 1.28, depth: 0.23, jitter: 0.014, offsetY: -0.06 }
 ];
 
 function clamp01(value: number): number {
@@ -115,7 +115,7 @@ function buildMaskState(count: number, mask: PointMask, options: MaskStateOption
 
     state[pointIndex] = baseX * options.scaleX + (options.offsetX ?? 0) + jitterX;
     state[pointIndex + 1] = baseY * options.scaleY + (options.offsetY ?? 0) + jitterY;
-    state[pointIndex + 2] = (lum - 0.5) * options.depth + (jitterX - jitterY) * 0.35;
+    state[pointIndex + 2] = (lum - 0.5) * options.depth;
   }
 
   return state;
@@ -359,8 +359,10 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
 
       void main() {
         vec3 p = aPosition;
-        p.x += uParallax.x * 0.42;
-        p.y += uParallax.y * 0.08;
+        float depthNorm = clamp((p.z + 0.35) / 0.7, 0.0, 1.0);
+        float depthParallax = mix(0.72, 1.48, depthNorm);
+        p.x += uParallax.x * 0.34 * depthParallax;
+        p.y += uParallax.y * 0.26 * depthParallax;
 
         float z = p.z + 3.2;
         float x = p.x / z;
@@ -556,19 +558,26 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       scheduleDraw();
     };
 
+    const axisResponse = (value: number) => {
+      const limited = Math.max(-1, Math.min(1, value));
+      const magnitude = Math.abs(limited);
+      if (magnitude <= POINTER_DEAD_ZONE) {
+        return 0;
+      }
+      const normalized = (magnitude - POINTER_DEAD_ZONE) / Math.max(0.001, 1 - POINTER_DEAD_ZONE);
+      const curved = Math.pow(Math.max(0, Math.min(1, normalized)), POINTER_CURVE_POWER);
+      return Math.sign(limited) * curved;
+    };
+
     const onPointerMove = (event: PointerEvent) => {
       const nx = (event.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
       const ny = (event.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
-      const limitedX = Math.max(-1, Math.min(1, nx));
-      const magnitude = Math.abs(limitedX);
-      const normalized = magnitude <= POINTER_DEAD_ZONE
-        ? 0
-        : (magnitude - POINTER_DEAD_ZONE) / Math.max(0.001, 1 - POINTER_DEAD_ZONE);
-      const curved = Math.pow(Math.max(0, Math.min(1, normalized)), POINTER_CURVE_POWER);
+      const xResponse = axisResponse(nx);
+      const yResponse = axisResponse(-ny);
 
       pointerRef.current = {
-        x: Math.sign(limitedX) * curved * POINTER_PARALLAX_STRENGTH,
-        y: Math.max(-1, Math.min(1, -ny)) * curved * POINTER_PARALLAX_STRENGTH * POINTER_VERTICAL_RATIO
+        x: xResponse * POINTER_PARALLAX_STRENGTH,
+        y: yResponse * POINTER_PARALLAX_STRENGTH * POINTER_VERTICAL_RATIO
       };
       scheduleDraw();
     };
