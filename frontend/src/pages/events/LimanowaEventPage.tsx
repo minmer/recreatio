@@ -412,7 +412,7 @@ function LimanowaStartPage({
         slide.style.setProperty('--lim26-scene-visibility', visibility.toFixed(4));
         slide.style.setProperty('--lim26-scene-intensity', intensity.toFixed(4));
         slide.classList.toggle('is-active', isActive);
-        slide.classList.toggle('is-near', intensity > 0.42);
+        slide.classList.toggle('is-near', intensity > 0.6);
         slide.dataset.active = isActive ? 'true' : 'false';
       });
 

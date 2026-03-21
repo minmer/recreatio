@@ -2002,6 +2002,8 @@ export function CogitaWorkspacePage({
       pathState.filterCollectionId,
       pathState.liveSessionId,
       pathState.liveSessionView,
+      pathState.gameId,
+      pathState.gameView,
       pathState.storyboardId,
       pathState.storyboardView,
       selectedStoryboard?.name,
@@ -2018,6 +2020,7 @@ export function CogitaWorkspacePage({
       workspaceCopy.targets.allCards,
       workspaceCopy.targets.allRevisions,
       workspaceCopy.targets.dependencies,
+      workspaceCopy.targets.games,
       copy.cogita.library.modules.storyboardsTitle,
       workspaceCopy.infoMode.create,
       workspaceCopy.infoMode.search,
@@ -2025,8 +2028,10 @@ export function CogitaWorkspacePage({
       workspaceCopy.revisions.live,
       collectionMode,
       dependencyMode,
+      gameMode,
       revisionMode,
-      liveSessionMode
+      liveSessionMode,
+      selectedGameAction
     ]
   );
   const visibleNavigationLevels = useMemo<NavigationLevel[]>(
@@ -2068,6 +2073,14 @@ export function CogitaWorkspacePage({
   );
   const sidebarStoryboardSelectedActionLevel = useMemo(
     () => sidebarActionLevels.find((level) => level.key === 'storyboard_selected_action') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarGameModeLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'game_mode') ?? null,
+    [sidebarActionLevels]
+  );
+  const sidebarGameSelectedActionLevel = useMemo(
+    () => sidebarActionLevels.find((level) => level.key === 'game_selected_action') ?? null,
     [sidebarActionLevels]
   );
   const sidebarCollectionActionsLevel = useMemo(
@@ -2276,6 +2289,60 @@ export function CogitaWorkspacePage({
                   const suffix = option.value === 'edit' ? '/edit' : '';
                   return `/cogita/workspace/libraries/${encodedLibraryId}/storyboards/${encodeURIComponent(pathState.storyboardId)}${suffix}`;
                 }
+                if (level.key === 'game_mode') {
+                  if (!selectedLibraryId) return normalizePath(location.pathname);
+                  const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+                  if (option.value === 'create') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/new`;
+                  }
+                  if (option.value === 'selected' && pathState.gameId) {
+                    const encodedGameId = encodeURIComponent(pathState.gameId);
+                    if (selectedGameAction === 'edit') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/edit`;
+                    }
+                    if (selectedGameAction === 'participants') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/participants`;
+                    }
+                    if (selectedGameAction === 'values') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/values`;
+                    }
+                    if (selectedGameAction === 'actions') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/actions`;
+                    }
+                    if (selectedGameAction === 'layout') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/layout`;
+                    }
+                    if (selectedGameAction === 'live_sessions') {
+                      return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/live-sessions`;
+                    }
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}`;
+                  }
+                  return `/cogita/workspace/libraries/${encodedLibraryId}/games`;
+                }
+                if (level.key === 'game_selected_action' && pathState.gameId) {
+                  if (!selectedLibraryId) return normalizePath(location.pathname);
+                  const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+                  const encodedGameId = encodeURIComponent(pathState.gameId);
+                  if (option.value === 'edit') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/edit`;
+                  }
+                  if (option.value === 'participants') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/participants`;
+                  }
+                  if (option.value === 'values') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/values`;
+                  }
+                  if (option.value === 'actions') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/actions`;
+                  }
+                  if (option.value === 'layout') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/layout`;
+                  }
+                  if (option.value === 'live_sessions') {
+                    return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/live-sessions`;
+                  }
+                  return `/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}`;
+                }
                 if (level.key === 'collection_mode') {
                   if (option.value === 'create') {
                     return buildCogitaPath(selectedLibraryId, 'new_collection', undefined, 'detail');
@@ -2402,12 +2469,15 @@ export function CogitaWorkspacePage({
       pathState.infoView,
       pathState.liveSessionId,
       pathState.liveSessionView,
+      pathState.gameId,
+      pathState.gameView,
       pathState.storyboardId,
       pathState.storyboardView,
       selectedCollectionId,
       selectedLibraryId,
       selectedRevisionId,
-      selectedRevisionView
+      selectedRevisionView,
+      selectedGameAction
     ]
   );
   const embeddedSubpage = useMemo(() => {
@@ -2488,10 +2558,10 @@ export function CogitaWorkspacePage({
             } else if (nextGameId) {
               const encodedGameId = encodeURIComponent(nextGameId);
               if (nextView === 'edit') nextPath = `${nextPath}/${encodedGameId}/edit`;
-              else if (nextView === 'groups') nextPath = `${nextPath}/${encodedGameId}/groups`;
+              else if (nextView === 'groups' || nextView === 'participants') nextPath = `${nextPath}/${encodedGameId}/participants`;
               else if (nextView === 'values') nextPath = `${nextPath}/${encodedGameId}/values`;
               else if (nextView === 'actions') nextPath = `${nextPath}/${encodedGameId}/actions`;
-              else if (nextView === 'layouts') nextPath = `${nextPath}/${encodedGameId}/layouts`;
+              else if (nextView === 'layouts' || nextView === 'layout') nextPath = `${nextPath}/${encodedGameId}/layout`;
               else if (nextView === 'live_sessions') nextPath = `${nextPath}/${encodedGameId}/live-sessions`;
               else nextPath = `${nextPath}/${encodedGameId}`;
             }
@@ -3007,7 +3077,9 @@ export function CogitaWorkspacePage({
         pathState.dependencyView ?? 'search',
         pathState.dependencyTransferToken,
         pathState.storyboardId,
-        pathState.storyboardView ?? 'search'
+        pathState.storyboardView ?? 'search',
+        pathState.gameId,
+        pathState.gameView ?? 'search'
       )
     );
     if (currentPath === nextPath) {
@@ -3034,6 +3106,8 @@ export function CogitaWorkspacePage({
     pathState.filterCollectionId,
     pathState.liveSessionId,
     pathState.liveSessionView,
+    pathState.gameId,
+    pathState.gameView,
     pathState.storyboardId,
     pathState.storyboardView,
     pathState.libraryId,
@@ -3269,6 +3343,20 @@ export function CogitaWorkspacePage({
                       {shortenNavLabel(selectedStoryboard?.name ?? pathState.storyboardId ?? workspaceCopy.targets.storyboards, SIDEBAR_NAV_LABEL_MAX)}
                     </p>
                     {renderSidebarActions(sidebarStoryboardSelectedActionLevel, 'sidebar')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {sidebarGameModeLevel ? (
+              <div className="cogita-sidebar-actions-nested" data-level="branch">
+                <p className="cogita-sidebar-note">{workspaceCopy.targets.games}</p>
+                {renderSidebarActions(sidebarGameModeLevel, 'sidebar')}
+                {sidebarGameSelectedActionLevel && pathState.gameId ? (
+                  <div className="cogita-sidebar-actions-nested" data-level="branch">
+                    <p className="cogita-sidebar-note" title={pathState.gameId}>
+                      {shortenNavLabel(pathState.gameId, SIDEBAR_NAV_LABEL_MAX)}
+                    </p>
+                    {renderSidebarActions(sidebarGameSelectedActionLevel, 'sidebar')}
                   </div>
                 ) : null}
               </div>

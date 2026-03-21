@@ -155,7 +155,7 @@
   margin: 0;
   padding: 0;
   scroll-behavior: smooth;
-  scroll-snap-type: y mandatory;
+  scroll-snap-type: y proximity;
   scrollbar-width: none;
 }
 
@@ -165,14 +165,14 @@
 }
 
 .lim26-slide {
-  min-height: 126svh;
+  min-height: 164svh;
   scroll-snap-align: start;
-  scroll-snap-stop: always;
+  scroll-snap-stop: normal;
   width: 100%;
 }
 
 .lim26-hero.lim26-slide {
-  min-height: 116svh;
+  min-height: 148svh;
 }
 
 .lim26-scene {
@@ -857,11 +857,11 @@
 
 @media (max-width: 900px) {
   .lim26-slide {
-    min-height: 114svh;
+    min-height: 128svh;
   }
 
   .lim26-hero.lim26-slide {
-    min-height: 108svh;
+    min-height: 118svh;
   }
 
   .lim26-header {
@@ -899,6 +899,14 @@
 }
 
 @media (max-width: 760px) {
+  .lim26-slide {
+    min-height: 120svh;
+  }
+
+  .lim26-hero.lim26-slide {
+    min-height: 112svh;
+  }
+
   .lim26-start-page {
     --lim26-header-h: 98px;
   }
