@@ -31,6 +31,7 @@ body.lim26-scroll-snap {
   background: var(--lim26-bg-main);
   position: relative;
   overflow-x: clip;
+  margin: 0;
 }
 
 .lim26-start-page {
@@ -152,6 +153,7 @@ body.lim26-scroll-snap {
   position: relative;
   z-index: 3;
   scroll-behavior: smooth;
+  width: 100%;
 }
 
 .lim26-scene {
@@ -160,7 +162,7 @@ body.lim26-scroll-snap {
   --lim26-scene-visibility: 0;
   --lim26-scene-enter: 0;
   --lim26-scene-exit: 0;
-  scroll-margin-top: calc(var(--lim26-header-h) + 14px);
+  scroll-margin-top: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -184,7 +186,7 @@ body.lim26-scroll-snap {
   position: relative;
   display: grid;
   align-items: center;
-  padding: calc(var(--lim26-header-h) + 3.8svh) 6vw 4.4svh;
+  padding: max(5.8rem, 12svh) 6vw 4.2svh;
   border-bottom: 1px solid var(--lim26-line);
   overflow: hidden;
 }
@@ -210,6 +212,7 @@ body.lim26-scroll-snap {
 
 .lim26-hero-content {
   position: relative;
+  z-index: 3;
   max-width: min(760px, 100%);
   display: grid;
   gap: 0.86rem;
@@ -293,7 +296,7 @@ body.lim26-scroll-snap {
 .lim26-section {
   --lim26-section-pad: clamp(3rem, 6vw, 5.4rem);
   min-height: 100svh;
-  padding: calc(var(--lim26-section-pad) + var(--lim26-header-h) * 0.2) 6vw var(--lim26-section-pad);
+  padding: var(--lim26-section-pad) 6vw;
   position: relative;
   display: grid;
   align-items: center;
@@ -361,6 +364,12 @@ body.lim26-scroll-snap {
   transition: opacity 160ms linear, transform 160ms linear;
   position: relative;
   z-index: 1;
+}
+
+.lim26-hero-image.lim26-motion-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
 }
 
 .lim26-section h2 {
@@ -829,11 +838,11 @@ body.lim26-scroll-snap {
   }
 
   .lim26-hero {
-    padding: calc(var(--lim26-header-h) + 1.8rem) 5vw 2.8rem;
+    padding: calc(var(--lim26-header-h) + 1.1rem) 5vw 2.6rem;
   }
 
   .lim26-section {
-    padding: calc(2.2rem + var(--lim26-header-h) * 0.18) 5vw 2.4rem;
+    padding: 2.2rem 5vw 2.4rem;
   }
 
   .lim26-btn {
