@@ -21,11 +21,14 @@
 }
 
 .lim26-start-page {
-  --lim26-bg-drift: 0px;
+  --lim26-bg-drift-x: 0px;
+  --lim26-bg-drift-y: 0px;
   --lim26-bg-grain-opacity: 0.15;
   --lim26-bg-topo-opacity: 0.12;
   --lim26-bg-haze-opacity: 0.12;
   --lim26-point-opacity: 0.9;
+  --lim26-point-contrast: 1;
+  --lim26-scene-blend: 0;
 }
 
 .lim26-start-page::before,
@@ -40,15 +43,15 @@
 .lim26-start-page::before {
   background: url('/event/limanowa/texture-grain-dark-soft.png') center/cover no-repeat;
   opacity: var(--lim26-bg-grain-opacity);
-  transform: translate3d(0, var(--lim26-bg-drift), 0) scale(1.05);
-  transition: opacity 140ms linear, transform 220ms linear;
+  transform: translate3d(var(--lim26-bg-drift-x), var(--lim26-bg-drift-y), 0) scale(1.06);
+  transition: opacity 160ms linear, transform 240ms linear;
 }
 
 .lim26-start-page::after {
   background: url('/event/limanowa/texture-topographic-olive-subtle.png') center/cover no-repeat;
   opacity: var(--lim26-bg-topo-opacity);
-  transform: translate3d(0, calc(var(--lim26-bg-drift) * -0.45), 0) scale(1.08);
-  transition: opacity 140ms linear, transform 220ms linear;
+  transform: translate3d(calc(var(--lim26-bg-drift-x) * -0.38), calc(var(--lim26-bg-drift-y) * -0.48), 0) scale(1.09);
+  transition: opacity 160ms linear, transform 240ms linear;
 }
 
 .lim26-bg-haze {
@@ -61,8 +64,8 @@
     radial-gradient(circle at 80% 76%, rgba(102, 113, 84, 0.16), transparent 46%),
     radial-gradient(circle at 50% 50%, rgba(14, 17, 16, 0.2), transparent 66%);
   opacity: var(--lim26-bg-haze-opacity);
-  transform: translate3d(0, calc(var(--lim26-bg-drift) * 0.2), 0);
-  transition: opacity 140ms linear, transform 220ms linear;
+  transform: translate3d(calc(var(--lim26-bg-drift-x) * 0.12), calc(var(--lim26-bg-drift-y) * 0.22), 0);
+  transition: opacity 160ms linear, transform 240ms linear;
 }
 
 .lim26-pointcloud {
@@ -73,6 +76,7 @@
   pointer-events: none;
   z-index: 1;
   opacity: var(--lim26-point-opacity);
+  filter: contrast(var(--lim26-point-contrast)) brightness(1.06);
   transition: opacity 180ms linear;
 }
 
@@ -137,10 +141,28 @@
 
 .lim26-scene {
   isolation: isolate;
+  --lim26-scene-progress: 0;
+  --lim26-scene-visibility: 0;
+  --lim26-scene-enter: 0;
+  --lim26-scene-exit: 0;
+  scroll-margin-top: calc(var(--lim26-header-h) + 14px);
+}
+
+.lim26-scene::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 92% at 50% 58%, rgba(14, 17, 16, 0.14), rgba(14, 17, 16, 0.52)),
+    linear-gradient(180deg, rgba(14, 17, 16, 0) 0%, rgba(14, 17, 16, 0.24) 100%);
+  opacity: calc(0.42 - var(--lim26-scene-visibility) * 0.22);
+  transition: opacity 140ms linear;
 }
 
 .lim26-hero {
-  min-height: 118svh;
+  min-height: 122svh;
   position: relative;
   display: grid;
   align-items: center;
@@ -267,19 +289,26 @@
 }
 
 .lim26-scene:not(.lim26-hero) {
-  min-height: 146vh;
+  min-height: 166svh;
 }
 
 .lim26-scene + .lim26-scene {
-  margin-top: -12vh;
+  margin-top: -18svh;
 }
 
 .lim26-scene:not(.lim26-hero) > :first-child {
   position: sticky;
-  top: calc(var(--lim26-header-h) + 2vh);
-  min-height: calc(100svh - var(--lim26-header-h) - 4vh);
+  top: calc(var(--lim26-header-h) + 3svh);
+  min-height: calc(100svh - var(--lim26-header-h) - 6svh);
   display: grid;
   align-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.lim26-scene[data-active='true'] h2,
+.lim26-scene[data-active='true'] h3 {
+  text-shadow: 0 10px 36px rgba(0, 0, 0, 0.28);
 }
 
 .lim26-section--registration > :first-child {
@@ -305,10 +334,14 @@
 
 .lim26-motion-text {
   transition: opacity 140ms linear, transform 140ms linear;
+  position: relative;
+  z-index: 2;
 }
 
 .lim26-motion-media {
   transition: opacity 160ms linear, transform 160ms linear;
+  position: relative;
+  z-index: 1;
 }
 
 .lim26-section h2 {
@@ -721,13 +754,18 @@
     margin-top: 0;
   }
 
+  .lim26-scene::before {
+    opacity: 0.18;
+    transition: none;
+  }
+
   .lim26-scene:not(.lim26-hero) > :first-child {
     position: static;
     min-height: auto;
   }
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 900px) {
   .lim26-header {
     display: grid;
     justify-items: start;
@@ -744,6 +782,10 @@
   }
 
   .lim26-section {
+    min-height: auto;
+  }
+
+  .lim26-scene:not(.lim26-hero) {
     min-height: auto;
   }
 

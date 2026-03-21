@@ -4,17 +4,18 @@ type LimanowaPointCloudProps = {
   className?: string;
 };
 
-const BASE_POINT_COUNT = 1450;
-const DESKTOP_POINT_COUNT = 1900;
-const POINTER_PARALLAX_STRENGTH = 0.33;
-const MASK_MAX_DIMENSION = 640;
-const STATE_HEADER_OFFSET = 106;
+const BASE_POINT_COUNT = 12000;
+const DESKTOP_POINT_COUNT = 22000;
+const LARGE_DESKTOP_POINT_COUNT = 32000;
+const POINTER_PARALLAX_STRENGTH = 0.52;
+const MASK_MAX_DIMENSION = 1400;
 
 const MASK_SOURCE_CANDIDATES: string[][] = [
   ['/event/limanowa/gray00.png'],
   ['/event/limanowa/gray01.png'],
   ['/event/limanowa/gray02.png']
 ];
+const STATE_ANCHOR_IDS = ['top', 'o-wydarzeniu', 'gra', 'historia-i-wartosci', 'zapisy'];
 
 type PointMask = {
   width: number;
@@ -36,9 +37,9 @@ type MaskStateOptions = {
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 1.62, scaleY: 1.04, depth: 0.58, jitter: 0.09, offsetY: -0.03 },
-  { scaleX: 1.48, scaleY: 1.08, depth: 0.62, jitter: 0.08, offsetX: 0.12, offsetY: 0.02 },
-  { scaleX: 1.7, scaleY: 1.02, depth: 0.56, jitter: 0.08, offsetY: -0.08 }
+  { scaleX: 1.95, scaleY: 1.36, depth: 0.44, jitter: 0.024, offsetY: -0.02 },
+  { scaleX: 1.78, scaleY: 1.22, depth: 0.42, jitter: 0.022, offsetX: 0.2, offsetY: 0.01 },
+  { scaleX: 2.02, scaleY: 1.28, depth: 0.4, jitter: 0.022, offsetY: -0.06 }
 ];
 
 function clamp01(value: number): number {
@@ -89,14 +90,22 @@ function createPointSeeds(count: number): Float32Array {
 
 function buildMaskState(count: number, mask: PointMask, options: MaskStateOptions, pointSeeds: Float32Array, stateIndex: number): Float32Array {
   const state = new Float32Array(count * 3);
+  const maskAspect = mask.width / Math.max(1, mask.height);
 
   for (let i = 0; i < count; i += 1) {
     const pointIndex = i * 3;
     const pick = pointSeeds[i] * mask.totalWeight;
     const sourceIndex = lowerBound(mask.cumulativeWeights, pick);
-    const baseX = ((mask.xs[sourceIndex] / Math.max(1, mask.width - 1)) - 0.5) * 2;
-    const baseY = (0.5 - (mask.ys[sourceIndex] / Math.max(1, mask.height - 1))) * 2;
+    let baseX = ((mask.xs[sourceIndex] / Math.max(1, mask.width - 1)) - 0.5) * 2;
+    let baseY = (0.5 - (mask.ys[sourceIndex] / Math.max(1, mask.height - 1))) * 2;
     const lum = mask.luminance[sourceIndex];
+
+    // Preserve source image proportions so silhouettes are readable.
+    if (maskAspect >= 1) {
+      baseX *= maskAspect;
+    } else {
+      baseY /= Math.max(maskAspect, 0.001);
+    }
 
     const jitterX = (fract(Math.sin((i + 1) * (stateIndex + 2) * 12.9898) * 43758.5453) - 0.5) * options.jitter;
     const jitterY = (fract(Math.sin((i + 1) * (stateIndex + 7) * 78.233) * 24634.6345) - 0.5) * options.jitter;
@@ -261,13 +270,55 @@ async function loadMask(urls: string[]): Promise<PointMask | null> {
 }
 
 function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: number; rawT: number } {
-  const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
-  const anchors = scenes
+  const computeFromAnchors = (anchors: number[]): { stateIndex: number; rawT: number } => {
+    if (scrollY <= anchors[0]) {
+      return { stateIndex: 0, rawT: 0 };
+    }
+
+    const maxPairIndex = Math.max(0, Math.min(stateCount - 2, anchors.length - 2));
+    const transitionBand = Math.max(70, Math.round(window.innerHeight * 0.14));
+    const transitionTail = Math.round(transitionBand * 0.42);
+
+    for (let pairIndex = 0; pairIndex <= maxPairIndex; pairIndex += 1) {
+      const boundary = anchors[pairIndex + 1];
+      const transitionStart = boundary - transitionBand;
+      const transitionEnd = boundary + transitionTail;
+
+      if (scrollY < transitionStart) {
+        return { stateIndex: pairIndex, rawT: 0 };
+      }
+
+      if (scrollY <= transitionEnd) {
+        return {
+          stateIndex: pairIndex,
+          rawT: clamp01((scrollY - transitionStart) / Math.max(1, transitionEnd - transitionStart))
+        };
+      }
+    }
+
+    return { stateIndex: maxPairIndex, rawT: 1 };
+  };
+
+  const header = document.querySelector<HTMLElement>('.lim26-header');
+  const headerOffset = (header?.offsetHeight ?? 0) + 10;
+  const anchorElements = STATE_ANCHOR_IDS
     .slice(0, stateCount)
-    .map((scene) => Math.max(0, scene.offsetTop - STATE_HEADER_OFFSET))
+    .map((id) => document.getElementById(id))
+    .filter((element): element is HTMLElement => Boolean(element));
+  const anchors = anchorElements
+    .map((element) => Math.max(0, element.offsetTop - headerOffset))
     .sort((a, b) => a - b);
 
   if (anchors.length < 2) {
+    const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
+    const fallbackAnchors = scenes
+      .slice(0, stateCount)
+      .map((scene) => Math.max(0, scene.offsetTop - headerOffset))
+      .sort((a, b) => a - b);
+    if (fallbackAnchors.length >= 2) {
+      return computeFromAnchors(fallbackAnchors);
+    }
+
     const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
     const progress = clamp01(scrollY / maxScroll);
     const span = Math.max(1, stateCount - 1);
@@ -276,28 +327,7 @@ function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: n
     return { stateIndex, rawT: scaled - stateIndex };
   }
 
-  if (scrollY <= anchors[0]) {
-    return { stateIndex: 0, rawT: 0 };
-  }
-
-  const lastAnchor = anchors[anchors.length - 1];
-  if (scrollY >= lastAnchor) {
-    return { stateIndex: Math.max(0, stateCount - 2), rawT: 1 };
-  }
-
-  for (let i = 0; i < anchors.length - 1; i += 1) {
-    const start = anchors[i];
-    const end = anchors[i + 1];
-    if (scrollY >= start && scrollY <= end) {
-      const distance = Math.max(1, end - start);
-      return {
-        stateIndex: i,
-        rawT: clamp01((scrollY - start) / distance)
-      };
-    }
-  }
-
-  return { stateIndex: Math.max(0, stateCount - 2), rawT: 1 };
+  return computeFromAnchors(anchors);
 }
 
 function createShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -349,7 +379,7 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
       void main() {
         vec2 center = gl_PointCoord - vec2(0.5, 0.5);
         float radius = length(center);
-        float alpha = smoothstep(0.52, 0.08, radius) * 0.74;
+        float alpha = smoothstep(0.52, 0.08, radius) * 0.88;
         vec3 color = mix(uColorA, uColorB, gl_PointCoord.y);
         gl_FragColor = vec4(color, alpha);
       }
@@ -433,7 +463,11 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
     }
 
     let disposed = false;
-    const count = window.innerWidth >= 1200 ? DESKTOP_POINT_COUNT : BASE_POINT_COUNT;
+      const count = window.innerWidth >= 1720
+        ? LARGE_DESKTOP_POINT_COUNT
+        : window.innerWidth >= 1200
+          ? DESKTOP_POINT_COUNT
+          : BASE_POINT_COUNT;
     const states = count === BASE_POINT_COUNT ? staticStates : createStates(count, masks);
     const working = new Float32Array(count * 3);
 
@@ -490,9 +524,9 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       const phase = computeSlidePhase(window.scrollY, states.length);
       const stateIndex = Math.min(span - 1, phase.stateIndex);
       const rawT = phase.rawT;
-      const localT = rawT < 0.8
-        ? smoothStep01(rawT / 0.8) * 0.25
-        : 0.25 + smoothStep01((rawT - 0.8) / 0.2) * 0.75;
+      const localT = rawT < 0.56
+        ? smoothStep01(rawT / 0.56) * 0.12
+        : 0.12 + smoothStep01((rawT - 0.56) / 0.44) * 0.88;
 
       const from = states[Math.min(stateIndex, states.length - 1)];
       const to = states[Math.min(stateIndex + 1, states.length - 1)];
@@ -504,7 +538,7 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       gl.bufferData(gl.ARRAY_BUFFER, working, gl.DYNAMIC_DRAW);
 
       gl.uniform2f(parallaxLocation, pointerRef.current.x, pointerRef.current.y);
-      gl.uniform1f(pointSizeLocation, width >= 1200 ? 8.4 : 6.8);
+      gl.uniform1f(pointSizeLocation, width >= 1200 ? 6.1 : 5.3);
       gl.uniform3f(colorALocation, 0.46, 0.51, 0.39);
       gl.uniform3f(colorBLocation, 0.82, 0.74, 0.61);
 
