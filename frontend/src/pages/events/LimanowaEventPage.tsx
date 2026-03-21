@@ -360,23 +360,29 @@ function LimanowaStartPage({
       for (const scene of scenes) {
         const rect = scene.getBoundingClientRect();
         const progress = clamp01((viewportHeight - rect.top) / (viewportHeight + rect.height));
-        const focus = clamp01(1 - Math.abs(progress - 0.5) * 1.95);
+        const enter = clamp01((progress - 0.04) / 0.28);
+        const exit = clamp01((1 - progress - 0.04) / 0.28);
+        const visibility = Math.min(enter, exit);
 
         const textNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-text');
         textNodes.forEach((node, index) => {
           const depth = index * 0.12;
-          const y = (0.56 - progress) * (46 + index * 6) + (1 - focus) * (20 + index * 4);
+          const travel = (0.5 - progress) * (160 + index * 20);
+          const drift = (1 - visibility) * (progress < 0.5 ? 52 + index * 8 : -52 - index * 8);
+          const y = travel + drift;
           node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
-          node.style.opacity = clamp01(0.15 + focus * (0.9 - depth)).toFixed(3);
+          node.style.opacity = clamp01(0.04 + visibility * (0.95 - depth * 0.12)).toFixed(3);
         });
 
         const mediaNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-media');
         mediaNodes.forEach((node, index) => {
           const direction = index % 2 === 0 ? -1 : 1;
-          const y = (progress - 0.5) * 38 * direction;
-          const scale = 0.962 + focus * 0.038;
+          const travel = (0.5 - progress) * (86 + index * 14) * direction;
+          const drift = (1 - visibility) * (progress < 0.5 ? 22 : -22) * direction;
+          const y = travel + drift;
+          const scale = 0.92 + visibility * 0.1;
           node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
-          node.style.opacity = clamp01(0.2 + focus * 0.82).toFixed(3);
+          node.style.opacity = clamp01(0.08 + visibility * 0.92).toFixed(3);
         });
       }
     };

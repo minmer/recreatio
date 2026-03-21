@@ -6,6 +6,7 @@ type LimanowaPointCloudProps = {
 
 const BASE_POINT_COUNT = 1450;
 const DESKTOP_POINT_COUNT = 1900;
+const POINTER_PARALLAX_STRENGTH = 0.33;
 
 function clamp01(value: number): number {
   if (value < 0) return 0;
@@ -272,8 +273,8 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       const nx = (event.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
       const ny = (event.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
       pointerRef.current = {
-        x: Math.max(-1, Math.min(1, nx)) * 0.11,
-        y: Math.max(-1, Math.min(1, -ny)) * 0.11
+        x: Math.max(-1, Math.min(1, nx)) * POINTER_PARALLAX_STRENGTH,
+        y: Math.max(-1, Math.min(1, -ny)) * POINTER_PARALLAX_STRENGTH
       };
       scheduleDraw();
     };

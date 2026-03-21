@@ -9,6 +9,7 @@
   --lim26-line: rgba(184, 165, 138, 0.18);
   --lim26-error: #d49a88;
   --lim26-success: #9fb995;
+  --lim26-header-h: 86px;
 }
 
 .lim26-page {
@@ -112,7 +113,7 @@
 }
 
 .lim26-hero {
-  min-height: 100svh;
+  min-height: 118svh;
   position: relative;
   display: grid;
   align-items: center;
@@ -222,7 +223,7 @@
 }
 
 .lim26-section {
-  min-height: 92vh;
+  min-height: 108vh;
   padding: clamp(4.2rem, 9vw, 7rem) 6vw;
   position: relative;
   display: grid;
@@ -232,6 +233,30 @@
 
 .lim26-section--registration {
   align-items: start;
+}
+
+.lim26-scene {
+  z-index: 2;
+}
+
+.lim26-scene:not(.lim26-hero) {
+  min-height: 168vh;
+}
+
+.lim26-scene + .lim26-scene {
+  margin-top: -24vh;
+}
+
+.lim26-scene:not(.lim26-hero) > :first-child {
+  position: sticky;
+  top: calc(var(--lim26-header-h) + 2vh);
+  min-height: calc(100svh - var(--lim26-header-h) - 4vh);
+  display: grid;
+  align-content: center;
+}
+
+.lim26-section--registration > :first-child {
+  align-content: start;
 }
 
 .lim26-section--alt {
@@ -663,6 +688,15 @@
     transform: none !important;
     transition: none !important;
   }
+
+  .lim26-scene + .lim26-scene {
+    margin-top: 0;
+  }
+
+  .lim26-scene:not(.lim26-hero) > :first-child {
+    position: static;
+    min-height: auto;
+  }
 }
 
 @media (max-width: 1080px) {
@@ -683,6 +717,16 @@
 
   .lim26-section {
     min-height: auto;
+  }
+
+  .lim26-scene + .lim26-scene {
+    margin-top: 0;
+  }
+
+  .lim26-scene:not(.lim26-hero) > :first-child {
+    position: static;
+    min-height: auto;
+    display: block;
   }
 }
 
