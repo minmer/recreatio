@@ -7,6 +7,60 @@ type LimanowaPointCloudProps = {
 const BASE_POINT_COUNT = 1450;
 const DESKTOP_POINT_COUNT = 1900;
 const POINTER_PARALLAX_STRENGTH = 0.33;
+const MASK_MAX_DIMENSION = 640;
+const STATE_HEADER_OFFSET = 106;
+
+const MASK_SOURCE_CANDIDATES: string[][] = [
+  [
+    '/event/limanowa/gray00.png',
+    '/event/limanowa/gray00.webp',
+    '/event/limanowa/gray00.jpg',
+    '/event/limanowa/gray00.jpeg',
+    '/event/limanowa/gray-00.png',
+    '/event/limanowa/pointcloud-gray-00.png'
+  ],
+  [
+    '/event/limanowa/gray01.png',
+    '/event/limanowa/gray01.webp',
+    '/event/limanowa/gray01.jpg',
+    '/event/limanowa/gray01.jpeg',
+    '/event/limanowa/gray-01.png',
+    '/event/limanowa/pointcloud-gray-01.png'
+  ],
+  [
+    '/event/limanowa/gray02.png',
+    '/event/limanowa/gray02.webp',
+    '/event/limanowa/gray02.jpg',
+    '/event/limanowa/gray02.jpeg',
+    '/event/limanowa/gray-02.png',
+    '/event/limanowa/pointcloud-gray-02.png'
+  ]
+];
+
+type PointMask = {
+  width: number;
+  height: number;
+  xs: Float32Array;
+  ys: Float32Array;
+  luminance: Float32Array;
+  cumulativeWeights: Float32Array;
+  totalWeight: number;
+};
+
+type MaskStateOptions = {
+  scaleX: number;
+  scaleY: number;
+  depth: number;
+  jitter: number;
+  offsetX?: number;
+  offsetY?: number;
+};
+
+const MASK_STATE_OPTIONS: MaskStateOptions[] = [
+  { scaleX: 1.62, scaleY: 1.04, depth: 0.58, jitter: 0.09, offsetY: -0.03 },
+  { scaleX: 1.48, scaleY: 1.08, depth: 0.62, jitter: 0.08, offsetX: 0.12, offsetY: 0.02 },
+  { scaleX: 1.7, scaleY: 1.02, depth: 0.56, jitter: 0.08, offsetY: -0.08 }
+];
 
 function clamp01(value: number): number {
   if (value < 0) return 0;
@@ -19,6 +73,10 @@ function smoothStep01(value: number): number {
   return t * t * (3 - 2 * t);
 }
 
+function fract(value: number): number {
+  return value - Math.floor(value);
+}
+
 function createLcg(seed: number) {
   let state = seed >>> 0;
   return () => {
@@ -27,7 +85,52 @@ function createLcg(seed: number) {
   };
 }
 
-function createStates(count: number): Float32Array[] {
+function lowerBound(values: Float32Array, target: number): number {
+  let low = 0;
+  let high = values.length - 1;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    if (values[mid] < target) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low;
+}
+
+function createPointSeeds(count: number): Float32Array {
+  const random = createLcg(20260703);
+  const seeds = new Float32Array(count);
+  for (let i = 0; i < count; i += 1) {
+    seeds[i] = random();
+  }
+  return seeds;
+}
+
+function buildMaskState(count: number, mask: PointMask, options: MaskStateOptions, pointSeeds: Float32Array, stateIndex: number): Float32Array {
+  const state = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i += 1) {
+    const pointIndex = i * 3;
+    const pick = pointSeeds[i] * mask.totalWeight;
+    const sourceIndex = lowerBound(mask.cumulativeWeights, pick);
+    const baseX = ((mask.xs[sourceIndex] / Math.max(1, mask.width - 1)) - 0.5) * 2;
+    const baseY = (0.5 - (mask.ys[sourceIndex] / Math.max(1, mask.height - 1))) * 2;
+    const lum = mask.luminance[sourceIndex];
+
+    const jitterX = (fract(Math.sin((i + 1) * (stateIndex + 2) * 12.9898) * 43758.5453) - 0.5) * options.jitter;
+    const jitterY = (fract(Math.sin((i + 1) * (stateIndex + 7) * 78.233) * 24634.6345) - 0.5) * options.jitter;
+
+    state[pointIndex] = baseX * options.scaleX + (options.offsetX ?? 0) + jitterX;
+    state[pointIndex + 1] = baseY * options.scaleY + (options.offsetY ?? 0) + jitterY;
+    state[pointIndex + 2] = (lum - 0.5) * options.depth + (jitterX - jitterY) * 0.35;
+  }
+
+  return state;
+}
+
+function createStates(count: number, masks: Array<PointMask | null> | null): Float32Array[] {
   const random = createLcg(20260619);
   const hero = new Float32Array(count * 3);
   const route = new Float32Array(count * 3);
@@ -74,7 +177,148 @@ function createStates(count: number): Float32Array[] {
     cta[index + 2] = (random() - 0.5) * 0.28;
   }
 
-  return [hero, route, network, values, cta];
+  const states = [hero, route, network, values, cta];
+
+  if (masks) {
+    const pointSeeds = createPointSeeds(count);
+    for (let i = 0; i < Math.min(3, masks.length); i += 1) {
+      const mask = masks[i];
+      if (!mask) {
+        continue;
+      }
+      states[i] = buildMaskState(count, mask, MASK_STATE_OPTIONS[i], pointSeeds, i);
+    }
+  }
+
+  return states;
+}
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Nie udało się wczytać obrazu: ${url}`));
+    image.src = url;
+  });
+}
+
+async function loadFirstAvailableImage(urls: string[]): Promise<HTMLImageElement | null> {
+  for (const url of urls) {
+    try {
+      const image = await loadImage(url);
+      return image;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+function buildMaskFromImage(image: HTMLImageElement): PointMask | null {
+  const ratio = Math.min(1, MASK_MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+  const width = Math.max(1, Math.round(image.naturalWidth * ratio));
+  const height = Math.max(1, Math.round(image.naturalHeight * ratio));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) {
+    return null;
+  }
+
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0, width, height);
+  const imageData = context.getImageData(0, 0, width, height).data;
+
+  const xs: number[] = [];
+  const ys: number[] = [];
+  const luminance: number[] = [];
+  const cumulative: number[] = [];
+  let totalWeight = 0;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      const r = imageData[index] / 255;
+      const g = imageData[index + 1] / 255;
+      const b = imageData[index + 2] / 255;
+      const a = imageData[index + 3] / 255;
+      const lum = (r * 0.2126 + g * 0.7152 + b * 0.0722) * a;
+      if (lum < 0.06) {
+        continue;
+      }
+
+      const weight = Math.pow(lum, 1.65);
+      totalWeight += weight;
+      xs.push(x);
+      ys.push(y);
+      luminance.push(lum);
+      cumulative.push(totalWeight);
+    }
+  }
+
+  if (totalWeight <= 0 || xs.length === 0) {
+    return null;
+  }
+
+  return {
+    width,
+    height,
+    xs: Float32Array.from(xs),
+    ys: Float32Array.from(ys),
+    luminance: Float32Array.from(luminance),
+    cumulativeWeights: Float32Array.from(cumulative),
+    totalWeight
+  };
+}
+
+async function loadMask(urls: string[]): Promise<PointMask | null> {
+  const image = await loadFirstAvailableImage(urls);
+  if (!image) {
+    return null;
+  }
+  return buildMaskFromImage(image);
+}
+
+function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: number; rawT: number } {
+  const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
+  const anchors = scenes
+    .slice(0, stateCount)
+    .map((scene) => Math.max(0, scene.offsetTop - STATE_HEADER_OFFSET))
+    .sort((a, b) => a - b);
+
+  if (anchors.length < 2) {
+    const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    const progress = clamp01(scrollY / maxScroll);
+    const span = Math.max(1, stateCount - 1);
+    const scaled = progress * span;
+    const stateIndex = Math.min(span - 1, Math.floor(scaled));
+    return { stateIndex, rawT: scaled - stateIndex };
+  }
+
+  if (scrollY <= anchors[0]) {
+    return { stateIndex: 0, rawT: 0 };
+  }
+
+  const lastAnchor = anchors[anchors.length - 1];
+  if (scrollY >= lastAnchor) {
+    return { stateIndex: Math.max(0, stateCount - 2), rawT: 1 };
+  }
+
+  for (let i = 0; i < anchors.length - 1; i += 1) {
+    const start = anchors[i];
+    const end = anchors[i + 1];
+    if (scrollY >= start && scrollY <= end) {
+      const distance = Math.max(1, end - start);
+      return {
+        stateIndex: i,
+        rawT: clamp01((scrollY - start) / distance)
+      };
+    }
+  }
+
+  return { stateIndex: Math.max(0, stateCount - 2), rawT: 1 };
 }
 
 function createShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
@@ -157,9 +401,32 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
 export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [fallbackMode, setFallbackMode] = useState(false);
+  const [masks, setMasks] = useState<Array<PointMask | null> | null>(null);
   const pointerRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
-  const staticStates = useMemo(() => createStates(BASE_POINT_COUNT), []);
+  const staticStates = useMemo(() => createStates(BASE_POINT_COUNT, masks), [masks]);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all(MASK_SOURCE_CANDIDATES.map((candidateGroup) => loadMask(candidateGroup)))
+      .then((loadedMasks) => {
+        if (!active) {
+          return;
+        }
+        setMasks(loadedMasks);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setMasks(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -188,7 +455,7 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
 
     let disposed = false;
     const count = window.innerWidth >= 1200 ? DESKTOP_POINT_COUNT : BASE_POINT_COUNT;
-    const states = count === BASE_POINT_COUNT ? staticStates : createStates(count);
+    const states = count === BASE_POINT_COUNT ? staticStates : createStates(count, masks);
     const working = new Float32Array(count * 3);
 
     const program = createProgram(gl);
@@ -240,13 +507,10 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const progress = clamp01(window.scrollY / maxScroll);
-
       const span = Math.max(1, states.length - 1);
-      const scaled = clamp01(progress) * span;
-      const stateIndex = Math.min(span - 1, Math.floor(scaled));
-      const rawT = scaled - stateIndex;
+      const phase = computeSlidePhase(window.scrollY, states.length);
+      const stateIndex = Math.min(span - 1, phase.stateIndex);
+      const rawT = phase.rawT;
       const localT = rawT < 0.8
         ? smoothStep01(rawT / 0.8) * 0.25
         : 0.25 + smoothStep01((rawT - 0.8) / 0.2) * 0.75;
@@ -304,7 +568,7 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [staticStates]);
+  }, [staticStates, masks]);
 
   if (fallbackMode) {
     return (
