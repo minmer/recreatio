@@ -41,7 +41,7 @@ type MaskStateOptions = {
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 1.95, scaleY: 1.36, depth: 0.22, jitter: 0.014, offsetY: -0.02 },
+  { scaleX: 1.9, scaleY: 1.86, depth: 0.22, jitter: 0.014, offsetY: -0.01 },
   { scaleX: 1.78, scaleY: 1.22, depth: 0.24, jitter: 0.014, offsetX: 0.2, offsetY: 0.01 },
   { scaleX: 2.02, scaleY: 1.28, depth: 0.23, jitter: 0.014, offsetY: -0.06 }
 ];
