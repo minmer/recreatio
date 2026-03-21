@@ -4,7 +4,6 @@ type LimanowaPointCloudProps = {
   className?: string;
 };
 
-const SECTION_STOPS = [0, 0.22, 0.45, 0.66, 0.84, 1];
 const BASE_POINT_COUNT = 1450;
 const DESKTOP_POINT_COUNT = 1900;
 
@@ -238,16 +237,11 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       const progress = clamp01(window.scrollY / maxScroll);
 
-      let stateIndex = 0;
-      for (let i = 0; i < SECTION_STOPS.length - 1; i += 1) {
-        if (progress >= SECTION_STOPS[i] && progress <= SECTION_STOPS[i + 1]) {
-          stateIndex = i;
-          break;
-        }
-      }
-      const localStart = SECTION_STOPS[stateIndex];
-      const localEnd = SECTION_STOPS[stateIndex + 1];
-      const localT = clamp01((progress - localStart) / Math.max(0.0001, localEnd - localStart));
+      const span = Math.max(1, states.length - 1);
+      const scaled = clamp01(progress) * span;
+      const stateIndex = Math.min(span - 1, Math.floor(scaled));
+      const rawT = scaled - stateIndex;
+      const localT = rawT * rawT * (3 - 2 * rawT);
 
       const from = states[Math.min(stateIndex, states.length - 1)];
       const to = states[Math.min(stateIndex + 1, states.length - 1)];

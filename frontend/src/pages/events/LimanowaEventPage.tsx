@@ -163,6 +163,12 @@ function parseApiError(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function clamp01(value: number): number {
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
 function ensureMeta(selector: string, attribute: 'name' | 'property', value: string, content: string) {
   let element = document.head.querySelector<HTMLMetaElement>(selector);
   if (!element) {
@@ -191,7 +197,7 @@ function useLimanowaSeo(enabled: boolean) {
       'meta[property="og:description"]',
       'property',
       'og:description',
-      'Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.'
+      'Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.'
     );
 
     let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
@@ -336,6 +342,64 @@ function LimanowaStartPage({
     return () => window.cancelAnimationFrame(frame);
   }, [location.search, scrollToSection]);
 
+  useEffect(() => {
+    const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
+    if (scenes.length === 0) {
+      return;
+    }
+
+    let disposed = false;
+    let frame: number | null = null;
+
+    const applyMotion = () => {
+      frame = null;
+      if (disposed) return;
+
+      const viewportHeight = Math.max(1, window.innerHeight);
+
+      for (const scene of scenes) {
+        const rect = scene.getBoundingClientRect();
+        const progress = clamp01((viewportHeight - rect.top) / (viewportHeight + rect.height));
+        const focus = clamp01(1 - Math.abs(progress - 0.5) * 1.95);
+
+        const textNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-text');
+        textNodes.forEach((node, index) => {
+          const depth = index * 0.12;
+          const y = (0.56 - progress) * (46 + index * 6) + (1 - focus) * (20 + index * 4);
+          node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
+          node.style.opacity = clamp01(0.15 + focus * (0.9 - depth)).toFixed(3);
+        });
+
+        const mediaNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-media');
+        mediaNodes.forEach((node, index) => {
+          const direction = index % 2 === 0 ? -1 : 1;
+          const y = (progress - 0.5) * 38 * direction;
+          const scale = 0.962 + focus * 0.038;
+          node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
+          node.style.opacity = clamp01(0.2 + focus * 0.82).toFixed(3);
+        });
+      }
+    };
+
+    const schedule = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(applyMotion);
+    };
+
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    schedule();
+
+    return () => {
+      disposed = true;
+      if (frame !== null) {
+        window.cancelAnimationFrame(frame);
+      }
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, []);
+
   return (
     <div className="lim26-page lim26-start-page">
       <LimanowaPointCloud className="lim26-pointcloud--pinned" />
@@ -356,99 +420,92 @@ function LimanowaStartPage({
       </header>
 
       <main className="lim26-main">
-        <section className="lim26-hero" id="top">
+        <section className="lim26-hero lim26-scene" id="top">
           <img
-            className="lim26-hero-image"
+            className="lim26-hero-image lim26-motion-media"
             src="/event/limanowa/hero-gra-o-wolnosc-limanowa-2026.png"
             alt="Gra o wolność"
             loading="eager"
           />
           <div className="lim26-hero-overlay" />
-          <div className="lim26-hero-content">
+          <div className="lim26-hero-content lim26-motion-text">
             <p className="lim26-eyebrow">19–21.06.2026 · Limanowa · zapisy grupowe otwarte</p>
             <h1>Gra o wolność</h1>
             <p className="lim26-subtitle">
-              Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.
+              Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.
             </p>
             <p className="lim26-tagline">Śladami tych, którzy byli gotowi.</p>
-            <p>
-              Trzy dni wspólnej przygody, historii, modlitwy i gry terenowej w okolicach Limanowej. Od piątkowego przyjazdu i wspólnego startu, przez sobotnią wielką grę opartą o Zośkę, Parasol i Kamienie na szaniec, aż po niedzielną Mszę i powrót — to wyjazd, który ma wciągnąć, uczyć i formować.
-            </p>
-            <p>
-              To propozycja dla chłopaków z parafii i wspólnot ministranckich, którzy chcą przeżyć coś więcej niż zwykły wyjazd. Będzie ruch, zadania, rywalizacja, historia, współpraca, modlitwa i konkretna przygoda w duchu wiary, przyjaźni oraz odpowiedzialności.
-            </p>
             <div className="lim26-hero-actions">
               <a className="lim26-btn lim26-btn--primary" href="/#/event/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zgłoś grupę</a>
               <a className="lim26-btn lim26-btn--quiet" href="/#/event/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Zobacz, jak wygląda weekend</a>
             </div>
-            <small>Dokładne informacje organizacyjne i lokalizacyjne otrzyma osoba odpowiedzialna za grupę po zgłoszeniu.</small>
           </div>
         </section>
 
-        <section id="o-wydarzeniu" className="lim26-section lim26-section--alt">
-          <div className="lim26-text-col">
+        <section id="o-wydarzeniu" className="lim26-section lim26-section--alt lim26-scene">
+          <div className="lim26-text-col lim26-motion-text">
             <h2>O wydarzeniu</h2>
-            <p className="lim26-lead">Przygoda, która nie jest tylko zabawą</p>
+            <p className="lim26-lead">To wejście w opowieść, która zaczyna się w terenie i dojrzewa we wspólnocie.</p>
             <p>
-              Gra o wolność to weekendowa gra terenowa dla chłopaków, którzy chcą przeżyć wspólny wyjazd w sposób ciekawy, wymagający i sensowny. Jej centrum stanowi sobotnia wielka gra oparta o Zośkę, Parasol i Kamienie na szaniec — ale całe wydarzenie jest czymś więcej niż tylko zestawem zadań.
+              Gra o wolność to trzy dni ruchu, decyzji i współpracy. Wchodzisz z grupą w klimat, który buduje napięcie od pierwszego spotkania aż do finału.
             </p>
             <p>
-              To propozycja łącząca przygodę, historię, wspólnotę, modlitwę i rozwój. Chodzi o to, by wspólnie działać, dobrze spędzić czas, uczyć się współpracy, poznawać prawdziwe historie i zobaczyć, że pamięć historyczna może być żywa, wciągająca i formująca.
+              W centrum jest historia, modlitwa i relacje, ale wszystko dzieje się przez działanie: kontakt z terenem, zadaniami i innymi drużynami.
             </p>
             <p>
-              Nie tworzymy klimatu rekonstrukcji ani militarnej stylizacji dla samego efektu. Zależy nam na wydarzeniu, które będzie mocne w treści, nowoczesne w formie i uczciwe wobec historii. W centrum są ludzie, wybory, relacje, odpowiedzialność i gotowość.
+              To nie rekonstrukcja i nie stylizacja. To przygoda, która stawia pytania o gotowość, odpowiedzialność i to, jak działać razem, kiedy liczy się każdy krok.
             </p>
           </div>
         </section>
 
-        <section id="dla-kogo" className="lim26-section">
+        <section id="dla-kogo" className="lim26-section lim26-scene">
           <div className="lim26-two-col">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Dla kogo</h2>
-              <p className="lim26-lead">To wydarzenie jest przygotowane dla chłopaków, którzy chcą wejść w coś konkretnego.</p>
+              <p className="lim26-lead">Dla ekip, które chcą wejść razem w mocną przygodę i stanąć do rywalizacji z innymi parafiami.</p>
               <p>
-                Zapraszamy grupy parafialne zgłaszane przez osobę pełnoletnią odpowiedzialną za cały wyjazd. Najbardziej naturalnymi uczestnikami są wspólnoty ministranckie i chłopcy związani z parafią, ale formuła jest szeroka: liczy się gotowość do wspólnej gry, współpracy, wysiłku i dobrego przeżycia całego weekendu.
+                Zapraszamy grupy parafialne zgłaszane przez osobę pełnoletnią odpowiedzialną za całość wyjazdu. Najbardziej naturalnie odnajdą się tu wspólnoty ministranckie i chłopcy związani z parafią.
               </p>
               <p><strong>Wiek uczestników:</strong> 10–25 lat</p>
               <p>
-                <strong>Dla kogo szczególnie:</strong> Od 5 klasy szkoły podstawowej do końca szkoły średniej, a także dla starszych uczestników i opiekunów, którzy chcą wejść w tę przygodę razem z grupą.
+                <strong>Dla kogo szczególnie:</strong> Od 5 klasy szkoły podstawowej do końca szkoły średniej oraz dla starszych uczestników i opiekunów, którzy chcą iść z grupą jednym rytmem.
               </p>
               <p>
-                <strong>Jak zgłasza się udział:</strong> Nie zapisujemy pojedynczych osób przez stronę publiczną. Zgłoszenia odbywają się grupowo przez osobę odpowiedzialną za parafię lub wspólnotę.
+                <strong>Jak zgłasza się udział:</strong> Nie zapisujemy pojedynczych osób przez stronę publiczną. Startuje grupa, a nie pojedynczy zawodnik.
               </p>
             </div>
-            <div>
+            <div className="lim26-motion-media">
               <ul className="lim26-feature-list">
                 <li>chłopcy z parafii i wspólnot</li>
                 <li>grupy ministranckie</li>
                 <li>odpowiedzialni dorośli i opiekunowie</li>
-                <li>osoby gotowe na współpracę, ruch i historię w praktyce</li>
+                <li>ekipy gotowe na współpracę, wysiłek i rywalizację</li>
               </ul>
             </div>
           </div>
         </section>
 
-        <section id="weekend" className="lim26-section lim26-section--alt">
-          <div className="lim26-text-col">
+        <section id="weekend" className="lim26-section lim26-section--alt lim26-scene">
+          <div className="lim26-text-col lim26-motion-text">
             <h2>Jak wygląda weekend</h2>
-            <p className="lim26-lead">Weekend ma swój rytm: przyjazd, wspólny start, sobotnia gra, modlitwa, ognisko i niedzielne zakończenie.</p>
+            <p className="lim26-lead">Weekend prowadzi od wejścia w klimat, przez dzień decyzji, aż po wspólny finał.</p>
             <div className="lim26-flow">
               <article>
                 <h3>Piątek — przyjazd i wspólny początek</h3>
                 <p>
-                  Przyjazd uczestników odbywa się od godziny 17:00. O 19:00 rozpoczynamy wspólnie cały wyjazd. To czas na zapoznanie, wejście w klimat wydarzenia i pierwsze informacje organizacyjne. Nocleg odbywa się w namiotach albo w domku letniskowym — zależnie od dostępności miejsc i ustaleń.
+                  Od 17:00 trwa przyjazd, a o 19:00 ruszamy razem. To moment wejścia w opowieść i pierwsze ustawienie drużyn.
                 </p>
               </article>
               <article>
                 <h3>Sobota — gra, modlitwa i wielka przygoda</h3>
                 <p>
-                  Dzień zaczynamy Mszą Świętą o 6:30, a po niej wspólnym śniadaniem o 7:30. O 8:30 rusza główna część wydarzenia: wielka gra terenowa w przestrzeni Limanowej. Przez cały dzień drużyny wykonują zadania, podejmują decyzje, zdobywają punkty i uczą się historii w działaniu. O 19:00 przewidziana jest adoracja jako domknięcie dnia od strony duchowej, a o 20:00 finał przy ognisku.
+                  Dzień zaczyna Msza Święta o 6:30 i śniadanie o 7:30. O 8:30 otwiera się główna rozgrywka: teren, tempo, decyzje, punkty i starcia między grupami. Wieczorem adoracja (19:00) i finał przy ognisku (20:00).
                 </p>
               </article>
               <article>
                 <h3>Niedziela — Msza, śniadanie i powrót</h3>
                 <p>
-                  W niedzielę spotykamy się na wspólnym śniadaniu, a następnie na Mszy Świętej o 10:30. Po niej jest czas na pakowanie i spokojne zakończenie wyjazdu. Wyjazd planowany jest około godziny 12:00.
+                  Domykamy wyjazd wspólnym śniadaniem i Mszą Świętą o 10:30. Około 12:00 wracacie ze swoją historią przeżytą razem.
                 </p>
               </article>
             </div>
@@ -456,47 +513,48 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="gra" className="lim26-section">
+        <section id="gra" className="lim26-section lim26-scene">
           <div className="lim26-two-col lim26-two-col--media">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Na czym polega gra</h2>
-              <p className="lim26-lead">To nie jest jedna prosta trasa od punktu A do punktu B.</p>
+              <p className="lim26-lead">To nie jest jedna trasa. To żywa rozgrywka, w której Twoja grupa buduje przewagę krok po kroku.</p>
               <p>
-                Gra łączy punktację, fabułę, zadania terenowe, rywalizację i współpracę. Drużyny poruszają się po przestrzeni wydarzenia, rozwiązują zadania, zbierają informacje, uczą się konkretnych faktów historycznych, odczytują szyfry, reagują na zmieniającą się sytuację i podejmują decyzje, które wpływają na dalszy przebieg rozgrywki.
+                Wchodzicie w teren, pracujecie pod presją czasu i punktów, zbieracie tropy, przekazujecie meldunki i podejmujecie decyzje, które od razu zmieniają sytuację.
               </p>
               <p>
-                Wyniki liczą się indywidualnie i grupowo. Z jednej strony każdy uczestnik ma znaczenie, z drugiej — drużyna musi poradzić sobie jako całość. W mniejszej grupie zdolności muszą rozłożyć się na mniej osób, w większej można inaczej podzielić role. To sprawia, że liczy się nie tylko wiedza, ale też współpraca, komunikacja i dobre rozeznanie.
+                Obok ruchu działa warstwa interakcji na żywo: dynamiczne komunikaty, bezpośrednie pojedynki wiedzy i odpowiedzi na to, co robią inne parafie.
               </p>
               <p>
-                Gra nie jest liniową opowieścią. Ma główny kierunek, ale działa także przez powtarzalne mechaniki i rozgałęziające się ścieżki. Niektóre akcje można wykonywać wielokrotnie, zdobywając różne efekty. Czas, punkty, statystyki i bezpośrednie quizowe starcia między drużynami tworzą napięcie aż do końca.
+                Zaplecze gry korzysta z obszernej bazy wiedzy o „Zośce i Parasolu”, „Kamieniach na szaniec” i realiach epoki, dlatego każda drużyna trafia na inne ścieżki i inne pytania.
               </p>
               <ul className="lim26-feature-lines">
                 <li>zadania terenowe</li>
                 <li>szyfry i meldunki</li>
-                <li>pamięć i rozpoznanie</li>
+                <li>interakcja na żywo</li>
+                <li>wiedza: „Zośka i Parasol”</li>
                 <li>punkty, czas i statystyki</li>
-                <li>rywalizacja między drużynami</li>
-                <li>historia, która naprawdę coś znaczy</li>
+                <li>rywalizacja między parafiami</li>
+                <li>współpraca, która decyduje o wyniku</li>
               </ul>
-              <p className="lim26-emphasis">Nauka jest tu częścią przygody, a przygoda staje się sposobem uczenia.</p>
+              <p className="lim26-emphasis">Wasza grupa nie odtwarza scenariusza. Wasza grupa pisze własny przebieg tej historii.</p>
             </div>
-            <img src="/event/limanowa/section-gra-terenowa-ruch.png" alt="Gra terenowa" loading="lazy" />
+            <img className="lim26-motion-media" src="/event/limanowa/section-gra-terenowa-ruch.png" alt="Gra terenowa" loading="lazy" />
           </div>
         </section>
 
-        <section id="historia-i-wartosci" className="lim26-section lim26-section--alt">
+        <section id="historia-i-wartosci" className="lim26-section lim26-section--alt lim26-scene">
           <div className="lim26-two-col lim26-two-col--media">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Historia i wartości</h2>
-              <p className="lim26-lead">Zośka, Parasol i Kamienie na szaniec nie są tu tylko dekoracją.</p>
+              <p className="lim26-lead">Inspiracją jest historia Szarych Szeregów, „Kamienie na szaniec” i książka naukowa „Zośka i Parasol”.</p>
               <p>
-                Warstwa historyczna wydarzenia opiera się mocno na latach 1939–1944, na Zośce, Parasolu i na historiach znanych z Kamieni na szaniec, ale nie zatrzymuje się na samym powtarzaniu faktów. Konkretne informacje historyczne mają być prawdziwe, zapamiętywalne i osadzone w realnych historiach ludzi, wyborów oraz relacji.
+                Wchodzicie w realne tropy lat 1939–1944: ludzi, decyzji i relacji, które miały cenę. To punkt wyjścia do pytań, które stają przed Wami dzisiaj.
               </p>
               <p>
-                Równocześnie pojawia się warstwa fabularyzowana, która buduje współczesny kontekst dla tych tematów. Dzięki temu uczestnik nie tylko coś odtworzy, ale rzeczywiście wejdzie w opowieść, która każe pytać o odwagę, gotowość, przyjaźń, odpowiedzialność i własne decyzje tu i teraz.
+                Nie chodzi o hasła i dekoracje. Chodzi o odwagę, wierność i odpowiedzialność przeżyte we wspólnocie, w działaniu i w konkretnych wyborach.
               </p>
               <p>
-                Nie chodzi o prosty patriotyczny slogan. Chodzi o dojrzewanie w relacjach, o uczenie się współpracy, o męską odpowiedzialność i o to, by historia nie była martwą wiedzą, ale przestrzenią myślenia, działania i formacji.
+                Dlatego historia nie jest dodatkiem do gry. Jest osią, która porządkuje tempo, relacje i sens całego weekendu.
               </p>
               <blockquote>Każdy ma swoje Westerplatte.</blockquote>
               <ul className="lim26-values">
@@ -509,13 +567,13 @@ function LimanowaStartPage({
                 <li>wspólnota</li>
               </ul>
             </div>
-            <img src="/event/limanowa/section-historia-zoska-parasol.png" alt="Historia i wartości" loading="lazy" />
+            <img className="lim26-motion-media" src="/event/limanowa/section-historia-zoska-parasol.png" alt="Historia i wartości" loading="lazy" />
           </div>
         </section>
 
-        <section id="baza-i-nocleg" className="lim26-section">
+        <section id="baza-i-nocleg" className="lim26-section lim26-scene">
           <div className="lim26-two-col">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Baza i nocleg</h2>
               <p className="lim26-lead">Wydarzenie ma swoją bazę, ale gra wychodzi szerzej w teren Limanowej.</p>
               <p>
@@ -528,7 +586,7 @@ function LimanowaStartPage({
                 Dokładniejsze informacje o bazie, przydziale miejsc i sprawach technicznych otrzyma osoba odpowiedzialna za grupę po zgłoszeniu.
               </p>
             </div>
-            <div className="lim26-key-lines">
+            <div className="lim26-key-lines lim26-motion-media">
               <p><span>baza:</span> Limanowa</p>
               <p><span>nocleg:</span> domek, podłoga, namioty</p>
               <p><span>sanitariaty:</span> tak</p>
@@ -540,8 +598,8 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="co-zabrac" className="lim26-section lim26-section--alt">
-          <div className="lim26-text-col">
+        <section id="co-zabrac" className="lim26-section lim26-section--alt lim26-scene">
+          <div className="lim26-text-col lim26-motion-text">
             <h2>Co zabrać</h2>
             <p className="lim26-lead">Warto przyjechać przygotowanym, żeby dobrze wejść w cały weekend.</p>
             <p>
@@ -565,9 +623,9 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="zapisy" className="lim26-section lim26-section--registration">
+        <section id="zapisy" className="lim26-section lim26-section--registration lim26-scene">
           <div className="lim26-registration-wrap">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Zapisy grup</h2>
               <h3>Zgłoś swoją grupę</h3>
               <p className="lim26-lead">
@@ -583,7 +641,7 @@ function LimanowaStartPage({
               <small>Koszt udziału i szczegóły organizacyjne są przekazywane w dalszym etapie zapisów.</small>
             </div>
 
-            <form className="lim26-form" onSubmit={handleSubmit}>
+            <form className="lim26-form lim26-motion-media" onSubmit={handleSubmit}>
               <label>
                 Parafia / wspólnota
                 <input value={form.parishName} onChange={handleFormField('parishName')} required />
@@ -634,8 +692,8 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="faq" className="lim26-section lim26-section--alt">
-          <div className="lim26-text-col">
+        <section id="faq" className="lim26-section lim26-section--alt lim26-scene">
+          <div className="lim26-text-col lim26-motion-text">
             <h2>FAQ</h2>
             <div className="lim26-faq-list">
               <details>
@@ -682,13 +740,13 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="kontakt" className="lim26-section">
+        <section id="kontakt" className="lim26-section lim26-scene">
           <div className="lim26-two-col">
-            <div>
+            <div className="lim26-motion-text">
               <h2>Kontakt</h2>
               <p>Masz pytania dotyczące zapisów, organizacji albo samej formuły wydarzenia? Skontaktuj się bezpośrednio z organizatorem.</p>
             </div>
-            <div className="lim26-contact-list">
+            <div className="lim26-contact-list lim26-motion-media">
               <p><span>Organizator</span>ks. Michał Mleczek</p>
               <p><span>Telefon</span>+48 505 548 677</p>
               <p><span>E-mail</span>mleczek_pradnik@outlook.com</p>
@@ -697,14 +755,14 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section className="lim26-section lim26-section--alt lim26-gallery-placeholder">
-          <p>Po wydarzeniu pojawi się tutaj galeria zdjęć.</p>
+        <section className="lim26-section lim26-section--alt lim26-gallery-placeholder lim26-scene">
+          <p className="lim26-motion-text">Po wydarzeniu pojawi się tutaj galeria zdjęć.</p>
         </section>
       </main>
 
       <footer className="lim26-footer">
         <p>Gra o wolność · 19–21.06.2026 · Limanowa</p>
-        <p>Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.</p>
+        <p>Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.</p>
         <p>Organizator: ks. Michał Mleczek</p>
         <p>Wydarzenie w ekosystemie REcreatio</p>
       </footer>
@@ -1420,7 +1478,7 @@ function LimanowaAdminPage({ showProfileMenu, onAuthAction }: Pick<SharedEventPa
 
   const [settingsForm, setSettingsForm] = useState({
     title: 'Gra o wolność',
-    subtitle: 'Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.',
+    subtitle: 'Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.',
     tagline: 'Śladami tych, którzy byli gotowi.',
     capacityTotal: '40',
     registrationOpen: true,

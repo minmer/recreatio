@@ -1329,6 +1329,12 @@ public static class LimanowaEndpoints
         var existing = await dbContext.LimanowaEvents.FirstOrDefaultAsync(x => x.Slug == DefaultSlug, ct);
         if (existing is not null)
         {
+            if (string.Equals(existing.Subtitle, "Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.", StringComparison.Ordinal))
+            {
+                existing.Subtitle = "Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.";
+                existing.UpdatedUtc = DateTimeOffset.UtcNow;
+                await dbContext.SaveChangesAsync(ct);
+            }
             await EnsurePolicyLinksAsync(dbContext, existing.Id, ct);
             return existing;
         }
@@ -1352,7 +1358,7 @@ public static class LimanowaEndpoints
             Id = Guid.Empty,
             Slug = DefaultSlug,
             Title = "Gra o wolność",
-            Subtitle = "Zośka i parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.",
+            Subtitle = "Zośka i Parasol: Przygoda, która uczy. Historia, która porusza. Wspólnota, która formuje.",
             Tagline = "Śladami tych, którzy byli gotowi.",
             StartDate = new DateOnly(2026, 6, 19),
             EndDate = new DateOnly(2026, 6, 21),

@@ -104,14 +104,19 @@
 .lim26-main {
   position: relative;
   z-index: 3;
+  scroll-behavior: smooth;
+}
+
+.lim26-scene {
+  isolation: isolate;
 }
 
 .lim26-hero {
-  min-height: min(100vh, 980px);
+  min-height: 100svh;
   position: relative;
   display: grid;
-  align-items: end;
-  padding: max(5.8rem, 12vh) 6vw 5.2rem;
+  align-items: center;
+  padding: max(6.2rem, 13vh) 6vw 5.2rem;
   border-bottom: 1px solid var(--lim26-line);
 }
 
@@ -136,9 +141,9 @@
 
 .lim26-hero-content {
   position: relative;
-  max-width: min(860px, 100%);
+  max-width: min(760px, 100%);
   display: grid;
-  gap: 0.95rem;
+  gap: 0.86rem;
 }
 
 .lim26-eyebrow {
@@ -217,10 +222,16 @@
 }
 
 .lim26-section {
-  min-height: 76vh;
+  min-height: 92vh;
   padding: clamp(4.2rem, 9vw, 7rem) 6vw;
   position: relative;
+  display: grid;
+  align-items: center;
   border-bottom: 1px solid var(--lim26-line);
+}
+
+.lim26-section--registration {
+  align-items: start;
 }
 
 .lim26-section--alt {
@@ -231,6 +242,21 @@
   max-width: min(880px, 100%);
   display: grid;
   gap: 1rem;
+}
+
+.lim26-motion-text,
+.lim26-motion-media {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  will-change: transform, opacity;
+}
+
+.lim26-motion-text {
+  transition: opacity 140ms linear, transform 140ms linear;
+}
+
+.lim26-motion-media {
+  transition: opacity 160ms linear, transform 160ms linear;
 }
 
 .lim26-section h2 {
@@ -628,6 +654,15 @@
 .lim26-export-links {
   display: grid;
   gap: 0.32rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lim26-motion-text,
+  .lim26-motion-media {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 @media (max-width: 1080px) {
