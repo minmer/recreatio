@@ -10,6 +10,7 @@ using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
 using Recreatio.Api.Services.Chat;
+using Recreatio.Api.Services.Cogita;
 
 namespace Recreatio.Api.Hosting;
 
@@ -62,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddRecreatioCors();
         services.AddRecreatioRateLimiting(environment);
         services.AddRecreatioAuthentication(configuration, environment);
+        services.AddSignalR();
         services.AddRecreatioServices();
 
         return services;
@@ -215,6 +217,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<ICsrfService, CsrfService>();
         services.AddScoped<IChatCryptoService, ChatCryptoService>();
+        services.AddSingleton<IGameTokenService, GameTokenService>();
+        services.AddScoped<IGameSessionService, GameSessionService>();
+        services.AddScoped<IGameRuleEngineService, GameRuleEngineService>();
+        services.AddScoped<IGameLocationService, GameLocationService>();
+        services.AddScoped<IGameRealtimeService, GameRealtimeService>();
+        services.AddHostedService<GameRetentionCleanupHostedService>();
         services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
 
         return services;

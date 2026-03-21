@@ -6,9 +6,23 @@ import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './ev
 import { WarsztatyEventPage } from './WarsztatyEventPage';
 import { Kal26EventPage } from './Kal26EventPage';
 import { Edk26EventPage } from './Edk26EventPage';
+import { LimanowaEventPage } from './LimanowaEventPage';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
+  {
+    slug: 'limanowa',
+    title: 'Gra o wolność',
+    summary: 'Limanowa 2026: historia, przygoda, formacja i zapisy grupowe.',
+    date: '19–21.06.2026',
+    location: 'Limanowa',
+    pages: [
+      { slug: 'start', title: 'Start' },
+      { slug: 'admin', title: 'Panel główny' },
+      { slug: 'group-admin', title: 'Panel grupy' },
+      { slug: 'participant', title: 'Panel uczestnika' }
+    ]
+  },
   {
     slug: 'edk26',
     title: 'EDK 2026',
@@ -88,7 +102,8 @@ const EVENT_PAGE_RENDERERS: Record<
 > = {
   warsztaty26: WarsztatyEventPage,
   kal26: Kal26EventPage,
-  edk26: Edk26EventPage
+  edk26: Edk26EventPage,
+  limanowa: LimanowaEventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {

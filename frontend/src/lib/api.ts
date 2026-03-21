@@ -2040,6 +2040,544 @@ export function leaveCogitaLiveRevision(payload: {
   );
 }
 
+export type CogitaGameSummary = {
+  gameId: string;
+  libraryId: string;
+  name: string;
+  mode: 'solo' | 'group' | 'mixed' | string;
+  storyboardProjectId?: string | null;
+  isArchived: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaGameDetail = {
+  gameId: string;
+  libraryId: string;
+  name: string;
+  mode: string;
+  storyboardProjectId?: string | null;
+  isArchived: boolean;
+  settings?: Record<string, unknown> | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaGameValue = {
+  valueId: string;
+  valueKey: string;
+  name: string;
+  scopeType: 'session' | 'group' | 'participant' | string;
+  visibility: 'public' | 'group' | 'private' | string;
+  dataType: 'number' | 'bool' | 'string' | string;
+  defaultValue?: unknown;
+  constraints?: Record<string, unknown> | null;
+  isScore: boolean;
+  updatedUtc: string;
+};
+
+export type CogitaGameActionNode = {
+  nodeId: string;
+  nodeType: string;
+  config: Record<string, unknown>;
+  positionX: number;
+  positionY: number;
+};
+
+export type CogitaGameActionEdge = {
+  edgeId: string;
+  fromNodeId: string;
+  fromPort?: string | null;
+  toNodeId: string;
+  toPort?: string | null;
+};
+
+export type CogitaGameActionGraph = {
+  graphId: string;
+  version: number;
+  status: 'draft' | 'published' | string;
+  nodes: CogitaGameActionNode[];
+  edges: CogitaGameActionEdge[];
+};
+
+export type CogitaGameLayout = {
+  layoutId: string;
+  roleType: 'host' | 'groupLeader' | 'participant' | string;
+  layout: Record<string, unknown>;
+  updatedUtc: string;
+};
+
+export type CogitaGameSessionSummary = {
+  sessionId: string;
+  gameId: string;
+  status: string;
+  phase: string;
+  roundIndex: number;
+  version: number;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type CogitaGameSessionGroup = {
+  groupId: string;
+  groupKey: string;
+  displayName: string;
+  capacity: number;
+  isActive: boolean;
+};
+
+export type CogitaGameZone = {
+  zoneId: string;
+  zoneKey: string;
+  triggerRadiusM: number;
+  geometry?: Record<string, unknown> | null;
+  isEnabled: boolean;
+  activeFromUtc?: string | null;
+  activeToUtc?: string | null;
+};
+
+export type CogitaGameSessionParticipant = {
+  participantId: string;
+  groupId?: string | null;
+  roleType: string;
+  displayName: string;
+  isConnected: boolean;
+  spoofRiskScore: number;
+  lastSeenUtc: string;
+};
+
+export type CogitaGameScoreRow = {
+  groupId?: string | null;
+  participantId?: string | null;
+  score: number;
+  rank: number;
+};
+
+export type CogitaGameEvent = {
+  eventId: string;
+  seqNo: number;
+  eventType: string;
+  correlationId: string;
+  actorParticipantId?: string | null;
+  payload?: Record<string, unknown> | null;
+  createdUtc: string;
+};
+
+export type CogitaGameSessionState = {
+  sessionId: string;
+  libraryId: string;
+  gameId: string;
+  status: string;
+  phase: string;
+  roundIndex: number;
+  version: number;
+  groups: CogitaGameSessionGroup[];
+  zones: CogitaGameZone[];
+  participants: CogitaGameSessionParticipant[];
+  scoreboard: CogitaGameScoreRow[];
+  events: CogitaGameEvent[];
+  hostRealtimeToken?: string | null;
+  participantRealtimeToken?: string | null;
+  lastSeqNo: number;
+};
+
+export type CogitaGameHostCreateResponse = {
+  sessionId: string;
+  code: string;
+  hostSecret: string;
+  state: CogitaGameSessionState;
+};
+
+export type CogitaGameJoinResponse = {
+  sessionId: string;
+  participantId: string;
+  participantToken: string;
+  state: CogitaGameSessionState;
+};
+
+export type CogitaGameStateResponse = {
+  state: CogitaGameSessionState;
+  eTag: string;
+};
+
+export function getCogitaGames(payload: { libraryId: string; q?: string; limit?: number }) {
+  const params = new URLSearchParams();
+  if (payload.q && payload.q.trim().length > 0) params.set('q', payload.q.trim());
+  if (typeof payload.limit === 'number') params.set('limit', String(payload.limit));
+  const query = params.toString();
+  return request<CogitaGameSummary[]>(
+    `/cogita/libraries/${payload.libraryId}/games${query ? `?${query}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function createCogitaGame(payload: {
+  libraryId: string;
+  name: string;
+  mode?: 'solo' | 'group' | 'mixed' | string;
+  storyboardProjectId?: string | null;
+  settings?: Record<string, unknown> | null;
+}) {
+  return request<CogitaGameSummary>(`/cogita/libraries/${payload.libraryId}/games`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      mode: payload.mode ?? 'mixed',
+      storyboardProjectId: payload.storyboardProjectId ?? null,
+      settings: payload.settings ?? {}
+    })
+  });
+}
+
+export function getCogitaGame(payload: { libraryId: string; gameId: string }) {
+  return request<CogitaGameDetail>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}`,
+    { method: 'GET' }
+  );
+}
+
+export function updateCogitaGame(payload: {
+  libraryId: string;
+  gameId: string;
+  name?: string;
+  mode?: string;
+  storyboardProjectId?: string | null;
+  settings?: Record<string, unknown> | null;
+  isArchived?: boolean;
+}) {
+  return request<CogitaGameSummary>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: payload.name,
+        mode: payload.mode,
+        storyboardProjectId: payload.storyboardProjectId ?? null,
+        settings: payload.settings,
+        isArchived: payload.isArchived
+      })
+    }
+  );
+}
+
+export function getCogitaGameValues(payload: { libraryId: string; gameId: string }) {
+  return request<CogitaGameValue[]>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/values`,
+    { method: 'GET' }
+  );
+}
+
+export function upsertCogitaGameValues(payload: {
+  libraryId: string;
+  gameId: string;
+  values: Array<{
+    valueId?: string;
+    valueKey: string;
+    name: string;
+    scopeType: string;
+    visibility: string;
+    dataType: string;
+    defaultValue?: unknown;
+    constraints?: Record<string, unknown> | null;
+    isScore: boolean;
+  }>;
+}) {
+  return request<CogitaGameValue[]>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/values`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload.values)
+    }
+  );
+}
+
+export function getCogitaGameActionGraph(payload: { libraryId: string; gameId: string }) {
+  return request<CogitaGameActionGraph>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/actions/graph`,
+    { method: 'GET' }
+  );
+}
+
+export function upsertCogitaGameActionGraph(payload: {
+  libraryId: string;
+  gameId: string;
+  nodes: Array<{
+    nodeId?: string;
+    nodeType: string;
+    config: Record<string, unknown>;
+    positionX: number;
+    positionY: number;
+  }>;
+  edges: Array<{
+    edgeId?: string;
+    fromNodeId: string;
+    fromPort?: string | null;
+    toNodeId: string;
+    toPort?: string | null;
+  }>;
+  publish?: boolean;
+}) {
+  return request<CogitaGameActionGraph>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/actions/graph`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({
+        nodes: payload.nodes,
+        edges: payload.edges,
+        publish: Boolean(payload.publish)
+      })
+    }
+  );
+}
+
+export function getCogitaGameLayouts(payload: { libraryId: string; gameId: string }) {
+  return request<CogitaGameLayout[]>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/layouts`,
+    { method: 'GET' }
+  );
+}
+
+export function upsertCogitaGameLayout(payload: {
+  libraryId: string;
+  gameId: string;
+  roleType: string;
+  layout: Record<string, unknown>;
+}) {
+  return request<CogitaGameLayout>(
+    `/cogita/libraries/${payload.libraryId}/games/${payload.gameId}/layouts/${encodeURIComponent(payload.roleType)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ roleType: payload.roleType, layout: payload.layout })
+    }
+  );
+}
+
+export function getCogitaGameSessions(payload: { libraryId: string; gameId?: string; limit?: number }) {
+  const params = new URLSearchParams();
+  if (payload.gameId) params.set('gameId', payload.gameId);
+  if (typeof payload.limit === 'number') params.set('limit', String(payload.limit));
+  const query = params.toString();
+  return request<CogitaGameSessionSummary[]>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions${query ? `?${query}` : ''}`,
+    { method: 'GET' }
+  );
+}
+
+export function createCogitaGameSession(payload: {
+  libraryId: string;
+  gameId: string;
+  title?: string | null;
+  sessionSettings?: Record<string, unknown> | null;
+  zones?: Array<{ zoneKey: string; latitude: number; longitude: number; triggerRadiusM: number; sourceType?: string }>;
+  groups?: Array<{ groupKey: string; displayName: string; capacity?: number }>;
+}) {
+  return request<CogitaGameHostCreateResponse>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        gameId: payload.gameId,
+        title: payload.title ?? null,
+        sessionSettings: payload.sessionSettings ?? {},
+        zones: payload.zones ?? [],
+        groups: payload.groups ?? []
+      })
+    }
+  );
+}
+
+export function attachCogitaGameHost(payload: { libraryId: string; sessionId: string; hostSecret: string }) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaGameSessionState>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions/${payload.sessionId}/host/attach?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({})
+    }
+  );
+}
+
+export function updateCogitaGameHostPhase(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  phase: string;
+  roundIndex: number;
+  status?: string;
+  meta?: Record<string, unknown> | null;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaGameSessionState>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions/${payload.sessionId}/host/phase?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        phase: payload.phase,
+        roundIndex: payload.roundIndex,
+        status: payload.status ?? null,
+        meta: payload.meta ?? null
+      })
+    }
+  );
+}
+
+export function sendCogitaGameHostCommand(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  command: string;
+  payload?: Record<string, unknown> | null;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaGameSessionState>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions/${payload.sessionId}/host/commands?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        command: payload.command,
+        payload: payload.payload ?? null
+      })
+    }
+  );
+}
+
+export function updateCogitaGameHostGroups(payload: {
+  libraryId: string;
+  sessionId: string;
+  hostSecret: string;
+  groups: Array<{ groupKey: string; displayName: string; capacity?: number }>;
+}) {
+  const params = new URLSearchParams({ hostSecret: payload.hostSecret });
+  return request<CogitaGameSessionGroup[]>(
+    `/cogita/libraries/${payload.libraryId}/game-sessions/${payload.sessionId}/host/groups?${params.toString()}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload.groups)
+    }
+  );
+}
+
+export function cleanupCogitaGameLocations() {
+  return request<{ removed: number }>('/cogita/game/maintenance/cleanup-location', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function joinCogitaGame(payload: {
+  code: string;
+  name: string;
+  groupKey?: string | null;
+  deviceId?: string | null;
+}) {
+  return request<CogitaGameJoinResponse>(
+    `/cogita/public/game/${encodeURIComponent(payload.code)}/join`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name,
+        groupKey: payload.groupKey ?? null,
+        deviceId: payload.deviceId ?? null
+      })
+    }
+  );
+}
+
+export function getCogitaGamePublicState(payload: {
+  code: string;
+  participantToken?: string | null;
+  sinceSeq?: number;
+}) {
+  const params = new URLSearchParams();
+  if (payload.participantToken) params.set('participantToken', payload.participantToken);
+  if (typeof payload.sinceSeq === 'number') params.set('sinceSeq', String(payload.sinceSeq));
+  const query = params.toString();
+  const path = `/cogita/public/game/${encodeURIComponent(payload.code)}/state${query ? `?${query}` : ''}`;
+  return requestLiveStateCached<CogitaGameStateResponse>(
+    `game-public:${payload.code}:${payload.participantToken ?? '-'}:${payload.sinceSeq ?? 0}`,
+    path
+  );
+}
+
+export function submitCogitaGameLocationPings(payload: {
+  code: string;
+  participantToken: string;
+  samples: Array<{
+    latitude: number;
+    longitude: number;
+    accuracyM: number;
+    speedMps?: number | null;
+    headingDeg?: number | null;
+    deviceTimeUtc: string;
+  }>;
+  batchId?: string | null;
+}) {
+  return request<{ accepted: boolean; events: number; lastSeqNo: number }>(
+    `/cogita/public/game/${encodeURIComponent(payload.code)}/location-pings`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        samples: payload.samples,
+        batchId: payload.batchId ?? null
+      })
+    }
+  );
+}
+
+export function submitCogitaGameAnswer(payload: {
+  code: string;
+  participantToken: string;
+  interactionKey: string;
+  answer?: unknown;
+}) {
+  return request<{ accepted: boolean; seqNo: number }>(
+    `/cogita/public/game/${encodeURIComponent(payload.code)}/answers`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        interactionKey: payload.interactionKey,
+        answer: payload.answer ?? null
+      })
+    }
+  );
+}
+
+export function completeCogitaGameInteraction(payload: {
+  code: string;
+  participantToken: string;
+  interactionKey: string;
+  value?: Record<string, unknown> | null;
+}) {
+  return request<{ accepted: boolean; seqNo: number }>(
+    `/cogita/public/game/${encodeURIComponent(payload.code)}/interactions/${encodeURIComponent(payload.interactionKey)}/complete`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken,
+        interactionKey: payload.interactionKey,
+        payload: payload.value ?? null
+      })
+    }
+  );
+}
+
+export function leaveCogitaGame(payload: {
+  code: string;
+  participantToken: string;
+}) {
+  return request<{ left: boolean }>(
+    `/cogita/public/game/${encodeURIComponent(payload.code)}/leave`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        participantToken: payload.participantToken
+      })
+    }
+  );
+}
+
 export function getCogitaPublicRevisionShare(payload: { shareId: string; key?: string }) {
   const params = new URLSearchParams();
   if (payload.key) params.set('key', payload.key);
@@ -4256,6 +4794,499 @@ export function bootstrapEdk26Event() {
     method: 'POST',
     body: JSON.stringify({})
   });
+}
+
+export type LimanowaGroupStatus =
+  | 'nowe zgłoszenie'
+  | 'oczekuje na kontakt'
+  | 'oczekuje na uzupełnienie'
+  | 'gotowe organizacyjnie'
+  | 'zamknięte';
+
+export type LimanowaParticipantStatus =
+  | 'nieuzupełniony'
+  | 'w trakcie'
+  | 'gotowy'
+  | 'wymaga poprawy';
+
+export type LimanowaPolicyLinks = {
+  privacyPolicyUrl: string;
+  eventRulesUrl: string;
+  thingsToBringUrl: string;
+};
+
+export type LimanowaEventSite = {
+  id?: string | null;
+  slug: string;
+  title: string;
+  subtitle: string;
+  tagline: string;
+  startDate: string;
+  endDate: string;
+  capacityTotal: number;
+  registrationOpen: boolean;
+  registrationGroupsDeadline: string;
+  registrationParticipantsDeadline: string;
+  published: boolean;
+  policyLinks: LimanowaPolicyLinks;
+  isProvisioned: boolean;
+};
+
+export type LimanowaGroup = {
+  id: string;
+  parishName: string;
+  responsibleName: string;
+  phone: string;
+  email: string;
+  expectedParticipantCount: number;
+  expectedGuardianCount: number;
+  notes?: string | null;
+  status: LimanowaGroupStatus | string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LimanowaParticipant = {
+  id: string;
+  groupId: string;
+  fullName: string;
+  phone: string;
+  parishName: string;
+  parentContactName?: string | null;
+  parentContactPhone?: string | null;
+  guardianName?: string | null;
+  guardianPhone?: string | null;
+  notes?: string | null;
+  healthNotes?: string | null;
+  accommodationType?: string | null;
+  status: LimanowaParticipantStatus | string;
+  rulesAccepted: boolean;
+  privacyAccepted: boolean;
+  consentSubmittedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type LimanowaQuestionMessage = {
+  id: string;
+  authorType: string;
+  message: string;
+  createdAt: string;
+};
+
+export type LimanowaQuestionThread = {
+  id: string;
+  relatedType: string;
+  relatedId: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: LimanowaQuestionMessage[];
+};
+
+export type LimanowaAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  audienceType: string;
+  publishedAt: string;
+};
+
+export type LimanowaGroupAdminZone = {
+  event: LimanowaEventSite;
+  group: LimanowaGroup;
+  participants: LimanowaParticipant[];
+  announcements: LimanowaAnnouncement[];
+  questionThread?: LimanowaQuestionThread | null;
+  policyLinks: LimanowaPolicyLinks;
+};
+
+export type LimanowaParticipantZone = {
+  event: LimanowaEventSite;
+  group: LimanowaGroup;
+  participant: LimanowaParticipant;
+  announcements: LimanowaAnnouncement[];
+  questionThread?: LimanowaQuestionThread | null;
+  policyLinks: LimanowaPolicyLinks;
+};
+
+export type LimanowaAdminStatus = {
+  hasAdmin: boolean;
+  isCurrentUserAdmin: boolean;
+  adminDisplayName?: string | null;
+  limanowaProvisioned: boolean;
+};
+
+export type LimanowaAdminStats = {
+  groups: number;
+  participants: number;
+  participantsReady: number;
+  participantsNeedsFix: number;
+  accommodationAssigned: number;
+  openThreads: number;
+  announcements: number;
+};
+
+export type LimanowaAdminDashboard = {
+  event: LimanowaEventSite;
+  stats: LimanowaAdminStats;
+  groups: LimanowaGroup[];
+  participants: LimanowaParticipant[];
+  announcements: LimanowaAnnouncement[];
+  questionThreads: LimanowaQuestionThread[];
+  policyLinks: LimanowaPolicyLinks;
+};
+
+export type LimanowaAccessLink = {
+  accessId: string;
+  token: string;
+  link: string;
+  smsHref: string;
+  sentAt: string;
+};
+
+export type LimanowaExportKind =
+  | 'groups'
+  | 'participants'
+  | 'statuses'
+  | 'accommodation'
+  | 'consents'
+  | 'questions';
+
+export function getLimanowaEventSite(slug: string) {
+  return request<LimanowaEventSite>(`/limanowa/${slug}`, {
+    method: 'GET'
+  });
+}
+
+export function createLimanowaGroupRegistration(
+  slug: string,
+  payload: {
+    parishName: string;
+    responsibleName: string;
+    phone: string;
+    email: string;
+    expectedParticipantCount: number;
+    expectedGuardianCount: number;
+    notes?: string | null;
+  }
+) {
+  return request<{ groupId: string; status: string; createdAt: string }>(`/limanowa/${slug}/public/group-registrations`, {
+    method: 'POST',
+    body: JSON.stringify({
+      parishName: payload.parishName,
+      responsibleName: payload.responsibleName,
+      phone: payload.phone,
+      email: payload.email,
+      expectedParticipantCount: payload.expectedParticipantCount,
+      expectedGuardianCount: payload.expectedGuardianCount,
+      notes: payload.notes ?? null
+    })
+  });
+}
+
+export function getLimanowaGroupAdminZone(token: string) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaGroupAdminZone>(`/limanowa/group-admin/zone?${query.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function updateLimanowaGroupAdminGroup(
+  token: string,
+  payload: {
+    parishName: string;
+    responsibleName: string;
+    phone: string;
+    email: string;
+    expectedParticipantCount: number;
+    expectedGuardianCount: number;
+    notes?: string | null;
+  }
+) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaGroup>(`/limanowa/group-admin/group?${query.toString()}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      parishName: payload.parishName,
+      responsibleName: payload.responsibleName,
+      phone: payload.phone,
+      email: payload.email,
+      expectedParticipantCount: payload.expectedParticipantCount,
+      expectedGuardianCount: payload.expectedGuardianCount,
+      notes: payload.notes ?? null
+    })
+  });
+}
+
+export function createLimanowaGroupAdminParticipant(
+  token: string,
+  payload: {
+    fullName: string;
+    phone: string;
+    parishName: string;
+    parentContactName?: string | null;
+    parentContactPhone?: string | null;
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+    notes?: string | null;
+    healthNotes?: string | null;
+    accommodationType?: string | null;
+    status?: string | null;
+  }
+) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaParticipant>(`/limanowa/group-admin/participants?${query.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      parishName: payload.parishName,
+      parentContactName: payload.parentContactName ?? null,
+      parentContactPhone: payload.parentContactPhone ?? null,
+      guardianName: payload.guardianName ?? null,
+      guardianPhone: payload.guardianPhone ?? null,
+      notes: payload.notes ?? null,
+      healthNotes: payload.healthNotes ?? null,
+      accommodationType: payload.accommodationType ?? null,
+      status: payload.status ?? null
+    })
+  });
+}
+
+export function updateLimanowaGroupAdminParticipant(
+  token: string,
+  participantId: string,
+  payload: {
+    fullName: string;
+    phone: string;
+    parishName: string;
+    parentContactName?: string | null;
+    parentContactPhone?: string | null;
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+    notes?: string | null;
+    healthNotes?: string | null;
+    accommodationType?: string | null;
+    status?: string | null;
+  }
+) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaParticipant>(`/limanowa/group-admin/participants/${participantId}?${query.toString()}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      parishName: payload.parishName,
+      parentContactName: payload.parentContactName ?? null,
+      parentContactPhone: payload.parentContactPhone ?? null,
+      guardianName: payload.guardianName ?? null,
+      guardianPhone: payload.guardianPhone ?? null,
+      notes: payload.notes ?? null,
+      healthNotes: payload.healthNotes ?? null,
+      accommodationType: payload.accommodationType ?? null,
+      status: payload.status ?? null
+    })
+  });
+}
+
+export function createLimanowaGroupAdminQuestion(token: string, message: string) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaQuestionThread>(`/limanowa/group-admin/questions?${query.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({ message })
+  });
+}
+
+export function getLimanowaParticipantZone(token: string) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaParticipantZone>(`/limanowa/participant/zone?${query.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function updateLimanowaParticipantProfile(
+  token: string,
+  payload: {
+    fullName: string;
+    phone: string;
+    parishName: string;
+    parentContactName?: string | null;
+    parentContactPhone?: string | null;
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+    notes?: string | null;
+    healthNotes?: string | null;
+    rulesAccepted: boolean;
+    privacyAccepted: boolean;
+  }
+) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaParticipant>(`/limanowa/participant/profile?${query.toString()}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      fullName: payload.fullName,
+      phone: payload.phone,
+      parishName: payload.parishName,
+      parentContactName: payload.parentContactName ?? null,
+      parentContactPhone: payload.parentContactPhone ?? null,
+      guardianName: payload.guardianName ?? null,
+      guardianPhone: payload.guardianPhone ?? null,
+      notes: payload.notes ?? null,
+      healthNotes: payload.healthNotes ?? null,
+      rulesAccepted: payload.rulesAccepted,
+      privacyAccepted: payload.privacyAccepted
+    })
+  });
+}
+
+export function createLimanowaParticipantQuestion(token: string, message: string) {
+  const query = new URLSearchParams({ token });
+  return request<LimanowaQuestionThread>(`/limanowa/participant/questions?${query.toString()}`, {
+    method: 'POST',
+    body: JSON.stringify({ message })
+  });
+}
+
+export function getLimanowaAdminStatus() {
+  return request<LimanowaAdminStatus>('/limanowa/admin/events-limanowa/status', {
+    method: 'GET'
+  });
+}
+
+export function claimLimanowaAdmin() {
+  return request<{ claimed: boolean; alreadyOwner: boolean }>('/limanowa/admin/events-limanowa/claim', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function bootstrapLimanowaEvent() {
+  return request<LimanowaEventSite>('/limanowa/admin/events-limanowa/bootstrap-limanowa', {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getLimanowaAdminDashboard(eventId: string) {
+  return request<LimanowaAdminDashboard>(`/limanowa/${eventId}/admin/dashboard`, {
+    method: 'GET'
+  });
+}
+
+export function updateLimanowaAdminEventSettings(
+  eventId: string,
+  payload: {
+    title: string;
+    subtitle: string;
+    tagline: string;
+    capacityTotal: number;
+    registrationOpen: boolean;
+    registrationGroupsDeadline: string;
+    registrationParticipantsDeadline: string;
+    published: boolean;
+    privacyPolicyUrl: string;
+    eventRulesUrl: string;
+    thingsToBringUrl: string;
+  }
+) {
+  return request<LimanowaEventSite>(`/limanowa/${eventId}/admin/event-settings`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      title: payload.title,
+      subtitle: payload.subtitle,
+      tagline: payload.tagline,
+      capacityTotal: payload.capacityTotal,
+      registrationOpen: payload.registrationOpen,
+      registrationGroupsDeadline: payload.registrationGroupsDeadline,
+      registrationParticipantsDeadline: payload.registrationParticipantsDeadline,
+      published: payload.published,
+      privacyPolicyUrl: payload.privacyPolicyUrl,
+      eventRulesUrl: payload.eventRulesUrl,
+      thingsToBringUrl: payload.thingsToBringUrl
+    })
+  });
+}
+
+export function updateLimanowaAdminGroupStatus(eventId: string, groupId: string, status: string) {
+  return request<LimanowaGroup>(`/limanowa/${eventId}/admin/groups/${groupId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function updateLimanowaAdminParticipantStatus(eventId: string, participantId: string, status: string) {
+  return request<LimanowaParticipant>(`/limanowa/${eventId}/admin/participants/${participantId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status })
+  });
+}
+
+export function updateLimanowaAdminAccommodation(
+  eventId: string,
+  participantId: string,
+  payload: { type: string; note?: string | null }
+) {
+  return request<LimanowaParticipant>(`/limanowa/${eventId}/admin/accommodation/${participantId}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      type: payload.type,
+      note: payload.note ?? null
+    })
+  });
+}
+
+export function createLimanowaAdminAnnouncement(
+  eventId: string,
+  payload: {
+    title: string;
+    body: string;
+    audienceType: 'all' | 'group-admin' | 'participant' | 'admin';
+  }
+) {
+  return request<LimanowaAnnouncement>(`/limanowa/${eventId}/admin/announcements`, {
+    method: 'POST',
+    body: JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      audienceType: payload.audienceType
+    })
+  });
+}
+
+export function replyLimanowaAdminThread(
+  eventId: string,
+  threadId: string,
+  payload: {
+    message: string;
+    status?: 'open' | 'answered' | 'closed';
+  }
+) {
+  return request<LimanowaQuestionThread>(`/limanowa/${eventId}/admin/questions/${threadId}/reply`, {
+    method: 'POST',
+    body: JSON.stringify({
+      message: payload.message,
+      status: payload.status ?? null
+    })
+  });
+}
+
+export function generateLimanowaGroupAdminAccess(eventId: string, groupId: string) {
+  return request<LimanowaAccessLink>(`/limanowa/${eventId}/admin/groups/${groupId}/generate-access`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function generateLimanowaParticipantAccess(eventId: string, participantId: string) {
+  return request<LimanowaAccessLink>(`/limanowa/${eventId}/admin/participants/${participantId}/generate-access`, {
+    method: 'POST',
+    body: JSON.stringify({})
+  });
+}
+
+export function getLimanowaAdminExportUrl(eventId: string, kind: LimanowaExportKind) {
+  return `${apiBase}/limanowa/${eventId}/admin/exports/${kind}.csv`;
 }
 
 export function getEdkOrganizerDashboard(eventId: string) {

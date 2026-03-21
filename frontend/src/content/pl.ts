@@ -206,6 +206,7 @@ export const pl: Copy = {
         newStoryboard: 'Nowy storyboard',
         texts: 'Teksty',
         newText: 'Nowy tekst',
+        games: 'Gry',
         collectionRevision: 'Powtórka kolekcji',
         sharedRevisions: 'Udostępnione powtórki',
         dependencies: 'Graf zależności'

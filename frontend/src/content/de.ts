@@ -206,6 +206,7 @@ export const de: Copy = {
         newStoryboard: 'Neues Storyboard',
         texts: 'Texte',
         newText: 'Neuer Text',
+        games: 'Spiele',
         collectionRevision: 'Sammlungs-Wiederholung',
         sharedRevisions: 'Geteilte Wiederholungen',
         dependencies: 'Abhängigkeitsgraph'

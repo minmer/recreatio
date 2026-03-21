@@ -162,6 +162,7 @@ export type Copy = {
         newStoryboard: string;
         texts: string;
         newText: string;
+        games: string;
         collectionRevision: string;
         sharedRevisions: string;
         dependencies: string;

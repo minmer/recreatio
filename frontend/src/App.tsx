@@ -12,7 +12,6 @@ import { LegalPage } from './pages/LegalPage';
 import { HomePage } from './pages/HomePage';
 const ParishPage = lazy(() => import('./pages/parish/ParishPage').then((module) => ({ default: module.ParishPage })));
 const EventsPage = lazy(() => import('./pages/events/EventsPage').then((module) => ({ default: module.EventsPage })));
-const LimanowaPage = lazy(() => import('./pages/limanowa/LimanowaPage').then((module) => ({ default: module.LimanowaPage })));
 const CogitaPage = lazy(() => import('./pages/cogita/CogitaPage').then((module) => ({ default: module.CogitaPage })));
 const CogitaDashboardPage = lazy(() =>
   import('./pages/cogita/CogitaDashboardPage').then((module) => ({ default: module.CogitaDashboardPage }))
@@ -47,6 +46,12 @@ const CogitaLiveHostWallPage = lazy(() =>
 );
 const CogitaLiveSessionsPage = lazy(() =>
   import('./pages/cogita/live/CogitaLiveSessionsPage').then((module) => ({ default: module.CogitaLiveSessionsPage }))
+);
+const CogitaGameJoinPage = lazy(() =>
+  import('./pages/cogita/game/CogitaGameJoinPage').then((module) => ({ default: module.CogitaGameJoinPage }))
+);
+const CogitaGameHostPage = lazy(() =>
+  import('./pages/cogita/game/CogitaGameHostPage').then((module) => ({ default: module.CogitaGameHostPage }))
 );
 const CogitaRevisionHomePage = lazy(() =>
   import('./pages/cogita/revision/CogitaRevisionHomePage').then((module) => ({ default: module.CogitaRevisionHomePage }))
@@ -183,7 +188,7 @@ export default function App() {
     ? decodeRouteSegment(pathSegments[4] ?? 'new')
     : undefined;
   const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
-  const isLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
+  const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
   const isChatPublicPath = pathname.startsWith('/chat/public/');
   const isCogitaSharePath =
@@ -207,6 +212,8 @@ export default function App() {
   const isCogitaLiveSessionsPath =
     pathname.startsWith('/cogita/live-sessions/') ||
     pathname.startsWith('/cogita/live/sessions/');
+  const isCogitaGameJoinPath = pathname.startsWith('/cogita/game/join/') && pathSegments.length >= 4;
+  const isCogitaGameHostPath = pathname.startsWith('/cogita/game/host/') && pathSegments.length >= 5;
   const chatPublicCode = isChatPublicPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardLibraryId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[2]) : undefined;
   const cogitaStoryboardId = isCogitaStoryboardPath ? decodeRouteSegment(pathSegments[3]) : undefined;
@@ -248,6 +255,25 @@ export default function App() {
   const liveSessionsLibraryId = isCogitaLiveSessionsPath
     ? decodeRouteSegment(pathSegments[pathSegments[1] === 'live-sessions' ? 2 : 3])
     : undefined;
+  const gameJoinCode = isCogitaGameJoinPath ? decodeRouteSegment(pathSegments[3]) : undefined;
+  const gameHostLibraryId = isCogitaGameHostPath ? decodeRouteSegment(pathSegments[3]) : undefined;
+  const gameHostSessionId = isCogitaGameHostPath ? decodeRouteSegment(pathSegments[4]) : undefined;
+  const gameHostParams = useMemo(() => {
+    const search = location.search ?? '';
+    if (search.startsWith('?') && search.length > 1) {
+      return new URLSearchParams(search);
+    }
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash ?? '';
+      const queryIndex = hash.indexOf('?');
+      if (queryIndex >= 0) {
+        return new URLSearchParams(hash.slice(queryIndex + 1));
+      }
+    }
+    return new URLSearchParams();
+  }, [location.search]);
+  const gameHostSecret = gameHostParams.get('hostSecret') ?? undefined;
+  const gameHostCode = gameHostParams.get('code') ?? undefined;
   const sectionFromPath = isHomePath && pathname !== '/' ? pathname.slice(1) : 'section-1';
   const panel: PanelType =
     pathname === '/faq' || pathname === '/legal' || pathname === '/login'
@@ -261,7 +287,7 @@ export default function App() {
     return (next: RouteKey) => {
       if (next === 'parish') navigate('/parish');
       else if (next === 'events') navigate('/event');
-      else if (next === 'limanowa') navigate('/limanowa');
+      else if (next === 'limanowa') navigate('/event/limanowa/start');
       else if (next === 'cogita') navigate('/cogita');
       else if (next === 'chat') navigate('/chat');
       else if (next === 'faq') navigate('/faq');
@@ -278,6 +304,13 @@ export default function App() {
       navigate(normalized, { replace: true });
     }
   }, [location.search, navigate, pathname]);
+
+  useEffect(() => {
+    if (!isLegacyLimanowaPath) {
+      return;
+    }
+    navigate('/event/limanowa/start', { replace: true });
+  }, [isLegacyLimanowaPath, navigate]);
 
   useEffect(() => {
     if (!password) {
@@ -592,15 +625,6 @@ export default function App() {
           />
         </Suspense>
       )}
-      {isLimanowaPath && (
-        <Suspense fallback={lazyFallback}>
-          <LimanowaPage
-            copy={t}
-            onNavigate={navigateRoute}
-            showProfileMenu={isAuthenticated}
-          />
-        </Suspense>
-      )}
       {isChatPublicPath && chatPublicCode ? (
         <Suspense fallback={lazyFallback}>
           <ChatPublicPage
@@ -729,6 +753,57 @@ export default function App() {
             onLanguageChange={setLanguage}
             code={liveJoinCode}
           />
+        </Suspense>
+      ) : isCogitaGameJoinPath && gameJoinCode ? (
+        <Suspense fallback={lazyFallback}>
+          <CogitaGameJoinPage
+            copy={t}
+            authLabel={isAuthenticated ? t.nav.account : t.nav.login}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+            code={gameJoinCode}
+          />
+        </Suspense>
+      ) : isCogitaGameHostPath && gameHostLibraryId && gameHostSessionId && gameHostSecret ? (
+        <Suspense fallback={lazyFallback}>
+          {isAuthenticated ? (
+            <CogitaGameHostPage
+              copy={t}
+              authLabel={t.nav.account}
+              showProfileMenu
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+              libraryId={gameHostLibraryId}
+              sessionId={gameHostSessionId}
+              hostSecret={gameHostSecret}
+              code={gameHostCode}
+            />
+          ) : (
+            <CogitaPage
+              copy={t}
+              onAuthAction={() => openLoginCard('cogita')}
+              authLabel={isAuthenticated ? t.nav.account : t.cogita.loginCta}
+              showProfileMenu={isAuthenticated}
+              onProfileNavigate={() => handleProtectedNavigation('account', 'cogita')}
+              onToggleSecureMode={handleToggleMode}
+              onLogout={handleLogout}
+              secureMode={secureMode}
+              onNavigate={navigateRoute}
+              language={language}
+              onLanguageChange={setLanguage}
+            />
+          )}
         </Suspense>
       ) : isCogitaLiveSessionsPath && liveSessionsLibraryId ? (
         <Suspense fallback={lazyFallback}>

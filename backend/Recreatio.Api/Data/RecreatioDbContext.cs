@@ -61,6 +61,18 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Edk.EdkEvent> EdkEvents => Set<Data.Edk.EdkEvent>();
     public DbSet<Data.Edk.EdkSiteConfig> EdkSiteConfigs => Set<Data.Edk.EdkSiteConfig>();
     public DbSet<Data.Edk.EdkRegistration> EdkRegistrations => Set<Data.Edk.EdkRegistration>();
+    public DbSet<Data.Limanowa.LimanowaEvent> LimanowaEvents => Set<Data.Limanowa.LimanowaEvent>();
+    public DbSet<Data.Limanowa.LimanowaGroup> LimanowaGroups => Set<Data.Limanowa.LimanowaGroup>();
+    public DbSet<Data.Limanowa.LimanowaGroupAdminAccess> LimanowaGroupAdminAccesses => Set<Data.Limanowa.LimanowaGroupAdminAccess>();
+    public DbSet<Data.Limanowa.LimanowaParticipant> LimanowaParticipants => Set<Data.Limanowa.LimanowaParticipant>();
+    public DbSet<Data.Limanowa.LimanowaParticipantAccess> LimanowaParticipantAccesses => Set<Data.Limanowa.LimanowaParticipantAccess>();
+    public DbSet<Data.Limanowa.LimanowaQuestionThread> LimanowaQuestionThreads => Set<Data.Limanowa.LimanowaQuestionThread>();
+    public DbSet<Data.Limanowa.LimanowaQuestionMessage> LimanowaQuestionMessages => Set<Data.Limanowa.LimanowaQuestionMessage>();
+    public DbSet<Data.Limanowa.LimanowaAnnouncement> LimanowaAnnouncements => Set<Data.Limanowa.LimanowaAnnouncement>();
+    public DbSet<Data.Limanowa.LimanowaAccommodationAssignment> LimanowaAccommodationAssignments => Set<Data.Limanowa.LimanowaAccommodationAssignment>();
+    public DbSet<Data.Limanowa.LimanowaRegistrationStatusLog> LimanowaRegistrationStatusLogs => Set<Data.Limanowa.LimanowaRegistrationStatusLog>();
+    public DbSet<Data.Limanowa.LimanowaConsentRecord> LimanowaConsentRecords => Set<Data.Limanowa.LimanowaConsentRecord>();
+    public DbSet<Data.Limanowa.LimanowaPolicyLinkConfig> LimanowaPolicyLinkConfigs => Set<Data.Limanowa.LimanowaPolicyLinkConfig>();
     public DbSet<Data.Cogita.CogitaLibrary> CogitaLibraries => Set<Data.Cogita.CogitaLibrary>();
     public DbSet<Data.Cogita.CogitaInfo> CogitaInfos => Set<Data.Cogita.CogitaInfo>();
     public DbSet<Data.Cogita.CogitaLanguage> CogitaLanguages => Set<Data.Cogita.CogitaLanguage>();
@@ -120,6 +132,22 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaCreationArtifact> CogitaCreationArtifacts => Set<Data.Cogita.CogitaCreationArtifact>();
     public DbSet<Data.Cogita.CogitaReferenceCryptoField> CogitaReferenceCryptoFields => Set<Data.Cogita.CogitaReferenceCryptoField>();
     public DbSet<Data.Cogita.CogitaDashboardPreference> CogitaDashboardPreferences => Set<Data.Cogita.CogitaDashboardPreference>();
+    public DbSet<Data.Cogita.CogitaGame> CogitaGames => Set<Data.Cogita.CogitaGame>();
+    public DbSet<Data.Cogita.CogitaGameValue> CogitaGameValues => Set<Data.Cogita.CogitaGameValue>();
+    public DbSet<Data.Cogita.CogitaGameActionGraph> CogitaGameActionGraphs => Set<Data.Cogita.CogitaGameActionGraph>();
+    public DbSet<Data.Cogita.CogitaGameActionNode> CogitaGameActionNodes => Set<Data.Cogita.CogitaGameActionNode>();
+    public DbSet<Data.Cogita.CogitaGameActionEdge> CogitaGameActionEdges => Set<Data.Cogita.CogitaGameActionEdge>();
+    public DbSet<Data.Cogita.CogitaGameLayout> CogitaGameLayouts => Set<Data.Cogita.CogitaGameLayout>();
+    public DbSet<Data.Cogita.CogitaGameSession> CogitaGameSessions => Set<Data.Cogita.CogitaGameSession>();
+    public DbSet<Data.Cogita.CogitaGameSessionGroup> CogitaGameSessionGroups => Set<Data.Cogita.CogitaGameSessionGroup>();
+    public DbSet<Data.Cogita.CogitaGameParticipant> CogitaGameParticipants => Set<Data.Cogita.CogitaGameParticipant>();
+    public DbSet<Data.Cogita.CogitaGameZone> CogitaGameZones => Set<Data.Cogita.CogitaGameZone>();
+    public DbSet<Data.Cogita.CogitaGameTriggerState> CogitaGameTriggerStates => Set<Data.Cogita.CogitaGameTriggerState>();
+    public DbSet<Data.Cogita.CogitaGameValueLedger> CogitaGameValueLedger => Set<Data.Cogita.CogitaGameValueLedger>();
+    public DbSet<Data.Cogita.CogitaGameScoreboard> CogitaGameScoreboards => Set<Data.Cogita.CogitaGameScoreboard>();
+    public DbSet<Data.Cogita.CogitaGameEventLog> CogitaGameEventLogs => Set<Data.Cogita.CogitaGameEventLog>();
+    public DbSet<Data.Cogita.CogitaGamePresenceState> CogitaGamePresenceStates => Set<Data.Cogita.CogitaGamePresenceState>();
+    public DbSet<Data.Cogita.CogitaGameLocationAudit> CogitaGameLocationAudits => Set<Data.Cogita.CogitaGameLocationAudit>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore> CogitaKnowledgeLinkSinglesCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkSingleCore>();
     public DbSet<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore> CogitaKnowledgeLinkMultisCore => Set<Data.Cogita.Core.CogitaKnowledgeLinkMultiCore>();
     public DbSet<Data.Cogita.Core.CogitaCheckcardDefinitionCore> CogitaCheckcardDefinitionsCore => Set<Data.Cogita.Core.CogitaCheckcardDefinitionCore>();
@@ -294,6 +322,138 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Edk.EdkRegistration>()
             .HasIndex(x => new { x.EventId, x.CreatedUtc });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaEvent>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroup>()
+            .HasIndex(x => new { x.EventId, x.CreatedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroupAdminAccess>()
+            .HasIndex(x => x.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroupAdminAccess>()
+            .HasIndex(x => new { x.EventId, x.GroupId, x.Active });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipant>()
+            .HasIndex(x => new { x.EventId, x.GroupId, x.CreatedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipantAccess>()
+            .HasIndex(x => x.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipantAccess>()
+            .HasIndex(x => new { x.EventId, x.ParticipantId, x.Active });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaQuestionThread>()
+            .HasIndex(x => new { x.EventId, x.RelatedType, x.RelatedId, x.CreatedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaQuestionMessage>()
+            .HasIndex(x => new { x.ThreadId, x.CreatedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaAnnouncement>()
+            .HasIndex(x => new { x.EventId, x.PublishedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaAccommodationAssignment>()
+            .HasIndex(x => x.ParticipantId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaRegistrationStatusLog>()
+            .HasIndex(x => new { x.EventId, x.RelatedType, x.RelatedId, x.CreatedAt });
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaConsentRecord>()
+            .HasIndex(x => x.ParticipantId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaPolicyLinkConfig>()
+            .HasIndex(x => x.EventId)
+            .IsUnique();
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroup>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroupAdminAccess>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaGroupAdminAccess>()
+            .HasOne<Data.Limanowa.LimanowaGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipant>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipant>()
+            .HasOne<Data.Limanowa.LimanowaGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipantAccess>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaParticipantAccess>()
+            .HasOne<Data.Limanowa.LimanowaParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaQuestionThread>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaQuestionMessage>()
+            .HasOne<Data.Limanowa.LimanowaQuestionThread>()
+            .WithMany()
+            .HasForeignKey(x => x.ThreadId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaAnnouncement>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaAccommodationAssignment>()
+            .HasOne<Data.Limanowa.LimanowaParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaRegistrationStatusLog>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaConsentRecord>()
+            .HasOne<Data.Limanowa.LimanowaParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Data.Limanowa.LimanowaPolicyLinkConfig>()
+            .HasOne<Data.Limanowa.LimanowaEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<KeyEntryBinding>()
             .HasIndex(x => x.KeyEntryId);
@@ -849,6 +1009,246 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Cogita.CogitaLiveRevisionSession>()
             .WithMany()
             .HasForeignKey(x => x.SessionId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGame>()
+            .ToTable("CogitaGames");
+        modelBuilder.Entity<Data.Cogita.CogitaGame>()
+            .HasIndex(x => new { x.LibraryId, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGame>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaGame>()
+            .HasOne<Role>()
+            .WithMany()
+            .HasForeignKey(x => x.RoleId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameValue>()
+            .ToTable("CogitaGameValues");
+        modelBuilder.Entity<Data.Cogita.CogitaGameValue>()
+            .HasIndex(x => new { x.GameId, x.ValueKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameValue>()
+            .HasOne<Data.Cogita.CogitaGame>()
+            .WithMany()
+            .HasForeignKey(x => x.GameId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionGraph>()
+            .ToTable("CogitaGameActionGraphs");
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionGraph>()
+            .HasIndex(x => new { x.GameId, x.Version })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionGraph>()
+            .HasIndex(x => new { x.GameId, x.Status, x.Version });
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionGraph>()
+            .HasOne<Data.Cogita.CogitaGame>()
+            .WithMany()
+            .HasForeignKey(x => x.GameId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionNode>()
+            .ToTable("CogitaGameActionNodes");
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionNode>()
+            .HasIndex(x => x.GraphId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionNode>()
+            .HasOne<Data.Cogita.CogitaGameActionGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionEdge>()
+            .ToTable("CogitaGameActionEdges");
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionEdge>()
+            .HasIndex(x => x.GraphId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameActionEdge>()
+            .HasOne<Data.Cogita.CogitaGameActionGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameLayout>()
+            .ToTable("CogitaGameLayouts");
+        modelBuilder.Entity<Data.Cogita.CogitaGameLayout>()
+            .HasIndex(x => new { x.GameId, x.RoleType })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameLayout>()
+            .HasOne<Data.Cogita.CogitaGame>()
+            .WithMany()
+            .HasForeignKey(x => x.GameId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .ToTable("CogitaGameSessions");
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .HasIndex(x => new { x.LibraryId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .HasIndex(x => x.PublicCodeHash)
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .Property(x => x.PublicCodeHash)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .Property(x => x.HostSecretHash)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .HasOne<Data.Cogita.CogitaLibrary>()
+            .WithMany()
+            .HasForeignKey(x => x.LibraryId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .HasOne<Data.Cogita.CogitaGame>()
+            .WithMany()
+            .HasForeignKey(x => x.GameId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameSession>()
+            .HasOne<Role>()
+            .WithMany()
+            .HasForeignKey(x => x.HostRoleId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameSessionGroup>()
+            .ToTable("CogitaGameSessionGroups");
+        modelBuilder.Entity<Data.Cogita.CogitaGameSessionGroup>()
+            .HasIndex(x => new { x.SessionId, x.GroupKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameSessionGroup>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .ToTable("CogitaGameParticipants");
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .HasIndex(x => new { x.SessionId, x.ParticipantTokenHash })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .HasIndex(x => new { x.SessionId, x.DisplayNameHash });
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .Property(x => x.ParticipantTokenHash)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .Property(x => x.DisplayNameHash)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .Property(x => x.DeviceHash)
+            .HasMaxLength(64);
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameParticipant>()
+            .HasOne<Data.Cogita.CogitaGameSessionGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameZone>()
+            .ToTable("CogitaGameZones");
+        modelBuilder.Entity<Data.Cogita.CogitaGameZone>()
+            .HasIndex(x => new { x.SessionId, x.ZoneKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameZone>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameTriggerState>()
+            .ToTable("CogitaGameTriggerStates");
+        modelBuilder.Entity<Data.Cogita.CogitaGameTriggerState>()
+            .HasIndex(x => new { x.SessionId, x.TriggerKey, x.ScopeType, x.ScopeId })
+            .HasFilter("[ScopeId] IS NOT NULL")
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameTriggerState>()
+            .HasIndex(x => new { x.SessionId, x.TriggerKey, x.ScopeType })
+            .HasFilter("[ScopeId] IS NULL")
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameTriggerState>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameValueLedger>()
+            .ToTable("CogitaGameValueLedger");
+        modelBuilder.Entity<Data.Cogita.CogitaGameValueLedger>()
+            .HasIndex(x => new { x.SessionId, x.ValueId, x.ScopeType, x.ScopeId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGameValueLedger>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameValueLedger>()
+            .HasOne<Data.Cogita.CogitaGameValue>()
+            .WithMany()
+            .HasForeignKey(x => x.ValueId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameValueLedger>()
+            .HasOne<Data.Cogita.CogitaGameEventLog>()
+            .WithMany()
+            .HasForeignKey(x => x.ReasonEventId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .ToTable("CogitaGameScoreboard");
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .HasIndex(x => new { x.SessionId, x.Rank });
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .HasIndex(x => new { x.SessionId, x.GroupId, x.ParticipantId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .HasOne<Data.Cogita.CogitaGameSessionGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.GroupId)
+            .OnDelete(DeleteBehavior.SetNull);
+        modelBuilder.Entity<Data.Cogita.CogitaGameScoreboard>()
+            .HasOne<Data.Cogita.CogitaGameParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameEventLog>()
+            .ToTable("CogitaGameEventLog");
+        modelBuilder.Entity<Data.Cogita.CogitaGameEventLog>()
+            .HasIndex(x => new { x.SessionId, x.SeqNo })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGameEventLog>()
+            .HasIndex(x => new { x.SessionId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGameEventLog>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameEventLog>()
+            .HasOne<Data.Cogita.CogitaGameParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ActorParticipantId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .ToTable("CogitaGamePresenceStates");
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .HasIndex(x => new { x.SessionId, x.ParticipantId, x.ZoneId })
+            .IsUnique();
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .HasIndex(x => new { x.SessionId, x.ZoneId, x.PresenceState, x.EnteredUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .HasOne<Data.Cogita.CogitaGameParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId);
+        modelBuilder.Entity<Data.Cogita.CogitaGamePresenceState>()
+            .HasOne<Data.Cogita.CogitaGameZone>()
+            .WithMany()
+            .HasForeignKey(x => x.ZoneId);
+
+        modelBuilder.Entity<Data.Cogita.CogitaGameLocationAudit>()
+            .ToTable("CogitaGameLocationAudit");
+        modelBuilder.Entity<Data.Cogita.CogitaGameLocationAudit>()
+            .HasIndex(x => new { x.SessionId, x.ParticipantId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Cogita.CogitaGameLocationAudit>()
+            .HasOne<Data.Cogita.CogitaGameSession>()
+            .WithMany()
+            .HasForeignKey(x => x.SessionId);
+        modelBuilder.Entity<Data.Cogita.CogitaGameLocationAudit>()
+            .HasOne<Data.Cogita.CogitaGameParticipant>()
+            .WithMany()
+            .HasForeignKey(x => x.ParticipantId);
 
         modelBuilder.Entity<Data.Cogita.CogitaItemDependency>()
             .Property(x => x.ParentItemType)

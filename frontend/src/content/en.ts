@@ -206,6 +206,7 @@ export const en: Copy = {
         newStoryboard: 'New storyboard',
         texts: 'Texts',
         newText: 'New text',
+        games: 'Games',
         collectionRevision: 'Collection revision',
         sharedRevisions: 'Shared revisions',
         dependencies: 'Dependencies graph'

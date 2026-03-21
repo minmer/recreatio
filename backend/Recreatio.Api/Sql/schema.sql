@@ -36,6 +36,18 @@ IF OBJECT_ID(N'pilgrimage.PilgrimageEvents', N'U') IS NOT NULL DROP TABLE pilgri
 IF OBJECT_ID(N'edk.EdkRegistrations', N'U') IS NOT NULL DROP TABLE edk.EdkRegistrations;
 IF OBJECT_ID(N'edk.EdkSiteConfigs', N'U') IS NOT NULL DROP TABLE edk.EdkSiteConfigs;
 IF OBJECT_ID(N'edk.EdkEvents', N'U') IS NOT NULL DROP TABLE edk.EdkEvents;
+IF OBJECT_ID(N'limanowa.LimanowaPolicyLinkConfigs', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaPolicyLinkConfigs;
+IF OBJECT_ID(N'limanowa.LimanowaConsentRecords', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaConsentRecords;
+IF OBJECT_ID(N'limanowa.LimanowaRegistrationStatusLogs', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaRegistrationStatusLogs;
+IF OBJECT_ID(N'limanowa.LimanowaAccommodationAssignments', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaAccommodationAssignments;
+IF OBJECT_ID(N'limanowa.LimanowaAnnouncements', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaAnnouncements;
+IF OBJECT_ID(N'limanowa.LimanowaQuestionMessages', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaQuestionMessages;
+IF OBJECT_ID(N'limanowa.LimanowaQuestionThreads', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaQuestionThreads;
+IF OBJECT_ID(N'limanowa.LimanowaParticipantAccesses', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaParticipantAccesses;
+IF OBJECT_ID(N'limanowa.LimanowaParticipants', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaParticipants;
+IF OBJECT_ID(N'limanowa.LimanowaGroupAdminAccesses', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaGroupAdminAccesses;
+IF OBJECT_ID(N'limanowa.LimanowaGroups', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaGroups;
+IF OBJECT_ID(N'limanowa.LimanowaEvents', N'U') IS NOT NULL DROP TABLE limanowa.LimanowaEvents;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkMultis', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkMultis;
 IF OBJECT_ID(N'dbo.CogitaInfoLinkSingles', N'U') IS NOT NULL DROP TABLE dbo.CogitaInfoLinkSingles;
 IF OBJECT_ID(N'dbo.CogitaCollectionGraphEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaCollectionGraphEdges;
@@ -77,6 +89,22 @@ IF OBJECT_ID(N'dbo.CogitaLiveRevisionAnswers', N'U') IS NOT NULL DROP TABLE dbo.
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionParticipants;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionReloginRequests', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionReloginRequests;
 IF OBJECT_ID(N'dbo.CogitaLiveRevisionSessions', N'U') IS NOT NULL DROP TABLE dbo.CogitaLiveRevisionSessions;
+IF OBJECT_ID(N'dbo.CogitaGameLocationAudit', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameLocationAudit;
+IF OBJECT_ID(N'dbo.CogitaGamePresenceStates', N'U') IS NOT NULL DROP TABLE dbo.CogitaGamePresenceStates;
+IF OBJECT_ID(N'dbo.CogitaGameScoreboard', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameScoreboard;
+IF OBJECT_ID(N'dbo.CogitaGameValueLedger', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameValueLedger;
+IF OBJECT_ID(N'dbo.CogitaGameTriggerStates', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameTriggerStates;
+IF OBJECT_ID(N'dbo.CogitaGameEventLog', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameEventLog;
+IF OBJECT_ID(N'dbo.CogitaGameZones', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameZones;
+IF OBJECT_ID(N'dbo.CogitaGameParticipants', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameParticipants;
+IF OBJECT_ID(N'dbo.CogitaGameSessionGroups', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameSessionGroups;
+IF OBJECT_ID(N'dbo.CogitaGameSessions', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameSessions;
+IF OBJECT_ID(N'dbo.CogitaGameLayouts', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameLayouts;
+IF OBJECT_ID(N'dbo.CogitaGameActionEdges', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameActionEdges;
+IF OBJECT_ID(N'dbo.CogitaGameActionNodes', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameActionNodes;
+IF OBJECT_ID(N'dbo.CogitaGameActionGraphs', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameActionGraphs;
+IF OBJECT_ID(N'dbo.CogitaGameValues', N'U') IS NOT NULL DROP TABLE dbo.CogitaGameValues;
+IF OBJECT_ID(N'dbo.CogitaGames', N'U') IS NOT NULL DROP TABLE dbo.CogitaGames;
 IF OBJECT_ID(N'dbo.CogitaRevisionShares', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisionShares;
 IF OBJECT_ID(N'dbo.CogitaRevisions', N'U') IS NOT NULL DROP TABLE dbo.CogitaRevisions;
 IF OBJECT_ID(N'dbo.CogitaCreationProjects', N'U') IS NOT NULL DROP TABLE dbo.CogitaCreationProjects;
@@ -3082,6 +3110,295 @@ BEGIN
 END
 GO
 
+-- Limanowa event module
+-- Dedicated tables in separate [limanowa] schema.
+
+SET NOCOUNT ON;
+
+IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'limanowa')
+BEGIN
+    EXEC('CREATE SCHEMA limanowa AUTHORIZATION dbo;');
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaEvents' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaEvents
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        Slug NVARCHAR(80) NOT NULL,
+        Title NVARCHAR(220) NOT NULL,
+        Subtitle NVARCHAR(520) NOT NULL,
+        Tagline NVARCHAR(260) NOT NULL,
+        StartDate DATE NOT NULL,
+        EndDate DATE NOT NULL,
+        CapacityTotal INT NOT NULL,
+        RegistrationOpen BIT NOT NULL,
+        RegistrationGroupsDeadline DATE NOT NULL,
+        RegistrationParticipantsDeadline DATE NOT NULL,
+        Published BIT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_LimanowaEvents_Slug UNIQUE (Slug)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaGroups' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaGroups
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ParishName NVARCHAR(220) NOT NULL,
+        ResponsibleName NVARCHAR(200) NOT NULL,
+        Phone NVARCHAR(32) NOT NULL,
+        Email NVARCHAR(180) NOT NULL,
+        ExpectedParticipantCount INT NOT NULL,
+        ExpectedGuardianCount INT NOT NULL,
+        Notes NVARCHAR(2400) NULL,
+        Status NVARCHAR(64) NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaGroups_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaGroups_EventCreated' AND object_id = OBJECT_ID('limanowa.LimanowaGroups'))
+BEGIN
+    CREATE INDEX IX_LimanowaGroups_EventCreated ON limanowa.LimanowaGroups(EventId, CreatedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaGroupAdminAccesses' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaGroupAdminAccesses
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        GroupId UNIQUEIDENTIFIER NOT NULL,
+        TokenHash VARBINARY(32) NOT NULL,
+        Phone NVARCHAR(32) NOT NULL,
+        SentAt DATETIMEOFFSET NULL,
+        LastOpenedAt DATETIMEOFFSET NULL,
+        Active BIT NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaGroupAdminAccesses_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id),
+        CONSTRAINT FK_LimanowaGroupAdminAccesses_Group FOREIGN KEY (GroupId) REFERENCES limanowa.LimanowaGroups(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_LimanowaGroupAdminAccesses_TokenHash' AND object_id = OBJECT_ID('limanowa.LimanowaGroupAdminAccesses'))
+BEGIN
+    CREATE UNIQUE INDEX UX_LimanowaGroupAdminAccesses_TokenHash ON limanowa.LimanowaGroupAdminAccesses(TokenHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaGroupAdminAccesses_EventGroupActive' AND object_id = OBJECT_ID('limanowa.LimanowaGroupAdminAccesses'))
+BEGIN
+    CREATE INDEX IX_LimanowaGroupAdminAccesses_EventGroupActive ON limanowa.LimanowaGroupAdminAccesses(EventId, GroupId, Active);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaParticipants' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaParticipants
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        GroupId UNIQUEIDENTIFIER NOT NULL,
+        FullName NVARCHAR(200) NOT NULL,
+        Phone NVARCHAR(32) NOT NULL,
+        ParishName NVARCHAR(220) NOT NULL,
+        ParentContactName NVARCHAR(200) NULL,
+        ParentContactPhone NVARCHAR(32) NULL,
+        GuardianName NVARCHAR(200) NULL,
+        GuardianPhone NVARCHAR(32) NULL,
+        Notes NVARCHAR(2400) NULL,
+        HealthNotes NVARCHAR(2400) NULL,
+        AccommodationType NVARCHAR(64) NULL,
+        Status NVARCHAR(64) NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaParticipants_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id),
+        CONSTRAINT FK_LimanowaParticipants_Group FOREIGN KEY (GroupId) REFERENCES limanowa.LimanowaGroups(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaParticipants_EventGroupCreated' AND object_id = OBJECT_ID('limanowa.LimanowaParticipants'))
+BEGIN
+    CREATE INDEX IX_LimanowaParticipants_EventGroupCreated ON limanowa.LimanowaParticipants(EventId, GroupId, CreatedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaParticipantAccesses' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaParticipantAccesses
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        TokenHash VARBINARY(32) NOT NULL,
+        Phone NVARCHAR(32) NOT NULL,
+        SentAt DATETIMEOFFSET NULL,
+        LastOpenedAt DATETIMEOFFSET NULL,
+        Active BIT NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaParticipantAccesses_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id),
+        CONSTRAINT FK_LimanowaParticipantAccesses_Participant FOREIGN KEY (ParticipantId) REFERENCES limanowa.LimanowaParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_LimanowaParticipantAccesses_TokenHash' AND object_id = OBJECT_ID('limanowa.LimanowaParticipantAccesses'))
+BEGIN
+    CREATE UNIQUE INDEX UX_LimanowaParticipantAccesses_TokenHash ON limanowa.LimanowaParticipantAccesses(TokenHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaParticipantAccesses_EventParticipantActive' AND object_id = OBJECT_ID('limanowa.LimanowaParticipantAccesses'))
+BEGIN
+    CREATE INDEX IX_LimanowaParticipantAccesses_EventParticipantActive ON limanowa.LimanowaParticipantAccesses(EventId, ParticipantId, Active);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaQuestionThreads' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaQuestionThreads
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        RelatedType NVARCHAR(32) NOT NULL,
+        RelatedId UNIQUEIDENTIFIER NOT NULL,
+        Status NVARCHAR(32) NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaQuestionThreads_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaQuestionThreads_EventRelatedCreated' AND object_id = OBJECT_ID('limanowa.LimanowaQuestionThreads'))
+BEGIN
+    CREATE INDEX IX_LimanowaQuestionThreads_EventRelatedCreated ON limanowa.LimanowaQuestionThreads(EventId, RelatedType, RelatedId, CreatedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaQuestionMessages' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaQuestionMessages
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ThreadId UNIQUEIDENTIFIER NOT NULL,
+        AuthorType NVARCHAR(32) NOT NULL,
+        Message NVARCHAR(2400) NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaQuestionMessages_Thread FOREIGN KEY (ThreadId) REFERENCES limanowa.LimanowaQuestionThreads(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaQuestionMessages_ThreadCreated' AND object_id = OBJECT_ID('limanowa.LimanowaQuestionMessages'))
+BEGIN
+    CREATE INDEX IX_LimanowaQuestionMessages_ThreadCreated ON limanowa.LimanowaQuestionMessages(ThreadId, CreatedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaAnnouncements' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaAnnouncements
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        Title NVARCHAR(220) NOT NULL,
+        Body NVARCHAR(3200) NOT NULL,
+        AudienceType NVARCHAR(32) NOT NULL,
+        PublishedAt DATETIMEOFFSET NOT NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaAnnouncements_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaAnnouncements_EventPublished' AND object_id = OBJECT_ID('limanowa.LimanowaAnnouncements'))
+BEGIN
+    CREATE INDEX IX_LimanowaAnnouncements_EventPublished ON limanowa.LimanowaAnnouncements(EventId, PublishedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaAccommodationAssignments' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaAccommodationAssignments
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        Type NVARCHAR(64) NOT NULL,
+        Note NVARCHAR(1200) NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_LimanowaAccommodationAssignments_Participant UNIQUE (ParticipantId),
+        CONSTRAINT FK_LimanowaAccommodationAssignments_Participant FOREIGN KEY (ParticipantId) REFERENCES limanowa.LimanowaParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaRegistrationStatusLogs' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaRegistrationStatusLogs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        RelatedType NVARCHAR(32) NOT NULL,
+        RelatedId UNIQUEIDENTIFIER NOT NULL,
+        PreviousStatus NVARCHAR(64) NULL,
+        NewStatus NVARCHAR(64) NOT NULL,
+        ChangedByType NVARCHAR(32) NOT NULL,
+        ChangedById UNIQUEIDENTIFIER NULL,
+        CreatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_LimanowaRegistrationStatusLogs_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_LimanowaStatusLogs_EventRelatedCreated' AND object_id = OBJECT_ID('limanowa.LimanowaRegistrationStatusLogs'))
+BEGIN
+    CREATE INDEX IX_LimanowaStatusLogs_EventRelatedCreated ON limanowa.LimanowaRegistrationStatusLogs(EventId, RelatedType, RelatedId, CreatedAt);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaConsentRecords' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaConsentRecords
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        RulesAccepted BIT NOT NULL,
+        PrivacyAccepted BIT NOT NULL,
+        SubmittedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_LimanowaConsentRecords_Participant UNIQUE (ParticipantId),
+        CONSTRAINT FK_LimanowaConsentRecords_Participant FOREIGN KEY (ParticipantId) REFERENCES limanowa.LimanowaParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LimanowaPolicyLinkConfigs' AND schema_id = SCHEMA_ID('limanowa'))
+BEGIN
+    CREATE TABLE limanowa.LimanowaPolicyLinkConfigs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        PrivacyPolicyUrl NVARCHAR(520) NOT NULL,
+        EventRulesUrl NVARCHAR(520) NOT NULL,
+        ThingsToBringUrl NVARCHAR(520) NOT NULL,
+        UpdatedAt DATETIMEOFFSET NOT NULL,
+        CONSTRAINT UX_LimanowaPolicyLinkConfigs_Event UNIQUE (EventId),
+        CONSTRAINT FK_LimanowaPolicyLinkConfigs_Event FOREIGN KEY (EventId) REFERENCES limanowa.LimanowaEvents(Id)
+    );
+END
+GO
+
 /*
   Runtime compatibility: force CogitaRevisionShares to the schema used by current API endpoints.
   This block is intentionally placed at the end so it wins over any legacy earlier definitions.
@@ -3216,5 +3533,473 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaStoryboardShares
    AND COL_LENGTH('dbo.CogitaStoryboardShares', 'PublicCodeHash') IS NOT NULL
 BEGIN
     EXEC(N'CREATE INDEX IX_CogitaStoryboardShares_PublicCodeHash ON dbo.CogitaStoryboardShares(PublicCodeHash);');
+END
+GO
+
+/*
+  Cogita Game Runtime schema
+  - Server-authoritative multiplayer runtime, location/presence and event-sourced state.
+*/
+IF OBJECT_ID(N'dbo.CogitaGames', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGames
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        RoleId UNIQUEIDENTIFIER NOT NULL,
+        Name NVARCHAR(256) NOT NULL,
+        StoryboardProjectId UNIQUEIDENTIFIER NULL,
+        Mode NVARCHAR(24) NOT NULL,
+        SettingsJson NVARCHAR(MAX) NOT NULL,
+        IsArchived BIT NOT NULL CONSTRAINT DF_CogitaGames_IsArchived DEFAULT(0),
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGames_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaGames_Role FOREIGN KEY (RoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_CogitaGames_StoryboardProject FOREIGN KEY (StoryboardProjectId) REFERENCES dbo.CogitaCreationProjects(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGames_Library_Updated' AND object_id = OBJECT_ID('dbo.CogitaGames'))
+BEGIN
+    CREATE INDEX IX_CogitaGames_Library_Updated ON dbo.CogitaGames(LibraryId, UpdatedUtc);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameValues', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameValues
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GameId UNIQUEIDENTIFIER NOT NULL,
+        ValueKey NVARCHAR(96) NOT NULL,
+        Name NVARCHAR(160) NOT NULL,
+        ScopeType NVARCHAR(24) NOT NULL,
+        Visibility NVARCHAR(24) NOT NULL,
+        DataType NVARCHAR(24) NOT NULL,
+        DefaultValueJson NVARCHAR(MAX) NOT NULL,
+        ConstraintsJson NVARCHAR(MAX) NULL,
+        IsScore BIT NOT NULL CONSTRAINT DF_CogitaGameValues_IsScore DEFAULT(0),
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameValues_Game FOREIGN KEY (GameId) REFERENCES dbo.CogitaGames(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameValues_Game_ValueKey' AND object_id = OBJECT_ID('dbo.CogitaGameValues'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameValues_Game_ValueKey ON dbo.CogitaGameValues(GameId, ValueKey);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameActionGraphs', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameActionGraphs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GameId UNIQUEIDENTIFIER NOT NULL,
+        Version INT NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        PublishedUtc DATETIMEOFFSET NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameActionGraphs_Game FOREIGN KEY (GameId) REFERENCES dbo.CogitaGames(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameActionGraphs_Game_Version' AND object_id = OBJECT_ID('dbo.CogitaGameActionGraphs'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameActionGraphs_Game_Version ON dbo.CogitaGameActionGraphs(GameId, Version);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameActionGraphs_Game_Status' AND object_id = OBJECT_ID('dbo.CogitaGameActionGraphs'))
+BEGIN
+    CREATE INDEX IX_CogitaGameActionGraphs_Game_Status ON dbo.CogitaGameActionGraphs(GameId, Status, Version);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameActionNodes', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameActionNodes
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        NodeType NVARCHAR(64) NOT NULL,
+        ConfigJson NVARCHAR(MAX) NOT NULL,
+        PositionX DECIMAL(9,2) NOT NULL,
+        PositionY DECIMAL(9,2) NOT NULL,
+        CONSTRAINT FK_CogitaGameActionNodes_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaGameActionGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameActionNodes_Graph' AND object_id = OBJECT_ID('dbo.CogitaGameActionNodes'))
+BEGIN
+    CREATE INDEX IX_CogitaGameActionNodes_Graph ON dbo.CogitaGameActionNodes(GraphId);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameActionEdges', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameActionEdges
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        FromNodeId UNIQUEIDENTIFIER NOT NULL,
+        FromPort NVARCHAR(64) NULL,
+        ToNodeId UNIQUEIDENTIFIER NOT NULL,
+        ToPort NVARCHAR(64) NULL,
+        CONSTRAINT FK_CogitaGameActionEdges_Graph FOREIGN KEY (GraphId) REFERENCES dbo.CogitaGameActionGraphs(Id),
+        CONSTRAINT FK_CogitaGameActionEdges_FromNode FOREIGN KEY (FromNodeId) REFERENCES dbo.CogitaGameActionNodes(Id),
+        CONSTRAINT FK_CogitaGameActionEdges_ToNode FOREIGN KEY (ToNodeId) REFERENCES dbo.CogitaGameActionNodes(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameActionEdges_Graph' AND object_id = OBJECT_ID('dbo.CogitaGameActionEdges'))
+BEGIN
+    CREATE INDEX IX_CogitaGameActionEdges_Graph ON dbo.CogitaGameActionEdges(GraphId);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameLayouts', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameLayouts
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GameId UNIQUEIDENTIFIER NOT NULL,
+        RoleType NVARCHAR(32) NOT NULL,
+        LayoutJson NVARCHAR(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameLayouts_Game FOREIGN KEY (GameId) REFERENCES dbo.CogitaGames(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameLayouts_Game_RoleType' AND object_id = OBJECT_ID('dbo.CogitaGameLayouts'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameLayouts_Game_RoleType ON dbo.CogitaGameLayouts(GameId, RoleType);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameSessions', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameSessions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        LibraryId UNIQUEIDENTIFIER NOT NULL,
+        GameId UNIQUEIDENTIFIER NOT NULL,
+        HostRoleId UNIQUEIDENTIFIER NOT NULL,
+        PublicCodeHash VARBINARY(64) NOT NULL,
+        HostSecretHash VARBINARY(64) NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        Phase NVARCHAR(24) NOT NULL,
+        RoundIndex INT NOT NULL,
+        Version INT NOT NULL,
+        SessionMetaJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        StartedUtc DATETIMEOFFSET NULL,
+        FinishedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CogitaGameSessions_Library FOREIGN KEY (LibraryId) REFERENCES dbo.CogitaLibraries(Id),
+        CONSTRAINT FK_CogitaGameSessions_Game FOREIGN KEY (GameId) REFERENCES dbo.CogitaGames(Id),
+        CONSTRAINT FK_CogitaGameSessions_HostRole FOREIGN KEY (HostRoleId) REFERENCES dbo.Roles(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameSessions_PublicCodeHash' AND object_id = OBJECT_ID('dbo.CogitaGameSessions'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameSessions_PublicCodeHash ON dbo.CogitaGameSessions(PublicCodeHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameSessions_Library_Created' AND object_id = OBJECT_ID('dbo.CogitaGameSessions'))
+BEGIN
+    CREATE INDEX IX_CogitaGameSessions_Library_Created ON dbo.CogitaGameSessions(LibraryId, CreatedUtc);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameSessionGroups', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameSessionGroups
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        GroupKey NVARCHAR(96) NOT NULL,
+        DisplayName NVARCHAR(160) NOT NULL,
+        DisplayNameCipher NVARCHAR(MAX) NULL,
+        Capacity INT NOT NULL,
+        IsActive BIT NOT NULL CONSTRAINT DF_CogitaGameSessionGroups_IsActive DEFAULT(1),
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameSessionGroups_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameSessionGroups_Session_GroupKey' AND object_id = OBJECT_ID('dbo.CogitaGameSessionGroups'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameSessionGroups_Session_GroupKey ON dbo.CogitaGameSessionGroups(SessionId, GroupKey);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameParticipants', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameParticipants
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        GroupId UNIQUEIDENTIFIER NULL,
+        RoleType NVARCHAR(24) NOT NULL,
+        PersonRoleId UNIQUEIDENTIFIER NULL,
+        DisplayName NVARCHAR(120) NOT NULL,
+        DisplayNameHash VARBINARY(64) NULL,
+        DisplayNameCipher NVARCHAR(MAX) NULL,
+        ParticipantTokenHash VARBINARY(64) NOT NULL,
+        DeviceHash VARBINARY(64) NULL,
+        SpoofRiskScore DECIMAL(7,2) NOT NULL CONSTRAINT DF_CogitaGameParticipants_SpoofRisk DEFAULT(0),
+        LastLocationMetaJson NVARCHAR(MAX) NULL,
+        IsConnected BIT NOT NULL CONSTRAINT DF_CogitaGameParticipants_IsConnected DEFAULT(1),
+        JoinedUtc DATETIMEOFFSET NOT NULL,
+        LastSeenUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameParticipants_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGameParticipants_Group FOREIGN KEY (GroupId) REFERENCES dbo.CogitaGameSessionGroups(Id) ON DELETE SET NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameParticipants_Session_TokenHash' AND object_id = OBJECT_ID('dbo.CogitaGameParticipants'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameParticipants_Session_TokenHash ON dbo.CogitaGameParticipants(SessionId, ParticipantTokenHash);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameParticipants_Session_DisplayHash' AND object_id = OBJECT_ID('dbo.CogitaGameParticipants'))
+BEGIN
+    CREATE INDEX IX_CogitaGameParticipants_Session_DisplayHash ON dbo.CogitaGameParticipants(SessionId, DisplayNameHash);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameZones', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameZones
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        ZoneKey NVARCHAR(96) NOT NULL,
+        SourceType NVARCHAR(24) NOT NULL,
+        GeometryJson NVARCHAR(MAX) NOT NULL,
+        TriggerRadiusM DECIMAL(9,2) NOT NULL,
+        ActiveFromUtc DATETIMEOFFSET NULL,
+        ActiveToUtc DATETIMEOFFSET NULL,
+        IsEnabled BIT NOT NULL CONSTRAINT DF_CogitaGameZones_IsEnabled DEFAULT(1),
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameZones_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameZones_Session_ZoneKey' AND object_id = OBJECT_ID('dbo.CogitaGameZones'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameZones_Session_ZoneKey ON dbo.CogitaGameZones(SessionId, ZoneKey);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameEventLog', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameEventLog
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        SeqNo BIGINT NOT NULL,
+        EventType NVARCHAR(64) NOT NULL,
+        CorrelationId UNIQUEIDENTIFIER NOT NULL,
+        CausationId UNIQUEIDENTIFIER NULL,
+        ActorParticipantId UNIQUEIDENTIFIER NULL,
+        PayloadJson NVARCHAR(MAX) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameEventLog_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGameEventLog_ActorParticipant FOREIGN KEY (ActorParticipantId) REFERENCES dbo.CogitaGameParticipants(Id) ON DELETE SET NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameEventLog_Session_SeqNo' AND object_id = OBJECT_ID('dbo.CogitaGameEventLog'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameEventLog_Session_SeqNo ON dbo.CogitaGameEventLog(SessionId, SeqNo);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameEventLog_Session_Created' AND object_id = OBJECT_ID('dbo.CogitaGameEventLog'))
+BEGIN
+    CREATE INDEX IX_CogitaGameEventLog_Session_Created ON dbo.CogitaGameEventLog(SessionId, CreatedUtc);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameTriggerStates', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameTriggerStates
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        TriggerKey NVARCHAR(128) NOT NULL,
+        ScopeType NVARCHAR(24) NOT NULL,
+        ScopeId UNIQUEIDENTIFIER NULL,
+        Status NVARCHAR(24) NOT NULL,
+        FiredCount INT NOT NULL,
+        CooldownUntilUtc DATETIMEOFFSET NULL,
+        LastEvaluatedSeq BIGINT NOT NULL,
+        LastFiredUtc DATETIMEOFFSET NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameTriggerStates_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id)
+    );
+END
+GO
+
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameTriggerStates_UniqueScope' AND object_id = OBJECT_ID('dbo.CogitaGameTriggerStates'))
+BEGIN
+    DROP INDEX UX_CogitaGameTriggerStates_UniqueScope ON dbo.CogitaGameTriggerStates;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameTriggerStates_UniqueScope_NotNull' AND object_id = OBJECT_ID('dbo.CogitaGameTriggerStates'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameTriggerStates_UniqueScope_NotNull
+        ON dbo.CogitaGameTriggerStates(SessionId, TriggerKey, ScopeType, ScopeId)
+        WHERE ScopeId IS NOT NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameTriggerStates_UniqueScope_Null' AND object_id = OBJECT_ID('dbo.CogitaGameTriggerStates'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameTriggerStates_UniqueScope_Null
+        ON dbo.CogitaGameTriggerStates(SessionId, TriggerKey, ScopeType)
+        WHERE ScopeId IS NULL;
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameValueLedger', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameValueLedger
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        ValueId UNIQUEIDENTIFIER NOT NULL,
+        ScopeType NVARCHAR(24) NOT NULL,
+        ScopeId UNIQUEIDENTIFIER NULL,
+        Delta DECIMAL(18,4) NOT NULL,
+        AbsoluteAfter DECIMAL(18,4) NOT NULL,
+        ReasonEventId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameValueLedger_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGameValueLedger_Value FOREIGN KEY (ValueId) REFERENCES dbo.CogitaGameValues(Id),
+        CONSTRAINT FK_CogitaGameValueLedger_ReasonEvent FOREIGN KEY (ReasonEventId) REFERENCES dbo.CogitaGameEventLog(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameValueLedger_Session_Value_Scope_Created' AND object_id = OBJECT_ID('dbo.CogitaGameValueLedger'))
+BEGIN
+    CREATE INDEX IX_CogitaGameValueLedger_Session_Value_Scope_Created
+        ON dbo.CogitaGameValueLedger(SessionId, ValueId, ScopeType, ScopeId, CreatedUtc);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameScoreboard', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameScoreboard
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        GroupId UNIQUEIDENTIFIER NULL,
+        ParticipantId UNIQUEIDENTIFIER NULL,
+        Score DECIMAL(18,4) NOT NULL,
+        Rank INT NOT NULL,
+        Version INT NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameScoreboard_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGameScoreboard_Group FOREIGN KEY (GroupId) REFERENCES dbo.CogitaGameSessionGroups(Id) ON DELETE SET NULL,
+        CONSTRAINT FK_CogitaGameScoreboard_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaGameParticipants(Id) ON DELETE SET NULL
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGameScoreboard_Session_Group_Participant' AND object_id = OBJECT_ID('dbo.CogitaGameScoreboard'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGameScoreboard_Session_Group_Participant
+        ON dbo.CogitaGameScoreboard(SessionId, GroupId, ParticipantId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameScoreboard_Session_Rank' AND object_id = OBJECT_ID('dbo.CogitaGameScoreboard'))
+BEGIN
+    CREATE INDEX IX_CogitaGameScoreboard_Session_Rank ON dbo.CogitaGameScoreboard(SessionId, Rank);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGamePresenceStates', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGamePresenceStates
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        ZoneId UNIQUEIDENTIFIER NOT NULL,
+        PresenceState NVARCHAR(24) NOT NULL,
+        EnteredUtc DATETIMEOFFSET NULL,
+        ExitedUtc DATETIMEOFFSET NULL,
+        LastPingUtc DATETIMEOFFSET NOT NULL,
+        Confidence DECIMAL(7,4) NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGamePresenceStates_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGamePresenceStates_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaGameParticipants(Id),
+        CONSTRAINT FK_CogitaGamePresenceStates_Zone FOREIGN KEY (ZoneId) REFERENCES dbo.CogitaGameZones(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CogitaGamePresenceStates_Session_Participant_Zone' AND object_id = OBJECT_ID('dbo.CogitaGamePresenceStates'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CogitaGamePresenceStates_Session_Participant_Zone
+        ON dbo.CogitaGamePresenceStates(SessionId, ParticipantId, ZoneId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGamePresenceStates_Session_Zone_State_Entered' AND object_id = OBJECT_ID('dbo.CogitaGamePresenceStates'))
+BEGIN
+    CREATE INDEX IX_CogitaGamePresenceStates_Session_Zone_State_Entered
+        ON dbo.CogitaGamePresenceStates(SessionId, ZoneId, PresenceState, EnteredUtc);
+END
+GO
+
+IF OBJECT_ID(N'dbo.CogitaGameLocationAudit', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CogitaGameLocationAudit
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        SessionId UNIQUEIDENTIFIER NOT NULL,
+        ParticipantId UNIQUEIDENTIFIER NOT NULL,
+        GeoHash6 NVARCHAR(12) NOT NULL,
+        AccuracyBucket NVARCHAR(24) NOT NULL,
+        SpeedBucket NVARCHAR(24) NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CogitaGameLocationAudit_Session FOREIGN KEY (SessionId) REFERENCES dbo.CogitaGameSessions(Id),
+        CONSTRAINT FK_CogitaGameLocationAudit_Participant FOREIGN KEY (ParticipantId) REFERENCES dbo.CogitaGameParticipants(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CogitaGameLocationAudit_Session_Participant_Created' AND object_id = OBJECT_ID('dbo.CogitaGameLocationAudit'))
+BEGIN
+    CREATE INDEX IX_CogitaGameLocationAudit_Session_Participant_Created
+        ON dbo.CogitaGameLocationAudit(SessionId, ParticipantId, CreatedUtc);
 END
 GO

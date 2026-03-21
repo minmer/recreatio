@@ -54,6 +54,7 @@ import { CogitaRevisionSearch } from './components/workspace/revision/CogitaRevi
 import { CogitaRevisionOverview } from './components/workspace/revision/CogitaRevisionOverview';
 import { CogitaRevisionEdit } from './components/workspace/revision/CogitaRevisionEdit';
 import { CogitaRevisionLiveSessions } from './components/workspace/revision/livesessions/CogitaRevisionLiveSessions';
+import { CogitaGameWorkspace, type GameWorkspaceView } from './components/workspace/game/CogitaGameWorkspace';
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './components/types';
 import { primeCachedCollections } from './components/cogitaMetaCache';
@@ -75,7 +76,8 @@ type CogitaTarget =
   | 'new_storyboard'
   | 'texts'
   | 'new_text'
-  | 'dependencies';
+  | 'dependencies'
+  | 'games';
 
 type CogitaPreferences = {
   version: 1;
@@ -101,6 +103,8 @@ type ParsedCogitaPath = {
   dependencyGraphId?: string;
   dependencyView?: DependencyView;
   dependencyTransferToken?: string;
+  gameId?: string;
+  gameView?: GameWorkspaceView;
 };
 
 type NavigationOption = {
@@ -139,6 +143,7 @@ const TARGET_OPTIONS: CogitaTarget[] = [
   'storyboards',
   'texts',
   'dependencies',
+  'games',
   'transfer'
 ];
 const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; allowsRevision: boolean }> = {
@@ -153,7 +158,8 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
   new_storyboard: { requiresCollection: false, allowsRevision: false },
   texts: { requiresCollection: false, allowsRevision: false },
   new_text: { requiresCollection: false, allowsRevision: false },
-  dependencies: { requiresCollection: false, allowsRevision: false }
+  dependencies: { requiresCollection: false, allowsRevision: false },
+  games: { requiresCollection: false, allowsRevision: false }
 };
 const REVISION_SELECTION_VIEWS: RevisionView[] = ['detail', 'settings', 'live'];
 const SIDEBAR_NAV_LABEL_MAX = 30;
@@ -471,6 +477,35 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     };
   }
 
+  if (section === 'games') {
+    const selectedGameId = sectionArg1;
+    if (!selectedGameId) {
+      return { libraryId, target: 'games', gameView: 'search' };
+    }
+
+    if (selectedGameId === 'new') {
+      return { libraryId, target: 'games', gameView: 'create' };
+    }
+
+    const gameSection = (sectionArg2 ?? '').toLowerCase();
+    const gameView: GameWorkspaceView =
+      gameSection === 'edit'
+        ? 'edit'
+        : gameSection === 'groups'
+          ? 'groups'
+          : gameSection === 'values'
+            ? 'values'
+            : gameSection === 'actions'
+              ? 'actions'
+              : gameSection === 'layouts'
+                ? 'layouts'
+                : gameSection === 'live-sessions'
+                  ? 'live_sessions'
+                  : 'overview';
+
+    return { libraryId, target: 'games', gameId: selectedGameId, gameView };
+  }
+
   if (section === 'transfer') {
     return { libraryId, target: 'transfer' };
   }
@@ -534,7 +569,9 @@ function buildCogitaPath(
   dependencyView: DependencyView = 'search',
   dependencyTransferToken?: string,
   storyboardId?: string,
-  storyboardView: StoryboardView = 'search'
+  storyboardView: StoryboardView = 'search',
+  gameId?: string,
+  gameView: GameWorkspaceView = 'search'
 ): string {
   const workspaceBase = `/cogita/workspace/libraries/${libraryId}`;
 
@@ -641,6 +678,18 @@ function buildCogitaPath(
     if (dependencyTransferToken) params.set('transfer', dependencyTransferToken);
     const qs = params.toString();
     return `${workspaceBase}/dependencies${qs ? `?${qs}` : ''}`;
+  }
+  if (target === 'games') {
+    if (!gameId) {
+      return gameView === 'create' ? `${workspaceBase}/games/new` : `${workspaceBase}/games`;
+    }
+    if (gameView === 'edit') return `${workspaceBase}/games/${gameId}/edit`;
+    if (gameView === 'groups') return `${workspaceBase}/games/${gameId}/groups`;
+    if (gameView === 'values') return `${workspaceBase}/games/${gameId}/values`;
+    if (gameView === 'actions') return `${workspaceBase}/games/${gameId}/actions`;
+    if (gameView === 'layouts') return `${workspaceBase}/games/${gameId}/layouts`;
+    if (gameView === 'live_sessions') return `${workspaceBase}/games/${gameId}/live-sessions`;
+    return `${workspaceBase}/games/${gameId}`;
   }
   return workspaceBase;
 }
@@ -902,7 +951,8 @@ export function CogitaWorkspacePage({
       new_storyboard: workspaceCopy.targets.newStoryboard,
       texts: workspaceCopy.targets.texts,
       new_text: workspaceCopy.targets.newText,
-      dependencies: workspaceCopy.targets.dependencies
+      dependencies: workspaceCopy.targets.dependencies,
+      games: workspaceCopy.targets.games
     }),
     [workspaceCopy.targets]
   );
@@ -2292,6 +2342,35 @@ export function CogitaWorkspacePage({
       }
       return <CogitaDependencyEdit {...baseProps} mode={dependencyView as 'create' | 'edit'} />;
     }
+    if (pathState.target === 'games') {
+      const resolvedView: GameWorkspaceView = pathState.gameView ?? (pathState.gameId ? 'overview' : 'search');
+      return (
+        <CogitaGameWorkspace
+          copy={copy}
+          libraryId={libraryId}
+          gameId={pathState.gameId}
+          view={resolvedView}
+          onNavigate={(next) => {
+            const nextGameId = next.gameId;
+            const nextView = next.view ?? 'search';
+            let nextPath = `/cogita/workspace/libraries/${encodeURIComponent(libraryId)}/games`;
+            if (nextView === 'create' && !nextGameId) {
+              nextPath = `${nextPath}/new`;
+            } else if (nextGameId) {
+              const encodedGameId = encodeURIComponent(nextGameId);
+              if (nextView === 'edit') nextPath = `${nextPath}/${encodedGameId}/edit`;
+              else if (nextView === 'groups') nextPath = `${nextPath}/${encodedGameId}/groups`;
+              else if (nextView === 'values') nextPath = `${nextPath}/${encodedGameId}/values`;
+              else if (nextView === 'actions') nextPath = `${nextPath}/${encodedGameId}/actions`;
+              else if (nextView === 'layouts') nextPath = `${nextPath}/${encodedGameId}/layouts`;
+              else if (nextView === 'live_sessions') nextPath = `${nextPath}/${encodedGameId}/live-sessions`;
+              else nextPath = `${nextPath}/${encodedGameId}`;
+            }
+            navigate(nextPath);
+          }}
+        />
+      );
+    }
     if (pathState.target === 'transfer') {
       return <WorkspaceLibraryTransferSection copy={copy} libraryId={libraryId} libraryName={selectedLibrary?.name} />;
     }
@@ -2428,6 +2507,8 @@ export function CogitaWorkspacePage({
     pathState.cardMode,
     pathState.collectionId,
     pathState.dependencyView,
+    pathState.gameId,
+    pathState.gameView,
     pathState.infoId,
     pathState.libraryId,
     pathState.liveSessionId,
