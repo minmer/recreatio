@@ -401,7 +401,7 @@
 
 .lim26-scene:not(.lim26-hero).is-near .lim26-motion-text {
   opacity: calc(0.22 + var(--lim26-scene-visibility) * 0.86);
-  transform: translate3d(0, calc((1 - var(--lim26-scene-enter)) * 34px - var(--lim26-scene-exit) * 16px), 0);
+  transform: translate3d(0, calc((1 - var(--lim26-scene-enter)) * 34px - var(--lim26-scene-exit) * 16px - var(--lim26-scene-progress) * 14px), 0);
   filter: blur(calc((1 - var(--lim26-scene-visibility)) * 3px));
 }
 
@@ -414,8 +414,15 @@
 .lim26-scene:not(.lim26-hero).is-active .lim26-motion-text,
 .lim26-scene:not(.lim26-hero).is-active .lim26-motion-media {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
   filter: none;
+}
+
+.lim26-scene:not(.lim26-hero).is-active .lim26-motion-media {
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.lim26-hero.is-near .lim26-hero-content.lim26-motion-text {
+  transform: translate3d(0, calc(var(--lim26-scene-progress) * -18px), 0);
 }
 
 .lim26-section h2 {
