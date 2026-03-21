@@ -39,13 +39,13 @@ type MaskStateOptions = {
   jitter: number;
   offsetX?: number;
   offsetY?: number;
-  fitMode?: 'cover' | 'free';
+  fitMode?: 'cover' | 'contain';
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 3.24, scaleY: 3.24, depth: 0.22, jitter: 0.014, offsetY: -0.01, fitMode: 'cover' },
-  { scaleX: 1.78, scaleY: 1.22, depth: 0.24, jitter: 0.014, offsetX: 0.2, offsetY: 0.01 },
-  { scaleX: 2.02, scaleY: 1.28, depth: 0.23, jitter: 0.014, offsetY: -0.06 }
+  { scaleX: 3.08, scaleY: 2.02, depth: 0.2, jitter: 0.005, offsetY: -0.01, fitMode: 'cover' },
+  { scaleX: 2.12, scaleY: 1.44, depth: 0.21, jitter: 0.005, offsetX: 0.03, offsetY: 0.01, fitMode: 'contain' },
+  { scaleX: 2.22, scaleY: 1.5, depth: 0.21, jitter: 0.005, offsetY: -0.02, fitMode: 'contain' }
 ];
 
 function clamp01(value: number): number {
@@ -103,6 +103,35 @@ function createPointLayers(count: number): Float32Array {
   return layers;
 }
 
+function normalizeStateScale(
+  state: Float32Array,
+  count: number,
+  scaleX: number,
+  scaleY: number,
+  mode: 'cover' | 'contain'
+): void {
+  let maxAbsX = 0;
+  let maxAbsY = 0;
+  for (let i = 0; i < count; i += 1) {
+    const index = i * 3;
+    maxAbsX = Math.max(maxAbsX, Math.abs(state[index]));
+    maxAbsY = Math.max(maxAbsY, Math.abs(state[index + 1]));
+  }
+  if (maxAbsX <= 0.0001 || maxAbsY <= 0.0001) {
+    return;
+  }
+
+  const sx = scaleX / maxAbsX;
+  const sy = scaleY / maxAbsY;
+  const uniform = mode === 'cover' ? Math.max(sx, sy) : Math.min(sx, sy);
+
+  for (let i = 0; i < count; i += 1) {
+    const index = i * 3;
+    state[index] *= uniform;
+    state[index + 1] *= uniform;
+  }
+}
+
 function buildMaskState(count: number, mask: PointMask, options: MaskStateOptions, pointSeeds: Float32Array, stateIndex: number): Float32Array {
   const state = new Float32Array(count * 3);
   const maskAspect = mask.width / Math.max(1, mask.height);
@@ -131,6 +160,14 @@ function buildMaskState(count: number, mask: PointMask, options: MaskStateOption
     state[pointIndex + 1] = baseY * options.scaleY + (options.offsetY ?? 0) + jitterY;
     state[pointIndex + 2] = (lum - 0.5) * options.depth;
   }
+
+  normalizeStateScale(
+    state,
+    count,
+    options.scaleX,
+    options.scaleY,
+    options.fitMode ?? 'contain'
+  );
 
   return state;
 }
@@ -397,10 +434,10 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
 
         float layerNorm = aLayer / ${Math.max(1, POINT_LAYER_COUNT - 1)}.0;
         float layerSigned = layerNorm * 2.0 - 1.0;
-        p.z += layerSigned * 0.36;
+        p.z += layerSigned * 0.24;
 
         float depthNorm = clamp((p.z + 0.35) / 0.7, 0.0, 1.0);
-        float depthParallax = mix(0.72, 1.48, depthNorm);
+        float depthParallax = mix(0.8, 1.34, depthNorm);
         float layerParallax = mix(1.95, 0.72, layerNorm);
         float parallaxMix = depthParallax * layerParallax;
         p.x += uParallax.x * 0.34 * parallaxMix;
@@ -411,7 +448,7 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
         float y = p.y / z;
 
         gl_Position = vec4(x, y, 0.0, 1.0);
-        gl_PointSize = max(1.6, (uPointSize / z) * mix(0.92, 1.08, layerNorm));
+        gl_PointSize = max(1.35, (uPointSize / z) * mix(0.9, 1.06, layerNorm));
       }
     `
   );
@@ -426,7 +463,9 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
       void main() {
         vec2 center = gl_PointCoord - vec2(0.5, 0.5);
         float radius = length(center);
-        float alpha = smoothstep(0.52, 0.08, radius) * 0.88;
+        float core = smoothstep(0.36, 0.02, radius);
+        float halo = smoothstep(0.6, 0.18, radius);
+        float alpha = min(1.0, core * 0.84 + halo * 0.24);
         vec3 color = mix(uColorA, uColorB, gl_PointCoord.y);
         gl_FragColor = vec4(color, alpha);
       }
@@ -614,7 +653,7 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
       gl.bufferData(gl.ARRAY_BUFFER, working, gl.DYNAMIC_DRAW);
 
       gl.uniform2f(parallaxLocation, pointerRef.current.x, pointerRef.current.y);
-      gl.uniform1f(pointSizeLocation, width >= 1200 ? 6.1 : 5.3);
+      gl.uniform1f(pointSizeLocation, width >= 1200 ? 4.8 : 4.2);
       gl.uniform3f(heroCoverLocation, heroCoverScaleX, heroCoverScaleY, heroWeight);
       gl.uniform3f(colorALocation, 0.46, 0.51, 0.39);
       gl.uniform3f(colorBLocation, 0.82, 0.74, 0.61);
