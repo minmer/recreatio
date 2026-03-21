@@ -21,10 +21,9 @@ import {
 } from '../../../../../lib/api';
 import type { Copy } from '../../../../../content/types';
 import { CogitaGameActions } from './CogitaGameActions';
-import { CogitaGameCreate } from './CogitaGameCreate';
 import { CogitaGameEdit } from './CogitaGameEdit';
 import { CogitaGameLayout } from './CogitaGameLayout';
-import { CogitaGameLiveSessions } from './CogitaGameLiveSessions';
+import { CogitaGameLiveSessionsRuntime } from '../../runtime/game/CogitaGameLiveSessionsRuntime';
 import { CogitaGameOverview } from './CogitaGameOverview';
 import { CogitaGameParticipants } from './CogitaGameParticipants';
 import { CogitaGameSearch } from './CogitaGameSearch';
@@ -115,8 +114,11 @@ export function CogitaGameWorkspace({
   const [loadingGames, setLoadingGames] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const [newName, setNewName] = useState('');
-  const [newMode, setNewMode] = useState<'solo' | 'group' | 'mixed'>('mixed');
+  const [createDetails, setCreateDetails] = useState<{ name: string; mode: string; settingsText: string }>({
+    name: '',
+    mode: 'mixed',
+    settingsText: '{}'
+  });
 
   const [details, setDetails] = useState<{ name: string; mode: string; settingsText: string } | null>(null);
   const [values, setValues] = useState<CogitaGameValue[]>([]);
@@ -234,21 +236,22 @@ export function CogitaGameWorkspace({
   }, [layouts, selectedLayoutRole]);
 
   const createGame = async () => {
-    const normalized = newName.trim();
+    const normalized = createDetails.name.trim();
     if (!normalized) {
       setStatus('Name is required.');
       return;
     }
     setStatus(null);
     try {
+      const parsedSettings = parseJsonObject<Record<string, unknown>>(createDetails.settingsText, {});
       const created = await createCogitaGame({
         libraryId,
         name: normalized,
-        mode: newMode,
-        settings: {}
+        mode: (createDetails.mode as 'solo' | 'group' | 'mixed') ?? 'mixed',
+        settings: parsedSettings
       });
       setGames((current) => [created, ...current]);
-      setNewName('');
+      setCreateDetails({ name: '', mode: 'mixed', settingsText: '{}' });
       onNavigate({ gameId: created.gameId, view: 'overview' });
     } catch (error) {
       setStatus(toErrorText(error, 'Failed to create game.'));
@@ -436,7 +439,7 @@ export function CogitaGameWorkspace({
 
   const selectedGame = useMemo(() => games.find((item) => item.gameId === gameId) ?? null, [games, gameId]);
   const shouldRenderCreate = normalizedView === 'create' && !gameId;
-  const shouldRenderSearch = normalizedView === 'search' || !gameId || !selectedGame;
+  const shouldRenderSearch = !shouldRenderCreate && (normalizedView === 'search' || !gameId || !selectedGame);
 
   const renderSelectedGameSection = () => {
     if (!gameId || !selectedGame) {
@@ -462,6 +465,7 @@ export function CogitaGameWorkspace({
     if (normalizedView === 'edit') {
       return (
         <CogitaGameEdit
+          mode="edit"
           details={details}
           onDetailsChange={setDetails}
           onSave={() => void saveGame()}
@@ -520,7 +524,7 @@ export function CogitaGameWorkspace({
 
     if (normalizedView === 'live_sessions') {
       return (
-        <CogitaGameLiveSessions
+        <CogitaGameLiveSessionsRuntime
           libraryId={libraryId}
           sessionTitle={sessionTitle}
           sessionGroupsText={sessionGroupsText}
@@ -553,11 +557,10 @@ export function CogitaGameWorkspace({
       </section>
 
       {shouldRenderCreate ? (
-        <CogitaGameCreate
-          name={newName}
-          mode={newMode}
-          onNameChange={setNewName}
-          onModeChange={setNewMode}
+        <CogitaGameEdit
+          mode="create"
+          details={createDetails}
+          onDetailsChange={setCreateDetails}
           onCreate={() => void createGame()}
           onBack={() => onNavigate({ view: 'search' })}
         />

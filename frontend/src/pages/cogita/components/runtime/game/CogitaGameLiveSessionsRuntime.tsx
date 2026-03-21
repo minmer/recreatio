@@ -1,6 +1,6 @@
 import type { CogitaGameSessionSummary } from '../../../../../lib/api';
 
-export function CogitaGameLiveSessions({
+export function CogitaGameLiveSessionsRuntime({
   libraryId,
   sessionTitle,
   sessionGroupsText,
