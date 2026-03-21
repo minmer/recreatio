@@ -169,6 +169,11 @@ function clamp01(value: number): number {
   return value;
 }
 
+function smoothStep01(value: number): number {
+  const t = clamp01(value);
+  return t * t * (3 - 2 * t);
+}
+
 function ensureMeta(selector: string, attribute: 'name' | 'property', value: string, content: string) {
   let element = document.head.querySelector<HTMLMetaElement>(selector);
   if (!element) {
@@ -360,29 +365,32 @@ function LimanowaStartPage({
       for (const scene of scenes) {
         const rect = scene.getBoundingClientRect();
         const progress = clamp01((viewportHeight - rect.top) / (viewportHeight + rect.height));
-        const enter = clamp01((progress - 0.04) / 0.28);
-        const exit = clamp01((1 - progress - 0.04) / 0.28);
-        const visibility = Math.min(enter, exit);
+        const enter = smoothStep01((progress - 0.05) / 0.09);
+        const exit = smoothStep01((progress - 0.84) / 0.07);
+        const hold = smoothStep01((progress - 0.2) / 0.64);
+        const visibility = clamp01(enter * (1 - exit));
 
         const textNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-text');
         textNodes.forEach((node, index) => {
           const depth = index * 0.12;
-          const travel = (0.5 - progress) * (160 + index * 20);
-          const drift = (1 - visibility) * (progress < 0.5 ? 52 + index * 8 : -52 - index * 8);
-          const y = travel + drift;
+          const startOffset = 74 + index * 10;
+          const endOffset = -86 - index * 10;
+          const holdDrift = (hold - 0.5) * (10 + index * 2);
+          const y = (1 - enter) * startOffset + holdDrift + exit * endOffset;
           node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
-          node.style.opacity = clamp01(0.04 + visibility * (0.95 - depth * 0.12)).toFixed(3);
+          node.style.opacity = clamp01(visibility * (0.98 - depth * 0.1)).toFixed(3);
         });
 
         const mediaNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-media');
         mediaNodes.forEach((node, index) => {
           const direction = index % 2 === 0 ? -1 : 1;
-          const travel = (0.5 - progress) * (86 + index * 14) * direction;
-          const drift = (1 - visibility) * (progress < 0.5 ? 22 : -22) * direction;
-          const y = travel + drift;
-          const scale = 0.92 + visibility * 0.1;
+          const startOffset = (42 + index * 8) * direction;
+          const endOffset = (-48 - index * 8) * direction;
+          const holdDrift = (hold - 0.5) * 8 * direction;
+          const y = (1 - enter) * startOffset + holdDrift + exit * endOffset;
+          const scale = 0.94 + visibility * 0.06;
           node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
-          node.style.opacity = clamp01(0.08 + visibility * 0.92).toFixed(3);
+          node.style.opacity = clamp01(0.1 + visibility * 0.9).toFixed(3);
         });
       }
     };

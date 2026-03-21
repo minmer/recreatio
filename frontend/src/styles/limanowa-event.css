@@ -240,11 +240,11 @@
 }
 
 .lim26-scene:not(.lim26-hero) {
-  min-height: 168vh;
+  min-height: 188vh;
 }
 
 .lim26-scene + .lim26-scene {
-  margin-top: -24vh;
+  margin-top: -28vh;
 }
 
 .lim26-scene:not(.lim26-hero) > :first-child {

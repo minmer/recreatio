@@ -14,6 +14,11 @@ function clamp01(value: number): number {
   return value;
 }
 
+function smoothStep01(value: number): number {
+  const t = clamp01(value);
+  return t * t * (3 - 2 * t);
+}
+
 function createLcg(seed: number) {
   let state = seed >>> 0;
   return () => {
@@ -242,7 +247,9 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       const scaled = clamp01(progress) * span;
       const stateIndex = Math.min(span - 1, Math.floor(scaled));
       const rawT = scaled - stateIndex;
-      const localT = rawT * rawT * (3 - 2 * rawT);
+      const localT = rawT < 0.8
+        ? smoothStep01(rawT / 0.8) * 0.25
+        : 0.25 + smoothStep01((rawT - 0.8) / 0.2) * 0.75;
 
       const from = states[Math.min(stateIndex, states.length - 1)];
       const to = states[Math.min(stateIndex + 1, states.length - 1)];
