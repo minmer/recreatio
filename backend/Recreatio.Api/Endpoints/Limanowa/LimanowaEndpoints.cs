@@ -305,7 +305,7 @@ public static class LimanowaEndpoints
                 participants,
                 announcements,
                 thread,
-                policy));
+                ToPolicyLinksResponse(policy)));
         });
 
         group.MapPut("/group-admin/group", async (
@@ -566,7 +566,7 @@ public static class LimanowaEndpoints
                 participantResponse,
                 announcements,
                 thread,
-                policy));
+                ToPolicyLinksResponse(policy)));
         });
 
         group.MapPut("/participant/profile", async (
@@ -753,7 +753,7 @@ public static class LimanowaEndpoints
                 participants.Select(x => ToParticipantResponse(x, consentMap.GetValueOrDefault(x.Id))).ToList(),
                 announcements,
                 threads,
-                policy));
+                ToPolicyLinksResponse(policy)));
         }).RequireAuthorization();
 
         group.MapPut("/{eventId:guid}/admin/event-settings", async (
@@ -1425,11 +1425,16 @@ public static class LimanowaEndpoints
             limanowaEvent.RegistrationGroupsDeadline,
             limanowaEvent.RegistrationParticipantsDeadline,
             limanowaEvent.Published,
-            new LimanowaPolicyLinksResponse(
-                policy.PrivacyPolicyUrl,
-                policy.EventRulesUrl,
-                policy.ThingsToBringUrl),
+            ToPolicyLinksResponse(policy),
             isProvisioned);
+    }
+
+    private static LimanowaPolicyLinksResponse ToPolicyLinksResponse(LimanowaPolicyLinkConfig policy)
+    {
+        return new LimanowaPolicyLinksResponse(
+            policy.PrivacyPolicyUrl,
+            policy.EventRulesUrl,
+            policy.ThingsToBringUrl);
     }
 
     private static LimanowaGroupResponse ToGroupResponse(LimanowaGroup row)
