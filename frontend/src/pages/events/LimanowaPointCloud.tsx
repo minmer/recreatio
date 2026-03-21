@@ -54,11 +54,6 @@ function clamp01(value: number): number {
   return value;
 }
 
-function smoothStep01(value: number): number {
-  const t = clamp01(value);
-  return t * t * (3 - 2 * t);
-}
-
 function fract(value: number): number {
   return value - Math.floor(value);
 }
@@ -328,27 +323,40 @@ function computeSlidePhase(
   viewport: HTMLElement | null
 ): { stateIndex: number; rawT: number } {
   const computeFromAnchors = (anchors: number[]): { stateIndex: number; rawT: number } => {
-    if (scrollTop <= anchors[0]) {
+    const maxPairIndex = Math.max(0, Math.min(stateCount - 2, anchors.length - 2));
+    if (maxPairIndex <= 0) {
       return { stateIndex: 0, rawT: 0 };
     }
 
-    const maxPairIndex = Math.max(0, Math.min(stateCount - 2, anchors.length - 2));
-    const transitionBand = Math.max(70, Math.round(viewportHeight * 0.14));
-    const transitionTail = Math.round(transitionBand * 0.42);
+    if (scrollTop <= anchors[0]) {
+      return { stateIndex: 0, rawT: 0 };
+    }
+    if (scrollTop >= anchors[maxPairIndex + 1]) {
+      return { stateIndex: maxPairIndex, rawT: 1 };
+    }
 
     for (let pairIndex = 0; pairIndex <= maxPairIndex; pairIndex += 1) {
-      const boundary = anchors[pairIndex + 1];
-      const transitionStart = boundary - transitionBand;
-      const transitionEnd = boundary + transitionTail;
-
-      if (scrollTop < transitionStart) {
-        return { stateIndex: pairIndex, rawT: 0 };
-      }
-
-      if (scrollTop <= transitionEnd) {
+      const start = anchors[pairIndex];
+      const end = anchors[pairIndex + 1];
+      if (scrollTop >= start && scrollTop <= end) {
         return {
           stateIndex: pairIndex,
-          rawT: clamp01((scrollTop - transitionStart) / Math.max(1, transitionEnd - transitionStart))
+          rawT: clamp01((scrollTop - start) / Math.max(1, end - start))
+        };
+      }
+    }
+
+    // Guard for numerical edge-cases between buckets.
+    for (let pairIndex = 0; pairIndex <= maxPairIndex; pairIndex += 1) {
+      const start = anchors[pairIndex];
+      const end = anchors[pairIndex + 1];
+      if (scrollTop < start) {
+        return { stateIndex: Math.max(0, pairIndex - 1), rawT: 1 };
+      }
+      if (scrollTop < end) {
+        return {
+          stateIndex: pairIndex,
+          rawT: clamp01((scrollTop - start) / Math.max(1, end - start))
         };
       }
     }
@@ -632,9 +640,7 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
       const phase = computeSlidePhase(scrollTop, states.length, viewportHeight, currentViewport);
       const stateIndex = Math.min(span - 1, phase.stateIndex);
       const rawT = phase.rawT;
-      const localT = rawT < 0.56
-        ? smoothStep01(rawT / 0.56) * 0.12
-        : 0.12 + smoothStep01((rawT - 0.56) / 0.44) * 0.88;
+      const localT = rawT;
       const heroMaskAspect = masks?.[0] ? masks[0].width / Math.max(1, masks[0].height) : 16 / 9;
       const viewportAspect = width / Math.max(1, height);
       const heroCoverScaleX = viewportAspect < heroMaskAspect ? heroMaskAspect / viewportAspect : 1;

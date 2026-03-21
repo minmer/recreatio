@@ -130,6 +130,7 @@ type RevisionMode = 'search' | 'create' | 'selected' | 'live_sessions';
 type LiveSessionMode = 'search' | 'create' | 'selected';
 type DependencyMode = 'search' | 'create' | 'selected';
 type StoryboardMode = 'search' | 'create' | 'selected';
+type GameMode = 'search' | 'create' | 'selected';
 type TutorialSlide = { step: string; title: string; lead: string; passages: string[]; focus: string[]; action: string };
 
 const PREFS_ITEM_NAME = 'cogita.preferences';
@@ -491,14 +492,14 @@ function parseCogitaPath(pathname: string, search: string = ''): ParsedCogitaPat
     const gameView: GameWorkspaceView =
       gameSection === 'edit'
         ? 'edit'
-        : gameSection === 'groups'
-          ? 'groups'
-          : gameSection === 'values'
+        : gameSection === 'groups' || gameSection === 'participants'
+          ? 'participants'
+        : gameSection === 'values'
             ? 'values'
             : gameSection === 'actions'
               ? 'actions'
-              : gameSection === 'layouts'
-                ? 'layouts'
+              : gameSection === 'layouts' || gameSection === 'layout'
+                ? 'layout'
                 : gameSection === 'live-sessions'
                   ? 'live_sessions'
                   : 'overview';
@@ -683,13 +684,14 @@ function buildCogitaPath(
     if (!gameId) {
       return gameView === 'create' ? `${workspaceBase}/games/new` : `${workspaceBase}/games`;
     }
-    if (gameView === 'edit') return `${workspaceBase}/games/${gameId}/edit`;
-    if (gameView === 'groups') return `${workspaceBase}/games/${gameId}/groups`;
-    if (gameView === 'values') return `${workspaceBase}/games/${gameId}/values`;
-    if (gameView === 'actions') return `${workspaceBase}/games/${gameId}/actions`;
-    if (gameView === 'layouts') return `${workspaceBase}/games/${gameId}/layouts`;
-    if (gameView === 'live_sessions') return `${workspaceBase}/games/${gameId}/live-sessions`;
-    return `${workspaceBase}/games/${gameId}`;
+    const encodedGameId = encodeURIComponent(gameId);
+    if (gameView === 'edit') return `${workspaceBase}/games/${encodedGameId}/edit`;
+    if (gameView === 'groups' || gameView === 'participants') return `${workspaceBase}/games/${encodedGameId}/participants`;
+    if (gameView === 'values') return `${workspaceBase}/games/${encodedGameId}/values`;
+    if (gameView === 'actions') return `${workspaceBase}/games/${encodedGameId}/actions`;
+    if (gameView === 'layouts' || gameView === 'layout') return `${workspaceBase}/games/${encodedGameId}/layout`;
+    if (gameView === 'live_sessions') return `${workspaceBase}/games/${encodedGameId}/live-sessions`;
+    return `${workspaceBase}/games/${encodedGameId}`;
   }
   return workspaceBase;
 }
@@ -934,6 +936,17 @@ export function CogitaWorkspacePage({
     if (pathState.storyboardId) return 'selected';
     return 'search';
   }, [pathState.storyboardId, pathState.storyboardView, selectedTarget]);
+  const gameMode = useMemo<GameMode>(() => {
+    if (pathState.gameView === 'create') return 'create';
+    if (pathState.gameId) return 'selected';
+    return 'search';
+  }, [pathState.gameId, pathState.gameView]);
+  const selectedGameAction = useMemo(() => {
+    if (pathState.gameView === 'create' || !pathState.gameId) return 'overview';
+    if (pathState.gameView === 'groups') return 'participants';
+    if (pathState.gameView === 'layouts') return 'layout';
+    return pathState.gameView ?? 'overview';
+  }, [pathState.gameId, pathState.gameView]);
   const selectedInfoOption = useMemo(
     () => infos.find((item) => item.infoId === pathState.infoId) ?? null,
     [infos, pathState.infoId]
@@ -1401,6 +1414,122 @@ export function CogitaWorkspacePage({
             dependencyGraphId: pathState.dependencyGraphId,
             dependencyView: value === 'edit' ? 'edit' : 'overview'
           });
+        }
+      },
+      {
+        key: 'game_mode',
+        label: workspaceCopy.layers.target,
+        visible: displayTarget === 'games',
+        value: gameMode,
+        selectedLabel:
+          gameMode === 'create'
+            ? workspaceCopy.infoMode.create
+            : gameMode === 'selected'
+              ? (pathState.gameId ?? workspaceCopy.targets.games)
+              : workspaceCopy.infoMode.search,
+        disabled: !hasLibrarySelection,
+        options: [
+          { value: 'search', label: workspaceCopy.infoMode.search },
+          { value: 'create', label: workspaceCopy.infoMode.create },
+          ...(pathState.gameId ? [{ value: 'selected', label: pathState.gameId }] : [])
+        ],
+        onSelect: (value: string) => {
+          if (!selectedLibraryId) return;
+          const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+          if (value === 'create') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/new`);
+            return;
+          }
+          if (value === 'selected' && pathState.gameId) {
+            const encodedGameId = encodeURIComponent(pathState.gameId);
+            if (selectedGameAction === 'edit') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/edit`);
+              return;
+            }
+            if (selectedGameAction === 'participants') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/participants`);
+              return;
+            }
+            if (selectedGameAction === 'values') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/values`);
+              return;
+            }
+            if (selectedGameAction === 'actions') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/actions`);
+              return;
+            }
+            if (selectedGameAction === 'layout') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/layout`);
+              return;
+            }
+            if (selectedGameAction === 'live_sessions') {
+              navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/live-sessions`);
+              return;
+            }
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}`);
+            return;
+          }
+          navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games`);
+        }
+      },
+      {
+        key: 'game_selected_action',
+        label: workspaceCopy.layers.target,
+        visible: displayTarget === 'games' && Boolean(pathState.gameId),
+        value: selectedGameAction,
+        selectedLabel:
+          selectedGameAction === 'edit'
+            ? workspaceCopy.infoActions.edit
+            : selectedGameAction === 'participants'
+              ? 'Participants'
+              : selectedGameAction === 'values'
+                ? 'Values'
+                : selectedGameAction === 'actions'
+                  ? 'Actions'
+                  : selectedGameAction === 'layout'
+                    ? 'Layout'
+                    : selectedGameAction === 'live_sessions'
+                      ? 'Live Sessions'
+                      : workspaceCopy.infoActions.overview,
+        disabled: !hasLibrarySelection || !pathState.gameId,
+        options: [
+          { value: 'overview', label: workspaceCopy.infoActions.overview },
+          { value: 'edit', label: workspaceCopy.infoActions.edit },
+          { value: 'participants', label: 'Participants' },
+          { value: 'values', label: 'Values' },
+          { value: 'actions', label: 'Actions' },
+          { value: 'layout', label: 'Layout' },
+          { value: 'live_sessions', label: 'Live Sessions' }
+        ],
+        onSelect: (value: string) => {
+          if (!selectedLibraryId || !pathState.gameId) return;
+          const encodedLibraryId = encodeURIComponent(selectedLibraryId);
+          const encodedGameId = encodeURIComponent(pathState.gameId);
+          if (value === 'edit') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/edit`);
+            return;
+          }
+          if (value === 'participants') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/participants`);
+            return;
+          }
+          if (value === 'values') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/values`);
+            return;
+          }
+          if (value === 'actions') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/actions`);
+            return;
+          }
+          if (value === 'layout') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/layout`);
+            return;
+          }
+          if (value === 'live_sessions') {
+            navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}/live-sessions`);
+            return;
+          }
+          navigate(`/cogita/workspace/libraries/${encodedLibraryId}/games/${encodedGameId}`);
         }
       },
       {
