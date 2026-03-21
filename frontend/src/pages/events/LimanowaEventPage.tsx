@@ -348,6 +348,15 @@ function LimanowaStartPage({
   }, [location.search, scrollToSection]);
 
   useEffect(() => {
+    document.documentElement.classList.add('lim26-scroll-snap');
+    document.body.classList.add('lim26-scroll-snap');
+    return () => {
+      document.documentElement.classList.remove('lim26-scroll-snap');
+      document.body.classList.remove('lim26-scroll-snap');
+    };
+  }, []);
+
+  useEffect(() => {
     const root = document.querySelector<HTMLElement>('.lim26-start-page');
     const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
     if (!root || scenes.length === 0) {
@@ -370,9 +379,6 @@ function LimanowaStartPage({
     let metrics: SceneMetric[] = [];
     let disposed = false;
     let frame: number | null = null;
-    let snapTimer: number | null = null;
-    let lastScrollAt = performance.now();
-    let snapLockUntil = 0;
 
     const getHeaderOffset = () => {
       const header = document.querySelector<HTMLElement>('.lim26-header');
@@ -525,59 +531,13 @@ function LimanowaStartPage({
       root.style.setProperty('--lim26-active-scene-index', String(activeIndex));
     };
 
-    const maybeSnapToScene = () => {
-      if (disposed || reducedMotion || window.innerWidth < 980 || metrics.length === 0) {
-        return;
-      }
-
-      const now = performance.now();
-      if (now < snapLockUntil) {
-        return;
-      }
-      if (now - lastScrollAt < 90) {
-        return;
-      }
-
-      const current = window.scrollY;
-      let nearest = { index: 0, distance: Number.POSITIVE_INFINITY };
-      for (let index = 0; index < metrics.length; index += 1) {
-        const distance = Math.abs(current - metrics[index].anchor);
-        if (distance < nearest.distance) {
-          nearest = { index, distance };
-        }
-      }
-
-      const threshold = Math.min(window.innerHeight * 0.14, 148);
-      if (nearest.distance < 14 || nearest.distance > threshold) {
-        return;
-      }
-
-      snapLockUntil = now + 420;
-      window.scrollTo({
-        top: metrics[nearest.index].anchor,
-        behavior: 'smooth'
-      });
-    };
-
     const schedule = () => {
       if (frame !== null) return;
       frame = window.requestAnimationFrame(applyMotion);
     };
 
-    const scheduleSnap = () => {
-      if (snapTimer !== null) {
-        window.clearTimeout(snapTimer);
-      }
-      snapTimer = window.setTimeout(() => {
-        snapTimer = null;
-        maybeSnapToScene();
-      }, 120);
-    };
-
     const onScroll = () => {
-      lastScrollAt = performance.now();
       schedule();
-      scheduleSnap();
     };
 
     const onResize = () => {
@@ -603,9 +563,6 @@ function LimanowaStartPage({
       disposed = true;
       if (frame !== null) {
         window.cancelAnimationFrame(frame);
-      }
-      if (snapTimer !== null) {
-        window.clearTimeout(snapTimer);
       }
       resizeObserver.disconnect();
       window.removeEventListener('scroll', onScroll);

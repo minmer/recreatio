@@ -12,6 +12,19 @@
   --lim26-header-h: 86px;
 }
 
+html.lim26-scroll-snap,
+body.lim26-scroll-snap {
+  scroll-behavior: smooth;
+}
+
+html.lim26-scroll-snap {
+  scroll-snap-type: y mandatory;
+}
+
+body.lim26-scroll-snap {
+  scroll-snap-type: y mandatory;
+}
+
 .lim26-page {
   min-height: 100vh;
   color: var(--lim26-text);
@@ -91,8 +104,10 @@
 }
 
 .lim26-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 7;
   display: flex;
   align-items: center;
@@ -146,6 +161,8 @@
   --lim26-scene-enter: 0;
   --lim26-scene-exit: 0;
   scroll-margin-top: calc(var(--lim26-header-h) + 14px);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .lim26-scene::before {
@@ -162,7 +179,7 @@
 }
 
 .lim26-hero {
-  min-height: 122svh;
+  min-height: 100svh;
   position: relative;
   display: grid;
   align-items: center;
@@ -272,8 +289,9 @@
 }
 
 .lim26-section {
-  min-height: 108vh;
-  padding: clamp(4.2rem, 9vw, 7rem) 6vw;
+  --lim26-section-pad: clamp(4.2rem, 9vw, 7rem);
+  min-height: 100svh;
+  padding: calc(var(--lim26-section-pad) + var(--lim26-header-h) * 0.62) 6vw var(--lim26-section-pad);
   position: relative;
   display: grid;
   align-items: center;
@@ -289,20 +307,19 @@
 }
 
 .lim26-scene:not(.lim26-hero) {
-  min-height: 166svh;
+  min-height: 104svh;
 }
 
 .lim26-scene + .lim26-scene {
-  margin-top: -18svh;
+  margin-top: 0;
 }
 
 .lim26-scene:not(.lim26-hero) > :first-child {
-  position: sticky;
-  top: calc(var(--lim26-header-h) + 3svh);
-  min-height: calc(100svh - var(--lim26-header-h) - 6svh);
+  position: relative;
+  top: auto;
+  min-height: auto;
   display: grid;
   align-content: center;
-  position: relative;
   z-index: 1;
 }
 
@@ -782,11 +799,11 @@
   }
 
   .lim26-section {
-    min-height: auto;
+    min-height: 92svh;
   }
 
   .lim26-scene:not(.lim26-hero) {
-    min-height: auto;
+    min-height: 94svh;
   }
 
   .lim26-scene + .lim26-scene {
@@ -794,9 +811,9 @@
   }
 
   .lim26-scene:not(.lim26-hero) > :first-child {
-    position: static;
+    position: relative;
     min-height: auto;
-    display: block;
+    display: grid;
   }
 }
 
@@ -814,7 +831,7 @@
   }
 
   .lim26-section {
-    padding: 2.8rem 5vw;
+    padding: calc(2.8rem + var(--lim26-header-h) * 0.5) 5vw 2.8rem;
   }
 
   .lim26-btn {

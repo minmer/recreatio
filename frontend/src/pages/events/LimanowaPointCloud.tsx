@@ -8,6 +8,9 @@ const BASE_POINT_COUNT = 12000;
 const DESKTOP_POINT_COUNT = 22000;
 const LARGE_DESKTOP_POINT_COUNT = 32000;
 const POINTER_PARALLAX_STRENGTH = 0.52;
+const POINTER_DEAD_ZONE = 0.1;
+const POINTER_CURVE_POWER = 1.8;
+const POINTER_VERTICAL_RATIO = 0.08;
 const MASK_MAX_DIMENSION = 1400;
 
 const MASK_SOURCE_CANDIDATES: string[][] = [
@@ -356,8 +359,8 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
 
       void main() {
         vec3 p = aPosition;
-        p.x += uParallax.x * 0.35;
-        p.y += uParallax.y * 0.35;
+        p.x += uParallax.x * 0.42;
+        p.y += uParallax.y * 0.08;
 
         float z = p.z + 3.2;
         float x = p.x / z;
@@ -556,16 +559,29 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
     const onPointerMove = (event: PointerEvent) => {
       const nx = (event.clientX / Math.max(1, window.innerWidth)) * 2 - 1;
       const ny = (event.clientY / Math.max(1, window.innerHeight)) * 2 - 1;
+      const limitedX = Math.max(-1, Math.min(1, nx));
+      const magnitude = Math.abs(limitedX);
+      const normalized = magnitude <= POINTER_DEAD_ZONE
+        ? 0
+        : (magnitude - POINTER_DEAD_ZONE) / Math.max(0.001, 1 - POINTER_DEAD_ZONE);
+      const curved = Math.pow(Math.max(0, Math.min(1, normalized)), POINTER_CURVE_POWER);
+
       pointerRef.current = {
-        x: Math.max(-1, Math.min(1, nx)) * POINTER_PARALLAX_STRENGTH,
-        y: Math.max(-1, Math.min(1, -ny)) * POINTER_PARALLAX_STRENGTH
+        x: Math.sign(limitedX) * curved * POINTER_PARALLAX_STRENGTH,
+        y: Math.max(-1, Math.min(1, -ny)) * curved * POINTER_PARALLAX_STRENGTH * POINTER_VERTICAL_RATIO
       };
+      scheduleDraw();
+    };
+
+    const onPointerLeave = () => {
+      pointerRef.current = { x: 0, y: 0 };
       scheduleDraw();
     };
 
     window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerleave', onPointerLeave);
 
     draw();
 
@@ -578,6 +594,7 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerleave', onPointerLeave);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
