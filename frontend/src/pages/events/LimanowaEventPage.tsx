@@ -348,121 +348,13 @@ function LimanowaStartPage({
   }, [location.search, scrollToSection]);
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.innerWidth < 1080) {
-      return;
-    }
-
-    const triggerDelta = 28;
-    const headerOffset = 106;
-    let wheelAccumulator = 0;
-    let transitioning = false;
-    let transitionTarget: number | null = null;
-    let settleRaf: number | null = null;
-
-    const stopSettler = () => {
-      if (settleRaf !== null) {
-        window.cancelAnimationFrame(settleRaf);
-        settleRaf = null;
-      }
-    };
-
-    const settle = () => {
-      if (!transitioning || transitionTarget === null) {
-        stopSettler();
-        return;
-      }
-
-      const distance = Math.abs(window.scrollY - transitionTarget);
-      if (distance <= 2) {
-        transitioning = false;
-        transitionTarget = null;
-        wheelAccumulator = 0;
-        stopSettler();
-        return;
-      }
-
-      settleRaf = window.requestAnimationFrame(settle);
-    };
-
-    const startTransition = (targetY: number) => {
-      transitioning = true;
-      transitionTarget = targetY;
-      wheelAccumulator = 0;
-      window.scrollTo({ top: targetY, behavior: 'smooth' });
-      stopSettler();
-      settleRaf = window.requestAnimationFrame(settle);
-    };
-
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey) {
-        return;
-      }
-      if (Math.abs(event.deltaY) < 6) {
-        return;
-      }
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) {
-        return;
-      }
-
-      event.preventDefault();
-
-      if (transitioning) {
-        return;
-      }
-
-      if (wheelAccumulator !== 0 && Math.sign(wheelAccumulator) !== Math.sign(event.deltaY)) {
-        wheelAccumulator = 0;
-      }
-      wheelAccumulator += event.deltaY;
-      if (Math.abs(wheelAccumulator) < triggerDelta) {
-        return;
-      }
-
-      const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
-      if (scenes.length === 0) {
-        return;
-      }
-
-      const anchors = scenes
-        .map((scene) => Math.max(0, scene.offsetTop - headerOffset))
-        .sort((a, b) => a - b);
-
-      const probe = window.scrollY + headerOffset + 12;
-      let currentIndex = 0;
-      for (let i = 0; i < anchors.length; i += 1) {
-        if (anchors[i] <= probe) {
-          currentIndex = i;
-        } else {
-          break;
-        }
-      }
-
-      const nextIndex = wheelAccumulator > 0
-        ? Math.min(anchors.length - 1, currentIndex + 1)
-        : Math.max(0, currentIndex - 1);
-      if (nextIndex === currentIndex) {
-        wheelAccumulator = 0;
-        return;
-      }
-
-      startTransition(anchors[nextIndex]);
-    };
-
-    window.addEventListener('wheel', onWheel, { passive: false });
-
-    return () => {
-      stopSettler();
-      window.removeEventListener('wheel', onWheel);
-    };
-  }, []);
-
-  useEffect(() => {
+    const root = document.querySelector<HTMLElement>('.lim26-start-page');
     const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
-    if (scenes.length === 0) {
+    if (!root || scenes.length === 0) {
       return;
     }
 
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let disposed = false;
     let frame: number | null = null;
 
@@ -471,38 +363,67 @@ function LimanowaStartPage({
       if (disposed) return;
 
       const viewportHeight = Math.max(1, window.innerHeight);
+      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      const masterProgress = clamp01(window.scrollY / maxScroll);
 
+      const bgDrift = (masterProgress - 0.5) * 34;
+      const bgGrainOpacity = 0.11 + (1 - masterProgress) * 0.08;
+      const bgTopoOpacity = 0.08 + masterProgress * 0.12;
+      const bgHazeOpacity = 0.08 + Math.sin(masterProgress * Math.PI) * 0.1;
+      root.style.setProperty('--lim26-bg-drift', `${bgDrift.toFixed(2)}px`);
+      root.style.setProperty('--lim26-bg-grain-opacity', bgGrainOpacity.toFixed(3));
+      root.style.setProperty('--lim26-bg-topo-opacity', bgTopoOpacity.toFixed(3));
+      root.style.setProperty('--lim26-bg-haze-opacity', bgHazeOpacity.toFixed(3));
+
+      let dominantActive = 0;
       for (const scene of scenes) {
         const rect = scene.getBoundingClientRect();
         const progress = clamp01((viewportHeight - rect.top) / (viewportHeight + rect.height));
-        const enter = smoothStep01((progress - 0.05) / 0.09);
-        const exit = smoothStep01((progress - 0.84) / 0.07);
-        const hold = smoothStep01((progress - 0.2) / 0.64);
+        const enter = smoothStep01((progress - 0.07) / 0.2);
+        const exit = smoothStep01((progress - 0.76) / 0.2);
+        const hold = smoothStep01((progress - 0.2) / 0.56);
         const visibility = clamp01(enter * (1 - exit));
+        dominantActive = Math.max(dominantActive, visibility);
+        scene.dataset.active = visibility > 0.54 ? 'true' : 'false';
 
         const textNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-text');
         textNodes.forEach((node, index) => {
           const depth = index * 0.12;
-          const startOffset = 74 + index * 10;
-          const endOffset = -86 - index * 10;
-          const holdDrift = (hold - 0.5) * (10 + index * 2);
+          const startOffset = 34 + index * 8;
+          const endOffset = -44 - index * 8;
+          const holdDrift = (hold - 0.5) * (8 + index * 2);
           const y = (1 - enter) * startOffset + holdDrift + exit * endOffset;
-          node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
-          node.style.opacity = clamp01(visibility * (0.98 - depth * 0.1)).toFixed(3);
+          if (!reducedMotion) {
+            node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
+            node.style.filter = `blur(${((1 - visibility) * 2.2).toFixed(2)}px)`;
+          } else {
+            node.style.transform = 'none';
+            node.style.filter = 'none';
+          }
+          node.style.opacity = clamp01(visibility * (0.98 - depth * 0.08)).toFixed(3);
         });
 
         const mediaNodes = scene.querySelectorAll<HTMLElement>('.lim26-motion-media');
         mediaNodes.forEach((node, index) => {
           const direction = index % 2 === 0 ? -1 : 1;
-          const startOffset = (42 + index * 8) * direction;
-          const endOffset = (-48 - index * 8) * direction;
+          const startOffset = (24 + index * 6) * direction;
+          const endOffset = (-32 - index * 6) * direction;
           const holdDrift = (hold - 0.5) * 8 * direction;
           const y = (1 - enter) * startOffset + holdDrift + exit * endOffset;
-          const scale = 0.94 + visibility * 0.06;
-          node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
+          const scale = 0.965 + visibility * 0.035;
+          if (!reducedMotion) {
+            node.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
+            node.style.filter = `blur(${((1 - visibility) * 1.6).toFixed(2)}px)`;
+          } else {
+            node.style.transform = 'none';
+            node.style.filter = 'none';
+          }
           node.style.opacity = clamp01(0.1 + visibility * 0.9).toFixed(3);
         });
       }
+
+      const pointOpacity = 0.9 - dominantActive * 0.28;
+      root.style.setProperty('--lim26-point-opacity', pointOpacity.toFixed(3));
     };
 
     const schedule = () => {
@@ -526,6 +447,7 @@ function LimanowaStartPage({
 
   return (
     <div className="lim26-page lim26-start-page">
+      <div className="lim26-bg-haze" aria-hidden="true" />
       <LimanowaPointCloud className="lim26-pointcloud--pinned" />
 
       <header className="lim26-header">

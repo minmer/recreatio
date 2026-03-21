@@ -20,6 +20,14 @@
   overflow-x: clip;
 }
 
+.lim26-start-page {
+  --lim26-bg-drift: 0px;
+  --lim26-bg-grain-opacity: 0.15;
+  --lim26-bg-topo-opacity: 0.12;
+  --lim26-bg-haze-opacity: 0.12;
+  --lim26-point-opacity: 0.9;
+}
+
 .lim26-start-page::before,
 .lim26-start-page::after {
   content: '';
@@ -31,12 +39,30 @@
 
 .lim26-start-page::before {
   background: url('/event/limanowa/texture-grain-dark-soft.png') center/cover no-repeat;
-  opacity: 0.15;
+  opacity: var(--lim26-bg-grain-opacity);
+  transform: translate3d(0, var(--lim26-bg-drift), 0) scale(1.05);
+  transition: opacity 140ms linear, transform 220ms linear;
 }
 
 .lim26-start-page::after {
   background: url('/event/limanowa/texture-topographic-olive-subtle.png') center/cover no-repeat;
-  opacity: 0.12;
+  opacity: var(--lim26-bg-topo-opacity);
+  transform: translate3d(0, calc(var(--lim26-bg-drift) * -0.45), 0) scale(1.08);
+  transition: opacity 140ms linear, transform 220ms linear;
+}
+
+.lim26-bg-haze {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(184, 165, 138, 0.12), transparent 42%),
+    radial-gradient(circle at 80% 76%, rgba(102, 113, 84, 0.16), transparent 46%),
+    radial-gradient(circle at 50% 50%, rgba(14, 17, 16, 0.2), transparent 66%);
+  opacity: var(--lim26-bg-haze-opacity);
+  transform: translate3d(0, calc(var(--lim26-bg-drift) * 0.2), 0);
+  transition: opacity 140ms linear, transform 220ms linear;
 }
 
 .lim26-pointcloud {
@@ -46,7 +72,8 @@
   height: 100%;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.92;
+  opacity: var(--lim26-point-opacity);
+  transition: opacity 180ms linear;
 }
 
 .lim26-pointcloud--fallback {
@@ -240,11 +267,11 @@
 }
 
 .lim26-scene:not(.lim26-hero) {
-  min-height: 188vh;
+  min-height: 146vh;
 }
 
 .lim26-scene + .lim26-scene {
-  margin-top: -28vh;
+  margin-top: -12vh;
 }
 
 .lim26-scene:not(.lim26-hero) > :first-child {
@@ -686,6 +713,7 @@
   .lim26-motion-media {
     opacity: 1 !important;
     transform: none !important;
+    filter: none !important;
     transition: none !important;
   }
 

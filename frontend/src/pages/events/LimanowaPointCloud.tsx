@@ -11,30 +11,9 @@ const MASK_MAX_DIMENSION = 640;
 const STATE_HEADER_OFFSET = 106;
 
 const MASK_SOURCE_CANDIDATES: string[][] = [
-  [
-    '/event/limanowa/gray00.png',
-    '/event/limanowa/gray00.webp',
-    '/event/limanowa/gray00.jpg',
-    '/event/limanowa/gray00.jpeg',
-    '/event/limanowa/gray-00.png',
-    '/event/limanowa/pointcloud-gray-00.png'
-  ],
-  [
-    '/event/limanowa/gray01.png',
-    '/event/limanowa/gray01.webp',
-    '/event/limanowa/gray01.jpg',
-    '/event/limanowa/gray01.jpeg',
-    '/event/limanowa/gray-01.png',
-    '/event/limanowa/pointcloud-gray-01.png'
-  ],
-  [
-    '/event/limanowa/gray02.png',
-    '/event/limanowa/gray02.webp',
-    '/event/limanowa/gray02.jpg',
-    '/event/limanowa/gray02.jpeg',
-    '/event/limanowa/gray-02.png',
-    '/event/limanowa/pointcloud-gray-02.png'
-  ]
+  ['/event/limanowa/gray00.png'],
+  ['/event/limanowa/gray01.png'],
+  ['/event/limanowa/gray02.png']
 ];
 
 type PointMask = {
