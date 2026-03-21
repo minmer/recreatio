@@ -348,6 +348,116 @@ function LimanowaStartPage({
   }, [location.search, scrollToSection]);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || window.innerWidth < 1080) {
+      return;
+    }
+
+    const triggerDelta = 28;
+    const headerOffset = 106;
+    let wheelAccumulator = 0;
+    let transitioning = false;
+    let transitionTarget: number | null = null;
+    let settleRaf: number | null = null;
+
+    const stopSettler = () => {
+      if (settleRaf !== null) {
+        window.cancelAnimationFrame(settleRaf);
+        settleRaf = null;
+      }
+    };
+
+    const settle = () => {
+      if (!transitioning || transitionTarget === null) {
+        stopSettler();
+        return;
+      }
+
+      const distance = Math.abs(window.scrollY - transitionTarget);
+      if (distance <= 2) {
+        transitioning = false;
+        transitionTarget = null;
+        wheelAccumulator = 0;
+        stopSettler();
+        return;
+      }
+
+      settleRaf = window.requestAnimationFrame(settle);
+    };
+
+    const startTransition = (targetY: number) => {
+      transitioning = true;
+      transitionTarget = targetY;
+      wheelAccumulator = 0;
+      window.scrollTo({ top: targetY, behavior: 'smooth' });
+      stopSettler();
+      settleRaf = window.requestAnimationFrame(settle);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        return;
+      }
+      if (Math.abs(event.deltaY) < 6) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (transitioning) {
+        return;
+      }
+
+      if (wheelAccumulator !== 0 && Math.sign(wheelAccumulator) !== Math.sign(event.deltaY)) {
+        wheelAccumulator = 0;
+      }
+      wheelAccumulator += event.deltaY;
+      if (Math.abs(wheelAccumulator) < triggerDelta) {
+        return;
+      }
+
+      const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
+      if (scenes.length === 0) {
+        return;
+      }
+
+      const anchors = scenes
+        .map((scene) => Math.max(0, scene.offsetTop - headerOffset))
+        .sort((a, b) => a - b);
+
+      const probe = window.scrollY + headerOffset + 12;
+      let currentIndex = 0;
+      for (let i = 0; i < anchors.length; i += 1) {
+        if (anchors[i] <= probe) {
+          currentIndex = i;
+        } else {
+          break;
+        }
+      }
+
+      const nextIndex = wheelAccumulator > 0
+        ? Math.min(anchors.length - 1, currentIndex + 1)
+        : Math.max(0, currentIndex - 1);
+      if (nextIndex === currentIndex) {
+        wheelAccumulator = 0;
+        return;
+      }
+
+      startTransition(anchors[nextIndex]);
+    };
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      stopSettler();
+      window.removeEventListener('wheel', onWheel);
+    };
+  }, []);
+
+  useEffect(() => {
     const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
     if (scenes.length === 0) {
       return;
