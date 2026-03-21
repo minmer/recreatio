@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 type LimanowaPointCloudProps = {
   className?: string;
+  viewportRef?: { current: HTMLElement | null };
 };
 
 const BASE_POINT_COUNT = 12000;
@@ -272,14 +273,19 @@ async function loadMask(urls: string[]): Promise<PointMask | null> {
   return buildMaskFromImage(image);
 }
 
-function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: number; rawT: number } {
+function computeSlidePhase(
+  scrollTop: number,
+  stateCount: number,
+  viewportHeight: number,
+  viewport: HTMLElement | null
+): { stateIndex: number; rawT: number } {
   const computeFromAnchors = (anchors: number[]): { stateIndex: number; rawT: number } => {
-    if (scrollY <= anchors[0]) {
+    if (scrollTop <= anchors[0]) {
       return { stateIndex: 0, rawT: 0 };
     }
 
     const maxPairIndex = Math.max(0, Math.min(stateCount - 2, anchors.length - 2));
-    const transitionBand = Math.max(70, Math.round(window.innerHeight * 0.14));
+    const transitionBand = Math.max(70, Math.round(viewportHeight * 0.14));
     const transitionTail = Math.round(transitionBand * 0.42);
 
     for (let pairIndex = 0; pairIndex <= maxPairIndex; pairIndex += 1) {
@@ -287,14 +293,14 @@ function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: n
       const transitionStart = boundary - transitionBand;
       const transitionEnd = boundary + transitionTail;
 
-      if (scrollY < transitionStart) {
+      if (scrollTop < transitionStart) {
         return { stateIndex: pairIndex, rawT: 0 };
       }
 
-      if (scrollY <= transitionEnd) {
+      if (scrollTop <= transitionEnd) {
         return {
           stateIndex: pairIndex,
-          rawT: clamp01((scrollY - transitionStart) / Math.max(1, transitionEnd - transitionStart))
+          rawT: clamp01((scrollTop - transitionStart) / Math.max(1, transitionEnd - transitionStart))
         };
       }
     }
@@ -308,22 +314,35 @@ function computeSlidePhase(scrollY: number, stateCount: number): { stateIndex: n
     .slice(0, stateCount)
     .map((id) => document.getElementById(id))
     .filter((element): element is HTMLElement => Boolean(element));
+  const viewportRect = viewport?.getBoundingClientRect() ?? null;
   const anchors = anchorElements
-    .map((element) => Math.max(0, element.offsetTop - headerOffset))
+    .map((element) => {
+      if (viewport && viewportRect) {
+        return Math.max(0, element.getBoundingClientRect().top - viewportRect.top + scrollTop - headerOffset);
+      }
+      return Math.max(0, element.offsetTop - headerOffset);
+    })
     .sort((a, b) => a - b);
 
   if (anchors.length < 2) {
     const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
     const fallbackAnchors = scenes
       .slice(0, stateCount)
-      .map((scene) => Math.max(0, scene.offsetTop - headerOffset))
+      .map((scene) => {
+        if (viewport && viewportRect) {
+          return Math.max(0, scene.getBoundingClientRect().top - viewportRect.top + scrollTop - headerOffset);
+        }
+        return Math.max(0, scene.offsetTop - headerOffset);
+      })
       .sort((a, b) => a - b);
     if (fallbackAnchors.length >= 2) {
       return computeFromAnchors(fallbackAnchors);
     }
 
-    const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-    const progress = clamp01(scrollY / maxScroll);
+    const maxScroll = viewport
+      ? Math.max(1, viewport.scrollHeight - viewportHeight)
+      : Math.max(1, document.documentElement.scrollHeight - viewportHeight);
+    const progress = clamp01(scrollTop / maxScroll);
     const span = Math.max(1, stateCount - 1);
     const scaled = progress * span;
     const stateIndex = Math.min(span - 1, Math.floor(scaled));
@@ -412,7 +431,7 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
   return program;
 }
 
-export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
+export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointCloudProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [fallbackMode, setFallbackMode] = useState(false);
   const [masks, setMasks] = useState<Array<PointMask | null> | null>(null);
@@ -468,11 +487,11 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
     }
 
     let disposed = false;
-      const count = window.innerWidth >= 1720
-        ? LARGE_DESKTOP_POINT_COUNT
-        : window.innerWidth >= 1200
-          ? DESKTOP_POINT_COUNT
-          : BASE_POINT_COUNT;
+    const count = window.innerWidth >= 1720
+      ? LARGE_DESKTOP_POINT_COUNT
+      : window.innerWidth >= 1200
+        ? DESKTOP_POINT_COUNT
+        : BASE_POINT_COUNT;
     const states = count === BASE_POINT_COUNT ? staticStates : createStates(count, masks);
     const working = new Float32Array(count * 3);
 
@@ -508,6 +527,8 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       });
     };
 
+    const scrollContainer = viewportRef?.current ?? document.querySelector<HTMLElement>('.lim26-slide-viewport');
+
     const draw = () => {
       if (disposed) {
         return;
@@ -525,8 +546,11 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
+      const currentViewport = viewportRef?.current ?? scrollContainer ?? null;
+      const viewportHeight = currentViewport?.clientHeight ?? window.innerHeight;
+      const scrollTop = currentViewport ? currentViewport.scrollTop : window.scrollY;
       const span = Math.max(1, states.length - 1);
-      const phase = computeSlidePhase(window.scrollY, states.length);
+      const phase = computeSlidePhase(scrollTop, states.length, viewportHeight, currentViewport);
       const stateIndex = Math.min(span - 1, phase.stateIndex);
       const rawT = phase.rawT;
       const localT = rawT < 0.56
@@ -589,6 +613,9 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
 
     window.addEventListener('resize', onResize);
     window.addEventListener('scroll', onScroll, { passive: true });
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+    }
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     window.addEventListener('pointerleave', onPointerLeave);
 
@@ -602,12 +629,15 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       }
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', onScroll);
+      }
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerleave', onPointerLeave);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [staticStates, masks]);
+  }, [staticStates, masks, viewportRef]);
 
   if (fallbackMode) {
     return (

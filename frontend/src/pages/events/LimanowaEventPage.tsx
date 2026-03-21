@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type MouseEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ApiError,
@@ -169,11 +169,6 @@ function clamp01(value: number): number {
   return value;
 }
 
-function smoothStep01(value: number): number {
-  const t = clamp01(value);
-  return t * t * (3 - 2 * t);
-}
-
 function ensureMeta(selector: string, attribute: 'name' | 'property', value: string, content: string) {
   let element = document.head.querySelector<HTMLMetaElement>(selector);
   if (!element) {
@@ -321,15 +316,16 @@ function LimanowaStartPage({
 
   const privacyLink = site?.policyLinks.privacyPolicyUrl ?? '/#/legal';
   const rulesLink = site?.policyLinks.eventRulesUrl ?? '/#/event/limanowa/start?sekcja=faq';
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   const scrollToSection = useCallback((sectionId: string, behavior: ScrollBehavior = 'smooth') => {
+    const viewport = viewportRef.current;
     const target = document.getElementById(sectionId);
-    if (!target) return;
+    if (!viewport || !target) return;
 
-    const header = document.querySelector<HTMLElement>('.lim26-header');
-    const headerOffset = (header?.offsetHeight ?? 0) + 10;
-    const top = target.getBoundingClientRect().top + window.scrollY - headerOffset;
-    window.scrollTo({ top: Math.max(top, 0), behavior });
+    const top = target.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+    viewport.scrollTo({ top: Math.max(top, 0), behavior });
   }, []);
 
   const handleSectionLink = useCallback((sectionId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -348,215 +344,85 @@ function LimanowaStartPage({
   }, [location.search, scrollToSection]);
 
   useEffect(() => {
-    document.documentElement.classList.add('lim26-scroll-snap');
-    document.body.classList.add('lim26-scroll-snap');
-    return () => {
-      document.documentElement.classList.remove('lim26-scroll-snap');
-      document.body.classList.remove('lim26-scroll-snap');
-    };
-  }, []);
-
-  useEffect(() => {
     const root = document.querySelector<HTMLElement>('.lim26-start-page');
-    const scenes = Array.from(document.querySelectorAll<HTMLElement>('.lim26-scene'));
-    if (!root || scenes.length === 0) {
+    const viewport = viewportRef.current;
+    if (!root || !viewport) {
       return;
     }
 
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const sceneNodes = scenes.map((scene) => ({
-      scene,
-      textNodes: Array.from(scene.querySelectorAll<HTMLElement>('.lim26-motion-text')),
-      mediaNodes: Array.from(scene.querySelectorAll<HTMLElement>('.lim26-motion-media'))
-    }));
-    type SceneMetric = {
-      start: number;
-      end: number;
-      center: number;
-      anchor: number;
-    };
+    const slides = Array.from(viewport.querySelectorAll<HTMLElement>('.lim26-slide'));
 
-    let metrics: SceneMetric[] = [];
     let disposed = false;
     let frame: number | null = null;
+    let lastIndex = -1;
 
-    const getHeaderOffset = () => {
-      const header = document.querySelector<HTMLElement>('.lim26-header');
-      return (header?.offsetHeight ?? 0) + 10;
-    };
-
-    const rebuildMetrics = () => {
-      const viewportHeight = Math.max(1, window.innerHeight);
-      const headerOffset = getHeaderOffset();
-      metrics = scenes.map((scene) => {
-        const rect = scene.getBoundingClientRect();
-        const top = window.scrollY + rect.top;
-        const height = Math.max(rect.height, viewportHeight * 0.9);
-        return {
-          start: top - viewportHeight * 0.58,
-          end: top + height - viewportHeight * 0.42,
-          center: top + height * 0.5,
-          anchor: Math.max(0, top - headerOffset)
-        };
-      });
-    };
-
-    const applyMotion = () => {
+    const apply = () => {
       frame = null;
       if (disposed) return;
-      if (metrics.length !== scenes.length) {
-        rebuildMetrics();
+
+      const viewportHeight = Math.max(1, viewport.clientHeight);
+      const maxScroll = Math.max(1, viewport.scrollHeight - viewportHeight);
+      const scrollTop = viewport.scrollTop;
+      const progress = clamp01(scrollTop / maxScroll);
+      const approxIndex = scrollTop / viewportHeight;
+
+      const index = Math.max(0, Math.min(slides.length - 1, Math.round(approxIndex)));
+      if (index !== lastIndex) {
+        lastIndex = index;
+        setActiveSlideIndex(index);
       }
 
-      const viewportHeight = Math.max(1, window.innerHeight);
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const scrollY = window.scrollY;
-      const scrollCenter = scrollY + viewportHeight * 0.52;
-      const masterProgress = clamp01(scrollY / maxScroll);
+      slides.forEach((slide, slideIndex) => {
+        const local = clamp01((scrollTop - slideIndex * viewportHeight) / viewportHeight);
+        const visibility = clamp01(1 - Math.min(1, Math.abs(local - 0.5) / 0.5));
+        const enter = clamp01((local - 0.05) / 0.24);
+        const exit = clamp01((local - 0.74) / 0.22);
+        const intensity = clamp01(1 - Math.min(1, Math.abs(approxIndex - slideIndex)));
+        const isActive = slideIndex === index;
 
-      let activeIndex = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < metrics.length; index += 1) {
-        const distance = Math.abs(scrollCenter - metrics[index].center);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          activeIndex = index;
-        }
-      }
+        slide.style.setProperty('--lim26-scene-progress', local.toFixed(4));
+        slide.style.setProperty('--lim26-scene-enter', enter.toFixed(4));
+        slide.style.setProperty('--lim26-scene-exit', exit.toFixed(4));
+        slide.style.setProperty('--lim26-scene-visibility', visibility.toFixed(4));
+        slide.style.setProperty('--lim26-scene-intensity', intensity.toFixed(4));
+        slide.classList.toggle('is-active', isActive);
+        slide.classList.toggle('is-near', intensity > 0.25);
+        slide.dataset.active = isActive ? 'true' : 'false';
+      });
 
-      let handoffIndex = Math.max(0, Math.min(activeIndex, metrics.length - 2));
-      let handoff = 0;
-      if (metrics.length > 1) {
-        if (scrollCenter <= metrics[0].center) {
-          handoffIndex = 0;
-          handoff = 0;
-        } else if (scrollCenter >= metrics[metrics.length - 1].center) {
-          handoffIndex = metrics.length - 2;
-          handoff = 1;
-        } else {
-          for (let index = 0; index < metrics.length - 1; index += 1) {
-            const from = metrics[index].center;
-            const to = metrics[index + 1].center;
-            if (scrollCenter >= from && scrollCenter <= to) {
-              handoffIndex = index;
-              const raw = clamp01((scrollCenter - from) / Math.max(1, to - from));
-              handoff = raw < 0.7
-                ? smoothStep01(raw / 0.7) * 0.22
-                : 0.22 + smoothStep01((raw - 0.7) / 0.3) * 0.78;
-              break;
-            }
-          }
-        }
-      }
-      const sceneBlend = (handoffIndex + handoff) / Math.max(1, metrics.length - 1);
+      const activeLocal = clamp01((scrollTop - index * viewportHeight) / viewportHeight);
+      const settle = clamp01(1 - Math.min(1, Math.abs(activeLocal - 0.5) / 0.5));
+      const bgDriftY = (progress - 0.5) * 22;
+      const bgDriftX = Math.sin(progress * Math.PI * 1.75) * 6.2;
+      const bgGrainOpacity = 0.08 + (1 - progress) * 0.05 + settle * 0.02;
+      const bgTopoOpacity = 0.08 + progress * 0.09;
+      const bgHazeOpacity = 0.07 + Math.sin((progress + 0.12) * Math.PI) * 0.08;
+      const pointOpacity = 0.78 - settle * 0.08;
+      const pointContrast = 1.02 + progress * 0.08;
 
-      const bgDriftY = (sceneBlend - 0.5) * 48;
-      const bgDriftX = Math.sin(sceneBlend * Math.PI * 1.7) * 16;
-      const bgGrainOpacity = 0.09 + (1 - masterProgress) * 0.08;
-      const bgTopoOpacity = 0.07 + sceneBlend * 0.14;
-      const bgHazeOpacity = 0.08 + Math.sin((sceneBlend + 0.12) * Math.PI) * 0.12;
       root.style.setProperty('--lim26-bg-drift-y', `${bgDriftY.toFixed(2)}px`);
       root.style.setProperty('--lim26-bg-drift-x', `${bgDriftX.toFixed(2)}px`);
       root.style.setProperty('--lim26-bg-grain-opacity', bgGrainOpacity.toFixed(3));
       root.style.setProperty('--lim26-bg-topo-opacity', bgTopoOpacity.toFixed(3));
       root.style.setProperty('--lim26-bg-haze-opacity', bgHazeOpacity.toFixed(3));
-      root.style.setProperty('--lim26-scene-blend', sceneBlend.toFixed(3));
-
-      let activeVisibility = 0;
-      for (let index = 0; index < sceneNodes.length; index += 1) {
-        const { scene, textNodes, mediaNodes } = sceneNodes[index];
-        const metric = metrics[index];
-        const progress = clamp01((scrollCenter - metric.start) / Math.max(1, metric.end - metric.start));
-        const enter = smoothStep01((progress - 0.04) / 0.18);
-        const settle = smoothStep01((progress - 0.2) / 0.2);
-        const exit = smoothStep01((progress - 0.84) / 0.12);
-        const visibility = clamp01(enter * (1 - exit));
-        const hold = clamp01(settle * (1 - exit * 0.9));
-        const isActive = index === activeIndex;
-        if (isActive) {
-          activeVisibility = visibility;
-        }
-
-        let phase = 'pre';
-        if (progress >= 0.08 && progress < 0.3) phase = 'enter';
-        else if (progress >= 0.3 && progress < 0.84) phase = 'active';
-        else if (progress >= 0.84 && progress < 0.98) phase = 'exit';
-        else if (progress >= 0.98) phase = 'post';
-
-        scene.dataset.phase = phase;
-        scene.dataset.active = isActive ? 'true' : 'false';
-        scene.style.setProperty('--lim26-scene-progress', progress.toFixed(3));
-        scene.style.setProperty('--lim26-scene-visibility', visibility.toFixed(3));
-        scene.style.setProperty('--lim26-scene-enter', enter.toFixed(3));
-        scene.style.setProperty('--lim26-scene-exit', exit.toFixed(3));
-
-        textNodes.forEach((node, nodeIndex) => {
-          const delayedEnter = smoothStep01((progress - (0.08 + nodeIndex * 0.04)) / 0.16);
-          const delayedExit = smoothStep01((progress - (0.8 + nodeIndex * 0.03)) / 0.11);
-          const nodeVisibility = clamp01(delayedEnter * (1 - delayedExit));
-          const y = (1 - delayedEnter) * (26 + nodeIndex * 8) + delayedExit * (-30 - nodeIndex * 7) + (hold - 0.5) * (5 + nodeIndex * 2);
-          const x = delayedExit * (nodeIndex % 2 === 0 ? -10 : 10);
-          if (!reducedMotion) {
-            node.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
-            node.style.filter = `blur(${((1 - nodeVisibility) * 1.7 + delayedExit * 0.9).toFixed(2)}px)`;
-          } else {
-            node.style.transform = 'none';
-            node.style.filter = 'none';
-          }
-          node.style.opacity = clamp01(nodeVisibility * (0.98 - nodeIndex * 0.06)).toFixed(3);
-        });
-
-        mediaNodes.forEach((node, nodeIndex) => {
-          const delayedEnter = smoothStep01((progress - (0.03 + nodeIndex * 0.02)) / 0.2);
-          const delayedExit = smoothStep01((progress - (0.84 + nodeIndex * 0.02)) / 0.1);
-          const nodeVisibility = clamp01(delayedEnter * (1 - delayedExit));
-          const direction = nodeIndex % 2 === 0 ? -1 : 1;
-          const y = (1 - delayedEnter) * (18 + nodeIndex * 6) + delayedExit * (-24 - nodeIndex * 6) + (hold - 0.5) * 4;
-          const x = (1 - delayedEnter) * (12 + nodeIndex * 4) * direction + delayedExit * (-14 - nodeIndex * 4) * direction;
-          const scale = 0.96 + nodeVisibility * 0.04;
-          if (!reducedMotion) {
-            node.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) scale(${scale.toFixed(3)})`;
-            node.style.filter = `blur(${((1 - nodeVisibility) * 1.2 + delayedExit * 0.45).toFixed(2)}px)`;
-          } else {
-            node.style.transform = 'none';
-            node.style.filter = 'none';
-          }
-          node.style.opacity = clamp01(0.08 + nodeVisibility * 0.92).toFixed(3);
-        });
-      }
-
-      const pointOpacity = reducedMotion ? 0.62 : clamp01(0.98 - activeVisibility * 0.2);
       root.style.setProperty('--lim26-point-opacity', pointOpacity.toFixed(3));
-      root.style.setProperty('--lim26-point-contrast', (1.08 + activeVisibility * 0.12).toFixed(3));
-      root.style.setProperty('--lim26-active-scene-index', String(activeIndex));
+      root.style.setProperty('--lim26-point-contrast', pointContrast.toFixed(3));
+      root.style.setProperty('--lim26-scroll-progress', progress.toFixed(4));
+      root.style.setProperty('--lim26-active-slide', String(index + 1));
     };
 
     const schedule = () => {
       if (frame !== null) return;
-      frame = window.requestAnimationFrame(applyMotion);
-    };
-
-    const onScroll = () => {
-      schedule();
+      frame = window.requestAnimationFrame(apply);
     };
 
     const onResize = () => {
-      rebuildMetrics();
       schedule();
     };
 
-    rebuildMetrics();
-    window.addEventListener('scroll', onScroll, { passive: true });
+    viewport.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
-    const resizeObserver = new ResizeObserver(() => {
-      rebuildMetrics();
-      schedule();
-    });
-    for (const scene of scenes) {
-      resizeObserver.observe(scene);
-    }
-
     schedule();
 
     return () => {
@@ -564,17 +430,16 @@ function LimanowaStartPage({
       if (frame !== null) {
         window.cancelAnimationFrame(frame);
       }
-      resizeObserver.disconnect();
-      window.removeEventListener('scroll', onScroll);
+      viewport.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
     };
   }, []);
 
   return (
-    <div className="lim26-page lim26-start-page">
+    <div className="lim26-page lim26-start-page" data-slide={activeSlideIndex + 1}>
       <div className="lim26-bg-haze" aria-hidden="true" />
-      <LimanowaPointCloud className="lim26-pointcloud--pinned" />
+      <LimanowaPointCloud className="lim26-pointcloud--pinned" viewportRef={viewportRef} />
 
       <header className="lim26-header">
         <a className="lim26-back" href="/#/event" onClick={() => onNavigate('events')}>Wydarzenia</a>
@@ -591,8 +456,8 @@ function LimanowaStartPage({
         </nav>
       </header>
 
-      <main className="lim26-main">
-        <section className="lim26-hero lim26-scene" id="top">
+      <main ref={viewportRef} className="lim26-main lim26-slide-viewport">
+        <section className="lim26-hero lim26-scene lim26-slide" id="top">
           <img
             className="lim26-hero-image lim26-motion-media"
             src="/event/limanowa/hero-gra-o-wolnosc-limanowa-2026.png"
@@ -614,7 +479,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="o-wydarzeniu" className="lim26-section lim26-section--alt lim26-scene">
+        <section id="o-wydarzeniu" className="lim26-section lim26-section--alt lim26-scene lim26-slide">
           <div className="lim26-text-col lim26-motion-text">
             <h2>O wydarzeniu</h2>
             <p className="lim26-lead">To wejście w opowieść, która zaczyna się w terenie i dojrzewa we wspólnocie.</p>
@@ -630,7 +495,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="dla-kogo" className="lim26-section lim26-scene">
+        <section id="dla-kogo" className="lim26-section lim26-scene lim26-slide">
           <div className="lim26-two-col">
             <div className="lim26-motion-text">
               <h2>Dla kogo</h2>
@@ -657,7 +522,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="weekend" className="lim26-section lim26-section--alt lim26-scene">
+        <section id="weekend" className="lim26-section lim26-section--alt lim26-scene lim26-slide">
           <div className="lim26-text-col lim26-motion-text">
             <h2>Jak wygląda weekend</h2>
             <p className="lim26-lead">Weekend prowadzi od wejścia w klimat, przez dzień decyzji, aż po wspólny finał.</p>
@@ -685,7 +550,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="gra" className="lim26-section lim26-scene">
+        <section id="gra" className="lim26-section lim26-scene lim26-slide">
           <div className="lim26-two-col lim26-two-col--media">
             <div className="lim26-motion-text">
               <h2>Na czym polega gra</h2>
@@ -714,7 +579,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="historia-i-wartosci" className="lim26-section lim26-section--alt lim26-scene">
+        <section id="historia-i-wartosci" className="lim26-section lim26-section--alt lim26-scene lim26-slide">
           <div className="lim26-two-col lim26-two-col--media">
             <div className="lim26-motion-text">
               <h2>Historia i wartości</h2>
@@ -743,7 +608,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="baza-i-nocleg" className="lim26-section lim26-scene">
+        <section id="baza-i-nocleg" className="lim26-section lim26-scene lim26-slide">
           <div className="lim26-two-col">
             <div className="lim26-motion-text">
               <h2>Baza i nocleg</h2>
@@ -770,7 +635,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="co-zabrac" className="lim26-section lim26-section--alt lim26-scene">
+        <section id="co-zabrac" className="lim26-section lim26-section--alt lim26-scene lim26-slide">
           <div className="lim26-text-col lim26-motion-text">
             <h2>Co zabrać</h2>
             <p className="lim26-lead">Warto przyjechać przygotowanym, żeby dobrze wejść w cały weekend.</p>
@@ -795,7 +660,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="zapisy" className="lim26-section lim26-section--registration lim26-scene">
+        <section id="zapisy" className="lim26-section lim26-section--registration lim26-scene lim26-slide">
           <div className="lim26-registration-wrap">
             <div className="lim26-motion-text">
               <h2>Zapisy grup</h2>
@@ -864,7 +729,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="faq" className="lim26-section lim26-section--alt lim26-scene">
+        <section id="faq" className="lim26-section lim26-section--alt lim26-scene lim26-slide">
           <div className="lim26-text-col lim26-motion-text">
             <h2>FAQ</h2>
             <div className="lim26-faq-list">
@@ -912,7 +777,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section id="kontakt" className="lim26-section lim26-scene">
+        <section id="kontakt" className="lim26-section lim26-scene lim26-slide">
           <div className="lim26-two-col">
             <div className="lim26-motion-text">
               <h2>Kontakt</h2>
@@ -927,7 +792,7 @@ function LimanowaStartPage({
           </div>
         </section>
 
-        <section className="lim26-section lim26-section--alt lim26-gallery-placeholder lim26-scene">
+        <section id="galeria" className="lim26-section lim26-section--alt lim26-gallery-placeholder lim26-scene lim26-slide">
           <p className="lim26-motion-text">Po wydarzeniu pojawi się tutaj galeria zdjęć.</p>
         </section>
       </main>
