@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type MouseEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
   ApiError,
@@ -236,6 +236,7 @@ function LimanowaStartPage({
   onNavigate
 }: Pick<SharedEventPageProps, 'onNavigate'>) {
   useLimanowaSeo(true);
+  const location = useLocation();
   const [site, setSite] = useState<LimanowaEventSite | null>(null);
   const [siteLoading, setSiteLoading] = useState(true);
   const [siteError, setSiteError] = useState<string | null>(null);
@@ -308,7 +309,32 @@ function LimanowaStartPage({
   };
 
   const privacyLink = site?.policyLinks.privacyPolicyUrl ?? '/#/legal';
-  const rulesLink = site?.policyLinks.eventRulesUrl ?? '/#/event/limanowa/start#faq';
+  const rulesLink = site?.policyLinks.eventRulesUrl ?? '/#/event/limanowa/start?sekcja=faq';
+
+  const scrollToSection = useCallback((sectionId: string, behavior: ScrollBehavior = 'smooth') => {
+    const target = document.getElementById(sectionId);
+    if (!target) return;
+
+    const header = document.querySelector<HTMLElement>('.lim26-header');
+    const headerOffset = (header?.offsetHeight ?? 0) + 10;
+    const top = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+    window.scrollTo({ top: Math.max(top, 0), behavior });
+  }, []);
+
+  const handleSectionLink = useCallback((sectionId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+    event.preventDefault();
+    scrollToSection(sectionId);
+  }, [scrollToSection]);
+
+  useEffect(() => {
+    const section = new URLSearchParams(location.search).get('sekcja');
+    if (!section) return;
+    const frame = window.requestAnimationFrame(() => scrollToSection(section, 'auto'));
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.search, scrollToSection]);
 
   return (
     <div className="lim26-page lim26-start-page">
@@ -317,15 +343,15 @@ function LimanowaStartPage({
       <header className="lim26-header">
         <a className="lim26-back" href="/#/event" onClick={() => onNavigate('events')}>Wydarzenia</a>
         <nav className="lim26-top-nav" aria-label="Nawigacja sekcji">
-          <a href="#o-wydarzeniu">O wydarzeniu</a>
-          <a href="#dla-kogo">Dla kogo</a>
-          <a href="#weekend">Weekend</a>
-          <a href="#gra">Gra</a>
-          <a href="#historia-i-wartosci">Historia i wartości</a>
-          <a href="#baza-i-nocleg">Baza i nocleg</a>
-          <a href="#zapisy">Zapisy</a>
-          <a href="#faq">FAQ</a>
-          <a href="#kontakt">Kontakt</a>
+          <a href="/#/event/limanowa/start?sekcja=o-wydarzeniu" onClick={handleSectionLink('o-wydarzeniu')}>O wydarzeniu</a>
+          <a href="/#/event/limanowa/start?sekcja=dla-kogo" onClick={handleSectionLink('dla-kogo')}>Dla kogo</a>
+          <a href="/#/event/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Weekend</a>
+          <a href="/#/event/limanowa/start?sekcja=gra" onClick={handleSectionLink('gra')}>Gra</a>
+          <a href="/#/event/limanowa/start?sekcja=historia-i-wartosci" onClick={handleSectionLink('historia-i-wartosci')}>Historia i wartości</a>
+          <a href="/#/event/limanowa/start?sekcja=baza-i-nocleg" onClick={handleSectionLink('baza-i-nocleg')}>Baza i nocleg</a>
+          <a href="/#/event/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zapisy</a>
+          <a href="/#/event/limanowa/start?sekcja=faq" onClick={handleSectionLink('faq')}>FAQ</a>
+          <a href="/#/event/limanowa/start?sekcja=kontakt" onClick={handleSectionLink('kontakt')}>Kontakt</a>
         </nav>
       </header>
 
@@ -352,8 +378,8 @@ function LimanowaStartPage({
               To propozycja dla chłopaków z parafii i wspólnot ministranckich, którzy chcą przeżyć coś więcej niż zwykły wyjazd. Będzie ruch, zadania, rywalizacja, historia, współpraca, modlitwa i konkretna przygoda w duchu wiary, przyjaźni oraz odpowiedzialności.
             </p>
             <div className="lim26-hero-actions">
-              <a className="lim26-btn lim26-btn--primary" href="#zapisy">Zgłoś grupę</a>
-              <a className="lim26-btn lim26-btn--quiet" href="#weekend">Zobacz, jak wygląda weekend</a>
+              <a className="lim26-btn lim26-btn--primary" href="/#/event/limanowa/start?sekcja=zapisy" onClick={handleSectionLink('zapisy')}>Zgłoś grupę</a>
+              <a className="lim26-btn lim26-btn--quiet" href="/#/event/limanowa/start?sekcja=weekend" onClick={handleSectionLink('weekend')}>Zobacz, jak wygląda weekend</a>
             </div>
             <small>Dokładne informacje organizacyjne i lokalizacyjne otrzyma osoba odpowiedzialna za grupę po zgłoszeniu.</small>
           </div>
@@ -1402,8 +1428,8 @@ function LimanowaAdminPage({ showProfileMenu, onAuthAction }: Pick<SharedEventPa
     registrationParticipantsDeadline: '2026-06-01',
     published: true,
     privacyPolicyUrl: '/#/legal',
-    eventRulesUrl: '/#/event/limanowa/start#faq',
-    thingsToBringUrl: '/#/event/limanowa/start#co-zabrac'
+    eventRulesUrl: '/#/event/limanowa/start?sekcja=faq',
+    thingsToBringUrl: '/#/event/limanowa/start?sekcja=co-zabrac'
   });
 
   const eventId = dashboard?.event.id ?? null;

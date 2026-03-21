@@ -5,6 +5,8 @@ type LimanowaPointCloudProps = {
 };
 
 const SECTION_STOPS = [0, 0.22, 0.45, 0.66, 0.84, 1];
+const BASE_POINT_COUNT = 1450;
+const DESKTOP_POINT_COUNT = 1900;
 
 function clamp01(value: number): number {
   if (value < 0) return 0;
@@ -119,7 +121,7 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
       void main() {
         vec2 center = gl_PointCoord - vec2(0.5, 0.5);
         float radius = length(center);
-        float alpha = smoothstep(0.52, 0.08, radius) * 0.42;
+        float alpha = smoothstep(0.52, 0.08, radius) * 0.74;
         vec3 color = mix(uColorA, uColorB, gl_PointCoord.y);
         gl_FragColor = vec4(color, alpha);
       }
@@ -152,7 +154,7 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
   const [fallbackMode, setFallbackMode] = useState(false);
   const pointerRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
-  const staticStates = useMemo(() => createStates(1700), []);
+  const staticStates = useMemo(() => createStates(BASE_POINT_COUNT), []);
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -180,8 +182,8 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
     }
 
     let disposed = false;
-    const count = window.innerWidth >= 1200 ? 1900 : 1450;
-    const states = count === 1700 ? staticStates : createStates(count);
+    const count = window.innerWidth >= 1200 ? DESKTOP_POINT_COUNT : BASE_POINT_COUNT;
+    const states = count === BASE_POINT_COUNT ? staticStates : createStates(count);
     const working = new Float32Array(count * 3);
 
     const program = createProgram(gl);
@@ -257,9 +259,9 @@ export function LimanowaPointCloud({ className }: LimanowaPointCloudProps) {
       gl.bufferData(gl.ARRAY_BUFFER, working, gl.DYNAMIC_DRAW);
 
       gl.uniform2f(parallaxLocation, pointerRef.current.x, pointerRef.current.y);
-      gl.uniform1f(pointSizeLocation, width >= 1200 ? 6.4 : 5.2);
-      gl.uniform3f(colorALocation, 0.40, 0.44, 0.33);
-      gl.uniform3f(colorBLocation, 0.72, 0.65, 0.54);
+      gl.uniform1f(pointSizeLocation, width >= 1200 ? 8.4 : 6.8);
+      gl.uniform3f(colorALocation, 0.46, 0.51, 0.39);
+      gl.uniform3f(colorBLocation, 0.82, 0.74, 0.61);
 
       gl.drawArrays(gl.POINTS, 0, count);
     };

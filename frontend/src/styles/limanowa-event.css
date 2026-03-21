@@ -45,7 +45,7 @@
   height: 100%;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.65;
+  opacity: 0.92;
 }
 
 .lim26-pointcloud--fallback {
@@ -55,7 +55,7 @@
 
 .lim26-pointcloud--fallback img {
   width: min(700px, 90vw);
-  opacity: 0.3;
+  opacity: 0.52;
 }
 
 .lim26-header {
@@ -127,10 +127,11 @@
   object-fit: cover;
   object-position: center;
   filter: saturate(0.74) brightness(0.58);
+  opacity: 0.84;
 }
 
 .lim26-hero-overlay {
-  background: linear-gradient(180deg, rgba(14, 17, 16, 0.1) 0%, rgba(14, 17, 16, 0.84) 72%, rgba(14, 17, 16, 0.96) 100%);
+  background: linear-gradient(180deg, rgba(14, 17, 16, 0.08) 0%, rgba(14, 17, 16, 0.76) 72%, rgba(14, 17, 16, 0.9) 100%);
 }
 
 .lim26-hero-content {

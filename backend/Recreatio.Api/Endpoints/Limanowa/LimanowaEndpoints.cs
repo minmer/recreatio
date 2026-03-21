@@ -1373,8 +1373,8 @@ public static class LimanowaEndpoints
             Id = Guid.Empty,
             EventId = Guid.Empty,
             PrivacyPolicyUrl = "/#/legal",
-            EventRulesUrl = "/#/event/limanowa/start#faq",
-            ThingsToBringUrl = "/#/event/limanowa/start#co-zabrac",
+            EventRulesUrl = "/#/event/limanowa/start?sekcja=faq",
+            ThingsToBringUrl = "/#/event/limanowa/start?sekcja=co-zabrac",
             UpdatedAt = DateTimeOffset.UtcNow
         };
     }
