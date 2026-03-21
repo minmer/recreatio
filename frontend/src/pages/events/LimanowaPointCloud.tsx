@@ -8,6 +8,7 @@ type LimanowaPointCloudProps = {
 const BASE_POINT_COUNT = 12000;
 const DESKTOP_POINT_COUNT = 22000;
 const LARGE_DESKTOP_POINT_COUNT = 32000;
+const POINT_LAYER_COUNT = 5;
 const POINTER_PARALLAX_STRENGTH = 0.52;
 const POINTER_DEAD_ZONE = 0.08;
 const POINTER_CURVE_POWER = 1.8;
@@ -38,10 +39,11 @@ type MaskStateOptions = {
   jitter: number;
   offsetX?: number;
   offsetY?: number;
+  fitMode?: 'cover' | 'free';
 };
 
 const MASK_STATE_OPTIONS: MaskStateOptions[] = [
-  { scaleX: 1.9, scaleY: 1.86, depth: 0.22, jitter: 0.014, offsetY: -0.01 },
+  { scaleX: 3.24, scaleY: 3.24, depth: 0.22, jitter: 0.014, offsetY: -0.01, fitMode: 'cover' },
   { scaleX: 1.78, scaleY: 1.22, depth: 0.24, jitter: 0.014, offsetX: 0.2, offsetY: 0.01 },
   { scaleX: 2.02, scaleY: 1.28, depth: 0.23, jitter: 0.014, offsetY: -0.06 }
 ];
@@ -92,6 +94,15 @@ function createPointSeeds(count: number): Float32Array {
   return seeds;
 }
 
+function createPointLayers(count: number): Float32Array {
+  const random = createLcg(20260711);
+  const layers = new Float32Array(count);
+  for (let i = 0; i < count; i += 1) {
+    layers[i] = Math.floor(random() * POINT_LAYER_COUNT);
+  }
+  return layers;
+}
+
 function buildMaskState(count: number, mask: PointMask, options: MaskStateOptions, pointSeeds: Float32Array, stateIndex: number): Float32Array {
   const state = new Float32Array(count * 3);
   const maskAspect = mask.width / Math.max(1, mask.height);
@@ -104,11 +115,13 @@ function buildMaskState(count: number, mask: PointMask, options: MaskStateOption
     let baseY = (0.5 - (mask.ys[sourceIndex] / Math.max(1, mask.height - 1))) * 2;
     const lum = mask.luminance[sourceIndex];
 
-    // Preserve source image proportions so silhouettes are readable.
-    if (maskAspect >= 1) {
-      baseX *= maskAspect;
-    } else {
-      baseY /= Math.max(maskAspect, 0.001);
+    if (options.fitMode !== 'cover') {
+      // Preserve source image proportions so silhouettes are readable.
+      if (maskAspect >= 1) {
+        baseX *= maskAspect;
+      } else {
+        baseY /= Math.max(maskAspect, 0.001);
+      }
     }
 
     const jitterX = (fract(Math.sin((i + 1) * (stateIndex + 2) * 12.9898) * 43758.5453) - 0.5) * options.jitter;
@@ -373,22 +386,32 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
     gl.VERTEX_SHADER,
     `
       attribute vec3 aPosition;
+      attribute float aLayer;
       uniform vec2 uParallax;
       uniform float uPointSize;
+      uniform vec3 uHeroCover;
 
       void main() {
         vec3 p = aPosition;
+        p.xy *= mix(vec2(1.0, 1.0), uHeroCover.xy, uHeroCover.z);
+
+        float layerNorm = aLayer / ${Math.max(1, POINT_LAYER_COUNT - 1)}.0;
+        float layerSigned = layerNorm * 2.0 - 1.0;
+        p.z += layerSigned * 0.36;
+
         float depthNorm = clamp((p.z + 0.35) / 0.7, 0.0, 1.0);
         float depthParallax = mix(0.72, 1.48, depthNorm);
-        p.x += uParallax.x * 0.34 * depthParallax;
-        p.y += uParallax.y * 0.26 * depthParallax;
+        float layerParallax = mix(1.95, 0.72, layerNorm);
+        float parallaxMix = depthParallax * layerParallax;
+        p.x += uParallax.x * 0.34 * parallaxMix;
+        p.y += uParallax.y * 0.26 * parallaxMix;
 
         float z = p.z + 3.2;
         float x = p.x / z;
         float y = p.y / z;
 
         gl_Position = vec4(x, y, 0.0, 1.0);
-        gl_PointSize = max(1.6, uPointSize / z);
+        gl_PointSize = max(1.6, (uPointSize / z) * mix(0.92, 1.08, layerNorm));
       }
     `
   );
@@ -493,19 +516,33 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
         ? DESKTOP_POINT_COUNT
         : BASE_POINT_COUNT;
     const states = count === BASE_POINT_COUNT ? staticStates : createStates(count, masks);
+    const layers = createPointLayers(count);
     const working = new Float32Array(count * 3);
 
     const program = createProgram(gl);
     gl.useProgram(program);
 
     const positionLocation = gl.getAttribLocation(program, 'aPosition');
+    const layerLocation = gl.getAttribLocation(program, 'aLayer');
     const parallaxLocation = gl.getUniformLocation(program, 'uParallax');
     const pointSizeLocation = gl.getUniformLocation(program, 'uPointSize');
+    const heroCoverLocation = gl.getUniformLocation(program, 'uHeroCover');
     const colorALocation = gl.getUniformLocation(program, 'uColorA');
     const colorBLocation = gl.getUniformLocation(program, 'uColorB');
 
     const buffer = gl.createBuffer();
-    if (!buffer || positionLocation < 0 || !parallaxLocation || !pointSizeLocation || !colorALocation || !colorBLocation) {
+    const layerBuffer = gl.createBuffer();
+    if (
+      !buffer ||
+      !layerBuffer ||
+      positionLocation < 0 ||
+      layerLocation < 0 ||
+      !parallaxLocation ||
+      !pointSizeLocation ||
+      !heroCoverLocation ||
+      !colorALocation ||
+      !colorBLocation
+    ) {
       setFallbackMode(true);
       return;
     }
@@ -513,6 +550,11 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, layerBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, layers, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(layerLocation);
+    gl.vertexAttribPointer(layerLocation, 1, gl.FLOAT, false, 0, 0);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -556,6 +598,11 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
       const localT = rawT < 0.56
         ? smoothStep01(rawT / 0.56) * 0.12
         : 0.12 + smoothStep01((rawT - 0.56) / 0.44) * 0.88;
+      const heroMaskAspect = masks?.[0] ? masks[0].width / Math.max(1, masks[0].height) : 16 / 9;
+      const viewportAspect = width / Math.max(1, height);
+      const heroCoverScaleX = viewportAspect < heroMaskAspect ? heroMaskAspect / viewportAspect : 1;
+      const heroCoverScaleY = viewportAspect > heroMaskAspect ? viewportAspect / heroMaskAspect : 1;
+      const heroWeight = stateIndex === 0 ? 1 - localT : 0;
 
       const from = states[Math.min(stateIndex, states.length - 1)];
       const to = states[Math.min(stateIndex + 1, states.length - 1)];
@@ -568,6 +615,7 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
 
       gl.uniform2f(parallaxLocation, pointerRef.current.x, pointerRef.current.y);
       gl.uniform1f(pointSizeLocation, width >= 1200 ? 6.1 : 5.3);
+      gl.uniform3f(heroCoverLocation, heroCoverScaleX, heroCoverScaleY, heroWeight);
       gl.uniform3f(colorALocation, 0.46, 0.51, 0.39);
       gl.uniform3f(colorBLocation, 0.82, 0.74, 0.61);
 
@@ -635,6 +683,7 @@ export function LimanowaPointCloud({ className, viewportRef }: LimanowaPointClou
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerleave', onPointerLeave);
       gl.deleteBuffer(buffer);
+      gl.deleteBuffer(layerBuffer);
       gl.deleteProgram(program);
     };
   }, [staticStates, masks, viewportRef]);
