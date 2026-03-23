@@ -39,7 +39,7 @@ const PARTICIPANT_STATUS_OPTIONS: Array<{ value: ParticipantStatusValue; label: 
 const PARTICIPANT_STATUS_LABELS: Record<ParticipantStatusValue, string> = {
   adult: 'Osoba pełnoletnia',
   minor_with_guardian: 'Osoba niepełnoletnia z opiekunem',
-  adult_guardian_for_minor: 'Osoba pełnoletnia odpowiedzialna za osobę niepełnoletnią'
+  adult_guardian_for_minor: 'Osoba małoletnia bez opiekuna'
 };
 
 const DEFAULT_FORM: RegistrationFormState = {
