@@ -14672,12 +14672,33 @@ public static class CogitaEndpoints
             if (node["definition"] is JsonObject definition)
             {
                 SanitizeQuestionDefinition(definition);
+                return JsonSerializer.SerializeToElement(node);
             }
-            else
+
+            var parsedDefinition = ParseQuestionDefinitionNode(node["definition"]);
+            if (parsedDefinition is not null)
             {
-                // Accept direct question definition payloads for legacy compatibility.
-                SanitizeQuestionDefinition(node);
+                node["definition"] = parsedDefinition;
+                return JsonSerializer.SerializeToElement(node);
             }
+
+            if (node["questionTypes"] is JsonArray questionTypes)
+            {
+                foreach (var candidate in questionTypes)
+                {
+                    var parsedCandidate = ParseQuestionDefinitionNode(candidate);
+                    if (parsedCandidate is null)
+                    {
+                        continue;
+                    }
+
+                    node["definition"] = parsedCandidate;
+                    return JsonSerializer.SerializeToElement(node);
+                }
+            }
+
+            // Accept direct question definition payloads for legacy compatibility.
+            SanitizeQuestionDefinition(node);
 
             return JsonSerializer.SerializeToElement(node);
         }
@@ -14691,17 +14712,164 @@ public static class CogitaEndpoints
     {
         var rawType = TryReadNodeString(definition["type"]) ?? TryReadNodeString(definition["kind"]) ?? "selection";
         var normalizedType = NormalizeQuestionKindAlias(rawType);
-        if (!string.IsNullOrWhiteSpace(normalizedType))
+        if (!IsSupportedQuestionKind(normalizedType))
         {
-            definition["type"] = normalizedType;
-            if (definition.ContainsKey("kind"))
-            {
-                definition["kind"] = normalizedType;
-            }
+            normalizedType = "selection";
         }
 
-        if (!string.Equals(normalizedType, "selection", StringComparison.Ordinal))
+        definition["type"] = normalizedType;
+        if (definition.ContainsKey("kind"))
         {
+            definition["kind"] = normalizedType;
+        }
+
+        if (string.Equals(normalizedType, "truefalse", StringComparison.Ordinal))
+        {
+            if (!TryReadNodeBool(definition["answer"], out var answerValue) &&
+                !TryReadNodeBool(definition["expected"], out answerValue))
+            {
+                answerValue = true;
+            }
+
+            definition["answer"] = answerValue;
+            return;
+        }
+
+        if (string.Equals(normalizedType, "ordering", StringComparison.Ordinal))
+        {
+            var orderingOptions = ReadNodeStringArray(definition["options"]);
+            if (orderingOptions.Count == 0)
+            {
+                orderingOptions = ReadNodeStringArray(definition["items"]);
+            }
+
+            if (orderingOptions.Count == 0)
+            {
+                orderingOptions.Add(string.Empty);
+            }
+
+            definition["options"] = BuildJsonStringArray(orderingOptions);
+            definition.Remove("answer");
+            return;
+        }
+
+        if (string.Equals(normalizedType, "matching", StringComparison.Ordinal))
+        {
+            var columns = ReadNodeStringMatrix(definition["columns"]);
+            if (columns.Count == 0)
+            {
+                var left = ReadNodeStringArray(definition["left"]);
+                var right = ReadNodeStringArray(definition["right"]);
+                if (left.Count > 0 && right.Count > 0)
+                {
+                    columns = new List<List<string>>
+                    {
+                        left,
+                        right
+                    };
+                }
+            }
+
+            if (columns.Count < 2)
+            {
+                columns = new List<List<string>>
+                {
+                    new() { string.Empty },
+                    new() { string.Empty }
+                };
+            }
+
+            foreach (var column in columns)
+            {
+                if (column.Count == 0)
+                {
+                    column.Add(string.Empty);
+                }
+            }
+
+            var width = columns.Count;
+            var rawPaths = ReadNodeIntMatrix(definition["answer"]);
+            if (rawPaths.Count == 0)
+            {
+                rawPaths = ReadNodeIntMatrix(definition["correctPairs"]);
+            }
+
+            var pathSet = new HashSet<string>(StringComparer.Ordinal);
+            var normalizedPaths = new List<List<int>>();
+            foreach (var path in rawPaths)
+            {
+                if (path.Count != width)
+                {
+                    continue;
+                }
+
+                var validPath = true;
+                for (var columnIndex = 0; columnIndex < width; columnIndex++)
+                {
+                    var value = path[columnIndex];
+                    if (value < 0 || value >= columns[columnIndex].Count)
+                    {
+                        validPath = false;
+                        break;
+                    }
+                }
+
+                if (!validPath)
+                {
+                    continue;
+                }
+
+                var key = string.Join(",", path);
+                if (!pathSet.Add(key))
+                {
+                    continue;
+                }
+
+                normalizedPaths.Add(path);
+            }
+
+            definition["columns"] = BuildJsonStringMatrix(columns);
+            definition["answer"] = new JsonObject
+            {
+                ["paths"] = BuildJsonIntMatrix(normalizedPaths)
+            };
+            return;
+        }
+
+        if (string.Equals(normalizedType, "number", StringComparison.Ordinal))
+        {
+            if (definition["answer"] is JsonValue existingNumber &&
+                existingNumber.TryGetValue<double>(out var numericAnswer))
+            {
+                definition["answer"] = numericAnswer;
+                return;
+            }
+
+            var answerString = TryReadNodeString(definition["answer"]);
+            if (!string.IsNullOrWhiteSpace(answerString))
+            {
+                definition["answer"] = answerString;
+                return;
+            }
+
+            if (definition["expected"] is JsonValue expectedNumber &&
+                expectedNumber.TryGetValue<double>(out var numericExpected))
+            {
+                definition["answer"] = numericExpected;
+                return;
+            }
+
+            definition["answer"] = string.Empty;
+            return;
+        }
+
+        if (string.Equals(normalizedType, "text", StringComparison.Ordinal) ||
+            string.Equals(normalizedType, "date", StringComparison.Ordinal))
+        {
+            var textAnswer = TryReadNodeString(definition["answer"]) ??
+                             TryReadNodeString(definition["expected"]) ??
+                             string.Empty;
+            definition["answer"] = textAnswer;
             return;
         }
 
@@ -14787,6 +14955,11 @@ public static class CogitaEndpoints
         definition["answer"] = BuildJsonIntArray(normalizedIndexes);
     }
 
+    private static bool IsSupportedQuestionKind(string value)
+    {
+        return value is "selection" or "truefalse" or "text" or "number" or "date" or "matching" or "ordering";
+    }
+
     private static string NormalizeQuestionKindAlias(string? value)
     {
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
@@ -14805,6 +14978,41 @@ public static class CogitaEndpoints
         };
     }
 
+    private static JsonObject? ParseQuestionDefinitionNode(JsonNode? node)
+    {
+        if (node is JsonObject objectNode)
+        {
+            var cloned = JsonNode.Parse(objectNode.ToJsonString()) as JsonObject;
+            if (cloned is null)
+            {
+                return null;
+            }
+
+            SanitizeQuestionDefinition(cloned);
+            return cloned;
+        }
+
+        if (node is JsonValue scalar)
+        {
+            try
+            {
+                if (!scalar.TryGetValue<string>(out var raw) || string.IsNullOrWhiteSpace(raw))
+                {
+                    return null;
+                }
+
+                var parsed = JsonNode.Parse(raw);
+                return ParseQuestionDefinitionNode(parsed);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     private static string? TryReadNodeString(JsonNode? node)
     {
         if (node is null)
@@ -14821,6 +15029,77 @@ public static class CogitaEndpoints
         {
             return null;
         }
+    }
+
+    private static bool TryReadNodeBool(JsonNode? node, out bool value)
+    {
+        value = false;
+        if (node is null)
+        {
+            return false;
+        }
+
+        if (node is JsonValue scalar)
+        {
+            try
+            {
+                if (scalar.TryGetValue<bool>(out var boolValue))
+                {
+                    value = boolValue;
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (scalar.TryGetValue<int>(out var intValue))
+                {
+                    value = intValue != 0;
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (scalar.TryGetValue<string>(out var raw))
+                {
+                    raw = raw?.Trim();
+                    if (string.IsNullOrWhiteSpace(raw))
+                    {
+                        return false;
+                    }
+
+                    if (bool.TryParse(raw, out var parsedBool))
+                    {
+                        value = parsedBool;
+                        return true;
+                    }
+
+                    if (string.Equals(raw, "1", StringComparison.Ordinal))
+                    {
+                        value = true;
+                        return true;
+                    }
+
+                    if (string.Equals(raw, "0", StringComparison.Ordinal))
+                    {
+                        value = false;
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        return false;
     }
 
     private static List<string> ReadNodeStringArray(JsonNode? node)
@@ -14843,6 +15122,33 @@ public static class CogitaEndpoints
         }
 
         return values;
+    }
+
+    private static List<List<string>> ReadNodeStringMatrix(JsonNode? node)
+    {
+        var rows = new List<List<string>>();
+        if (node is not JsonArray matrix)
+        {
+            return rows;
+        }
+
+        foreach (var rowNode in matrix)
+        {
+            if (rowNode is not JsonArray rowArray)
+            {
+                continue;
+            }
+
+            var row = new List<string>();
+            foreach (var cell in rowArray)
+            {
+                row.Add(TryReadNodeString(cell) ?? string.Empty);
+            }
+
+            rows.Add(row);
+        }
+
+        return rows;
     }
 
     private static bool TryReadNodeInt(JsonNode? node, out int value)
@@ -14909,6 +15215,12 @@ public static class CogitaEndpoints
     private static List<int> ReadNodeIntArray(JsonNode? node)
     {
         var values = new List<int>();
+        if (node is JsonValue && TryReadNodeInt(node, out var single))
+        {
+            values.Add(single);
+            return values;
+        }
+
         if (node is not JsonArray array)
         {
             return values;
@@ -14925,6 +15237,45 @@ public static class CogitaEndpoints
         return values;
     }
 
+    private static List<List<int>> ReadNodeIntMatrix(JsonNode? node)
+    {
+        if (node is JsonObject objectNode &&
+            objectNode["paths"] is JsonNode nestedPaths)
+        {
+            node = nestedPaths;
+        }
+
+        var rows = new List<List<int>>();
+        if (node is not JsonArray matrix)
+        {
+            return rows;
+        }
+
+        foreach (var rowNode in matrix)
+        {
+            if (rowNode is not JsonArray rowArray)
+            {
+                continue;
+            }
+
+            var row = new List<int>();
+            foreach (var cell in rowArray)
+            {
+                if (TryReadNodeInt(cell, out var value))
+                {
+                    row.Add(value);
+                }
+            }
+
+            if (row.Count > 0)
+            {
+                rows.Add(row);
+            }
+        }
+
+        return rows;
+    }
+
     private static JsonArray BuildJsonStringArray(IEnumerable<string> values)
     {
         var array = new JsonArray();
@@ -14936,6 +15287,17 @@ public static class CogitaEndpoints
         return array;
     }
 
+    private static JsonArray BuildJsonStringMatrix(IEnumerable<IEnumerable<string>> rows)
+    {
+        var matrix = new JsonArray();
+        foreach (var row in rows)
+        {
+            matrix.Add(BuildJsonStringArray(row));
+        }
+
+        return matrix;
+    }
+
     private static JsonArray BuildJsonIntArray(IEnumerable<int> values)
     {
         var array = new JsonArray();
@@ -14945,6 +15307,17 @@ public static class CogitaEndpoints
         }
 
         return array;
+    }
+
+    private static JsonArray BuildJsonIntMatrix(IEnumerable<IEnumerable<int>> rows)
+    {
+        var matrix = new JsonArray();
+        foreach (var row in rows)
+        {
+            matrix.Add(BuildJsonIntArray(row));
+        }
+
+        return matrix;
     }
 
     private static JsonElement SanitizePayloadForInfoType(string infoType, JsonElement payload)
@@ -16103,7 +16476,8 @@ public static class CogitaEndpoints
             var raw = typeNode.GetString();
             if (!string.IsNullOrWhiteSpace(raw))
             {
-                return raw!.Trim().ToLowerInvariant();
+                var normalized = NormalizeQuestionKindAlias(raw);
+                return IsSupportedQuestionKind(normalized) ? normalized : "selection";
             }
         }
 
@@ -16113,14 +16487,8 @@ public static class CogitaEndpoints
             var raw = kindNode.GetString();
             if (!string.IsNullOrWhiteSpace(raw))
             {
-                var normalized = raw!.Trim().ToLowerInvariant();
-                return normalized switch
-                {
-                    "multi_select" or "single_select" => "selection",
-                    "boolean" => "truefalse",
-                    "order" => "ordering",
-                    _ => normalized
-                };
+                var normalized = NormalizeQuestionKindAlias(raw);
+                return IsSupportedQuestionKind(normalized) ? normalized : "selection";
             }
         }
 
