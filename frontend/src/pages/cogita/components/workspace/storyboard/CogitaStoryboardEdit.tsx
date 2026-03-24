@@ -56,7 +56,7 @@ export type CogitaStoryboardEditProps = {
   knowledgeSearchLayout?: 'basic' | 'workspace';
 };
 
-type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
+type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group' | 'separator' | 'join';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
 type StoryboardCardDirection = 'front_to_back' | 'back_to_front';
 type StoryboardEdgeKind = 'path' | 'dependency' | 'card_right' | 'card_wrong';
@@ -170,7 +170,15 @@ function toBoolean(value: unknown, fallback = false) {
 }
 
 function normalizeNodeKind(value: unknown): StoryboardNodeKind {
-  if (value === 'start' || value === 'end' || value === 'static' || value === 'card' || value === 'group') {
+  if (
+    value === 'start' ||
+    value === 'end' ||
+    value === 'static' ||
+    value === 'card' ||
+    value === 'group' ||
+    value === 'separator' ||
+    value === 'join'
+  ) {
     return value;
   }
   if (value === 'text' || value === 'video' || value === 'audio' || value === 'image' || value === 'revision') {
@@ -206,7 +214,7 @@ function inferSourcePort(raw: Record<string, unknown>, sourceNode: StoryboardNod
   const kind = toString(raw.kind).trim();
   if (kind === 'card_right') return 'out-right';
   if (kind === 'card_wrong') return 'out-wrong';
-  if (sourceNode?.kind === 'card') return 'out-right';
+  if (sourceNode?.kind === 'card' || sourceNode?.kind === 'join') return 'out-right';
   return 'out-path';
 }
 
@@ -264,10 +272,20 @@ function createEndNode(nodeId?: string): StoryboardNodeRecord {
   };
 }
 
-function createAuthorNode(kind: 'static' | 'card' | 'group', index: number): StoryboardNodeRecord {
+function createAuthorNode(kind: 'static' | 'card' | 'group' | 'separator' | 'join', index: number): StoryboardNodeRecord {
+  const title =
+    kind === 'card'
+      ? `Card ${index}`
+      : kind === 'group'
+        ? `Group ${index}`
+        : kind === 'separator'
+          ? `Separator ${index}`
+          : kind === 'join'
+            ? `Join ${index}`
+            : `Static ${index}`;
   return {
     nodeId: createId(kind),
-    title: kind === 'card' ? `Card ${index}` : kind === 'group' ? `Group ${index}` : `Static ${index}`,
+    title,
     kind,
     description: '',
     position: {
@@ -721,6 +739,16 @@ function collectScriptLines(graph: StoryboardGraph, depth = 0): string[] {
       if (node.groupGraph) {
         lines.push(...collectScriptLines(node.groupGraph, depth + 1));
       }
+      return;
+    }
+
+    if (node.kind === 'separator') {
+      lines.push(`${prefix}Separator: ${node.title}`);
+      return;
+    }
+
+    if (node.kind === 'join') {
+      lines.push(`${prefix}Join: ${node.title}`);
     }
   });
 
@@ -900,6 +928,20 @@ function getNodeVisual(kind: StoryboardNodeKind) {
       badge: 'GROUP'
     };
   }
+  if (kind === 'separator') {
+    return {
+      border: 'rgba(120, 222, 230, 0.95)',
+      bg: 'rgba(20, 70, 79, 0.9)',
+      badge: 'SEPARATOR'
+    };
+  }
+  if (kind === 'join') {
+    return {
+      border: 'rgba(255, 196, 148, 0.96)',
+      bg: 'rgba(86, 49, 21, 0.9)',
+      badge: 'JOIN'
+    };
+  }
   return {
     border: 'rgba(141, 214, 255, 0.95)',
     bg: 'rgba(18, 48, 77, 0.92)',
@@ -949,7 +991,7 @@ function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
         </>
       ) : null}
 
-      {data.kind === 'card' ? (
+      {data.kind === 'card' || data.kind === 'join' ? (
         <>
           <Handle
             type="source"
@@ -966,7 +1008,7 @@ function StoryboardFlowNode({ data }: NodeProps<StoryboardFlowNodeData>) {
         </>
       ) : null}
 
-      {data.kind !== 'card' && data.kind !== 'end' ? (
+      {data.kind !== 'card' && data.kind !== 'join' && data.kind !== 'end' ? (
         <Handle
           type="source"
           position={Position.Right}
@@ -1078,6 +1120,14 @@ export function CogitaStoryboardEdit({
     front_to_back: storyboardEditorCopy.cardDirectionFrontToBack,
     back_to_front: storyboardEditorCopy.cardDirectionBackToFront
   };
+  const separatorNodeKindLabel =
+    language === 'pl' ? 'Separator' : language === 'de' ? 'Separator' : 'Separator';
+  const joinNodeKindLabel =
+    language === 'pl' ? 'Join' : language === 'de' ? 'Join' : 'Join';
+  const addSeparatorActionLabel =
+    language === 'pl' ? 'Dodaj separator' : language === 'de' ? 'Separator hinzufügen' : 'Add separator';
+  const addJoinActionLabel =
+    language === 'pl' ? 'Dodaj join' : language === 'de' ? 'Join hinzufügen' : 'Add join';
 
   const isSearchMode = resolvedMode === 'search';
   const isCreateMode = resolvedMode === 'create';
@@ -1356,6 +1406,10 @@ export function CogitaStoryboardEdit({
             ? `${storyboardEditorCopy.nodeKindCard} · ${directionLabels[node.cardDirection]}`
             : node.kind === 'group'
               ? storyboardEditorCopy.nodeKindGroup
+              : node.kind === 'separator'
+                ? separatorNodeKindLabel
+                : node.kind === 'join'
+                  ? joinNodeKindLabel
               : node.kind === 'start'
                 ? storyboardEditorCopy.nodeKindStart
                 : storyboardEditorCopy.nodeKindEnd;
@@ -1374,7 +1428,20 @@ export function CogitaStoryboardEdit({
           selected: node.nodeId === selectedNodeId
         };
       }),
-    [activeGraph.nodes, canEdit, directionLabels, selectedNodeId, staticTypeLabels, storyboardEditorCopy.nodeKindCard, storyboardEditorCopy.nodeKindEnd, storyboardEditorCopy.nodeKindGroup, storyboardEditorCopy.nodeKindStart, storyboardEditorCopy.nodeKindStatic]
+    [
+      activeGraph.nodes,
+      canEdit,
+      directionLabels,
+      joinNodeKindLabel,
+      selectedNodeId,
+      separatorNodeKindLabel,
+      staticTypeLabels,
+      storyboardEditorCopy.nodeKindCard,
+      storyboardEditorCopy.nodeKindEnd,
+      storyboardEditorCopy.nodeKindGroup,
+      storyboardEditorCopy.nodeKindStart,
+      storyboardEditorCopy.nodeKindStatic
+    ]
   );
 
   const flowEdges = useMemo<Edge[]>(
@@ -1636,7 +1703,7 @@ export function CogitaStoryboardEdit({
     }
   };
 
-  const addNode = (kind: 'static' | 'card' | 'group') => {
+  const addNode = (kind: 'static' | 'card' | 'group' | 'separator' | 'join') => {
     if (!canEdit) return;
     updateActiveGraph((graph) => {
       const authorCount = graph.nodes.filter((node) => !isStructuralNode(node)).length;
@@ -1694,7 +1761,7 @@ export function CogitaStoryboardEdit({
 
   const getSourcePort = (sourceNode: StoryboardNodeRecord | undefined, handleId?: string | null): StoryboardSourcePort | null => {
     if (!sourceNode) return null;
-    if (sourceNode.kind === 'card') {
+    if (sourceNode.kind === 'card' || sourceNode.kind === 'join') {
       if (handleId === 'out-right' || handleId === 'out-wrong') return handleId;
       return null;
     }
@@ -2168,6 +2235,8 @@ export function CogitaStoryboardEdit({
                     <button type="button" className="ghost" onClick={() => addNode('static')} disabled={!canEdit}>{storyboardEditorCopy.addStaticAction}</button>
                     <button type="button" className="ghost" onClick={() => addNode('card')} disabled={!canEdit}>{storyboardEditorCopy.addCardAction}</button>
                     <button type="button" className="ghost" onClick={() => addNode('group')} disabled={!canEdit}>{storyboardEditorCopy.addGroupAction}</button>
+                    <button type="button" className="ghost" onClick={() => addNode('separator')} disabled={!canEdit}>{addSeparatorActionLabel}</button>
+                    <button type="button" className="ghost" onClick={() => addNode('join')} disabled={!canEdit}>{addJoinActionLabel}</button>
                   </div>
 
                   <div className="cogita-storyboard-graph-canvas">

@@ -134,6 +134,8 @@ Kind normalization:
 - `end` -> `end`
 - `card` -> `card`
 - `group` -> `group`
+- `separator` -> `separator`
+- `join` -> `join`
 - `text`/`video`/`audio`/`image`/`revision`/unknown -> `static`
 
 ## 6.1 Static node fields
@@ -177,6 +179,32 @@ If notion is unresolved, warning is returned.
 
 - `groupGraph` optional nested graph (same schema recursively)
 
+## 6.4 Chaptering nodes
+
+### Separator
+- `kind: "separator"`
+- purpose: branch selector for parallel chapter paths
+- expected outgoing: one or more `out-path` edges to chapter starts (often `group` nodes)
+
+### Join
+- `kind: "join"`
+- purpose: chapter merge checkpoint
+- expected outgoing:
+1. `out-right` -> continuation when all separator chapter branches are fulfilled
+2. `out-wrong` -> fallback (typically back to the same separator) when some chapter branches are still missing
+
+Runtime semantics:
+- separator can be used with group-based chaptering
+- after returning to separator from join-fallback, only remaining chapter paths are offered
+- when all chapter paths are completed, join follows the `out-right` outcome
+- chapter fulfillment is based on branch target completion in the same graph scope
+
+Recommended chapter graph shape:
+1. `separator` with multiple `out-path` edges to chapter starts (often `group` nodes)
+2. each chapter path converges to one shared `join`
+3. `join.out-wrong` returns to the same `separator`
+4. `join.out-right` continues the main story
+
 ## 7. Edge constraints
 
 Edge fields:
@@ -192,6 +220,23 @@ Edge fields:
 Port normalization:
 - source: `out-path` | `out-right` | `out-wrong`
 - target: `in-path` | `in-dependency`
+
+Recommended source handles by node kind:
+- `card`: `out-right`, `out-wrong`
+- `join`: `out-right`, `out-wrong`
+- `separator`: `out-path`
+- `static` / `group` / `start`: usually `out-path`
+
+## 7.1 Chapter runtime controls
+
+When a runtime is inside an active separator-join chapter cycle, UI should expose:
+- **Restart chapter**: jump back to the currently selected chapter start
+- **Go to chapter end**: jump to the chapter `join` node
+
+Expected behavior:
+1. If not all required chapter branches are fulfilled, `go to chapter end` lands on `join`, then `join.out-wrong` sends user back to `separator`.
+2. If all required branches are fulfilled, `join.out-right` continues to the next story part.
+3. Returning to `separator` during an active cycle should list only remaining branches.
 
 Derived edge kind:
 - `in-dependency` -> `dependency`

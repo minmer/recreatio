@@ -27,7 +27,7 @@ import {
   type CheckcardPromptModel
 } from './components/runtime/revision/primitives/RevisionCheckcardShell';
 
-type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group';
+type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group' | 'separator' | 'join';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
 type StoryboardCardDirection = 'front_to_back' | 'back_to_front';
 type StoryboardEdgeKind = 'path' | 'dependency' | 'card_right' | 'card_wrong';
@@ -113,6 +113,8 @@ type RuntimeState = {
   displayedBlocks: RuntimeBlock[];
   visited: Record<string, boolean>;
   completedGroups: Record<string, boolean>;
+  activeSeparatorByGraphPath: Record<string, string>;
+  activeChapterStartByGraphPath: Record<string, string>;
   finished: boolean;
 };
 
@@ -214,7 +216,17 @@ function createDefaultGraph(): StoryboardGraph {
 }
 
 function normalizeNodeKind(value: unknown): StoryboardNodeKind {
-  if (value === 'start' || value === 'end' || value === 'static' || value === 'card' || value === 'group') return value;
+  if (
+    value === 'start' ||
+    value === 'end' ||
+    value === 'static' ||
+    value === 'card' ||
+    value === 'group' ||
+    value === 'separator' ||
+    value === 'join'
+  ) {
+    return value;
+  }
   if (value === 'text' || value === 'video' || value === 'audio' || value === 'image' || value === 'revision') return 'static';
   return 'static';
 }
@@ -503,6 +515,7 @@ function parseGraph(raw: unknown): StoryboardGraph {
       const fromNodeId = toString(edge.fromNodeId).trim();
       const toNodeId = toString(edge.toNodeId).trim();
       if (!fromNodeId || !toNodeId) return null;
+      const sourceNode = nodeById.get(fromNodeId);
       const sourcePortRaw = toString(edge.sourcePort).trim();
       const targetPortRaw = toString(edge.targetPort).trim();
       const kindRaw = toString(edge.kind).trim();
@@ -513,6 +526,8 @@ function parseGraph(raw: unknown): StoryboardGraph {
             ? 'out-right'
             : kindRaw === 'card_wrong'
               ? 'out-wrong'
+              : sourceNode?.kind === 'card' || sourceNode?.kind === 'join'
+                ? 'out-right'
               : 'out-path';
       const targetPort: StoryboardTargetPort =
         targetPortRaw === 'in-dependency' || targetPortRaw === 'in-path'
@@ -660,8 +675,36 @@ function cloneState(state: RuntimeState): RuntimeState {
     displayedBlocks: [...state.displayedBlocks],
     visited: { ...state.visited },
     completedGroups: { ...state.completedGroups },
+    activeSeparatorByGraphPath: { ...state.activeSeparatorByGraphPath },
+    activeChapterStartByGraphPath: { ...state.activeChapterStartByGraphPath },
     finished: state.finished
   };
+}
+
+function buildGraphPathKey(graphPath: string[]) {
+  return graphPath.join('/') || 'root';
+}
+
+function getSeparatorRemainingEdges(
+  graph: StoryboardGraph,
+  graphPath: string[],
+  separatorNodeId: string,
+  visited: Record<string, boolean>,
+  onlyRemaining: boolean
+) {
+  const options = getOutgoingEdges(graph, graphPath, separatorNodeId, 'out-path', visited);
+  if (!onlyRemaining) return options;
+  return options.filter((edge) => visited[buildNodeKey(graphPath, edge.toNodeId)] !== true);
+}
+
+function findJoinNodeIdForSeparator(graph: StoryboardGraph, separatorNodeId: string) {
+  const joinEdge = graph.edges.find(
+    (edge) => edge.toNodeId === separatorNodeId && edge.sourcePort === 'out-wrong'
+  );
+  if (!joinEdge) return null;
+  const joinNode = findNode(graph, joinEdge.fromNodeId);
+  if (!joinNode || joinNode.kind !== 'join') return null;
+  return joinNode.nodeId;
 }
 
 function advanceRuntime(
@@ -732,6 +775,48 @@ function advanceRuntime(
       continue;
     }
 
+    if (node.kind === 'join') {
+      const graphPathKey = buildGraphPathKey(next.graphPath);
+      const separatorNodeId = next.activeSeparatorByGraphPath[graphPathKey];
+      const separatorNode = separatorNodeId ? findNode(next.graph, separatorNodeId) : null;
+
+      if (separatorNode?.kind === 'separator') {
+        const separatorEdges = getOutgoingEdges(next.graph, next.graphPath, separatorNode.nodeId, 'out-path', next.visited);
+        const requiredTargets = Array.from(new Set(separatorEdges.map((edge) => edge.toNodeId)));
+        const allFulfilled = requiredTargets.every(
+          (targetNodeId) => next.visited[buildNodeKey(next.graphPath, targetNodeId)] === true
+        );
+
+        const preferredPort: StoryboardSourcePort = allFulfilled ? 'out-right' : 'out-wrong';
+        const preferredEdge =
+          getOutgoingEdges(next.graph, next.graphPath, node.nodeId, preferredPort, next.visited)[0] ??
+          getOutgoingEdges(next.graph, next.graphPath, node.nodeId, 'out-path', next.visited)[0] ??
+          null;
+
+        if (allFulfilled) {
+          delete next.activeSeparatorByGraphPath[graphPathKey];
+          delete next.activeChapterStartByGraphPath[graphPathKey];
+        }
+
+        if (preferredEdge) {
+          nodeId = preferredEdge.toNodeId;
+          displayMode = preferredEdge.displayMode;
+          continue;
+        }
+      }
+
+      const fallbackEdge =
+        getOutgoingEdges(next.graph, next.graphPath, node.nodeId, 'out-path', next.visited)[0] ??
+        getOutgoingEdges(next.graph, next.graphPath, node.nodeId, 'out-right', next.visited)[0] ??
+        getOutgoingEdges(next.graph, next.graphPath, node.nodeId, 'out-wrong', next.visited)[0] ??
+        null;
+      if (fallbackEdge) {
+        nodeId = fallbackEdge.toNodeId;
+        displayMode = fallbackEdge.displayMode;
+        continue;
+      }
+    }
+
     const block = buildRuntimeBlock(next.graphPath, node);
     next.displayedBlocks = displayMode === 'expand' ? [...next.displayedBlocks, block] : [block];
     next.finished = false;
@@ -751,6 +836,8 @@ function createInitialRuntime(rootGraph: StoryboardGraph): RuntimeState {
     displayedBlocks: [],
     visited: {},
     completedGroups: {},
+    activeSeparatorByGraphPath: {},
+    activeChapterStartByGraphPath: {},
     finished: false
   };
   return advanceRuntime(base, rootGraph.startNodeId, 'new_screen');
@@ -787,6 +874,18 @@ export function CogitaStoryboardRuntimePage({
 }) {
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
+  const chapterRestartLabel =
+    language === 'pl'
+      ? 'Restartuj rozdział'
+      : language === 'de'
+        ? 'Kapitel neu starten'
+        : 'Restart chapter';
+  const chapterEndLabel =
+    language === 'pl'
+      ? 'Przejdź do końca rozdziału'
+      : language === 'de'
+        ? 'Zum Kapitelende'
+        : 'Go to chapter end';
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
   const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
@@ -1140,7 +1239,17 @@ export function CogitaStoryboardRuntimePage({
 
   const pathChoices = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind === 'card') return [];
-    return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited).map((edge) => {
+    const edges =
+      currentNode.kind === 'separator'
+        ? getSeparatorRemainingEdges(
+            runtime.graph,
+            runtime.graphPath,
+            currentNode.nodeId,
+            runtime.visited,
+            runtime.activeSeparatorByGraphPath[buildGraphPathKey(runtime.graphPath)] === currentNode.nodeId
+          )
+        : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited);
+    return edges.map((edge) => {
       const target = findNode(runtime.graph, edge.toNodeId);
       return {
         edge,
@@ -1162,9 +1271,59 @@ export function CogitaStoryboardRuntimePage({
   const chooseEdge = (edge: StoryboardGraphEdge) => {
     setRuntime((current) => {
       if (!current) return current;
-      return advanceRuntime(current, edge.toNodeId, edge.displayMode);
+      const currentNodeRecord = findNode(current.graph, current.currentNodeId);
+      if (currentNodeRecord?.kind !== 'separator') {
+        return advanceRuntime(current, edge.toNodeId, edge.displayMode);
+      }
+      const prepared = cloneState(current);
+      const graphPathKey = buildGraphPathKey(prepared.graphPath);
+      prepared.activeSeparatorByGraphPath[graphPathKey] = currentNodeRecord.nodeId;
+      prepared.activeChapterStartByGraphPath[graphPathKey] = edge.toNodeId;
+      return advanceRuntime(prepared, edge.toNodeId, edge.displayMode);
     });
   };
+
+  const restartChapter = () => {
+    setRuntime((current) => {
+      if (!current) return current;
+      const graphPathKey = buildGraphPathKey(current.graphPath);
+      const chapterStartNodeId = current.activeChapterStartByGraphPath[graphPathKey];
+      if (!chapterStartNodeId) return current;
+      return advanceRuntime(cloneState(current), chapterStartNodeId, 'new_screen');
+    });
+  };
+
+  const goToChapterEnd = () => {
+    setRuntime((current) => {
+      if (!current) return current;
+      const graphPathKey = buildGraphPathKey(current.graphPath);
+      const separatorNodeId = current.activeSeparatorByGraphPath[graphPathKey];
+      if (!separatorNodeId) return current;
+      const joinNodeId = findJoinNodeIdForSeparator(current.graph, separatorNodeId);
+      if (!joinNodeId) return current;
+      return advanceRuntime(cloneState(current), joinNodeId, 'new_screen');
+    });
+  };
+
+  const hasActiveChapterCycle = useMemo(() => {
+    if (!runtime) return false;
+    const graphPathKey = buildGraphPathKey(runtime.graphPath);
+    return Boolean(runtime.activeSeparatorByGraphPath[graphPathKey]);
+  }, [runtime]);
+
+  const canRestartChapter = useMemo(() => {
+    if (!runtime) return false;
+    const graphPathKey = buildGraphPathKey(runtime.graphPath);
+    return Boolean(runtime.activeChapterStartByGraphPath[graphPathKey]);
+  }, [runtime]);
+
+  const canGoToChapterEnd = useMemo(() => {
+    if (!runtime) return false;
+    const graphPathKey = buildGraphPathKey(runtime.graphPath);
+    const separatorNodeId = runtime.activeSeparatorByGraphPath[graphPathKey];
+    if (!separatorNodeId) return false;
+    return Boolean(findJoinNodeIdForSeparator(runtime.graph, separatorNodeId));
+  }, [runtime]);
 
   const chooseCardOutcome = (edge: StoryboardGraphEdge | null) => {
     if (!edge) return;
@@ -1491,6 +1650,17 @@ export function CogitaStoryboardRuntimePage({
                     {choice.label}
                   </button>
                 ))}
+              </div>
+            ) : null}
+
+            {hasActiveChapterCycle && !runtime.finished ? (
+              <div className="cogita-card-actions" style={{ flexWrap: 'wrap' }}>
+                <button type="button" className="cta ghost" onClick={restartChapter} disabled={!canRestartChapter}>
+                  {chapterRestartLabel}
+                </button>
+                <button type="button" className="cta ghost" onClick={goToChapterEnd} disabled={!canGoToChapterEnd}>
+                  {chapterEndLabel}
+                </button>
               </div>
             ) : null}
           </div>

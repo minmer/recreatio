@@ -24234,6 +24234,8 @@ public static class CogitaEndpoints
             "end" => "end",
             "card" => "card",
             "group" => "group",
+            "separator" => "separator",
+            "join" => "join",
             "text" => "static",
             "video" => "static",
             "audio" => "static",
@@ -24300,6 +24302,10 @@ public static class CogitaEndpoints
             return "out-wrong";
         }
         if (string.Equals(sourceNodeKind, "card", StringComparison.Ordinal))
+        {
+            return "out-right";
+        }
+        if (string.Equals(sourceNodeKind, "join", StringComparison.Ordinal))
         {
             return "out-right";
         }
@@ -24435,6 +24441,8 @@ public static class CogitaEndpoints
                     {
                         "start" => "Start",
                         "end" => "End",
+                        "separator" => "Separator",
+                        "join" => "Join",
                         _ => $"Node {index}"
                     };
                 }
@@ -24742,6 +24750,18 @@ public static class CogitaEndpoints
                 {
                     lines.AddRange(BuildStoryboardImportScriptLines(node.GroupGraph, depth + 1));
                 }
+                continue;
+            }
+
+            if (string.Equals(node.Kind, "separator", StringComparison.Ordinal))
+            {
+                lines.Add($"{prefix}Separator: {node.Title}");
+                continue;
+            }
+
+            if (string.Equals(node.Kind, "join", StringComparison.Ordinal))
+            {
+                lines.Add($"{prefix}Join: {node.Title}");
             }
         }
 
