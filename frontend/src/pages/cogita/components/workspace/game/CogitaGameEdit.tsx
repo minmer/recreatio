@@ -26,27 +26,30 @@ export function CogitaGameEdit(props: CogitaGameEditCreateProps | CogitaGameEdit
   }
 
   return (
-    <div style={{ display: 'grid', gap: '0.6rem', maxWidth: 880 }}>
-      <h3 style={{ margin: 0 }}>{props.mode === 'create' ? 'Create Game' : 'Edit Game'}</h3>
-      <label>
-        Name
-        <input
-          className="cogita-input"
-          value={details.name}
-          onChange={(event) => props.onDetailsChange({ ...details, name: event.target.value })}
-        />
-      </label>
-      <label>
-        Description
-        <textarea
-          className="cogita-input"
-          style={{ minHeight: 140 }}
-          value={details.description}
-          onChange={(event) => props.onDetailsChange({ ...details, description: event.target.value })}
-          placeholder="Short game description"
-        />
-      </label>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+    <div style={{ display: 'grid', gap: '0.8rem' }}>
+      <h3 className="cogita-detail-title" style={{ marginTop: 0 }}>
+        {props.mode === 'create' ? 'Create Game' : 'Edit Game'}
+      </h3>
+      <div className="cogita-form-grid">
+        <label className="cogita-field full">
+          <span>Name</span>
+          <input
+            value={details.name}
+            onChange={(event) => props.onDetailsChange({ ...details, name: event.target.value })}
+            placeholder="Game name"
+          />
+        </label>
+        <label className="cogita-field full">
+          <span>Description</span>
+          <textarea
+            value={details.description}
+            onChange={(event) => props.onDetailsChange({ ...details, description: event.target.value })}
+            placeholder="Short game description"
+            rows={5}
+          />
+        </label>
+      </div>
+      <div className="cogita-card-actions">
         {props.mode === 'create' ? (
           <>
             <button type="button" className="cta" onClick={props.onCreate}>Create Game</button>

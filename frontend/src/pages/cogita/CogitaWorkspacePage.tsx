@@ -700,73 +700,90 @@ function CogitaGameTargetSection({
     return null;
   };
 
-  return (
-    <>
-      <section className="cogita-section" style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
-        <header className="cogita-library-header" style={{ marginBottom: '1rem' }}>
-          <div>
-            <h1>{copy.cogita.workspace.targets.games}</h1>
-            <p>{copy.cogita.workspace.path.currentRoute}</p>
-          </div>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button type="button" className={normalizedView === 'search' ? 'cta' : 'ghost'} onClick={() => onNavigate({ view: 'search' })}>Search</button>
-            <button type="button" className={normalizedView === 'create' && !gameId ? 'cta' : 'ghost'} onClick={() => onNavigate({ view: 'create' })}>Create</button>
-          </div>
-        </header>
-      </section>
-
-      {shouldRenderCreate ? (
-        <CogitaGameEdit
-          mode="create"
-          details={createDetails}
-          onDetailsChange={setCreateDetails}
-          onCreate={() => void createGame()}
-          onBack={() => onNavigate({ view: 'search' })}
-        />
-      ) : null}
-
-      {shouldRenderSearch ? (
-        <CogitaGameSearch
-          query={query}
-          loadingGames={loadingGames}
-          filteredGames={filteredGames}
-          onQueryChange={setQuery}
-          onCreate={() => onNavigate({ view: 'create' })}
-          onSelectGame={(selectedGameId) => onNavigate({ gameId: selectedGameId, view: 'overview' })}
-        />
-      ) : null}
-
-      {!shouldRenderCreate && !shouldRenderSearch && selectedGame ? (
-        <section className="cogita-section" style={{ display: 'grid', gap: '1rem' }}>
-          <div className="cogita-panel" style={{ display: 'grid', gap: '0.8rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0 }}>{selectedGame.name}</h3>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {GAME_VIEW_LABELS.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className={normalizedView === item.key ? 'cta' : 'ghost'}
-                    onClick={() => onNavigate({ gameId, view: item.key })}
-                  >
-                    {item.label}
+  if (shouldRenderSearch) {
+    return (
+      <section className="cogita-library-dashboard cogita-flat-search-list" data-mode="list">
+        <div className="cogita-library-layout">
+          <div className="cogita-library-content">
+            <div className="cogita-library-grid">
+              <div className="cogita-flat-search-header">
+                <div className="cogita-library-controls">
+                  <button type="button" className="cta" onClick={() => onNavigate({ view: 'create' })}>
+                    Create Game
                   </button>
-                ))}
-                <button type="button" className="ghost" onClick={() => onNavigate({ view: 'search' })}>All Games</button>
+                </div>
+              </div>
+              <div className="cogita-library-panel">
+                <CogitaGameSearch
+                  query={query}
+                  loadingGames={loadingGames}
+                  filteredGames={filteredGames}
+                  onQueryChange={setQuery}
+                  onSelectGame={(selectedGameId) => onNavigate({ gameId: selectedGameId, view: 'overview' })}
+                />
+                {status ? <p className="cogita-help">{status}</p> : null}
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
-            {renderSelectedGameSection()}
+  return (
+    <section className="cogita-library-dashboard cogita-storyboard-dashboard" data-mode="detail">
+      <header className="cogita-library-dashboard-header">
+        <div>
+          <h1 className="cogita-library-title">
+            {shouldRenderCreate ? 'New game' : selectedGame?.name ?? copy.cogita.workspace.targets.games}
+          </h1>
+        </div>
+        <div className="cogita-library-actions">
+          <button type="button" className="ghost" onClick={() => onNavigate({ view: 'search' })}>
+            Search
+          </button>
+          <button type="button" className={shouldRenderCreate ? 'cta' : 'ghost'} onClick={() => onNavigate({ view: 'create' })}>
+            Create
+          </button>
+        </div>
+      </header>
+
+      <div className="cogita-storyboard-main">
+        <section className="cogita-library-detail cogita-storyboard-top-panel">
+          <div className="cogita-detail-body">
+            {shouldRenderCreate ? (
+              <CogitaGameEdit
+                mode="create"
+                details={createDetails}
+                onDetailsChange={setCreateDetails}
+                onCreate={() => void createGame()}
+                onBack={() => onNavigate({ view: 'search' })}
+              />
+            ) : null}
+
+            {!shouldRenderCreate && selectedGame ? (
+              <>
+                <div className="cogita-card-actions">
+                  {GAME_VIEW_LABELS.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={normalizedView === item.key ? 'cta' : 'ghost'}
+                      onClick={() => onNavigate({ gameId, view: item.key })}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {renderSelectedGameSection()}
+              </>
+            ) : null}
+
+            {status ? <p className="cogita-help">{status}</p> : null}
           </div>
         </section>
-      ) : null}
-
-      {status ? (
-        <section className="cogita-section" style={{ maxWidth: 1280, margin: '0.5rem auto 0' }}>
-          <p className="cogita-help">{status}</p>
-        </section>
-      ) : null}
-    </>
+      </div>
+    </section>
   );
 }
 

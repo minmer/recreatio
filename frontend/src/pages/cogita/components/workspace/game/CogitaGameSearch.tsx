@@ -5,47 +5,40 @@ export function CogitaGameSearch({
   loadingGames,
   filteredGames,
   onQueryChange,
-  onCreate,
   onSelectGame
 }: {
   query: string;
   loadingGames: boolean;
   filteredGames: CogitaGameSummary[];
   onQueryChange: (value: string) => void;
-  onCreate: () => void;
   onSelectGame: (gameId: string) => void;
 }) {
   return (
-    <section className="cogita-section" style={{ display: 'grid', gap: '1rem' }}>
-      <div className="cogita-panel" style={{ display: 'grid', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <input
-            className="cogita-input"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Search games"
-            style={{ maxWidth: 360 }}
-          />
-          <button type="button" className="cta" onClick={onCreate}>
-            Create Game
-          </button>
-        </div>
-        {loadingGames ? <p>Loading games...</p> : null}
-        <div style={{ display: 'grid', gap: '0.5rem' }}>
-          {filteredGames.map((item) => (
-            <button
-              key={item.gameId}
-              type="button"
-              className="ghost"
-              style={{ textAlign: 'left', padding: '0.65rem 0.8rem', border: '1px solid #d5d5d5', borderRadius: 8 }}
-              onClick={() => onSelectGame(item.gameId)}
-            >
-              <strong>{item.name}</strong>
-            </button>
-          ))}
-          {filteredGames.length === 0 && !loadingGames ? <p>No games found.</p> : null}
-        </div>
+    <div style={{ display: 'grid', gap: '0.6rem' }}>
+      <div className="cogita-search-field">
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search games"
+          aria-label="Search games"
+        />
       </div>
-    </section>
+
+      {loadingGames ? <p>Loading games...</p> : null}
+      {filteredGames.length === 0 && !loadingGames ? <p>No games found.</p> : null}
+
+      <div className="cogita-card-list" data-view="list">
+        {filteredGames.map((item) => (
+          <div key={item.gameId} className="cogita-card-item">
+            <div className="cogita-info-result-row">
+              <button type="button" className="cogita-info-result-main" onClick={() => onSelectGame(item.gameId)}>
+                <h3 className="cogita-card-title">{item.name}</h3>
+                <p className="cogita-card-subtitle">{item.gameId}</p>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
