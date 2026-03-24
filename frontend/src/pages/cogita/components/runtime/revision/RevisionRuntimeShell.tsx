@@ -76,6 +76,7 @@ export type ParsedQuestionDefinition = {
   question: string;
   options?: string[];
   answer?: number[] | string | number | boolean | { paths: number[][] };
+  acceptedAnswers?: Array<string | number>;
   columns?: string[][];
 };
 
@@ -309,10 +310,83 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
       return { paths };
     }
 
-    if (typeof root.answer === 'string' || typeof root.answer === 'number') return root.answer;
-    if (typeof root.expected === 'string' || typeof root.expected === 'number') return root.expected;
-    return undefined;
+    if (type === 'number') {
+      const directAnswer =
+        typeof root.answer === 'number'
+          ? root.answer
+          : typeof root.answer === 'string'
+            ? root.answer.trim()
+            : typeof root.expected === 'number'
+              ? root.expected
+              : typeof root.expected === 'string'
+                ? root.expected.trim()
+                : undefined;
+      if (directAnswer !== undefined && directAnswer !== '') return directAnswer;
+      if (Array.isArray(root.answer)) {
+        const first = root.answer.find((entry) => typeof entry === 'number' || typeof entry === 'string');
+        if (typeof first === 'number') return first;
+        if (typeof first === 'string' && first.trim()) return first.trim();
+      }
+      if (Array.isArray(root.expected)) {
+        const first = root.expected.find((entry) => typeof entry === 'number' || typeof entry === 'string');
+        if (typeof first === 'number') return first;
+        if (typeof first === 'string' && first.trim()) return first.trim();
+      }
+      return '';
+    }
+
+    if (typeof root.answer === 'string') return root.answer.trim();
+    if (typeof root.expected === 'string') return root.expected.trim();
+    if (typeof root.answer === 'number') return String(root.answer);
+    if (typeof root.expected === 'number') return String(root.expected);
+    if (Array.isArray(root.answer)) {
+      const first = root.answer.find((entry) => typeof entry === 'string' || typeof entry === 'number');
+      if (typeof first === 'string' && first.trim()) return first.trim();
+      if (typeof first === 'number') return String(first);
+    }
+    if (Array.isArray(root.expected)) {
+      const first = root.expected.find((entry) => typeof entry === 'string' || typeof entry === 'number');
+      if (typeof first === 'string' && first.trim()) return first.trim();
+      if (typeof first === 'number') return String(first);
+    }
+    return '';
   })();
+
+  const acceptedAnswers =
+    type === 'text' || type === 'number' || type === 'date'
+      ? (() => {
+          const fromAliases = [
+            root.acceptedAnswers,
+            root.answers,
+            root.accepted,
+            root.acceptedVariants,
+            root.aliases,
+            root.alternatives
+          ];
+          const fromArrayAnswer = Array.isArray(root.answer) ? root.answer : [];
+          const fromArrayExpected = Array.isArray(root.expected) ? root.expected : [];
+          const merged = [...fromAliases, fromArrayAnswer, fromArrayExpected]
+            .flatMap((entry) => (Array.isArray(entry) ? entry : []))
+            .map((entry) => {
+              if (typeof entry === 'number') return entry;
+              if (typeof entry === 'string') {
+                const trimmed = entry.trim();
+                return trimmed.length > 0 ? trimmed : null;
+              }
+              return null;
+            })
+            .filter((entry): entry is string | number => entry !== null);
+          const unique: Array<string | number> = [];
+          const seen = new Set<string>();
+          for (const candidate of merged) {
+            const key = typeof candidate === 'number' ? `n:${candidate}` : `s:${candidate.toLowerCase()}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            unique.push(candidate);
+          }
+          return unique;
+        })()
+      : undefined;
 
   return {
     type,
@@ -320,6 +394,7 @@ export function parseQuestionDefinition(value: unknown): ParsedQuestionDefinitio
     question,
     options,
     answer,
+    acceptedAnswers,
     columns
   };
 }
@@ -476,8 +551,34 @@ export function buildRevisionQuestionRuntime(value: unknown, fallbackPrompt: str
     };
   }
 
-  const expected = typeof def.answer === 'string' || typeof def.answer === 'number' ? def.answer : '';
+  const textAccepted = (def.acceptedAnswers ?? [])
+    .map((entry) => (typeof entry === 'string' || typeof entry === 'number' ? String(entry).trim() : ''))
+    .filter((entry) => entry.length > 0);
+  const canonicalAnswer =
+    typeof def.answer === 'string' || typeof def.answer === 'number'
+      ? String(def.answer).trim()
+      : '';
+  const textExpectedList = Array.from(
+    new Set(
+      [canonicalAnswer, ...textAccepted]
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+    )
+  );
   const inputType = def.type === 'number' ? 'number' : def.type === 'date' ? 'date' : 'text';
+  const expected =
+    inputType === 'number'
+      ? (() => {
+          const numeric = textExpectedList
+            .map((entry) => Number(entry))
+            .filter((entry) => Number.isFinite(entry));
+          const unique = Array.from(new Set(numeric));
+          if (unique.length === 0) return '';
+          return unique.length === 1 ? unique[0] : unique;
+        })()
+      : textExpectedList.length > 1
+        ? textExpectedList
+        : (textExpectedList[0] ?? '');
   return {
     promptText,
     promptModel: { kind: 'text', inputType },

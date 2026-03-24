@@ -1,9 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Recreatio.Api.Data;
 using Recreatio.Api.Domain.Cogita;
 using Recreatio.Api.Endpoints;
+using Recreatio.Api.Security;
 
 namespace Recreatio.Api.Endpoints.Cogita;
 
@@ -335,8 +337,86 @@ public static class CogitaCoreEndpoints
             return false;
         }
 
-        return await dbContext.Memberships.AsNoTracking()
-            .AnyAsync(x => x.UserId == userId && x.RoleId == libraryRoleId, ct);
+        // Fast path: direct membership on the library role.
+        if (await dbContext.Memberships.AsNoTracking()
+            .AnyAsync(x => x.UserId == userId && x.RoleId == libraryRoleId, ct))
+        {
+            return true;
+        }
+
+        // Preferred path: use keyring resolution (handles inherited/shared role access).
+        var keyRingService = context.RequestServices.GetService<IKeyRingService>();
+        if (keyRingService is not null && EndpointHelpers.TryGetSessionId(context, out var sessionId))
+        {
+            try
+            {
+                var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                if (keyRing.TryGetReadKey(libraryRoleId, out _) || keyRing.TryGetWriteKey(libraryRoleId, out _))
+                {
+                    return true;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Fall back to graph traversal below when session-key context is incomplete.
+            }
+        }
+
+        // Compatibility fallback: inherited access by role graph reachability.
+        var memberRoleIds = await dbContext.Memberships.AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .Select(x => x.RoleId)
+            .Distinct()
+            .ToListAsync(ct);
+        if (memberRoleIds.Count == 0)
+        {
+            return false;
+        }
+
+        if (memberRoleIds.Contains(libraryRoleId))
+        {
+            return true;
+        }
+
+        var edges = await dbContext.RoleEdges.AsNoTracking()
+            .Select(x => new { x.ParentRoleId, x.ChildRoleId })
+            .ToListAsync(ct);
+        if (edges.Count == 0)
+        {
+            return false;
+        }
+
+        var edgesByParent = edges
+            .GroupBy(x => x.ParentRoleId)
+            .ToDictionary(group => group.Key, group => group.Select(edge => edge.ChildRoleId).ToList());
+
+        var visited = new HashSet<Guid>(memberRoleIds);
+        var queue = new Queue<Guid>(memberRoleIds);
+        while (queue.Count > 0)
+        {
+            var parentRoleId = queue.Dequeue();
+            if (!edgesByParent.TryGetValue(parentRoleId, out var children))
+            {
+                continue;
+            }
+
+            foreach (var childRoleId in children)
+            {
+                if (!visited.Add(childRoleId))
+                {
+                    continue;
+                }
+
+                if (childRoleId == libraryRoleId)
+                {
+                    return true;
+                }
+
+                queue.Enqueue(childRoleId);
+            }
+        }
+
+        return false;
     }
 
     public sealed record UpsertKnowledgeTypeSpecRequest(

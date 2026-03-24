@@ -88,7 +88,11 @@ Rules:
 
 Important:
 - question notion payload normalization uses the same rules as:
-  - [COGITA_QUESTION_JSON_CONSTRAINTS.md](/mnt/c/Users/AKM.LAPTOP-AKM/recreatio/COGITA_QUESTION_JSON_CONSTRAINTS.md)
+  - `COGITA_QUESTION_JSON_CONSTRAINTS.md`
+- if a free-input question already contains multiple accepted answers, importer should preserve all of them
+- importer must not silently drop alternate accepted answers when they are present
+- from the importer perspective, all provided accepted answers are equally valid
+- importer does not need to explain or reinterpret why those answers are equivalent; it only preserves the authored question data
 
 ## 4. Storyboard document structure
 
@@ -207,16 +211,43 @@ Importer automatically:
 - creates default start->end path edge if no valid edges remain
 
 For question notions on card nodes:
-- card check type is normalized to `question` when necessary.
+- card check type is normalized to `question` when necessary
+- question definitions should remain structurally minimal
+- explanation text should remain in static nodes, not be reintroduced into the question definition during import
 
-## 9. Warnings and partial success
+## 9. Multiple accepted answers in input mode
+
+If a free-input question is authored with more than one accepted answer, importer should preserve all of them.
+
+Rules:
+- importer should keep every provided accepted answer
+- importer should not choose a preferred answer among them
+- importer should not silently collapse the list to one value
+- from the importer's perspective, all provided accepted answers are equally correct
+- importer does not need to document or understand why the answers are equivalent
+
+Example:
+```json
+{
+  "type": "text",
+  "question": "Write the fraction equivalent of 25%.",
+  "answer": "1/4",
+  "acceptedAnswers": ["1/4", "¼", "25/100"]
+}
+```
+
+## 10. Warnings and partial success
 
 Import is tolerant:
 - invalid fragments are skipped/normalized where possible
 - warnings are returned in response
 - project is still created/updated when remaining graph is valid
 
-## 10. Minimal working example
+Recommended warning cases:
+- explanation text is found in a question definition instead of static nodes
+- a malformed multiple-answer field is present but cannot be preserved safely
+
+## 11. Minimal working example
 
 ```json
 {
@@ -232,10 +263,10 @@ Import is tolerant:
       "payload": {
         "label": "Question 1",
         "definition": {
-          "type": "selection",
-          "question": "Who was the first king of Israel?",
-          "options": ["Samuel", "Saul", "David"],
-          "answer": [1]
+          "type": "text",
+          "question": "Write the fraction equivalent of 25%.",
+          "answer": "1/4",
+          "acceptedAnswers": ["1/4", "¼", "25/100"]
         }
       }
     }
@@ -255,10 +286,6 @@ Import is tolerant:
           "title": "Narration",
           "staticType": "text",
           "staticBody": "Read this first.",
-          "narrationImageEnabled": true,
-          "narrationImageFileId": "11111111-1111-1111-1111-111111111111",
-          "narrationAudioEnabled": true,
-          "narrationAudioFileId": "22222222-2222-2222-2222-222222222222",
           "position": { "x": 300, "y": 200 }
         },
         {

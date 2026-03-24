@@ -8,6 +8,7 @@ export type QuestionDefinition = {
   question: string;
   options?: string[];
   answer?: number[] | string | number | boolean | { paths: number[][] };
+  acceptedAnswers?: Array<string | number>;
   columns?: string[][];
   matchingPaths?: string[][];
 };
@@ -45,6 +46,62 @@ export function createDefaultQuestionDefinition(kind: QuestionKind = 'selection'
 
 export function isQuestionKind(value: string): value is QuestionKind {
   return ['selection', 'truefalse', 'text', 'number', 'date', 'matching', 'ordering'].includes(value);
+}
+
+const ACCEPTED_ANSWER_ALIAS_KEYS = ['acceptedAnswers', 'answers', 'accepted', 'acceptedVariants', 'aliases', 'alternatives'] as const;
+
+function normalizeTextCandidate(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function collectAcceptedAnswerAliases(raw: Record<string, unknown>): Array<string | number> {
+  const values: Array<string | number> = [];
+  for (const key of ACCEPTED_ANSWER_ALIAS_KEYS) {
+    const candidate = raw[key];
+    if (!Array.isArray(candidate)) continue;
+    for (const entry of candidate) {
+      if (typeof entry === 'number' && Number.isFinite(entry)) {
+        values.push(entry);
+        continue;
+      }
+      const normalized = normalizeTextCandidate(entry);
+      if (normalized !== null) {
+        values.push(normalized);
+      }
+    }
+  }
+  return values;
+}
+
+function dedupeTextValues(values: string[]) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(value.trim());
+  }
+  return unique;
+}
+
+function dedupeMixedScalarValues(values: Array<string | number>) {
+  const seen = new Set<string>();
+  const unique: Array<string | number> = [];
+  for (const value of values) {
+    const key = typeof value === 'number' ? `n:${value}` : `s:${value.trim().toLowerCase()}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(typeof value === 'number' ? value : value.trim());
+  }
+  return unique;
 }
 
 export function normalizeQuestionDefinition(value: unknown): QuestionDefinition | null {
@@ -120,14 +177,58 @@ export function normalizeQuestionDefinition(value: unknown): QuestionDefinition 
     return { type: kind, title, question, answer };
   }
   if (kind === 'number') {
-    if (typeof raw.answer === 'number') return { type: kind, title, question, answer: raw.answer };
-    if (typeof raw.answer === 'string') return { type: kind, title, question, answer: raw.answer };
-    if (typeof raw.expected === 'number') return { type: kind, title, question, answer: raw.expected };
-    return { type: kind, title, question, answer: '' };
+    const answerArraySource = Array.isArray(raw.answer) ? raw.answer : Array.isArray(raw.expected) ? raw.expected : [];
+    const fromArray = answerArraySource
+      .map((entry) => (typeof entry === 'number' && Number.isFinite(entry) ? entry : normalizeTextCandidate(entry)))
+      .filter((entry): entry is string | number => entry !== null);
+    const fromAliases = collectAcceptedAnswerAliases(raw);
+    const directAnswer =
+      (typeof raw.answer === 'number' && Number.isFinite(raw.answer))
+        ? raw.answer
+        : normalizeTextCandidate(raw.answer)
+          ?? ((typeof raw.expected === 'number' && Number.isFinite(raw.expected)) ? raw.expected : normalizeTextCandidate(raw.expected));
+
+    const merged = dedupeMixedScalarValues([
+      ...(directAnswer !== null && directAnswer !== undefined ? [directAnswer] : []),
+      ...fromAliases,
+      ...fromArray
+    ]);
+    const canonical = directAnswer ?? merged[0] ?? '';
+    const canonicalKey = typeof canonical === 'number' ? `n:${canonical}` : `s:${String(canonical).trim().toLowerCase()}`;
+    const acceptedAnswers = merged.filter((entry) => {
+      const key = typeof entry === 'number' ? `n:${entry}` : `s:${String(entry).trim().toLowerCase()}`;
+      return key !== canonicalKey;
+    });
+    return {
+      type: kind,
+      title,
+      question,
+      answer: canonical,
+      ...(acceptedAnswers.length > 0 ? { acceptedAnswers } : {})
+    };
   }
   if (kind === 'text' || kind === 'date') {
-    const answer = typeof raw.answer === 'string' ? raw.answer : typeof raw.expected === 'string' ? raw.expected : '';
-    return { type: kind, title, question, answer };
+    const answerArraySource = Array.isArray(raw.answer) ? raw.answer : Array.isArray(raw.expected) ? raw.expected : [];
+    const fromArray = answerArraySource.map(normalizeTextCandidate).filter((entry): entry is string => entry !== null);
+    const fromAliases = collectAcceptedAnswerAliases(raw)
+      .map((entry) => normalizeTextCandidate(entry))
+      .filter((entry): entry is string => entry !== null);
+    const directAnswer = normalizeTextCandidate(raw.answer) ?? normalizeTextCandidate(raw.expected);
+    const merged = dedupeTextValues([
+      ...(directAnswer ? [directAnswer] : []),
+      ...fromAliases,
+      ...fromArray
+    ]);
+    const canonical = directAnswer ?? merged[0] ?? '';
+    const canonicalKey = canonical.trim().toLowerCase();
+    const acceptedAnswers = merged.filter((entry) => entry.trim().toLowerCase() !== canonicalKey);
+    return {
+      type: kind,
+      title,
+      question,
+      answer: canonical,
+      ...(acceptedAnswers.length > 0 ? { acceptedAnswers } : {})
+    };
   }
   const options = Array.isArray(raw.options)
     ? raw.options.map((item) => (typeof item === 'string' ? item : ''))
@@ -301,28 +402,60 @@ export function serializeQuestionDefinition(definition: QuestionDefinition): str
         2
       );
     case 'number':
-      return JSON.stringify(
-        {
-          type: definition.type,
-          ...(title ? { title } : {}),
-          question,
-          answer:
-            typeof definition.answer === 'number'
-              ? definition.answer
-              : typeof definition.answer === 'string'
-                ? definition.answer
-                : ''
-        },
-        null,
-        2
-      );
+      {
+        const canonicalAnswer =
+          typeof definition.answer === 'number'
+            ? definition.answer
+            : typeof definition.answer === 'string'
+              ? definition.answer.trim()
+              : '';
+        const acceptedRaw = (definition.acceptedAnswers ?? [])
+          .map((value) => (typeof value === 'number' ? value : value.trim()))
+          .filter((value) => (typeof value === 'number' ? Number.isFinite(value) : value.length > 0));
+        const acceptedAnswers = dedupeMixedScalarValues(
+          acceptedRaw.filter((value) => {
+            if (typeof canonicalAnswer === 'number') {
+              return !(typeof value === 'number' && value === canonicalAnswer);
+            }
+            return !(typeof value === 'string' && value.toLowerCase() === String(canonicalAnswer).toLowerCase());
+          })
+        );
+        return JSON.stringify(
+          {
+            type: definition.type,
+            ...(title ? { title } : {}),
+            question,
+            answer: canonicalAnswer,
+            ...(acceptedAnswers.length > 0 ? { acceptedAnswers } : {})
+          },
+          null,
+          2
+        );
+      }
     case 'date':
     case 'text':
-      return JSON.stringify(
-        { type: definition.type, ...(title ? { title } : {}), question, answer: String(definition.answer ?? '') },
-        null,
-        2
-      );
+      {
+        const canonicalAnswer =
+          (typeof definition.answer === 'string' || typeof definition.answer === 'number')
+            ? String(definition.answer).trim()
+            : '';
+        const acceptedAnswers = dedupeTextValues(
+          (definition.acceptedAnswers ?? [])
+            .map((value) => String(value).trim())
+            .filter((value) => value.length > 0 && value.toLowerCase() !== canonicalAnswer.toLowerCase())
+        );
+        return JSON.stringify(
+          {
+            type: definition.type,
+            ...(title ? { title } : {}),
+            question,
+            answer: canonicalAnswer,
+            ...(acceptedAnswers.length > 0 ? { acceptedAnswers } : {})
+          },
+          null,
+          2
+        );
+      }
     case 'selection':
     default: {
       const options = (definition.options ?? []).map((option) => option.trim()).filter(Boolean);
@@ -391,6 +524,14 @@ export function NotionQuestionEditor({
   const selectionAnswer = Array.isArray(definition.answer) ? definition.answer : [];
   const matchingColumns = ensureTrailingColumns(definition.columns ?? [[''], ['']]);
   const matchingPathRows = ensureTrailingPathRows(definition.matchingPaths ?? [[]], matchingColumns.length);
+  const inputAnswers = ensureTrailing(
+    [
+      ...(typeof definition.answer === 'string' || typeof definition.answer === 'number'
+        ? [String(definition.answer)]
+        : []),
+      ...((definition.acceptedAnswers ?? []).map((entry) => String(entry)))
+    ]
+  );
 
   return (
     <div className="cogita-library-panel" style={{ display: 'grid', gap: '0.8rem' }}>
@@ -483,14 +624,52 @@ export function NotionQuestionEditor({
       ) : null}
 
       {(kind === 'text' || kind === 'date' || kind === 'number') ? (
-        <label className="cogita-field">
-          <span>Answer</span>
-          <input
-            type={kind === 'date' ? 'date' : 'text'}
-            value={typeof definition.answer === 'string' || typeof definition.answer === 'number' ? String(definition.answer) : ''}
-            onChange={(event) => onDefinitionChange({ ...definition, answer: event.target.value })}
-          />
-        </label>
+        <div style={{ display: 'grid', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.82rem', color: 'rgba(184,209,234,0.8)' }}>Accepted answers</span>
+          {inputAnswers.map((entry, index, all) => {
+            const isLast = index === all.length - 1;
+            return (
+              <div key={`question-input-answer:${index}`} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+                <input
+                  type={kind === 'date' ? 'date' : 'text'}
+                  value={entry}
+                  placeholder={kind === 'number' ? `Value ${index + 1}` : `Answer ${index + 1}`}
+                  onChange={(event) => {
+                    const next = [...inputAnswers];
+                    next[index] = event.target.value;
+                    const cleaned = next.map((item) => item.trim()).filter(Boolean);
+                    const canonical = cleaned[0] ?? '';
+                    const accepted = dedupeTextValues(cleaned.slice(1));
+                    onDefinitionChange({
+                      ...definition,
+                      answer: canonical,
+                      acceptedAnswers: accepted.length > 0 ? accepted : undefined
+                    });
+                  }}
+                />
+                {!isLast ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      const next = inputAnswers.filter((_, itemIndex) => itemIndex !== index);
+                      const cleaned = next.map((item) => item.trim()).filter(Boolean);
+                      const canonical = cleaned[0] ?? '';
+                      const accepted = dedupeTextValues(cleaned.slice(1));
+                      onDefinitionChange({
+                        ...definition,
+                        answer: canonical,
+                        acceptedAnswers: accepted.length > 0 ? accepted : undefined
+                      });
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : <span />}
+              </div>
+            );
+          })}
+        </div>
       ) : null}
 
       {kind === 'truefalse' ? (

@@ -37,7 +37,7 @@ import {
   type CogitaCreationProject,
   type CogitaDependencyGraphSummary,
   type CogitaGameActionGraph,
-  type CogitaGameLayout,
+  type CogitaGameLayout as CogitaGameLayoutRecord,
   type CogitaGameSessionSummary,
   type CogitaGameSummary,
   type CogitaGameValue,
@@ -271,7 +271,7 @@ function CogitaGameTargetSection({
   const [actionGraph, setActionGraph] = useState<CogitaGameActionGraph | null>(null);
   const [actionNodesText, setActionNodesText] = useState('[]');
   const [actionEdgesText, setActionEdgesText] = useState('[]');
-  const [layouts, setLayouts] = useState<CogitaGameLayout[]>([]);
+  const [layouts, setLayouts] = useState<CogitaGameLayoutRecord[]>([]);
   const [selectedLayoutRole, setSelectedLayoutRole] = useState<'host' | 'groupLeader' | 'participant'>('participant');
   const [layoutText, setLayoutText] = useState('{}');
   const [sessions, setSessions] = useState<CogitaGameSessionSummary[]>([]);

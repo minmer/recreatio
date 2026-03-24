@@ -14838,38 +14838,133 @@ public static class CogitaEndpoints
 
         if (string.Equals(normalizedType, "number", StringComparison.Ordinal))
         {
-            if (definition["answer"] is JsonValue existingNumber &&
-                existingNumber.TryGetValue<double>(out var numericAnswer))
+            var acceptedCandidates = new List<string>();
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["acceptedAnswers"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["answers"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["accepted"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["acceptedVariants"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["aliases"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["alternatives"]));
+
+            if (definition["answer"] is JsonArray)
             {
-                definition["answer"] = numericAnswer;
-                return;
+                acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["answer"]));
             }
 
-            var answerString = TryReadNodeString(definition["answer"]);
-            if (!string.IsNullOrWhiteSpace(answerString))
+            if (definition["expected"] is JsonArray)
             {
-                definition["answer"] = answerString;
-                return;
+                acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["expected"]));
             }
 
-            if (definition["expected"] is JsonValue expectedNumber &&
-                expectedNumber.TryGetValue<double>(out var numericExpected))
+            JsonNode canonicalNode;
+            var canonicalRaw = TryReadNodeString(definition["answer"]) ?? TryReadNodeString(definition["expected"]);
+            if (!string.IsNullOrWhiteSpace(canonicalRaw))
             {
-                definition["answer"] = numericExpected;
-                return;
+                if (double.TryParse(canonicalRaw, NumberStyles.Float, CultureInfo.InvariantCulture, out var canonicalNumeric))
+                {
+                    canonicalNode = JsonValue.Create(canonicalNumeric)!;
+                }
+                else
+                {
+                    canonicalNode = JsonValue.Create(canonicalRaw.Trim())!;
+                }
+            }
+            else if (TryReadNodeDouble(definition["answer"], out var directNumeric) ||
+                     TryReadNodeDouble(definition["expected"], out directNumeric))
+            {
+                canonicalNode = JsonValue.Create(directNumeric)!;
+            }
+            else
+            {
+                var fallback = acceptedCandidates.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
+                if (double.TryParse(fallback, NumberStyles.Float, CultureInfo.InvariantCulture, out var fallbackNumeric))
+                {
+                    canonicalNode = JsonValue.Create(fallbackNumeric)!;
+                }
+                else
+                {
+                    canonicalNode = JsonValue.Create(fallback)!;
+                }
             }
 
-            definition["answer"] = string.Empty;
+            var canonicalString = canonicalNode switch
+            {
+                JsonValue value when value.TryGetValue<double>(out var numeric) => numeric.ToString(CultureInfo.InvariantCulture),
+                JsonValue value when value.TryGetValue<string>(out var text) => text?.Trim() ?? string.Empty,
+                _ => string.Empty
+            };
+
+            var acceptedAnswers = acceptedCandidates
+                .Select(value => value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Where(value => !string.Equals(value, canonicalString, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            definition["answer"] = canonicalNode;
+            if (acceptedAnswers.Count > 0)
+            {
+                definition["acceptedAnswers"] = BuildJsonStringArray(acceptedAnswers);
+            }
+            else
+            {
+                definition.Remove("acceptedAnswers");
+            }
+            definition.Remove("answers");
+            definition.Remove("accepted");
+            definition.Remove("acceptedVariants");
+            definition.Remove("aliases");
+            definition.Remove("alternatives");
             return;
         }
 
         if (string.Equals(normalizedType, "text", StringComparison.Ordinal) ||
             string.Equals(normalizedType, "date", StringComparison.Ordinal))
         {
-            var textAnswer = TryReadNodeString(definition["answer"]) ??
+            var acceptedCandidates = new List<string>();
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["acceptedAnswers"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["answers"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["accepted"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["acceptedVariants"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["aliases"]));
+            acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["alternatives"]));
+
+            if (definition["answer"] is JsonArray)
+            {
+                acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["answer"]));
+            }
+
+            if (definition["expected"] is JsonArray)
+            {
+                acceptedCandidates.AddRange(ReadNodeScalarStringArray(definition["expected"]));
+            }
+
+            var canonical = (TryReadNodeString(definition["answer"]) ??
                              TryReadNodeString(definition["expected"]) ??
-                             string.Empty;
-            definition["answer"] = textAnswer;
+                             acceptedCandidates.FirstOrDefault() ??
+                             string.Empty).Trim();
+
+            var acceptedAnswers = acceptedCandidates
+                .Select(value => value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Where(value => !string.Equals(value, canonical, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            definition["answer"] = canonical;
+            if (acceptedAnswers.Count > 0)
+            {
+                definition["acceptedAnswers"] = BuildJsonStringArray(acceptedAnswers);
+            }
+            else
+            {
+                definition.Remove("acceptedAnswers");
+            }
+            definition.Remove("answers");
+            definition.Remove("accepted");
+            definition.Remove("acceptedVariants");
+            definition.Remove("aliases");
+            definition.Remove("alternatives");
             return;
         }
 
@@ -15210,6 +15305,108 @@ public static class CogitaEndpoints
         }
 
         return false;
+    }
+
+    private static bool TryReadNodeDouble(JsonNode? node, out double value)
+    {
+        value = 0d;
+        if (node is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            value = node.GetValue<double>();
+            return true;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            value = node.GetValue<int>();
+            return true;
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var rawString = node.GetValue<string>();
+            if (double.TryParse(rawString, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            {
+                value = parsed;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        return false;
+    }
+
+    private static List<string> ReadNodeScalarStringArray(JsonNode? node)
+    {
+        var values = new List<string>();
+        if (node is null)
+        {
+            return values;
+        }
+
+        if (node is JsonArray array)
+        {
+            foreach (var entry in array)
+            {
+                if (entry is null)
+                {
+                    continue;
+                }
+
+                if (entry is JsonValue scalar)
+                {
+                    if (scalar.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue))
+                    {
+                        values.Add(stringValue.Trim());
+                        continue;
+                    }
+
+                    if (scalar.TryGetValue<double>(out var numberValue))
+                    {
+                        values.Add(numberValue.ToString(CultureInfo.InvariantCulture));
+                        continue;
+                    }
+                }
+
+                var fallback = entry.ToJsonString().Trim().Trim('"');
+                if (!string.IsNullOrWhiteSpace(fallback))
+                {
+                    values.Add(fallback);
+                }
+            }
+
+            return values;
+        }
+
+        if (node is JsonValue singleScalar)
+        {
+            if (singleScalar.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                values.Add(stringValue.Trim());
+                return values;
+            }
+
+            if (singleScalar.TryGetValue<double>(out var numberValue))
+            {
+                values.Add(numberValue.ToString(CultureInfo.InvariantCulture));
+                return values;
+            }
+        }
+
+        return values;
     }
 
     private static List<int> ReadNodeIntArray(JsonNode? node)
@@ -22346,6 +22543,83 @@ public static class CogitaEndpoints
         return values;
     }
 
+    private static List<string> ParseScalarStringValuesFromJsonNode(JsonNode? node)
+    {
+        var values = new List<string>();
+        if (node is null)
+        {
+            return values;
+        }
+
+        if (node is JsonObject obj)
+        {
+            foreach (var key in new[] { "answer", "expected", "value", "text" })
+            {
+                if (obj.TryGetPropertyValue(key, out var nested) && nested is not null)
+                {
+                    values.AddRange(ParseScalarStringValuesFromJsonNode(nested));
+                }
+            }
+
+            return values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (node is JsonArray array)
+        {
+            foreach (var entry in array)
+            {
+                values.AddRange(ParseScalarStringValuesFromJsonNode(entry));
+            }
+
+            return values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (node is JsonValue scalar)
+        {
+            if (scalar.TryGetValue<string>(out var stringValue) && !string.IsNullOrWhiteSpace(stringValue))
+            {
+                values.Add(stringValue.Trim());
+                return values;
+            }
+
+            if (scalar.TryGetValue<double>(out var doubleValue))
+            {
+                values.Add(doubleValue.ToString(CultureInfo.InvariantCulture));
+                return values;
+            }
+
+            if (scalar.TryGetValue<int>(out var intValue))
+            {
+                values.Add(intValue.ToString(CultureInfo.InvariantCulture));
+                return values;
+            }
+        }
+
+        return values;
+    }
+
+    private static List<double> ParseScalarDoubleValuesFromJsonNode(JsonNode? node)
+    {
+        var values = new List<double>();
+        foreach (var value in ParseScalarStringValuesFromJsonNode(node))
+        {
+            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed))
+            {
+                values.Add(parsed);
+            }
+        }
+
+        return values
+            .Distinct()
+            .ToList();
+    }
+
     private static List<string> ParseMatchingPathsFromJsonNode(JsonNode? node)
     {
         JsonNode? root = node;
@@ -22529,53 +22803,71 @@ public static class CogitaEndpoints
             return true;
         }
 
-        var expectedText = expectedNode is JsonValue expectedScalar && expectedScalar.TryGetValue<string>(out var expectedString)
-            ? expectedString
-            : expectedNode?.ToJsonString()?.Trim('"');
-        var actualText = answerNode is JsonValue answerScalar && answerScalar.TryGetValue<string>(out var answerString)
-            ? answerString
-            : answerNode?.ToJsonString()?.Trim('"');
-        expectedText ??= string.Empty;
+        var expectedTexts = ParseScalarStringValuesFromJsonNode(expectedNode);
+        var expectedText = expectedTexts.FirstOrDefault() ?? string.Empty;
+        var actualText = ParseScalarStringValuesFromJsonNode(answerNode).FirstOrDefault();
+        if (actualText is null && answerNode is not null)
+        {
+            actualText = answerNode.ToJsonString().Trim('"');
+        }
         actualText ??= string.Empty;
 
         var inputType = round.Prompt["inputType"]?.GetValue<string>()?.Trim().ToLowerInvariant() ?? "text";
         if (inputType == "number")
         {
-            var expectedNumberOk = double.TryParse(expectedText, NumberStyles.Float, CultureInfo.InvariantCulture, out var expectedNumber);
+            var expectedNumbers = ParseScalarDoubleValuesFromJsonNode(expectedNode);
+            if (expectedNumbers.Count == 0 && double.TryParse(expectedText, NumberStyles.Float, CultureInfo.InvariantCulture, out var fallbackExpectedNumber))
+            {
+                expectedNumbers.Add(fallbackExpectedNumber);
+            }
             var actualNumberOk = double.TryParse(actualText, NumberStyles.Float, CultureInfo.InvariantCulture, out var actualNumber);
-            isCorrect = expectedNumberOk && actualNumberOk && Math.Abs(expectedNumber - actualNumber) < 0.000001d;
+            isCorrect = actualNumberOk && expectedNumbers.Any(expectedNumber => Math.Abs(expectedNumber - actualNumber) < 0.000001d);
             correctness = isCorrect ? 1d : 0d;
             return true;
         }
 
         if (inputType == "date")
         {
-            var expectedDateOk = DateTime.TryParse(expectedText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expectedDate);
             var actualDateOk = DateTime.TryParse(actualText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var actualDate);
-            isCorrect = expectedDateOk && actualDateOk && expectedDate.Date == actualDate.Date;
+            var expectedDates = expectedTexts
+                .Select(entry => DateTime.TryParse(entry, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed) ? parsed.Date : (DateTime?)null)
+                .Where(entry => entry.HasValue)
+                .Select(entry => entry!.Value)
+                .ToList();
+            isCorrect = actualDateOk && expectedDates.Any(expectedDate => expectedDate == actualDate.Date);
             correctness = isCorrect ? 1d : 0d;
             return true;
         }
 
         var ignorePunctuation = kind is "citation-fragment" or "text";
-        var normalizedExpected = NormalizeLiveText(expectedText, ignorePunctuation);
         var normalizedActual = NormalizeLiveText(actualText, ignorePunctuation);
-        if (normalizedExpected.Length == 0 && normalizedActual.Length == 0)
+        var normalizedExpectedCandidates = expectedTexts
+            .Select(entry => NormalizeLiveText(entry, ignorePunctuation))
+            .Where(entry => !string.IsNullOrWhiteSpace(entry))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (normalizedExpectedCandidates.Count == 0 && normalizedActual.Length == 0)
         {
             isCorrect = true;
             correctness = 1d;
             return true;
         }
-        if (normalizedExpected.Length == 0 || normalizedActual.Length == 0)
+        if (normalizedExpectedCandidates.Count == 0 || normalizedActual.Length == 0)
         {
             isCorrect = false;
             correctness = 0d;
             return true;
         }
 
-        var distance = ComputeLevenshteinDistance(normalizedExpected, normalizedActual);
-        var maxLength = Math.Max(normalizedExpected.Length, normalizedActual.Length);
-        correctness = maxLength == 0 ? 1d : Math.Max(0d, 1d - (distance / (double)maxLength));
+        correctness = normalizedExpectedCandidates
+            .Select(expectedCandidate =>
+            {
+                var distance = ComputeLevenshteinDistance(expectedCandidate, normalizedActual);
+                var maxLength = Math.Max(expectedCandidate.Length, normalizedActual.Length);
+                return maxLength == 0 ? 1d : Math.Max(0d, 1d - (distance / (double)maxLength));
+            })
+            .DefaultIfEmpty(0d)
+            .Max();
         var threshold = kind == "citation-fragment" ? 0.9d : 0.85d;
         isCorrect = correctness >= threshold;
         return true;

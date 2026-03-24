@@ -22,9 +22,10 @@ export type RuntimeCheckcardPromptModel = {
 
 export type RuntimeCheckcardExpectedModel =
   | string
+  | string[]
   | number
-  | boolean
   | number[]
+  | boolean
   | { paths: number[][] }
   | null
   | undefined;
@@ -55,6 +56,7 @@ export type RuntimeCheckcardEvaluationPayload =
   | {
       type: 'text';
       expectedText: string;
+      expectedTexts?: string[];
       actualText: string;
       similarityPct: number;
       thresholdPct: number;
@@ -62,6 +64,7 @@ export type RuntimeCheckcardEvaluationPayload =
   | {
       type: 'number';
       expectedValue: number;
+      expectedValues?: number[];
       actualValue: number;
       delta: number;
     }
@@ -1030,10 +1033,18 @@ function renderRuntimeCheckcardRevealSummary({
 
 function describeRevealPayload(payload: RuntimeCheckcardEvaluationPayload): string {
   if (payload.type === 'text') {
-    return `Expected "${payload.expectedText}", received "${payload.actualText}"`;
+    const expectedLabel =
+      payload.expectedTexts && payload.expectedTexts.length > 1
+        ? payload.expectedTexts.map((entry) => `"${entry}"`).join(' | ')
+        : `"${payload.expectedText}"`;
+    return `Expected ${expectedLabel}, received "${payload.actualText}"`;
   }
   if (payload.type === 'number') {
-    return `Expected ${payload.expectedValue}, received ${payload.actualValue}`;
+    const expectedLabel =
+      payload.expectedValues && payload.expectedValues.length > 1
+        ? payload.expectedValues.join(' | ')
+        : String(payload.expectedValue);
+    return `Expected ${expectedLabel}, received ${payload.actualValue}`;
   }
   if (payload.type === 'selection') {
     return `Matched ${payload.matchedCount}/${payload.totalExpected} expected selections`;

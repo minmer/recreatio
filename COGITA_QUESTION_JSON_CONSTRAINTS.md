@@ -14,6 +14,10 @@ All examples below use the normalized target format.
 - `type` is required logically (if missing/unknown, it falls back to `selection`).
 - `question` should be a string (may be empty but should be provided).
 - Answer indexing is 0-based.
+- Question payloads must contain only the question and answer structure needed for checking.
+- Explanations, teaching text, and narrative context do **not** belong in question definitions.
+- If more than one learner input should be considered correct, **all valid answer forms must be explicitly listed**. Do not assume the runtime will infer equivalence between formats.
+- If the requested response is only a year, the question must ask only for a year, not for a full date.
 
 ## 2. Supported canonical types
 
@@ -58,9 +62,56 @@ Question definition can be provided as:
 
 4. from `questionTypes[]` (object or JSON string); first valid entry is used.
 
-## 5. Type-specific constraints
+## 5. Cross-type answer normalization
 
-## 5.1 Selection
+### 5.1 Accepted answer variants
+
+For free-input question types (`text`, `number`, `date`), the normalized definition may include:
+
+- `answer`: the primary canonical correct answer
+- `acceptedAnswers`: array of all additional valid answer forms
+
+Supported fallback aliases for `acceptedAnswers`:
+- `answers`
+- `accepted`
+- `acceptedVariants`
+- `aliases`
+- `alternatives`
+
+Normalization rules:
+- `acceptedAnswers` is optional but strongly recommended whenever more than one input form is valid.
+- If `acceptedAnswers` is missing, importer/runtime may derive `[answer]` as the only accepted form.
+- Duplicate variants are removed after trimming.
+- Empty variants are removed.
+- The first valid entry becomes canonical `answer` if `answer` is missing.
+- Authors should include every intended equivalent form explicitly, e.g. `"25%"`, `"25 percent"`, `"0.25"`, `"1/4"`.
+- Do **not** assume that `25%`, `25`, `0.25`, and `1/4` will be treated as equivalent unless each form is explicitly listed and intended by the question.
+
+### 5.2 Year-only rule
+
+If the learner is expected to provide only a year:
+- the prompt must ask for a year only,
+- the stored answer should represent only the year,
+- authors should prefer `number` for year-only input unless the project explicitly supports `date` with `precision: "year"`.
+
+Correct:
+```json
+{ "type": "number", "question": "In what year was the isotope concept named?", "answer": 1913 }
+```
+
+Also acceptable when date precision is supported:
+```json
+{ "type": "date", "question": "In what year was the isotope concept named?", "answer": "1913", "precision": "year" }
+```
+
+Incorrect:
+```json
+{ "type": "date", "question": "In what year was the isotope concept named?", "answer": "1913-01-01" }
+```
+
+## 6. Type-specific constraints
+
+## 6.1 Selection
 
 Required:
 - `options: string[]` (fallback from `answers`)
@@ -84,7 +135,7 @@ Example:
 }
 ```
 
-## 5.2 True/False
+## 6.2 True/False
 
 Required:
 - `answer: boolean` (fallback from `expected`)
@@ -100,53 +151,85 @@ Example:
 }
 ```
 
-## 5.3 Text (short/open answer)
+## 6.3 Text (short/open answer)
 
 Required:
 - `answer: string` (fallback from `expected`)
 
+Optional:
+- `acceptedAnswers: string[]`
+
 Aliases `short`, `open`, `short_text` normalize to this type.
+
+Recommended usage:
+- use when the expected response is a word, phrase, symbol, or several explicitly accepted textual forms,
+- list all valid variants if spelling, notation, symbols, abbreviations, or equivalent forms may differ.
 
 Example:
 ```json
 {
   "type": "text",
-  "question": "Name the Philistine deity from the Ark narrative.",
-  "answer": "Dagon"
+  "question": "Write the fraction equivalent of 25%.",
+  "answer": "1/4",
+  "acceptedAnswers": ["1/4", "¼"]
 }
 ```
 
-## 5.4 Number
+## 6.4 Number
 
 Required:
-- `answer` as number or string (fallback from `expected`)
+- `answer` as number or numeric string (fallback from `expected`)
+
+Optional:
+- `acceptedAnswers: (number|string)[]`
 
 If missing: empty string is used.
+
+Recommended usage:
+- use for counts, quantities, and year-only answers,
+- if multiple numeric surface forms are intentionally valid, include them explicitly.
 
 Example:
 ```json
 {
   "type": "number",
-  "question": "How many books are in the Pentateuch?",
-  "answer": 5
+  "question": "In what year did the event happen?",
+  "answer": 1949,
+  "acceptedAnswers": [1949, "1949"]
 }
 ```
 
-## 5.5 Date
+## 6.5 Date
 
 Required:
 - `answer: string` (fallback from `expected`)
+
+Optional:
+- `acceptedAnswers: string[]`
+- `precision: "year" | "month" | "day"`
+
+Normalization:
+- if `precision` is missing, default precision is `day`
+- when `precision` is `year`, `answer` should be in `YYYY` form
+- when `precision` is `month`, `answer` should be in `YYYY-MM` form
+- when `precision` is `day`, `answer` should be in `YYYY-MM-DD` form
+
+Recommended usage:
+- use only when calendar precision matters,
+- for year-only questions, prefer `number` unless the environment explicitly wants `date` with `precision: "year"`.
 
 Example:
 ```json
 {
   "type": "date",
-  "question": "When did the event happen?",
-  "answer": "2026-03-24"
+  "question": "In what year was the event formalized?",
+  "answer": "1913",
+  "precision": "year",
+  "acceptedAnswers": ["1913"]
 }
 ```
 
-## 5.6 Ordering
+## 6.6 Ordering
 
 Required:
 - `options: string[]` (fallback from `items`)
@@ -163,7 +246,7 @@ Example:
 }
 ```
 
-## 5.7 Matching
+## 6.7 Matching
 
 Required:
 - `columns: string[][]` (fallback from `left` + `right`)
@@ -199,18 +282,20 @@ Example:
 }
 ```
 
-## 6. Validation guidance
+## 7. Validation guidance
 
 - `selection`: non-empty `options`, `answer` indices valid for `options`.
 - `truefalse`: `answer` boolean.
-- `text`: `answer` string.
-- `number`: `answer` number or numeric string.
-- `date`: `answer` string in expected app format.
+- `text`: `answer` string; if multiple correct forms are allowed, all should appear in `acceptedAnswers`.
+- `number`: `answer` number or numeric string; if multiple surface forms are accepted, all should appear in `acceptedAnswers`.
+- `date`: `answer` string in the expected app format for the declared `precision`.
 - `ordering`: non-empty `options`.
 - `matching`: `columns.length >= 2`; all path widths match and indices are valid.
 
-## 7. Important compatibility note
+## 8. Important compatibility note
 
 For highest compatibility with runtime and checkcards:
-- use canonical `type` values from section 2
-- for short-answer questions, prefer `text` (not `short`) even though aliases are accepted.
+- use canonical `type` values from section 2,
+- for short-answer questions, prefer `text` (not `short`) even though aliases are accepted,
+- for year-only questions, prefer `number` unless `date` with `precision: "year"` is explicitly supported end-to-end,
+- if the runtime cannot truly accept multiple free-input variants, rewrite the question to require one exact format or convert it into `selection`.
