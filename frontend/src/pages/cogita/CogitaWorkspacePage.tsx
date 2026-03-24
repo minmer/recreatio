@@ -3,11 +3,19 @@ import '../../styles/cogita.css';
 import 'katex/dist/katex.min.css';
 import {
   ApiError,
+  createCogitaGame,
+  createCogitaGameSession,
   createCogitaLibrary,
   getCogitaCreationProjects,
   createDataItem,
   exportCogitaLibraryStream,
   getCogitaDependencyGraphs,
+  getCogitaGame,
+  getCogitaGameActionGraph,
+  getCogitaGameLayouts,
+  getCogitaGameSessions,
+  getCogitaGames,
+  getCogitaGameValues,
   getCogitaCollections,
   getCogitaInfoDetail,
   getCogitaLibraries,
@@ -20,10 +28,19 @@ import {
   issueCsrf,
   searchCogitaInfos,
   type CogitaImportProgress,
+  upsertCogitaGameActionGraph,
+  upsertCogitaGameLayout,
+  upsertCogitaGameValues,
+  updateCogitaGame,
   updateDataItem,
   type CogitaCollectionSummary,
   type CogitaCreationProject,
   type CogitaDependencyGraphSummary,
+  type CogitaGameActionGraph,
+  type CogitaGameLayout,
+  type CogitaGameSessionSummary,
+  type CogitaGameSummary,
+  type CogitaGameValue,
   type CogitaInfoSearchResult,
   type CogitaLibrary,
   type CogitaLiveRevisionSessionListItem,
@@ -54,7 +71,14 @@ import { CogitaRevisionSearch } from './components/workspace/revision/CogitaRevi
 import { CogitaRevisionOverview } from './components/workspace/revision/CogitaRevisionOverview';
 import { CogitaRevisionEdit } from './components/workspace/revision/CogitaRevisionEdit';
 import { CogitaRevisionLiveSessions } from './components/workspace/revision/livesessions/CogitaRevisionLiveSessions';
-import { CogitaGameWorkspace, type GameWorkspaceView } from './components/workspace/game/CogitaGameWorkspace';
+import { CogitaGameActions } from './components/workspace/game/CogitaGameActions';
+import { CogitaGameEdit } from './components/workspace/game/CogitaGameEdit';
+import { CogitaGameLayout } from './components/workspace/game/CogitaGameLayout';
+import { CogitaGameOverview } from './components/workspace/game/CogitaGameOverview';
+import { CogitaGameParticipants } from './components/workspace/game/CogitaGameParticipants';
+import { CogitaGameSearch } from './components/workspace/game/CogitaGameSearch';
+import { CogitaGameValues } from './components/workspace/game/CogitaGameValues';
+import { CogitaGameLiveSessionsRuntime } from './components/runtime/game/CogitaGameLiveSessionsRuntime';
 import { CogitaLiveSessionsPage } from './live/CogitaLiveSessionsPage';
 import type { CogitaLibraryMode } from './components/types';
 import { primeCachedCollections } from './components/cogitaMetaCache';
@@ -165,6 +189,586 @@ const TARGET_CAPABILITIES: Record<CogitaTarget, { requiresCollection: boolean; a
 const REVISION_SELECTION_VIEWS: RevisionView[] = ['detail', 'settings', 'live'];
 const SIDEBAR_NAV_LABEL_MAX = 30;
 const BREADCRUMB_NAV_LABEL_MAX = 42;
+type GameWorkspaceView =
+  | 'search'
+  | 'create'
+  | 'overview'
+  | 'edit'
+  | 'participants'
+  | 'values'
+  | 'actions'
+  | 'layout'
+  | 'live_sessions';
+
+const GAME_VIEW_LABELS: Array<{ key: GameWorkspaceView; label: string }> = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'edit', label: 'Edit' },
+  { key: 'participants', label: 'Participants' },
+  { key: 'values', label: 'Values' },
+  { key: 'actions', label: 'Actions' },
+  { key: 'layout', label: 'Layout' },
+  { key: 'live_sessions', label: 'Live Sessions' }
+];
+
+function parseJsonObject<T>(raw: string, fallback: T): T {
+  try {
+    const parsed = JSON.parse(raw) as T;
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
+function toErrorText(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    return error.message || fallback;
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function normalizeLayoutRoleType(value: string | undefined | null): 'host' | 'groupLeader' | 'participant' {
+  const normalized = (value ?? '').trim().toLowerCase();
+  if (normalized === 'host') return 'host';
+  if (normalized === 'groupleader' || normalized === 'group_leader' || normalized === 'group-leader') return 'groupLeader';
+  return 'participant';
+}
+
+function readGameDescription(settings: Record<string, unknown> | null | undefined): string {
+  if (!settings) return '';
+  const candidate = settings.description;
+  return typeof candidate === 'string' ? candidate : '';
+}
+
+function CogitaGameTargetSection({
+  copy,
+  libraryId,
+  gameId,
+  view,
+  onNavigate
+}: {
+  copy: Copy;
+  libraryId: string;
+  gameId?: string;
+  view: GameWorkspaceView;
+  onNavigate: (next: { gameId?: string; view?: GameWorkspaceView }) => void;
+}) {
+  const [games, setGames] = useState<CogitaGameSummary[]>([]);
+  const [query, setQuery] = useState('');
+  const [loadingGames, setLoadingGames] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const [createDetails, setCreateDetails] = useState<{ name: string; description: string }>({
+    name: '',
+    description: ''
+  });
+
+  const [details, setDetails] = useState<{ name: string; description: string } | null>(null);
+  const [gameSettings, setGameSettings] = useState<Record<string, unknown>>({});
+  const [values, setValues] = useState<CogitaGameValue[]>([]);
+  const [actionGraph, setActionGraph] = useState<CogitaGameActionGraph | null>(null);
+  const [actionNodesText, setActionNodesText] = useState('[]');
+  const [actionEdgesText, setActionEdgesText] = useState('[]');
+  const [layouts, setLayouts] = useState<CogitaGameLayout[]>([]);
+  const [selectedLayoutRole, setSelectedLayoutRole] = useState<'host' | 'groupLeader' | 'participant'>('participant');
+  const [layoutText, setLayoutText] = useState('{}');
+  const [sessions, setSessions] = useState<CogitaGameSessionSummary[]>([]);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionGroupsText, setSessionGroupsText] = useState(
+    JSON.stringify(
+      [
+        { groupKey: 'group-a', displayName: 'Group A', capacity: 8 },
+        { groupKey: 'group-b', displayName: 'Group B', capacity: 8 }
+      ],
+      null,
+      2
+    )
+  );
+  const [sessionZonesText, setSessionZonesText] = useState(
+    JSON.stringify(
+      [{ zoneKey: 'zone-1', latitude: 52.2297, longitude: 21.0122, triggerRadiusM: 120, sourceType: 'manual' }],
+      null,
+      2
+    )
+  );
+
+  const normalizedView = view;
+
+  const filteredGames = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return games;
+    return games.filter((item) => item.name.toLowerCase().includes(normalized));
+  }, [games, query]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoadingGames(true);
+      try {
+        const list = await getCogitaGames({ libraryId, limit: 400 });
+        if (!cancelled) {
+          setGames(list);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(toErrorText(error, 'Failed to load games.'));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingGames(false);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [libraryId]);
+
+  useEffect(() => {
+    if (!gameId) {
+      setDetails(null);
+      setGameSettings({});
+      setValues([]);
+      setActionGraph(null);
+      setLayouts([]);
+      setSessions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [game, gameValues, graph, gameLayouts, gameSessions] = await Promise.all([
+          getCogitaGame({ libraryId, gameId }),
+          getCogitaGameValues({ libraryId, gameId }),
+          getCogitaGameActionGraph({ libraryId, gameId }),
+          getCogitaGameLayouts({ libraryId, gameId }),
+          getCogitaGameSessions({ libraryId, gameId, limit: 100 })
+        ]);
+        if (cancelled) return;
+
+        const settings =
+          game.settings && typeof game.settings === 'object' && !Array.isArray(game.settings)
+            ? (game.settings as Record<string, unknown>)
+            : {};
+        setDetails({
+          name: game.name,
+          description: readGameDescription(settings)
+        });
+        setGameSettings(settings);
+        setValues(gameValues);
+        setActionGraph(graph);
+        setActionNodesText(JSON.stringify(graph.nodes ?? [], null, 2));
+        setActionEdgesText(JSON.stringify(graph.edges ?? [], null, 2));
+        setLayouts(gameLayouts);
+        setSessions(gameSessions);
+
+        const selectedLayout = gameLayouts.find((item) => normalizeLayoutRoleType(item.roleType) === selectedLayoutRole);
+        setLayoutText(JSON.stringify(selectedLayout?.layout ?? {}, null, 2));
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(toErrorText(error, 'Failed to load game details.'));
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [gameId, libraryId, selectedLayoutRole]);
+
+  useEffect(() => {
+    const selectedLayout = layouts.find((item) => normalizeLayoutRoleType(item.roleType) === selectedLayoutRole);
+    setLayoutText(JSON.stringify(selectedLayout?.layout ?? {}, null, 2));
+  }, [layouts, selectedLayoutRole]);
+
+  const createGame = async () => {
+    const normalized = createDetails.name.trim();
+    if (!normalized) {
+      setStatus('Name is required.');
+      return;
+    }
+    setStatus(null);
+    try {
+      const description = createDetails.description.trim();
+      const settings: Record<string, unknown> = {};
+      if (description.length > 0) {
+        settings.description = description;
+      }
+      const created = await createCogitaGame({
+        libraryId,
+        name: normalized,
+        settings
+      });
+      setGames((current) => [created, ...current]);
+      setCreateDetails({ name: '', description: '' });
+      onNavigate({ gameId: created.gameId, view: 'overview' });
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to create game.'));
+    }
+  };
+
+  const saveGame = async () => {
+    if (!gameId || !details) return;
+    const normalized = details.name.trim();
+    if (!normalized) {
+      setStatus('Game name cannot be empty.');
+      return;
+    }
+    setStatus(null);
+    try {
+      const description = details.description.trim();
+      const nextSettings: Record<string, unknown> = { ...gameSettings };
+      if (description.length > 0) {
+        nextSettings.description = description;
+      } else {
+        delete nextSettings.description;
+      }
+      const updated = await updateCogitaGame({
+        libraryId,
+        gameId,
+        name: normalized,
+        settings: nextSettings
+      });
+      setGames((current) => current.map((item) => (item.gameId === updated.gameId ? updated : item)));
+      setGameSettings(nextSettings);
+      setStatus('Game saved.');
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to save game.'));
+    }
+  };
+
+  const addValue = () => {
+    setValues((current) => [
+      ...current,
+      {
+        valueId: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        valueKey: 'points',
+        name: 'Points',
+        scopeType: 'participant',
+        visibility: 'public',
+        dataType: 'number',
+        defaultValue: 0,
+        constraints: null,
+        isScore: true,
+        updatedUtc: new Date().toISOString()
+      }
+    ]);
+  };
+
+  const saveValues = async () => {
+    if (!gameId) return;
+    setStatus(null);
+    try {
+      const saved = await upsertCogitaGameValues({
+        libraryId,
+        gameId,
+        values: values.map((item) => ({
+          valueId: item.valueId.startsWith('temp-') ? undefined : item.valueId,
+          valueKey: item.valueKey,
+          name: item.name,
+          scopeType: item.scopeType,
+          visibility: item.visibility,
+          dataType: item.dataType,
+          defaultValue: item.defaultValue,
+          constraints: item.constraints ?? null,
+          isScore: item.isScore
+        }))
+      });
+      setValues(saved);
+      setStatus('Values saved.');
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to save values.'));
+    }
+  };
+
+  const saveActionGraph = async (publish: boolean) => {
+    if (!gameId) return;
+    setStatus(null);
+    try {
+      const nodes = parseJsonObject<Array<Record<string, unknown>>>(actionNodesText, []).map((node) => ({
+        nodeId: typeof node.nodeId === 'string' ? node.nodeId : undefined,
+        nodeType: typeof node.nodeType === 'string' ? node.nodeType : 'trigger.onEnterZone',
+        config: typeof node.config === 'object' && node.config ? (node.config as Record<string, unknown>) : {},
+        positionX: Number(node.positionX ?? 0),
+        positionY: Number(node.positionY ?? 0)
+      }));
+      const edges = parseJsonObject<Array<Record<string, unknown>>>(actionEdgesText, []).map((edge) => ({
+        edgeId: typeof edge.edgeId === 'string' ? edge.edgeId : undefined,
+        fromNodeId: String(edge.fromNodeId ?? ''),
+        fromPort: typeof edge.fromPort === 'string' ? edge.fromPort : null,
+        toNodeId: String(edge.toNodeId ?? ''),
+        toPort: typeof edge.toPort === 'string' ? edge.toPort : null
+      }));
+
+      if (nodes.some((node) => !node.nodeType) || edges.some((edge) => !edge.fromNodeId || !edge.toNodeId)) {
+        setStatus('Invalid action graph JSON. Check node and edge identifiers.');
+        return;
+      }
+
+      const saved = await upsertCogitaGameActionGraph({
+        libraryId,
+        gameId,
+        nodes,
+        edges,
+        publish
+      });
+      setActionGraph(saved);
+      setActionNodesText(JSON.stringify(saved.nodes, null, 2));
+      setActionEdgesText(JSON.stringify(saved.edges, null, 2));
+      setStatus(publish ? 'Action graph published.' : 'Action graph saved as draft.');
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to save action graph.'));
+    }
+  };
+
+  const saveLayout = async () => {
+    if (!gameId) return;
+    setStatus(null);
+    try {
+      const parsed = parseJsonObject<Record<string, unknown>>(layoutText, {});
+      const saved = await upsertCogitaGameLayout({
+        libraryId,
+        gameId,
+        roleType: selectedLayoutRole,
+        layout: parsed
+      });
+      setLayouts((current) => {
+        const normalizedSavedRole = normalizeLayoutRoleType(saved.roleType);
+        const withoutCurrent = current.filter((item) => normalizeLayoutRoleType(item.roleType) !== normalizedSavedRole);
+        return [...withoutCurrent, saved].sort((a, b) =>
+          normalizeLayoutRoleType(a.roleType).localeCompare(normalizeLayoutRoleType(b.roleType))
+        );
+      });
+      setStatus('Layout saved.');
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to save layout.'));
+    }
+  };
+
+  const createSession = async () => {
+    if (!gameId) return;
+    setStatus(null);
+    try {
+      const parsedGroups = parseJsonObject<Array<{ groupKey: string; displayName: string; capacity?: number }>>(
+        sessionGroupsText,
+        []
+      );
+      const parsedZones = parseJsonObject<Array<{ zoneKey: string; latitude: number; longitude: number; triggerRadiusM: number; sourceType?: string }>>(
+        sessionZonesText,
+        []
+      );
+
+      const created = await createCogitaGameSession({
+        libraryId,
+        gameId,
+        title: sessionTitle.trim() || null,
+        sessionSettings: {},
+        groups: parsedGroups,
+        zones: parsedZones
+      });
+
+      const storageKey = `cogita.game.host.${created.sessionId}`;
+      window.localStorage.setItem(storageKey, created.hostSecret);
+
+      setSessions((current) => [
+        {
+          sessionId: created.sessionId,
+          gameId,
+          status: created.state.status,
+          phase: created.state.phase,
+          roundIndex: created.state.roundIndex,
+          version: created.state.version,
+          createdUtc: new Date().toISOString(),
+          updatedUtc: new Date().toISOString()
+        },
+        ...current
+      ]);
+
+      const hostLink = `/#/cogita/game/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(created.sessionId)}?hostSecret=${encodeURIComponent(created.hostSecret)}&code=${encodeURIComponent(created.code)}`;
+      const joinLink = `/#/cogita/game/join/${encodeURIComponent(created.code)}`;
+      setStatus(`Session created. Host: ${hostLink} Participant: ${joinLink}`);
+    } catch (error) {
+      setStatus(toErrorText(error, 'Failed to create session.'));
+    }
+  };
+
+  const selectedGame = useMemo(() => games.find((item) => item.gameId === gameId) ?? null, [games, gameId]);
+  const shouldRenderCreate = normalizedView === 'create' && !gameId;
+  const shouldRenderSearch = !shouldRenderCreate && (normalizedView === 'search' || !gameId || !selectedGame);
+
+  const renderSelectedGameSection = () => {
+    if (!gameId || !selectedGame) {
+      return null;
+    }
+
+    if (normalizedView === 'overview') {
+      return (
+        <CogitaGameOverview
+          details={details}
+          sessions={sessions}
+          onOpenEdit={() => onNavigate({ gameId, view: 'edit' })}
+          onOpenParticipants={() => onNavigate({ gameId, view: 'participants' })}
+          onOpenValues={() => onNavigate({ gameId, view: 'values' })}
+          onOpenActions={() => onNavigate({ gameId, view: 'actions' })}
+          onOpenLayout={() => onNavigate({ gameId, view: 'layout' })}
+          onOpenLiveSessions={() => onNavigate({ gameId, view: 'live_sessions' })}
+        />
+      );
+    }
+
+    if (normalizedView === 'edit') {
+      return (
+        <CogitaGameEdit
+          mode="edit"
+          details={details}
+          onDetailsChange={setDetails}
+          onSave={() => void saveGame()}
+          onGoToLiveSessions={() => onNavigate({ gameId, view: 'live_sessions' })}
+        />
+      );
+    }
+
+    if (normalizedView === 'participants') {
+      return (
+        <CogitaGameParticipants
+          sessionGroupsText={sessionGroupsText}
+          sessionZonesText={sessionZonesText}
+          onSessionGroupsTextChange={setSessionGroupsText}
+          onSessionZonesTextChange={setSessionZonesText}
+        />
+      );
+    }
+
+    if (normalizedView === 'values') {
+      return (
+        <CogitaGameValues
+          values={values}
+          setValues={setValues}
+          onAddValue={addValue}
+          onSaveValues={() => void saveValues()}
+        />
+      );
+    }
+
+    if (normalizedView === 'actions') {
+      return (
+        <CogitaGameActions
+          actionNodesText={actionNodesText}
+          actionEdgesText={actionEdgesText}
+          actionGraph={actionGraph}
+          onActionNodesTextChange={setActionNodesText}
+          onActionEdgesTextChange={setActionEdgesText}
+          onSaveDraft={() => void saveActionGraph(false)}
+          onPublish={() => void saveActionGraph(true)}
+        />
+      );
+    }
+
+    if (normalizedView === 'layout') {
+      return (
+        <CogitaGameLayout
+          selectedLayoutRole={selectedLayoutRole}
+          layoutText={layoutText}
+          onSelectedLayoutRoleChange={setSelectedLayoutRole}
+          onLayoutTextChange={setLayoutText}
+          onSaveLayout={() => void saveLayout()}
+        />
+      );
+    }
+
+    if (normalizedView === 'live_sessions') {
+      return (
+        <CogitaGameLiveSessionsRuntime
+          libraryId={libraryId}
+          sessionTitle={sessionTitle}
+          sessionGroupsText={sessionGroupsText}
+          sessionZonesText={sessionZonesText}
+          sessions={sessions}
+          onSessionTitleChange={setSessionTitle}
+          onSessionGroupsTextChange={setSessionGroupsText}
+          onSessionZonesTextChange={setSessionZonesText}
+          onCreateSession={() => void createSession()}
+        />
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <>
+      <section className="cogita-section" style={{ maxWidth: 1280, margin: '0 auto', width: '100%' }}>
+        <header className="cogita-library-header" style={{ marginBottom: '1rem' }}>
+          <div>
+            <h1>{copy.cogita.workspace.targets.games}</h1>
+            <p>{copy.cogita.workspace.path.currentRoute}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button type="button" className={normalizedView === 'search' ? 'cta' : 'ghost'} onClick={() => onNavigate({ view: 'search' })}>Search</button>
+            <button type="button" className={normalizedView === 'create' && !gameId ? 'cta' : 'ghost'} onClick={() => onNavigate({ view: 'create' })}>Create</button>
+          </div>
+        </header>
+      </section>
+
+      {shouldRenderCreate ? (
+        <CogitaGameEdit
+          mode="create"
+          details={createDetails}
+          onDetailsChange={setCreateDetails}
+          onCreate={() => void createGame()}
+          onBack={() => onNavigate({ view: 'search' })}
+        />
+      ) : null}
+
+      {shouldRenderSearch ? (
+        <CogitaGameSearch
+          query={query}
+          loadingGames={loadingGames}
+          filteredGames={filteredGames}
+          onQueryChange={setQuery}
+          onCreate={() => onNavigate({ view: 'create' })}
+          onSelectGame={(selectedGameId) => onNavigate({ gameId: selectedGameId, view: 'overview' })}
+        />
+      ) : null}
+
+      {!shouldRenderCreate && !shouldRenderSearch && selectedGame ? (
+        <section className="cogita-section" style={{ display: 'grid', gap: '1rem' }}>
+          <div className="cogita-panel" style={{ display: 'grid', gap: '0.8rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0 }}>{selectedGame.name}</h3>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {GAME_VIEW_LABELS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={normalizedView === item.key ? 'cta' : 'ghost'}
+                    onClick={() => onNavigate({ gameId, view: item.key })}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <button type="button" className="ghost" onClick={() => onNavigate({ view: 'search' })}>All Games</button>
+              </div>
+            </div>
+
+            {renderSelectedGameSection()}
+          </div>
+        </section>
+      ) : null}
+
+      {status ? (
+        <section className="cogita-section" style={{ maxWidth: 1280, margin: '0.5rem auto 0' }}>
+          <p className="cogita-help">{status}</p>
+        </section>
+      ) : null}
+    </>
+  );
+}
 
 function WorkspaceLibraryTransferSection({
   copy,
@@ -686,10 +1290,10 @@ function buildCogitaPath(
     }
     const encodedGameId = encodeURIComponent(gameId);
     if (gameView === 'edit') return `${workspaceBase}/games/${encodedGameId}/edit`;
-    if (gameView === 'groups' || gameView === 'participants') return `${workspaceBase}/games/${encodedGameId}/participants`;
+    if (gameView === 'participants') return `${workspaceBase}/games/${encodedGameId}/participants`;
     if (gameView === 'values') return `${workspaceBase}/games/${encodedGameId}/values`;
     if (gameView === 'actions') return `${workspaceBase}/games/${encodedGameId}/actions`;
-    if (gameView === 'layouts' || gameView === 'layout') return `${workspaceBase}/games/${encodedGameId}/layout`;
+    if (gameView === 'layout') return `${workspaceBase}/games/${encodedGameId}/layout`;
     if (gameView === 'live_sessions') return `${workspaceBase}/games/${encodedGameId}/live-sessions`;
     return `${workspaceBase}/games/${encodedGameId}`;
   }
@@ -943,8 +1547,6 @@ export function CogitaWorkspacePage({
   }, [pathState.gameId, pathState.gameView]);
   const selectedGameAction = useMemo(() => {
     if (pathState.gameView === 'create' || !pathState.gameId) return 'overview';
-    if (pathState.gameView === 'groups') return 'participants';
-    if (pathState.gameView === 'layouts') return 'layout';
     return pathState.gameView ?? 'overview';
   }, [pathState.gameId, pathState.gameView]);
   const selectedInfoOption = useMemo(
@@ -2544,7 +3146,7 @@ export function CogitaWorkspacePage({
     if (pathState.target === 'games') {
       const resolvedView: GameWorkspaceView = pathState.gameView ?? (pathState.gameId ? 'overview' : 'search');
       return (
-        <CogitaGameWorkspace
+        <CogitaGameTargetSection
           copy={copy}
           libraryId={libraryId}
           gameId={pathState.gameId}
@@ -2558,10 +3160,10 @@ export function CogitaWorkspacePage({
             } else if (nextGameId) {
               const encodedGameId = encodeURIComponent(nextGameId);
               if (nextView === 'edit') nextPath = `${nextPath}/${encodedGameId}/edit`;
-              else if (nextView === 'groups' || nextView === 'participants') nextPath = `${nextPath}/${encodedGameId}/participants`;
+              else if (nextView === 'participants') nextPath = `${nextPath}/${encodedGameId}/participants`;
               else if (nextView === 'values') nextPath = `${nextPath}/${encodedGameId}/values`;
               else if (nextView === 'actions') nextPath = `${nextPath}/${encodedGameId}/actions`;
-              else if (nextView === 'layouts' || nextView === 'layout') nextPath = `${nextPath}/${encodedGameId}/layout`;
+              else if (nextView === 'layout') nextPath = `${nextPath}/${encodedGameId}/layout`;
               else if (nextView === 'live_sessions') nextPath = `${nextPath}/${encodedGameId}/live-sessions`;
               else nextPath = `${nextPath}/${encodedGameId}`;
             }

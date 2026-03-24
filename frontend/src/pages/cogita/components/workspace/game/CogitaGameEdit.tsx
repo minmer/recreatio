@@ -1,7 +1,6 @@
 type GameEditDetails = {
   name: string;
-  mode: string;
-  settingsText: string;
+  description: string;
 };
 
 type CogitaGameEditCreateProps = {
@@ -15,7 +14,7 @@ type CogitaGameEditCreateProps = {
 type CogitaGameEditUpdateProps = {
   mode: 'edit';
   details: GameEditDetails | null;
-  onDetailsChange: (next: GameEditDetails | null) => void;
+  onDetailsChange: (next: GameEditDetails) => void;
   onSave: () => void;
   onGoToLiveSessions: () => void;
 };
@@ -38,24 +37,13 @@ export function CogitaGameEdit(props: CogitaGameEditCreateProps | CogitaGameEdit
         />
       </label>
       <label>
-        Mode
-        <select
-          className="cogita-input"
-          value={details.mode}
-          onChange={(event) => props.onDetailsChange({ ...details, mode: event.target.value })}
-        >
-          <option value="mixed">Mixed</option>
-          <option value="group">Group</option>
-          <option value="solo">Solo</option>
-        </select>
-      </label>
-      <label>
-        Settings JSON
+        Description
         <textarea
           className="cogita-input"
-          style={{ minHeight: 180, fontFamily: 'monospace' }}
-          value={details.settingsText}
-          onChange={(event) => props.onDetailsChange({ ...details, settingsText: event.target.value })}
+          style={{ minHeight: 140 }}
+          value={details.description}
+          onChange={(event) => props.onDetailsChange({ ...details, description: event.target.value })}
+          placeholder="Short game description"
         />
       </label>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

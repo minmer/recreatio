@@ -41,7 +41,6 @@ export function CogitaGameSearch({
               onClick={() => onSelectGame(item.gameId)}
             >
               <strong>{item.name}</strong>
-              <span style={{ marginLeft: 8, opacity: 0.7 }}>{item.mode}</span>
             </button>
           ))}
           {filteredGames.length === 0 && !loadingGames ? <p>No games found.</p> : null}

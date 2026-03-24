@@ -1,7 +1,6 @@
-import type { CogitaGameSessionSummary, CogitaGameSummary } from '../../../../../lib/api';
+import type { CogitaGameSessionSummary } from '../../../../../lib/api';
 
 export function CogitaGameOverview({
-  selectedGame,
   details,
   sessions,
   onOpenEdit,
@@ -11,8 +10,7 @@ export function CogitaGameOverview({
   onOpenLayout,
   onOpenLiveSessions
 }: {
-  selectedGame: CogitaGameSummary;
-  details: { name: string; mode: string; settingsText: string } | null;
+  details: { name: string; description: string } | null;
   sessions: CogitaGameSessionSummary[];
   onOpenEdit: () => void;
   onOpenParticipants: () => void;
@@ -31,10 +29,6 @@ export function CogitaGameOverview({
     <div style={{ display: 'grid', gap: '0.8rem', maxWidth: 980 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
         <div className="cogita-panel" style={{ padding: '0.75rem' }}>
-          <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>Game Mode</p>
-          <strong>{details.mode || selectedGame.mode}</strong>
-        </div>
-        <div className="cogita-panel" style={{ padding: '0.75rem' }}>
           <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>Live Sessions</p>
           <strong>{sessions.length}</strong>
         </div>
@@ -46,6 +40,9 @@ export function CogitaGameOverview({
 
       <div className="cogita-panel" style={{ display: 'grid', gap: '0.5rem' }}>
         <p style={{ margin: 0 }}><strong>{details.name}</strong></p>
+        {details.description.trim().length > 0 ? (
+          <p className="cogita-help" style={{ margin: 0 }}>{details.description}</p>
+        ) : null}
         <p className="cogita-help" style={{ margin: 0 }}>
           Configure participants, values, action graph, and layouts from the workspace sections below.
         </p>
