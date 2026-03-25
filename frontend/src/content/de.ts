@@ -59,6 +59,7 @@ export const de: Copy = {
     confirm: 'Passwort bestätigen',
     displayName: 'Öffentlicher Nickname (optional)',
     secureMode: 'Sicherer Modus (kein Schlüssel-Cache)',
+    rememberMe: 'Auf diesem Gerät angemeldet bleiben',
     create: 'Konto erstellen',
     signIn: 'Anmelden',
     statusTitle: 'Status',
@@ -861,7 +862,10 @@ export const de: Copy = {
           groupCompleted: 'Gruppenablauf abgeschlossen.',
           finished: 'Storyboard abgeschlossen.',
           rightAction: 'Richtig',
-          wrongAction: 'Falsch'
+          wrongAction: 'Falsch',
+          chapterChooseLabel: 'Kapitel wählen',
+          chapterFinishAction: 'Kapitel abschließen: {chapter}',
+          chapterRestartFromStartAction: 'Dieses Kapitel noch einmal von Anfang.'
         },
         textsTitle: 'Texte',
         textsSubtitle: 'Entwurfsbereich zum Schreiben in dieser Bibliothek.',

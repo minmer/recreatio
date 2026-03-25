@@ -16,6 +16,8 @@ export function AuthPanel({
   onPasswordConfirmChange,
   secureMode,
   onSecureModeChange,
+  rememberMe,
+  onRememberMeChange,
   availability,
   passwordHint,
   status,
@@ -40,6 +42,8 @@ export function AuthPanel({
   onPasswordConfirmChange: (value: string) => void;
   secureMode: boolean;
   onSecureModeChange: (value: boolean) => void;
+  rememberMe: boolean;
+  onRememberMeChange: (value: boolean) => void;
   availability: string | null;
   passwordHint: string | null;
   status: { type: 'idle' | 'working' | 'success' | 'error'; message?: string };
@@ -67,6 +71,8 @@ export function AuthPanel({
         onPasswordConfirmChange={onPasswordConfirmChange}
         secureMode={secureMode}
         onSecureModeChange={onSecureModeChange}
+        rememberMe={rememberMe}
+        onRememberMeChange={onRememberMeChange}
         availability={availability}
         passwordHint={passwordHint}
         onSubmit={onSubmit}

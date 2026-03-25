@@ -17,7 +17,7 @@ type AuthContextValue = {
   session: SessionInfo | null;
   status: AuthStatus;
   register: (options: { loginId: string; password: string; displayName?: string | null }) => Promise<void>;
-  login: (options: { loginId: string; password: string; secureMode: boolean; deviceInfo?: string }) => Promise<void>;
+  login: (options: { loginId: string; password: string; secureMode: boolean; rememberMe: boolean; deviceInfo?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   setSecureMode: (secureMode: boolean) => Promise<void>;
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await registerWithPassword(options);
   }, []);
 
-  const login = useCallback(async (options: { loginId: string; password: string; secureMode: boolean; deviceInfo?: string }) => {
+  const login = useCallback(async (options: { loginId: string; password: string; secureMode: boolean; rememberMe: boolean; deviceInfo?: string }) => {
     const response = await loginWithPassword(options);
     setSession({
       userId: response.userId,

@@ -874,24 +874,6 @@ export function CogitaStoryboardRuntimePage({
 }) {
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
-  const chapterRestartLabel =
-    language === 'pl'
-      ? 'Restartuj rozdział'
-      : language === 'de'
-        ? 'Kapitel neu starten'
-        : 'Restart chapter';
-  const chapterEndLabel =
-    language === 'pl'
-      ? 'Przejdź do końca rozdziału'
-      : language === 'de'
-        ? 'Zum Kapitelende'
-        : 'Go to chapter end';
-  const chapterSelectLabel =
-    language === 'pl'
-      ? 'Wybierz rozdział'
-      : language === 'de'
-        ? 'Kapitel wählen'
-        : 'Choose chapter';
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
   const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
@@ -1269,9 +1251,10 @@ export function CogitaStoryboardRuntimePage({
         : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited);
     return edges.map((edge) => {
       const target = findNode(runtime.graph, edge.toNodeId);
+      const fallbackLabel = target?.kind === 'join' ? runtimeCopy.choiceFallback : (target?.title || runtimeCopy.choiceFallback);
       return {
         edge,
-        label: edge.label.trim() || target?.title || runtimeCopy.choiceFallback
+        label: edge.label.trim() || fallbackLabel
       };
     });
   }, [currentNode, runtime, runtimeCopy.choiceFallback]);
@@ -1329,6 +1312,19 @@ export function CogitaStoryboardRuntimePage({
     return Boolean(runtime.activeSeparatorByGraphPath[graphPathKey]);
   }, [runtime]);
 
+  const currentChapterTitle = useMemo(() => {
+    if (!runtime) return '';
+    const graphPathKey = buildGraphPathKey(runtime.graphPath);
+    const chapterStartNodeId = runtime.activeChapterStartByGraphPath[graphPathKey];
+    if (!chapterStartNodeId) return '';
+    return findNode(runtime.graph, chapterStartNodeId)?.title?.trim() ?? '';
+  }, [runtime]);
+
+  const chapterFinishLabel = useMemo(() => {
+    const chapterTitle = currentChapterTitle || runtimeCopy.choiceFallback;
+    return runtimeCopy.chapterFinishAction.replace('{chapter}', chapterTitle);
+  }, [currentChapterTitle, runtimeCopy.chapterFinishAction, runtimeCopy.choiceFallback]);
+
   const canRestartChapter = useMemo(() => {
     if (!runtime) return false;
     const graphPathKey = buildGraphPathKey(runtime.graphPath);
@@ -1336,12 +1332,13 @@ export function CogitaStoryboardRuntimePage({
   }, [runtime]);
 
   const canGoToChapterEnd = useMemo(() => {
-    if (!runtime) return false;
+    if (!runtime || !currentNode) return false;
+    if (currentNode.kind === 'separator' || currentNode.kind === 'join' || currentNode.kind === 'end') return false;
     const graphPathKey = buildGraphPathKey(runtime.graphPath);
     const separatorNodeId = runtime.activeSeparatorByGraphPath[graphPathKey];
     if (!separatorNodeId) return false;
     return Boolean(findJoinNodeIdForSeparator(runtime.graph, separatorNodeId));
-  }, [runtime]);
+  }, [currentNode, runtime]);
 
   const chooseCardOutcome = (edge: StoryboardGraphEdge | null) => {
     if (!edge) return;
@@ -1673,7 +1670,7 @@ export function CogitaStoryboardRuntimePage({
             {currentNode?.kind === 'separator' && !runtime.finished && pathChoices.length > 0 ? (
               <article className="cogita-library-detail" style={{ margin: 0 }}>
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.7rem' }}>
-                  <p className="cogita-help" style={{ margin: 0, fontWeight: 600 }}>{chapterSelectLabel}</p>
+                  <p className="cogita-help" style={{ margin: 0, fontWeight: 600 }}>{runtimeCopy.chapterChooseLabel}</p>
                   <div style={{ display: 'grid', gap: '0.6rem' }}>
                     {pathChoices.map((choice) => (
                       <button
@@ -1704,11 +1701,13 @@ export function CogitaStoryboardRuntimePage({
             {hasActiveChapterCycle && !runtime.finished ? (
               <div className="cogita-card-actions" style={{ flexWrap: 'wrap' }}>
                 <button type="button" className="cta ghost" onClick={restartChapter} disabled={!canRestartChapter}>
-                  {chapterRestartLabel}
+                  {runtimeCopy.chapterRestartFromStartAction}
                 </button>
-                <button type="button" className="cta ghost" onClick={goToChapterEnd} disabled={!canGoToChapterEnd}>
-                  {chapterEndLabel}
-                </button>
+                {canGoToChapterEnd ? (
+                  <button type="button" className="cta ghost" onClick={goToChapterEnd}>
+                    {chapterFinishLabel}
+                  </button>
+                ) : null}
               </div>
             ) : null}
             <div ref={runtimeScrollAnchorRef} />

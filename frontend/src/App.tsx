@@ -138,6 +138,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [secureMode, setSecureMode] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [availability, setAvailability] = useState<string | null>(null);
   const [passwordHint, setPasswordHint] = useState<string | null>(null);
   const [loginCardOpen, setLoginCardOpen] = useState(false);
@@ -443,6 +444,7 @@ export default function App() {
         loginId,
         password,
         secureMode,
+        rememberMe,
         deviceInfo
       });
       setStatus({ type: 'success', message: t.access.statusReady });
@@ -1214,6 +1216,8 @@ export default function App() {
                   onPasswordConfirmChange={setPasswordConfirm}
                   secureMode={secureMode}
                   onSecureModeChange={setSecureMode}
+                  rememberMe={rememberMe}
+                  onRememberMeChange={setRememberMe}
                   availability={availability}
                   passwordHint={passwordHint}
                   status={status}
@@ -1247,6 +1251,8 @@ export default function App() {
         onPasswordConfirmChange={setPasswordConfirm}
         secureMode={secureMode}
         onSecureModeChange={setSecureMode}
+        rememberMe={rememberMe}
+        onRememberMeChange={setRememberMe}
         availability={availability}
         passwordHint={passwordHint}
         status={status}

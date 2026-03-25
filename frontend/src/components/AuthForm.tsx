@@ -15,6 +15,8 @@ export function AuthForm({
   onPasswordConfirmChange,
   secureMode,
   onSecureModeChange,
+  rememberMe,
+  onRememberMeChange,
   availability,
   passwordHint,
   onSubmit,
@@ -33,6 +35,8 @@ export function AuthForm({
   onPasswordConfirmChange: (value: string) => void;
   secureMode: boolean;
   onSecureModeChange: (value: boolean) => void;
+  rememberMe: boolean;
+  onRememberMeChange: (value: boolean) => void;
   availability: string | null;
   passwordHint: string | null;
   onSubmit: (event: React.FormEvent) => void;
@@ -98,6 +102,14 @@ export function AuthForm({
               onChange={(event) => onSecureModeChange(event.target.checked)}
             />
             {copy.access.secureMode}
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) => onRememberMeChange(event.target.checked)}
+            />
+            {copy.access.rememberMe}
           </label>
           <button type="submit" className="cta">
             {copy.access.signIn}

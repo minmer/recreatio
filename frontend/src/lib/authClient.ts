@@ -32,6 +32,7 @@ export async function loginWithPassword(options: {
   loginId: string;
   password: string;
   secureMode: boolean;
+  rememberMe: boolean;
   deviceInfo?: string;
 }) {
   const iterationsToTry = [primaryIterations, ...legacyIterations];
@@ -45,6 +46,7 @@ export async function loginWithPassword(options: {
         loginId: options.loginId,
         h3Base64: h3,
         secureMode: options.secureMode,
+        rememberMe: options.rememberMe,
         deviceInfo: options.deviceInfo ?? null
       });
     } catch (error) {

@@ -7,6 +7,7 @@ public static class AuthClaims
     public const string UserId = "sub";
     public const string SessionId = "sid";
     public const string SecureMode = "sm";
+    public const string RememberMe = "rm";
     public const string H3 = "h3";
 
     public static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
@@ -48,5 +49,11 @@ public static class AuthClaims
     {
         var value = principal.FindFirst(SecureMode)?.Value;
         return bool.TryParse(value, out var secureMode) && secureMode;
+    }
+
+    public static bool IsRememberMe(ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirst(RememberMe)?.Value;
+        return bool.TryParse(value, out var rememberMe) && rememberMe;
     }
 }

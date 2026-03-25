@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Options;
+using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 
 namespace Recreatio.Api.Endpoints;
@@ -13,13 +15,20 @@ public static class EndpointHelpers
     public static bool TryGetSessionId(HttpContext context, out string sessionId) =>
         AuthClaims.TryGetSessionId(context.User, out sessionId);
 
-    public static async Task SignInAsync(HttpContext context, Guid userId, string sessionId, bool secureMode, string h3Base64)
+    public static async Task SignInAsync(HttpContext context, Guid userId, string sessionId, bool secureMode, bool rememberMe, string h3Base64)
     {
+        var authOptions = context.RequestServices.GetRequiredService<IOptions<AuthOptions>>().Value;
+        var now = DateTimeOffset.UtcNow;
+        var expiresUtc = rememberMe
+            ? now.AddDays(NormalizeRememberMeDays(authOptions.RememberMeDays))
+            : now.AddMinutes(NormalizeSessionIdleMinutes(authOptions.SessionIdleMinutes));
+
         var claims = new[]
         {
             new Claim(AuthClaims.UserId, userId.ToString()),
             new Claim(AuthClaims.SessionId, sessionId),
             new Claim(AuthClaims.SecureMode, secureMode.ToString()),
+            new Claim(AuthClaims.RememberMe, rememberMe.ToString()),
             new Claim(AuthClaims.H3, h3Base64)
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
@@ -29,7 +38,8 @@ public static class EndpointHelpers
             new AuthenticationProperties
             {
                 IsPersistent = true,
-                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(60)
+                ExpiresUtc = expiresUtc,
+                AllowRefresh = true
             });
     }
 
@@ -53,4 +63,8 @@ public static class EndpointHelpers
             _ => Results.BadRequest(new { error = ex.Message })
         };
     }
+
+    private static int NormalizeSessionIdleMinutes(int value) => Math.Clamp(value, 5, 24 * 60);
+
+    private static int NormalizeRememberMeDays(int value) => Math.Clamp(value, 1, 365);
 }

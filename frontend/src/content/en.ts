@@ -59,6 +59,7 @@ export const en: Copy = {
     confirm: 'Confirm password',
     displayName: 'Public nickname (optional)',
     secureMode: 'Secure mode (no key cache)',
+    rememberMe: 'Remember me on this device',
     create: 'Create account',
     signIn: 'Sign in',
     statusTitle: 'Status',
@@ -861,7 +862,10 @@ export const en: Copy = {
           groupCompleted: 'Group flow completed.',
           finished: 'Storyboard finished.',
           rightAction: 'Right',
-          wrongAction: 'Wrong'
+          wrongAction: 'Wrong',
+          chapterChooseLabel: 'Choose chapter',
+          chapterFinishAction: 'Finish the chapter: {chapter}',
+          chapterRestartFromStartAction: 'Start this chapter again from the beginning.'
         },
         textsTitle: 'Texts',
         textsSubtitle: 'Draft writing workspace for this library.',

@@ -158,6 +158,9 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRecreatioAuthentication(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
+        var authOptions = configuration.GetSection("Auth").Get<AuthOptions>() ?? new AuthOptions();
+        var sessionIdleMinutes = Math.Clamp(authOptions.SessionIdleMinutes, 5, 24 * 60);
+
         services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
@@ -176,7 +179,7 @@ public static class ServiceCollectionExtensions
                     options.Cookie.Domain = cookieDomain;
                 }
                 options.SlidingExpiration = true;
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+                options.ExpireTimeSpan = TimeSpan.FromMinutes(sessionIdleMinutes);
                 options.Events = new CookieAuthenticationEvents
                 {
                     OnRedirectToLogin = context =>

@@ -152,6 +152,7 @@ export function login(payload: {
   loginId: string;
   h3Base64: string;
   secureMode: boolean;
+  rememberMe: boolean;
   deviceInfo?: string | null;
 }) {
   return request<{ userId: string; sessionId: string; secureMode: boolean }>('/auth/login', {
@@ -160,6 +161,7 @@ export function login(payload: {
       loginId: payload.loginId,
       h3Base64: payload.h3Base64,
       secureMode: payload.secureMode,
+      rememberMe: payload.rememberMe,
       deviceInfo: payload.deviceInfo ?? null
     })
   });

@@ -59,6 +59,7 @@ export const pl: Copy = {
     confirm: 'Potwierdź hasło',
     displayName: 'Publiczny nick (opcjonalnie)',
     secureMode: 'Tryb bezpieczny (brak cache kluczy)',
+    rememberMe: 'Zapamiętaj mnie na tym urządzeniu',
     create: 'Utwórz konto',
     signIn: 'Zaloguj się',
     statusTitle: 'Status',
@@ -861,7 +862,10 @@ export const pl: Copy = {
           groupCompleted: 'Logika grupy zakończona.',
           finished: 'Storyboard zakończony.',
           rightAction: 'Poprawna',
-          wrongAction: 'Błędna'
+          wrongAction: 'Błędna',
+          chapterChooseLabel: 'Wybierz rozdział',
+          chapterFinishAction: 'Zakończ rozdział: {chapter}',
+          chapterRestartFromStartAction: 'Jeszcze raz ten rozdział od początku.'
         },
         textsTitle: 'Teksty',
         textsSubtitle: 'Szkicowa przestrzeń pisania dla biblioteki.',

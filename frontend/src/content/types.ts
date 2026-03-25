@@ -44,6 +44,7 @@ export type Copy = {
     confirm: string;
     displayName: string;
     secureMode: string;
+    rememberMe: string;
     create: string;
     signIn: string;
     statusTitle: string;
@@ -562,6 +563,9 @@ export type Copy = {
           finished: string;
           rightAction: string;
           wrongAction: string;
+          chapterChooseLabel: string;
+          chapterFinishAction: string;
+          chapterRestartFromStartAction: string;
         };
         textsTitle: string;
         textsSubtitle: string;

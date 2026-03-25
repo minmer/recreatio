@@ -61,7 +61,7 @@ public static class AuthEndpoints
             try
             {
                 var response = await authService.LoginAsync(request, ct);
-                await EndpointHelpers.SignInAsync(context, response.UserId, response.SessionId, response.SecureMode, request.H3Base64);
+                await EndpointHelpers.SignInAsync(context, response.UserId, response.SessionId, response.SecureMode, request.RememberMe, request.H3Base64);
                 csrfService.IssueToken(context);
                 return Results.Ok(new { response.UserId, response.SessionId, response.SecureMode });
             }
@@ -90,7 +90,8 @@ public static class AuthEndpoints
                 if (EndpointHelpers.TryGetSessionId(context, out var sessionId))
                 {
                     var secureMode = AuthClaims.IsSecureMode(context.User);
-                    await EndpointHelpers.SignInAsync(context, userId, sessionId, secureMode, h3Base64);
+                    var rememberMe = AuthClaims.IsRememberMe(context.User);
+                    await EndpointHelpers.SignInAsync(context, userId, sessionId, secureMode, rememberMe, h3Base64);
                 }
                 return Results.Ok();
             }
@@ -135,7 +136,8 @@ public static class AuthEndpoints
             var h3Base64 = AuthClaims.GetH3Base64(context.User);
             if (!string.IsNullOrWhiteSpace(h3Base64))
             {
-                await EndpointHelpers.SignInAsync(context, userId, session.SessionId, session.IsSecureMode, h3Base64);
+                var rememberMe = AuthClaims.IsRememberMe(context.User);
+                await EndpointHelpers.SignInAsync(context, userId, session.SessionId, session.IsSecureMode, rememberMe, h3Base64);
             }
             return Results.Ok(new { session.SessionId, session.IsSecureMode });
         }).RequireAuthorization();

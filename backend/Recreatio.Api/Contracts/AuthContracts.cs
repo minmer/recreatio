@@ -11,6 +11,7 @@ public sealed record LoginRequest(
     string LoginId,
     string H3Base64,
     bool SecureMode,
+    bool RememberMe,
     string? DeviceInfo
 );
 

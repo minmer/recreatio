@@ -17,6 +17,8 @@ export function LoginCard({
   onPasswordConfirmChange,
   secureMode,
   onSecureModeChange,
+  rememberMe,
+  onRememberMeChange,
   availability,
   passwordHint,
   onSubmit,
@@ -38,6 +40,8 @@ export function LoginCard({
   onPasswordConfirmChange: (value: string) => void;
   secureMode: boolean;
   onSecureModeChange: (value: boolean) => void;
+  rememberMe: boolean;
+  onRememberMeChange: (value: boolean) => void;
   availability: string | null;
   passwordHint: string | null;
   onSubmit: (event: React.FormEvent) => void;
@@ -102,6 +106,8 @@ export function LoginCard({
           onPasswordConfirmChange={onPasswordConfirmChange}
           secureMode={secureMode}
           onSecureModeChange={onSecureModeChange}
+          rememberMe={rememberMe}
+          onRememberMeChange={onRememberMeChange}
           availability={availability}
           passwordHint={passwordHint}
           onSubmit={onSubmit}
