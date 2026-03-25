@@ -857,6 +857,7 @@ export const pl: Copy = {
           cardAnswerPlaceholder: 'Wpisz odpowiedź',
           cardSubmitAction: 'Wyślij odpowiedź',
           cardRevealLabel: 'Poprawna odpowiedź',
+          cardContinueAction: 'Przejdź dalej',
           cardAutoAdvance: 'Przejście do następnego węzła...',
           noCardOutcomeLink: 'Brak skonfigurowanego linku wyjściowego dla tego wyniku karty.',
           groupCompleted: 'Logika grupy zakończona.',

@@ -557,6 +557,7 @@ export type Copy = {
           cardAnswerPlaceholder: string;
           cardSubmitAction: string;
           cardRevealLabel: string;
+          cardContinueAction: string;
           cardAutoAdvance: string;
           noCardOutcomeLink: string;
           groupCompleted: string;

@@ -1508,6 +1508,36 @@ export function CogitaStoryboardRuntimePage({
     return Boolean(findJoinNodeIdForSeparator(runtime.graph, separatorNodeId));
   }, [currentNode, runtime]);
 
+  const resolveCardOutcomeEdge = useCallback(
+    (state: RuntimeState, node: StoryboardNodeRecord, isCorrect: boolean): StoryboardGraphEdge | null => {
+      const preferredSourcePorts: StoryboardSourcePort[] = isCorrect
+        ? ['out-right', 'out-path', 'out-wrong']
+        : ['out-wrong', 'out-path', 'out-right'];
+      const dependencyAwareFallback = (
+        preferredSourcePorts.flatMap((sourcePort) =>
+          getOutgoingEdges(state.graph, state.graphPath, node.nodeId, sourcePort, state.visited)
+        )
+      )[0];
+      const anyFallback = (
+        preferredSourcePorts.flatMap((sourcePort) =>
+          state.graph.edges.filter(
+            (edge) => edge.fromNodeId === node.nodeId && edge.sourcePort === sourcePort
+          )
+        )
+      )[0];
+      return dependencyAwareFallback ?? anyFallback ?? null;
+    },
+    []
+  );
+
+  const evaluatedOutcomeEdge = useMemo(() => {
+    if (!runtime || !currentNode || currentNode.kind !== 'card' || !cardState || cardState.status !== 'evaluated') {
+      return null;
+    }
+    if (typeof cardState.isCorrect !== 'boolean') return null;
+    return resolveCardOutcomeEdge(runtime, currentNode, cardState.isCorrect);
+  }, [cardState, currentNode, resolveCardOutcomeEdge, runtime]);
+
   const chooseCardOutcome = (edge: StoryboardGraphEdge | null) => {
     if (!edge) return;
     setRuntime((current) => {
@@ -1541,31 +1571,6 @@ export function CogitaStoryboardRuntimePage({
       }
     });
     const isCorrect = evaluation.isCorrect;
-    const preferredSourcePorts: StoryboardSourcePort[] = isCorrect
-      ? ['out-right', 'out-path', 'out-wrong']
-      : ['out-wrong', 'out-path', 'out-right'];
-    const dependencyAwareFallback = (
-      preferredSourcePorts.flatMap((sourcePort) =>
-        getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, sourcePort, runtime.visited)
-      )
-    )[0];
-    const anyFallback = (
-      preferredSourcePorts.flatMap((sourcePort) =>
-        runtime.graph.edges.filter(
-          (edge) => edge.fromNodeId === currentNode.nodeId && edge.sourcePort === sourcePort
-        )
-      )
-    )[0];
-    const outcomeEdge =
-      (isCorrect ? cardRightEdge : cardWrongEdge) ??
-      cardPathEdge ??
-      dependencyAwareFallback ??
-      anyFallback ??
-      null;
-    if (!outcomeEdge) {
-      setStatus(runtimeCopy.noCardOutcomeLink);
-      return;
-    }
 
     setCardState((current) => {
       if (!current) return current;
@@ -1578,11 +1583,11 @@ export function CogitaStoryboardRuntimePage({
       };
     });
 
-    setStatus(null);
-    cardTransitionTimer.current = window.setTimeout(() => {
-      chooseCardOutcome(outcomeEdge);
-      cardTransitionTimer.current = null;
-    }, 1100);
+    const outcomeEdge =
+      (isCorrect ? cardRightEdge : cardWrongEdge) ??
+      cardPathEdge ??
+      resolveCardOutcomeEdge(runtime, currentNode, isCorrect);
+    setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
   };
 
   return (
@@ -1853,9 +1858,24 @@ export function CogitaStoryboardRuntimePage({
                           <p className={cardState.isCorrect ? 'cogita-help' : 'cogita-form-error'} style={{ margin: 0 }}>
                             {cardState.isCorrect ? runtimeCopy.rightAction : runtimeCopy.wrongAction}
                           </p>
-                          <p className="cogita-help" style={{ margin: 0 }}>
-                            {runtimeCopy.cardAutoAdvance}
-                          </p>
+                          {evaluatedOutcomeEdge ? (
+                            <div className="cogita-card-actions">
+                              <button
+                                type="button"
+                                className="cta"
+                                onClick={() => {
+                                  setStatus(null);
+                                  chooseCardOutcome(evaluatedOutcomeEdge);
+                                }}
+                              >
+                                {runtimeCopy.cardContinueAction}
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="cogita-form-error" style={{ margin: 0 }}>
+                              {runtimeCopy.noCardOutcomeLink}
+                            </p>
+                          )}
                         </>
                       ) : null}
                     </>

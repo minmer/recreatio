@@ -857,6 +857,7 @@ export const en: Copy = {
           cardAnswerPlaceholder: 'Type your answer',
           cardSubmitAction: 'Submit answer',
           cardRevealLabel: 'Correct answer',
+          cardContinueAction: 'Continue',
           cardAutoAdvance: 'Moving to next node...',
           noCardOutcomeLink: 'No outgoing link configured for this card outcome.',
           groupCompleted: 'Group flow completed.',
