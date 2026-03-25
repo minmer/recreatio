@@ -28,19 +28,26 @@ export function evaluateCheckcardQuestionOrdering(
     ignorePunctuationAndSpacing: false
   });
   const isCorrect = evaluation.isCorrect;
-  const correctnessPct = clampPercent(evaluation.similarityPct);
+  const correctnessPct = clampPercent(evaluation.percent);
   const correctness = createRuntimeCheckcardCorrectness({
     correctnessPct,
     isCorrect,
     hasAnswer: actualValues.length > 0,
     checked: true
   });
+  const sharedLength = Math.min(expectedValues.length, actualValues.length);
+  let mismatchCount = Math.abs(expectedValues.length - actualValues.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (expectedValues[index] !== actualValues[index]) {
+      mismatchCount += 1;
+    }
+  }
   const payload = {
     type: 'ordering' as const,
     expectedValues,
     actualValues,
     similarityPct: correctnessPct,
-    mismatchCount: evaluation.mismatchesPreview.length
+    mismatchCount
   };
 
   return {

@@ -127,10 +127,10 @@ export function evaluateCheckcardQuestionText(
   );
   const bestIndex = evaluations.reduce((best, current, index, list) => {
     if (index === 0) return 0;
-    return current.similarityPct > list[best].similarityPct ? index : best;
+    return current.percent > list[best].percent ? index : best;
   }, 0);
   const best = evaluations[bestIndex];
-  const correctnessPct = clampPercent(best.similarityPct);
+  const correctnessPct = clampPercent(best.percent);
   const correctness = createRuntimeCheckcardCorrectness({
     correctnessPct,
     isCorrect: best.isCorrect,
