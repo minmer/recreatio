@@ -437,7 +437,7 @@ function hasAnswerForPrompt(promptModel: CheckcardPromptModel, answerModel: Chec
     return typeof answerModel.booleanAnswer === 'boolean';
   }
   if (promptModel.kind === 'ordering') {
-    return (answerModel.ordering?.length ?? 0) > 0;
+    return (answerModel.ordering?.length ?? 0) > 0 || (promptModel.options?.length ?? 0) > 0;
   }
   if (promptModel.kind === 'matching') {
     return (answerModel.matchingPaths?.length ?? 0) > 0;
@@ -1424,11 +1424,9 @@ export function CogitaStoryboardRuntimePage({
           )
         : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited);
     return edges.map((edge) => {
-      const target = findNode(runtime.graph, edge.toNodeId);
-      const fallbackLabel = target?.kind === 'join' ? runtimeCopy.choiceFallback : (target?.title || runtimeCopy.choiceFallback);
       return {
         edge,
-        label: edge.label.trim() || fallbackLabel
+        label: edge.label.trim() || runtimeCopy.choiceFallback
       };
     });
   }, [currentNode, runtime, runtimeCopy.choiceFallback]);
@@ -1491,18 +1489,9 @@ export function CogitaStoryboardRuntimePage({
     return Boolean(runtime.activeSeparatorByGraphPath[graphPathKey]);
   }, [runtime]);
 
-  const currentChapterTitle = useMemo(() => {
-    if (!runtime) return '';
-    const graphPathKey = buildGraphPathKey(runtime.graphPath);
-    const chapterStartNodeId = runtime.activeChapterStartByGraphPath[graphPathKey];
-    if (!chapterStartNodeId) return '';
-    return findNode(runtime.graph, chapterStartNodeId)?.title?.trim() ?? '';
-  }, [runtime]);
-
   const chapterFinishLabel = useMemo(() => {
-    const chapterTitle = currentChapterTitle || runtimeCopy.choiceFallback;
-    return runtimeCopy.chapterFinishAction.replace('{chapter}', chapterTitle);
-  }, [currentChapterTitle, runtimeCopy.chapterFinishAction, runtimeCopy.choiceFallback]);
+    return runtimeCopy.chapterFinishAction.replace('{chapter}', runtimeCopy.choiceFallback);
+  }, [runtimeCopy.chapterFinishAction, runtimeCopy.choiceFallback]);
 
   const canRestartChapter = useMemo(() => {
     if (!runtime) return false;
@@ -1539,11 +1528,12 @@ export function CogitaStoryboardRuntimePage({
   };
 
   const submitCardAnswer = () => {
-    if (!cardState || cardState.status !== 'ready') return;
+    if (!cardState || cardState.status !== 'ready' || !runtime || !currentNode || currentNode.kind !== 'card') return;
+    const normalizedAnswerModel = normalizeCheckcardAnswer(cardState.promptModel, cardState.answerModel);
     const evaluation = evaluateCheckcardDetailed({
       prompt: cardState.promptModel,
       expected: cardState.expectedModel,
-      answer: cardState.answerModel,
+      answer: normalizedAnswerModel,
       context: {
         notionType: cardState.notionType,
         cardType: cardState.cardType,
@@ -1551,21 +1541,43 @@ export function CogitaStoryboardRuntimePage({
       }
     });
     const isCorrect = evaluation.isCorrect;
+    const preferredSourcePorts: StoryboardSourcePort[] = isCorrect
+      ? ['out-right', 'out-path', 'out-wrong']
+      : ['out-wrong', 'out-path', 'out-right'];
+    const dependencyAwareFallback = (
+      preferredSourcePorts.flatMap((sourcePort) =>
+        getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, sourcePort, runtime.visited)
+      )
+    )[0];
+    const anyFallback = (
+      preferredSourcePorts.flatMap((sourcePort) =>
+        runtime.graph.edges.filter(
+          (edge) => edge.fromNodeId === currentNode.nodeId && edge.sourcePort === sourcePort
+        )
+      )
+    )[0];
+    const outcomeEdge =
+      (isCorrect ? cardRightEdge : cardWrongEdge) ??
+      cardPathEdge ??
+      dependencyAwareFallback ??
+      anyFallback ??
+      null;
+    if (!outcomeEdge) {
+      setStatus(runtimeCopy.noCardOutcomeLink);
+      return;
+    }
+
     setCardState((current) => {
       if (!current) return current;
       if (current.nodeKey !== cardState.nodeKey) return current;
       return {
         ...current,
         status: 'evaluated',
+        answerModel: normalizedAnswerModel,
         isCorrect
       };
     });
 
-    const outcomeEdge = (isCorrect ? cardRightEdge : cardWrongEdge) ?? cardPathEdge;
-    if (!outcomeEdge) {
-      setStatus(runtimeCopy.noCardOutcomeLink);
-      return;
-    }
     setStatus(null);
     cardTransitionTimer.current = window.setTimeout(() => {
       chooseCardOutcome(outcomeEdge);
@@ -1628,7 +1640,6 @@ export function CogitaStoryboardRuntimePage({
               .map((block) => (
               <article key={block.key} className="cogita-library-detail" style={{ margin: 0 }}>
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
-                  <h3 className="cogita-detail-title" style={{ margin: 0 }}>{block.title || runtimeCopy.blockUntitled}</h3>
                   {block.kind === 'static' ? (
                     <>
                       {block.narrationImageEnabled && block.narrationImageFileId.trim() && mediaObjectUrls[`image:${block.narrationImageFileId.trim()}`] ? (
@@ -1718,7 +1729,10 @@ export function CogitaStoryboardRuntimePage({
                           text: cardState.answerModel.text ?? '',
                           selection: cardState.answerModel.selection ?? [],
                           booleanAnswer: typeof cardState.answerModel.booleanAnswer === 'boolean' ? cardState.answerModel.booleanAnswer : null,
-                          ordering: cardState.answerModel.ordering ?? [],
+                          ordering:
+                            (cardState.answerModel.ordering?.length ?? 0) > 0
+                              ? (cardState.answerModel.ordering ?? [])
+                              : (cardState.promptModel.kind === 'ordering' ? (cardState.promptModel.options ?? []) : []),
                           matchingRows: cardState.answerModel.matchingPaths ?? [],
                           matchingSelection: cardState.answerModel.matchingSelection ?? []
                         }}
@@ -1751,7 +1765,11 @@ export function CogitaStoryboardRuntimePage({
                         onOrderingMove={(index, delta) =>
                           setCardState((current) => {
                             if (!current || current.nodeKey !== cardState.nodeKey || current.status === 'evaluated') return current;
-                            const ordering = [...(current.answerModel.ordering ?? [])];
+                            const orderingBase =
+                              (current.answerModel.ordering?.length ?? 0) > 0
+                                ? (current.answerModel.ordering ?? [])
+                                : (current.promptModel.kind === 'ordering' ? (current.promptModel.options ?? []) : []);
+                            const ordering = [...orderingBase];
                             const swapIndex = index + delta;
                             if (index < 0 || index >= ordering.length || swapIndex < 0 || swapIndex >= ordering.length) {
                               return current;
