@@ -886,6 +886,12 @@ export function CogitaStoryboardRuntimePage({
       : language === 'de'
         ? 'Zum Kapitelende'
         : 'Go to chapter end';
+  const chapterSelectLabel =
+    language === 'pl'
+      ? 'Wybierz rozdział'
+      : language === 'de'
+        ? 'Kapitel wählen'
+        : 'Choose chapter';
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
   const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
@@ -897,6 +903,8 @@ export function CogitaStoryboardRuntimePage({
   const cardTransitionTimer = useRef<number | null>(null);
   const mediaObjectUrlsRef = useRef<Record<string, string>>({});
   const mediaLoadingKeysRef = useRef<Set<string>>(new Set());
+  const runtimeScrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const previousRuntimeSignatureRef = useRef('');
 
   useEffect(() => {
     if (shareCode) {
@@ -1005,6 +1013,16 @@ export function CogitaStoryboardRuntimePage({
     if (!runtime) return null;
     return findNode(runtime.graph, runtime.currentNodeId);
   }, [runtime]);
+
+  useEffect(() => {
+    if (!runtime || loading) return;
+    const signature = `${runtime.currentNodeId}|${runtime.finished ? '1' : '0'}|${runtime.displayedBlocks.map((block) => block.key).join(',')}`;
+    if (previousRuntimeSignatureRef.current === signature) return;
+    previousRuntimeSignatureRef.current = signature;
+    window.requestAnimationFrame(() => {
+      runtimeScrollAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+  }, [loading, runtime]);
 
   useEffect(() => {
     if (cardTransitionTimer.current != null) {
@@ -1403,7 +1421,16 @@ export function CogitaStoryboardRuntimePage({
         ) : null
       }
     >
-      <section className="cogita-section cogita-storyboard-runtime" style={{ maxWidth: 980, margin: '0 auto', width: '100%' }}>
+      <section
+        className="cogita-section cogita-storyboard-runtime"
+        style={{
+          maxWidth: 980,
+          margin: '0 auto',
+          width: '100%',
+          paddingInline: 'clamp(0.85rem, 2.6vw, 1.6rem)',
+          paddingBottom: '1.25rem'
+        }}
+      >
         <header className="cogita-library-header" style={{ marginBottom: '1rem' }}>
           <div>
             <p className="cogita-user-kicker">{runtimeCopy.kicker}</p>
@@ -1643,7 +1670,28 @@ export function CogitaStoryboardRuntimePage({
               </article>
             ) : null}
 
-            {currentNode && currentNode.kind !== 'card' && !runtime.finished && pathChoices.length > 0 ? (
+            {currentNode?.kind === 'separator' && !runtime.finished && pathChoices.length > 0 ? (
+              <article className="cogita-library-detail" style={{ margin: 0 }}>
+                <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.7rem' }}>
+                  <p className="cogita-help" style={{ margin: 0, fontWeight: 600 }}>{chapterSelectLabel}</p>
+                  <div style={{ display: 'grid', gap: '0.6rem' }}>
+                    {pathChoices.map((choice) => (
+                      <button
+                        key={choice.edge.edgeId}
+                        type="button"
+                        className="cta"
+                        style={{ width: '100%', justifyContent: 'flex-start' }}
+                        onClick={() => chooseEdge(choice.edge)}
+                      >
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ) : null}
+
+            {currentNode && currentNode.kind !== 'card' && currentNode.kind !== 'separator' && !runtime.finished && pathChoices.length > 0 ? (
               <div className="cogita-card-actions" style={{ flexWrap: 'wrap' }}>
                 {pathChoices.map((choice) => (
                   <button key={choice.edge.edgeId} type="button" className="cta ghost" onClick={() => chooseEdge(choice.edge)}>
@@ -1663,6 +1711,7 @@ export function CogitaStoryboardRuntimePage({
                 </button>
               </div>
             ) : null}
+            <div ref={runtimeScrollAnchorRef} />
           </div>
         ) : null}
       </section>
