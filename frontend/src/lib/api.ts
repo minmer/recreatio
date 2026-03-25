@@ -3720,6 +3720,20 @@ export type ParishConfirmationMessage = {
   createdUtc: string;
 };
 
+export type ParishConfirmationCelebration = {
+  id: string;
+  name: string;
+  shortInfo: string;
+  startsAtUtc: string;
+  endsAtUtc: string;
+  description: string;
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  candidateComment?: string | null;
+  candidateCommentUpdatedUtc?: string | null;
+};
+
 export type ParishConfirmationNote = {
   id: string;
   noteText: string;
@@ -3754,6 +3768,7 @@ export type ParishConfirmationPortal = {
   firstYearStartSlots: ParishConfirmationMeetingPublicSlot[];
   pendingJoinRequests: ParishConfirmationMeetingJoinRequest[];
   secondMeetingAnnouncement: string;
+  upcomingCelebrations: ParishConfirmationCelebration[];
   messages: ParishConfirmationMessage[];
   publicNotes: ParishConfirmationNote[];
   privateNotes?: ParishConfirmationNote[] | null;
@@ -3833,6 +3848,28 @@ export type ParishConfirmationExportNote = {
   updatedUtc: string;
 };
 
+export type ParishConfirmationExportCelebration = {
+  id: string;
+  name: string;
+  shortInfo: string;
+  startsAtUtc: string;
+  endsAtUtc: string;
+  description: string;
+  isActive: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export type ParishConfirmationExportCelebrationParticipation = {
+  id: string;
+  candidateId: string;
+  candidateMeetingToken?: string | null;
+  celebrationId: string;
+  commentText: string;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
 export type ParishConfirmationExport = {
   version: number;
   parishId: string;
@@ -3843,11 +3880,15 @@ export type ParishConfirmationExport = {
   meetingLinks?: ParishConfirmationExportMeetingLink[];
   messages?: ParishConfirmationExportMessage[];
   notes?: ParishConfirmationExportNote[];
+  celebrations?: ParishConfirmationExportCelebration[];
+  celebrationParticipations?: ParishConfirmationExportCelebrationParticipation[];
 };
 
 export type ParishConfirmationImport = {
   candidates: ParishConfirmationExportCandidate[];
   replaceExisting: boolean;
+  celebrations?: ParishConfirmationExportCelebration[];
+  celebrationParticipations?: ParishConfirmationExportCelebrationParticipation[];
 };
 
 export type ParishConfirmationImportResponse = {
@@ -3980,7 +4021,9 @@ export function importParishConfirmationCandidates(parishId: string, payload: Pa
     method: 'POST',
     body: JSON.stringify({
       candidates: payload.candidates,
-      replaceExisting: payload.replaceExisting
+      replaceExisting: payload.replaceExisting,
+      celebrations: payload.celebrations ?? [],
+      celebrationParticipations: payload.celebrationParticipations ?? []
     })
   });
 }
@@ -4104,6 +4147,64 @@ export function sendParishConfirmationCandidateMessage(slug: string, payload: { 
       token: payload.token,
       messageText: payload.messageText
     })
+  });
+}
+
+export function sendParishConfirmationCelebrationComment(
+  slug: string,
+  payload: { token: string; celebrationId: string; commentText: string }
+) {
+  return request<{ status: string; participationId?: string | null; updatedUtc?: string | null }>(
+    `/parish/${slug}/public/confirmation-celebration-comment`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        token: payload.token,
+        celebrationId: payload.celebrationId,
+        commentText: payload.commentText
+      })
+    }
+  );
+}
+
+export function listParishConfirmationCelebrations(parishId: string) {
+  return request<ParishConfirmationCelebration[]>(`/parish/${parishId}/confirmation-celebrations`, {
+    method: 'GET'
+  });
+}
+
+export function createParishConfirmationCelebration(
+  parishId: string,
+  payload: {
+    name: string;
+    shortInfo: string;
+    startsAtUtc: string;
+    endsAtUtc: string;
+    description: string;
+    isActive: boolean;
+  }
+) {
+  return request<ParishConfirmationCelebration>(`/parish/${parishId}/confirmation-celebrations`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateParishConfirmationCelebration(
+  parishId: string,
+  celebrationId: string,
+  payload: {
+    name: string;
+    shortInfo: string;
+    startsAtUtc: string;
+    endsAtUtc: string;
+    description: string;
+    isActive: boolean;
+  }
+) {
+  return request<ParishConfirmationCelebration>(`/parish/${parishId}/confirmation-celebrations/${celebrationId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
   });
 }
 

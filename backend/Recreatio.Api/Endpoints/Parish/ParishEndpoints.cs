@@ -41,6 +41,7 @@ public static class ParishEndpoints
     private const string ConfirmationJoinRequestCancelled = "cancelled";
     private const string ConfirmationJoinDecisionAccept = "accept";
     private const string ConfirmationJoinDecisionReject = "reject";
+    private const int ConfirmationCelebrationUpcomingDays = 7;
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -1167,6 +1168,11 @@ public static class ParishEndpoints
                 .Take(200)
                 .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
                 .ToListAsync(ct);
+            var upcomingCelebrations = await LoadConfirmationUpcomingCelebrationsAsync(
+                parish.Id,
+                candidate.Id,
+                dbContext,
+                ct);
 
             var now = DateTimeOffset.UtcNow;
             var selectedSlot = link.SlotId is null
@@ -1224,6 +1230,7 @@ public static class ParishEndpoints
                 }).ToList(),
                 pendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
+                upcomingCelebrations,
                 messages,
                 publicNotes,
                 null);
@@ -1288,6 +1295,99 @@ public static class ParishEndpoints
                 message.SenderType,
                 message.MessageText,
                 message.CreatedUtc));
+        });
+
+        group.MapPost("/{slug}/public/confirmation-celebration-comment", async (
+            string slug,
+            ParishConfirmationCelebrationCommentCreateRequest request,
+            RecreatioDbContext dbContext,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                return Results.BadRequest(new { error = "Slug is required." });
+            }
+
+            var token = NormalizeConfirmationToken(request.Token);
+            var commentText = NormalizeConfirmationText(request.CommentText, 2000);
+            if (token is null || commentText is null)
+            {
+                return Results.BadRequest(new { error = "Token and comment are required." });
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Slug == slug, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var link = await dbContext.ParishConfirmationMeetingLinks.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id && x.BookingToken == token, ct);
+            if (link is null)
+            {
+                return Results.NotFound(new { status = "invalid-token" });
+            }
+
+            var celebration = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+                .FirstOrDefaultAsync(
+                    x => x.Id == request.CelebrationId && x.ParishId == parish.Id && x.IsActive,
+                    ct);
+            if (celebration is null)
+            {
+                return Results.NotFound(new { status = "celebration-not-found" });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+            if (celebration.EndsAtUtc < now || celebration.StartsAtUtc > windowEnd)
+            {
+                return Results.BadRequest(new { error = "Celebration is outside the upcoming window." });
+            }
+
+            var participation = await dbContext.ParishConfirmationCelebrationParticipations
+                .FirstOrDefaultAsync(
+                    x =>
+                        x.ParishId == parish.Id &&
+                        x.CandidateId == link.CandidateId &&
+                        x.CelebrationId == celebration.Id,
+                    ct);
+            if (participation is null)
+            {
+                participation = new ParishConfirmationCelebrationParticipation
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parish.Id,
+                    CandidateId = link.CandidateId,
+                    CelebrationId = celebration.Id,
+                    CommentText = commentText,
+                    CreatedUtc = now,
+                    UpdatedUtc = now
+                };
+                dbContext.ParishConfirmationCelebrationParticipations.Add(participation);
+            }
+            else
+            {
+                participation.CommentText = commentText;
+                participation.UpdatedUtc = now;
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parish.Id,
+                "ConfirmationCelebrationCommentUpserted",
+                "public",
+                JsonSerializer.Serialize(new { link.CandidateId, celebration.Id }),
+                ct);
+
+            return Results.Ok(new
+            {
+                status = "saved",
+                participationId = participation.Id,
+                participation.UpdatedUtc
+            });
         });
 
         group.MapPost("", async (
@@ -1801,8 +1901,41 @@ public static class ParishEndpoints
                     x.CreatedUtc,
                     x.UpdatedUtc))
                 .ToListAsync(ct);
+            var celebrations = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.StartsAtUtc)
+                .ThenBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationExportCelebrationResponse(
+                    x.Id,
+                    x.Name,
+                    x.ShortInfo,
+                    x.StartsAtUtc,
+                    x.EndsAtUtc,
+                    x.Description,
+                    x.IsActive,
+                    x.CreatedUtc,
+                    x.UpdatedUtc))
+                .ToListAsync(ct);
+            var meetingTokenByCandidate = meetingLinks
+                .GroupBy(x => x.CandidateId)
+                .ToDictionary(group => group.Key, group => group.First().BookingToken);
+            var celebrationParticipations = await dbContext.ParishConfirmationCelebrationParticipations.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.CreatedUtc)
+                .ThenBy(x => x.UpdatedUtc)
+                .ToListAsync(ct);
+            var celebrationParticipationResponses = celebrationParticipations
+                .Select(x => new ParishConfirmationExportCelebrationParticipationResponse(
+                    x.Id,
+                    x.CandidateId,
+                    meetingTokenByCandidate.GetValueOrDefault(x.CandidateId),
+                    x.CelebrationId,
+                    x.CommentText,
+                    x.CreatedUtc,
+                    x.UpdatedUtc))
+                .ToList();
             var response = new ParishConfirmationExportResponse(
-                4,
+                5,
                 parishId,
                 DateTimeOffset.UtcNow,
                 candidates.Select(candidate => new ParishConfirmationExportCandidateResponse(
@@ -1828,7 +1961,9 @@ public static class ParishEndpoints
                 meetingSlots,
                 meetingLinks,
                 messages,
-                notes);
+                notes,
+                celebrations,
+                celebrationParticipationResponses);
 
             return Results.Ok(response);
         }).RequireAuthorization();
@@ -1868,7 +2003,9 @@ public static class ParishEndpoints
             }
 
             var sourceCandidates = request.Candidates;
-            if (sourceCandidates.Count == 0 && !request.ReplaceExisting)
+            var sourceCelebrations = request.Celebrations ?? Array.Empty<ParishConfirmationImportCelebrationRequest>();
+            var sourceCelebrationParticipations = request.CelebrationParticipations ?? Array.Empty<ParishConfirmationImportCelebrationParticipationRequest>();
+            if (sourceCandidates.Count == 0 && sourceCelebrations.Count == 0 && sourceCelebrationParticipations.Count == 0 && !request.ReplaceExisting)
             {
                 return Results.BadRequest(new { error = "Import payload is empty." });
             }
@@ -1908,6 +2045,22 @@ public static class ParishEndpoints
                     dbContext.ParishConfirmationPhoneVerifications.RemoveRange(existingVerifications);
                 }
 
+                var existingCelebrationParticipations = await dbContext.ParishConfirmationCelebrationParticipations
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingCelebrationParticipations.Count > 0)
+                {
+                    dbContext.ParishConfirmationCelebrationParticipations.RemoveRange(existingCelebrationParticipations);
+                }
+
+                var existingCelebrations = await dbContext.ParishConfirmationCelebrations
+                    .Where(x => x.ParishId == parishId)
+                    .ToListAsync(ct);
+                if (existingCelebrations.Count > 0)
+                {
+                    dbContext.ParishConfirmationCelebrations.RemoveRange(existingCelebrations);
+                }
+
                 var hostedSlots = await dbContext.ParishConfirmationMeetingSlots
                     .Where(x => x.ParishId == parishId && x.HostCandidateId != null)
                     .ToListAsync(ct);
@@ -1928,6 +2081,8 @@ public static class ParishEndpoints
                     existingMessages.Count > 0 ||
                     existingMeetingLinks.Count > 0 ||
                     existingVerifications.Count > 0 ||
+                    existingCelebrationParticipations.Count > 0 ||
+                    existingCelebrations.Count > 0 ||
                     hostedSlots.Count > 0)
                 {
                     await dbContext.SaveChangesAsync(ct);
@@ -1976,10 +2131,13 @@ public static class ParishEndpoints
                     .ToListAsync(ct);
             var existingMeetingTokens = new HashSet<string>(existingMeetingTokenRows, StringComparer.Ordinal);
             var usedMeetingTokens = new HashSet<string>(StringComparer.Ordinal);
+            var candidateIdByMeetingToken = new Dictionary<string, Guid>(StringComparer.Ordinal);
 
             var importedCandidates = 0;
             var importedPhoneNumbers = 0;
             var skippedCandidates = 0;
+            var importedCelebrations = 0;
+            var importedCelebrationParticipations = 0;
             var now = DateTimeOffset.UtcNow;
 
             foreach (var sourceCandidate in sourceCandidates)
@@ -2052,6 +2210,7 @@ public static class ParishEndpoints
                     CreatedUtc = createdUtc,
                     UpdatedUtc = updatedUtc
                 });
+                candidateIdByMeetingToken[meetingToken] = candidateId;
 
                 for (var index = 0; index < phones.Count; index += 1)
                 {
@@ -2084,6 +2243,89 @@ public static class ParishEndpoints
                 importedCandidates += 1;
             }
 
+            var celebrationIdByExternalId = new Dictionary<Guid, Guid>();
+            foreach (var sourceCelebration in sourceCelebrations)
+            {
+                var name = NormalizeConfirmationText(sourceCelebration.Name, 160);
+                var shortInfo = NormalizeConfirmationText(sourceCelebration.ShortInfo, 320);
+                var description = NormalizeConfirmationText(sourceCelebration.Description, 4000);
+                if (name is null || shortInfo is null || description is null)
+                {
+                    continue;
+                }
+
+                if (sourceCelebration.EndsAtUtc <= sourceCelebration.StartsAtUtc)
+                {
+                    continue;
+                }
+
+                var createdUtc = sourceCelebration.CreatedUtc is { } created && created.Year >= 2000
+                    ? created
+                    : now;
+                var updatedUtc = sourceCelebration.UpdatedUtc is { } updated && updated >= createdUtc
+                    ? updated
+                    : createdUtc;
+                var celebrationId = Guid.NewGuid();
+                dbContext.ParishConfirmationCelebrations.Add(new ParishConfirmationCelebration
+                {
+                    Id = celebrationId,
+                    ParishId = parishId,
+                    Name = name,
+                    ShortInfo = shortInfo,
+                    StartsAtUtc = sourceCelebration.StartsAtUtc,
+                    EndsAtUtc = sourceCelebration.EndsAtUtc,
+                    Description = description,
+                    IsActive = sourceCelebration.IsActive,
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = updatedUtc
+                });
+                if (sourceCelebration.ExternalId is { } externalId && externalId != Guid.Empty)
+                {
+                    celebrationIdByExternalId[externalId] = celebrationId;
+                }
+                importedCelebrations += 1;
+            }
+
+            foreach (var sourceParticipation in sourceCelebrationParticipations)
+            {
+                var meetingToken = NormalizeConfirmationToken(sourceParticipation.CandidateMeetingToken);
+                var commentText = NormalizeConfirmationText(sourceParticipation.CommentText, 2000);
+                if (meetingToken is null || commentText is null)
+                {
+                    continue;
+                }
+
+                if (!candidateIdByMeetingToken.TryGetValue(meetingToken, out var candidateId))
+                {
+                    continue;
+                }
+
+                if (sourceParticipation.CelebrationExternalId is null ||
+                    !celebrationIdByExternalId.TryGetValue(sourceParticipation.CelebrationExternalId.Value, out var celebrationId))
+                {
+                    continue;
+                }
+
+                var createdUtc = sourceParticipation.CreatedUtc is { } created && created.Year >= 2000
+                    ? created
+                    : now;
+                var updatedUtc = sourceParticipation.UpdatedUtc is { } updated && updated >= createdUtc
+                    ? updated
+                    : createdUtc;
+
+                dbContext.ParishConfirmationCelebrationParticipations.Add(new ParishConfirmationCelebrationParticipation
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parishId,
+                    CandidateId = candidateId,
+                    CelebrationId = celebrationId,
+                    CommentText = commentText,
+                    CreatedUtc = createdUtc,
+                    UpdatedUtc = updatedUtc
+                });
+                importedCelebrationParticipations += 1;
+            }
+
             await dbContext.SaveChangesAsync(ct);
 
             await ledgerService.AppendParishAsync(
@@ -2095,6 +2337,8 @@ public static class ParishEndpoints
                     importedCandidates,
                     importedPhoneNumbers,
                     skippedCandidates,
+                    importedCelebrations,
+                    importedCelebrationParticipations,
                     request.ReplaceExisting
                 }),
                 ct);
@@ -2835,6 +3079,11 @@ public static class ParishEndpoints
                 .Take(200)
                 .Select(x => new ParishConfirmationNoteResponse(x.Id, x.NoteText, x.IsPublic, x.CreatedUtc, x.UpdatedUtc))
                 .ToListAsync(ct);
+            var upcomingCelebrations = await LoadConfirmationUpcomingCelebrationsAsync(
+                parishId,
+                candidateId,
+                dbContext,
+                ct);
 
             var now = DateTimeOffset.UtcNow;
             var selectedSlot = link.SlotId is null
@@ -2892,6 +3141,7 @@ public static class ParishEndpoints
                 }).ToList(),
                 pendingJoinRequests,
                 ConfirmationSecondMeetingAnnouncement,
+                upcomingCelebrations,
                 messages,
                 publicNotes,
                 privateNotes);
@@ -3355,6 +3605,211 @@ public static class ParishEndpoints
                 .ToList();
 
             return Results.Ok(response);
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-celebrations", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var celebrations = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+                .Where(x => x.ParishId == parishId)
+                .OrderBy(x => x.StartsAtUtc)
+                .ThenBy(x => x.CreatedUtc)
+                .Select(x => new ParishConfirmationCelebrationResponse(
+                    x.Id,
+                    x.Name,
+                    x.ShortInfo,
+                    x.StartsAtUtc,
+                    x.EndsAtUtc,
+                    x.Description,
+                    x.IsActive,
+                    x.CreatedUtc,
+                    x.UpdatedUtc,
+                    null,
+                    null))
+                .ToListAsync(ct);
+
+            return Results.Ok(celebrations);
+        }).RequireAuthorization();
+
+        group.MapPost("/{parishId:guid}/confirmation-celebrations", async (
+            Guid parishId,
+            ParishConfirmationCelebrationCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 160);
+            var shortInfo = NormalizeConfirmationText(request.ShortInfo, 320);
+            var description = NormalizeConfirmationText(request.Description, 4000);
+            if (name is null || shortInfo is null || description is null)
+            {
+                return Results.BadRequest(new { error = "Invalid celebration data." });
+            }
+
+            if (request.EndsAtUtc <= request.StartsAtUtc)
+            {
+                return Results.BadRequest(new { error = "Celebration end time must be after start time." });
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var celebration = new ParishConfirmationCelebration
+            {
+                Id = Guid.NewGuid(),
+                ParishId = parishId,
+                Name = name,
+                ShortInfo = shortInfo,
+                StartsAtUtc = request.StartsAtUtc,
+                EndsAtUtc = request.EndsAtUtc,
+                Description = description,
+                IsActive = request.IsActive,
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+            dbContext.ParishConfirmationCelebrations.Add(celebration);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCelebrationCreated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { celebration.Id, celebration.StartsAtUtc, celebration.EndsAtUtc }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationCelebrationResponse(
+                celebration.Id,
+                celebration.Name,
+                celebration.ShortInfo,
+                celebration.StartsAtUtc,
+                celebration.EndsAtUtc,
+                celebration.Description,
+                celebration.IsActive,
+                celebration.CreatedUtc,
+                celebration.UpdatedUtc,
+                null,
+                null));
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-celebrations/{celebrationId:guid}", async (
+            Guid parishId,
+            Guid celebrationId,
+            ParishConfirmationCelebrationCreateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            var keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var celebration = await dbContext.ParishConfirmationCelebrations
+                .FirstOrDefaultAsync(x => x.ParishId == parishId && x.Id == celebrationId, ct);
+            if (celebration is null)
+            {
+                return Results.NotFound();
+            }
+
+            var name = NormalizeConfirmationText(request.Name, 160);
+            var shortInfo = NormalizeConfirmationText(request.ShortInfo, 320);
+            var description = NormalizeConfirmationText(request.Description, 4000);
+            if (name is null || shortInfo is null || description is null)
+            {
+                return Results.BadRequest(new { error = "Invalid celebration data." });
+            }
+
+            if (request.EndsAtUtc <= request.StartsAtUtc)
+            {
+                return Results.BadRequest(new { error = "Celebration end time must be after start time." });
+            }
+
+            celebration.Name = name;
+            celebration.ShortInfo = shortInfo;
+            celebration.StartsAtUtc = request.StartsAtUtc;
+            celebration.EndsAtUtc = request.EndsAtUtc;
+            celebration.Description = description;
+            celebration.IsActive = request.IsActive;
+            celebration.UpdatedUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendParishAsync(
+                parishId,
+                "ConfirmationCelebrationUpdated",
+                userId.ToString(),
+                JsonSerializer.Serialize(new { celebration.Id, celebration.StartsAtUtc, celebration.EndsAtUtc }),
+                ct);
+
+            return Results.Ok(new ParishConfirmationCelebrationResponse(
+                celebration.Id,
+                celebration.Name,
+                celebration.ShortInfo,
+                celebration.StartsAtUtc,
+                celebration.EndsAtUtc,
+                celebration.Description,
+                celebration.IsActive,
+                celebration.CreatedUtc,
+                celebration.UpdatedUtc,
+                null,
+                null));
         }).RequireAuthorization();
 
         group.MapPost("/{parishId:guid}/intentions", async (
@@ -4578,6 +5033,10 @@ public static class ParishEndpoints
 
         var replaceExisting = false;
         JsonElement candidatesElement;
+        JsonElement celebrationsElement = default;
+        JsonElement participationsElement = default;
+        var hasCelebrationsElement = false;
+        var hasParticipationsElement = false;
 
         if (payload.ValueKind == JsonValueKind.Array)
         {
@@ -4606,6 +5065,18 @@ public static class ParishEndpoints
             {
                 error = "Import payload must contain candidates.";
                 return false;
+            }
+
+            if (TryGetJsonProperty(payload, "celebrations", out var explicitCelebrations))
+            {
+                celebrationsElement = explicitCelebrations;
+                hasCelebrationsElement = true;
+            }
+
+            if (TryGetJsonProperty(payload, "celebrationParticipations", out var explicitParticipations))
+            {
+                participationsElement = explicitParticipations;
+                hasParticipationsElement = true;
             }
         }
         else
@@ -4661,8 +5132,101 @@ public static class ParishEndpoints
                 meetingToken));
         }
 
-        request = new ParishConfirmationImportRequest(candidates, replaceExisting);
+        var celebrations = hasCelebrationsElement
+            ? ParseConfirmationImportCelebrations(celebrationsElement)
+            : new List<ParishConfirmationImportCelebrationRequest>();
+        var participations = hasParticipationsElement
+            ? ParseConfirmationImportCelebrationParticipations(participationsElement)
+            : new List<ParishConfirmationImportCelebrationParticipationRequest>();
+
+        request = new ParishConfirmationImportRequest(candidates, replaceExisting, celebrations, participations);
         return true;
+    }
+
+    private static List<ParishConfirmationImportCelebrationRequest> ParseConfirmationImportCelebrations(JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            return new List<ParishConfirmationImportCelebrationRequest>();
+        }
+
+        var celebrations = new List<ParishConfirmationImportCelebrationRequest>();
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var externalId = GetJsonGuid(item, "id");
+            var name = GetJsonString(item, "name") ?? string.Empty;
+            var shortInfo = GetJsonString(item, "shortInfo")
+                ?? GetJsonString(item, "lead")
+                ?? string.Empty;
+            var startsAtUtc = GetJsonDateTimeOffset(item, "startsAtUtc")
+                ?? GetJsonDateTimeOffset(item, "startUtc");
+            var endsAtUtc = GetJsonDateTimeOffset(item, "endsAtUtc")
+                ?? GetJsonDateTimeOffset(item, "endUtc");
+            var description = GetJsonString(item, "description") ?? string.Empty;
+            var isActive = GetJsonBoolean(item, "isActive") ?? true;
+            var createdUtc = GetJsonDateTimeOffset(item, "createdUtc");
+            var updatedUtc = GetJsonDateTimeOffset(item, "updatedUtc");
+
+            if (startsAtUtc is null || endsAtUtc is null)
+            {
+                continue;
+            }
+
+            celebrations.Add(new ParishConfirmationImportCelebrationRequest(
+                externalId,
+                name,
+                shortInfo,
+                startsAtUtc.Value,
+                endsAtUtc.Value,
+                description,
+                isActive,
+                createdUtc,
+                updatedUtc));
+        }
+
+        return celebrations;
+    }
+
+    private static List<ParishConfirmationImportCelebrationParticipationRequest> ParseConfirmationImportCelebrationParticipations(
+        JsonElement element)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            return new List<ParishConfirmationImportCelebrationParticipationRequest>();
+        }
+
+        var participations = new List<ParishConfirmationImportCelebrationParticipationRequest>();
+        foreach (var item in element.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var candidateMeetingToken = GetJsonString(item, "candidateMeetingToken")
+                ?? GetJsonString(item, "meetingToken");
+            var celebrationExternalId = GetJsonGuid(item, "celebrationExternalId")
+                ?? GetJsonGuid(item, "celebrationId");
+            var commentText = GetJsonString(item, "commentText")
+                ?? GetJsonString(item, "comment")
+                ?? string.Empty;
+            var createdUtc = GetJsonDateTimeOffset(item, "createdUtc");
+            var updatedUtc = GetJsonDateTimeOffset(item, "updatedUtc");
+
+            participations.Add(new ParishConfirmationImportCelebrationParticipationRequest(
+                candidateMeetingToken,
+                celebrationExternalId,
+                commentText,
+                createdUtc,
+                updatedUtc));
+        }
+
+        return participations;
     }
 
     private static List<ParishConfirmationImportPhoneRequest> ParseConfirmationImportPhoneRequests(JsonElement candidateElement)
@@ -4758,6 +5322,22 @@ public static class ParishEndpoints
         if (value.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
         {
             return value.ToString();
+        }
+
+        return null;
+    }
+
+    private static Guid? GetJsonGuid(JsonElement element, string propertyName)
+    {
+        if (!TryGetJsonProperty(element, propertyName, out var value))
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String &&
+            Guid.TryParse(value.GetString(), out var parsed))
+        {
+            return parsed;
         }
 
         return null;
@@ -4946,6 +5526,60 @@ public static class ParishEndpoints
         }
 
         await dbContext.SaveChangesAsync(ct);
+    }
+
+    private static async Task<List<ParishConfirmationCelebrationResponse>> LoadConfirmationUpcomingCelebrationsAsync(
+        Guid parishId,
+        Guid candidateId,
+        RecreatioDbContext dbContext,
+        CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+        var celebrationRows = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
+            .Where(x =>
+                x.ParishId == parishId &&
+                x.IsActive &&
+                x.EndsAtUtc >= now &&
+                x.StartsAtUtc <= windowEnd)
+            .OrderBy(x => x.StartsAtUtc)
+            .ThenBy(x => x.CreatedUtc)
+            .ToListAsync(ct);
+        if (celebrationRows.Count == 0)
+        {
+            return new List<ParishConfirmationCelebrationResponse>();
+        }
+
+        var celebrationIds = celebrationRows.Select(x => x.Id).ToList();
+        var participationRows = await dbContext.ParishConfirmationCelebrationParticipations.AsNoTracking()
+            .Where(x =>
+                x.ParishId == parishId &&
+                x.CandidateId == candidateId &&
+                celebrationIds.Contains(x.CelebrationId))
+            .OrderByDescending(x => x.UpdatedUtc)
+            .ToListAsync(ct);
+        var participationByCelebrationId = participationRows
+            .GroupBy(x => x.CelebrationId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        return celebrationRows
+            .Select(celebration =>
+            {
+                var participation = participationByCelebrationId.GetValueOrDefault(celebration.Id);
+                return new ParishConfirmationCelebrationResponse(
+                    celebration.Id,
+                    celebration.Name,
+                    celebration.ShortInfo,
+                    celebration.StartsAtUtc,
+                    celebration.EndsAtUtc,
+                    celebration.Description,
+                    celebration.IsActive,
+                    celebration.CreatedUtc,
+                    celebration.UpdatedUtc,
+                    participation?.CommentText,
+                    participation?.UpdatedUtc);
+            })
+            .ToList();
     }
 
     private static ConfirmationMeetingJoinStatus EvaluateConfirmationMeetingJoinStatus(

@@ -271,6 +271,26 @@ public sealed record ParishConfirmationExportNoteResponse(
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
 
+public sealed record ParishConfirmationExportCelebrationResponse(
+    Guid Id,
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    bool IsActive,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
+public sealed record ParishConfirmationExportCelebrationParticipationResponse(
+    Guid Id,
+    Guid CandidateId,
+    string? CandidateMeetingToken,
+    Guid CelebrationId,
+    string CommentText,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc);
+
 public sealed record ParishConfirmationExportResponse(
     int Version,
     Guid ParishId,
@@ -280,7 +300,9 @@ public sealed record ParishConfirmationExportResponse(
     IReadOnlyList<ParishConfirmationExportMeetingSlotResponse> MeetingSlots,
     IReadOnlyList<ParishConfirmationExportMeetingLinkResponse> MeetingLinks,
     IReadOnlyList<ParishConfirmationExportMessageResponse> Messages,
-    IReadOnlyList<ParishConfirmationExportNoteResponse> Notes);
+    IReadOnlyList<ParishConfirmationExportNoteResponse> Notes,
+    IReadOnlyList<ParishConfirmationExportCelebrationResponse> Celebrations,
+    IReadOnlyList<ParishConfirmationExportCelebrationParticipationResponse> CelebrationParticipations);
 
 public sealed record ParishConfirmationImportPhoneRequest(
     string Number,
@@ -300,9 +322,29 @@ public sealed record ParishConfirmationImportCandidateRequest(
     DateTimeOffset? UpdatedUtc,
     string? MeetingToken);
 
+public sealed record ParishConfirmationImportCelebrationRequest(
+    Guid? ExternalId,
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    bool IsActive,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? UpdatedUtc);
+
+public sealed record ParishConfirmationImportCelebrationParticipationRequest(
+    string? CandidateMeetingToken,
+    Guid? CelebrationExternalId,
+    string CommentText,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? UpdatedUtc);
+
 public sealed record ParishConfirmationImportRequest(
     IReadOnlyList<ParishConfirmationImportCandidateRequest> Candidates,
-    bool ReplaceExisting);
+    bool ReplaceExisting,
+    IReadOnlyList<ParishConfirmationImportCelebrationRequest>? Celebrations = null,
+    IReadOnlyList<ParishConfirmationImportCelebrationParticipationRequest>? CelebrationParticipations = null);
 
 public sealed record ParishConfirmationImportResponse(
     int ImportedCandidates,
@@ -464,11 +506,25 @@ public sealed record ParishConfirmationPortalCandidateDataResponse(
     string? SelectedSlotInviteCode,
     DateTimeOffset? SelectedSlotInviteExpiresUtc);
 
+public sealed record ParishConfirmationCelebrationResponse(
+    Guid Id,
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    bool IsActive,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    string? CandidateComment,
+    DateTimeOffset? CandidateCommentUpdatedUtc);
+
 public sealed record ParishConfirmationPortalResponse(
     ParishConfirmationPortalCandidateDataResponse Candidate,
     IReadOnlyList<ParishConfirmationMeetingPublicSlotResponse> FirstYearStartSlots,
     IReadOnlyList<ParishConfirmationMeetingJoinRequestResponse> PendingJoinRequests,
     string SecondMeetingAnnouncement,
+    IReadOnlyList<ParishConfirmationCelebrationResponse> UpcomingCelebrations,
     IReadOnlyList<ParishConfirmationMessageResponse> Messages,
     IReadOnlyList<ParishConfirmationNoteResponse> PublicNotes,
     IReadOnlyList<ParishConfirmationNoteResponse>? PrivateNotes);
@@ -512,3 +568,16 @@ public sealed record ParishConfirmationMeetingJoinRequestDecisionResponse(
 public sealed record ParishConfirmationPortalMessageCreateRequest(
     string Token,
     string MessageText);
+
+public sealed record ParishConfirmationCelebrationCreateRequest(
+    string Name,
+    string ShortInfo,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset EndsAtUtc,
+    string Description,
+    bool IsActive);
+
+public sealed record ParishConfirmationCelebrationCommentCreateRequest(
+    string Token,
+    Guid CelebrationId,
+    string CommentText);

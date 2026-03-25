@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   downloadCogitaPublicStoryboardFile,
@@ -22,6 +22,7 @@ import { buildRevisionQuestionRuntime } from './components/runtime/revision/Revi
 import { parseQuestionDefinitionFromPayload } from './components/workspace/notion/types/notionQuestion';
 import {
   evaluateCheckcardDetailed,
+  normalizeCheckcardAnswer,
   type CheckcardAnswerModel,
   type CheckcardExpectedModel,
   type CheckcardPromptModel
@@ -129,6 +130,17 @@ type RuntimeCardState = {
   cardType: string | null;
   checkType: string | null;
   isCorrect: boolean | null;
+};
+
+type LoadedCardRuntime = {
+  nodeKey: string;
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+  expectedModel: CheckcardExpectedModel;
+  answerModel: CheckcardAnswerModel;
+  notionType: string | null;
+  cardType: string | null;
+  checkType: string | null;
 };
 
 function toString(value: unknown) {
@@ -707,6 +719,71 @@ function findJoinNodeIdForSeparator(graph: StoryboardGraph, separatorNodeId: str
   return joinNode.nodeId;
 }
 
+function collectUpcomingCardNodeLocations(payload: {
+  graph: StoryboardGraph;
+  graphPath: string[];
+  startNodeIds: string[];
+  visited: Record<string, boolean>;
+  maxDepth?: number;
+  maxCards?: number;
+}) {
+  const maxDepth = Math.max(1, payload.maxDepth ?? 3);
+  const maxCards = Math.max(1, payload.maxCards ?? 10);
+  const queue: Array<{ graph: StoryboardGraph; graphPath: string[]; nodeId: string; depth: number }> = payload.startNodeIds.map((nodeId) => ({
+    graph: payload.graph,
+    graphPath: payload.graphPath,
+    nodeId,
+    depth: 0
+  }));
+  const seen = new Set<string>();
+  const cards: Array<{ graphPath: string[]; node: StoryboardNodeRecord }> = [];
+
+  while (queue.length > 0 && cards.length < maxCards) {
+    const next = queue.shift();
+    if (!next) break;
+    const locationKey = buildNodeKey(next.graphPath, next.nodeId);
+    if (seen.has(locationKey)) continue;
+    seen.add(locationKey);
+    const node = findNode(next.graph, next.nodeId);
+    if (!node) continue;
+
+    if (node.kind === 'card') {
+      cards.push({ graphPath: next.graphPath, node });
+    }
+
+    if (next.depth >= maxDepth) {
+      continue;
+    }
+
+    if (node.kind === 'group' && node.groupGraph) {
+      queue.push({
+        graph: node.groupGraph,
+        graphPath: [...next.graphPath, node.nodeId],
+        nodeId: node.groupGraph.startNodeId,
+        depth: next.depth + 1
+      });
+    }
+
+    const sourcePorts: StoryboardSourcePort[] =
+      node.kind === 'card' || node.kind === 'join'
+        ? ['out-right', 'out-wrong', 'out-path']
+        : ['out-path'];
+    sourcePorts.forEach((sourcePort) => {
+      const outgoing = getOutgoingEdges(next.graph, next.graphPath, node.nodeId, sourcePort, payload.visited);
+      outgoing.forEach((edge) => {
+        queue.push({
+          graph: next.graph,
+          graphPath: next.graphPath,
+          nodeId: edge.toNodeId,
+          depth: next.depth + 1
+        });
+      });
+    });
+  }
+
+  return cards;
+}
+
 function advanceRuntime(
   state: RuntimeState,
   nextNodeId: string,
@@ -887,6 +964,13 @@ export function CogitaStoryboardRuntimePage({
   const mediaLoadingKeysRef = useRef<Set<string>>(new Set());
   const runtimeScrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const previousRuntimeSignatureRef = useRef('');
+  const cardRuntimeCacheRef = useRef<Record<string, LoadedCardRuntime>>({});
+  const cardRuntimeInFlightRef = useRef<Record<string, Promise<LoadedCardRuntime | null>>>({});
+
+  useEffect(() => {
+    cardRuntimeCacheRef.current = {};
+    cardRuntimeInFlightRef.current = {};
+  }, [libraryId, runtimeLibraryId, shareCode, storyboardId]);
 
   useEffect(() => {
     if (shareCode) {
@@ -996,6 +1080,159 @@ export function CogitaStoryboardRuntimePage({
     return findNode(runtime.graph, runtime.currentNodeId);
   }, [runtime]);
 
+  const resolveCardRuntime = useCallback(async (node: StoryboardNodeRecord, graphPath: string[]): Promise<LoadedCardRuntime> => {
+    let prompt = node.description.trim() || node.title;
+    let expected = node.title;
+    let promptModel: CheckcardPromptModel = { kind: 'text', inputType: 'text' };
+    let expectedModel: CheckcardExpectedModel = expected;
+    let answerModel: CheckcardAnswerModel = { text: '' };
+    let notionType: string | null = null;
+    let cardType: string | null = null;
+    let checkType: string | null = node.cardCheckType.trim() || null;
+    const isSharedRuntime = Boolean(shareCode);
+    const notionId = node.notionId.trim();
+    const publicNotionPayload =
+      notionId && documentState?.publicNotionPayloads
+        ? documentState.publicNotionPayloads[notionId]
+        : undefined;
+
+    if ((isSharedRuntime || runtimeLibraryId) && notionId) {
+      try {
+        const [cardsBundle, detail] = await Promise.all([
+          isSharedRuntime
+            ? getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
+            : getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId }),
+          (isSharedRuntime
+            ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
+            : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
+          ).catch(() => null)
+        ]);
+        const preferredQuestionCheckType =
+          node.cardCheckType.trim().toLowerCase() === 'question'
+            ? toQuestionCheckTypeFromPayload(
+                detail?.payload ??
+                  cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                  null
+              )
+            : null;
+        const selectedCard = pickNodeCard(node, cardsBundle.items, preferredQuestionCheckType);
+        let vocabProjection: Record<string, unknown> | null = null;
+        if (detail?.infoType === 'translation') {
+          try {
+            const projection = isSharedRuntime
+              ? await getCogitaPublicStoryboardInfoApproachProjection({
+                  shareCode: shareCode!,
+                  infoId: notionId,
+                  approachKey: 'vocab-card'
+                })
+              : await getCogitaInfoApproachProjection({
+                  libraryId: runtimeLibraryId!,
+                  infoId: notionId,
+                  approachKey: 'vocab-card'
+                });
+            vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
+          } catch {
+            vocabProjection = null;
+          }
+        }
+        const built = buildCardPromptAndExpected({
+          node,
+          card: selectedCard,
+          infoType: detail?.infoType ?? selectedCard?.infoType ?? null,
+          infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
+          vocabProjection
+        });
+        notionType = detail?.infoType ?? selectedCard?.infoType ?? null;
+        cardType = selectedCard?.cardType ?? null;
+        checkType = selectedCard?.checkType ?? checkType;
+        prompt = built.prompt;
+        expected = built.expected;
+
+        const questionRuntime =
+          (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
+            ? buildStoryboardQuestionRuntime(
+                detail?.payload ??
+                  selectedCard?.payload ??
+                  cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                  publicNotionPayload ??
+                  null,
+                prompt
+              )
+            : null;
+        if (questionRuntime) {
+          prompt = questionRuntime.promptText || prompt;
+          promptModel = questionRuntime.promptModel;
+          expectedModel = questionRuntime.expectedModel;
+          answerModel = questionRuntime.initialAnswers;
+        } else {
+          promptModel = { kind: 'text', inputType: 'text' };
+          expectedModel = expected;
+          answerModel = { text: '' };
+        }
+      } catch {
+        const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
+        if (sharedQuestionRuntime) {
+          notionType = 'question';
+          checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
+          prompt = sharedQuestionRuntime.promptText || prompt;
+          promptModel = sharedQuestionRuntime.promptModel;
+          expectedModel = sharedQuestionRuntime.expectedModel;
+          answerModel = sharedQuestionRuntime.initialAnswers;
+        } else {
+          promptModel = { kind: 'text', inputType: 'text' };
+          expectedModel = expected;
+          answerModel = { text: '' };
+        }
+      }
+    } else {
+      const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
+      if (sharedQuestionRuntime) {
+        notionType = 'question';
+        checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
+        prompt = sharedQuestionRuntime.promptText || prompt;
+        promptModel = sharedQuestionRuntime.promptModel;
+        expectedModel = sharedQuestionRuntime.expectedModel;
+        answerModel = sharedQuestionRuntime.initialAnswers;
+      }
+    }
+
+    const nodeKey = buildNodeKey(graphPath, node.nodeId);
+    answerModel = normalizeCheckcardAnswer(promptModel, answerModel);
+    return {
+      nodeKey,
+      promptText: prompt,
+      promptModel,
+      expectedModel,
+      answerModel,
+      notionType,
+      cardType,
+      checkType
+    };
+  }, [documentState, runtimeLibraryId, shareCode]);
+
+  const getOrLoadCardRuntime = useCallback((node: StoryboardNodeRecord, graphPath: string[]) => {
+    const nodeKey = buildNodeKey(graphPath, node.nodeId);
+    const cached = cardRuntimeCacheRef.current[nodeKey];
+    if (cached) {
+      return Promise.resolve(cached);
+    }
+    const inFlight = cardRuntimeInFlightRef.current[nodeKey];
+    if (inFlight) {
+      return inFlight;
+    }
+    const request = resolveCardRuntime(node, graphPath)
+      .then((loaded) => {
+        cardRuntimeCacheRef.current[nodeKey] = loaded;
+        return loaded;
+      })
+      .catch(() => null)
+      .finally(() => {
+        delete cardRuntimeInFlightRef.current[nodeKey];
+      });
+    cardRuntimeInFlightRef.current[nodeKey] = request;
+    return request;
+  }, [resolveCardRuntime]);
+
   useEffect(() => {
     if (!runtime || loading) return;
     const signature = `${runtime.currentNodeId}|${runtime.finished ? '1' : '0'}|${runtime.displayedBlocks.map((block) => block.key).join(',')}`;
@@ -1018,6 +1255,16 @@ export function CogitaStoryboardRuntimePage({
     }
 
     const nodeKey = buildNodeKey(runtime.graphPath, currentNode.nodeId);
+    const cached = cardRuntimeCacheRef.current[nodeKey];
+    if (cached) {
+      setCardState({
+        ...cached,
+        status: 'ready',
+        isCorrect: null
+      });
+      return;
+    }
+
     setCardState({
       nodeKey,
       status: 'loading',
@@ -1033,133 +1280,26 @@ export function CogitaStoryboardRuntimePage({
 
     let cancelled = false;
     const loadCard = async () => {
-      let prompt = currentNode.description.trim() || currentNode.title;
-      let expected = currentNode.title;
-      let promptModel: CheckcardPromptModel = { kind: 'text', inputType: 'text' };
-      let expectedModel: CheckcardExpectedModel = expected;
-      let answerModel: CheckcardAnswerModel = { text: '' };
-      let notionType: string | null = null;
-      let cardType: string | null = null;
-      let checkType: string | null = currentNode.cardCheckType.trim() || null;
-      const isSharedRuntime = Boolean(shareCode);
-      const notionId = currentNode.notionId.trim();
-      const publicNotionPayload =
-        notionId && documentState?.publicNotionPayloads
-          ? documentState.publicNotionPayloads[notionId]
-          : undefined;
-
-      if ((isSharedRuntime || runtimeLibraryId) && notionId) {
-        try {
-          const [cardsBundle, detail] = await Promise.all([
-            isSharedRuntime
-              ? getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
-              : getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId }),
-            (isSharedRuntime
-              ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
-              : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
-            ).catch(() => null)
-          ]);
-          const preferredQuestionCheckType =
-            currentNode.cardCheckType.trim().toLowerCase() === 'question'
-              ? toQuestionCheckTypeFromPayload(
-                  detail?.payload ??
-                    cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
-                    null
-                )
-              : null;
-          const selectedCard = pickNodeCard(currentNode, cardsBundle.items, preferredQuestionCheckType);
-          let vocabProjection: Record<string, unknown> | null = null;
-          if (detail?.infoType === 'translation') {
-            try {
-              const projection = isSharedRuntime
-                ? await getCogitaPublicStoryboardInfoApproachProjection({
-                    shareCode: shareCode!,
-                    infoId: notionId,
-                    approachKey: 'vocab-card'
-                  })
-                : await getCogitaInfoApproachProjection({
-                    libraryId: runtimeLibraryId!,
-                    infoId: notionId,
-                    approachKey: 'vocab-card'
-                  });
-              vocabProjection = (projection.projection ?? null) as Record<string, unknown> | null;
-            } catch {
-              vocabProjection = null;
-            }
-          }
-          const built = buildCardPromptAndExpected({
-            node: currentNode,
-            card: selectedCard,
-            infoType: detail?.infoType ?? selectedCard?.infoType ?? null,
-            infoPayload: detail?.payload ? (detail.payload as Record<string, unknown>) : null,
-            vocabProjection
-          });
-          notionType = detail?.infoType ?? selectedCard?.infoType ?? null;
-          cardType = selectedCard?.cardType ?? null;
-          checkType = selectedCard?.checkType ?? checkType;
-          prompt = built.prompt;
-          expected = built.expected;
-
-          const questionRuntime =
-            (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
-              ? buildStoryboardQuestionRuntime(
-                  detail?.payload ??
-                    selectedCard?.payload ??
-                    cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
-                    publicNotionPayload ??
-                    null,
-                  prompt
-                )
-              : null;
-          if (questionRuntime) {
-            prompt = questionRuntime.promptText || prompt;
-            promptModel = questionRuntime.promptModel;
-            expectedModel = questionRuntime.expectedModel;
-            answerModel = questionRuntime.initialAnswers;
-          } else {
-            promptModel = { kind: 'text', inputType: 'text' };
-            expectedModel = expected;
-            answerModel = { text: '' };
-          }
-        } catch {
-          const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-          if (sharedQuestionRuntime) {
-            notionType = 'question';
-            checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
-            prompt = sharedQuestionRuntime.promptText || prompt;
-            promptModel = sharedQuestionRuntime.promptModel;
-            expectedModel = sharedQuestionRuntime.expectedModel;
-            answerModel = sharedQuestionRuntime.initialAnswers;
-          } else {
-            // Keep fallback prompt/expected from node metadata.
-            promptModel = { kind: 'text', inputType: 'text' };
-            expectedModel = expected;
-            answerModel = { text: '' };
-          }
-        }
-      } else {
-        const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-        if (sharedQuestionRuntime) {
-          notionType = 'question';
-          checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
-          prompt = sharedQuestionRuntime.promptText || prompt;
-          promptModel = sharedQuestionRuntime.promptModel;
-          expectedModel = sharedQuestionRuntime.expectedModel;
-          answerModel = sharedQuestionRuntime.initialAnswers;
-        }
-      }
-
+      const loaded = await getOrLoadCardRuntime(currentNode, runtime.graphPath);
       if (cancelled) return;
+      if (!loaded) {
+        setCardState({
+          nodeKey,
+          status: 'ready',
+          promptText: currentNode.description.trim() || currentNode.title,
+          promptModel: { kind: 'text', inputType: 'text' },
+          expectedModel: currentNode.title,
+          answerModel: { text: '' },
+          notionType: null,
+          cardType: null,
+          checkType: currentNode.cardCheckType.trim() || null,
+          isCorrect: null
+        });
+        return;
+      }
       setCardState({
-        nodeKey,
+        ...loaded,
         status: 'ready',
-        promptText: prompt,
-        promptModel,
-        expectedModel,
-        answerModel,
-        notionType,
-        cardType,
-        checkType,
         isCorrect: null
       });
     };
@@ -1168,7 +1308,41 @@ export function CogitaStoryboardRuntimePage({
     return () => {
       cancelled = true;
     };
-  }, [currentNode, documentState, runtimeLibraryId, runtime, shareCode]);
+  }, [currentNode, getOrLoadCardRuntime, runtime, shareCode]);
+
+  useEffect(() => {
+    if (!runtime || loading || !currentNode) return;
+    const graphPathKey = buildGraphPathKey(runtime.graphPath);
+    const startEdges =
+      currentNode.kind === 'separator'
+        ? getSeparatorRemainingEdges(
+            runtime.graph,
+            runtime.graphPath,
+            currentNode.nodeId,
+            runtime.visited,
+            runtime.activeSeparatorByGraphPath[graphPathKey] === currentNode.nodeId
+          )
+        : (currentNode.kind === 'card' || currentNode.kind === 'join'
+            ? ([
+                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-right', runtime.visited),
+                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-wrong', runtime.visited),
+                ...getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited)
+              ] as StoryboardGraphEdge[])
+            : getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited));
+    const startNodeIds = Array.from(new Set(startEdges.map((edge) => edge.toNodeId)));
+    if (startNodeIds.length === 0) return;
+    const upcomingCards = collectUpcomingCardNodeLocations({
+      graph: runtime.graph,
+      graphPath: runtime.graphPath,
+      startNodeIds,
+      visited: runtime.visited,
+      maxDepth: 3,
+      maxCards: 10
+    });
+    upcomingCards.forEach((entry) => {
+      void getOrLoadCardRuntime(entry.node, entry.graphPath);
+    });
+  }, [currentNode, getOrLoadCardRuntime, loading, runtime]);
 
   useEffect(() => {
     const required = new Map<string, { fileId: string; mediaType: 'image' | 'audio' }>();
@@ -1267,6 +1441,11 @@ export function CogitaStoryboardRuntimePage({
   const cardWrongEdge = useMemo(() => {
     if (!runtime || !currentNode || currentNode.kind !== 'card') return null;
     return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-wrong', runtime.visited)[0] ?? null;
+  }, [currentNode, runtime]);
+
+  const cardPathEdge = useMemo(() => {
+    if (!runtime || !currentNode || currentNode.kind !== 'card') return null;
+    return getOutgoingEdges(runtime.graph, runtime.graphPath, currentNode.nodeId, 'out-path', runtime.visited)[0] ?? null;
   }, [currentNode, runtime]);
 
   const chooseEdge = (edge: StoryboardGraphEdge) => {
@@ -1382,7 +1561,7 @@ export function CogitaStoryboardRuntimePage({
       };
     });
 
-    const outcomeEdge = isCorrect ? cardRightEdge : cardWrongEdge;
+    const outcomeEdge = (isCorrect ? cardRightEdge : cardWrongEdge) ?? cardPathEdge;
     if (!outcomeEdge) {
       setStatus(runtimeCopy.noCardOutcomeLink);
       return;
