@@ -60,7 +60,9 @@ public sealed record CogitaCreationProjectResponse(
 public sealed record CogitaStoryboardImportRequest(
     Guid? ProjectId,
     string? Name,
-    JsonElement Json
+    JsonElement Json,
+    Guid? TopicNotionId = null,
+    bool DeleteOldStoryboardNotions = false
 );
 
 public sealed record CogitaStoryboardImportNotionResultResponse(

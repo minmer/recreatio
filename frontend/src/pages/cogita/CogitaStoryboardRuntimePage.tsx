@@ -80,6 +80,8 @@ type StoryboardDocument = {
   script: string;
   steps: string[];
   rootGraph: StoryboardGraph;
+  storyboardTopicNotionId?: string;
+  storyboardManagedNotionIds?: string[];
   publicNotionPayloads: Record<string, unknown>;
 };
 
@@ -594,6 +596,10 @@ function normalizeDocument(content: unknown): StoryboardDocument {
         script: toString(root.script),
         steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
         rootGraph: parseGraph(root.rootGraph),
+        storyboardTopicNotionId: toString(root.storyboardTopicNotionId),
+        storyboardManagedNotionIds: Array.isArray(root.storyboardManagedNotionIds)
+          ? root.storyboardManagedNotionIds.map((entry) => toString(entry)).filter((entry) => entry.length > 0)
+          : [],
         publicNotionPayloads:
           root.publicNotionPayloads && typeof root.publicNotionPayloads === 'object' && !Array.isArray(root.publicNotionPayloads)
             ? (root.publicNotionPayloads as Record<string, unknown>)
@@ -608,6 +614,10 @@ function normalizeDocument(content: unknown): StoryboardDocument {
         script: toString(root.script),
         steps: Array.isArray(root.steps) ? root.steps.map((entry) => toString(entry)).filter(Boolean) : [],
         rootGraph: parseGraph(root),
+        storyboardTopicNotionId: toString(root.storyboardTopicNotionId),
+        storyboardManagedNotionIds: Array.isArray(root.storyboardManagedNotionIds)
+          ? root.storyboardManagedNotionIds.map((entry) => toString(entry)).filter((entry) => entry.length > 0)
+          : [],
         publicNotionPayloads:
           root.publicNotionPayloads && typeof root.publicNotionPayloads === 'object' && !Array.isArray(root.publicNotionPayloads)
             ? (root.publicNotionPayloads as Record<string, unknown>)
@@ -623,6 +633,8 @@ function normalizeDocument(content: unknown): StoryboardDocument {
     script: '',
     steps: [],
     rootGraph: createDefaultGraph(),
+    storyboardTopicNotionId: '',
+    storyboardManagedNotionIds: [],
     publicNotionPayloads: {}
   };
 }

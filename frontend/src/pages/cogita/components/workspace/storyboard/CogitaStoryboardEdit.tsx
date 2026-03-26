@@ -108,6 +108,8 @@ type StoryboardDocument = {
   script: string;
   steps: string[];
   rootGraph: StoryboardGraph;
+  storyboardTopicNotionId?: string;
+  storyboardManagedNotionIds?: string[];
 };
 
 type StoryboardMetaFormProps = {
@@ -334,7 +336,9 @@ function createEmptyDocument(description = ''): StoryboardDocument {
     description,
     script: '',
     steps: [],
-    rootGraph: createDefaultGraph()
+    rootGraph: createDefaultGraph(),
+    storyboardTopicNotionId: '',
+    storyboardManagedNotionIds: []
   };
 }
 
@@ -685,7 +689,11 @@ function normalizeStoryboardDocument(content: unknown): StoryboardDocument {
         description: toString(root.description),
         script,
         steps,
-        rootGraph: parsedRootGraph
+        rootGraph: parsedRootGraph,
+        storyboardTopicNotionId: toString(root.storyboardTopicNotionId),
+        storyboardManagedNotionIds: Array.isArray(root.storyboardManagedNotionIds)
+          ? root.storyboardManagedNotionIds.map((entry) => toString(entry)).filter((entry) => entry.length > 0)
+          : []
       };
     }
 
@@ -696,7 +704,11 @@ function normalizeStoryboardDocument(content: unknown): StoryboardDocument {
         description: toString(root.description),
         script: toString(root.script),
         steps: Array.isArray(root.steps) ? root.steps.map((step) => toString(step)) : [],
-        rootGraph: buildLegacyGraphFromV1(root)
+        rootGraph: buildLegacyGraphFromV1(root),
+        storyboardTopicNotionId: toString(root.storyboardTopicNotionId),
+        storyboardManagedNotionIds: Array.isArray(root.storyboardManagedNotionIds)
+          ? root.storyboardManagedNotionIds.map((entry) => toString(entry)).filter((entry) => entry.length > 0)
+          : []
       };
     }
   }
@@ -1165,6 +1177,7 @@ export function CogitaStoryboardEdit({
   const [shareCopyStatus, setShareCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [importOverlayOpen, setImportOverlayOpen] = useState(false);
   const [importJsonInput, setImportJsonInput] = useState('');
+  const [importDeleteOldNotions, setImportDeleteOldNotions] = useState(false);
   const [importStatus, setImportStatus] = useState<'idle' | 'working'>('idle');
   const [importError, setImportError] = useState<string | null>(null);
   const imageUploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -1185,6 +1198,7 @@ export function CogitaStoryboardEdit({
             openAction: 'Import JSON',
             title: 'Import storyboardu z JSON',
             hint: 'Wklej JSON storyboardu lub import envelope. Import może utworzyć notions i połączyć je z card node.',
+            deleteOldToggleLabel: 'Usuń stare notions tego storyboardu, których nie ma już w nowym JSON.',
             invalidJson: 'Wklejony tekst nie jest poprawnym JSON.',
             submitAction: 'Importuj',
             submittingAction: 'Importowanie...',
@@ -1198,6 +1212,7 @@ export function CogitaStoryboardEdit({
               openAction: 'JSON importieren',
               title: 'Storyboard aus JSON importieren',
               hint: 'Füge ein Storyboard-JSON oder ein Import-Envelope ein. Der Import kann Notions erstellen und mit Card-Nodes verknüpfen.',
+              deleteOldToggleLabel: 'Alte Storyboard-Notions löschen, die im neuen JSON nicht mehr verwendet werden.',
               invalidJson: 'Der eingefügte Text ist kein gültiges JSON.',
               submitAction: 'Importieren',
               submittingAction: 'Import läuft...',
@@ -1210,6 +1225,7 @@ export function CogitaStoryboardEdit({
               openAction: 'Import JSON',
               title: 'Import Storyboard From JSON',
               hint: 'Paste a storyboard JSON or import envelope. Import can create notions and attach them to card nodes.',
+              deleteOldToggleLabel: 'Delete old storyboard notions that are not used by the new JSON.',
               invalidJson: 'The provided text is not valid JSON.',
               submitAction: 'Import',
               submittingAction: 'Importing...',
@@ -1284,6 +1300,7 @@ export function CogitaStoryboardEdit({
       setCardNodeCardsStatus('idle');
       setImportOverlayOpen(false);
       setImportJsonInput('');
+      setImportDeleteOldNotions(false);
       setImportStatus('idle');
       setImportError(null);
       return;
@@ -1306,6 +1323,7 @@ export function CogitaStoryboardEdit({
     setShareCopyStatus('idle');
     setImportOverlayOpen(false);
     setImportJsonInput('');
+    setImportDeleteOldNotions(false);
     setImportStatus('idle');
     setImportError(null);
   }, [selectedProject]);
@@ -1741,21 +1759,34 @@ export function CogitaStoryboardEdit({
     setSelectedEdgeId('');
   };
 
-  const setNodePosition = (nodeId: string, position: { x: number; y: number }) => {
+  const setNodePosition = (nodeId: string, position: { x?: number; y?: number } | null | undefined) => {
     if (!canEdit) return;
+    if (!position) return;
+    const nextX = typeof position.x === 'number' && Number.isFinite(position.x) ? position.x : null;
+    const nextY = typeof position.y === 'number' && Number.isFinite(position.y) ? position.y : null;
+    if (nextX === null && nextY === null) return;
+
     updateActiveGraph((graph) => ({
       ...graph,
-      nodes: graph.nodes.map((node) =>
-        node.nodeId === nodeId
-          ? {
-              ...node,
-              position: {
-                x: Number.isFinite(position.x) ? position.x : node.position.x,
-                y: Number.isFinite(position.y) ? position.y : node.position.y
-              }
-            }
-          : node
-      )
+      nodes: graph.nodes.map((node) => {
+        if (node.nodeId !== nodeId) {
+          return node;
+        }
+
+        const resolvedX = nextX ?? node.position.x;
+        const resolvedY = nextY ?? node.position.y;
+        if (resolvedX === node.position.x && resolvedY === node.position.y) {
+          return node;
+        }
+
+        return {
+          ...node,
+          position: {
+            x: resolvedX,
+            y: resolvedY
+          }
+        };
+      })
     }));
   };
 
@@ -1953,6 +1984,8 @@ export function CogitaStoryboardEdit({
         libraryId,
         projectId: isEditMode ? selectedProject?.projectId ?? storyboardId ?? null : null,
         name: projectTitle.trim() || selectedProject?.name || null,
+        topicNotionId: documentState.storyboardTopicNotionId?.trim() || undefined,
+        deleteOldStoryboardNotions: importDeleteOldNotions,
         json: parsedJson
       });
 
@@ -1975,6 +2008,7 @@ export function CogitaStoryboardEdit({
 
       setImportOverlayOpen(false);
       setImportJsonInput('');
+      setImportDeleteOldNotions(false);
       setImportError(null);
 
       if (isCreateMode) {
@@ -2098,6 +2132,7 @@ export function CogitaStoryboardEdit({
                   onClick={() => {
                     setImportOverlayOpen(true);
                     setImportError(null);
+                    setImportDeleteOldNotions(false);
                   }}
                   disabled={importStatus === 'working'}
                 >
@@ -2269,7 +2304,6 @@ export function CogitaStoryboardEdit({
                         setSelectedEdgeId('');
                         setSelectedNodeId('');
                       }}
-                      onNodeDrag={(_, node) => setNodePosition(node.id, node.position)}
                       onNodeDragStop={(_, node) => setNodePosition(node.id, node.position)}
                     >
                       <MiniMap zoomable pannable />
@@ -2687,6 +2721,7 @@ export function CogitaStoryboardEdit({
         onClose={() => {
           setImportOverlayOpen(false);
           setImportError(null);
+          setImportDeleteOldNotions(false);
         }}
       >
         <div className="cogita-storyboard-meta-form">
@@ -2701,6 +2736,15 @@ export function CogitaStoryboardEdit({
               disabled={importStatus === 'working'}
             />
           </label>
+          <label className="cogita-field full" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={importDeleteOldNotions}
+              onChange={(event) => setImportDeleteOldNotions(event.target.checked)}
+              disabled={importStatus === 'working'}
+            />
+            <span style={{ margin: 0 }}>{importUiCopy.deleteOldToggleLabel}</span>
+          </label>
           {importError ? <p className="cogita-form-error">{importError}</p> : null}
           <div className="cogita-form-actions">
             <button
@@ -2709,6 +2753,7 @@ export function CogitaStoryboardEdit({
               onClick={() => {
                 setImportJsonInput('');
                 setImportError(null);
+                setImportDeleteOldNotions(false);
               }}
               disabled={importStatus === 'working'}
             >

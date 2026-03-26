@@ -1322,6 +1322,8 @@ export function importCogitaStoryboardFromJson(payload: {
   libraryId: string;
   projectId?: string | null;
   name?: string | null;
+  topicNotionId?: string | null;
+  deleteOldStoryboardNotions?: boolean;
   json: unknown;
 }) {
   return request<CogitaStoryboardImportResult>(
@@ -1331,6 +1333,8 @@ export function importCogitaStoryboardFromJson(payload: {
       body: JSON.stringify({
         projectId: payload.projectId ?? null,
         name: payload.name ?? null,
+        topicNotionId: payload.topicNotionId ?? null,
+        deleteOldStoryboardNotions: Boolean(payload.deleteOldStoryboardNotions),
         json: payload.json
       })
     }

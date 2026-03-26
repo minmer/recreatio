@@ -887,6 +887,113 @@ public static class CogitaEndpoints
             var notionResults = new List<CogitaStoryboardImportNotionResultResponse>();
             var notionResultKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var notionTypeCache = new Dictionary<Guid, string?>();
+            var createdManagedNotionIds = new HashSet<Guid>();
+            var existingManagedNotionIds = new HashSet<Guid>();
+            Guid? existingStoryboardTopicNotionId = null;
+            Guid? storyboardTopicNotionId = null;
+
+            static Guid? ReadGuidStringProperty(JsonElement source, params string[] keys)
+            {
+                foreach (var key in keys)
+                {
+                    if (!TryGetPropertyCaseInsensitive(source, key, out var value) ||
+                        value.ValueKind != JsonValueKind.String)
+                    {
+                        continue;
+                    }
+
+                    if (Guid.TryParse(value.GetString(), out var parsed))
+                    {
+                        return parsed;
+                    }
+                }
+
+                return null;
+            }
+
+            static JsonElement EnsureTopicLinkOnLinksPayload(JsonElement? linksElement, Guid topicId)
+            {
+                var root = new JsonObject();
+                if (linksElement.HasValue &&
+                    linksElement.Value.ValueKind == JsonValueKind.Object)
+                {
+                    try
+                    {
+                        var cloned = JsonNode.Parse(linksElement.Value.GetRawText()) as JsonObject;
+                        if (cloned is not null)
+                        {
+                            root = cloned;
+                        }
+                    }
+                    catch
+                    {
+                        root = new JsonObject();
+                    }
+                }
+
+                var topics = new List<string>();
+                if (root.TryGetPropertyValue("topics", out var topicsNode) &&
+                    topicsNode is JsonArray topicsArray)
+                {
+                    foreach (var item in topicsArray)
+                    {
+                        if (item is JsonValue scalar &&
+                            scalar.TryGetValue<string>(out var rawTopic) &&
+                            Guid.TryParse(rawTopic, out var parsedTopic))
+                        {
+                            topics.Add(parsedTopic.ToString("D"));
+                        }
+                    }
+                }
+
+                var normalizedTopic = topicId.ToString("D");
+                if (!topics.Contains(normalizedTopic, StringComparer.OrdinalIgnoreCase))
+                {
+                    topics.Add(normalizedTopic);
+                }
+
+                root["topics"] = BuildJsonStringArray(topics);
+                return JsonSerializer.SerializeToElement(root);
+            }
+
+            static void ReadStoryboardImportMetadataFromContent(
+                string? contentJson,
+                out Guid? topicNotionId,
+                HashSet<Guid> managedNotionIds)
+            {
+                topicNotionId = null;
+                if (string.IsNullOrWhiteSpace(contentJson))
+                {
+                    return;
+                }
+
+                try
+                {
+                    using var document = JsonDocument.Parse(contentJson);
+                    if (document.RootElement.ValueKind != JsonValueKind.Object)
+                    {
+                        return;
+                    }
+
+                    topicNotionId = ReadGuidStringProperty(document.RootElement, "storyboardTopicNotionId");
+                    if (TryGetPropertyCaseInsensitive(document.RootElement, "storyboardManagedNotionIds", out var managedElement) &&
+                        managedElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var entry in managedElement.EnumerateArray())
+                        {
+                            if (entry.ValueKind == JsonValueKind.String &&
+                                Guid.TryParse(entry.GetString(), out var parsedManagedId))
+                            {
+                                managedNotionIds.Add(parsedManagedId);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore malformed legacy content metadata.
+                }
+            }
 
             void AddNotionResult(string reference, Guid notionId, bool created, string infoType)
             {
@@ -974,6 +1081,11 @@ public static class CogitaEndpoints
                 {
                     links = linksElement.Clone();
                 }
+                if (storyboardTopicNotionId.HasValue &&
+                    !string.Equals(infoType, "topic", StringComparison.Ordinal))
+                {
+                    links = EnsureTopicLinkOnLinksPayload(links, storyboardTopicNotionId.Value);
+                }
 
                 try
                 {
@@ -998,6 +1110,10 @@ public static class CogitaEndpoints
 
                     AddNotionResult(reference ?? contextLabel, created.InfoId, true, infoType);
                     notionTypeCache[created.InfoId] = infoType;
+                    if (!string.Equals(infoType, "topic", StringComparison.Ordinal))
+                    {
+                        createdManagedNotionIds.Add(created.InfoId);
+                    }
                     return created.InfoId;
                 }
                 catch (InvalidOperationException ex)
@@ -1007,15 +1123,183 @@ public static class CogitaEndpoints
                 }
             }
 
+            async Task<(bool Deleted, bool Missing, string? Blockers)> TryDeleteStoryboardManagedNotionAsync(Guid notionId)
+            {
+                var info = await dbContext.CogitaInfos
+                    .FirstOrDefaultAsync(x => x.Id == notionId && x.LibraryId == libraryId, ct);
+                if (info is null)
+                {
+                    return (false, true, null);
+                }
+
+                var blockers = new List<string>();
+                var usedByCollections = await dbContext.CogitaCollectionItems.AsNoTracking()
+                    .AnyAsync(x => x.ItemType == "info" && x.ItemId == notionId, ct);
+                if (usedByCollections)
+                {
+                    blockers.Add("collection-items");
+                }
+
+                var usedByConnections = await dbContext.CogitaConnectionItems.AsNoTracking()
+                    .AnyAsync(x => x.InfoId == notionId, ct);
+                if (usedByConnections)
+                {
+                    blockers.Add("connections");
+                }
+
+                var usedAsLinkTarget = await dbContext.CogitaKnowledgeLinkSinglesCore.AsNoTracking()
+                    .AnyAsync(x => x.LibraryId == libraryId && x.TargetItemId == notionId, ct)
+                    || await dbContext.CogitaKnowledgeLinkMultisCore.AsNoTracking()
+                        .AnyAsync(x => x.LibraryId == libraryId && x.TargetItemId == notionId, ct);
+                if (!usedAsLinkTarget)
+                {
+                    usedAsLinkTarget = await dbContext.CogitaInfoLinkSingles.AsNoTracking()
+                        .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == notionId, ct)
+                        || await dbContext.CogitaInfoLinkMultis.AsNoTracking()
+                            .AnyAsync(x => x.LibraryId == libraryId && x.TargetInfoId == notionId, ct);
+                }
+                if (usedAsLinkTarget)
+                {
+                    blockers.Add("knowledge-links");
+                }
+
+                var usedByWordLanguage = await dbContext.CogitaWordLanguages.AsNoTracking()
+                    .AnyAsync(x => x.LanguageInfoId == notionId || x.WordInfoId == notionId, ct);
+                if (usedByWordLanguage)
+                {
+                    blockers.Add("word-language");
+                }
+
+                if (string.Equals(info.InfoType, "collection", StringComparison.Ordinal))
+                {
+                    var hasRevisions = await dbContext.CogitaRevisions.AsNoTracking()
+                        .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == notionId, ct);
+                    if (hasRevisions)
+                    {
+                        blockers.Add("revisions");
+                    }
+
+                    var hasLiveSessions = await dbContext.CogitaLiveRevisionSessions.AsNoTracking()
+                        .AnyAsync(x => x.LibraryId == libraryId && x.CollectionId == notionId, ct);
+                    if (hasLiveSessions)
+                    {
+                        blockers.Add("live-sessions");
+                    }
+
+                    var hasCollectionDependencies = await dbContext.CogitaCollectionDependencies.AsNoTracking()
+                        .AnyAsync(x => x.ParentCollectionInfoId == notionId || x.ChildCollectionInfoId == notionId, ct);
+                    if (hasCollectionDependencies)
+                    {
+                        blockers.Add("collection-dependencies");
+                    }
+                }
+
+                if (blockers.Count > 0)
+                {
+                    return (false, false, string.Join(", ", blockers));
+                }
+
+                var ownSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+                    .Where(x => x.LibraryId == libraryId && x.SourceItemId == notionId)
+                    .ToListAsync(ct);
+                var ownMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                    .Where(x => x.LibraryId == libraryId && x.SourceItemId == notionId)
+                    .ToListAsync(ct);
+                if (ownSingles.Count > 0)
+                {
+                    dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(ownSingles);
+                }
+                if (ownMultis.Count > 0)
+                {
+                    dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(ownMultis);
+                }
+
+                var ownReferenceFields = await dbContext.CogitaReferenceCryptoFields
+                    .Where(x => x.LibraryId == libraryId && x.OwnerEntity == "knowledge-item" && x.OwnerId == notionId)
+                    .ToListAsync(ct);
+                if (ownReferenceFields.Count > 0)
+                {
+                    dbContext.CogitaReferenceCryptoFields.RemoveRange(ownReferenceFields);
+                }
+
+                var legacyOwnSingles = await dbContext.CogitaInfoLinkSingles
+                    .Where(x => x.LibraryId == libraryId && x.InfoId == notionId)
+                    .ToListAsync(ct);
+                var legacyOwnMultis = await dbContext.CogitaInfoLinkMultis
+                    .Where(x => x.LibraryId == libraryId && x.InfoId == notionId)
+                    .ToListAsync(ct);
+                if (legacyOwnSingles.Count > 0)
+                {
+                    dbContext.CogitaInfoLinkSingles.RemoveRange(legacyOwnSingles);
+                }
+                if (legacyOwnMultis.Count > 0)
+                {
+                    dbContext.CogitaInfoLinkMultis.RemoveRange(legacyOwnMultis);
+                }
+
+                var searchIndexRows = await dbContext.CogitaInfoSearchIndexes
+                    .Where(x => x.LibraryId == libraryId && x.InfoId == notionId)
+                    .ToListAsync(ct);
+                if (searchIndexRows.Count > 0)
+                {
+                    dbContext.CogitaInfoSearchIndexes.RemoveRange(searchIndexRows);
+                }
+
+                var itemDependencies = await dbContext.CogitaItemDependencies
+                    .Where(x => x.LibraryId == libraryId &&
+                                ((x.ParentItemType == "info" && x.ParentItemId == notionId) ||
+                                 (x.ChildItemType == "info" && x.ChildItemId == notionId) ||
+                                 (x.ParentItemType == "collection" && x.ParentItemId == notionId) ||
+                                 (x.ChildItemType == "collection" && x.ChildItemId == notionId)))
+                    .ToListAsync(ct);
+                if (itemDependencies.Count > 0)
+                {
+                    dbContext.CogitaItemDependencies.RemoveRange(itemDependencies);
+                }
+
+                var reviewOutcomes = await dbContext.CogitaReviewOutcomes
+                    .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == notionId)
+                    .ToListAsync(ct);
+                if (reviewOutcomes.Count > 0)
+                {
+                    dbContext.CogitaReviewOutcomes.RemoveRange(reviewOutcomes);
+                }
+                var reviewEvents = await dbContext.CogitaReviewEvents
+                    .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == notionId)
+                    .ToListAsync(ct);
+                if (reviewEvents.Count > 0)
+                {
+                    dbContext.CogitaReviewEvents.RemoveRange(reviewEvents);
+                }
+                var statisticEvents = await dbContext.CogitaStatisticEvents
+                    .Where(x => x.LibraryId == libraryId && x.ItemType == "info" && x.ItemId == notionId)
+                    .ToListAsync(ct);
+                if (statisticEvents.Count > 0)
+                {
+                    dbContext.CogitaStatisticEvents.RemoveRange(statisticEvents);
+                }
+
+                if (!RemoveInfoPayload(info.InfoType, info.Id, dbContext))
+                {
+                    return (false, false, "payload");
+                }
+
+                dbContext.CogitaInfos.Remove(info);
+                await dbContext.SaveChangesAsync(ct);
+                notionTypeCache.Remove(notionId);
+                return (true, false, null);
+            }
+
             var importRoot = request.Json;
             var rootSchema = ReadFirstNonEmptyString(importRoot, "schema");
             var isImportEnvelope = string.Equals(rootSchema, "cogita_storyboard_import", StringComparison.OrdinalIgnoreCase);
             var targetProjectId = request.ProjectId;
             var targetProjectName = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
             string? descriptionOverride = null;
-
-            if (TryGetPropertyCaseInsensitive(importRoot, "project", out var projectElement) &&
-                projectElement.ValueKind == JsonValueKind.Object)
+            CogitaCreationProject? existingTargetProject = null;
+            var hasProjectElement = TryGetPropertyCaseInsensitive(importRoot, "project", out var projectElement) &&
+                projectElement.ValueKind == JsonValueKind.Object;
+            if (hasProjectElement)
             {
                 if (!targetProjectId.HasValue && TryReadGuidProperty(projectElement, "projectId", out var projectIdFromJson))
                 {
@@ -1040,15 +1324,24 @@ public static class CogitaEndpoints
                 targetProjectName = ReadFirstNonEmptyString(importRoot, "name", "title");
             }
 
-            if (TryGetPropertyCaseInsensitive(importRoot, "notions", out var rootNotions) &&
-                rootNotions.ValueKind == JsonValueKind.Array)
+            if (targetProjectId.HasValue && targetProjectId.Value != Guid.Empty)
             {
-                var notionIndex = 0;
-                foreach (var notion in rootNotions.EnumerateArray())
+                existingTargetProject = await dbContext.CogitaCreationProjects
+                    .FirstOrDefaultAsync(x => x.Id == targetProjectId.Value && x.LibraryId == libraryId, ct);
+                if (existingTargetProject is null)
                 {
-                    notionIndex++;
-                    await ResolveNotionFromJsonAsync(notion, $"notions[{notionIndex}]");
+                    return Results.NotFound();
                 }
+
+                if (!string.Equals(existingTargetProject.ProjectType, "storyboard", StringComparison.Ordinal))
+                {
+                    return Results.BadRequest(new { error = "Target project must be a storyboard." });
+                }
+
+                ReadStoryboardImportMetadataFromContent(
+                    existingTargetProject.ContentJson,
+                    out existingStoryboardTopicNotionId,
+                    existingManagedNotionIds);
             }
 
             JsonElement storyboardElement;
@@ -1070,15 +1363,133 @@ public static class CogitaEndpoints
                 storyboardElement = importRoot;
             }
 
-            if (isImportEnvelope &&
-                TryGetPropertyCaseInsensitive(storyboardElement, "notions", out var nestedNotions) &&
-                nestedNotions.ValueKind == JsonValueKind.Array)
+            var topicCandidate = request.TopicNotionId;
+            var topicCandidateSource = request.TopicNotionId.HasValue ? "request.topicNotionId" : string.Empty;
+            if (!topicCandidate.HasValue && hasProjectElement)
+            {
+                topicCandidate = ReadGuidStringProperty(projectElement, "topicNotionId", "storyboardTopicNotionId", "topicId");
+                if (topicCandidate.HasValue)
+                {
+                    topicCandidateSource = "json.project.topicNotionId";
+                }
+            }
+            if (!topicCandidate.HasValue)
+            {
+                topicCandidate = ReadGuidStringProperty(storyboardElement, "topicNotionId", "storyboardTopicNotionId", "topicId");
+                if (topicCandidate.HasValue)
+                {
+                    topicCandidateSource = "json.storyboard.topicNotionId";
+                }
+            }
+            if (!topicCandidate.HasValue)
+            {
+                topicCandidate = ReadGuidStringProperty(importRoot, "topicNotionId", "storyboardTopicNotionId", "topicId");
+                if (topicCandidate.HasValue)
+                {
+                    topicCandidateSource = "json.topicNotionId";
+                }
+            }
+            if (!topicCandidate.HasValue && existingStoryboardTopicNotionId.HasValue)
+            {
+                topicCandidate = existingStoryboardTopicNotionId;
+                topicCandidateSource = "project.storyboardTopicNotionId";
+            }
+
+            if (topicCandidate.HasValue)
+            {
+                var candidateType = await TryGetNotionTypeAsync(topicCandidate.Value);
+                if (string.IsNullOrWhiteSpace(candidateType))
+                {
+                    if (string.Equals(topicCandidateSource, "request.topicNotionId", StringComparison.Ordinal))
+                    {
+                        return Results.BadRequest(new { error = "topicNotionId was not found in this library." });
+                    }
+                    warnings.Add($"{topicCandidateSource}: topic notion '{topicCandidate.Value:D}' was not found in this library. A new topic will be created.");
+                }
+                else if (!string.Equals(candidateType, "topic", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.Equals(topicCandidateSource, "request.topicNotionId", StringComparison.Ordinal))
+                    {
+                        return Results.BadRequest(new { error = "topicNotionId must reference a notion with infoType 'topic'." });
+                    }
+                    warnings.Add($"{topicCandidateSource}: notion '{topicCandidate.Value:D}' is '{candidateType}', expected 'topic'. A new topic will be created.");
+                }
+                else
+                {
+                    storyboardTopicNotionId = topicCandidate.Value;
+                }
+            }
+
+            if (!storyboardTopicNotionId.HasValue)
+            {
+                var topicLabel = ReadFirstNonEmptyString(projectElement, "topicName", "topicLabel")
+                    ?? targetProjectName
+                    ?? existingTargetProject?.Name
+                    ?? ReadFirstNonEmptyString(storyboardElement, "name", "title")
+                    ?? "Storyboard topic";
+                topicLabel = topicLabel.Trim();
+                if (topicLabel.Length > 256)
+                {
+                    topicLabel = topicLabel[..256];
+                }
+
+                var topicPayload = JsonSerializer.SerializeToElement(new JsonObject
+                {
+                    ["label"] = topicLabel
+                });
+
+                try
+                {
+                    var createdTopic = await CreateInfoInternalAsync(
+                        library,
+                        new CogitaCreateInfoRequest("topic", topicPayload, null, null, null),
+                        readKey,
+                        ownerKey,
+                        userId,
+                        keyRingService,
+                        encryptionService,
+                        roleCryptoService,
+                        ledgerService,
+                        dbContext,
+                        ct,
+                        saveChanges: true);
+
+                    storyboardTopicNotionId = createdTopic.InfoId;
+                    notionTypeCache[createdTopic.InfoId] = "topic";
+                    AddNotionResult("storyboard-topic", createdTopic.InfoId, true, "topic");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.BadRequest(new { error = $"Unable to create storyboard topic notion ({ex.Message})." });
+                }
+            }
+
+            JsonElement notionsElement;
+            var notionsContextPrefix = string.Empty;
+            if (TryGetPropertyCaseInsensitive(importRoot, "notions", out var importRootNotions) &&
+                importRootNotions.ValueKind == JsonValueKind.Array)
+            {
+                notionsElement = importRootNotions;
+                notionsContextPrefix = "json.notions";
+            }
+            else if (TryGetPropertyCaseInsensitive(storyboardElement, "notions", out var storyboardNotions) &&
+                     storyboardNotions.ValueKind == JsonValueKind.Array)
+            {
+                notionsElement = storyboardNotions;
+                notionsContextPrefix = "json.storyboard.notions";
+            }
+            else
+            {
+                notionsElement = default;
+            }
+
+            if (notionsElement.ValueKind == JsonValueKind.Array)
             {
                 var notionIndex = 0;
-                foreach (var notion in nestedNotions.EnumerateArray())
+                foreach (var notion in notionsElement.EnumerateArray())
                 {
                     notionIndex++;
-                    await ResolveNotionFromJsonAsync(notion, $"storyboard.notions[{notionIndex}]");
+                    await ResolveNotionFromJsonAsync(notion, $"{notionsContextPrefix}[{notionIndex}]");
                 }
             }
 
@@ -1114,6 +1525,82 @@ public static class CogitaEndpoints
                 ct);
             rootGraph = await NormalizeStoryboardImportCardCheckTypesAsync(rootGraph, libraryId, dbContext, warnings, ct);
 
+            static void CollectStoryboardGraphNotionIds(StoryboardImportGraph graph, HashSet<Guid> buffer)
+            {
+                foreach (var node in graph.Nodes)
+                {
+                    if (Guid.TryParse(node.NotionId, out var notionId))
+                    {
+                        buffer.Add(notionId);
+                    }
+
+                    if (node.GroupGraph is not null)
+                    {
+                        CollectStoryboardGraphNotionIds(node.GroupGraph, buffer);
+                    }
+                }
+            }
+
+            var graphNotionIds = new HashSet<Guid>();
+            CollectStoryboardGraphNotionIds(rootGraph, graphNotionIds);
+
+            var managedNotionIds = new HashSet<Guid>(existingManagedNotionIds);
+            managedNotionIds.UnionWith(createdManagedNotionIds);
+            if (storyboardTopicNotionId.HasValue)
+            {
+                managedNotionIds.Remove(storyboardTopicNotionId.Value);
+            }
+
+            if (request.DeleteOldStoryboardNotions && existingManagedNotionIds.Count > 0)
+            {
+                var deletedCount = 0;
+                var skippedCount = 0;
+                var staleManagedNotionIds = existingManagedNotionIds
+                    .Where(id => !graphNotionIds.Contains(id))
+                    .ToList();
+                foreach (var staleId in staleManagedNotionIds)
+                {
+                    try
+                    {
+                        var cleanupResult = await TryDeleteStoryboardManagedNotionAsync(staleId);
+                        if (cleanupResult.Deleted || cleanupResult.Missing)
+                        {
+                            managedNotionIds.Remove(staleId);
+                            if (cleanupResult.Deleted)
+                            {
+                                deletedCount++;
+                            }
+                        }
+                        else
+                        {
+                            skippedCount++;
+                            warnings.Add(
+                                $"Storyboard cleanup: notion '{staleId:D}' was not deleted (blocked by {cleanupResult.Blockers ?? "dependencies"}).");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        skippedCount++;
+                        warnings.Add($"Storyboard cleanup: notion '{staleId:D}' delete failed ({ex.Message}).");
+                    }
+                }
+
+                if (deletedCount > 0 || skippedCount > 0)
+                {
+                    warnings.Add($"Storyboard cleanup summary: deleted {deletedCount}, skipped {skippedCount} managed notions.");
+                }
+            }
+
+            if (managedNotionIds.Count > 0)
+            {
+                var candidateIds = managedNotionIds.ToList();
+                var existingManagedIds = await dbContext.CogitaInfos.AsNoTracking()
+                    .Where(x => x.LibraryId == libraryId && candidateIds.Contains(x.Id))
+                    .Select(x => x.Id)
+                    .ToListAsync(ct);
+                managedNotionIds = existingManagedIds.ToHashSet();
+            }
+
             var description = ReadFirstNonEmptyString(storyboardElement, "description")
                 ?? descriptionOverride
                 ?? ReadFirstNonEmptyString(importRoot, "description")
@@ -1131,15 +1618,22 @@ public static class CogitaEndpoints
                 script = string.Join("\n\n---\n\n", steps);
             }
 
-            var documentNode = BuildStoryboardImportDocumentNode(rootGraph, description, script, steps);
+            var documentNode = BuildStoryboardImportDocumentNode(
+                rootGraph,
+                description,
+                script,
+                steps,
+                storyboardTopicNotionId,
+                managedNotionIds);
             var documentJson = documentNode.ToJsonString();
 
             var now = DateTimeOffset.UtcNow;
             CogitaCreationProject row;
             if (targetProjectId.HasValue && targetProjectId.Value != Guid.Empty)
             {
-                var existingRow = await dbContext.CogitaCreationProjects
-                    .FirstOrDefaultAsync(x => x.Id == targetProjectId.Value && x.LibraryId == libraryId, ct);
+                var existingRow = existingTargetProject
+                    ?? await dbContext.CogitaCreationProjects
+                        .FirstOrDefaultAsync(x => x.Id == targetProjectId.Value && x.LibraryId == libraryId, ct);
                 if (existingRow is null)
                 {
                     return Results.NotFound();
@@ -24772,13 +25266,21 @@ public static class CogitaEndpoints
         StoryboardImportGraph rootGraph,
         string description,
         string script,
-        List<string> steps)
+        List<string> steps,
+        Guid? storyboardTopicNotionId,
+        IEnumerable<Guid> storyboardManagedNotionIds)
     {
         var stepsArray = new JsonArray();
         foreach (var step in steps)
         {
             stepsArray.Add(step);
         }
+
+        var managedNotionIds = storyboardManagedNotionIds
+            .Select(id => id.ToString("D"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToList();
 
         return new JsonObject
         {
@@ -24787,6 +25289,8 @@ public static class CogitaEndpoints
             ["description"] = description,
             ["script"] = script,
             ["steps"] = stepsArray,
+            ["storyboardTopicNotionId"] = storyboardTopicNotionId.HasValue ? storyboardTopicNotionId.Value.ToString("D") : null,
+            ["storyboardManagedNotionIds"] = BuildJsonStringArray(managedNotionIds),
             ["rootGraph"] = BuildStoryboardImportGraphNode(rootGraph)
         };
     }
