@@ -2840,7 +2840,6 @@ export function ParishPage({
       if (confirmationAdminSelectedCandidateId) {
         await loadConfirmationAdminCandidatePortal(confirmationAdminSelectedCandidateId);
       }
-      resetConfirmationCelebrationEditor();
     } catch {
       setConfirmationCelebrationsAdminError('Nie udało się zapisać celebracji.');
     } finally {
