@@ -1254,6 +1254,87 @@ public static class PilgrimageEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        group.MapDelete("/{eventId:guid}/organizer/participants/{participantId:guid}", async (
+            Guid eventId,
+            Guid participantId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            ILedgerService ledgerService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var pilgrimage = await dbContext.PilgrimageEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == eventId, ct);
+            if (pilgrimage is null)
+            {
+                return Results.NotFound();
+            }
+
+            var isGlobalAdmin = await IsGlobalEventsLimanowaAdminAsync(dbContext, userId, ct);
+            var keyRing = new RoleKeyRing(new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>(), new Dictionary<Guid, byte[]>());
+            if (!isGlobalAdmin)
+            {
+                try
+                {
+                    keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+                }
+                catch (InvalidOperationException)
+                {
+                    return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+                }
+            }
+
+            if (!isGlobalAdmin && !HasOrganizerAccess(keyRing, pilgrimage))
+            {
+                return Results.Forbid();
+            }
+
+            var participant = await dbContext.PilgrimageParticipants
+                .FirstOrDefaultAsync(x => x.EventId == eventId && x.Id == participantId, ct);
+            if (participant is null)
+            {
+                return Results.NotFound();
+            }
+
+            var participantTokens = await dbContext.PilgrimageParticipantAccessTokens
+                .Where(x => x.EventId == eventId && x.ParticipantId == participantId)
+                .ToListAsync(ct);
+            if (participantTokens.Count > 0)
+            {
+                dbContext.PilgrimageParticipantAccessTokens.RemoveRange(participantTokens);
+            }
+
+            var participantIssues = await dbContext.PilgrimageParticipantIssues
+                .Where(x => x.EventId == eventId && x.ParticipantId == participantId)
+                .ToListAsync(ct);
+            if (participantIssues.Count > 0)
+            {
+                dbContext.PilgrimageParticipantIssues.RemoveRange(participantIssues);
+            }
+
+            dbContext.PilgrimageParticipants.Remove(participant);
+            await dbContext.SaveChangesAsync(ct);
+
+            await ledgerService.AppendBusinessAsync(
+                "PilgrimageParticipantDeleted",
+                userId.ToString(),
+                JsonSerializer.Serialize(new
+                {
+                    pilgrimageId = pilgrimage.Id,
+                    participantId,
+                    removedTokens = participantTokens.Count,
+                    removedIssues = participantIssues.Count
+                }),
+                ct);
+
+            return Results.Ok();
+        }).RequireAuthorization();
+
         group.MapPut("/{eventId:guid}/organizer/issues/{issueId:guid}", async (
             Guid eventId,
             Guid issueId,

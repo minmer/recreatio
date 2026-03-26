@@ -9,6 +9,7 @@ import {
   createPilgrimageParticipantIssue,
   createPilgrimageRegistration,
   createPilgrimageTask,
+  deletePilgrimageParticipant,
   deletePilgrimageInquiry,
   exportPilgrimageRegistrations,
   getPilgrimagePublicInquiryAnswers,
@@ -1882,6 +1883,30 @@ export function Kal26EventPage({
     }
   };
 
+  const handleParticipantDelete = async (participantId: string) => {
+    if (!site?.id) return;
+    const confirmed = window.confirm('Czy na pewno usunac uczestnika? Tej operacji nie mozna cofnac.');
+    if (!confirmed) {
+      return;
+    }
+
+    setOrganizerActionError(null);
+    setOrganizerSavingId(`participant-delete:${participantId}`);
+    try {
+      await deletePilgrimageParticipant(site.id, participantId);
+      setParticipantDrafts((previous) => {
+        const next = { ...previous };
+        delete next[participantId];
+        return next;
+      });
+      await loadOrganizerDashboard();
+    } catch (error: unknown) {
+      setOrganizerActionError(error instanceof Error ? error.message : 'Nie udalo sie usunac uczestnika.');
+    } finally {
+      setOrganizerSavingId(null);
+    }
+  };
+
   const handleIssueUpdate = async (issueId: string) => {
     if (!site?.id) return;
     const draft = issueDrafts[issueId];
@@ -2886,9 +2911,22 @@ export function Kal26EventPage({
                       <button
                         className="ghost"
                         onClick={() => void handleParticipantUpdate(row.id)}
-                        disabled={organizerSavingId === `participant:${row.id}`}
+                        disabled={
+                          organizerSavingId === `participant:${row.id}` ||
+                          organizerSavingId === `participant-delete:${row.id}`
+                        }
                       >
                         {organizerSavingId === `participant:${row.id}` ? 'Zapisywanie...' : 'Zapisz'}
+                      </button>
+                      <button
+                        className="ghost"
+                        onClick={() => void handleParticipantDelete(row.id)}
+                        disabled={
+                          organizerSavingId === `participant:${row.id}` ||
+                          organizerSavingId === `participant-delete:${row.id}`
+                        }
+                      >
+                        {organizerSavingId === `participant-delete:${row.id}` ? 'Usuwanie...' : 'Usun uczestnika'}
                       </button>
                     </td>
                   </tr>

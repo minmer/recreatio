@@ -6358,7 +6358,6 @@ export function ParishPage({
                             {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
                               const isExpanded = confirmationCelebrationExpandedId === celebration.id;
                               const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
-                              const startsAt = new Date(celebration.startsAtUtc);
                               const endsAt = new Date(celebration.endsAtUtc);
                               const commentEditDeadline = new Date(
                                 endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
@@ -6369,112 +6368,104 @@ export function ParishPage({
                               return (
                                 <article
                                   key={`celebration-${celebration.id}`}
-                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'}`}
+                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'} ${isExpanded ? 'is-expanded' : ''}`}
                                 >
-                                  <p>
-                                    <strong>{celebration.name}</strong>
-                                  </p>
-                                  {needsCandidateResponse ? (
-                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
-                                  ) : null}
-                                  <p className="note">{celebration.shortInfo}</p>
-                                  <p className="note">
-                                    Termin celebracji: {startsAt.toLocaleString('pl-PL')}
-                                  </p>
-                                  <div
-                                    className={`confirmation-celebration-comment ${needsCandidateResponse ? 'is-required' : ''}`}
-                                  >
-                                    <p className="note">
-                                      <strong>
-                                        {isCommentLocked ? 'Okno edycji komentarza zamknięte' : 'Komentarz kandydata o udziale'}
-                                      </strong>
-                                    </p>
-                                    <p className="note">
-                                      {isCommentLocked
-                                        ? `Komentarz można było edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`
-                                        : `Komentarz można edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`}
-                                    </p>
-                                    <div className="confirmation-celebration-template-grid">
-                                      <label>
-                                        <span>Podpowiedź dla kandydatki</span>
-                                        <select
-                                          value=""
-                                          disabled={isCommentLocked}
-                                          onChange={(event) => {
-                                            const template = event.target.value;
-                                            if (!template) return;
-                                            updateConfirmationCelebrationDraft(celebration.id, template);
-                                          }}
-                                        >
-                                          <option value="">Wybierz podpowiedź...</option>
-                                          {confirmationCelebrationCommentTemplates.female.map((template) => (
-                                            <option key={`template-female-${celebration.id}-${template}`} value={template}>
-                                              {template}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                      <label>
-                                        <span>Podpowiedź dla kandydata</span>
-                                        <select
-                                          value=""
-                                          disabled={isCommentLocked}
-                                          onChange={(event) => {
-                                            const template = event.target.value;
-                                            if (!template) return;
-                                            updateConfirmationCelebrationDraft(celebration.id, template);
-                                          }}
-                                        >
-                                          <option value="">Wybierz podpowiedź...</option>
-                                          {confirmationCelebrationCommentTemplates.male.map((template) => (
-                                            <option key={`template-male-${celebration.id}-${template}`} value={template}>
-                                              {template}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </label>
-                                    </div>
-                                    <label>
-                                      <span>Treść komentarza</span>
-                                      <textarea
-                                        rows={4}
-                                        value={draftValue}
-                                        disabled={isCommentLocked}
-                                        onChange={(event) => updateConfirmationCelebrationDraft(celebration.id, event.target.value)}
-                                        placeholder="Opisz swój udział..."
-                                      />
-                                    </label>
-                                    <button
-                                      type="button"
-                                      className="parish-login confirmation-celebration-comment-action"
-                                      disabled={
-                                        isCommentLocked ||
-                                        confirmationCelebrationSavingId === celebration.id ||
-                                        !activeConfirmationPortalToken
-                                      }
-                                      onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
-                                    >
-                                      {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Wyślij komentarz'}
-                                    </button>
-                                    {celebration.candidateCommentUpdatedUtc ? (
-                                      <p className="note">
-                                        Ostatnia aktualizacja komentarza: {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
-                                      </p>
-                                    ) : null}
-                                  </div>
                                   <button
                                     type="button"
-                                    className="ghost"
+                                    className="confirmation-celebration-toggle"
                                     onClick={() =>
                                       setConfirmationCelebrationExpandedId((current) =>
                                         current === celebration.id ? null : celebration.id
                                       )
                                     }
                                   >
-                                    {isExpanded ? 'Ukryj szczegóły' : 'Więcej informacji'}
+                                    <span className="confirmation-celebration-toggle-main">
+                                      <strong>{celebration.name}</strong>
+                                      <span className="note">{celebration.shortInfo}</span>
+                                    </span>
+                                    <span className="confirmation-celebration-toggle-action">
+                                      {isExpanded ? 'Ukryj' : 'Otwórz'}
+                                    </span>
                                   </button>
+                                  {needsCandidateResponse ? (
+                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
+                                  ) : null}
                                   {isExpanded ? (
-                                    <p className="note">{celebration.description}</p>
+                                    <>
+                                      <p className="note">{celebration.description}</p>
+                                      <div
+                                        className={`confirmation-celebration-comment ${needsCandidateResponse ? 'is-required' : ''}`}
+                                      >
+                                        <p className="note">
+                                          <strong>
+                                            {isCommentLocked ? 'Okno edycji komentarza zamknięte' : 'Komentarz kandydata o udziale'}
+                                          </strong>
+                                        </p>
+                                        <p className="note">
+                                          {isCommentLocked
+                                            ? `Komentarz można było edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`
+                                            : `Komentarz można edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`}
+                                        </p>
+                                        <label>
+                                          <span>Podpowiedź do komentarza</span>
+                                          <select
+                                            value=""
+                                            disabled={isCommentLocked}
+                                            onChange={(event) => {
+                                              const template = event.target.value;
+                                              if (!template) return;
+                                              updateConfirmationCelebrationDraft(celebration.id, template);
+                                            }}
+                                          >
+                                            <option value="">Wybierz podpowiedź...</option>
+                                            <optgroup label="Dla kandydatki">
+                                              {confirmationCelebrationCommentTemplates.female.map((template) => (
+                                                <option key={`template-female-${celebration.id}-${template}`} value={template}>
+                                                  {template}
+                                                </option>
+                                              ))}
+                                            </optgroup>
+                                            <optgroup label="Dla kandydata">
+                                              {confirmationCelebrationCommentTemplates.male.map((template) => (
+                                                <option key={`template-male-${celebration.id}-${template}`} value={template}>
+                                                  {template}
+                                                </option>
+                                              ))}
+                                            </optgroup>
+                                          </select>
+                                        </label>
+                                        <label>
+                                          <span>Treść komentarza</span>
+                                          <textarea
+                                            rows={4}
+                                            value={draftValue}
+                                            disabled={isCommentLocked}
+                                            onChange={(event) =>
+                                              updateConfirmationCelebrationDraft(celebration.id, event.target.value)
+                                            }
+                                            placeholder="Opisz swój udział..."
+                                          />
+                                        </label>
+                                        <button
+                                          type="button"
+                                          className="parish-login confirmation-celebration-comment-action"
+                                          disabled={
+                                            isCommentLocked ||
+                                            confirmationCelebrationSavingId === celebration.id ||
+                                            !activeConfirmationPortalToken
+                                          }
+                                          onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
+                                        >
+                                          {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Wyślij komentarz'}
+                                        </button>
+                                        {celebration.candidateCommentUpdatedUtc ? (
+                                          <p className="note">
+                                            Ostatnia aktualizacja komentarza:{' '}
+                                            {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </>
                                   ) : null}
                                 </article>
                               );

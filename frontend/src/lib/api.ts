@@ -5517,6 +5517,12 @@ export function updatePilgrimageParticipant(
   });
 }
 
+export function deletePilgrimageParticipant(eventId: string, participantId: string) {
+  return request<void>(`/pilgrimage/${eventId}/organizer/participants/${participantId}`, {
+    method: 'DELETE'
+  });
+}
+
 export function updatePilgrimageIssue(
   eventId: string,
   issueId: string,
