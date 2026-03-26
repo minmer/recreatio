@@ -91,7 +91,11 @@ const KAL26_ROUTE_ALIASES: Record<string, string> = {
   galerie: 'galeria',
   // Contact
   kontakt: 'kontakt',
-  contact: 'kontakt'
+  contact: 'kontakt',
+  // Organizer (admin only menu link)
+  organizator: 'organizator',
+  organizer: 'organizator',
+  organisator: 'organizator'
 };
 
 type EventPageRendererProps = SharedEventPageProps & { event: EventDefinition; page: EventInnerPage };

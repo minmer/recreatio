@@ -1287,8 +1287,12 @@ export function Kal26EventPage({
   }, [event.slug, page.slug, participantPending, participantToken, participantZone]);
 
   const loadOrganizerDashboard = async () => {
+    if (organizerPending) {
+      return;
+    }
     if (!showProfileMenu) {
       setOrganizerDashboard(null);
+      setOrganizerError(null);
       return;
     }
     if (!site?.id) {
@@ -1311,6 +1315,18 @@ export function Kal26EventPage({
       setOrganizerPending(false);
     }
   };
+
+  useEffect(() => {
+    if (!showProfileMenu) {
+      setOrganizerDashboard(null);
+      setOrganizerError(null);
+      return;
+    }
+    if (!site?.id) {
+      return;
+    }
+    void loadOrganizerDashboard();
+  }, [showProfileMenu, site?.id]);
 
   useEffect(() => {
     if (page.slug !== 'organizator') return;
@@ -1457,43 +1473,71 @@ export function Kal26EventPage({
 
   const signupSection = sectionById('zapisy');
   const kal26HeaderCopy = copy.events.kal26Header;
-  const headerMenuPages = [
-    {
-      targetSlug: 'niezbednik',
-      localizedSlug: { pl: 'informacje', en: 'information', de: 'informationen' },
-      label: kal26HeaderCopy.information
-    },
-    {
-      targetSlug: 'program',
-      localizedSlug: { pl: 'plan', en: 'plan', de: 'plan' },
-      label: kal26HeaderCopy.plan
-    },
-    {
-      targetSlug: 'zapisy',
-      localizedSlug: { pl: 'zapisy', en: 'register', de: 'anmeldung' },
-      label: kal26HeaderCopy.register
-    },
-    {
-      targetSlug: 'faq',
-      localizedSlug: { pl: 'faq', en: 'faq', de: 'faq' },
-      label: kal26HeaderCopy.faq
-    },
-    {
-      targetSlug: 'o-pielgrzymce',
-      localizedSlug: { pl: 'historia', en: 'history', de: 'geschichte' },
-      label: kal26HeaderCopy.history
-    },
-    {
-      targetSlug: 'galeria',
-      localizedSlug: { pl: 'galeria', en: 'gallery', de: 'galerie' },
-      label: kal26HeaderCopy.gallery
-    },
-    {
-      targetSlug: 'kontakt',
-      localizedSlug: { pl: 'kontakt', en: 'contact', de: 'kontakt' },
-      label: kal26HeaderCopy.contact
+  const headerMenuPages = useMemo(() => {
+    const pages = [
+      {
+        targetSlug: 'niezbednik',
+        localizedSlug: { pl: 'informacje', en: 'information', de: 'informationen' },
+        label: kal26HeaderCopy.information
+      },
+      {
+        targetSlug: 'program',
+        localizedSlug: { pl: 'plan', en: 'plan', de: 'plan' },
+        label: kal26HeaderCopy.plan
+      },
+      {
+        targetSlug: 'zapisy',
+        localizedSlug: { pl: 'zapisy', en: 'register', de: 'anmeldung' },
+        label: kal26HeaderCopy.register
+      },
+      {
+        targetSlug: 'faq',
+        localizedSlug: { pl: 'faq', en: 'faq', de: 'faq' },
+        label: kal26HeaderCopy.faq
+      },
+      {
+        targetSlug: 'o-pielgrzymce',
+        localizedSlug: { pl: 'historia', en: 'history', de: 'geschichte' },
+        label: kal26HeaderCopy.history
+      },
+      {
+        targetSlug: 'galeria',
+        localizedSlug: { pl: 'galeria', en: 'gallery', de: 'galerie' },
+        label: kal26HeaderCopy.gallery
+      },
+      {
+        targetSlug: 'kontakt',
+        localizedSlug: { pl: 'kontakt', en: 'contact', de: 'kontakt' },
+        label: kal26HeaderCopy.contact
+      }
+    ] as Array<{
+      targetSlug: string;
+      localizedSlug: { pl: string; en: string; de: string };
+      label: string;
+    }>;
+
+    if (showProfileMenu && (organizerDashboard || page.slug === 'organizator')) {
+      pages.push({
+        targetSlug: 'organizator',
+        localizedSlug: { pl: 'organizator', en: 'organizer', de: 'organisator' },
+        label: kal26HeaderCopy.organizer
+      });
     }
-  ] as const;
+
+    return pages;
+  }, [
+    kal26HeaderCopy.contact,
+    kal26HeaderCopy.faq,
+    kal26HeaderCopy.gallery,
+    kal26HeaderCopy.history,
+    kal26HeaderCopy.information,
+    kal26HeaderCopy.organizer,
+    kal26HeaderCopy.plan,
+    kal26HeaderCopy.register,
+    organizerDashboard,
+    page.slug,
+    showProfileMenu
+  ]);
 
   useEffect(() => {
     setIsMenuOpen(false);

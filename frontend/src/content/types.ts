@@ -97,6 +97,7 @@ export type Copy = {
       history: string;
       gallery: string;
       contact: string;
+      organizer: string;
     };
   };
   limanowa: {

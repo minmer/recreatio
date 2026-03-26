@@ -2196,6 +2196,56 @@
   gap: 8px;
 }
 
+.confirmation-celebration-card.is-unanswered {
+  border-color: #f59e0b;
+  background: #fffaf0;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+
+.confirmation-celebration-card.is-answered {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.confirmation-celebration-attention {
+  margin: 0;
+  border: 1px solid #f59e0b;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  display: inline-flex;
+  width: fit-content;
+}
+
+.confirmation-celebration-comment {
+  border: 1px dashed var(--parish-line);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.confirmation-celebration-comment.is-required {
+  border-color: #f59e0b;
+  background: #fffdf5;
+}
+
+.confirmation-celebration-template-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.confirmation-celebration-comment-action {
+  width: 100%;
+  min-height: 44px;
+  font-weight: 700;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.16);
+}
+
 .confirmation-celebration-card select,
 .confirmation-celebration-card textarea {
   border-radius: 10px;
@@ -2647,6 +2697,10 @@
   .confirmation-portal-task-list li {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .confirmation-celebration-template-grid {
+    grid-template-columns: 1fr;
   }
 
   .confirmation-candidate-portal .confirmation-portal-card h4 {

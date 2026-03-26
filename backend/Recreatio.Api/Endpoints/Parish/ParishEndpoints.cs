@@ -42,6 +42,7 @@ public static class ParishEndpoints
     private const string ConfirmationJoinDecisionAccept = "accept";
     private const string ConfirmationJoinDecisionReject = "reject";
     private const int ConfirmationCelebrationUpcomingDays = 7;
+    private const int ConfirmationCelebrationCommentEditGraceDays = 7;
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -1341,9 +1342,16 @@ public static class ParishEndpoints
 
             var now = DateTimeOffset.UtcNow;
             var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
-            if (celebration.EndsAtUtc < now || celebration.StartsAtUtc > windowEnd)
+            var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
+            if (celebration.EndsAtUtc < pastWindowStart || celebration.StartsAtUtc > windowEnd)
             {
                 return Results.BadRequest(new { error = "Celebration is outside the upcoming window." });
+            }
+
+            var editDeadline = celebration.EndsAtUtc.AddDays(ConfirmationCelebrationCommentEditGraceDays);
+            if (now > editDeadline)
+            {
+                return Results.BadRequest(new { error = "Celebration comment edit window has closed." });
             }
 
             var participation = await dbContext.ParishConfirmationCelebrationParticipations
@@ -5536,11 +5544,12 @@ public static class ParishEndpoints
     {
         var now = DateTimeOffset.UtcNow;
         var windowEnd = now.AddDays(ConfirmationCelebrationUpcomingDays);
+        var pastWindowStart = now.AddDays(-ConfirmationCelebrationCommentEditGraceDays);
         var celebrationRows = await dbContext.ParishConfirmationCelebrations.AsNoTracking()
             .Where(x =>
                 x.ParishId == parishId &&
                 x.IsActive &&
-                x.EndsAtUtc >= now &&
+                x.EndsAtUtc >= pastWindowStart &&
                 x.StartsAtUtc <= windowEnd)
             .OrderBy(x => x.StartsAtUtc)
             .ThenBy(x => x.CreatedUtc)

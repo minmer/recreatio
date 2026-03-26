@@ -135,7 +135,8 @@ export const de: Copy = {
       faq: 'FAQ',
       history: 'GESCHICHTE',
       gallery: 'GALERIE',
-      contact: 'KONTAKT'
+      contact: 'KONTAKT',
+      organizer: 'ORGANISATOR'
     }
   },
   limanowa: {

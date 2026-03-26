@@ -1178,11 +1178,20 @@ const confirmationRodoClauseDraft = {
   acknowledgment: 'Oświadczam, że zapoznałem / zapoznałam się z treścią powyższej klauzuli informacyjnej.'
 };
 
-const confirmationCelebrationCommentTemplates = [
-  'Byłem / byłam obecny(-a) w kościele i uczestniczyłem(-am) w celebracji.',
-  'Nie mogłem / nie mogłam przyjść, ponieważ ...',
-  'Najbardziej zaskoczyło mnie ...'
-];
+const confirmationCelebrationCommentTemplates = {
+  female: [
+    'Byłam obecna w kościele i uczestniczyłam w celebracji.',
+    'Nie mogłam przyjść, ponieważ ...',
+    'Najbardziej zaskoczyło mnie ...'
+  ],
+  male: [
+    'Byłem obecny w kościele i uczestniczyłem w celebracji.',
+    'Nie mogłem przyjść, ponieważ ...',
+    'Najbardziej zaskoczyło mnie ...'
+  ]
+} as const;
+
+const confirmationCelebrationCommentEditGraceDays = 7;
 
 const escapeHtml = (value: string): string =>
   value
@@ -6349,16 +6358,110 @@ export function ParishPage({
                             {confirmationDisplayPortalData.upcomingCelebrations.map((celebration) => {
                               const isExpanded = confirmationCelebrationExpandedId === celebration.id;
                               const draftValue = confirmationCelebrationDrafts[celebration.id] ?? '';
+                              const startsAt = new Date(celebration.startsAtUtc);
+                              const endsAt = new Date(celebration.endsAtUtc);
+                              const commentEditDeadline = new Date(
+                                endsAt.getTime() + confirmationCelebrationCommentEditGraceDays * 24 * 60 * 60 * 1000
+                              );
+                              const isCommentLocked = Date.now() > commentEditDeadline.getTime();
+                              const hasSavedComment = Boolean((celebration.candidateComment ?? '').trim());
+                              const needsCandidateResponse = !hasSavedComment;
                               return (
-                                <article key={`celebration-${celebration.id}`} className="confirmation-celebration-card">
+                                <article
+                                  key={`celebration-${celebration.id}`}
+                                  className={`confirmation-celebration-card ${needsCandidateResponse ? 'is-unanswered' : 'is-answered'}`}
+                                >
                                   <p>
                                     <strong>{celebration.name}</strong>
                                   </p>
+                                  {needsCandidateResponse ? (
+                                    <p className="confirmation-celebration-attention">Wymagana odpowiedź kandydata</p>
+                                  ) : null}
                                   <p className="note">{celebration.shortInfo}</p>
                                   <p className="note">
-                                    {new Date(celebration.startsAtUtc).toLocaleString('pl-PL')} -{' '}
-                                    {new Date(celebration.endsAtUtc).toLocaleString('pl-PL')}
+                                    Termin celebracji: {startsAt.toLocaleString('pl-PL')}
                                   </p>
+                                  <div
+                                    className={`confirmation-celebration-comment ${needsCandidateResponse ? 'is-required' : ''}`}
+                                  >
+                                    <p className="note">
+                                      <strong>
+                                        {isCommentLocked ? 'Okno edycji komentarza zamknięte' : 'Komentarz kandydata o udziale'}
+                                      </strong>
+                                    </p>
+                                    <p className="note">
+                                      {isCommentLocked
+                                        ? `Komentarz można było edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`
+                                        : `Komentarz można edytować do ${commentEditDeadline.toLocaleString('pl-PL')}.`}
+                                    </p>
+                                    <div className="confirmation-celebration-template-grid">
+                                      <label>
+                                        <span>Podpowiedź dla kandydatki</span>
+                                        <select
+                                          value=""
+                                          disabled={isCommentLocked}
+                                          onChange={(event) => {
+                                            const template = event.target.value;
+                                            if (!template) return;
+                                            updateConfirmationCelebrationDraft(celebration.id, template);
+                                          }}
+                                        >
+                                          <option value="">Wybierz podpowiedź...</option>
+                                          {confirmationCelebrationCommentTemplates.female.map((template) => (
+                                            <option key={`template-female-${celebration.id}-${template}`} value={template}>
+                                              {template}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label>
+                                        <span>Podpowiedź dla kandydata</span>
+                                        <select
+                                          value=""
+                                          disabled={isCommentLocked}
+                                          onChange={(event) => {
+                                            const template = event.target.value;
+                                            if (!template) return;
+                                            updateConfirmationCelebrationDraft(celebration.id, template);
+                                          }}
+                                        >
+                                          <option value="">Wybierz podpowiedź...</option>
+                                          {confirmationCelebrationCommentTemplates.male.map((template) => (
+                                            <option key={`template-male-${celebration.id}-${template}`} value={template}>
+                                              {template}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                    </div>
+                                    <label>
+                                      <span>Treść komentarza</span>
+                                      <textarea
+                                        rows={4}
+                                        value={draftValue}
+                                        disabled={isCommentLocked}
+                                        onChange={(event) => updateConfirmationCelebrationDraft(celebration.id, event.target.value)}
+                                        placeholder="Opisz swój udział..."
+                                      />
+                                    </label>
+                                    <button
+                                      type="button"
+                                      className="parish-login confirmation-celebration-comment-action"
+                                      disabled={
+                                        isCommentLocked ||
+                                        confirmationCelebrationSavingId === celebration.id ||
+                                        !activeConfirmationPortalToken
+                                      }
+                                      onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
+                                    >
+                                      {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Wyślij komentarz'}
+                                    </button>
+                                    {celebration.candidateCommentUpdatedUtc ? (
+                                      <p className="note">
+                                        Ostatnia aktualizacja komentarza: {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                   <button
                                     type="button"
                                     className="ghost"
@@ -6371,46 +6474,7 @@ export function ParishPage({
                                     {isExpanded ? 'Ukryj szczegóły' : 'Więcej informacji'}
                                   </button>
                                   {isExpanded ? (
-                                    <>
-                                      <p className="note">{celebration.description}</p>
-                                      <label>
-                                        <span>Komentarz o udziale</span>
-                                        <select
-                                          value=""
-                                          onChange={(event) => {
-                                            const template = event.target.value;
-                                            if (!template) return;
-                                            updateConfirmationCelebrationDraft(celebration.id, template);
-                                          }}
-                                        >
-                                          <option value="">Wybierz podpowiedź...</option>
-                                          {confirmationCelebrationCommentTemplates.map((template) => (
-                                            <option key={`template-${celebration.id}-${template}`} value={template}>
-                                              {template}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <textarea
-                                          rows={3}
-                                          value={draftValue}
-                                          onChange={(event) => updateConfirmationCelebrationDraft(celebration.id, event.target.value)}
-                                          placeholder="Opisz swój udział..."
-                                        />
-                                      </label>
-                                      <button
-                                        type="button"
-                                        className="parish-login"
-                                        disabled={confirmationCelebrationSavingId === celebration.id || !activeConfirmationPortalToken}
-                                        onClick={() => void handleSaveConfirmationCelebrationComment(celebration.id)}
-                                      >
-                                        {confirmationCelebrationSavingId === celebration.id ? 'Zapisywanie...' : 'Zapisz komentarz'}
-                                      </button>
-                                      {celebration.candidateCommentUpdatedUtc ? (
-                                        <p className="note">
-                                          Ostatnia aktualizacja komentarza: {new Date(celebration.candidateCommentUpdatedUtc).toLocaleString('pl-PL')}
-                                        </p>
-                                      ) : null}
-                                    </>
+                                    <p className="note">{celebration.description}</p>
                                   ) : null}
                                 </article>
                               );
