@@ -3352,6 +3352,8 @@ export function Kal26EventPage({
             />
           ) : null}
           {page.slug === 'galeria' ? <Kal26GalleryPage /> : null}
+          {page.slug === 'uczestnik' ? renderParticipantPage() : null}
+          {page.slug === 'organizator' ? renderOrganizerPage() : null}
           <div style={{ display: 'none' }} aria-hidden="true">
             {siteLoading ? <p>Ladowanie strony pielgrzymki...</p> : null}
             {!siteLoading && siteError ? <p className="pilgrimage-error">{siteError}</p> : null}
@@ -3400,8 +3402,6 @@ export function Kal26EventPage({
                   </>
                 ) : null}
 
-                {page.slug === 'uczestnik' ? renderParticipantPage() : null}
-                {page.slug === 'organizator' ? renderOrganizerPage() : null}
                 {!['uczestnik', 'organizator'].includes(page.slug) ? renderPublicPage() : null}
                 {!['uczestnik', 'organizator', 'start'].includes(page.slug) ? (
                   <a className="pilgrimage-mobile-sticky cta" href={`/#/event/${event.slug}/zapisy`}>
