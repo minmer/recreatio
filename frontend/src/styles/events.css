@@ -387,6 +387,10 @@
   padding-right: 2.2vw;
 }
 
+.kal-main--organizer {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .kal-main--start {
   display: block;
   padding: 0;

@@ -3303,7 +3303,9 @@ export function Kal26EventPage({
         </div>
       </header>
 
-      <main className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}${isTextPage ? ' kal-main--text' : ''}`}>
+      <main
+        className={`kal-main${page.slug === 'start' ? ' kal-main--start' : ''}${isTextPage ? ' kal-main--text' : ''}${page.slug === 'organizator' ? ' kal-main--organizer' : ''}`}
+      >
         <section
           className={`kal-content pilgrimage-content${page.slug === 'start' ? ' pilgrimage-content--start' : ''}${isTextPage ? ' kal-content--plain' : ''}`}
         >
