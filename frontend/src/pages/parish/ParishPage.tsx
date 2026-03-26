@@ -6269,7 +6269,7 @@ export function ParishPage({
                 {confirmationDisplayPortalData ? (
                   <>
                     <div className="confirmation-portal-standalone-grid">
-                      <article className="parish-card confirmation-portal-standalone-column">
+                      <article className="parish-card confirmation-portal-standalone-column confirmation-portal-celebrations-column">
                         <h4>Lista zadań</h4>
                         <ul className="confirmation-portal-task-list">
                           <li className={confirmationDisplayPortalData.candidate.phoneNumbers.some((phone) => !phone.isVerified) ? 'is-todo' : 'is-done'}>

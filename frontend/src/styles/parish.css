@@ -2146,6 +2146,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+  align-items: stretch;
 }
 
 .confirmation-portal-standalone-column {
@@ -2182,6 +2183,19 @@
 .confirmation-celebration-list {
   display: grid;
   gap: 8px;
+}
+
+.confirmation-portal-celebrations-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.confirmation-portal-celebrations-column .confirmation-celebration-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .confirmation-celebration-card {
