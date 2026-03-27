@@ -19043,15 +19043,6 @@ public static class CogitaEndpoints
         });
 
         AddInfoPayload(infoType, infoId, dataKeyResult.DataKeyId, encrypted, now, dbContext);
-        await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, sanitizedPayload, now, dbContext, ct);
-        await UpsertInfoLinksAsync(
-            library.Id,
-            infoId,
-            infoType,
-            request.Links,
-            now,
-            dbContext,
-            ct);
         dbContext.KeyEntryBindings.Add(new KeyEntryBinding
         {
             Id = Guid.NewGuid(),
@@ -19062,7 +19053,28 @@ public static class CogitaEndpoints
             CreatedUtc = now
         });
 
-        if (saveChanges)
+        var hasLinksPayload = request.Links.HasValue &&
+                              request.Links.Value.ValueKind is JsonValueKind.Object or JsonValueKind.Array;
+
+        if (saveChanges || hasLinksPayload)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
+
+        await UpsertInfoSearchIndexAsync(library.Id, infoId, infoType, sanitizedPayload, now, dbContext, ct);
+        if (hasLinksPayload)
+        {
+            await UpsertInfoLinksAsync(
+                library.Id,
+                infoId,
+                infoType,
+                request.Links,
+                now,
+                dbContext,
+                ct);
+        }
+
+        if (saveChanges || hasLinksPayload)
         {
             await dbContext.SaveChangesAsync(ct);
         }
