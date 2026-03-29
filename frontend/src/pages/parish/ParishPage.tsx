@@ -87,6 +87,7 @@ import {
   type ParishConfirmationExportCandidate,
   type ParishConfirmationExportCelebration,
   type ParishConfirmationExportCelebrationParticipation,
+  type ParishConfirmationSmsTemplates,
   type ParishHomepageConfig,
   type ParishLayoutItem,
   type ParishMassRule,
@@ -1180,18 +1181,48 @@ const confirmationRodoClauseDraft = {
 
 const confirmationCelebrationCommentTemplates = {
   female: [
-    'Byłam obecna w kościele i uczestniczyłam w celebracji.',
+    'Byłam obecna w kościele ... o godzinie ...',
     'Nie mogłam przyjść, ponieważ ...',
     'Najbardziej zaskoczyło mnie ...'
   ],
   male: [
-    'Byłem obecny w kościele i uczestniczyłem w celebracji.',
+    'Byłem obecny w kościele ... o godzinie ...',
     'Nie mogłem przyjść, ponieważ ...',
     'Najbardziej zaskoczyło mnie ...'
   ]
 } as const;
 
 const confirmationCelebrationCommentEditGraceDays = 7;
+
+const defaultConfirmationSmsTemplates: ParishConfirmationSmsTemplates = {
+  verificationInvite:
+    'Szczęść Boże!\n' +
+    'Ten numer telefonu został podany przy zgłoszeniu {fullName} do przygotowania do bierzmowania w parafii {parishName}.\n' +
+    'Aby potwierdzić numer ({phoneNumber}), proszę kliknąć w poniższy link:\n' +
+    '{verificationLink}',
+  verificationWarning:
+    'Szczęść Boże!\n' +
+    'Przypominamy o konieczności potwierdzenia numeru telefonu ({phoneNumber}) dla zgłoszenia {fullName} do przygotowania do bierzmowania w parafii {parishName}.\n' +
+    'Brak weryfikacji spowoduje usunięcie numeru z listy kontaktowej.\n' +
+    'Link do weryfikacji:\n' +
+    '{verificationLink}',
+  portalInvite:
+    'Szczęść Boże!\n' +
+    'Numer telefonu ({phoneNumber}) został potwierdzony.\n' +
+    'Zapraszamy {fullName} do portalu kandydata przygotowania do bierzmowania w parafii {parishName}.\n' +
+    'Indywidualny link do portalu:\n' +
+    '{portalLink}'
+};
+
+const confirmationSmsTemplateVariables = [
+  '{name}',
+  '{surname}',
+  '{fullName}',
+  '{parishName}',
+  '{phoneNumber}',
+  '{verificationLink}',
+  '{portalLink}'
+] as const;
 
 const escapeHtml = (value: string): string =>
   value
@@ -1904,6 +1935,18 @@ export function ParishPage({
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
+  const [confirmationSmsTemplateVerificationInvite, setConfirmationSmsTemplateVerificationInvite] = useState(
+    defaultConfirmationSmsTemplates.verificationInvite
+  );
+  const [confirmationSmsTemplateVerificationWarning, setConfirmationSmsTemplateVerificationWarning] = useState(
+    defaultConfirmationSmsTemplates.verificationWarning
+  );
+  const [confirmationSmsTemplatePortalInvite, setConfirmationSmsTemplatePortalInvite] = useState(
+    defaultConfirmationSmsTemplates.portalInvite
+  );
+  const [confirmationSmsTemplateSaving, setConfirmationSmsTemplateSaving] = useState(false);
+  const [confirmationSmsTemplateInfo, setConfirmationSmsTemplateInfo] = useState<string | null>(null);
+  const [confirmationSmsTemplateError, setConfirmationSmsTemplateError] = useState<string | null>(null);
   const [confirmationImportReplaceExisting, setConfirmationImportReplaceExisting] = useState(false);
   const [confirmationMeetingSummary, setConfirmationMeetingSummary] = useState<ParishConfirmationMeetingSummary | null>(null);
   const [confirmationMeetingLoading, setConfirmationMeetingLoading] = useState(false);
@@ -4192,6 +4235,71 @@ export function ParishPage({
     setSacramentPanelSection(section);
   };
 
+  const scrollToConfirmationPortalSection = (sectionId: string) => {
+    if (typeof document === 'undefined') return;
+    const section = document.getElementById(sectionId);
+    if (!section) return;
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const openConfirmationPortalStandaloneTab = (tab: 'meetings' | 'messages' | 'status') => {
+    setConfirmationPortalStandaloneTab(tab);
+    scrollToConfirmationPortalSection('confirmation-candidate-tabs');
+  };
+
+  const resolvedConfirmationSmsTemplates = useMemo<ParishConfirmationSmsTemplates>(() => {
+    const custom = siteConfig?.confirmationSmsTemplates;
+    return {
+      verificationInvite:
+        custom?.verificationInvite?.trim().length
+          ? custom.verificationInvite
+          : defaultConfirmationSmsTemplates.verificationInvite,
+      verificationWarning:
+        custom?.verificationWarning?.trim().length
+          ? custom.verificationWarning
+          : defaultConfirmationSmsTemplates.verificationWarning,
+      portalInvite:
+        custom?.portalInvite?.trim().length
+          ? custom.portalInvite
+          : defaultConfirmationSmsTemplates.portalInvite
+    };
+  }, [siteConfig?.confirmationSmsTemplates]);
+
+  const renderConfirmationSmsTemplate = (
+    template: string,
+    variables: {
+      name: string;
+      surname: string;
+      fullName: string;
+      parishName: string;
+      phoneNumber: string;
+      verificationLink: string;
+      portalLink: string;
+    }
+  ) => {
+    const map: Record<string, string> = {
+      name: variables.name,
+      surname: variables.surname,
+      fullname: variables.fullName,
+      parishname: variables.parishName,
+      phonenumber: variables.phoneNumber,
+      verificationlink: variables.verificationLink,
+      portallink: variables.portalLink
+    };
+
+    return template.replace(/\{([a-zA-Z]+)\}/g, (_, rawKey: string) => {
+      const key = rawKey.trim();
+      const normalizedKey = key.toLowerCase();
+      return map[normalizedKey] ?? `{${key}}`;
+    });
+  };
+
+  useEffect(() => {
+    setConfirmationSmsTemplateVerificationInvite(resolvedConfirmationSmsTemplates.verificationInvite);
+    setConfirmationSmsTemplateVerificationWarning(resolvedConfirmationSmsTemplates.verificationWarning);
+    setConfirmationSmsTemplatePortalInvite(resolvedConfirmationSmsTemplates.portalInvite);
+  }, [resolvedConfirmationSmsTemplates]);
+
   useEffect(() => {
     if (!parishSlug) {
       if (view !== 'builder') {
@@ -5398,6 +5506,43 @@ export function ParishPage({
     }
   };
 
+  const handleSaveConfirmationSmsTemplates = async () => {
+    if (!parish || !siteConfig) return;
+
+    const verificationInvite = confirmationSmsTemplateVerificationInvite.trim();
+    const verificationWarning = confirmationSmsTemplateVerificationWarning.trim();
+    const portalInvite = confirmationSmsTemplatePortalInvite.trim();
+
+    const normalizedTemplates =
+      verificationInvite || verificationWarning || portalInvite
+        ? {
+            verificationInvite,
+            verificationWarning,
+            portalInvite
+          }
+        : null;
+
+    setConfirmationSmsTemplateSaving(true);
+    setConfirmationSmsTemplateError(null);
+    setConfirmationSmsTemplateInfo(null);
+    try {
+      const nextHomepage: ParishHomepageConfig = {
+        ...siteConfig,
+        confirmationSmsTemplates: normalizedTemplates
+      };
+      await updateParishSite(parish.id, {
+        homepage: nextHomepage,
+        isPublished: true
+      });
+      setSiteConfig(nextHomepage);
+      setConfirmationSmsTemplateInfo('Szablony SMS zostały zapisane.');
+    } catch {
+      setConfirmationSmsTemplateError('Nie udało się zapisać szablonów SMS.');
+    } finally {
+      setConfirmationSmsTemplateSaving(false);
+    }
+  };
+
   const handleSubmitConfirmationCandidate = async () => {
     if (!parishSlug) return;
     const phoneRows = confirmationPhonesRaw
@@ -5477,37 +5622,63 @@ export function ParishPage({
     return `${smsTarget}?body=${encodeURIComponent(messageText)}`;
   };
 
-  const buildConfirmationVerificationSmsHref = (phoneNumber: string, token: string) => {
+  const buildConfirmationVerificationSmsHref = (
+    candidate: Pick<ParishConfirmationCandidate, 'name' | 'surname'>,
+    phoneNumber: string,
+    token: string
+  ) => {
     const verificationLink = buildConfirmationVerificationLink(token);
     if (!verificationLink) return '';
-    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
-    const message =
-      `Szczęść Boże!\n` +
-      `Ten numer telefonu został podany przy zgłoszeniu do przygotowania do bierzmowania w parafii św. Jana Chrzciciela.\n` +
-      `Aby potwierdzić numer, proszę kliknąć w poniższy link:\n${verificationLink}`;
+    const parishLabel = parish?.name?.trim() || 'parafia św. Jana Chrzciciela';
+    const message = renderConfirmationSmsTemplate(resolvedConfirmationSmsTemplates.verificationInvite, {
+      name: candidate.name,
+      surname: candidate.surname,
+      fullName: `${candidate.name} ${candidate.surname}`.trim(),
+      parishName: parishLabel,
+      phoneNumber,
+      verificationLink,
+      portalLink: ''
+    });
     return buildConfirmationSmsHref(phoneNumber, message);
   };
 
-  const buildConfirmationVerificationWarningSmsHref = (phoneNumber: string, token: string) => {
+  const buildConfirmationVerificationWarningSmsHref = (
+    candidate: Pick<ParishConfirmationCandidate, 'name' | 'surname'>,
+    phoneNumber: string,
+    token: string
+  ) => {
     const verificationLink = buildConfirmationVerificationLink(token);
     if (!verificationLink) return '';
-    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
-    const message =
-      `Szczęść Boże!\n` +
-      `Przypominamy o konieczności potwierdzenia numeru telefonu dla przygotowania do bierzmowania w parafii św. Jana Chrzciciela.\n` +
-      `Brak weryfikacji spowoduje usunięcie numeru z listy kontaktowej.\n` +
-      `Link do weryfikacji:\n${verificationLink}`;
+    const parishLabel = parish?.name?.trim() || 'parafia św. Jana Chrzciciela';
+    const message = renderConfirmationSmsTemplate(resolvedConfirmationSmsTemplates.verificationWarning, {
+      name: candidate.name,
+      surname: candidate.surname,
+      fullName: `${candidate.name} ${candidate.surname}`.trim(),
+      parishName: parishLabel,
+      phoneNumber,
+      verificationLink,
+      portalLink: ''
+    });
     return buildConfirmationSmsHref(phoneNumber, message);
   };
 
-  const buildConfirmationPortalInviteSmsHref = (phoneNumber: string, portalToken: string) => {
+  const buildConfirmationPortalInviteSmsHref = (
+    candidate: Pick<ParishConfirmationCandidate, 'name' | 'surname'>,
+    phoneNumber: string,
+    portalToken: string
+  ) => {
     const portalLink = buildConfirmationMeetingLink(portalToken);
     if (!portalLink) return '';
-    const parishLabel = parish?.name?.trim() || 'parafii św. Jana Chrzciciela';
-    const message =
-      `Szczęść Boże!\n` +
-      `Numer telefonu został potwierdzony. Zapraszamy do portalu kandydata przygotowania do bierzmowania w parafii św. Jana Chrzciciela.\n` +
-      `Twój indywidualny link:\n${portalLink}`;
+    const parishLabel = parish?.name?.trim() || 'parafia św. Jana Chrzciciela';
+    const message = renderConfirmationSmsTemplate(resolvedConfirmationSmsTemplates.portalInvite, {
+      name: candidate.name,
+      surname: candidate.surname,
+      fullName: `${candidate.name} ${candidate.surname}`.trim(),
+      parishName: parishLabel,
+      phoneNumber,
+      verificationLink: '',
+      portalLink
+    });
     return buildConfirmationSmsHref(phoneNumber, message);
   };
 
@@ -6207,6 +6378,38 @@ export function ParishPage({
               <div className="confirmation-portal-header-title">
                 <p className="tag">Bierzmowanie</p>
                 <h2>Portal kandydata</h2>
+                <nav className="confirmation-portal-header-menu" aria-label="Menu portalu kandydata">
+                  <button type="button" onClick={() => scrollToConfirmationPortalSection('confirmation-candidate-tasks')}>
+                    Zadania
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollToConfirmationPortalSection('confirmation-candidate-celebrations')}
+                  >
+                    Celebracje
+                  </button>
+                  <button
+                    type="button"
+                    className={confirmationPortalStandaloneTab === 'meetings' ? 'is-active' : undefined}
+                    onClick={() => openConfirmationPortalStandaloneTab('meetings')}
+                  >
+                    Spotkania
+                  </button>
+                  <button
+                    type="button"
+                    className={confirmationPortalStandaloneTab === 'messages' ? 'is-active' : undefined}
+                    onClick={() => openConfirmationPortalStandaloneTab('messages')}
+                  >
+                    Wiadomości
+                  </button>
+                  <button
+                    type="button"
+                    className={confirmationPortalStandaloneTab === 'status' ? 'is-active' : undefined}
+                    onClick={() => openConfirmationPortalStandaloneTab('status')}
+                  >
+                    Status
+                  </button>
+                </nav>
               </div>
             )}
             <div className="parish-header-right">
@@ -6269,7 +6472,7 @@ export function ParishPage({
                 {confirmationDisplayPortalData ? (
                   <>
                     <div className="confirmation-portal-standalone-grid">
-                      <article className="parish-card confirmation-portal-standalone-column confirmation-portal-celebrations-column">
+                      <article id="confirmation-candidate-tasks" className="parish-card confirmation-portal-standalone-column">
                         <h4>Lista zadań</h4>
                         <ul className="confirmation-portal-task-list">
                           <li className={confirmationDisplayPortalData.candidate.phoneNumbers.some((phone) => !phone.isVerified) ? 'is-todo' : 'is-done'}>
@@ -6343,7 +6546,10 @@ export function ParishPage({
                           ))}
                         </ul>
                       </article>
-                      <article className="parish-card confirmation-portal-standalone-column">
+                      <article
+                        id="confirmation-candidate-celebrations"
+                        className="parish-card confirmation-portal-standalone-column confirmation-portal-celebrations-column"
+                      >
                         <h4>Najbliższe celebracje (7 dni)</h4>
                         {confirmationCelebrationError ? (
                           <p className="confirmation-info confirmation-info-error">{confirmationCelebrationError}</p>
@@ -6474,7 +6680,7 @@ export function ParishPage({
                         )}
                       </article>
                     </div>
-                    <article className="parish-card confirmation-portal-standalone-tabs">
+                    <article id="confirmation-candidate-tabs" className="parish-card confirmation-portal-standalone-tabs">
                       <div className="tabs small">
                         <button
                           type="button"
@@ -9508,6 +9714,71 @@ export function ParishPage({
                                 </>
                               )}
                             </div>
+                            <article className="confirmation-duplicate-panel">
+                              <div className="section-header">
+                                <div>
+                                  <p className="tag">SMS</p>
+                                  <h4>Szablony wiadomości SMS</h4>
+                                </div>
+                              </div>
+                              <p className="note">
+                                Zmienne: {confirmationSmsTemplateVariables.join(', ')}
+                              </p>
+                              {confirmationSmsTemplateError ? (
+                                <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
+                              ) : null}
+                              {confirmationSmsTemplateInfo ? (
+                                <p className="confirmation-info confirmation-info-success">{confirmationSmsTemplateInfo}</p>
+                              ) : null}
+                              <div className="admin-form-grid">
+                                <label className="admin-form-full">
+                                  <span>SMS: weryfikacja numeru</span>
+                                  <textarea
+                                    rows={5}
+                                    value={confirmationSmsTemplateVerificationInvite}
+                                    onChange={(event) => setConfirmationSmsTemplateVerificationInvite(event.target.value)}
+                                  />
+                                </label>
+                                <label className="admin-form-full">
+                                  <span>SMS: brak weryfikacji (ostrzeżenie)</span>
+                                  <textarea
+                                    rows={5}
+                                    value={confirmationSmsTemplateVerificationWarning}
+                                    onChange={(event) => setConfirmationSmsTemplateVerificationWarning(event.target.value)}
+                                  />
+                                </label>
+                                <label className="admin-form-full">
+                                  <span>SMS: portal kandydata</span>
+                                  <textarea
+                                    rows={5}
+                                    value={confirmationSmsTemplatePortalInvite}
+                                    onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
+                                  />
+                                </label>
+                              </div>
+                              <div className="builder-actions">
+                                <button
+                                  type="button"
+                                  className="parish-login"
+                                  disabled={confirmationSmsTemplateSaving}
+                                  onClick={() => void handleSaveConfirmationSmsTemplates()}
+                                >
+                                  {confirmationSmsTemplateSaving ? 'Zapisywanie...' : 'Zapisz szablony SMS'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  disabled={confirmationSmsTemplateSaving}
+                                  onClick={() => {
+                                    setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
+                                    setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
+                                    setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
+                                  }}
+                                >
+                                  Przywróć domyślne
+                                </button>
+                              </div>
+                            </article>
                             <div className="admin-form-grid">
                               <label>
                                 <span>Filtr statusu</span>
@@ -9608,14 +9879,17 @@ export function ParishPage({
                                     <ul className="confirmation-phone-list">
                                       {candidate.phoneNumbers.map((phone) => {
                                         const verificationSmsHref = buildConfirmationVerificationSmsHref(
+                                          candidate,
                                           phone.number,
                                           phone.verificationToken
                                         );
                                         const warningSmsHref = buildConfirmationVerificationWarningSmsHref(
+                                          candidate,
                                           phone.number,
                                           phone.verificationToken
                                         );
                                         const portalSmsHref = buildConfirmationPortalInviteSmsHref(
+                                          candidate,
                                           phone.number,
                                           candidate.meetingToken
                                         );

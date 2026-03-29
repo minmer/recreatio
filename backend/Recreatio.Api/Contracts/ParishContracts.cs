@@ -32,9 +32,15 @@ public sealed record ParishSacramentParishPage(
     string? Notice,
     IReadOnlyList<ParishSacramentSection> Sections);
 
+public sealed record ParishConfirmationSmsTemplates(
+    string VerificationInvite,
+    string VerificationWarning,
+    string PortalInvite);
+
 public sealed record ParishHomepageConfig(
     IReadOnlyList<ParishLayoutItem> Modules,
-    Dictionary<string, ParishSacramentParishPage>? SacramentParishPages = null);
+    Dictionary<string, ParishSacramentParishPage>? SacramentParishPages = null,
+    ParishConfirmationSmsTemplates? ConfirmationSmsTemplates = null);
 
 public sealed record ParishCreateRequest(
     string Name,

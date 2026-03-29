@@ -98,6 +98,41 @@ public static class ParishEndpoints
         return normalized.Count == 0 ? null : normalized;
     }
 
+    private static ParishConfirmationSmsTemplates? NormalizeConfirmationSmsTemplates(ParishConfirmationSmsTemplates? templates)
+    {
+        if (templates is null)
+        {
+            return null;
+        }
+
+        string NormalizeTemplate(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = value.Replace("\r\n", "\n").Trim();
+            return trimmed.Length <= 4000
+                ? trimmed
+                : trimmed[..4000];
+        }
+
+        var verificationInvite = NormalizeTemplate(templates.VerificationInvite);
+        var verificationWarning = NormalizeTemplate(templates.VerificationWarning);
+        var portalInvite = NormalizeTemplate(templates.PortalInvite);
+
+        if (verificationInvite.Length == 0 && verificationWarning.Length == 0 && portalInvite.Length == 0)
+        {
+            return null;
+        }
+
+        return new ParishConfirmationSmsTemplates(
+            verificationInvite,
+            verificationWarning,
+            portalInvite);
+    }
+
     private static ParishHomepageConfig NormalizeHomepage(ParishHomepageConfig homepage)
     {
         var modules = homepage.Modules.Count == 0
@@ -152,7 +187,8 @@ public static class ParishEndpoints
 
         return new ParishHomepageConfig(
             modules,
-            NormalizeSacramentParishPages(homepage.SacramentParishPages));
+            NormalizeSacramentParishPages(homepage.SacramentParishPages),
+            NormalizeConfirmationSmsTemplates(homepage.ConfirmationSmsTemplates));
     }
 
     public static void MapParishEndpoints(this WebApplication app)

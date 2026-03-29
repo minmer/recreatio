@@ -3578,9 +3578,16 @@ export type ParishSacramentParishPage = {
   sections: ParishSacramentSection[];
 };
 
+export type ParishConfirmationSmsTemplates = {
+  verificationInvite: string;
+  verificationWarning: string;
+  portalInvite: string;
+};
+
 export type ParishHomepageConfig = {
   modules: ParishLayoutItem[];
   sacramentParishPages?: Record<string, ParishSacramentParishPage> | null;
+  confirmationSmsTemplates?: ParishConfirmationSmsTemplates | null;
 };
 
 export type ParishSummary = {

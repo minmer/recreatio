@@ -2124,13 +2124,37 @@
 
 .confirmation-portal-header-title {
   display: grid;
-  gap: 2px;
+  gap: 6px;
   align-items: center;
 }
 
 .confirmation-portal-header-title h2 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.confirmation-portal-header-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.confirmation-portal-header-menu button {
+  border: 1px solid var(--parish-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--parish-ink);
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.confirmation-portal-header-menu button.is-active {
+  border-color: var(--parish-accent-deep);
+  background: var(--parish-accent-deep);
+  color: #fff;
 }
 
 .confirmation-portal-standalone-page {
@@ -2726,6 +2750,13 @@
 
   .confirmation-candidate-portal .confirmation-portal-message-list li {
     padding: 10px;
+  }
+
+  .confirmation-portal-header-menu {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
   }
 }
 
