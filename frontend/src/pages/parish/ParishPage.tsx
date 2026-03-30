@@ -1214,6 +1214,8 @@ const defaultConfirmationSmsTemplates: ParishConfirmationSmsTemplates = {
     '{portalLink}'
 };
 
+const confirmationSmsTemplatesLegacyPageKey = '__confirmation_sms_templates';
+
 const confirmationSmsTemplateVariables = [
   '{name}',
   '{surname}',
@@ -1223,6 +1225,30 @@ const confirmationSmsTemplateVariables = [
   '{verificationLink}',
   '{portalLink}'
 ] as const;
+
+const tryReadLegacyConfirmationSmsTemplates = (
+  config: ParishHomepageConfig | null | undefined
+): ParishConfirmationSmsTemplates | null => {
+  const rawNotice = config?.sacramentParishPages?.[confirmationSmsTemplatesLegacyPageKey]?.notice ?? null;
+  if (!rawNotice) return null;
+
+  try {
+    const parsed = JSON.parse(rawNotice) as Partial<ParishConfirmationSmsTemplates>;
+    const verificationInvite = typeof parsed.verificationInvite === 'string' ? parsed.verificationInvite : '';
+    const verificationWarning = typeof parsed.verificationWarning === 'string' ? parsed.verificationWarning : '';
+    const portalInvite = typeof parsed.portalInvite === 'string' ? parsed.portalInvite : '';
+    if (!verificationInvite && !verificationWarning && !portalInvite) {
+      return null;
+    }
+    return {
+      verificationInvite,
+      verificationWarning,
+      portalInvite
+    };
+  } catch {
+    return null;
+  }
+};
 
 const escapeHtml = (value: string): string =>
   value
@@ -4248,7 +4274,7 @@ export function ParishPage({
   };
 
   const resolvedConfirmationSmsTemplates = useMemo<ParishConfirmationSmsTemplates>(() => {
-    const custom = siteConfig?.confirmationSmsTemplates;
+    const custom = siteConfig?.confirmationSmsTemplates ?? tryReadLegacyConfirmationSmsTemplates(siteConfig);
     return {
       verificationInvite:
         custom?.verificationInvite?.trim().length
@@ -4263,7 +4289,7 @@ export function ParishPage({
           ? custom.portalInvite
           : defaultConfirmationSmsTemplates.portalInvite
     };
-  }, [siteConfig?.confirmationSmsTemplates]);
+  }, [siteConfig?.confirmationSmsTemplates, siteConfig?.sacramentParishPages]);
 
   const renderConfirmationSmsTemplate = (
     template: string,
@@ -5531,9 +5557,23 @@ export function ParishPage({
     setConfirmationSmsTemplateError(null);
     setConfirmationSmsTemplateInfo(null);
     try {
+      const nextSacramentParishPages = { ...(siteConfig.sacramentParishPages ?? {}) };
+      if (normalizedTemplates) {
+        nextSacramentParishPages[confirmationSmsTemplatesLegacyPageKey] = {
+          title: 'System: Confirmation SMS Templates',
+          lead: 'Internal storage entry. Do not edit manually.',
+          notice: JSON.stringify(normalizedTemplates),
+          sections: []
+        };
+      } else {
+        delete nextSacramentParishPages[confirmationSmsTemplatesLegacyPageKey];
+      }
+
       const nextHomepage: ParishHomepageConfig = {
         ...siteConfig,
-        confirmationSmsTemplates: normalizedTemplates
+        confirmationSmsTemplates: normalizedTemplates,
+        sacramentParishPages:
+          Object.keys(nextSacramentParishPages).length > 0 ? nextSacramentParishPages : null
       };
       await updateParishSite(parish.id, {
         homepage: nextHomepage,
@@ -5547,7 +5587,7 @@ export function ParishPage({
         };
         setSiteConfig(refreshedHomepage);
 
-        const persisted = refreshedHomepage.confirmationSmsTemplates ?? null;
+        const persisted = refreshedHomepage.confirmationSmsTemplates ?? tryReadLegacyConfirmationSmsTemplates(refreshedHomepage);
         const persistedInvite = persisted?.verificationInvite?.trim() ?? '';
         const persistedWarning = persisted?.verificationWarning?.trim() ?? '';
         const persistedPortal = persisted?.portalInvite?.trim() ?? '';
