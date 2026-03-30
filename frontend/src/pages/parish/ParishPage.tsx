@@ -1927,7 +1927,7 @@ export function ParishPage({
   const [confirmationMeetingInviteCodeApplied, setConfirmationMeetingInviteCodeApplied] = useState<string | null>(null);
   const [confirmationMeetingSlotInviteInputs, setConfirmationMeetingSlotInviteInputs] = useState<Record<string, string>>({});
   const [confirmationMeetingJoinTargetSlotId, setConfirmationMeetingJoinTargetSlotId] = useState<string | null>(null);
-  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'messages' | 'notes' | 'print'>('submissions');
+  const [confirmationAdminTab, setConfirmationAdminTab] = useState<'submissions' | 'sms' | 'messages' | 'notes' | 'print'>('submissions');
   const [confirmationSubmissionsFilter, setConfirmationSubmissionsFilter] = useState<
     'all' | 'no-meeting' | 'no-paper-consent' | 'unverified-phone' | 'needs-follow-up'
   >('all');
@@ -9450,6 +9450,13 @@ export function ParishPage({
                           </button>
                           <button
                             type="button"
+                            className={confirmationAdminTab === 'sms' ? 'is-active' : undefined}
+                            onClick={() => setConfirmationAdminTab('sms')}
+                          >
+                            SMS
+                          </button>
+                          <button
+                            type="button"
                             className={confirmationAdminTab === 'messages' ? 'is-active' : undefined}
                             onClick={() => setConfirmationAdminTab('messages')}
                           >
@@ -9714,71 +9721,6 @@ export function ParishPage({
                                 </>
                               )}
                             </div>
-                            <article className="confirmation-duplicate-panel">
-                              <div className="section-header">
-                                <div>
-                                  <p className="tag">SMS</p>
-                                  <h4>Szablony wiadomości SMS</h4>
-                                </div>
-                              </div>
-                              <p className="note">
-                                Zmienne: {confirmationSmsTemplateVariables.join(', ')}
-                              </p>
-                              {confirmationSmsTemplateError ? (
-                                <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
-                              ) : null}
-                              {confirmationSmsTemplateInfo ? (
-                                <p className="confirmation-info confirmation-info-success">{confirmationSmsTemplateInfo}</p>
-                              ) : null}
-                              <div className="admin-form-grid">
-                                <label className="admin-form-full">
-                                  <span>SMS: weryfikacja numeru</span>
-                                  <textarea
-                                    rows={5}
-                                    value={confirmationSmsTemplateVerificationInvite}
-                                    onChange={(event) => setConfirmationSmsTemplateVerificationInvite(event.target.value)}
-                                  />
-                                </label>
-                                <label className="admin-form-full">
-                                  <span>SMS: brak weryfikacji (ostrzeżenie)</span>
-                                  <textarea
-                                    rows={5}
-                                    value={confirmationSmsTemplateVerificationWarning}
-                                    onChange={(event) => setConfirmationSmsTemplateVerificationWarning(event.target.value)}
-                                  />
-                                </label>
-                                <label className="admin-form-full">
-                                  <span>SMS: portal kandydata</span>
-                                  <textarea
-                                    rows={5}
-                                    value={confirmationSmsTemplatePortalInvite}
-                                    onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
-                                  />
-                                </label>
-                              </div>
-                              <div className="builder-actions">
-                                <button
-                                  type="button"
-                                  className="parish-login"
-                                  disabled={confirmationSmsTemplateSaving}
-                                  onClick={() => void handleSaveConfirmationSmsTemplates()}
-                                >
-                                  {confirmationSmsTemplateSaving ? 'Zapisywanie...' : 'Zapisz szablony SMS'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost"
-                                  disabled={confirmationSmsTemplateSaving}
-                                  onClick={() => {
-                                    setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
-                                    setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
-                                    setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
-                                  }}
-                                >
-                                  Przywróć domyślne
-                                </button>
-                              </div>
-                            </article>
                             <div className="admin-form-grid">
                               <label>
                                 <span>Filtr statusu</span>
@@ -9942,6 +9884,72 @@ export function ParishPage({
                               </div>
                             )}
                           </>
+                        ) : confirmationAdminTab === 'sms' ? (
+                          <article className="confirmation-duplicate-panel">
+                            <div className="section-header">
+                              <div>
+                                <p className="tag">SMS</p>
+                                <h4>Szablony wiadomości SMS</h4>
+                              </div>
+                            </div>
+                            <p className="note">
+                              Zmienne: {confirmationSmsTemplateVariables.join(', ')}
+                            </p>
+                            {confirmationSmsTemplateError ? (
+                              <p className="confirmation-info confirmation-info-error">{confirmationSmsTemplateError}</p>
+                            ) : null}
+                            {confirmationSmsTemplateInfo ? (
+                              <p className="confirmation-info confirmation-info-success">{confirmationSmsTemplateInfo}</p>
+                            ) : null}
+                            <div className="admin-form-grid">
+                              <label className="admin-form-full">
+                                <span>SMS: weryfikacja numeru</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplateVerificationInvite}
+                                  onChange={(event) => setConfirmationSmsTemplateVerificationInvite(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>SMS: brak weryfikacji (ostrzeżenie)</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplateVerificationWarning}
+                                  onChange={(event) => setConfirmationSmsTemplateVerificationWarning(event.target.value)}
+                                />
+                              </label>
+                              <label className="admin-form-full">
+                                <span>SMS: portal kandydata</span>
+                                <textarea
+                                  rows={5}
+                                  value={confirmationSmsTemplatePortalInvite}
+                                  onChange={(event) => setConfirmationSmsTemplatePortalInvite(event.target.value)}
+                                />
+                              </label>
+                            </div>
+                            <div className="builder-actions">
+                              <button
+                                type="button"
+                                className="parish-login"
+                                disabled={confirmationSmsTemplateSaving}
+                                onClick={() => void handleSaveConfirmationSmsTemplates()}
+                              >
+                                {confirmationSmsTemplateSaving ? 'Zapisywanie...' : 'Zapisz szablony SMS'}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={confirmationSmsTemplateSaving}
+                                onClick={() => {
+                                  setConfirmationSmsTemplateVerificationInvite(defaultConfirmationSmsTemplates.verificationInvite);
+                                  setConfirmationSmsTemplateVerificationWarning(defaultConfirmationSmsTemplates.verificationWarning);
+                                  setConfirmationSmsTemplatePortalInvite(defaultConfirmationSmsTemplates.portalInvite);
+                                }}
+                              >
+                                Przywróć domyślne
+                              </button>
+                            </div>
+                          </article>
                         ) : confirmationAdminTab === 'messages' ? (
                           <div className="confirmation-notes-feed-panel">
                             {confirmationMessagesFeedLoading ? <p className="muted">Ładowanie wiadomości kandydatów...</p> : null}
