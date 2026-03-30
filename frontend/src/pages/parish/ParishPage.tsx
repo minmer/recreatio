@@ -5539,8 +5539,37 @@ export function ParishPage({
         homepage: nextHomepage,
         isPublished: true
       });
-      setSiteConfig(nextHomepage);
-      setConfirmationSmsTemplateInfo('Szablony SMS zostały zapisane.');
+      if (parish.slug) {
+        const refreshed = await getParishSite(parish.slug);
+        const refreshedHomepage: ParishHomepageConfig = {
+          ...refreshed.homepage,
+          modules: normalizeLayoutsAll(refreshed.homepage.modules)
+        };
+        setSiteConfig(refreshedHomepage);
+
+        const persisted = refreshedHomepage.confirmationSmsTemplates ?? null;
+        const persistedInvite = persisted?.verificationInvite?.trim() ?? '';
+        const persistedWarning = persisted?.verificationWarning?.trim() ?? '';
+        const persistedPortal = persisted?.portalInvite?.trim() ?? '';
+        const expectedInvite = normalizedTemplates?.verificationInvite?.trim() ?? '';
+        const expectedWarning = normalizedTemplates?.verificationWarning?.trim() ?? '';
+        const expectedPortal = normalizedTemplates?.portalInvite?.trim() ?? '';
+        if (
+          persistedInvite !== expectedInvite ||
+          persistedWarning !== expectedWarning ||
+          persistedPortal !== expectedPortal
+        ) {
+          setConfirmationSmsTemplateError(
+            'Serwer nie potwierdził zapisu szablonów SMS. Sprawdź, czy backend ma wdrożoną obsługę confirmationSmsTemplates.'
+          );
+          setConfirmationSmsTemplateInfo(null);
+          return;
+        }
+      } else {
+        setSiteConfig(nextHomepage);
+      }
+
+      setConfirmationSmsTemplateInfo('Szablony SMS zostały zapisane i potwierdzone przez serwer.');
     } catch {
       setConfirmationSmsTemplateError('Nie udało się zapisać szablonów SMS.');
     } finally {
