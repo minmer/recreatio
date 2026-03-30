@@ -4967,8 +4967,8 @@ export function ParishPage({
     try {
       setEditError(null);
       const homepage: ParishHomepageConfig = {
-        modules: editLayoutItems,
-        sacramentParishPages: siteConfig?.sacramentParishPages ?? null
+        ...(siteConfig ?? { modules: [] }),
+        modules: editLayoutItems
       };
       await updateParishSite(parish.id, { homepage, isPublished: true });
       setSiteConfig(homepage);
@@ -5507,7 +5507,12 @@ export function ParishPage({
   };
 
   const handleSaveConfirmationSmsTemplates = async () => {
-    if (!parish || !siteConfig) return;
+    if (!parish) return;
+    if (!siteConfig) {
+      setConfirmationSmsTemplateError('Konfiguracja strony nie została jeszcze załadowana. Odśwież stronę i spróbuj ponownie.');
+      setConfirmationSmsTemplateInfo(null);
+      return;
+    }
 
     const verificationInvite = confirmationSmsTemplateVerificationInvite.trim();
     const verificationWarning = confirmationSmsTemplateVerificationWarning.trim();
