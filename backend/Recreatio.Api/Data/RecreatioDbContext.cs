@@ -35,6 +35,8 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Parish.ParishOffering> ParishOfferings => Set<Data.Parish.ParishOffering>();
     public DbSet<Data.Parish.ParishMass> ParishMasses => Set<Data.Parish.ParishMass>();
     public DbSet<Data.Parish.ParishMassRule> ParishMassRules => Set<Data.Parish.ParishMassRule>();
+    public DbSet<Data.Parish.ParishConfirmationSmsTemplate> ParishConfirmationSmsTemplates =>
+        Set<Data.Parish.ParishConfirmationSmsTemplate>();
     public DbSet<Data.Parish.ParishConfirmationCandidate> ParishConfirmationCandidates => Set<Data.Parish.ParishConfirmationCandidate>();
     public DbSet<Data.Parish.ParishConfirmationPhoneVerification> ParishConfirmationPhoneVerifications =>
         Set<Data.Parish.ParishConfirmationPhoneVerification>();
@@ -218,6 +220,10 @@ public sealed class RecreatioDbContext : DbContext
 
         modelBuilder.Entity<Data.Parish.ParishMassRule>()
             .HasIndex(x => new { x.ParishId, x.Name });
+
+        modelBuilder.Entity<Data.Parish.ParishConfirmationSmsTemplate>()
+            .HasIndex(x => x.ParishId)
+            .IsUnique();
 
         modelBuilder.Entity<Data.Parish.ParishConfirmationCandidate>()
             .HasIndex(x => new { x.ParishId, x.CreatedUtc });

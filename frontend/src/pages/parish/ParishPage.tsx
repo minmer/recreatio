@@ -48,6 +48,7 @@ import {
   createParishConfirmationCandidate,
   createParishConfirmationCelebration,
   createParishConfirmationMeetingSlot,
+  getParishConfirmationSmsTemplates,
   deleteParishConfirmationMeetingSlot,
   exportParishConfirmationCandidates,
   getParishConfirmationCandidatePortal,
@@ -74,6 +75,7 @@ import {
   updateParishConfirmationCandidate,
   updateParishConfirmationCandidatePaperConsent,
   updateParishConfirmationCelebration,
+  updateParishConfirmationSmsTemplates,
   updateParishMassRule,
   updateParishSite,
   verifyParishConfirmationPhone,
@@ -1961,6 +1963,9 @@ export function ParishPage({
   const [confirmationTransferBusy, setConfirmationTransferBusy] = useState(false);
   const [confirmationTransferInfo, setConfirmationTransferInfo] = useState<string | null>(null);
   const [confirmationTransferError, setConfirmationTransferError] = useState<string | null>(null);
+  const [confirmationSmsTemplatesStored, setConfirmationSmsTemplatesStored] = useState<ParishConfirmationSmsTemplates | null>(
+    null
+  );
   const [confirmationSmsTemplateVerificationInvite, setConfirmationSmsTemplateVerificationInvite] = useState(
     defaultConfirmationSmsTemplates.verificationInvite
   );
@@ -2319,6 +2324,22 @@ export function ParishPage({
         setSiteConfig(null);
       });
   }, [parishSlug]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !parish) {
+      setConfirmationSmsTemplatesStored(null);
+      return;
+    }
+
+    getParishConfirmationSmsTemplates(parish.id)
+      .then((payload) => {
+        const templates = payload.templates ?? null;
+        setConfirmationSmsTemplatesStored(templates);
+      })
+      .catch(() => {
+        setConfirmationSmsTemplatesStored(null);
+      });
+  }, [isAuthenticated, parish?.id]);
 
   useEffect(() => {
     if (!parishSlug) return;
@@ -4274,7 +4295,10 @@ export function ParishPage({
   };
 
   const resolvedConfirmationSmsTemplates = useMemo<ParishConfirmationSmsTemplates>(() => {
-    const custom = siteConfig?.confirmationSmsTemplates ?? tryReadLegacyConfirmationSmsTemplates(siteConfig);
+    const custom =
+      confirmationSmsTemplatesStored ??
+      siteConfig?.confirmationSmsTemplates ??
+      tryReadLegacyConfirmationSmsTemplates(siteConfig);
     return {
       verificationInvite:
         custom?.verificationInvite?.trim().length
@@ -4289,7 +4313,7 @@ export function ParishPage({
           ? custom.portalInvite
           : defaultConfirmationSmsTemplates.portalInvite
     };
-  }, [siteConfig?.confirmationSmsTemplates, siteConfig?.sacramentParishPages]);
+  }, [confirmationSmsTemplatesStored, siteConfig?.confirmationSmsTemplates, siteConfig?.sacramentParishPages]);
 
   const renderConfirmationSmsTemplate = (
     template: string,
@@ -5534,11 +5558,6 @@ export function ParishPage({
 
   const handleSaveConfirmationSmsTemplates = async () => {
     if (!parish) return;
-    if (!siteConfig) {
-      setConfirmationSmsTemplateError('Konfiguracja strony nie została jeszcze załadowana. Odśwież stronę i spróbuj ponownie.');
-      setConfirmationSmsTemplateInfo(null);
-      return;
-    }
 
     const verificationInvite = confirmationSmsTemplateVerificationInvite.trim();
     const verificationWarning = confirmationSmsTemplateVerificationWarning.trim();
@@ -5557,61 +5576,33 @@ export function ParishPage({
     setConfirmationSmsTemplateError(null);
     setConfirmationSmsTemplateInfo(null);
     try {
-      const nextSacramentParishPages = { ...(siteConfig.sacramentParishPages ?? {}) };
-      if (normalizedTemplates) {
-        nextSacramentParishPages[confirmationSmsTemplatesLegacyPageKey] = {
-          title: 'System: Confirmation SMS Templates',
-          lead: 'Internal storage entry. Do not edit manually.',
-          notice: JSON.stringify(normalizedTemplates),
-          sections: []
-        };
-      } else {
-        delete nextSacramentParishPages[confirmationSmsTemplatesLegacyPageKey];
-      }
-
-      const nextHomepage: ParishHomepageConfig = {
-        ...siteConfig,
-        confirmationSmsTemplates: normalizedTemplates,
-        sacramentParishPages:
-          Object.keys(nextSacramentParishPages).length > 0 ? nextSacramentParishPages : null
-      };
-      await updateParishSite(parish.id, {
-        homepage: nextHomepage,
-        isPublished: true
+      const persistedPayload = await updateParishConfirmationSmsTemplates(parish.id, {
+        templates: normalizedTemplates
       });
-      if (parish.slug) {
-        const refreshed = await getParishSite(parish.slug);
-        const refreshedHomepage: ParishHomepageConfig = {
-          ...refreshed.homepage,
-          modules: normalizeLayoutsAll(refreshed.homepage.modules)
-        };
-        setSiteConfig(refreshedHomepage);
+      const persisted = persistedPayload.templates ?? null;
+      setConfirmationSmsTemplatesStored(persisted);
 
-        const persisted = refreshedHomepage.confirmationSmsTemplates ?? tryReadLegacyConfirmationSmsTemplates(refreshedHomepage);
-        const persistedInvite = persisted?.verificationInvite?.trim() ?? '';
-        const persistedWarning = persisted?.verificationWarning?.trim() ?? '';
-        const persistedPortal = persisted?.portalInvite?.trim() ?? '';
-        const expectedInvite = normalizedTemplates?.verificationInvite?.trim() ?? '';
-        const expectedWarning = normalizedTemplates?.verificationWarning?.trim() ?? '';
-        const expectedPortal = normalizedTemplates?.portalInvite?.trim() ?? '';
-        if (
-          persistedInvite !== expectedInvite ||
-          persistedWarning !== expectedWarning ||
-          persistedPortal !== expectedPortal
-        ) {
-          setConfirmationSmsTemplateError(
-            'Serwer nie potwierdził zapisu szablonów SMS. Sprawdź, czy backend ma wdrożoną obsługę confirmationSmsTemplates.'
-          );
-          setConfirmationSmsTemplateInfo(null);
-          return;
-        }
-      } else {
-        setSiteConfig(nextHomepage);
+      const persistedInvite = persisted?.verificationInvite?.trim() ?? '';
+      const persistedWarning = persisted?.verificationWarning?.trim() ?? '';
+      const persistedPortal = persisted?.portalInvite?.trim() ?? '';
+      const expectedInvite = normalizedTemplates?.verificationInvite?.trim() ?? '';
+      const expectedWarning = normalizedTemplates?.verificationWarning?.trim() ?? '';
+      const expectedPortal = normalizedTemplates?.portalInvite?.trim() ?? '';
+      if (
+        persistedInvite !== expectedInvite ||
+        persistedWarning !== expectedWarning ||
+        persistedPortal !== expectedPortal
+      ) {
+        setConfirmationSmsTemplateError('Serwer nie potwierdził zapisu szablonów SMS.');
+        setConfirmationSmsTemplateInfo(null);
+        return;
       }
 
       setConfirmationSmsTemplateInfo('Szablony SMS zostały zapisane i potwierdzone przez serwer.');
     } catch {
-      setConfirmationSmsTemplateError('Nie udało się zapisać szablonów SMS.');
+      setConfirmationSmsTemplateError(
+        'Nie udało się zapisać szablonów SMS. Sprawdź, czy backend ma wdrożony endpoint confirmation-sms-templates.'
+      );
     } finally {
       setConfirmationSmsTemplateSaving(false);
     }

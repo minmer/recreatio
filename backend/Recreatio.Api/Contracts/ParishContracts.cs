@@ -37,6 +37,10 @@ public sealed record ParishConfirmationSmsTemplates(
     string VerificationWarning,
     string PortalInvite);
 
+public sealed record ParishConfirmationSmsTemplatesResponse(
+    ParishConfirmationSmsTemplates? Templates,
+    DateTimeOffset? UpdatedUtc);
+
 public sealed record ParishHomepageConfig(
     IReadOnlyList<ParishLayoutItem> Modules,
     Dictionary<string, ParishSacramentParishPage>? SacramentParishPages = null,
@@ -178,6 +182,9 @@ public sealed record ParishOfferingCreateRequest(
 public sealed record ParishSiteConfigUpdateRequest(
     ParishHomepageConfig Homepage,
     bool IsPublished);
+
+public sealed record ParishConfirmationSmsTemplatesUpdateRequest(
+    ParishConfirmationSmsTemplates? Templates);
 
 public sealed record ParishConfirmationCandidateCreateRequest(
     string Name,

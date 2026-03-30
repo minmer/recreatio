@@ -43,6 +43,7 @@ public static class ParishEndpoints
     private const string ConfirmationJoinDecisionReject = "reject";
     private const int ConfirmationCelebrationUpcomingDays = 7;
     private const int ConfirmationCelebrationCommentEditGraceDays = 7;
+    private const string ConfirmationSmsTemplatesLegacyPageKey = "__confirmation_sms_templates";
     private static readonly string[] Breakpoints = { "desktop", "tablet", "mobile" };
 
     private static ParishSacramentSection NormalizeSacramentSection(ParishSacramentSection? section)
@@ -189,6 +190,56 @@ public static class ParishEndpoints
             modules,
             NormalizeSacramentParishPages(homepage.SacramentParishPages),
             NormalizeConfirmationSmsTemplates(homepage.ConfirmationSmsTemplates));
+    }
+
+    private static ParishConfirmationSmsTemplates? MapConfirmationSmsTemplates(ParishConfirmationSmsTemplate? entity)
+    {
+        if (entity is null)
+        {
+            return null;
+        }
+
+        return NormalizeConfirmationSmsTemplates(new ParishConfirmationSmsTemplates(
+            entity.VerificationInviteTemplate,
+            entity.VerificationWarningTemplate,
+            entity.PortalInviteTemplate));
+    }
+
+    private static ParishConfirmationSmsTemplates? TryReadLegacyConfirmationSmsTemplates(string? homepageConfigJson)
+    {
+        if (string.IsNullOrWhiteSpace(homepageConfigJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var homepage = JsonSerializer.Deserialize<ParishHomepageConfig>(homepageConfigJson);
+            if (homepage is null)
+            {
+                return null;
+            }
+
+            var fromDedicatedField = NormalizeConfirmationSmsTemplates(homepage.ConfirmationSmsTemplates);
+            if (fromDedicatedField is not null)
+            {
+                return fromDedicatedField;
+            }
+
+            if (homepage.SacramentParishPages is null ||
+                !homepage.SacramentParishPages.TryGetValue(ConfirmationSmsTemplatesLegacyPageKey, out var page) ||
+                string.IsNullOrWhiteSpace(page?.Notice))
+            {
+                return null;
+            }
+
+            var parsed = JsonSerializer.Deserialize<ParishConfirmationSmsTemplates>(page.Notice!);
+            return NormalizeConfirmationSmsTemplates(parsed);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public static void MapParishEndpoints(this WebApplication app)
@@ -1788,6 +1839,118 @@ public static class ParishEndpoints
 
             await dbContext.SaveChangesAsync(ct);
             return Results.Ok();
+        }).RequireAuthorization();
+
+        group.MapGet("/{parishId:guid}/confirmation-sms-templates", async (
+            Guid parishId,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var entity = await dbContext.ParishConfirmationSmsTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id, ct);
+            var templates = MapConfirmationSmsTemplates(entity);
+            if (templates is null && entity is null)
+            {
+                var config = await dbContext.ParishSiteConfigs.AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.ParishId == parish.Id, ct);
+                templates = TryReadLegacyConfirmationSmsTemplates(config?.HomepageConfigJson);
+            }
+            return Results.Ok(new ParishConfirmationSmsTemplatesResponse(
+                templates,
+                entity?.UpdatedUtc));
+        }).RequireAuthorization();
+
+        group.MapPut("/{parishId:guid}/confirmation-sms-templates", async (
+            Guid parishId,
+            ParishConfirmationSmsTemplatesUpdateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var parish = await dbContext.Parishes.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == parishId, ct);
+            if (parish is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.ReadKeys.ContainsKey(parish.AdminRoleId))
+            {
+                return Results.Forbid();
+            }
+
+            var normalizedTemplates = NormalizeConfirmationSmsTemplates(request.Templates);
+            var now = DateTimeOffset.UtcNow;
+            var entity = await dbContext.ParishConfirmationSmsTemplates
+                .FirstOrDefaultAsync(x => x.ParishId == parish.Id, ct);
+
+            if (entity is null)
+            {
+                entity = new ParishConfirmationSmsTemplate
+                {
+                    Id = Guid.NewGuid(),
+                    ParishId = parish.Id,
+                    CreatedUtc = now
+                };
+                dbContext.ParishConfirmationSmsTemplates.Add(entity);
+            }
+
+            entity.VerificationInviteTemplate = normalizedTemplates?.VerificationInvite ?? string.Empty;
+            entity.VerificationWarningTemplate = normalizedTemplates?.VerificationWarning ?? string.Empty;
+            entity.PortalInviteTemplate = normalizedTemplates?.PortalInvite ?? string.Empty;
+            entity.UpdatedUtc = now;
+
+            await dbContext.SaveChangesAsync(ct);
+            return Results.Ok(new ParishConfirmationSmsTemplatesResponse(
+                normalizedTemplates,
+                entity.UpdatedUtc));
         }).RequireAuthorization();
 
         group.MapGet("/{parishId:guid}/confirmation-candidates", async (

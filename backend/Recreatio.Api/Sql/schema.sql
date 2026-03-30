@@ -125,6 +125,7 @@ IF OBJECT_ID(N'dbo.ParishConfirmationCandidates', N'U') IS NOT NULL DROP TABLE d
 IF OBJECT_ID(N'dbo.ParishOfferings', N'U') IS NOT NULL DROP TABLE dbo.ParishOfferings;
 IF OBJECT_ID(N'dbo.ParishIntentions', N'U') IS NOT NULL DROP TABLE dbo.ParishIntentions;
 IF OBJECT_ID(N'dbo.ParishMassRules', N'U') IS NOT NULL DROP TABLE dbo.ParishMassRules;
+IF OBJECT_ID(N'dbo.ParishConfirmationSmsTemplates', N'U') IS NOT NULL DROP TABLE dbo.ParishConfirmationSmsTemplates;
 IF OBJECT_ID(N'dbo.ParishMasses', N'U') IS NOT NULL DROP TABLE dbo.ParishMasses;
 IF OBJECT_ID(N'dbo.ParishSiteConfigs', N'U') IS NOT NULL DROP TABLE dbo.ParishSiteConfigs;
 IF OBJECT_ID(N'dbo.ParishLedger', N'U') IS NOT NULL DROP TABLE dbo.ParishLedger;
@@ -242,6 +243,20 @@ CREATE TABLE dbo.ParishSiteConfigs
     UpdatedUtc DATETIMEOFFSET NOT NULL,
     CONSTRAINT UX_ParishSiteConfigs_Parish UNIQUE (ParishId),
     CONSTRAINT FK_ParishSiteConfigs_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
+);
+GO
+
+CREATE TABLE dbo.ParishConfirmationSmsTemplates
+(
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    ParishId UNIQUEIDENTIFIER NOT NULL,
+    VerificationInviteTemplate NVARCHAR(MAX) NOT NULL,
+    VerificationWarningTemplate NVARCHAR(MAX) NOT NULL,
+    PortalInviteTemplate NVARCHAR(MAX) NOT NULL,
+    CreatedUtc DATETIMEOFFSET NOT NULL,
+    UpdatedUtc DATETIMEOFFSET NOT NULL,
+    CONSTRAINT UX_ParishConfirmationSmsTemplates_Parish UNIQUE (ParishId),
+    CONSTRAINT FK_ParishConfirmationSmsTemplates_Parish FOREIGN KEY (ParishId) REFERENCES dbo.Parishes(Id)
 );
 GO
 

@@ -3584,6 +3584,11 @@ export type ParishConfirmationSmsTemplates = {
   portalInvite: string;
 };
 
+export type ParishConfirmationSmsTemplatesResponse = {
+  templates?: ParishConfirmationSmsTemplates | null;
+  updatedUtc?: string | null;
+};
+
 export type ParishHomepageConfig = {
   modules: ParishLayoutItem[];
   sacramentParishPages?: Record<string, ParishSacramentParishPage> | null;
@@ -4018,6 +4023,22 @@ export function verifyParishConfirmationPhone(slug: string, token: string) {
 export function listParishConfirmationCandidates(parishId: string) {
   return request<ParishConfirmationCandidate[]>(`/parish/${parishId}/confirmation-candidates`, {
     method: 'GET'
+  });
+}
+
+export function getParishConfirmationSmsTemplates(parishId: string) {
+  return request<ParishConfirmationSmsTemplatesResponse>(`/parish/${parishId}/confirmation-sms-templates`, {
+    method: 'GET'
+  });
+}
+
+export function updateParishConfirmationSmsTemplates(
+  parishId: string,
+  payload: { templates?: ParishConfirmationSmsTemplates | null }
+) {
+  return request<ParishConfirmationSmsTemplatesResponse>(`/parish/${parishId}/confirmation-sms-templates`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
   });
 }
 
