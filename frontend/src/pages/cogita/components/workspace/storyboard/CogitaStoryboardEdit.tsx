@@ -1236,6 +1236,13 @@ export function CogitaStoryboardEdit({
             },
     [language]
   );
+  const hasLinkedTopicNotion = Boolean(documentState.storyboardTopicNotionId?.trim());
+
+  useEffect(() => {
+    if (!hasLinkedTopicNotion && importDeleteOldNotions) {
+      setImportDeleteOldNotions(false);
+    }
+  }, [hasLinkedTopicNotion, importDeleteOldNotions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1985,7 +1992,7 @@ export function CogitaStoryboardEdit({
         projectId: isEditMode ? selectedProject?.projectId ?? storyboardId ?? null : null,
         name: projectTitle.trim() || selectedProject?.name || null,
         topicNotionId: documentState.storyboardTopicNotionId?.trim() || undefined,
-        deleteOldStoryboardNotions: importDeleteOldNotions,
+        deleteOldStoryboardNotions: hasLinkedTopicNotion ? importDeleteOldNotions : false,
         json: parsedJson
       });
 
@@ -2736,15 +2743,17 @@ export function CogitaStoryboardEdit({
               disabled={importStatus === 'working'}
             />
           </label>
-          <label className="cogita-field full" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={importDeleteOldNotions}
-              onChange={(event) => setImportDeleteOldNotions(event.target.checked)}
-              disabled={importStatus === 'working'}
-            />
-            <span style={{ margin: 0 }}>{importUiCopy.deleteOldToggleLabel}</span>
-          </label>
+          {hasLinkedTopicNotion ? (
+            <label className="cogita-field full" style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={importDeleteOldNotions}
+                onChange={(event) => setImportDeleteOldNotions(event.target.checked)}
+                disabled={importStatus === 'working'}
+              />
+              <span style={{ margin: 0 }}>{importUiCopy.deleteOldToggleLabel}</span>
+            </label>
+          ) : null}
           {importError ? <p className="cogita-form-error">{importError}</p> : null}
           <div className="cogita-form-actions">
             <button

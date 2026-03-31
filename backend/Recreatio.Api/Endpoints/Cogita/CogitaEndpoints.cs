@@ -16739,20 +16739,36 @@ public static class CogitaEndpoints
 
         try
         {
-            var existingSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
+            var existingCoreSingles = await dbContext.CogitaKnowledgeLinkSinglesCore
                 .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .ToListAsync(ct);
+            if (existingCoreSingles.Count > 0)
+            {
+                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(existingCoreSingles);
+            }
+
+            var existingCoreMultis = await dbContext.CogitaKnowledgeLinkMultisCore
+                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+                .ToListAsync(ct);
+            if (existingCoreMultis.Count > 0)
+            {
+                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(existingCoreMultis);
+            }
+
+            var existingSingles = await dbContext.CogitaInfoLinkSingles
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
                 .ToListAsync(ct);
             if (existingSingles.Count > 0)
             {
-                dbContext.CogitaKnowledgeLinkSinglesCore.RemoveRange(existingSingles);
+                dbContext.CogitaInfoLinkSingles.RemoveRange(existingSingles);
             }
 
-            var existingMultis = await dbContext.CogitaKnowledgeLinkMultisCore
-                .Where(x => x.LibraryId == libraryId && x.SourceItemId == infoId)
+            var existingMultis = await dbContext.CogitaInfoLinkMultis
+                .Where(x => x.LibraryId == libraryId && x.InfoId == infoId)
                 .ToListAsync(ct);
             if (existingMultis.Count > 0)
             {
-                dbContext.CogitaKnowledgeLinkMultisCore.RemoveRange(existingMultis);
+                dbContext.CogitaInfoLinkMultis.RemoveRange(existingMultis);
             }
 
             var existingReferenceFields = await dbContext.CogitaReferenceCryptoFields
@@ -16776,13 +16792,13 @@ public static class CogitaEndpoints
                 {
                     for (var i = 0; i < values.Count; i++)
                     {
-                        dbContext.CogitaKnowledgeLinkMultisCore.Add(new CogitaKnowledgeLinkMultiCore
+                        dbContext.CogitaInfoLinkMultis.Add(new CogitaInfoLinkMulti
                         {
                             Id = Guid.NewGuid(),
                             LibraryId = libraryId,
-                            SourceItemId = infoId,
+                            InfoId = infoId,
                             FieldKey = field.Key,
-                            TargetItemId = values[i],
+                            TargetInfoId = values[i],
                             SortOrder = i,
                             CreatedUtc = now,
                             UpdatedUtc = now
@@ -16791,13 +16807,13 @@ public static class CogitaEndpoints
                 }
                 else
                 {
-                    dbContext.CogitaKnowledgeLinkSinglesCore.Add(new CogitaKnowledgeLinkSingleCore
+                    dbContext.CogitaInfoLinkSingles.Add(new CogitaInfoLinkSingle
                     {
                         Id = Guid.NewGuid(),
                         LibraryId = libraryId,
-                        SourceItemId = infoId,
+                        InfoId = infoId,
                         FieldKey = field.Key,
-                        TargetItemId = values[0],
+                        TargetInfoId = values[0],
                         IsRequired = field.Required,
                         CreatedUtc = now,
                         UpdatedUtc = now
