@@ -173,6 +173,12 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Calendar.CalendarEventRoleScope> CalendarEventRoleScopes => Set<Data.Calendar.CalendarEventRoleScope>();
     public DbSet<Data.Calendar.CalendarEventReminder> CalendarEventReminders => Set<Data.Calendar.CalendarEventReminder>();
     public DbSet<Data.Calendar.CalendarEventShareLink> CalendarEventShareLinks => Set<Data.Calendar.CalendarEventShareLink>();
+    public DbSet<Data.Calendar.CalendarScheduleGraph> CalendarScheduleGraphs => Set<Data.Calendar.CalendarScheduleGraph>();
+    public DbSet<Data.Calendar.CalendarScheduleGraphNode> CalendarScheduleGraphNodes => Set<Data.Calendar.CalendarScheduleGraphNode>();
+    public DbSet<Data.Calendar.CalendarScheduleGraphEdge> CalendarScheduleGraphEdges => Set<Data.Calendar.CalendarScheduleGraphEdge>();
+    public DbSet<Data.Calendar.CalendarGraphExecution> CalendarGraphExecutions => Set<Data.Calendar.CalendarGraphExecution>();
+    public DbSet<Data.Calendar.CalendarSharedViewLink> CalendarSharedViewLinks => Set<Data.Calendar.CalendarSharedViewLink>();
+    public DbSet<Data.Calendar.CalendarReminderDispatch> CalendarReminderDispatches => Set<Data.Calendar.CalendarReminderDispatch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -653,9 +659,25 @@ public sealed class RecreatioDbContext : DbContext
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasIndex(x => new { x.CalendarId, x.LinkedModule, x.LinkedEntityType, x.LinkedEntityId });
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasIndex(x => new { x.CalendarId, x.ItemType, x.StartUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasIndex(x => new { x.CalendarId, x.ItemType, x.TaskState, x.StartUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasIndex(x => new { x.CalendarId, x.ItemType, x.TaskState, x.CompletedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasOne<Data.Calendar.CalendarContainer>()
             .WithMany()
             .HasForeignKey(x => x.CalendarId);
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasOne<Role>()
+            .WithMany()
+            .HasForeignKey(x => x.AssigneeRoleId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasOne<DataItem>()
+            .WithMany()
+            .HasForeignKey(x => x.CompletionProofDataItemId)
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Data.Calendar.CalendarEventRoleScope>()
             .HasIndex(x => new { x.EventId, x.RevokedUtc });
@@ -676,6 +698,8 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Calendar.CalendarEvent>()
             .WithMany()
             .HasForeignKey(x => x.EventId);
+        modelBuilder.Entity<Data.Calendar.CalendarEventReminder>()
+            .HasIndex(x => new { x.Channel, x.Status, x.UpdatedUtc });
 
         modelBuilder.Entity<Data.Calendar.CalendarEventShareLink>()
             .HasIndex(x => x.CodeHash)
@@ -686,6 +710,74 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Calendar.CalendarEvent>()
             .WithMany()
             .HasForeignKey(x => x.EventId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraph>()
+            .HasIndex(x => new { x.EventId, x.Status });
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraph>()
+            .HasIndex(x => new { x.EventId, x.Version });
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraph>()
+            .HasOne<Data.Calendar.CalendarEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphNode>()
+            .HasIndex(x => new { x.GraphId, x.NodeKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphNode>()
+            .HasOne<Data.Calendar.CalendarScheduleGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphEdge>()
+            .HasIndex(x => x.GraphId);
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphEdge>()
+            .HasIndex(x => new { x.GraphId, x.FromNodeId, x.ToNodeId });
+        modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphEdge>()
+            .HasOne<Data.Calendar.CalendarScheduleGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarGraphExecution>()
+            .HasIndex(x => new { x.GraphId, x.CreatedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarGraphExecution>()
+            .HasIndex(x => new { x.GraphId, x.IdempotencyKey })
+            .IsUnique();
+        modelBuilder.Entity<Data.Calendar.CalendarGraphExecution>()
+            .HasOne<Data.Calendar.CalendarScheduleGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+        modelBuilder.Entity<Data.Calendar.CalendarGraphExecution>()
+            .HasOne<Data.Calendar.CalendarEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarSharedViewLink>()
+            .HasIndex(x => new { x.EventId, x.IsActive, x.RevokedUtc, x.ExpiresUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarSharedViewLink>()
+            .HasIndex(x => x.SharedViewId)
+            .IsUnique();
+        modelBuilder.Entity<Data.Calendar.CalendarSharedViewLink>()
+            .HasOne<Data.Calendar.CalendarEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId);
+        modelBuilder.Entity<Data.Calendar.CalendarSharedViewLink>()
+            .HasOne<SharedView>()
+            .WithMany()
+            .HasForeignKey(x => x.SharedViewId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarReminderDispatch>()
+            .HasIndex(x => new { x.ReminderId, x.OccurrenceStartUtc })
+            .IsUnique();
+        modelBuilder.Entity<Data.Calendar.CalendarReminderDispatch>()
+            .HasIndex(x => new { x.Status, x.NextRetryUtc, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarReminderDispatch>()
+            .HasOne<Data.Calendar.CalendarEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId);
+        modelBuilder.Entity<Data.Calendar.CalendarReminderDispatch>()
+            .HasOne<Data.Calendar.CalendarEventReminder>()
+            .WithMany()
+            .HasForeignKey(x => x.ReminderId);
 
 
         modelBuilder.Entity<RoleRecoveryApproval>()

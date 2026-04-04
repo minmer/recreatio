@@ -5865,3 +5865,782 @@ export function askPublicChatQuestion(payload: { code: string; text: string; dis
     })
   });
 }
+
+// Calendar core v1
+export type CalendarRoleBindingRequest = {
+  roleId: string;
+  accessType: 'viewer' | 'editor' | 'manager';
+};
+
+export type CalendarRoleBindingResponse = {
+  bindingId: string;
+  roleId: string;
+  accessType: string;
+  createdUtc: string;
+  revokedUtc?: string | null;
+};
+
+export type CalendarResponse = {
+  calendarId: string;
+  slug?: string | null;
+  name: string;
+  description?: string | null;
+  organizationScope?: string | null;
+  ownerRoleId: string;
+  defaultTimeZoneId?: string | null;
+  isArchived: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  canRead: boolean;
+  canWrite: boolean;
+  canManage: boolean;
+  roleBindings: CalendarRoleBindingResponse[];
+};
+
+export type CalendarReminderRequest = {
+  minutesBefore: number;
+  channel: 'inapp' | 'email' | 'sms' | 'push' | 'webhook';
+  targetRoleId?: string | null;
+  targetUserId?: string | null;
+  channelConfigJson?: string | null;
+};
+
+export type CalendarReminderResponse = {
+  reminderId: string;
+  minutesBefore: number;
+  channel: string;
+  targetRoleId?: string | null;
+  targetUserId?: string | null;
+  status: string;
+  createdUtc: string;
+  updatedUtc: string;
+  channelConfigJson?: string | null;
+};
+
+export type CalendarEventRoleScopeResponse = {
+  scopeId: string;
+  roleId: string;
+  scopeType: string;
+  createdUtc: string;
+  revokedUtc?: string | null;
+};
+
+export type CalendarGraphNode = {
+  nodeId: string;
+  nodeType: string;
+  nodeKey: string;
+  configJson: string;
+  positionX: number;
+  positionY: number;
+};
+
+export type CalendarGraphEdge = {
+  edgeId: string;
+  fromNodeId: string;
+  fromPort?: string | null;
+  toNodeId: string;
+  toPort?: string | null;
+  edgeType?: string | null;
+  conditionJson?: string | null;
+};
+
+export type CalendarGraphSummary = {
+  graphId: string;
+  templateKey: string;
+  status: string;
+  version: number;
+  updatedUtc: string;
+};
+
+export type CalendarGraph = {
+  graphId: string;
+  eventId: string;
+  templateKey: string;
+  templateConfigJson: string;
+  status: string;
+  version: number;
+  createdUtc: string;
+  updatedUtc: string;
+  nodes: CalendarGraphNode[];
+  edges: CalendarGraphEdge[];
+};
+
+export type CalendarGraphTemplate = {
+  templateKey: string;
+  name: string;
+  description: string;
+  category: string;
+  defaultConfigJson: string;
+  nodes: CalendarGraphNode[];
+  edges: CalendarGraphEdge[];
+};
+
+export type CalendarGraphExecution = {
+  executionId: string;
+  graphId: string;
+  eventId: string;
+  idempotencyKey: string;
+  triggerType: string;
+  status: string;
+  triggerPayloadJson?: string | null;
+  resultPayloadJson?: string | null;
+  createdUtc: string;
+  startedUtc: string;
+  finishedUtc?: string | null;
+};
+
+export type CalendarEventResponse = {
+  eventId: string;
+  calendarId: string;
+  ownerRoleId: string;
+  titlePublic: string;
+  summaryPublic?: string | null;
+  locationPublic?: string | null;
+  visibility: string;
+  status: string;
+  startUtc: string;
+  endUtc: string;
+  allDay: boolean;
+  timeZoneId?: string | null;
+  recurrenceType: string;
+  recurrenceInterval: number;
+  recurrenceByWeekday?: string | null;
+  recurrenceUntilUtc?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceRule?: string | null;
+  linkedModule?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+  sourceFieldStart?: string | null;
+  sourceFieldEnd?: string | null;
+  conflictScopeMode: string;
+  isArchived: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  hasProtectedDetails: boolean;
+  canReadProtectedDetails: boolean;
+  protectedDetailsJson?: string | null;
+  roleScopes: CalendarEventRoleScopeResponse[];
+  reminders: CalendarReminderResponse[];
+  itemType: 'appointment' | 'task';
+  taskState?: string | null;
+  completedUtc?: string | null;
+  taskProgressPercent?: number | null;
+  requiresCompletionProof: boolean;
+  completionProofDataItemId?: string | null;
+  assigneeRoleId?: string | null;
+  graph?: CalendarGraphSummary | null;
+};
+
+export type CalendarOccurrenceResponse = {
+  eventId: string;
+  occurrenceStartUtc: string;
+  occurrenceEndUtc: string;
+  isRecurringInstance: boolean;
+  event: CalendarEventResponse;
+  graphExecutionId?: string | null;
+  occurrenceSource?: string | null;
+};
+
+export type CalendarConflictResponse = {
+  eventId: string;
+  titlePublic: string;
+  startUtc: string;
+  endUtc: string;
+  conflictReason: string;
+};
+
+export type CalendarEventsQueryResponse = {
+  view: string;
+  fromUtc: string;
+  toUtc: string;
+  occurrences: CalendarOccurrenceResponse[];
+  conflicts: CalendarConflictResponse[];
+};
+
+export type CalendarEventShare = {
+  linkId: string;
+  code: string;
+  label: string;
+  mode: string;
+  createdUtc: string;
+  expiresUtc?: string | null;
+  isActive: boolean;
+  sharedViewId?: string | null;
+  qrPayload?: string | null;
+};
+
+export type CalendarPublicEventResponse = {
+  eventId: string;
+  calendarId: string;
+  titlePublic: string;
+  summaryPublic?: string | null;
+  locationPublic?: string | null;
+  visibility: string;
+  status: string;
+  startUtc: string;
+  endUtc: string;
+  allDay: boolean;
+  timeZoneId?: string | null;
+  recurrenceType: string;
+  recurrenceInterval: number;
+  recurrenceByWeekday?: string | null;
+  recurrenceUntilUtc?: string | null;
+  recurrenceCount?: number | null;
+  recurrenceRule?: string | null;
+  linkedModule?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+  itemType: 'appointment' | 'task';
+  taskState?: string | null;
+  completedUtc?: string | null;
+  taskProgressPercent?: number | null;
+};
+
+export type CalendarReminderDispatchResponse = {
+  dispatchId: string;
+  reminderId: string;
+  eventId: string;
+  occurrenceStartUtc: string;
+  channel: string;
+  status: string;
+  attemptCount: number;
+  nextRetryUtc?: string | null;
+  lastAttemptUtc?: string | null;
+  deliveredUtc?: string | null;
+  lastError?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+};
+
+export function getCalendars(payload?: { organizationScope?: string; includeArchived?: boolean }) {
+  const params = new URLSearchParams();
+  if (payload?.organizationScope) params.set('organizationScope', payload.organizationScope);
+  if (typeof payload?.includeArchived === 'boolean') params.set('includeArchived', String(payload.includeArchived));
+  return request<CalendarResponse[]>(`/calendar/calendars${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function getCalendar(calendarId: string) {
+  return request<CalendarResponse>(`/calendar/calendars/${calendarId}`, {
+    method: 'GET'
+  });
+}
+
+export function createCalendar(payload: {
+  name: string;
+  description?: string | null;
+  slug?: string | null;
+  organizationScope?: string | null;
+  ownerRoleId: string;
+  defaultTimeZoneId?: string | null;
+  roleBindings?: CalendarRoleBindingRequest[];
+}) {
+  return request<CalendarResponse>('/calendar/calendars', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      description: payload.description ?? null,
+      slug: payload.slug ?? null,
+      organizationScope: payload.organizationScope ?? null,
+      ownerRoleId: payload.ownerRoleId,
+      defaultTimeZoneId: payload.defaultTimeZoneId ?? null,
+      roleBindings: payload.roleBindings ?? []
+    })
+  });
+}
+
+export function updateCalendar(calendarId: string, payload: {
+  name?: string | null;
+  description?: string | null;
+  defaultTimeZoneId?: string | null;
+  isArchived?: boolean;
+}) {
+  return request<CalendarResponse>(`/calendar/calendars/${calendarId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: payload.name ?? null,
+      description: payload.description ?? null,
+      defaultTimeZoneId: payload.defaultTimeZoneId ?? null,
+      isArchived: typeof payload.isArchived === 'boolean' ? payload.isArchived : null
+    })
+  });
+}
+
+export function getCalendarItem(eventId: string, includeProtected = true) {
+  const params = new URLSearchParams();
+  params.set('includeProtected', String(includeProtected));
+  return request<CalendarEventResponse>(`/calendar/events/${eventId}?${params.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function createCalendarItem(payload: {
+  calendarId: string;
+  ownerRoleId: string;
+  titlePublic: string;
+  summaryPublic?: string | null;
+  locationPublic?: string | null;
+  visibility: 'private' | 'role' | 'public';
+  status: 'planned' | 'confirmed' | 'cancelled' | 'completed';
+  startUtc: string;
+  endUtc: string;
+  allDay?: boolean;
+  timeZoneId?: string | null;
+  protectedDetailsJson?: string | null;
+  linkedModule?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+  sourceFieldStart?: string | null;
+  sourceFieldEnd?: string | null;
+  conflictScopeMode?: 'role' | 'calendar' | null;
+  scopedRoleIds?: string[];
+  reminders?: CalendarReminderRequest[];
+  allowConflicts?: boolean;
+  itemType?: 'appointment' | 'task';
+  taskState?: string | null;
+  taskProgressPercent?: number | null;
+  requiresCompletionProof?: boolean;
+  completionProofJson?: string | null;
+  assigneeRoleId?: string | null;
+  graph?: {
+    templateKey: string;
+    templateConfigJson?: string | null;
+    status: 'draft' | 'active' | 'archived';
+    nodes: Array<{
+      nodeId?: string | null;
+      nodeType: string;
+      nodeKey: string;
+      configJson?: string | null;
+      positionX: number;
+      positionY: number;
+    }>;
+    edges: Array<{
+      edgeId?: string | null;
+      fromNodeId: string;
+      fromPort?: string | null;
+      toNodeId: string;
+      toPort?: string | null;
+      edgeType?: string | null;
+      conditionJson?: string | null;
+    }>;
+  } | null;
+}) {
+  return request<CalendarEventResponse>('/calendar/events', {
+    method: 'POST',
+    body: JSON.stringify({
+      calendarId: payload.calendarId,
+      ownerRoleId: payload.ownerRoleId,
+      titlePublic: payload.titlePublic,
+      summaryPublic: payload.summaryPublic ?? null,
+      locationPublic: payload.locationPublic ?? null,
+      visibility: payload.visibility,
+      status: payload.status,
+      startUtc: payload.startUtc,
+      endUtc: payload.endUtc,
+      allDay: payload.allDay ?? false,
+      timeZoneId: payload.timeZoneId ?? null,
+      recurrenceType: 'none',
+      recurrenceInterval: 1,
+      recurrenceByWeekday: null,
+      recurrenceUntilUtc: null,
+      recurrenceCount: null,
+      recurrenceRule: null,
+      protectedDetailsJson: payload.protectedDetailsJson ?? null,
+      linkedModule: payload.linkedModule ?? null,
+      linkedEntityType: payload.linkedEntityType ?? null,
+      linkedEntityId: payload.linkedEntityId ?? null,
+      sourceFieldStart: payload.sourceFieldStart ?? null,
+      sourceFieldEnd: payload.sourceFieldEnd ?? null,
+      conflictScopeMode: payload.conflictScopeMode ?? null,
+      scopedRoleIds: payload.scopedRoleIds ?? [],
+      reminders: payload.reminders ?? [],
+      allowConflicts: payload.allowConflicts ?? false,
+      itemType: payload.itemType ?? 'appointment',
+      taskState: payload.taskState ?? null,
+      taskProgressPercent: payload.taskProgressPercent ?? null,
+      requiresCompletionProof: payload.requiresCompletionProof ?? false,
+      completionProofJson: payload.completionProofJson ?? null,
+      assigneeRoleId: payload.assigneeRoleId ?? null,
+      graph: payload.graph
+        ? {
+            templateKey: payload.graph.templateKey,
+            templateConfigJson: payload.graph.templateConfigJson ?? null,
+            status: payload.graph.status,
+            nodes: payload.graph.nodes.map((node) => ({
+              nodeId: node.nodeId ?? null,
+              nodeType: node.nodeType,
+              nodeKey: node.nodeKey,
+              configJson: node.configJson ?? null,
+              positionX: node.positionX,
+              positionY: node.positionY
+            })),
+            edges: payload.graph.edges.map((edge) => ({
+              edgeId: edge.edgeId ?? null,
+              fromNodeId: edge.fromNodeId,
+              fromPort: edge.fromPort ?? null,
+              toNodeId: edge.toNodeId,
+              toPort: edge.toPort ?? null,
+              edgeType: edge.edgeType ?? null,
+              conditionJson: edge.conditionJson ?? null
+            }))
+          }
+        : null
+    })
+  });
+}
+
+export function updateCalendarItem(eventId: string, payload: {
+  titlePublic?: string | null;
+  summaryPublic?: string | null;
+  locationPublic?: string | null;
+  visibility?: 'private' | 'role' | 'public' | null;
+  status?: 'planned' | 'confirmed' | 'cancelled' | 'completed' | null;
+  startUtc?: string | null;
+  endUtc?: string | null;
+  allDay?: boolean;
+  timeZoneId?: string | null;
+  replaceProtectedDetails?: boolean;
+  protectedDetailsJson?: string | null;
+  linkedModule?: string | null;
+  linkedEntityType?: string | null;
+  linkedEntityId?: string | null;
+  sourceFieldStart?: string | null;
+  sourceFieldEnd?: string | null;
+  conflictScopeMode?: 'role' | 'calendar' | null;
+  scopedRoleIds?: string[];
+  replaceRoleScopes?: boolean;
+  reminders?: CalendarReminderRequest[];
+  replaceReminders?: boolean;
+  isArchived?: boolean;
+  allowConflicts?: boolean;
+  itemType?: 'appointment' | 'task' | null;
+  taskState?: string | null;
+  taskProgressPercent?: number | null;
+  requiresCompletionProof?: boolean | null;
+  completionProofJson?: string | null;
+  assigneeRoleId?: string | null;
+  upsertGraph?: boolean;
+  graph?: {
+    templateKey: string;
+    templateConfigJson?: string | null;
+    status: 'draft' | 'active' | 'archived';
+    nodes: Array<{
+      nodeId?: string | null;
+      nodeType: string;
+      nodeKey: string;
+      configJson?: string | null;
+      positionX: number;
+      positionY: number;
+    }>;
+    edges: Array<{
+      edgeId?: string | null;
+      fromNodeId: string;
+      fromPort?: string | null;
+      toNodeId: string;
+      toPort?: string | null;
+      edgeType?: string | null;
+      conditionJson?: string | null;
+    }>;
+  } | null;
+}) {
+  return request<CalendarEventResponse>(`/calendar/events/${eventId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      titlePublic: payload.titlePublic ?? null,
+      summaryPublic: payload.summaryPublic ?? null,
+      locationPublic: payload.locationPublic ?? null,
+      visibility: payload.visibility ?? null,
+      status: payload.status ?? null,
+      startUtc: payload.startUtc ?? null,
+      endUtc: payload.endUtc ?? null,
+      allDay: typeof payload.allDay === 'boolean' ? payload.allDay : null,
+      timeZoneId: payload.timeZoneId ?? null,
+      recurrenceType: null,
+      recurrenceInterval: null,
+      recurrenceByWeekday: null,
+      recurrenceUntilUtc: null,
+      recurrenceCount: null,
+      recurrenceRule: null,
+      replaceProtectedDetails: payload.replaceProtectedDetails ?? false,
+      protectedDetailsJson: payload.protectedDetailsJson ?? null,
+      linkedModule: payload.linkedModule ?? null,
+      linkedEntityType: payload.linkedEntityType ?? null,
+      linkedEntityId: payload.linkedEntityId ?? null,
+      sourceFieldStart: payload.sourceFieldStart ?? null,
+      sourceFieldEnd: payload.sourceFieldEnd ?? null,
+      conflictScopeMode: payload.conflictScopeMode ?? null,
+      scopedRoleIds: payload.scopedRoleIds ?? [],
+      replaceRoleScopes: payload.replaceRoleScopes ?? false,
+      reminders: payload.reminders ?? [],
+      replaceReminders: payload.replaceReminders ?? false,
+      isArchived: typeof payload.isArchived === 'boolean' ? payload.isArchived : null,
+      allowConflicts: payload.allowConflicts ?? false,
+      itemType: payload.itemType ?? null,
+      taskState: payload.taskState ?? null,
+      taskProgressPercent: payload.taskProgressPercent ?? null,
+      requiresCompletionProof: typeof payload.requiresCompletionProof === 'boolean' ? payload.requiresCompletionProof : null,
+      completionProofJson: payload.completionProofJson ?? null,
+      assigneeRoleId: payload.assigneeRoleId ?? null,
+      upsertGraph: payload.upsertGraph ?? false,
+      graph: payload.graph
+        ? {
+            templateKey: payload.graph.templateKey,
+            templateConfigJson: payload.graph.templateConfigJson ?? null,
+            status: payload.graph.status,
+            nodes: payload.graph.nodes.map((node) => ({
+              nodeId: node.nodeId ?? null,
+              nodeType: node.nodeType,
+              nodeKey: node.nodeKey,
+              configJson: node.configJson ?? null,
+              positionX: node.positionX,
+              positionY: node.positionY
+            })),
+            edges: payload.graph.edges.map((edge) => ({
+              edgeId: edge.edgeId ?? null,
+              fromNodeId: edge.fromNodeId,
+              fromPort: edge.fromPort ?? null,
+              toNodeId: edge.toNodeId,
+              toPort: edge.toPort ?? null,
+              edgeType: edge.edgeType ?? null,
+              conditionJson: edge.conditionJson ?? null
+            }))
+          }
+        : null
+    })
+  });
+}
+
+export function archiveCalendarItem(eventId: string) {
+  return request<{ archived: boolean }>(`/calendar/events/${eventId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+export function getCalendarEvents(payload: {
+  calendarId: string;
+  view?: 'month' | 'week' | 'day' | 'list';
+  fromUtc?: string;
+  toUtc?: string;
+  status?: string;
+  visibility?: string;
+  itemType?: 'appointment' | 'task';
+  taskState?: string;
+  linkedModule?: string;
+  linkedEntityId?: string;
+  includeArchived?: boolean;
+  includeProtected?: boolean;
+}) {
+  const params = new URLSearchParams();
+  if (payload.view) params.set('view', payload.view);
+  if (payload.fromUtc) params.set('fromUtc', payload.fromUtc);
+  if (payload.toUtc) params.set('toUtc', payload.toUtc);
+  if (payload.status) params.set('status', payload.status);
+  if (payload.visibility) params.set('visibility', payload.visibility);
+  if (payload.itemType) params.set('itemType', payload.itemType);
+  if (payload.taskState) params.set('taskState', payload.taskState);
+  if (payload.linkedModule) params.set('linkedModule', payload.linkedModule);
+  if (payload.linkedEntityId) params.set('linkedEntityId', payload.linkedEntityId);
+  if (typeof payload.includeArchived === 'boolean') params.set('includeArchived', String(payload.includeArchived));
+  if (typeof payload.includeProtected === 'boolean') params.set('includeProtected', String(payload.includeProtected));
+  return request<CalendarEventsQueryResponse>(`/calendar/calendars/${payload.calendarId}/events?${params.toString()}`, {
+    method: 'GET'
+  });
+}
+
+export function checkCalendarConflicts(payload: {
+  calendarId: string;
+  startUtc: string;
+  endUtc: string;
+  scopeRoleIds: string[];
+  ignoreEventId?: string | null;
+}) {
+  return request<CalendarConflictResponse[]>('/calendar/calendars/conflicts', {
+    method: 'POST',
+    body: JSON.stringify({
+      calendarId: payload.calendarId,
+      startUtc: payload.startUtc,
+      endUtc: payload.endUtc,
+      scopeRoleIds: payload.scopeRoleIds,
+      ignoreEventId: payload.ignoreEventId ?? null
+    })
+  });
+}
+
+export function getCalendarItemConflicts(eventId: string) {
+  return request<CalendarConflictResponse[]>(`/calendar/events/${eventId}/conflicts`, {
+    method: 'GET'
+  });
+}
+
+export function getCalendarGraphTemplates() {
+  return request<CalendarGraphTemplate[]>('/calendar/graph/templates', {
+    method: 'GET'
+  });
+}
+
+export function getCalendarGraph(eventId: string) {
+  return request<CalendarGraph>(`/calendar/events/${eventId}/graph`, {
+    method: 'GET'
+  });
+}
+
+export function upsertCalendarGraph(eventId: string, payload: {
+  templateKey: string;
+  templateConfigJson?: string | null;
+  status: 'draft' | 'active' | 'archived';
+  nodes: Array<{
+    nodeId?: string | null;
+    nodeType: string;
+    nodeKey: string;
+    configJson?: string | null;
+    positionX: number;
+    positionY: number;
+  }>;
+  edges: Array<{
+    edgeId?: string | null;
+    fromNodeId: string;
+    fromPort?: string | null;
+    toNodeId: string;
+    toPort?: string | null;
+    edgeType?: string | null;
+    conditionJson?: string | null;
+  }>;
+}) {
+  return request<CalendarGraph>(`/calendar/events/${eventId}/graph`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      templateKey: payload.templateKey,
+      templateConfigJson: payload.templateConfigJson ?? null,
+      status: payload.status,
+      nodes: payload.nodes.map((node) => ({
+        nodeId: node.nodeId ?? null,
+        nodeType: node.nodeType,
+        nodeKey: node.nodeKey,
+        configJson: node.configJson ?? null,
+        positionX: node.positionX,
+        positionY: node.positionY
+      })),
+      edges: payload.edges.map((edge) => ({
+        edgeId: edge.edgeId ?? null,
+        fromNodeId: edge.fromNodeId,
+        fromPort: edge.fromPort ?? null,
+        toNodeId: edge.toNodeId,
+        toPort: edge.toPort ?? null,
+        edgeType: edge.edgeType ?? null,
+        conditionJson: edge.conditionJson ?? null
+      }))
+    })
+  });
+}
+
+export function executeCalendarGraph(eventId: string, payload: {
+  triggerType?: 'manual' | 'completion' | 'schedule';
+  completionAction?: 'complete_only' | 'run_graph' | null;
+  idempotencyKey?: string | null;
+  triggerPayloadJson?: string | null;
+}) {
+  return request<CalendarGraphExecution>(`/calendar/events/${eventId}/graph/execute`, {
+    method: 'POST',
+    body: JSON.stringify({
+      triggerType: payload.triggerType ?? 'manual',
+      completionAction: payload.completionAction ?? null,
+      idempotencyKey: payload.idempotencyKey ?? null,
+      triggerPayloadJson: payload.triggerPayloadJson ?? null
+    })
+  });
+}
+
+export function getCalendarGraphExecutions(eventId: string, take?: number) {
+  const params = new URLSearchParams();
+  if (typeof take === 'number') params.set('take', String(take));
+  return request<CalendarGraphExecution[]>(`/calendar/events/${eventId}/graph/executions${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function completeCalendarTask(eventId: string, payload?: {
+  completionProofJson?: string | null;
+  taskState?: string | null;
+  triggerPayloadJson?: string | null;
+  idempotencyKey?: string | null;
+}) {
+  return request<{ eventId: string; taskState: string; completedUtc?: string | null; graphExecution?: CalendarGraphExecution | null }>(`/calendar/events/${eventId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({
+      completionProofJson: payload?.completionProofJson ?? null,
+      taskState: payload?.taskState ?? null,
+      triggerPayloadJson: payload?.triggerPayloadJson ?? null,
+      idempotencyKey: payload?.idempotencyKey ?? null
+    })
+  });
+}
+
+export function completeCalendarTaskAndRunGraph(eventId: string, payload?: {
+  completionProofJson?: string | null;
+  triggerPayloadJson?: string | null;
+  idempotencyKey?: string | null;
+}) {
+  return request<{ eventId: string; taskState: string; completedUtc?: string | null; graphExecution?: CalendarGraphExecution | null }>(`/calendar/events/${eventId}/complete-and-run-graph`, {
+    method: 'POST',
+    body: JSON.stringify({
+      completionProofJson: payload?.completionProofJson ?? null,
+      taskState: 'done',
+      triggerPayloadJson: payload?.triggerPayloadJson ?? null,
+      idempotencyKey: payload?.idempotencyKey ?? null
+    })
+  });
+}
+
+export function createCalendarShare(eventId: string, payload?: { label?: string | null; expiresInHours?: number | null; mode?: 'readonly' }) {
+  return request<CalendarEventShare>(`/calendar/events/${eventId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({
+      label: payload?.label ?? null,
+      expiresInHours: typeof payload?.expiresInHours === 'number' ? payload.expiresInHours : null,
+      mode: payload?.mode ?? 'readonly'
+    })
+  });
+}
+
+export function listCalendarShares(eventId: string) {
+  return request<CalendarEventShare[]>(`/calendar/events/${eventId}/shares`, {
+    method: 'GET'
+  });
+}
+
+export function revokeCalendarShare(eventId: string, linkId: string) {
+  return request<{ revoked: boolean }>(`/calendar/events/${eventId}/shares/${linkId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
+export function getCalendarReminderDispatches(eventId: string, take?: number) {
+  const params = new URLSearchParams();
+  if (typeof take === 'number') params.set('take', String(take));
+  return request<CalendarReminderDispatchResponse[]>(`/calendar/events/${eventId}/reminder-dispatches${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function getPublicCalendarEvents(calendarId: string, payload?: { view?: string; fromUtc?: string; toUtc?: string; status?: string }) {
+  const params = new URLSearchParams();
+  if (payload?.view) params.set('view', payload.view);
+  if (payload?.fromUtc) params.set('fromUtc', payload.fromUtc);
+  if (payload?.toUtc) params.set('toUtc', payload.toUtc);
+  if (payload?.status) params.set('status', payload.status);
+  return request<CalendarPublicEventResponse[]>(`/calendar/calendars/${calendarId}/public/events${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function getPublicSharedCalendarItem(code: string) {
+  return request<CalendarPublicEventResponse>(`/calendar/public/shared/${encodeURIComponent(code)}`, {
+    method: 'GET'
+  });
+}

@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.Configure<AuthOptions>(configuration.GetSection("Auth"));
         services.Configure<CsrfOptions>(configuration.GetSection("Csrf"));
         services.Configure<BlobStorageOptions>(configuration.GetSection("BlobStorage"));
+        services.Configure<CalendarOptions>(configuration.GetSection("Calendar"));
 
         services.AddDbContext<RecreatioDbContext>(options =>
             options.UseSqlServer(
@@ -225,6 +226,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGameRuleEngineService, GameRuleEngineService>();
         services.AddScoped<IGameLocationService, GameLocationService>();
         services.AddScoped<IGameRealtimeService, GameRealtimeService>();
+        services.AddScoped<ICalendarGraphRuntimeService, CalendarGraphRuntimeService>();
+        services.AddHttpClient("calendar-reminder-webhook", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
+        services.AddHostedService<CalendarReminderDispatcherHostedService>();
         services.AddHostedService<GameRetentionCleanupHostedService>();
         services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
 

@@ -11,7 +11,7 @@ using Recreatio.Api.Services;
 
 namespace Recreatio.Api.Endpoints;
 
-public static class CalendarEndpoints
+public static partial class CalendarEndpoints
 {
     private static readonly HashSet<string> AllowedAccessTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -51,6 +51,20 @@ public static class CalendarEndpoints
         "sms",
         "push",
         "webhook"
+    };
+
+    private static readonly HashSet<string> AllowedItemTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "appointment",
+        "task"
+    };
+
+    private static readonly HashSet<string> AllowedTaskStates = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "todo",
+        "doing",
+        "done",
+        "cancelled"
     };
 
     private static readonly HashSet<string> AllowedConflictScopeModes = new(StringComparer.OrdinalIgnoreCase)
@@ -624,6 +638,7 @@ public static class CalendarEndpoints
             IKeyRingService keyRingService,
             ICsrfService csrfService,
             ILedgerService ledgerService,
+            ICalendarGraphRuntimeService graphRuntimeService,
             CancellationToken ct) =>
         {
             if (!csrfService.Validate(context))
@@ -688,6 +703,18 @@ public static class CalendarEndpoints
                 return Results.BadRequest(new { error = "Status is invalid." });
             }
 
+            var itemType = NormalizeItemType(request.ItemType);
+            if (itemType is null)
+            {
+                return Results.BadRequest(new { error = "ItemType is invalid." });
+            }
+
+            var taskState = NormalizeTaskState(request.TaskState);
+            if (itemType == "task" && taskState is null)
+            {
+                taskState = "todo";
+            }
+
             if (request.EndUtc <= request.StartUtc)
             {
                 return Results.BadRequest(new { error = "EndUtc must be after StartUtc." });
@@ -737,6 +764,25 @@ public static class CalendarEndpoints
                 return Results.BadRequest(new { error = "TimeZoneId is too long." });
             }
 
+            if (request.TaskProgressPercent is < 0 or > 100)
+            {
+                return Results.BadRequest(new { error = "TaskProgressPercent must be between 0 and 100." });
+            }
+
+            if (request.AssigneeRoleId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "AssigneeRoleId cannot be empty GUID." });
+            }
+
+            if (request.AssigneeRoleId is not null)
+            {
+                var assigneeExists = await dbContext.Roles.AsNoTracking().AnyAsync(role => role.Id == request.AssigneeRoleId.Value, ct);
+                if (!assigneeExists)
+                {
+                    return Results.BadRequest(new { error = "Assignee role does not exist." });
+                }
+            }
+
             var conflictScopeMode = NormalizeConflictScopeMode(request.ConflictScopeMode) ?? "role";
             var scopeRoleIds = (request.ScopedRoleIds ?? Array.Empty<Guid>())
                 .Where(roleId => roleId != Guid.Empty)
@@ -783,6 +829,7 @@ public static class CalendarEndpoints
                 LocationPublic = location,
                 Visibility = visibility,
                 Status = status,
+                ItemType = itemType,
                 StartUtc = request.StartUtc,
                 EndUtc = request.EndUtc,
                 AllDay = request.AllDay,
@@ -793,6 +840,11 @@ public static class CalendarEndpoints
                 RecurrenceUntilUtc = request.RecurrenceUntilUtc,
                 RecurrenceCount = request.RecurrenceCount,
                 RecurrenceRule = recurrenceRule,
+                TaskState = taskState,
+                TaskProgressPercent = request.TaskProgressPercent,
+                RequiresCompletionProof = request.RequiresCompletionProof,
+                CompletedUtc = taskState == "done" || status == "completed" ? now : null,
+                AssigneeRoleId = request.AssigneeRoleId,
                 LinkedModule = linkedModule,
                 LinkedEntityType = linkedEntityType,
                 LinkedEntityId = request.LinkedEntityId,
@@ -824,6 +876,23 @@ public static class CalendarEndpoints
                 item.ProtectedDataItemId = protectedDataItemId;
             }
 
+            if (!string.IsNullOrWhiteSpace(request.CompletionProofJson))
+            {
+                var completionProofDataItemId = CreateProtectedDataItem(
+                    item.OwnerRoleId,
+                    request.CompletionProofJson.Trim(),
+                    userContext,
+                    keyRingService,
+                    dbContext,
+                    now);
+                if (completionProofDataItemId == Guid.Empty)
+                {
+                    return Results.Forbid();
+                }
+
+                item.CompletionProofDataItemId = completionProofDataItemId;
+            }
+
             dbContext.CalendarEvents.Add(item);
             dbContext.CalendarEventRoleScopes.AddRange(scopeRoleIds.Select(roleId => new CalendarEventRoleScope
             {
@@ -847,6 +916,7 @@ public static class CalendarEndpoints
                 EventId = item.Id,
                 MinutesBefore = reminder.MinutesBefore,
                 Channel = reminder.Channel,
+                ChannelConfigJson = reminder.ChannelConfigJson,
                 TargetRoleId = reminder.TargetRoleId,
                 TargetUserId = reminder.TargetUserId,
                 Status = "active",
@@ -861,6 +931,15 @@ public static class CalendarEndpoints
             }
 
             await dbContext.SaveChangesAsync(ct);
+
+            if (request.Graph is not null)
+            {
+                await graphRuntimeService.UpsertGraphAsync(
+                    item.Id,
+                    request.Graph,
+                    userContext.UserId,
+                    ct);
+            }
 
             await ledgerService.AppendBusinessAsync(
                 "CalendarEventCreated",
@@ -899,6 +978,7 @@ public static class CalendarEndpoints
             IKeyRingService keyRingService,
             ICsrfService csrfService,
             ILedgerService ledgerService,
+            ICalendarGraphRuntimeService graphRuntimeService,
             CancellationToken ct) =>
         {
             if (!csrfService.Validate(context))
@@ -1002,6 +1082,48 @@ public static class CalendarEndpoints
                 {
                     item.Status = status;
                     item.CancelledUtc = status == "cancelled" ? DateTimeOffset.UtcNow : null;
+                    if (status == "completed" && item.CompletedUtc is null)
+                    {
+                        item.CompletedUtc = DateTimeOffset.UtcNow;
+                    }
+                    changed = true;
+                }
+            }
+
+            if (request.ItemType is not null)
+            {
+                var itemType = NormalizeItemType(request.ItemType);
+                if (itemType is null)
+                {
+                    return Results.BadRequest(new { error = "ItemType is invalid." });
+                }
+
+                if (!string.Equals(item.ItemType, itemType, StringComparison.Ordinal))
+                {
+                    item.ItemType = itemType;
+                    changed = true;
+                }
+            }
+
+            if (request.TaskState is not null)
+            {
+                var taskState = NormalizeTaskState(request.TaskState);
+                if (taskState is null)
+                {
+                    return Results.BadRequest(new { error = "TaskState is invalid." });
+                }
+
+                if (!string.Equals(item.TaskState, taskState, StringComparison.Ordinal))
+                {
+                    item.TaskState = taskState;
+                    if (taskState == "done")
+                    {
+                        item.CompletedUtc = DateTimeOffset.UtcNow;
+                    }
+                    else if (item.Status != "completed")
+                    {
+                        item.CompletedUtc = null;
+                    }
                     changed = true;
                 }
             }
@@ -1038,6 +1160,40 @@ public static class CalendarEndpoints
                 }
 
                 item.TimeZoneId = timeZone;
+                changed = true;
+            }
+
+            if (request.TaskProgressPercent is not null)
+            {
+                if (request.TaskProgressPercent.Value is < 0 or > 100)
+                {
+                    return Results.BadRequest(new { error = "TaskProgressPercent must be between 0 and 100." });
+                }
+
+                item.TaskProgressPercent = request.TaskProgressPercent.Value;
+                changed = true;
+            }
+
+            if (request.RequiresCompletionProof is not null)
+            {
+                item.RequiresCompletionProof = request.RequiresCompletionProof.Value;
+                changed = true;
+            }
+
+            if (request.AssigneeRoleId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "AssigneeRoleId cannot be empty GUID." });
+            }
+
+            if (request.AssigneeRoleId is not null)
+            {
+                var assigneeExists = await dbContext.Roles.AsNoTracking().AnyAsync(role => role.Id == request.AssigneeRoleId.Value, ct);
+                if (!assigneeExists)
+                {
+                    return Results.BadRequest(new { error = "Assignee role does not exist." });
+                }
+
+                item.AssigneeRoleId = request.AssigneeRoleId;
                 changed = true;
             }
 
@@ -1185,6 +1341,38 @@ public static class CalendarEndpoints
                 changed = true;
             }
 
+            if (request.CompletionProofJson is not null)
+            {
+                if (string.IsNullOrWhiteSpace(request.CompletionProofJson))
+                {
+                    item.CompletionProofDataItemId = null;
+                }
+                else
+                {
+                    if (!userContext.KeyRing.TryGetReadKey(item.OwnerRoleId, out _))
+                    {
+                        return Results.Forbid();
+                    }
+
+                    var now = DateTimeOffset.UtcNow;
+                    var proofItemId = CreateProtectedDataItem(
+                        item.OwnerRoleId,
+                        request.CompletionProofJson.Trim(),
+                        userContext,
+                        keyRingService,
+                        dbContext,
+                        now);
+                    if (proofItemId == Guid.Empty)
+                    {
+                        return Results.Forbid();
+                    }
+
+                    item.CompletionProofDataItemId = proofItemId;
+                }
+
+                changed = true;
+            }
+
             var updatedScopeRoleIds = new List<Guid>();
             if (request.ReplaceRoleScopes)
             {
@@ -1246,6 +1434,7 @@ public static class CalendarEndpoints
                     EventId = item.Id,
                     MinutesBefore = reminder.MinutesBefore,
                     Channel = reminder.Channel,
+                    ChannelConfigJson = reminder.ChannelConfigJson,
                     TargetRoleId = reminder.TargetRoleId,
                     TargetUserId = reminder.TargetUserId,
                     Status = "active",
@@ -1298,6 +1487,15 @@ public static class CalendarEndpoints
             }
 
             await dbContext.SaveChangesAsync(ct);
+
+            if (request.UpsertGraph && request.Graph is not null)
+            {
+                await graphRuntimeService.UpsertGraphAsync(
+                    item.Id,
+                    request.Graph,
+                    userContext.UserId,
+                    ct);
+            }
 
             await ledgerService.AppendBusinessAsync(
                 "CalendarEventUpdated",
@@ -1384,6 +1582,8 @@ public static class CalendarEndpoints
             DateTimeOffset? toUtc,
             string? status,
             string? visibility,
+            string? itemType,
+            string? taskState,
             string? linkedModule,
             Guid? linkedEntityId,
             bool? includeArchived,
@@ -1391,6 +1591,7 @@ public static class CalendarEndpoints
             HttpContext context,
             RecreatioDbContext dbContext,
             IKeyRingService keyRingService,
+            ICalendarGraphRuntimeService graphRuntimeService,
             CancellationToken ct) =>
         {
             var access = await ResolveCalendarAccessAsync(calendarId, context, dbContext, keyRingService, ct);
@@ -1417,6 +1618,18 @@ public static class CalendarEndpoints
                 return Results.BadRequest(new { error = "Visibility filter is invalid." });
             }
 
+            var normalizedItemType = NormalizeItemTypeFilter(itemType);
+            if (itemType is not null && normalizedItemType is null)
+            {
+                return Results.BadRequest(new { error = "ItemType filter is invalid." });
+            }
+
+            var normalizedTaskState = NormalizeTaskStateFilter(taskState);
+            if (taskState is not null && normalizedTaskState is null)
+            {
+                return Results.BadRequest(new { error = "TaskState filter is invalid." });
+            }
+
             var normalizedModule = NormalizeNullable(linkedModule, MaxLinkedModuleLength)?.ToLowerInvariant();
             if (linkedModule is not null && normalizedModule is null)
             {
@@ -1427,7 +1640,9 @@ public static class CalendarEndpoints
                 .Where(item =>
                     item.CalendarId == calendarId &&
                     item.StartUtc < range.ToUtc &&
-                    (item.EndUtc > range.FromUtc || item.RecurrenceType != "none"));
+                    (item.EndUtc > range.FromUtc ||
+                     item.RecurrenceType != "none" ||
+                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active")));
 
             if (!(includeArchived ?? false))
             {
@@ -1442,6 +1657,16 @@ public static class CalendarEndpoints
             if (!string.IsNullOrWhiteSpace(normalizedVisibility))
             {
                 query = query.Where(item => item.Visibility == normalizedVisibility);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedItemType))
+            {
+                query = query.Where(item => item.ItemType == normalizedItemType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedTaskState))
+            {
+                query = query.Where(item => item.TaskState == normalizedTaskState);
             }
 
             if (!string.IsNullOrWhiteSpace(normalizedModule))
@@ -1485,7 +1710,7 @@ public static class CalendarEndpoints
             foreach (var item in visibleItems)
             {
                 var eventResponse = await BuildEventResponseAsync(item, access.Context.User, dbContext, keyRingService, includeProtected ?? false, ct);
-                var occurrences = ExpandOccurrences(item, range.FromUtc, range.ToUtc);
+                var occurrences = await graphRuntimeService.ExpandOccurrencesAsync(item, range.FromUtc, range.ToUtc, ct);
                 foreach (var occurrence in occurrences)
                 {
                     responses.Add(new CalendarEventOccurrenceResponse(
@@ -1493,7 +1718,9 @@ public static class CalendarEndpoints
                         occurrence.StartUtc,
                         occurrence.EndUtc,
                         occurrence.IsRecurringInstance,
-                        eventResponse));
+                        eventResponse,
+                        occurrence.ExecutionId,
+                        occurrence.Source));
                 }
             }
 
@@ -1637,6 +1864,8 @@ public static class CalendarEndpoints
                 link.IsActive));
         });
 
+        MapCalendarAdvancedEndpoints(auth, group);
+
         group.MapGet("/calendars/{calendarId:guid}/public/events", async (
             Guid calendarId,
             string? view,
@@ -1659,7 +1888,9 @@ public static class CalendarEndpoints
                     !item.IsArchived &&
                     item.Visibility == "public" &&
                     item.StartUtc < range.ToUtc &&
-                    (item.EndUtc > range.FromUtc || item.RecurrenceType != "none"));
+                    (item.EndUtc > range.FromUtc ||
+                     item.RecurrenceType != "none" ||
+                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active")));
 
             if (!string.IsNullOrWhiteSpace(normalizedStatus))
             {
@@ -1772,6 +2003,10 @@ public static class CalendarEndpoints
             .OrderBy(reminder => reminder.MinutesBefore)
             .ThenBy(reminder => reminder.CreatedUtc)
             .ToListAsync(ct);
+        var graph = await dbContext.CalendarScheduleGraphs.AsNoTracking()
+            .Where(entry => entry.EventId == item.Id && entry.Status != "archived")
+            .OrderByDescending(entry => entry.Version)
+            .FirstOrDefaultAsync(ct);
 
         var protectedResult = await ResolveProtectedDataAsync(item, user, dbContext, keyRingService, includeProtected, ct);
 
@@ -1820,7 +2055,23 @@ public static class CalendarEndpoints
                 reminder.TargetUserId,
                 reminder.Status,
                 reminder.CreatedUtc,
-                reminder.UpdatedUtc)).ToList());
+                reminder.UpdatedUtc,
+                reminder.ChannelConfigJson)).ToList(),
+            ItemType: item.ItemType,
+            TaskState: item.TaskState,
+            CompletedUtc: item.CompletedUtc,
+            TaskProgressPercent: item.TaskProgressPercent,
+            RequiresCompletionProof: item.RequiresCompletionProof,
+            CompletionProofDataItemId: item.CompletionProofDataItemId,
+            AssigneeRoleId: item.AssigneeRoleId,
+            Graph: graph is null
+                ? null
+                : new CalendarGraphSummaryResponse(
+                    graph.Id,
+                    graph.TemplateKey,
+                    graph.Status,
+                    graph.Version,
+                    graph.UpdatedUtc));
     }
 
     private static async Task<(bool HasProtectedDetails, bool CanReadProtectedDetails, string? ProtectedDetailsJson)> ResolveProtectedDataAsync(
@@ -2043,17 +2294,27 @@ public static class CalendarEndpoints
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder minutes range is invalid." }));
             }
 
-            if (reminder.TargetRoleId == Guid.Empty)
+            if (reminder.TargetRoleId.HasValue && reminder.TargetRoleId.Value == Guid.Empty)
             {
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder TargetRoleId cannot be empty GUID." }));
             }
 
-            if (reminder.TargetUserId == Guid.Empty)
+            if (reminder.TargetUserId.HasValue && reminder.TargetUserId.Value == Guid.Empty)
             {
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder TargetUserId cannot be empty GUID." }));
             }
 
-            normalized.Add(new NormalizedReminder(reminder.MinutesBefore, channel, reminder.TargetRoleId, reminder.TargetUserId));
+            string? channelConfig = null;
+            if (!string.IsNullOrWhiteSpace(reminder.ChannelConfigJson))
+            {
+                channelConfig = reminder.ChannelConfigJson.Trim();
+                if (channelConfig.Length > 16_384)
+                {
+                    return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder channel config is too long." }));
+                }
+            }
+
+            normalized.Add(new NormalizedReminder(reminder.MinutesBefore, channel, reminder.TargetRoleId, reminder.TargetUserId, channelConfig));
         }
 
         return (normalized, null);
@@ -2274,7 +2535,11 @@ public static class CalendarEndpoints
             item.LinkedEntityType,
             item.LinkedEntityId,
             item.CreatedUtc,
-            item.UpdatedUtc);
+            item.UpdatedUtc,
+            item.ItemType,
+            item.TaskState,
+            item.CompletedUtc,
+            item.TaskProgressPercent);
 
     private static byte[] HashCode(string code)
     {
@@ -2366,6 +2631,38 @@ public static class CalendarEndpoints
     {
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
         return AllowedReminderChannels.Contains(normalized) ? normalized : null;
+    }
+
+    private static string? NormalizeItemType(string? value)
+    {
+        var normalized = string.IsNullOrWhiteSpace(value) ? "appointment" : value.Trim().ToLowerInvariant();
+        return AllowedItemTypes.Contains(normalized) ? normalized : null;
+    }
+
+    private static string? NormalizeItemTypeFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return NormalizeItemType(value);
+    }
+
+    private static string? NormalizeTaskState(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return AllowedTaskStates.Contains(normalized) ? normalized : null;
+    }
+
+    private static string? NormalizeTaskStateFilter(string? value)
+    {
+        return NormalizeTaskState(value);
     }
 
     private static string? NormalizeRecurrenceType(string? value)
@@ -2556,5 +2853,6 @@ public static class CalendarEndpoints
         int MinutesBefore,
         string Channel,
         Guid? TargetRoleId,
-        Guid? TargetUserId);
+        Guid? TargetUserId,
+        string? ChannelConfigJson);
 }

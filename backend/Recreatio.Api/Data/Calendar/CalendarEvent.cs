@@ -28,6 +28,9 @@ public sealed class CalendarEvent
     [MaxLength(24)]
     public string Status { get; set; } = "planned"; // planned|confirmed|cancelled|completed
 
+    [MaxLength(24)]
+    public string ItemType { get; set; } = "appointment"; // appointment|task
+
     public DateTimeOffset StartUtc { get; set; }
 
     public DateTimeOffset EndUtc { get; set; }
@@ -51,6 +54,19 @@ public sealed class CalendarEvent
 
     [MaxLength(512)]
     public string? RecurrenceRule { get; set; }
+
+    [MaxLength(24)]
+    public string? TaskState { get; set; } // todo|doing|done|cancelled
+
+    public DateTimeOffset? CompletedUtc { get; set; }
+
+    public int? TaskProgressPercent { get; set; }
+
+    public bool RequiresCompletionProof { get; set; }
+
+    public Guid? CompletionProofDataItemId { get; set; }
+
+    public Guid? AssigneeRoleId { get; set; }
 
     public Guid? ProtectedDataItemId { get; set; }
 

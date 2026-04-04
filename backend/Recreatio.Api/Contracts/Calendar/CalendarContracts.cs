@@ -46,7 +46,8 @@ public sealed record CalendarReminderRequest(
     int MinutesBefore,
     string Channel,
     Guid? TargetRoleId,
-    Guid? TargetUserId);
+    Guid? TargetUserId,
+    string? ChannelConfigJson = null);
 
 public sealed record CalendarEventCreateRequest(
     Guid CalendarId,
@@ -75,7 +76,14 @@ public sealed record CalendarEventCreateRequest(
     string? ConflictScopeMode,
     IReadOnlyList<Guid>? ScopedRoleIds,
     IReadOnlyList<CalendarReminderRequest>? Reminders,
-    bool AllowConflicts);
+    bool AllowConflicts,
+    string ItemType = "appointment",
+    string? TaskState = null,
+    int? TaskProgressPercent = null,
+    bool RequiresCompletionProof = false,
+    string? CompletionProofJson = null,
+    Guid? AssigneeRoleId = null,
+    CalendarGraphUpsertRequest? Graph = null);
 
 public sealed record CalendarEventUpdateRequest(
     string? TitlePublic,
@@ -106,7 +114,15 @@ public sealed record CalendarEventUpdateRequest(
     IReadOnlyList<CalendarReminderRequest>? Reminders,
     bool ReplaceReminders,
     bool? IsArchived,
-    bool AllowConflicts);
+    bool AllowConflicts,
+    string? ItemType = null,
+    string? TaskState = null,
+    int? TaskProgressPercent = null,
+    bool? RequiresCompletionProof = null,
+    string? CompletionProofJson = null,
+    Guid? AssigneeRoleId = null,
+    bool UpsertGraph = false,
+    CalendarGraphUpsertRequest? Graph = null);
 
 public sealed record CalendarReminderResponse(
     Guid ReminderId,
@@ -116,7 +132,8 @@ public sealed record CalendarReminderResponse(
     Guid? TargetUserId,
     string Status,
     DateTimeOffset CreatedUtc,
-    DateTimeOffset UpdatedUtc);
+    DateTimeOffset UpdatedUtc,
+    string? ChannelConfigJson = null);
 
 public sealed record CalendarEventRoleScopeResponse(
     Guid ScopeId,
@@ -157,14 +174,31 @@ public sealed record CalendarEventResponse(
     bool CanReadProtectedDetails,
     string? ProtectedDetailsJson,
     IReadOnlyList<CalendarEventRoleScopeResponse> RoleScopes,
-    IReadOnlyList<CalendarReminderResponse> Reminders);
+    IReadOnlyList<CalendarReminderResponse> Reminders,
+    string ItemType = "appointment",
+    string? TaskState = null,
+    DateTimeOffset? CompletedUtc = null,
+    int? TaskProgressPercent = null,
+    bool RequiresCompletionProof = false,
+    Guid? CompletionProofDataItemId = null,
+    Guid? AssigneeRoleId = null,
+    CalendarGraphSummaryResponse? Graph = null);
+
+public sealed record CalendarGraphSummaryResponse(
+    Guid GraphId,
+    string TemplateKey,
+    string Status,
+    int Version,
+    DateTimeOffset UpdatedUtc);
 
 public sealed record CalendarEventOccurrenceResponse(
     Guid EventId,
     DateTimeOffset OccurrenceStartUtc,
     DateTimeOffset OccurrenceEndUtc,
     bool IsRecurringInstance,
-    CalendarEventResponse Event);
+    CalendarEventResponse Event,
+    Guid? GraphExecutionId = null,
+    string? OccurrenceSource = null);
 
 public sealed record CalendarConflictResponse(
     Guid EventId,
@@ -191,6 +225,11 @@ public sealed record CalendarEventShareLinkCreateRequest(
     string? Label,
     int? ExpiresInHours);
 
+public sealed record CalendarSharedViewCreateRequest(
+    string? Label,
+    int? ExpiresInHours,
+    string Mode = "readonly");
+
 public sealed record CalendarEventShareLinkResponse(
     Guid LinkId,
     string Code,
@@ -198,7 +237,9 @@ public sealed record CalendarEventShareLinkResponse(
     string Mode,
     DateTimeOffset CreatedUtc,
     DateTimeOffset? ExpiresUtc,
-    bool IsActive);
+    bool IsActive,
+    Guid? SharedViewId = null,
+    string? QrPayload = null);
 
 public sealed record CalendarPublicEventResponse(
     Guid EventId,
@@ -221,5 +262,117 @@ public sealed record CalendarPublicEventResponse(
     string? LinkedModule,
     string? LinkedEntityType,
     Guid? LinkedEntityId,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    string ItemType = "appointment",
+    string? TaskState = null,
+    DateTimeOffset? CompletedUtc = null,
+    int? TaskProgressPercent = null);
+
+public sealed record CalendarGraphNodeRequest(
+    Guid? NodeId,
+    string NodeType,
+    string NodeKey,
+    string? ConfigJson,
+    decimal PositionX,
+    decimal PositionY);
+
+public sealed record CalendarGraphEdgeRequest(
+    Guid? EdgeId,
+    Guid FromNodeId,
+    string? FromPort,
+    Guid ToNodeId,
+    string? ToPort,
+    string? EdgeType,
+    string? ConditionJson);
+
+public sealed record CalendarGraphUpsertRequest(
+    string TemplateKey,
+    string? TemplateConfigJson,
+    string Status,
+    IReadOnlyList<CalendarGraphNodeRequest> Nodes,
+    IReadOnlyList<CalendarGraphEdgeRequest> Edges);
+
+public sealed record CalendarGraphNodeResponse(
+    Guid NodeId,
+    string NodeType,
+    string NodeKey,
+    string ConfigJson,
+    decimal PositionX,
+    decimal PositionY);
+
+public sealed record CalendarGraphEdgeResponse(
+    Guid EdgeId,
+    Guid FromNodeId,
+    string? FromPort,
+    Guid ToNodeId,
+    string? ToPort,
+    string? EdgeType,
+    string? ConditionJson);
+
+public sealed record CalendarGraphResponse(
+    Guid GraphId,
+    Guid EventId,
+    string TemplateKey,
+    string TemplateConfigJson,
+    string Status,
+    int Version,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    IReadOnlyList<CalendarGraphNodeResponse> Nodes,
+    IReadOnlyList<CalendarGraphEdgeResponse> Edges);
+
+public sealed record CalendarGraphTemplateResponse(
+    string TemplateKey,
+    string Name,
+    string Description,
+    string Category,
+    string DefaultConfigJson,
+    IReadOnlyList<CalendarGraphNodeResponse> Nodes,
+    IReadOnlyList<CalendarGraphEdgeResponse> Edges);
+
+public sealed record CalendarGraphExecutionTriggerRequest(
+    string TriggerType,
+    string? CompletionAction,
+    string? IdempotencyKey,
+    string? TriggerPayloadJson);
+
+public sealed record CalendarGraphExecutionResponse(
+    Guid ExecutionId,
+    Guid GraphId,
+    Guid EventId,
+    string IdempotencyKey,
+    string TriggerType,
+    string Status,
+    string? TriggerPayloadJson,
+    string? ResultPayloadJson,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset StartedUtc,
+    DateTimeOffset? FinishedUtc);
+
+public sealed record CalendarTaskCompleteRequest(
+    string? CompletionProofJson,
+    string? TaskState,
+    string? TriggerPayloadJson,
+    string? IdempotencyKey);
+
+public sealed record CalendarTaskCompletionResponse(
+    Guid EventId,
+    string TaskState,
+    DateTimeOffset? CompletedUtc,
+    CalendarGraphExecutionResponse? GraphExecution);
+
+public sealed record CalendarReminderDispatchResponse(
+    Guid DispatchId,
+    Guid ReminderId,
+    Guid EventId,
+    DateTimeOffset OccurrenceStartUtc,
+    string Channel,
+    string Status,
+    int AttemptCount,
+    DateTimeOffset? NextRetryUtc,
+    DateTimeOffset? LastAttemptUtc,
+    DateTimeOffset? DeliveredUtc,
+    string? LastError,
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);

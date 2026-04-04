@@ -16,6 +16,8 @@ public sealed class CalendarEventReminder
     [MaxLength(24)]
     public string Channel { get; set; } = "inapp"; // inapp|email|sms|push|webhook
 
+    public string? ChannelConfigJson { get; set; }
+
     public Guid? TargetRoleId { get; set; }
 
     public Guid? TargetUserId { get; set; }

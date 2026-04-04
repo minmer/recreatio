@@ -25,6 +25,12 @@ IF OBJECT_ID(N'chat.ChatMessages', N'U') IS NOT NULL DROP TABLE chat.ChatMessage
 IF OBJECT_ID(N'chat.ChatConversationKeyVersions', N'U') IS NOT NULL DROP TABLE chat.ChatConversationKeyVersions;
 IF OBJECT_ID(N'chat.ChatConversationParticipants', N'U') IS NOT NULL DROP TABLE chat.ChatConversationParticipants;
 IF OBJECT_ID(N'chat.ChatConversations', N'U') IS NOT NULL DROP TABLE chat.ChatConversations;
+IF OBJECT_ID(N'calendar.CalendarReminderDispatches', N'U') IS NOT NULL DROP TABLE calendar.CalendarReminderDispatches;
+IF OBJECT_ID(N'calendar.CalendarGraphExecutions', N'U') IS NOT NULL DROP TABLE calendar.CalendarGraphExecutions;
+IF OBJECT_ID(N'calendar.CalendarScheduleGraphEdges', N'U') IS NOT NULL DROP TABLE calendar.CalendarScheduleGraphEdges;
+IF OBJECT_ID(N'calendar.CalendarScheduleGraphNodes', N'U') IS NOT NULL DROP TABLE calendar.CalendarScheduleGraphNodes;
+IF OBJECT_ID(N'calendar.CalendarScheduleGraphs', N'U') IS NOT NULL DROP TABLE calendar.CalendarScheduleGraphs;
+IF OBJECT_ID(N'calendar.CalendarSharedViewLinks', N'U') IS NOT NULL DROP TABLE calendar.CalendarSharedViewLinks;
 IF OBJECT_ID(N'calendar.CalendarEventShareLinks', N'U') IS NOT NULL DROP TABLE calendar.CalendarEventShareLinks;
 IF OBJECT_ID(N'calendar.CalendarEventReminders', N'U') IS NOT NULL DROP TABLE calendar.CalendarEventReminders;
 IF OBJECT_ID(N'calendar.CalendarEventRoleScopes', N'U') IS NOT NULL DROP TABLE calendar.CalendarEventRoleScopes;
@@ -3049,6 +3055,257 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventShareLink
 BEGIN
     CREATE INDEX IX_CalendarEventShareLinks_EventActive
         ON calendar.CalendarEventShareLinks(EventId, IsActive, RevokedUtc, ExpiresUtc);
+END
+GO
+
+-- Calendar core v1 extensions: tasks + graph scheduling + shared views + reminder dispatch
+IF COL_LENGTH('calendar.CalendarEvents', 'ItemType') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD ItemType NVARCHAR(24) NOT NULL CONSTRAINT DF_CalendarEvents_ItemType DEFAULT 'appointment';
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'TaskState') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD TaskState NVARCHAR(24) NULL;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'CompletedUtc') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD CompletedUtc DATETIMEOFFSET NULL;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'TaskProgressPercent') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD TaskProgressPercent INT NULL;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'RequiresCompletionProof') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD RequiresCompletionProof BIT NOT NULL CONSTRAINT DF_CalendarEvents_RequiresCompletionProof DEFAULT 0;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'CompletionProofDataItemId') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD CompletionProofDataItemId UNIQUEIDENTIFIER NULL;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'AssigneeRoleId') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD AssigneeRoleId UNIQUEIDENTIFIER NULL;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEventReminders', 'ChannelConfigJson') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEventReminders ADD ChannelConfigJson NVARCHAR(MAX) NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEvents_CalendarItemStart' AND object_id = OBJECT_ID('calendar.CalendarEvents'))
+BEGIN
+    CREATE INDEX IX_CalendarEvents_CalendarItemStart ON calendar.CalendarEvents(CalendarId, ItemType, StartUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEvents_CalendarTaskStateStart' AND object_id = OBJECT_ID('calendar.CalendarEvents'))
+BEGIN
+    CREATE INDEX IX_CalendarEvents_CalendarTaskStateStart ON calendar.CalendarEvents(CalendarId, ItemType, TaskState, StartUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventReminders_ChannelStatusUpdated' AND object_id = OBJECT_ID('calendar.CalendarEventReminders'))
+BEGIN
+    CREATE INDEX IX_CalendarEventReminders_ChannelStatusUpdated ON calendar.CalendarEventReminders(Channel, Status, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarScheduleGraphs' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarScheduleGraphs
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        TemplateKey NVARCHAR(64) NOT NULL,
+        TemplateConfigJson NVARCHAR(MAX) NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        Version INT NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CalendarScheduleGraphs_Event FOREIGN KEY (EventId) REFERENCES calendar.CalendarEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarScheduleGraphs_EventStatus' AND object_id = OBJECT_ID('calendar.CalendarScheduleGraphs'))
+BEGIN
+    CREATE INDEX IX_CalendarScheduleGraphs_EventStatus ON calendar.CalendarScheduleGraphs(EventId, Status);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarScheduleGraphs_EventVersion' AND object_id = OBJECT_ID('calendar.CalendarScheduleGraphs'))
+BEGIN
+    CREATE INDEX IX_CalendarScheduleGraphs_EventVersion ON calendar.CalendarScheduleGraphs(EventId, Version);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarScheduleGraphNodes' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarScheduleGraphNodes
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        NodeType NVARCHAR(64) NOT NULL,
+        NodeKey NVARCHAR(128) NOT NULL,
+        ConfigJson NVARCHAR(MAX) NOT NULL,
+        PositionX DECIMAL(9,2) NOT NULL,
+        PositionY DECIMAL(9,2) NOT NULL,
+        CONSTRAINT FK_CalendarScheduleGraphNodes_Graph FOREIGN KEY (GraphId) REFERENCES calendar.CalendarScheduleGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarScheduleGraphNodes_GraphNodeKey' AND object_id = OBJECT_ID('calendar.CalendarScheduleGraphNodes'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarScheduleGraphNodes_GraphNodeKey ON calendar.CalendarScheduleGraphNodes(GraphId, NodeKey);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarScheduleGraphEdges' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarScheduleGraphEdges
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        FromNodeId UNIQUEIDENTIFIER NOT NULL,
+        FromPort NVARCHAR(64) NULL,
+        ToNodeId UNIQUEIDENTIFIER NOT NULL,
+        ToPort NVARCHAR(64) NULL,
+        EdgeType NVARCHAR(64) NULL,
+        ConditionJson NVARCHAR(MAX) NULL,
+        CONSTRAINT FK_CalendarScheduleGraphEdges_Graph FOREIGN KEY (GraphId) REFERENCES calendar.CalendarScheduleGraphs(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarScheduleGraphEdges_Graph' AND object_id = OBJECT_ID('calendar.CalendarScheduleGraphEdges'))
+BEGIN
+    CREATE INDEX IX_CalendarScheduleGraphEdges_Graph ON calendar.CalendarScheduleGraphEdges(GraphId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarScheduleGraphEdges_GraphNodes' AND object_id = OBJECT_ID('calendar.CalendarScheduleGraphEdges'))
+BEGIN
+    CREATE INDEX IX_CalendarScheduleGraphEdges_GraphNodes ON calendar.CalendarScheduleGraphEdges(GraphId, FromNodeId, ToNodeId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarGraphExecutions' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarGraphExecutions
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        IdempotencyKey NVARCHAR(128) NOT NULL,
+        TriggerType NVARCHAR(32) NOT NULL,
+        Status NVARCHAR(24) NOT NULL,
+        TriggerPayloadJson NVARCHAR(MAX) NULL,
+        ResultPayloadJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        StartedUtc DATETIMEOFFSET NOT NULL,
+        FinishedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CalendarGraphExecutions_Graph FOREIGN KEY (GraphId) REFERENCES calendar.CalendarScheduleGraphs(Id),
+        CONSTRAINT FK_CalendarGraphExecutions_Event FOREIGN KEY (EventId) REFERENCES calendar.CalendarEvents(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarGraphExecutions_GraphCreated' AND object_id = OBJECT_ID('calendar.CalendarGraphExecutions'))
+BEGIN
+    CREATE INDEX IX_CalendarGraphExecutions_GraphCreated ON calendar.CalendarGraphExecutions(GraphId, CreatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarGraphExecutions_GraphIdempotency' AND object_id = OBJECT_ID('calendar.CalendarGraphExecutions'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarGraphExecutions_GraphIdempotency ON calendar.CalendarGraphExecutions(GraphId, IdempotencyKey);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarSharedViewLinks' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarSharedViewLinks
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        SharedViewId UNIQUEIDENTIFIER NOT NULL,
+        Label NVARCHAR(120) NOT NULL,
+        Mode NVARCHAR(24) NOT NULL,
+        IsActive BIT NOT NULL,
+        ExpiresUtc DATETIMEOFFSET NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        LastUsedUtc DATETIMEOFFSET NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CalendarSharedViewLinks_Event FOREIGN KEY (EventId) REFERENCES calendar.CalendarEvents(Id),
+        CONSTRAINT FK_CalendarSharedViewLinks_SharedView FOREIGN KEY (SharedViewId) REFERENCES dbo.SharedViews(Id),
+        CONSTRAINT FK_CalendarSharedViewLinks_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarSharedViewLinks_EventActive' AND object_id = OBJECT_ID('calendar.CalendarSharedViewLinks'))
+BEGIN
+    CREATE INDEX IX_CalendarSharedViewLinks_EventActive ON calendar.CalendarSharedViewLinks(EventId, IsActive, RevokedUtc, ExpiresUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarSharedViewLinks_SharedViewId' AND object_id = OBJECT_ID('calendar.CalendarSharedViewLinks'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarSharedViewLinks_SharedViewId ON calendar.CalendarSharedViewLinks(SharedViewId);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarReminderDispatches' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarReminderDispatches
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        ReminderId UNIQUEIDENTIFIER NOT NULL,
+        OccurrenceStartUtc DATETIMEOFFSET NOT NULL,
+        IdempotencyKey NVARCHAR(128) NOT NULL,
+        Channel NVARCHAR(24) NOT NULL,
+        Status NVARCHAR(32) NOT NULL,
+        AttemptCount INT NOT NULL,
+        NextRetryUtc DATETIMEOFFSET NULL,
+        LastAttemptUtc DATETIMEOFFSET NULL,
+        DeliveredUtc DATETIMEOFFSET NULL,
+        LastError NVARCHAR(2048) NULL,
+        DeliveryPayloadJson NVARCHAR(MAX) NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        CONSTRAINT FK_CalendarReminderDispatches_Event FOREIGN KEY (EventId) REFERENCES calendar.CalendarEvents(Id),
+        CONSTRAINT FK_CalendarReminderDispatches_Reminder FOREIGN KEY (ReminderId) REFERENCES calendar.CalendarEventReminders(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarReminderDispatches_ReminderOccurrence' AND object_id = OBJECT_ID('calendar.CalendarReminderDispatches'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarReminderDispatches_ReminderOccurrence ON calendar.CalendarReminderDispatches(ReminderId, OccurrenceStartUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarReminderDispatches_StatusRetry' AND object_id = OBJECT_ID('calendar.CalendarReminderDispatches'))
+BEGIN
+    CREATE INDEX IX_CalendarReminderDispatches_StatusRetry ON calendar.CalendarReminderDispatches(Status, NextRetryUtc, UpdatedUtc);
 END
 GO
 
