@@ -8,6 +8,7 @@ export const pl: Copy = {
     limanowa: 'Limanowa',
     cogita: 'Cogita',
     chat: 'Chat',
+    calendar: 'Kalendarz',
     faq: 'FAQ',
     legal: 'RODO i regulamin',
     login: 'Zaloguj się',
@@ -153,6 +154,28 @@ export const pl: Copy = {
     title: 'Chat REcreatio',
     subtitle: 'Jedna skrzynka rozmow dla calej platformy, takze z publicznymi linkami do pytan i odpowiedzi.',
     loginCta: 'Zaloguj sie, aby otworzyc chaty'
+  },
+  calendar: {
+    slideTitle: 'Kalendarz REcreatio',
+    slideSubtitle: 'Wspolna warstwa harmonogramu dla parafii, Cogita i kolejnych modulow opartych o role.',
+    title: 'Kalendarz REcreatio',
+    subtitle: 'Ta strona to tymczasowa podstrona w stylu chatu dla przyszlego, generycznego kalendarza.',
+    loginCta: 'Zaloguj sie, aby otworzyc przestrzen kalendarza',
+    roadmapTitle: 'Planowany zakres fundamentu',
+    examplesTitle: 'Przyklady podpiecia modulow',
+    note: 'Nastepny krok: wdrozenie rdzenia wielokrotnego uzycia z widocznoscia oparta o klucze i kalendarzami roli.',
+    items: [
+      'Widoki miesiac/tydzien/dzien/lista.',
+      'Tworzenie i edycja wydarzen, cyklicznosc, przypomnienia i statusy.',
+      'Filtrowanie, wykrywanie konfliktow oraz widocznosc publiczna i prywatna.',
+      'Dostep read-only przez SharedView i QR dla wybranych wpisow.',
+      'Pelny audyt przez ledgery Auth, Key i Business.'
+    ],
+    examples: [
+      'Intencja parafialna powiazana z MassDateTime i ChurchName.',
+      'Sesja live quizu Cogita powiazana z StartedAt i FinishedAt.',
+      'Kolejne encje domenowe podlaczane przez ten sam generyczny model linku harmonogramu.'
+    ]
   },
   cogita: {
     title: 'Portal Cogita',

@@ -8,6 +8,7 @@ export type Copy = {
     limanowa: string;
     cogita: string;
     chat: string;
+    calendar: string;
     faq: string;
     legal: string;
     login: string;
@@ -114,6 +115,18 @@ export type Copy = {
     title: string;
     subtitle: string;
     loginCta: string;
+  };
+  calendar: {
+    slideTitle: string;
+    slideSubtitle: string;
+    title: string;
+    subtitle: string;
+    loginCta: string;
+    roadmapTitle: string;
+    examplesTitle: string;
+    note: string;
+    items: string[];
+    examples: string[];
   };
   cogita: {
     title: string;

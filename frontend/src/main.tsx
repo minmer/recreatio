@@ -10,6 +10,7 @@ import './styles/portal.css';
 import './styles/auth.css';
 import './styles/responsive.css';
 import './styles/chat.css';
+import './styles/calendar.css';
 import { AuthProvider } from './lib/authContext';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

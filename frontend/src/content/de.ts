@@ -8,6 +8,7 @@ export const de: Copy = {
     limanowa: 'Limanowa',
     cogita: 'Cogita',
     chat: 'Chat',
+    calendar: 'Kalender',
     faq: 'FAQ',
     legal: 'DSGVO und Regeln',
     login: 'Anmelden',
@@ -153,6 +154,28 @@ export const de: Copy = {
     title: 'Recreatio Chat',
     subtitle: 'Ein gemeinsamer Posteingang fur alle Plattformteile inklusive offentlicher Frage-Links.',
     loginCta: 'Anmelden, um Chats zu offnen'
+  },
+  calendar: {
+    slideTitle: 'Recreatio Kalender',
+    slideSubtitle: 'Gemeinsame Terminbasis fur Pfarrei, Cogita und weitere rollenbasierte Module.',
+    title: 'Recreatio Kalender',
+    subtitle: 'Diese Seite ist ein Chat-ahnlicher Platzhalter fur das kommende generische Kalender-Backend.',
+    loginCta: 'Anmelden, um den Kalenderbereich zu offnen',
+    roadmapTitle: 'Geplanter Grundumfang',
+    examplesTitle: 'Beispiele fur Modul-Verknupfungen',
+    note: 'Nachster Schritt: wiederverwendbaren Kern mit schlusselbasiertem Zugriff und rollenbezogenen Kalendern umsetzen.',
+    items: [
+      'Monats-, Wochen-, Tages- und Listenansicht.',
+      'Termin-Erstellung, Bearbeitung, Wiederholung, Erinnerungen und Status.',
+      'Filter, Konflikterkennung sowie offentliche vs private Sichtbarkeit.',
+      'SharedView- und QR-Lesezugriffe fur ausgewahlte Eintrage.',
+      'Vollstandige Audit-Spur uber Auth-, Key- und Business-Ledger.'
+    ],
+    examples: [
+      'Pfarr-Intention verknupft mit MassDateTime und ChurchName.',
+      'Cogita Live-Session verknupft mit StartedAt und FinishedAt.',
+      'Weitere Domaneinheiten uber dasselbe generische Schedule-Link-Modell.'
+    ]
   },
   cogita: {
     title: 'Cogita Portal',

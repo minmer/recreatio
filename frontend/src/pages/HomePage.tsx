@@ -107,6 +107,13 @@ export function HomePage({
       },
       {
         id: 'section-7',
+        title: copy.calendar.slideTitle,
+        text: copy.calendar.slideSubtitle,
+        ctaLabel: copy.nav.calendar,
+        ctaAction: () => onNavigate('calendar')
+      },
+      {
+        id: 'section-8',
         title: copy.faq.title,
         text: faqText,
         ctaLabel: copy.nav.faq,
@@ -114,7 +121,7 @@ export function HomePage({
         variant: 'secondary'
       },
       {
-        id: 'section-8',
+        id: 'section-9',
         title: copy.legal.title,
         text: legalText,
         ctaLabel: copy.nav.legal,
@@ -250,6 +257,9 @@ export function HomePage({
           </a>
           <a href="/#/chat" onClick={() => setMenuOpen(false)}>
             {copy.nav.chat}
+          </a>
+          <a href="/#/calendar" onClick={() => setMenuOpen(false)}>
+            {copy.nav.calendar}
           </a>
           <a href="/#/faq" onClick={() => setMenuOpen(false)}>
             {copy.nav.faq}

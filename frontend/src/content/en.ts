@@ -8,6 +8,7 @@ export const en: Copy = {
     limanowa: 'Limanowa',
     cogita: 'Cogita',
     chat: 'Chat',
+    calendar: 'Calendar',
     faq: 'FAQ',
     legal: 'Privacy & Terms',
     login: 'Sign in',
@@ -153,6 +154,28 @@ export const en: Copy = {
     title: 'Recreatio Chat',
     subtitle: 'One inbox for all platform parts, with role conversations and public Q&A links.',
     loginCta: 'Sign in to open chats'
+  },
+  calendar: {
+    slideTitle: 'Recreatio Calendar',
+    slideSubtitle: 'Shared scheduling layer for parish, Cogita, and future role-based modules.',
+    title: 'Recreatio Calendar',
+    subtitle: 'This page is a placeholder chat-style workspace for the upcoming generic calendar foundation.',
+    loginCta: 'Sign in to open calendar workspace',
+    roadmapTitle: 'Planned foundation scope',
+    examplesTitle: 'Module linking examples',
+    note: 'Next step: implement the reusable core with secure key-based visibility and role-scoped calendars.',
+    items: [
+      'Month, week, day, and list views.',
+      'Event creation, editing, recurrence, reminders, and statuses.',
+      'Filtering, conflict detection, and public vs private visibility.',
+      'SharedView and QR read-only links for selected entries.',
+      'Full audit trail coverage via Auth, Key, and Business ledgers.'
+    ],
+    examples: [
+      'Parish intention linked to MassDateTime and ChurchName.',
+      'Cogita live session linked to StartedAt and FinishedAt.',
+      'Future domain entities attached through the same generic schedule link model.'
+    ]
   },
   cogita: {
     title: 'Cogita portal',

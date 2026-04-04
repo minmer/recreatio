@@ -25,6 +25,7 @@ public static class ApplicationBuilderExtensions
         app.MapAccountEndpoints();
         app.MapRoleEndpoints();
         app.MapChatEndpoints();
+        app.MapCalendarEndpoints();
         app.MapCogitaEndpoints();
         app.MapCogitaGameEndpoints();
         app.MapCogitaCoreEndpoints();

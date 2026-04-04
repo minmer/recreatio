@@ -24,6 +24,9 @@ const CogitaWritingRuntimePage = lazy(() =>
 );
 const ChatPage = lazy(() => import('./pages/chat/ChatPage').then((module) => ({ default: module.ChatPage })));
 const ChatPublicPage = lazy(() => import('./pages/chat/ChatPublicPage').then((module) => ({ default: module.ChatPublicPage })));
+const CalendarPage = lazy(() =>
+  import('./pages/calendar/CalendarPage').then((module) => ({ default: module.CalendarPage }))
+);
 const CogitaWorkspacePage = lazy(() =>
   import('./pages/cogita/CogitaWorkspacePage').then((module) => ({ default: module.CogitaWorkspacePage }))
 );
@@ -191,6 +194,7 @@ export default function App() {
   const isEventsPath = pathname === '/event' || pathname.startsWith('/event/');
   const isLegacyLimanowaPath = pathname === '/limanowa' || pathname.startsWith('/limanowa/');
   const isChatPath = pathname === '/chat' || pathname.startsWith('/chat/');
+  const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/');
   const isChatPublicPath = pathname.startsWith('/chat/public/');
   const isCogitaSharePath =
     pathname.startsWith('/cogita/public/revision') ||
@@ -291,6 +295,7 @@ export default function App() {
       else if (next === 'limanowa') navigate('/event/limanowa/start');
       else if (next === 'cogita') navigate('/cogita');
       else if (next === 'chat') navigate('/chat');
+      else if (next === 'calendar') navigate('/calendar');
       else if (next === 'faq') navigate('/faq');
       else if (next === 'legal') navigate('/legal');
       else if (next === 'login') navigate('/login');
@@ -673,6 +678,29 @@ export default function App() {
           />
         </Suspense>
       ) : null}
+      {isCalendarPath && (
+        <Suspense fallback={lazyFallback}>
+          <CalendarPage
+            copy={t}
+            onAuthAction={() => {
+              if (isAuthenticated) {
+                handleProtectedNavigation('account', 'calendar');
+              } else {
+                openLoginCard('calendar');
+              }
+            }}
+            authLabel={isAuthenticated ? t.nav.account : t.calendar.loginCta}
+            showProfileMenu={isAuthenticated}
+            onProfileNavigate={() => handleProtectedNavigation('account', 'calendar')}
+            onToggleSecureMode={handleToggleMode}
+            onLogout={handleLogout}
+            secureMode={secureMode}
+            onNavigate={navigateRoute}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+        </Suspense>
+      )}
       {isCogitaLiveWallLoginPath && liveWallLoginCode ? (
         <Suspense fallback={lazyFallback}>
           <CogitaLiveLoginWallPage
