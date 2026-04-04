@@ -6170,6 +6170,22 @@ export function updateCalendar(calendarId: string, payload: {
   });
 }
 
+export function bindCalendarRole(calendarId: string, payload: CalendarRoleBindingRequest) {
+  return request<CalendarRoleBindingResponse[]>(`/calendar/calendars/${calendarId}/roles`, {
+    method: 'POST',
+    body: JSON.stringify({
+      roleId: payload.roleId,
+      accessType: payload.accessType
+    })
+  });
+}
+
+export function unbindCalendarRole(calendarId: string, roleId: string) {
+  return request<CalendarRoleBindingResponse[]>(`/calendar/calendars/${calendarId}/roles/${roleId}`, {
+    method: 'DELETE'
+  });
+}
+
 export function getCalendarItem(eventId: string, includeProtected = true) {
   const params = new URLSearchParams();
   params.set('includeProtected', String(includeProtected));

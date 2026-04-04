@@ -129,7 +129,8 @@
 .calendar-detail-actions button,
 .calendar-share-panel button,
 .calendar-occurrence-row button,
-.calendar-day-card button {
+.calendar-day-card button,
+.calendar-role-link-panel button {
   border: 1px solid rgba(15, 23, 42, 0.18);
   background: #fff;
   border-radius: 10px;
@@ -245,6 +246,40 @@
   border-radius: 12px;
   padding: 10px;
   background: rgba(248, 250, 252, 0.85);
+}
+
+.calendar-role-link-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(241, 245, 249, 0.5);
+}
+
+.calendar-role-link-panel h2,
+.calendar-role-link-panel h3 {
+  margin: 0;
+}
+
+.calendar-role-link-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.calendar-role-link-panel li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-role-list-block {
+  display: grid;
+  gap: 6px;
 }
 
 .calendar-share-panel textarea,

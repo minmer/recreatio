@@ -8,11 +8,13 @@ import { AuthAction } from '../../components/AuthAction';
 import {
   ApiError,
   archiveCalendarItem,
+  bindCalendarRole,
   completeCalendarTask,
   completeCalendarTaskAndRunGraph,
   createCalendarItem,
   createCalendarShare,
   executeCalendarGraph,
+  getCalendar,
   getCalendarEvents,
   getCalendarGraph,
   getCalendarGraphExecutions,
@@ -23,6 +25,7 @@ import {
   getRoles,
   listCalendarShares,
   revokeCalendarShare,
+  unbindCalendarRole,
   upsertCalendarGraph,
   type CalendarConflictResponse,
   type CalendarEventResponse,
@@ -30,12 +33,15 @@ import {
   type CalendarGraphExecution,
   type CalendarGraphTemplate,
   type CalendarOccurrenceResponse,
-  type CalendarPublicEventResponse
+  type CalendarPublicEventResponse,
+  type CalendarRoleBindingResponse,
+  type RoleResponse
 } from '../../lib/api';
 
 type ViewMode = 'month' | 'week' | 'day' | 'list';
 
 const VIEW_MODES: ViewMode[] = ['month', 'week', 'day', 'list'];
+type CalendarAccessType = 'viewer' | 'editor' | 'manager';
 
 function parseShareCode(pathname: string): string | null {
   const segments = pathname.split('/').filter(Boolean);
@@ -95,6 +101,34 @@ function readError(error: unknown): string {
   return 'Unknown error';
 }
 
+function getRoleField(role: RoleResponse, fieldType: string): string {
+  return role.fields.find((field) => field.fieldType.toLowerCase() === fieldType.toLowerCase())?.plainValue?.trim() ?? '';
+}
+
+function getRoleKind(role: RoleResponse): string {
+  return getRoleField(role, 'role_kind').toLowerCase();
+}
+
+function getRoleLabel(role: RoleResponse): string {
+  return (
+    getRoleField(role, 'label') ||
+    getRoleField(role, 'display_name') ||
+    getRoleField(role, 'nick') ||
+    getRoleField(role, 'name') ||
+    role.roleId
+  );
+}
+
+function isPersonRoleKind(roleKind: string): boolean {
+  const kind = roleKind.trim().toLowerCase();
+  return kind === 'person' || kind.endsWith('-person');
+}
+
+function isGroupRoleKind(roleKind: string): boolean {
+  const kind = roleKind.trim().toLowerCase();
+  return kind === 'group' || kind.endsWith('-group') || kind.includes('group');
+}
+
 export function CalendarPage({
   copy,
   onAuthAction,
@@ -126,8 +160,14 @@ export function CalendarPage({
   const [error, setError] = useState<string | null>(null);
   const [publicItem, setPublicItem] = useState<CalendarPublicEventResponse | null>(null);
   const [calendars, setCalendars] = useState<Array<{ id: string; name: string }>>([]);
+  const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
+  const [calendarRoleBindings, setCalendarRoleBindings] = useState<CalendarRoleBindingResponse[]>([]);
   const [ownerRoleId, setOwnerRoleId] = useState<string | null>(null);
+  const [selectedPersonRoleId, setSelectedPersonRoleId] = useState('');
+  const [selectedGroupRoleId, setSelectedGroupRoleId] = useState('');
+  const [personAccessType, setPersonAccessType] = useState<CalendarAccessType>('editor');
+  const [groupAccessType, setGroupAccessType] = useState<CalendarAccessType>('viewer');
   const [view, setView] = useState<ViewMode>('month');
   const [anchor, setAnchor] = useState<Date>(new Date());
   const [occurrences, setOccurrences] = useState<CalendarOccurrenceResponse[]>([]);
@@ -173,6 +213,40 @@ export function CalendarPage({
     return map;
   }, [occurrences]);
 
+  const rolesById = useMemo(() => {
+    const map = new Map<string, { roleKind: string; label: string }>();
+    for (const role of roles) {
+      map.set(role.roleId, { roleKind: getRoleKind(role), label: getRoleLabel(role) });
+    }
+    return map;
+  }, [roles]);
+
+  const personRoles = useMemo(
+    () => roles
+      .filter((role) => isPersonRoleKind(getRoleKind(role)))
+      .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [roles]
+  );
+
+  const groupRoles = useMemo(
+    () => roles
+      .filter((role) => isGroupRoleKind(getRoleKind(role)))
+      .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [roles]
+  );
+
+  const linkedPersonBindings = useMemo(
+    () => calendarRoleBindings.filter((binding) => isPersonRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
+    [calendarRoleBindings, rolesById]
+  );
+
+  const linkedGroupBindings = useMemo(
+    () => calendarRoleBindings.filter((binding) => isGroupRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
+    [calendarRoleBindings, rolesById]
+  );
+
   useEffect(() => {
     if (!shareCode) {
       setPublicItem(null);
@@ -194,7 +268,12 @@ export function CalendarPage({
       .then(([calendarList, roleList, templateList]) => {
         setCalendars(calendarList.map((row) => ({ id: row.calendarId, name: row.name })));
         setCalendarId((current) => current ?? (calendarList[0]?.calendarId ?? null));
-        setOwnerRoleId((current) => current ?? (roleList[0]?.roleId ?? null));
+        setRoles(roleList);
+        const defaultPersonRoleId = roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ?? null;
+        const defaultGroupRoleId = roleList.find((role) => isGroupRoleKind(getRoleKind(role)))?.roleId ?? null;
+        setOwnerRoleId((current) => current ?? defaultPersonRoleId ?? (roleList[0]?.roleId ?? null));
+        setSelectedPersonRoleId((current) => current || defaultPersonRoleId || '');
+        setSelectedGroupRoleId((current) => current || defaultGroupRoleId || '');
         setTemplates(templateList);
         if (templateList.length > 0 && !graphTemplateKey) {
           setGraphTemplateKey(templateList[0].templateKey);
@@ -205,6 +284,17 @@ export function CalendarPage({
       })
       .catch((err) => setError(readError(err)));
   }, [showProfileMenu, shareCode, graphTemplateKey]);
+
+  useEffect(() => {
+    if (!showProfileMenu || !calendarId || shareCode) {
+      setCalendarRoleBindings([]);
+      return;
+    }
+
+    getCalendar(calendarId)
+      .then((calendar) => setCalendarRoleBindings(calendar.roleBindings ?? []))
+      .catch((err) => setError(readError(err)));
+  }, [showProfileMenu, shareCode, calendarId]);
 
   useEffect(() => {
     if (!showProfileMenu || !calendarId || shareCode) return;
@@ -321,6 +411,36 @@ export function CalendarPage({
     }
   };
 
+  const linkRoleToCalendar = async (roleId: string, accessType: CalendarAccessType) => {
+    if (!calendarId || !roleId) {
+      setError('Select a calendar and role first.');
+      return;
+    }
+
+    try {
+      const bindings = await bindCalendarRole(calendarId, { roleId, accessType });
+      setCalendarRoleBindings(bindings);
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const unlinkRoleFromCalendar = async (roleId: string) => {
+    if (!calendarId) {
+      setError('Select a calendar first.');
+      return;
+    }
+
+    try {
+      const bindings = await unbindCalendarRole(calendarId, roleId);
+      setCalendarRoleBindings(bindings);
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
   const header = (
     <header className="calendar-header">
       <a href="/#/section-1" className="calendar-brand" onClick={() => onNavigate('home')}>REcreatio</a>
@@ -396,6 +516,67 @@ export function CalendarPage({
               {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
             </select>
           </div>
+          <div className="calendar-role-link-panel">
+            <h2>Calendar role links</h2>
+            <div className="calendar-field-row">
+              <label>Person role</label>
+              <select value={selectedPersonRoleId} onChange={(event) => setSelectedPersonRoleId(event.target.value)}>
+                <option value="">select person role</option>
+                {personRoles.map((role) => (
+                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-inline-grid">
+              <select value={personAccessType} onChange={(event) => setPersonAccessType(event.target.value as CalendarAccessType)}>
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="manager">manager</option>
+              </select>
+              <button type="button" onClick={() => void linkRoleToCalendar(selectedPersonRoleId, personAccessType)}>Link person</button>
+            </div>
+            <div className="calendar-field-row">
+              <label>Group role</label>
+              <select value={selectedGroupRoleId} onChange={(event) => setSelectedGroupRoleId(event.target.value)}>
+                <option value="">select group role</option>
+                {groupRoles.map((role) => (
+                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-inline-grid">
+              <select value={groupAccessType} onChange={(event) => setGroupAccessType(event.target.value as CalendarAccessType)}>
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="manager">manager</option>
+              </select>
+              <button type="button" onClick={() => void linkRoleToCalendar(selectedGroupRoleId, groupAccessType)}>Link group</button>
+            </div>
+            <div className="calendar-role-list-block">
+              <h3>Linked persons ({linkedPersonBindings.length})</h3>
+              <ul>
+                {linkedPersonBindings.map((binding) => (
+                  <li key={binding.bindingId}>
+                    <span>{rolesById.get(binding.roleId)?.label ?? binding.roleId} / {binding.accessType}</span>
+                    <button type="button" onClick={() => void unlinkRoleFromCalendar(binding.roleId)}>Unlink</button>
+                  </li>
+                ))}
+                {linkedPersonBindings.length === 0 && <li>No person roles linked yet.</li>}
+              </ul>
+            </div>
+            <div className="calendar-role-list-block">
+              <h3>Linked groups ({linkedGroupBindings.length})</h3>
+              <ul>
+                {linkedGroupBindings.map((binding) => (
+                  <li key={binding.bindingId}>
+                    <span>{rolesById.get(binding.roleId)?.label ?? binding.roleId} / {binding.accessType}</span>
+                    <button type="button" onClick={() => void unlinkRoleFromCalendar(binding.roleId)}>Unlink</button>
+                  </li>
+                ))}
+                {linkedGroupBindings.length === 0 && <li>No group roles linked yet.</li>}
+              </ul>
+            </div>
+          </div>
           <div className="calendar-view-switch">
             {VIEW_MODES.map((mode) => (
               <button key={mode} type="button" className={view === mode ? 'is-active' : ''} onClick={() => setView(mode)}>{mode}</button>
@@ -428,6 +609,14 @@ export function CalendarPage({
           </div>
           <div className="calendar-create-form">
             <h2>Create item</h2>
+            <div className="calendar-field-row">
+              <label>Owner role</label>
+              <select value={ownerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
+                {(personRoles.length > 0 ? personRoles : roles.map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))).map((role) => (
+                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
+                ))}
+              </select>
+            </div>
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
             <textarea rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Summary" />
             <div className="calendar-inline-grid">
