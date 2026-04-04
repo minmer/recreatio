@@ -2043,12 +2043,12 @@ public static class CalendarEndpoints
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder minutes range is invalid." }));
             }
 
-            if (reminder.TargetRoleId is Guid.Empty)
+            if (reminder.TargetRoleId == Guid.Empty)
             {
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder TargetRoleId cannot be empty GUID." }));
             }
 
-            if (reminder.TargetUserId is Guid.Empty)
+            if (reminder.TargetUserId == Guid.Empty)
             {
                 return (new List<NormalizedReminder>(), Results.BadRequest(new { error = "Reminder TargetUserId cannot be empty GUID." }));
             }
@@ -2523,9 +2523,9 @@ public static class CalendarEndpoints
             calendarAccess.Context.Calendar,
             item,
             scopeSet,
-            canRead: true,
-            canWrite: calendarAccess.Context.CanWrite && (canWriteByOwner || canWriteByScope || calendarAccess.Context.CanManage),
-            canManage: canManageByOwner || calendarAccess.Context.CanManage), null);
+            CanRead: true,
+            CanWrite: calendarAccess.Context.CanWrite && (canWriteByOwner || canWriteByScope || calendarAccess.Context.CanManage),
+            CanManage: canManageByOwner || calendarAccess.Context.CanManage), null);
     }
 
     private sealed record UserContext(
