@@ -999,6 +999,24 @@ export function CogitaStoryboardRuntimePage({
 }) {
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
+  const pythonRuntimeCopy = useMemo(
+    () =>
+      language === 'pl'
+        ? {
+            resignAction: 'Rezygnuję',
+            retryHint: 'Błędna odpowiedź. Popraw kod i spróbuj ponownie albo zrezygnuj.'
+          }
+        : language === 'de'
+          ? {
+              resignAction: 'Ich gebe auf',
+              retryHint: 'Falsche Antwort. Korrigiere den Code und versuche es erneut oder gib auf.'
+            }
+          : {
+              resignAction: 'Resign',
+              retryHint: 'Wrong answer. Fix the code and try again, or resign.'
+            },
+    [language]
+  );
   const [project, setProject] = useState<CogitaCreationProject | null>(null);
   const [runtimeLibraryId, setRuntimeLibraryId] = useState<string | undefined>(libraryId);
   const [documentState, setDocumentState] = useState<StoryboardDocument | null>(null);
@@ -1700,23 +1718,39 @@ export function CogitaStoryboardRuntimePage({
       }
 
       const isCorrect = Boolean(pythonEvaluation.passed);
+      if (isCorrect) {
+        setCardState((current) => {
+          if (!current) return current;
+          if (current.nodeKey !== cardState.nodeKey) return current;
+          return {
+            ...current,
+            status: 'evaluated',
+            answerModel: normalizedAnswerModel,
+            isCorrect: true,
+            pythonEvaluation
+          };
+        });
+
+        const outcomeEdge =
+          cardRightEdge ??
+          cardPathEdge ??
+          resolveCardOutcomeEdge(runtime, currentNode, true);
+        setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
+        return;
+      }
+
       setCardState((current) => {
         if (!current) return current;
         if (current.nodeKey !== cardState.nodeKey) return current;
         return {
           ...current,
-          status: 'evaluated',
+          status: 'ready',
           answerModel: normalizedAnswerModel,
-          isCorrect,
+          isCorrect: null,
           pythonEvaluation
         };
       });
-
-      const outcomeEdge =
-        (isCorrect ? cardRightEdge : cardWrongEdge) ??
-        cardPathEdge ??
-        resolveCardOutcomeEdge(runtime, currentNode, isCorrect);
-      setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
+      setStatus(null);
       return;
     }
 
@@ -1748,6 +1782,29 @@ export function CogitaStoryboardRuntimePage({
       (isCorrect ? cardRightEdge : cardWrongEdge) ??
       cardPathEdge ??
       resolveCardOutcomeEdge(runtime, currentNode, isCorrect);
+    setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
+  };
+
+  const resignPythonAnswer = () => {
+    if (!cardState || cardState.status !== 'ready' || !runtime || !currentNode || currentNode.kind !== 'card') return;
+    const normalizedCheckType = (cardState.checkType ?? currentNode.cardCheckType ?? '').trim().toLowerCase();
+    if (normalizedCheckType !== 'python') return;
+
+    const normalizedAnswerModel = normalizeCheckcardAnswer(cardState.promptModel, cardState.answerModel);
+    setCardState((current) => {
+      if (!current || current.nodeKey !== cardState.nodeKey) return current;
+      return {
+        ...current,
+        status: 'evaluated',
+        answerModel: normalizedAnswerModel,
+        isCorrect: false
+      };
+    });
+
+    const outcomeEdge =
+      cardWrongEdge ??
+      cardPathEdge ??
+      resolveCardOutcomeEdge(runtime, currentNode, false);
     setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
   };
 
@@ -1866,10 +1923,11 @@ export function CogitaStoryboardRuntimePage({
                           promptText: cardState.promptText,
                           promptModel: cardState.promptModel
                         });
-                        const revealExpected = cardState.status === 'evaluated'
+                        const isPythonCheckcard = (cardState.checkType ?? '').trim().toLowerCase() === 'python';
+                        const revealExpected = cardState.status === 'evaluated' && !isPythonCheckcard
                           ? cardState.expectedModel
                           : undefined;
-                        const revealedAnswer = cardState.status === 'evaluated'
+                        const revealedAnswer = cardState.status === 'evaluated' && !isPythonCheckcard
                           ? toRevealedAnswer(cardState.promptModel, cardState.answerModel)
                           : undefined;
                         return (
@@ -2015,7 +2073,47 @@ export function CogitaStoryboardRuntimePage({
                         >
                           {runtimeCopy.cardSubmitAction}
                         </button>
+                        {(cardState.checkType ?? '').trim().toLowerCase() === 'python' ? (
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={resignPythonAnswer}
+                            disabled={cardState.status !== 'ready'}
+                          >
+                            {pythonRuntimeCopy.resignAction}
+                          </button>
+                        ) : null}
                       </div>
+                      {(cardState.checkType ?? '').trim().toLowerCase() === 'python' &&
+                      cardState.status === 'ready' &&
+                      cardState.pythonEvaluation &&
+                      !cardState.pythonEvaluation.passed ? (
+                        <>
+                          <p className="cogita-form-error" style={{ margin: 0 }}>
+                            {pythonRuntimeCopy.retryHint}
+                          </p>
+                          <div className="cogita-share-list" style={{ gap: '0.5rem' }}>
+                            {cardState.pythonEvaluation.failingInputJson ? (
+                              <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                <span>Failing input</span>
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(cardState.pythonEvaluation.failingInputJson)}</pre>
+                              </div>
+                            ) : null}
+                            {cardState.pythonEvaluation.userOutputJson ? (
+                              <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                <span>User output</span>
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(cardState.pythonEvaluation.userOutputJson)}</pre>
+                              </div>
+                            ) : null}
+                            {cardState.pythonEvaluation.errorMessage ? (
+                              <div className="cogita-share-row" data-state="incorrect" style={{ display: 'grid', gap: '0.35rem' }}>
+                                <span>Error</span>
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{cardState.pythonEvaluation.errorMessage}</pre>
+                              </div>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : null}
                       {cardState.status === 'evaluated' ? (
                         <>
                           <p className={cardState.isCorrect ? 'cogita-help' : 'cogita-form-error'} style={{ margin: 0 }}>

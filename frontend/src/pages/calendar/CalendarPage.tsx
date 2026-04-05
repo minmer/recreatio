@@ -11,6 +11,7 @@ import {
   bindCalendarRole,
   completeCalendarTask,
   completeCalendarTaskAndRunGraph,
+  createCalendar,
   createCalendarEventGroup,
   createCalendarEventGroupShare,
   createCalendarItem,
@@ -292,6 +293,10 @@ export function CalendarPage({
 
   const viewerRoleOptions = useMemo(
     () => roles
+      .filter((role) => {
+        const roleKind = getRoleKind(role);
+        return isPersonRoleKind(roleKind) || isGroupRoleKind(roleKind);
+      })
       .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))
       .sort((left, right) => left.label.localeCompare(right.label)),
     [roles]
@@ -341,25 +346,60 @@ export function CalendarPage({
     if (!showProfileMenu || shareRoute) return;
 
     Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()])
-      .then(([calendarList, roleList, templateList]) => {
-        setCalendars(calendarList.map((row) => ({ id: row.calendarId, name: row.name })));
-        setCalendarId((current) => current ?? (calendarList[0]?.calendarId ?? null));
+      .then(async ([calendarList, roleList, templateList]) => {
         setRoles(roleList);
         const defaultPersonRoleId = roleList.find((role) => isPersonRoleKind(getRoleKind(role)))?.roleId ?? null;
         const defaultGroupRoleId = roleList.find((role) => isGroupRoleKind(getRoleKind(role)))?.roleId ?? null;
-        setOwnerRoleId((current) => current ?? defaultPersonRoleId ?? (roleList[0]?.roleId ?? null));
+        const defaultOwnerRoleId = defaultPersonRoleId ?? defaultGroupRoleId;
+        const allowedRoleIds = new Set(
+          roleList
+            .filter((role) => {
+              const roleKind = getRoleKind(role);
+              return isPersonRoleKind(roleKind) || isGroupRoleKind(roleKind);
+            })
+            .map((role) => role.roleId)
+        );
+
+        let resolvedCalendars = calendarList;
+        if (resolvedCalendars.length === 0 && defaultOwnerRoleId) {
+          const createdCalendar = await createCalendar({
+            name: 'Calendar',
+            description: 'Auto-created default calendar',
+            ownerRoleId: defaultOwnerRoleId
+          });
+          resolvedCalendars = [createdCalendar];
+        }
+        if (resolvedCalendars.length === 0) {
+          setError('No calendar available. A person or group role is required to auto-create one.');
+        } else {
+          setError(null);
+        }
+
+        setCalendars(resolvedCalendars.map((row) => ({ id: row.calendarId, name: row.name })));
+        setCalendarId((current) => {
+          if (current && resolvedCalendars.some((calendar) => calendar.calendarId === current)) {
+            return current;
+          }
+          return resolvedCalendars[0]?.calendarId ?? null;
+        });
+        setOwnerRoleId((current) => {
+          if (current && allowedRoleIds.has(current)) {
+            return current;
+          }
+          return defaultOwnerRoleId ?? null;
+        });
         setSelectedPersonRoleId((current) => current || defaultPersonRoleId || '');
         setSelectedGroupRoleId((current) => current || defaultGroupRoleId || '');
         setTemplates(templateList);
-        if (templateList.length > 0 && !graphTemplateKey) {
-          setGraphTemplateKey(templateList[0].templateKey);
-          setGraphConfigJson(templateList[0].defaultConfigJson || '{}');
-          setGraphNodesJson(JSON.stringify(templateList[0].nodes, null, 2));
-          setGraphEdgesJson(JSON.stringify(templateList[0].edges, null, 2));
+        if (templateList.length > 0) {
+          setGraphTemplateKey((current) => current || templateList[0].templateKey);
+          setGraphConfigJson((current) => (current && current !== '{}' ? current : (templateList[0].defaultConfigJson || '{}')));
+          setGraphNodesJson((current) => (current && current !== '[]' ? current : JSON.stringify(templateList[0].nodes, null, 2)));
+          setGraphEdgesJson((current) => (current && current !== '[]' ? current : JSON.stringify(templateList[0].edges, null, 2)));
         }
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, graphTemplateKey]);
+  }, [showProfileMenu, shareRoute]);
 
   useEffect(() => {
     if (!showProfileMenu || !calendarId || shareRoute) {
@@ -769,7 +809,7 @@ export function CalendarPage({
           <h1>{copy.calendar.title}</h1>
           <div className="calendar-field-row">
             <label>Calendar</label>
-            <select value={calendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
+            <select value={effectiveCalendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
               {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
             </select>
           </div>
@@ -916,7 +956,7 @@ export function CalendarPage({
             <h2>Create item</h2>
             <div className="calendar-field-row">
               <label>Owner role</label>
-              <select value={ownerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
+              <select value={effectiveOwnerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
                 {ownerRoleOptions.map((role) => (
                   <option key={role.roleId} value={role.roleId}>{role.label}</option>
                 ))}
