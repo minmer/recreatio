@@ -755,6 +755,19 @@ public sealed record CogitaComputedSampleResponse(
     Dictionary<string, double> Values
 );
 
+public sealed record CogitaPythonEvaluateRequest(
+    string SubmissionSource
+);
+
+public sealed record CogitaPythonEvaluateResponse(
+    bool Passed,
+    string Status,
+    int CasesExecuted,
+    string? FailingInputJson,
+    string? UserOutputJson,
+    string? ErrorMessage
+);
+
 public sealed record CogitaCollectionGraphNodeRequest(
     Guid? NodeId,
     string NodeType,

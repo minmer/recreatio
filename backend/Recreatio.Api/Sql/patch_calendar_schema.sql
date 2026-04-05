@@ -490,3 +490,145 @@ BEGIN
     CREATE INDEX IX_CalendarReminderDispatches_StatusRetry ON calendar.CalendarReminderDispatches(Status, NextRetryUtc, UpdatedUtc);
 END
 GO
+
+-- Calendar core v1.1 extensions: viewer policy + reusable graphs + event groups
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarEventGroups' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarEventGroups
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        CalendarId UNIQUEIDENTIFIER NOT NULL,
+        OwnerRoleId UNIQUEIDENTIFIER NOT NULL,
+        Name NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(2000) NULL,
+        Category NVARCHAR(64) NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        UpdatedUtc DATETIMEOFFSET NOT NULL,
+        IsArchived BIT NOT NULL,
+        CONSTRAINT FK_CalendarEventGroups_Calendar FOREIGN KEY (CalendarId) REFERENCES calendar.Calendars(Id),
+        CONSTRAINT FK_CalendarEventGroups_OwnerRole FOREIGN KEY (OwnerRoleId) REFERENCES dbo.Roles(Id),
+        CONSTRAINT FK_CalendarEventGroups_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventGroups_CalendarUpdated' AND object_id = OBJECT_ID('calendar.CalendarEventGroups'))
+BEGIN
+    CREATE INDEX IX_CalendarEventGroups_CalendarUpdated ON calendar.CalendarEventGroups(CalendarId, UpdatedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventGroups_CalendarArchivedUpdated' AND object_id = OBJECT_ID('calendar.CalendarEventGroups'))
+BEGIN
+    CREATE INDEX IX_CalendarEventGroups_CalendarArchivedUpdated ON calendar.CalendarEventGroups(CalendarId, IsArchived, UpdatedUtc);
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEvents', 'EventGroupId') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEvents ADD EventGroupId UNIQUEIDENTIFIER NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.foreign_keys
+    WHERE name = 'FK_CalendarEvents_EventGroup'
+      AND parent_object_id = OBJECT_ID('calendar.CalendarEvents')
+)
+BEGIN
+    ALTER TABLE calendar.CalendarEvents
+    ADD CONSTRAINT FK_CalendarEvents_EventGroup FOREIGN KEY (EventGroupId) REFERENCES calendar.CalendarEventGroups(Id);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEvents_EventGroupStart' AND object_id = OBJECT_ID('calendar.CalendarEvents'))
+BEGIN
+    CREATE INDEX IX_CalendarEvents_EventGroupStart ON calendar.CalendarEvents(EventGroupId, StartUtc);
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEventRoleScopes', 'ViewerCanSeeTitle') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEventRoleScopes ADD ViewerCanSeeTitle BIT NOT NULL CONSTRAINT DF_CalendarEventRoleScopes_ViewerCanSeeTitle DEFAULT 1;
+END
+GO
+
+IF COL_LENGTH('calendar.CalendarEventRoleScopes', 'ViewerCanSeeGraph') IS NULL
+BEGIN
+    ALTER TABLE calendar.CalendarEventRoleScopes ADD ViewerCanSeeGraph BIT NOT NULL CONSTRAINT DF_CalendarEventRoleScopes_ViewerCanSeeGraph DEFAULT 0;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarEventGraphLinks' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarEventGraphLinks
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventId UNIQUEIDENTIFIER NOT NULL,
+        GraphId UNIQUEIDENTIFIER NOT NULL,
+        IsPrimary BIT NOT NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CalendarEventGraphLinks_Event FOREIGN KEY (EventId) REFERENCES calendar.CalendarEvents(Id),
+        CONSTRAINT FK_CalendarEventGraphLinks_Graph FOREIGN KEY (GraphId) REFERENCES calendar.CalendarScheduleGraphs(Id),
+        CONSTRAINT FK_CalendarEventGraphLinks_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventGraphLinks_EventRevoked' AND object_id = OBJECT_ID('calendar.CalendarEventGraphLinks'))
+BEGIN
+    CREATE INDEX IX_CalendarEventGraphLinks_EventRevoked ON calendar.CalendarEventGraphLinks(EventId, RevokedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventGraphLinks_GraphRevoked' AND object_id = OBJECT_ID('calendar.CalendarEventGraphLinks'))
+BEGIN
+    CREATE INDEX IX_CalendarEventGraphLinks_GraphRevoked ON calendar.CalendarEventGraphLinks(GraphId, RevokedUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarEventGraphLinks_Active' AND object_id = OBJECT_ID('calendar.CalendarEventGraphLinks'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarEventGraphLinks_Active
+        ON calendar.CalendarEventGraphLinks(EventId, GraphId)
+        WHERE RevokedUtc IS NULL;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'CalendarEventGroupShareLinks' AND schema_id = SCHEMA_ID('calendar'))
+BEGIN
+    CREATE TABLE calendar.CalendarEventGroupShareLinks
+    (
+        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+        EventGroupId UNIQUEIDENTIFIER NOT NULL,
+        SharedViewId UNIQUEIDENTIFIER NOT NULL,
+        Label NVARCHAR(120) NOT NULL,
+        Mode NVARCHAR(24) NOT NULL,
+        IsActive BIT NOT NULL,
+        ExpiresUtc DATETIMEOFFSET NULL,
+        CreatedByUserId UNIQUEIDENTIFIER NOT NULL,
+        CreatedUtc DATETIMEOFFSET NOT NULL,
+        LastUsedUtc DATETIMEOFFSET NULL,
+        RevokedUtc DATETIMEOFFSET NULL,
+        CONSTRAINT FK_CalendarEventGroupShareLinks_Group FOREIGN KEY (EventGroupId) REFERENCES calendar.CalendarEventGroups(Id),
+        CONSTRAINT FK_CalendarEventGroupShareLinks_SharedView FOREIGN KEY (SharedViewId) REFERENCES dbo.SharedViews(Id),
+        CONSTRAINT FK_CalendarEventGroupShareLinks_CreatedByUser FOREIGN KEY (CreatedByUserId) REFERENCES dbo.UserAccounts(Id)
+    );
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CalendarEventGroupShareLinks_GroupActive' AND object_id = OBJECT_ID('calendar.CalendarEventGroupShareLinks'))
+BEGIN
+    CREATE INDEX IX_CalendarEventGroupShareLinks_GroupActive ON calendar.CalendarEventGroupShareLinks(EventGroupId, IsActive, RevokedUtc, ExpiresUtc);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_CalendarEventGroupShareLinks_SharedViewId' AND object_id = OBJECT_ID('calendar.CalendarEventGroupShareLinks'))
+BEGIN
+    CREATE UNIQUE INDEX UX_CalendarEventGroupShareLinks_SharedViewId ON calendar.CalendarEventGroupShareLinks(SharedViewId);
+END
+GO

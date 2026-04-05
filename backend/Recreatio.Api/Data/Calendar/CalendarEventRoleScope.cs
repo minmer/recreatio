@@ -16,6 +16,10 @@ public sealed class CalendarEventRoleScope
     [MaxLength(24)]
     public string ScopeType { get; set; } = "owner"; // owner|participant|viewer
 
+    public bool ViewerCanSeeTitle { get; set; } = true;
+
+    public bool ViewerCanSeeGraph { get; set; }
+
     public DateTimeOffset CreatedUtc { get; set; }
 
     public DateTimeOffset? RevokedUtc { get; set; }

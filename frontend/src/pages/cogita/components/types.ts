@@ -19,6 +19,7 @@ export type CogitaInfoType =
   | 'source'
   | 'question'
   | 'computed'
+  | 'python'
   | 'citation'
   | 'vocab'
   | 'book'

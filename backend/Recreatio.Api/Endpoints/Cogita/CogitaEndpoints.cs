@@ -14,8 +14,10 @@ using Recreatio.Api.Data.Cogita;
 using Recreatio.Api.Data.Cogita.Core;
 using Recreatio.Api.Domain;
 using Recreatio.Api.Domain.Cogita;
+using Recreatio.Api.Options;
 using Recreatio.Api.Security;
 using Recreatio.Api.Services;
+using Recreatio.Api.Services.Cogita;
 
 namespace Recreatio.Api.Endpoints.Cogita;
 
@@ -25,6 +27,14 @@ public static class CogitaEndpoints
         "Database schema for Cogita revision shares is outdated. Apply backend/Recreatio.Api/Sql/patch_cogita_revision_shares_runtime_compat.sql on the API database.";
     private const string CogitaStoryboardShareSchemaError =
         "Database schema for Cogita storyboard shares is outdated. Apply backend/Recreatio.Api/Sql/schema.sql on the API database.";
+    private const string PythonDefinitionType = "python_transform_v1";
+    private const int DefaultPythonCaseCount = 5;
+    private const int DefaultPythonMaxCaseCount = 20;
+    private const double DefaultPythonNumericTolerance = 1e-9d;
+    private const int DefaultPythonCpuLimitMs = 2000;
+    private const int DefaultPythonWallLimitMs = 5000;
+    private const int DefaultPythonMemoryLimitMb = 128;
+    private const int DefaultPythonOutputLimitBytes = 65536;
 
     private static readonly HashSet<string> SupportedInfoTypes = new(CogitaTypeRegistry.SupportedInfoTypes, StringComparer.Ordinal);
 
@@ -6917,6 +6927,68 @@ public static class CogitaEndpoints
             }
         });
 
+        group.MapPost("/libraries/{libraryId:guid}/python/{infoId:guid}/evaluate", async (
+            Guid libraryId,
+            Guid infoId,
+            CogitaPythonEvaluateRequest request,
+            HttpContext context,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IPythonSandboxClient pythonSandboxClient,
+            Microsoft.Extensions.Options.IOptions<PythonSandboxOptions> pythonSandboxOptions,
+            CancellationToken ct) =>
+        {
+            if (!EndpointHelpers.TryGetUserId(context, out var userId) ||
+                !EndpointHelpers.TryGetSessionId(context, out var sessionId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var library = await dbContext.CogitaLibraries.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == libraryId, ct);
+            if (library is null)
+            {
+                return Results.NotFound();
+            }
+
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId && x.InfoType == "python", ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            RoleKeyRing keyRing;
+            try
+            {
+                keyRing = await keyRingService.BuildRoleKeyRingAsync(context, userId, sessionId, ct);
+            }
+            catch (InvalidOperationException)
+            {
+                return Results.StatusCode(StatusCodes.Status428PreconditionRequired);
+            }
+
+            if (!keyRing.TryGetReadKey(library.RoleId, out var readKey))
+            {
+                return Results.Forbid();
+            }
+
+            var response = await EvaluatePythonNotionAsync(
+                libraryId,
+                infoId,
+                request,
+                readKey,
+                dbContext,
+                keyRingService,
+                encryptionService,
+                pythonSandboxClient,
+                pythonSandboxOptions.Value,
+                ct);
+
+            return Results.Ok(response);
+        });
+
         group.MapPost("/libraries/{libraryId:guid}/revision-shares", async (
             Guid libraryId,
             CogitaRevisionShareCreateRequest request,
@@ -11141,6 +11213,11 @@ public static class CogitaEndpoints
                 return Results.NotFound();
             }
 
+            if (string.Equals(info.InfoType, "python", StringComparison.OrdinalIgnoreCase))
+            {
+                payloadJson = BuildPythonLearnerPayload(payloadJson);
+            }
+
             var linksJson = await LoadInfoLinksAsJsonAsync(share.LibraryId, info.Id, info.InfoType, dbContext, ct);
             return Results.Ok(new CogitaInfoDetailResponse(info.Id, info.InfoType, payloadJson, linksJson));
         }).AllowAnonymous();
@@ -11185,6 +11262,67 @@ public static class CogitaEndpoints
                 ct);
 
             return Results.Ok(new CogitaCardSearchBundleResponse(cards.Count, cards.Count, null, cards));
+        }).AllowAnonymous();
+
+        group.MapPost("/public/storyboard/{code}/python/{infoId:guid}/evaluate", async (
+            string code,
+            Guid infoId,
+            CogitaPythonEvaluateRequest request,
+            RecreatioDbContext dbContext,
+            IKeyRingService keyRingService,
+            IEncryptionService encryptionService,
+            IMasterKeyService masterKeyService,
+            IHashingService hashingService,
+            IPythonSandboxClient pythonSandboxClient,
+            Microsoft.Extensions.Options.IOptions<PythonSandboxOptions> pythonSandboxOptions,
+            CancellationToken ct) =>
+        {
+            var options = pythonSandboxOptions.Value;
+            if (!options.AllowPublicStoryboard)
+            {
+                var unavailableResponse = new CogitaPythonEvaluateResponse(
+                    false,
+                    "runner_unavailable",
+                    0,
+                    null,
+                    null,
+                    "Public storyboard python evaluation is disabled.");
+                return Results.Ok(unavailableResponse);
+            }
+
+            var shareContext = await TryResolveStoryboardShareAsync(
+                code,
+                dbContext,
+                encryptionService,
+                masterKeyService,
+                hashingService,
+                ct);
+            if (shareContext is null)
+            {
+                return Results.NotFound();
+            }
+
+            var (share, _, readKey) = shareContext.Value;
+            var info = await dbContext.CogitaInfos.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == share.LibraryId && x.InfoType == "python", ct);
+            if (info is null)
+            {
+                return Results.NotFound();
+            }
+
+            var response = await EvaluatePythonNotionAsync(
+                share.LibraryId,
+                infoId,
+                request,
+                readKey,
+                dbContext,
+                keyRingService,
+                encryptionService,
+                pythonSandboxClient,
+                options,
+                ct);
+
+            return Results.Ok(response);
         }).AllowAnonymous();
 
         group.MapGet("/public/storyboard/{code}/notions/{infoId:guid}/approaches/{approachKey}", async (
@@ -15202,6 +15340,487 @@ public static class CogitaEndpoints
         }
     }
 
+    private sealed record PythonNotionDefinition(
+        string CreateInputSource,
+        string ReferenceSource,
+        string StarterSource,
+        int CaseCount);
+
+    private static JsonElement SanitizePythonPayload(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return payload;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
+            if (node is null)
+            {
+                return payload;
+            }
+
+            JsonObject? definition = null;
+            if (node["definition"] is JsonObject existingDefinition)
+            {
+                definition = existingDefinition;
+            }
+            else if (node.ContainsKey("createInputSource") ||
+                     node.ContainsKey("referenceSource") ||
+                     node.ContainsKey("starterSource"))
+            {
+                definition = new JsonObject
+                {
+                    ["type"] = TryReadNodeString(node["type"])
+                };
+                if (node.TryGetPropertyValue("createInputSource", out var createInputNode))
+                {
+                    definition["createInputSource"] = createInputNode?.DeepClone();
+                }
+                if (node.TryGetPropertyValue("referenceSource", out var referenceNode))
+                {
+                    definition["referenceSource"] = referenceNode?.DeepClone();
+                }
+                if (node.TryGetPropertyValue("starterSource", out var starterNode))
+                {
+                    definition["starterSource"] = starterNode?.DeepClone();
+                }
+                if (node.TryGetPropertyValue("caseCount", out var caseCountNode))
+                {
+                    definition["caseCount"] = caseCountNode?.DeepClone();
+                }
+            }
+            else
+            {
+                definition = new JsonObject();
+            }
+
+            var createInputSource = NormalizePythonSource(
+                TryReadNodeString(definition["createInputSource"]),
+                GetDefaultCreateInputSource());
+            var referenceSource = NormalizePythonSource(
+                TryReadNodeString(definition["referenceSource"]),
+                GetDefaultReferenceSource());
+            var starterSource = NormalizePythonSource(
+                TryReadNodeString(definition["starterSource"]),
+                GetDefaultStarterSource());
+
+            var requestedCaseCount = DefaultPythonCaseCount;
+            if (TryReadNodeInt(definition["caseCount"], out var parsedCaseCount))
+            {
+                requestedCaseCount = parsedCaseCount;
+            }
+
+            requestedCaseCount = requestedCaseCount <= 0 ? DefaultPythonCaseCount : requestedCaseCount;
+
+            node["definition"] = new JsonObject
+            {
+                ["type"] = PythonDefinitionType,
+                ["createInputSource"] = createInputSource,
+                ["referenceSource"] = referenceSource,
+                ["starterSource"] = starterSource,
+                ["caseCount"] = requestedCaseCount
+            };
+
+            node.Remove("type");
+            node.Remove("createInputSource");
+            node.Remove("referenceSource");
+            node.Remove("starterSource");
+            node.Remove("caseCount");
+
+            return JsonSerializer.SerializeToElement(node);
+        }
+        catch
+        {
+            return payload;
+        }
+    }
+
+    private static JsonElement BuildPythonLearnerPayload(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            return payload;
+        }
+
+        try
+        {
+            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
+            if (node is null)
+            {
+                return payload;
+            }
+
+            if (node["definition"] is JsonObject definition)
+            {
+                definition.Remove("referenceSource");
+            }
+
+            node.Remove("referenceSource");
+            return JsonSerializer.SerializeToElement(node);
+        }
+        catch
+        {
+            return payload;
+        }
+    }
+
+    private static async Task<CogitaPythonEvaluateResponse> EvaluatePythonNotionAsync(
+        Guid libraryId,
+        Guid infoId,
+        CogitaPythonEvaluateRequest request,
+        byte[] readKey,
+        RecreatioDbContext dbContext,
+        IKeyRingService keyRingService,
+        IEncryptionService encryptionService,
+        IPythonSandboxClient pythonSandboxClient,
+        PythonSandboxOptions pythonSandboxOptions,
+        CancellationToken ct)
+    {
+        if (!pythonSandboxOptions.Enabled)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "runner_unavailable",
+                0,
+                null,
+                null,
+                "Python sandbox runner is disabled.");
+        }
+
+        var submissionSource = request.SubmissionSource ?? string.Empty;
+        if (!ContainsPythonTransformSubmission(submissionSource))
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "invalid_submission",
+                0,
+                null,
+                null,
+                "Submission must define function: def transform(x):");
+        }
+
+        var info = await dbContext.CogitaInfos.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == infoId && x.LibraryId == libraryId && x.InfoType == "python", ct);
+        if (info is null)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Python notion was not found.");
+        }
+
+        var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
+        if (payload is null)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Python notion payload is unavailable.");
+        }
+
+        var keyEntry = await dbContext.Keys.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == payload.Value.DataKeyId, ct);
+        if (keyEntry is null)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Python notion key entry is unavailable.");
+        }
+
+        byte[] dataKey;
+        try
+        {
+            dataKey = keyRingService.DecryptDataKey(keyEntry, readKey);
+        }
+        catch (CryptographicException)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Unable to decrypt python notion key.");
+        }
+
+        JsonElement payloadJson;
+        try
+        {
+            var plain = encryptionService.Decrypt(dataKey, payload.Value.EncryptedBlob, info.Id.ToByteArray());
+            using var doc = JsonDocument.Parse(plain);
+            payloadJson = doc.RootElement.Clone();
+        }
+        catch (CryptographicException)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Unable to decrypt python notion payload.");
+        }
+        catch (JsonException)
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                "Python notion payload is invalid JSON.");
+        }
+
+        if (!TryReadPythonDefinition(payloadJson, out var definition, out var definitionError))
+        {
+            return new CogitaPythonEvaluateResponse(
+                false,
+                "sandbox_error",
+                0,
+                null,
+                null,
+                definitionError ?? "Python notion definition is invalid.");
+        }
+
+        var configuredMaxCaseCount = pythonSandboxOptions.MaxCaseCount > 0
+            ? pythonSandboxOptions.MaxCaseCount
+            : DefaultPythonMaxCaseCount;
+        configuredMaxCaseCount = Math.Clamp(configuredMaxCaseCount, 1, 200);
+        var configuredDefaultCaseCount = pythonSandboxOptions.DefaultCaseCount > 0
+            ? pythonSandboxOptions.DefaultCaseCount
+            : DefaultPythonCaseCount;
+        configuredDefaultCaseCount = Math.Clamp(configuredDefaultCaseCount, 1, configuredMaxCaseCount);
+
+        var requestedCaseCount = definition.CaseCount > 0
+            ? definition.CaseCount
+            : configuredDefaultCaseCount;
+        var caseCount = Math.Clamp(requestedCaseCount, 1, configuredMaxCaseCount);
+
+        var seeds = new List<long>(caseCount);
+        for (var i = 0; i < caseCount; i++)
+        {
+            seeds.Add(BuildDeterministicPythonSeed(readKey, infoId, i));
+        }
+
+        var sandboxRequest = new PythonSandboxExecutionRequest(
+            definition.CreateInputSource,
+            definition.ReferenceSource,
+            submissionSource,
+            "transform",
+            seeds,
+            DefaultPythonNumericTolerance,
+            DefaultPythonCpuLimitMs,
+            DefaultPythonWallLimitMs,
+            DefaultPythonMemoryLimitMb,
+            DefaultPythonOutputLimitBytes);
+
+        var sandboxResponse = await pythonSandboxClient.EvaluateAsync(sandboxRequest, ct);
+        var normalizedStatus = NormalizePythonEvaluationStatus(sandboxResponse.Status, sandboxResponse.Passed);
+        var passed = normalizedStatus == "passed";
+
+        return new CogitaPythonEvaluateResponse(
+            passed,
+            normalizedStatus,
+            Math.Max(0, sandboxResponse.CasesExecuted),
+            sandboxResponse.FailingInputJson,
+            sandboxResponse.UserOutputJson,
+            sandboxResponse.ErrorMessage);
+    }
+
+    private static bool TryReadPythonDefinition(
+        JsonElement payload,
+        out PythonNotionDefinition definition,
+        out string? error)
+    {
+        definition = new PythonNotionDefinition(
+            GetDefaultCreateInputSource(),
+            GetDefaultReferenceSource(),
+            GetDefaultStarterSource(),
+            DefaultPythonCaseCount);
+        error = null;
+
+        if (payload.ValueKind != JsonValueKind.Object)
+        {
+            error = "Python notion payload must be an object.";
+            return false;
+        }
+
+        if (!payload.TryGetProperty("definition", out var definitionNode) ||
+            definitionNode.ValueKind != JsonValueKind.Object)
+        {
+            error = "Python notion payload is missing definition object.";
+            return false;
+        }
+
+        if (!definitionNode.TryGetProperty("type", out var typeNode) ||
+            typeNode.ValueKind != JsonValueKind.String ||
+            !string.Equals(typeNode.GetString(), PythonDefinitionType, StringComparison.Ordinal))
+        {
+            error = $"Python notion definition.type must be '{PythonDefinitionType}'.";
+            return false;
+        }
+
+        var createInputSource = NormalizePythonSource(
+            definitionNode.TryGetProperty("createInputSource", out var createInputNode) && createInputNode.ValueKind == JsonValueKind.String
+                ? createInputNode.GetString()
+                : null,
+            string.Empty);
+        var referenceSource = NormalizePythonSource(
+            definitionNode.TryGetProperty("referenceSource", out var referenceNode) && referenceNode.ValueKind == JsonValueKind.String
+                ? referenceNode.GetString()
+                : null,
+            string.Empty);
+        var starterSource = NormalizePythonSource(
+            definitionNode.TryGetProperty("starterSource", out var starterNode) && starterNode.ValueKind == JsonValueKind.String
+                ? starterNode.GetString()
+                : null,
+            string.Empty);
+
+        if (string.IsNullOrWhiteSpace(createInputSource))
+        {
+            error = "Python notion definition.createInputSource is required.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(referenceSource))
+        {
+            error = "Python notion definition.referenceSource is required.";
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(starterSource))
+        {
+            error = "Python notion definition.starterSource is required.";
+            return false;
+        }
+
+        var caseCount = DefaultPythonCaseCount;
+        if (definitionNode.TryGetProperty("caseCount", out var caseCountNode))
+        {
+            if (caseCountNode.ValueKind == JsonValueKind.Number && caseCountNode.TryGetInt32(out var parsedCaseCount))
+            {
+                caseCount = parsedCaseCount;
+            }
+            else if (caseCountNode.ValueKind == JsonValueKind.String &&
+                     int.TryParse(caseCountNode.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedCaseCount))
+            {
+                caseCount = parsedCaseCount;
+            }
+        }
+
+        definition = new PythonNotionDefinition(
+            createInputSource,
+            referenceSource,
+            starterSource,
+            caseCount);
+        return true;
+    }
+
+    private static long BuildDeterministicPythonSeed(byte[] hmacKey, Guid infoId, int caseIndex)
+    {
+        var seedInput = Encoding.UTF8.GetBytes($"{infoId:D}:{caseIndex.ToString(CultureInfo.InvariantCulture)}");
+        var digest = HMACSHA256.HashData(hmacKey, seedInput);
+        var seed = BitConverter.ToInt64(digest, 0);
+        if (seed == long.MinValue)
+        {
+            seed = 0;
+        }
+        seed = Math.Abs(seed);
+        if (seed == 0)
+        {
+            seed = caseIndex + 1L;
+        }
+        return seed;
+    }
+
+    private static bool ContainsPythonTransformSubmission(string source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(
+            source,
+            @"^\s*def\s+transform\s*\(\s*x\s*\)\s*:",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant);
+    }
+
+    private static string NormalizePythonEvaluationStatus(string? status, bool passed)
+    {
+        if (passed)
+        {
+            return "passed";
+        }
+
+        var normalized = (status ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "passed" => "passed",
+            "wrong_output" => "wrong_output",
+            "wrong-output" => "wrong_output",
+            "wrong" => "wrong_output",
+            "incorrect" => "wrong_output",
+            "mismatch" => "wrong_output",
+            "runtime_error" => "runtime_error",
+            "runtime-error" => "runtime_error",
+            "exception" => "runtime_error",
+            "timeout" => "timeout",
+            "timed_out" => "timeout",
+            "timed-out" => "timeout",
+            "invalid_submission" => "invalid_submission",
+            "invalid-submission" => "invalid_submission",
+            "compile_error" => "invalid_submission",
+            "compile-error" => "invalid_submission",
+            "syntax_error" => "invalid_submission",
+            "syntax-error" => "invalid_submission",
+            "runner_unavailable" => "runner_unavailable",
+            "runner-unavailable" => "runner_unavailable",
+            "unavailable" => "runner_unavailable",
+            "service_unavailable" => "runner_unavailable",
+            "service-unavailable" => "runner_unavailable",
+            "sandbox_error" => "sandbox_error",
+            "sandbox-error" => "sandbox_error",
+            _ => "sandbox_error"
+        };
+    }
+
+    private static string NormalizePythonSource(string? value, string fallback)
+    {
+        var normalized = (value ?? string.Empty).Replace("\r\n", "\n").Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return fallback;
+        }
+
+        return normalized;
+    }
+
+    private static string GetDefaultCreateInputSource()
+    {
+        return "def create_input(seed):\n    return seed";
+    }
+
+    private static string GetDefaultReferenceSource()
+    {
+        return "def reference(x):\n    return x";
+    }
+
+    private static string GetDefaultStarterSource()
+    {
+        return "def transform(x):\n    return x";
+    }
+
     private static void SanitizeQuestionDefinition(JsonObject definition)
     {
         var rawType = TryReadNodeString(definition["type"]) ?? TryReadNodeString(definition["kind"]) ?? "selection";
@@ -16023,6 +16642,11 @@ public static class CogitaEndpoints
             return SanitizeQuestionPayload(payload);
         }
 
+        if (infoType == "python")
+        {
+            return SanitizePythonPayload(payload);
+        }
+
         if (payload.ValueKind != JsonValueKind.Object)
         {
             return payload;
@@ -16154,19 +16778,19 @@ public static class CogitaEndpoints
             return contentJson;
         }
 
-        var questionInfos = await dbContext.CogitaInfos.AsNoTracking()
+        var publicPayloadInfos = await dbContext.CogitaInfos.AsNoTracking()
             .Where(x =>
                 x.LibraryId == libraryId &&
-                x.InfoType == "question" &&
+                (x.InfoType == "question" || x.InfoType == "python") &&
                 notionIds.Contains(x.Id))
             .ToListAsync(ct);
-        if (questionInfos.Count == 0)
+        if (publicPayloadInfos.Count == 0)
         {
             return contentJson;
         }
 
         var payloadLookup = new Dictionary<Guid, (Guid DataKeyId, byte[] EncryptedBlob)>();
-        foreach (var info in questionInfos)
+        foreach (var info in publicPayloadInfos)
         {
             var payload = await LoadInfoPayloadAsync(info, dbContext, ct);
             if (payload is null)
@@ -16191,7 +16815,7 @@ public static class CogitaEndpoints
             .ToDictionaryAsync(x => x.Id, ct);
 
         var notionPayloadsNode = new JsonObject();
-        foreach (var info in questionInfos)
+        foreach (var info in publicPayloadInfos)
         {
             if (!payloadLookup.TryGetValue(info.Id, out var payload) ||
                 !keyEntryById.TryGetValue(payload.DataKeyId, out var keyEntry))
@@ -16212,7 +16836,14 @@ public static class CogitaEndpoints
             try
             {
                 var plain = encryptionService.Decrypt(dataKey, payload.EncryptedBlob, info.Id.ToByteArray());
-                notionPayloadsNode[info.Id.ToString("D")] = JsonNode.Parse(plain);
+                using var payloadDoc = JsonDocument.Parse(plain);
+                var payloadJson = payloadDoc.RootElement.Clone();
+                if (string.Equals(info.InfoType, "python", StringComparison.OrdinalIgnoreCase))
+                {
+                    payloadJson = BuildPythonLearnerPayload(payloadJson);
+                }
+
+                notionPayloadsNode[info.Id.ToString("D")] = JsonNode.Parse(payloadJson.GetRawText());
             }
             catch (CryptographicException)
             {
@@ -16453,6 +17084,14 @@ public static class CogitaEndpoints
             case "question":
                 {
                     var row = await dbContext.CogitaQuestions.AsNoTracking()
+                        .Where(x => x.InfoId == info.Id)
+                        .Select(x => new { x.DataKeyId, x.EncryptedBlob })
+                        .FirstOrDefaultAsync(ct);
+                    return row is null ? null : (row.DataKeyId, row.EncryptedBlob);
+                }
+            case "python":
+                {
+                    var row = await dbContext.CogitaPythonInfos.AsNoTracking()
                         .Where(x => x.InfoId == info.Id)
                         .Select(x => new { x.DataKeyId, x.EncryptedBlob })
                         .FirstOrDefaultAsync(ct);
@@ -17719,6 +18358,9 @@ public static class CogitaEndpoints
             case "question":
                 dbContext.CogitaQuestions.Add(new CogitaQuestion { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
+            case "python":
+                dbContext.CogitaPythonInfos.Add(new CogitaPythonInfo { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
+                break;
             case "language":
                 dbContext.CogitaLanguages.Add(new CogitaLanguage { InfoId = infoId, DataKeyId = dataKeyId, EncryptedBlob = encrypted, CreatedUtc = now, UpdatedUtc = now });
                 break;
@@ -17806,6 +18448,15 @@ public static class CogitaEndpoints
             case "question":
                 {
                     var row = dbContext.CogitaQuestions.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    row.DataKeyId = dataKeyId;
+                    row.EncryptedBlob = encrypted;
+                    row.UpdatedUtc = now;
+                    return true;
+                }
+            case "python":
+                {
+                    var row = dbContext.CogitaPythonInfos.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     row.DataKeyId = dataKeyId;
                     row.EncryptedBlob = encrypted;
@@ -18012,6 +18663,13 @@ public static class CogitaEndpoints
                     var row = dbContext.CogitaQuestions.FirstOrDefault(x => x.InfoId == infoId);
                     if (row is null) return false;
                     dbContext.CogitaQuestions.Remove(row);
+                    return true;
+                }
+            case "python":
+                {
+                    var row = dbContext.CogitaPythonInfos.FirstOrDefault(x => x.InfoId == infoId);
+                    if (row is null) return false;
+                    dbContext.CogitaPythonInfos.Remove(row);
                     return true;
                 }
             case "language":
@@ -20724,6 +21382,20 @@ public static class CogitaEndpoints
             return new List<CogitaCardSearchResponse>
             {
                 new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "computed", null)
+            };
+        }
+
+        if (string.Equals(infoType, "python", StringComparison.OrdinalIgnoreCase))
+        {
+            JsonElement? learnerPayload = null;
+            if (payload.HasValue)
+            {
+                learnerPayload = BuildPythonLearnerPayload(payload.Value);
+            }
+
+            return new List<CogitaCardSearchResponse>
+            {
+                new CogitaCardSearchResponse(infoId, "info", label, description, infoType, "python", null, learnerPayload)
             };
         }
 

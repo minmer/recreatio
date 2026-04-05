@@ -15,6 +15,7 @@ export type RuntimeCheckcardPromptKind =
 export type RuntimeCheckcardPromptModel = {
   kind: RuntimeCheckcardPromptKind;
   inputType?: 'text' | 'number' | 'date';
+  multiLine?: boolean;
   options?: string[];
   columns?: string[][];
   allowMultiple?: boolean;

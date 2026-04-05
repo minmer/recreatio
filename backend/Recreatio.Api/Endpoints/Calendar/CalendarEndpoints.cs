@@ -784,22 +784,51 @@ public static partial class CalendarEndpoints
             }
 
             var conflictScopeMode = NormalizeConflictScopeMode(request.ConflictScopeMode) ?? "role";
-            var scopeRoleIds = (request.ScopedRoleIds ?? Array.Empty<Guid>())
+            var participantRoleIds = (request.ScopedRoleIds ?? Array.Empty<Guid>())
                 .Where(roleId => roleId != Guid.Empty)
                 .Append(request.OwnerRoleId)
                 .Distinct()
                 .ToList();
 
-            if (scopeRoleIds.Count == 0)
+            if (participantRoleIds.Count == 0)
             {
                 return Results.BadRequest(new { error = "At least one scoped role is required." });
             }
 
+            var normalizedViewerScopes = NormalizeViewerScopeRequests(request.ViewerScopes);
+            if (normalizedViewerScopes.Error is not null)
+            {
+                return normalizedViewerScopes.Error;
+            }
+
+            if (request.EventGroupId == Guid.Empty)
+            {
+                return Results.BadRequest(new { error = "EventGroupId cannot be empty GUID." });
+            }
+
+            if (request.EventGroupId is not null)
+            {
+                var eventGroupExists = await dbContext.CalendarEventGroups.AsNoTracking()
+                    .AnyAsync(group =>
+                        group.Id == request.EventGroupId.Value &&
+                        group.CalendarId == request.CalendarId &&
+                        !group.IsArchived,
+                        ct);
+                if (!eventGroupExists)
+                {
+                    return Results.BadRequest(new { error = "Event group does not exist in this calendar." });
+                }
+            }
+
+            var roleIdsToValidate = participantRoleIds
+                .Concat(normalizedViewerScopes.Viewers.Select(viewer => viewer.RoleId))
+                .Distinct()
+                .ToList();
             var rolesExist = await dbContext.Roles.AsNoTracking()
-                .Where(role => scopeRoleIds.Contains(role.Id))
+                .Where(role => roleIdsToValidate.Contains(role.Id))
                 .Select(role => role.Id)
                 .ToListAsync(ct);
-            if (rolesExist.Count != scopeRoleIds.Count)
+            if (rolesExist.Count != roleIdsToValidate.Count)
             {
                 return Results.BadRequest(new { error = "One or more scoped roles do not exist." });
             }
@@ -809,7 +838,7 @@ public static partial class CalendarEndpoints
                 request.CalendarId,
                 request.StartUtc,
                 request.EndUtc,
-                scopeRoleIds,
+                participantRoleIds,
                 ignoreEventId: null,
                 ct);
 
@@ -823,6 +852,7 @@ public static partial class CalendarEndpoints
             {
                 Id = Guid.NewGuid(),
                 CalendarId = request.CalendarId,
+                EventGroupId = request.EventGroupId,
                 OwnerRoleId = request.OwnerRoleId,
                 TitlePublic = title,
                 SummaryPublic = summary,
@@ -894,15 +924,32 @@ public static partial class CalendarEndpoints
             }
 
             dbContext.CalendarEvents.Add(item);
-            dbContext.CalendarEventRoleScopes.AddRange(scopeRoleIds.Select(roleId => new CalendarEventRoleScope
+            dbContext.CalendarEventRoleScopes.AddRange(participantRoleIds.Select(roleId => new CalendarEventRoleScope
             {
                 Id = Guid.NewGuid(),
                 EventId = item.Id,
                 RoleId = roleId,
                 ScopeType = roleId == item.OwnerRoleId ? "owner" : "participant",
+                ViewerCanSeeTitle = true,
+                ViewerCanSeeGraph = false,
                 CreatedUtc = now,
                 RevokedUtc = null
             }));
+
+            var participantScopeSet = participantRoleIds.ToHashSet();
+            dbContext.CalendarEventRoleScopes.AddRange(normalizedViewerScopes.Viewers
+                .Where(viewer => !participantScopeSet.Contains(viewer.RoleId))
+                .Select(viewer => new CalendarEventRoleScope
+                {
+                    Id = Guid.NewGuid(),
+                    EventId = item.Id,
+                    RoleId = viewer.RoleId,
+                    ScopeType = "viewer",
+                    ViewerCanSeeTitle = viewer.CanSeeTitle,
+                    ViewerCanSeeGraph = viewer.CanSeeGraph,
+                    CreatedUtc = now,
+                    RevokedUtc = null
+                }));
 
             var reminderEntities = NormalizeReminderRequests(request.Reminders);
             if (reminderEntities.Error is not null)
@@ -1281,6 +1328,31 @@ public static partial class CalendarEndpoints
                 changed = true;
             }
 
+            if (request.EventGroupId == Guid.Empty)
+            {
+                item.EventGroupId = null;
+                changed = true;
+            }
+            else if (request.EventGroupId is not null)
+            {
+                var eventGroupExists = await dbContext.CalendarEventGroups.AsNoTracking()
+                    .AnyAsync(group =>
+                        group.Id == request.EventGroupId.Value &&
+                        group.CalendarId == item.CalendarId &&
+                        !group.IsArchived,
+                        ct);
+                if (!eventGroupExists)
+                {
+                    return Results.BadRequest(new { error = "Event group does not exist in this calendar." });
+                }
+
+                if (item.EventGroupId != request.EventGroupId)
+                {
+                    item.EventGroupId = request.EventGroupId;
+                    changed = true;
+                }
+            }
+
             if (request.SourceFieldStart is not null)
             {
                 var sourceFieldStart = NormalizeNullable(request.SourceFieldStart, MaxSourceFieldLength);
@@ -1392,7 +1464,10 @@ public static partial class CalendarEndpoints
                 }
 
                 var currentScopes = await dbContext.CalendarEventRoleScopes
-                    .Where(scope => scope.EventId == item.Id && scope.RevokedUtc == null)
+                    .Where(scope =>
+                        scope.EventId == item.Id &&
+                        scope.RevokedUtc == null &&
+                        scope.ScopeType != "viewer")
                     .ToListAsync(ct);
                 foreach (var scope in currentScopes)
                 {
@@ -1405,9 +1480,75 @@ public static partial class CalendarEndpoints
                     EventId = item.Id,
                     RoleId = roleId,
                     ScopeType = roleId == item.OwnerRoleId ? "owner" : "participant",
+                    ViewerCanSeeTitle = true,
+                    ViewerCanSeeGraph = false,
                     CreatedUtc = DateTimeOffset.UtcNow,
                     RevokedUtc = null
                 }));
+                changed = true;
+            }
+
+            var normalizedViewerScopes = NormalizeViewerScopeRequests(request.ViewerScopes);
+            if (normalizedViewerScopes.Error is not null)
+            {
+                return normalizedViewerScopes.Error;
+            }
+
+            if (request.ReplaceViewerScopes)
+            {
+                var viewerRoleIds = normalizedViewerScopes.Viewers
+                    .Select(viewer => viewer.RoleId)
+                    .Where(roleId => roleId != Guid.Empty)
+                    .Distinct()
+                    .ToList();
+                if (viewerRoleIds.Count > 0)
+                {
+                    var existingViewerRoles = await dbContext.Roles.AsNoTracking()
+                        .Where(role => viewerRoleIds.Contains(role.Id))
+                        .Select(role => role.Id)
+                        .ToListAsync(ct);
+                    if (existingViewerRoles.Count != viewerRoleIds.Count)
+                    {
+                        return Results.BadRequest(new { error = "One or more viewer roles do not exist." });
+                    }
+                }
+
+                var currentViewers = await dbContext.CalendarEventRoleScopes
+                    .Where(scope =>
+                        scope.EventId == item.Id &&
+                        scope.RevokedUtc == null &&
+                        scope.ScopeType == "viewer")
+                    .ToListAsync(ct);
+                foreach (var viewer in currentViewers)
+                {
+                    viewer.RevokedUtc = DateTimeOffset.UtcNow;
+                }
+
+                var participantRolesForFilter = updatedScopeRoleIds.Count > 0
+                    ? updatedScopeRoleIds.ToHashSet()
+                    : (await dbContext.CalendarEventRoleScopes.AsNoTracking()
+                        .Where(scope =>
+                            scope.EventId == item.Id &&
+                            scope.RevokedUtc == null &&
+                            scope.ScopeType != "viewer")
+                        .Select(scope => scope.RoleId)
+                        .Distinct()
+                        .ToListAsync(ct)).ToHashSet();
+
+                dbContext.CalendarEventRoleScopes.AddRange(normalizedViewerScopes.Viewers
+                    .Where(viewer => !participantRolesForFilter.Contains(viewer.RoleId))
+                    .Select(viewer => new CalendarEventRoleScope
+                    {
+                        Id = Guid.NewGuid(),
+                        EventId = item.Id,
+                        RoleId = viewer.RoleId,
+                        ScopeType = "viewer",
+                        ViewerCanSeeTitle = viewer.CanSeeTitle,
+                        ViewerCanSeeGraph = viewer.CanSeeGraph,
+                        CreatedUtc = DateTimeOffset.UtcNow,
+                        RevokedUtc = null
+                    }));
+
                 changed = true;
             }
 
@@ -1454,7 +1595,7 @@ public static partial class CalendarEndpoints
             if (scopesForConflict.Count == 0)
             {
                 scopesForConflict = await dbContext.CalendarEventRoleScopes.AsNoTracking()
-                    .Where(scope => scope.EventId == item.Id && scope.RevokedUtc == null)
+                    .Where(scope => scope.EventId == item.Id && scope.RevokedUtc == null && scope.ScopeType != "viewer")
                     .Select(scope => scope.RoleId)
                     .ToListAsync(ct);
             }
@@ -1642,7 +1783,11 @@ public static partial class CalendarEndpoints
                     item.StartUtc < range.ToUtc &&
                     (item.EndUtc > range.FromUtc ||
                      item.RecurrenceType != "none" ||
-                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active")));
+                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
+                     dbContext.CalendarEventGraphLinks.Any(link =>
+                         link.EventId == item.Id &&
+                         link.RevokedUtc == null &&
+                         dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
 
             if (!(includeArchived ?? false))
             {
@@ -1695,6 +1840,10 @@ public static partial class CalendarEndpoints
                 .ToListAsync(ct);
             var scopeByEvent = scopes.GroupBy(scope => scope.EventId)
                 .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
+            var conflictScopeByEvent = scopes
+                .Where(scope => scope.ScopeType != "viewer")
+                .GroupBy(scope => scope.EventId)
+                .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
 
             var visibleItems = items.Where(item =>
                 CanReadEventByVisibility(
@@ -1730,7 +1879,7 @@ public static partial class CalendarEndpoints
                 .Take(3000)
                 .ToList();
 
-            var conflicts = BuildOccurrenceConflicts(responses, scopeByEvent);
+            var conflicts = BuildOccurrenceConflicts(responses, conflictScopeByEvent);
             return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, responses, conflicts));
         });
 
@@ -1865,6 +2014,7 @@ public static partial class CalendarEndpoints
         });
 
         MapCalendarAdvancedEndpoints(auth, group);
+        MapCalendarGroupAndViewerEndpoints(auth, group);
 
         group.MapGet("/calendars/{calendarId:guid}/public/events", async (
             Guid calendarId,
@@ -1890,7 +2040,11 @@ public static partial class CalendarEndpoints
                     item.StartUtc < range.ToUtc &&
                     (item.EndUtc > range.FromUtc ||
                      item.RecurrenceType != "none" ||
-                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active")));
+                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
+                     dbContext.CalendarEventGraphLinks.Any(link =>
+                         link.EventId == item.Id &&
+                         link.RevokedUtc == null &&
+                         dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
 
             if (!string.IsNullOrWhiteSpace(normalizedStatus))
             {
@@ -2003,20 +2157,67 @@ public static partial class CalendarEndpoints
             .OrderBy(reminder => reminder.MinutesBefore)
             .ThenBy(reminder => reminder.CreatedUtc)
             .ToListAsync(ct);
-        var graph = await dbContext.CalendarScheduleGraphs.AsNoTracking()
-            .Where(entry => entry.EventId == item.Id && entry.Status != "archived")
-            .OrderByDescending(entry => entry.Version)
+        var linkedGraphId = await dbContext.CalendarEventGraphLinks.AsNoTracking()
+            .Where(entry => entry.EventId == item.Id && entry.RevokedUtc == null)
+            .OrderByDescending(entry => entry.IsPrimary)
+            .ThenByDescending(entry => entry.CreatedUtc)
+            .Select(entry => (Guid?)entry.GraphId)
             .FirstOrDefaultAsync(ct);
+        var graph = linkedGraphId is not null
+            ? await dbContext.CalendarScheduleGraphs.AsNoTracking()
+                .FirstOrDefaultAsync(entry => entry.Id == linkedGraphId.Value && entry.Status != "archived", ct)
+            : await dbContext.CalendarScheduleGraphs.AsNoTracking()
+                .Where(entry => entry.EventId == item.Id && entry.Status != "archived")
+                .OrderByDescending(entry => entry.Version)
+                .FirstOrDefaultAsync(ct);
+        var eventGroup = item.EventGroupId is null
+            ? null
+            : await dbContext.CalendarEventGroups.AsNoTracking()
+                .FirstOrDefaultAsync(entry => entry.Id == item.EventGroupId.Value, ct);
 
         var protectedResult = await ResolveProtectedDataAsync(item, user, dbContext, keyRingService, includeProtected, ct);
+        var activeScopes = scopes.Where(scope => scope.RevokedUtc == null).ToList();
+        var matchedScopes = activeScopes
+            .Where(scope => user.ReadRoleIds.Contains(scope.RoleId))
+            .ToList();
+
+        var hasOwnerOrParticipantAccess =
+            user.OwnerRoleIds.Contains(item.OwnerRoleId) ||
+            user.WriteRoleIds.Contains(item.OwnerRoleId) ||
+            matchedScopes.Any(scope => scope.ScopeType is "owner" or "participant");
+
+        var canSeeTitle = true;
+        var canSeeGraph = true;
+        if (!hasOwnerOrParticipantAccess)
+        {
+            var viewerScopes = matchedScopes
+                .Where(scope => scope.ScopeType == "viewer")
+                .ToList();
+            if (viewerScopes.Count > 0)
+            {
+                canSeeTitle = viewerScopes.Any(scope => scope.ViewerCanSeeTitle);
+                canSeeGraph = viewerScopes.Any(scope => scope.ViewerCanSeeGraph);
+            }
+            else if (item.Visibility == "public")
+            {
+                canSeeTitle = true;
+                canSeeGraph = false;
+            }
+        }
+
+        var titlePublic = canSeeTitle ? item.TitlePublic : "Appointment";
+        var summaryPublic = canSeeTitle ? item.SummaryPublic : null;
+        var locationPublic = canSeeTitle ? item.LocationPublic : null;
 
         return new CalendarEventResponse(
             item.Id,
             item.CalendarId,
+            item.EventGroupId,
+            eventGroup?.Name,
             item.OwnerRoleId,
-            item.TitlePublic,
-            item.SummaryPublic,
-            item.LocationPublic,
+            titlePublic,
+            summaryPublic,
+            locationPublic,
             item.Visibility,
             item.Status,
             item.StartUtc,
@@ -2045,6 +2246,8 @@ public static partial class CalendarEndpoints
                 scope.Id,
                 scope.RoleId,
                 scope.ScopeType,
+                scope.ViewerCanSeeTitle,
+                scope.ViewerCanSeeGraph,
                 scope.CreatedUtc,
                 scope.RevokedUtc)).ToList(),
             Reminders: reminders.Select(reminder => new CalendarReminderResponse(
@@ -2064,7 +2267,7 @@ public static partial class CalendarEndpoints
             RequiresCompletionProof: item.RequiresCompletionProof,
             CompletionProofDataItemId: item.CompletionProofDataItemId,
             AssigneeRoleId: item.AssigneeRoleId,
-            Graph: graph is null
+            Graph: graph is null || !canSeeGraph
                 ? null
                 : new CalendarGraphSummaryResponse(
                     graph.Id,
@@ -2320,6 +2523,33 @@ public static partial class CalendarEndpoints
         return (normalized, null);
     }
 
+    private static (List<NormalizedViewerScope> Viewers, IResult? Error) NormalizeViewerScopeRequests(IReadOnlyList<CalendarViewerScopeRequest>? viewers)
+    {
+        var normalized = new List<NormalizedViewerScope>();
+        foreach (var viewer in viewers ?? Array.Empty<CalendarViewerScopeRequest>())
+        {
+            if (viewer.RoleId == Guid.Empty)
+            {
+                return (new List<NormalizedViewerScope>(), Results.BadRequest(new { error = "Viewer role id cannot be empty GUID." }));
+            }
+
+            normalized.Add(new NormalizedViewerScope(
+                viewer.RoleId,
+                viewer.CanSeeTitle,
+                viewer.CanSeeGraph));
+        }
+
+        var deduped = normalized
+            .GroupBy(viewer => viewer.RoleId)
+            .Select(grouping => new NormalizedViewerScope(
+                grouping.Key,
+                grouping.Any(item => item.CanSeeTitle),
+                grouping.Any(item => item.CanSeeGraph)))
+            .ToList();
+
+        return (deduped, null);
+    }
+
     private static async Task<List<CalendarConflictResponse>> FindConflictsAsync(
         RecreatioDbContext dbContext,
         Guid calendarId,
@@ -2354,7 +2584,10 @@ public static partial class CalendarEndpoints
 
         var candidateIds = candidates.Select(item => item.Id).ToList();
         var scopes = await dbContext.CalendarEventRoleScopes.AsNoTracking()
-            .Where(scope => candidateIds.Contains(scope.EventId) && scope.RevokedUtc == null)
+            .Where(scope =>
+                candidateIds.Contains(scope.EventId) &&
+                scope.RevokedUtc == null &&
+                scope.ScopeType != "viewer")
             .ToListAsync(ct);
 
         var scopeByEvent = scopes
@@ -2444,9 +2677,14 @@ public static partial class CalendarEndpoints
             return true;
         }
 
-        if (scopeRoleIds.Count == 0)
+        if (userRoleIds.Contains(item.OwnerRoleId))
         {
             return true;
+        }
+
+        if (scopeRoleIds.Count == 0)
+        {
+            return false;
         }
 
         return scopeRoleIds.Any(userRoleIds.Contains);
@@ -2797,29 +3035,43 @@ public static partial class CalendarEndpoints
             return (null, calendarAccess.Error);
         }
 
-        var scopeRoleIds = await dbContext.CalendarEventRoleScopes.AsNoTracking()
+        var scopes = await dbContext.CalendarEventRoleScopes.AsNoTracking()
             .Where(scope => scope.EventId == eventId && scope.RevokedUtc == null)
-            .Select(scope => scope.RoleId)
-            .Distinct()
             .ToListAsync(ct);
 
         var user = calendarAccess.Context!.User;
-        var scopeSet = scopeRoleIds.ToHashSet();
-        var readAllowedByScope = item.Visibility == "public" || scopeSet.Count == 0 || scopeSet.Any(user.ReadRoleIds.Contains);
+        var scopeSet = scopes.Select(scope => scope.RoleId).Distinct().ToHashSet();
+        var participantScopeSet = scopes
+            .Where(scope => scope.ScopeType != "viewer")
+            .Select(scope => scope.RoleId)
+            .Distinct()
+            .ToHashSet();
+        if (participantScopeSet.Count == 0)
+        {
+            participantScopeSet.Add(item.OwnerRoleId);
+        }
+
+        var canReadByOwnerRole = user.ReadRoleIds.Contains(item.OwnerRoleId);
+        var canReadByScope = scopeSet.Any(user.ReadRoleIds.Contains);
+        var readAllowedByScope =
+            item.Visibility == "public" ||
+            canReadByOwnerRole ||
+            canReadByScope ||
+            calendarAccess.Context.CanManage;
         if (!readAllowedByScope)
         {
             return (null, Results.Forbid());
         }
 
         var canWriteByOwner = user.WriteRoleIds.Contains(item.OwnerRoleId) || user.OwnerRoleIds.Contains(item.OwnerRoleId);
-        var canWriteByScope = scopeSet.Any(user.WriteRoleIds.Contains);
+        var canWriteByScope = scopes.Any(scope => scope.ScopeType != "viewer" && user.WriteRoleIds.Contains(scope.RoleId));
         var canManageByOwner = user.OwnerRoleIds.Contains(item.OwnerRoleId);
 
         return (new EventAccessContext(
             user,
             calendarAccess.Context.Calendar,
             item,
-            scopeSet,
+            participantScopeSet,
             CanRead: true,
             CanWrite: calendarAccess.Context.CanWrite && (canWriteByOwner || canWriteByScope || calendarAccess.Context.CanManage),
             CanManage: canManageByOwner || calendarAccess.Context.CanManage), null);
@@ -2855,4 +3107,9 @@ public static partial class CalendarEndpoints
         Guid? TargetRoleId,
         Guid? TargetUserId,
         string? ChannelConfigJson);
+
+    private sealed record NormalizedViewerScope(
+        Guid RoleId,
+        bool CanSeeTitle,
+        bool CanSeeGraph);
 }

@@ -8,6 +8,7 @@ export type LivePrompt = Record<string, unknown> & {
   options?: string[];
   multiple?: boolean;
   inputType?: string;
+  multiLine?: boolean;
   columns?: string[][];
   before?: string;
   after?: string;
@@ -264,7 +265,21 @@ export function CogitaLivePromptCard({
             </div>
           </div>
         ) : (
-          sharedInput(String(prompt.inputType ?? 'text'), answers?.text ?? '', onTextChange)
+          prompt.multiLine ? (
+            <label className="cogita-field">
+              <span>{copy.answerLabel}</span>
+              <textarea
+                rows={10}
+                value={answers?.text ?? ''}
+                onChange={(event) => onTextChange?.(event.target.value)}
+                readOnly={mode === 'readonly' || isRevealed}
+                placeholder={copy.participantAnswerPlaceholder}
+                spellCheck={false}
+              />
+            </label>
+          ) : (
+            sharedInput(String(prompt.inputType ?? 'text'), answers?.text ?? '', onTextChange)
+          )
         )}
       </>
     );

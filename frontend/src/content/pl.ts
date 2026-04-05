@@ -696,7 +696,8 @@ export const pl: Copy = {
         source: 'Źródło',
         question: 'Pytanie',
         quote: 'Cytat',
-        computed: 'Obliczane'
+        computed: 'Obliczane',
+        python: 'Wyzwanie Python'
       },
       connectionTypes: {
         wordLanguage: 'Słowo - język',

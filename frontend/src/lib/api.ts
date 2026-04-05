@@ -1189,6 +1189,23 @@ export type CogitaComputedSample = {
   variableValues?: Record<string, string>;
 };
 
+export type CogitaPythonEvaluateResponse = {
+  passed: boolean;
+  status:
+    | 'passed'
+    | 'wrong_output'
+    | 'runtime_error'
+    | 'timeout'
+    | 'invalid_submission'
+    | 'runner_unavailable'
+    | 'sandbox_error'
+    | string;
+  casesExecuted: number;
+  failingInputJson?: string | null;
+  userOutputJson?: string | null;
+  errorMessage?: string | null;
+};
+
 export type CogitaCollectionCreateResponse = {
   collectionId: string;
 };
@@ -2813,6 +2830,22 @@ export function getCogitaInfoCheckcards(payload: { libraryId: string; infoId: st
   );
 }
 
+export function evaluateCogitaPythonNotion(payload: {
+  libraryId: string;
+  infoId: string;
+  submissionSource: string;
+}) {
+  return request<CogitaPythonEvaluateResponse>(
+    `/cogita/libraries/${payload.libraryId}/python/${payload.infoId}/evaluate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        submissionSource: payload.submissionSource
+      })
+    }
+  );
+}
+
 export function getCogitaInfoCheckcardDependencies(payload: { libraryId: string; infoId: string }) {
   return request<CogitaItemDependencyBundle>(
     `/cogita/libraries/${payload.libraryId}/notions/${payload.infoId}/cards/dependencies`,
@@ -2840,6 +2873,22 @@ export function getCogitaPublicStoryboardInfoCheckcards(payload: { shareCode: st
   return request<CogitaCardSearchBundle>(
     `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/notions/${payload.infoId}/cards`,
     { method: 'GET' }
+  );
+}
+
+export function evaluateCogitaPublicStoryboardPythonNotion(payload: {
+  shareCode: string;
+  infoId: string;
+  submissionSource: string;
+}) {
+  return request<CogitaPythonEvaluateResponse>(
+    `/cogita/public/storyboard/${encodeURIComponent(payload.shareCode)}/python/${payload.infoId}/evaluate`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        submissionSource: payload.submissionSource
+      })
+    }
   );
 }
 
@@ -5921,8 +5970,16 @@ export type CalendarEventRoleScopeResponse = {
   scopeId: string;
   roleId: string;
   scopeType: string;
+  canSeeTitle: boolean;
+  canSeeGraph: boolean;
   createdUtc: string;
   revokedUtc?: string | null;
+};
+
+export type CalendarViewerScopeRequest = {
+  roleId: string;
+  canSeeTitle?: boolean;
+  canSeeGraph?: boolean;
 };
 
 export type CalendarGraphNode = {
@@ -5992,6 +6049,8 @@ export type CalendarGraphExecution = {
 export type CalendarEventResponse = {
   eventId: string;
   calendarId: string;
+  eventGroupId?: string | null;
+  eventGroupName?: string | null;
   ownerRoleId: string;
   titlePublic: string;
   summaryPublic?: string | null;
@@ -6115,6 +6174,50 @@ export type CalendarReminderDispatchResponse = {
   updatedUtc: string;
 };
 
+export type CalendarGraphLinkResponse = {
+  linkId: string;
+  eventId: string;
+  graphId: string;
+  isPrimary: boolean;
+  createdUtc: string;
+  revokedUtc?: string | null;
+};
+
+export type CalendarEventGroupResponse = {
+  eventGroupId: string;
+  calendarId: string;
+  ownerRoleId: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  isArchived: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  itemCount: number;
+};
+
+export type CalendarEventGroupShareResponse = {
+  linkId: string;
+  code: string;
+  label: string;
+  mode: string;
+  createdUtc: string;
+  expiresUtc?: string | null;
+  isActive: boolean;
+  sharedViewId: string;
+};
+
+export type CalendarPublicGroupResponse = {
+  eventGroupId: string;
+  calendarId: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+  items: CalendarPublicEventResponse[];
+};
+
 export function getCalendars(payload?: { organizationScope?: string; includeArchived?: boolean }) {
   const params = new URLSearchParams();
   if (payload?.organizationScope) params.set('organizationScope', payload.organizationScope);
@@ -6196,6 +6299,7 @@ export function getCalendarItem(eventId: string, includeProtected = true) {
 
 export function createCalendarItem(payload: {
   calendarId: string;
+  eventGroupId?: string | null;
   ownerRoleId: string;
   titlePublic: string;
   summaryPublic?: string | null;
@@ -6214,6 +6318,7 @@ export function createCalendarItem(payload: {
   sourceFieldEnd?: string | null;
   conflictScopeMode?: 'role' | 'calendar' | null;
   scopedRoleIds?: string[];
+  viewerScopes?: CalendarViewerScopeRequest[];
   reminders?: CalendarReminderRequest[];
   allowConflicts?: boolean;
   itemType?: 'appointment' | 'task';
@@ -6249,6 +6354,7 @@ export function createCalendarItem(payload: {
     method: 'POST',
     body: JSON.stringify({
       calendarId: payload.calendarId,
+      eventGroupId: payload.eventGroupId ?? null,
       ownerRoleId: payload.ownerRoleId,
       titlePublic: payload.titlePublic,
       summaryPublic: payload.summaryPublic ?? null,
@@ -6273,6 +6379,11 @@ export function createCalendarItem(payload: {
       sourceFieldEnd: payload.sourceFieldEnd ?? null,
       conflictScopeMode: payload.conflictScopeMode ?? null,
       scopedRoleIds: payload.scopedRoleIds ?? [],
+      viewerScopes: (payload.viewerScopes ?? []).map((viewer) => ({
+        roleId: viewer.roleId,
+        canSeeTitle: viewer.canSeeTitle ?? true,
+        canSeeGraph: viewer.canSeeGraph ?? false
+      })),
       reminders: payload.reminders ?? [],
       allowConflicts: payload.allowConflicts ?? false,
       itemType: payload.itemType ?? 'appointment',
@@ -6324,11 +6435,14 @@ export function updateCalendarItem(eventId: string, payload: {
   linkedModule?: string | null;
   linkedEntityType?: string | null;
   linkedEntityId?: string | null;
+  eventGroupId?: string | null;
   sourceFieldStart?: string | null;
   sourceFieldEnd?: string | null;
   conflictScopeMode?: 'role' | 'calendar' | null;
   scopedRoleIds?: string[];
   replaceRoleScopes?: boolean;
+  viewerScopes?: CalendarViewerScopeRequest[];
+  replaceViewerScopes?: boolean;
   reminders?: CalendarReminderRequest[];
   replaceReminders?: boolean;
   isArchived?: boolean;
@@ -6386,11 +6500,18 @@ export function updateCalendarItem(eventId: string, payload: {
       linkedModule: payload.linkedModule ?? null,
       linkedEntityType: payload.linkedEntityType ?? null,
       linkedEntityId: payload.linkedEntityId ?? null,
+      eventGroupId: payload.eventGroupId ?? null,
       sourceFieldStart: payload.sourceFieldStart ?? null,
       sourceFieldEnd: payload.sourceFieldEnd ?? null,
       conflictScopeMode: payload.conflictScopeMode ?? null,
       scopedRoleIds: payload.scopedRoleIds ?? [],
       replaceRoleScopes: payload.replaceRoleScopes ?? false,
+      viewerScopes: (payload.viewerScopes ?? []).map((viewer) => ({
+        roleId: viewer.roleId,
+        canSeeTitle: viewer.canSeeTitle ?? true,
+        canSeeGraph: viewer.canSeeGraph ?? false
+      })),
+      replaceViewerScopes: payload.replaceViewerScopes ?? false,
       reminders: payload.reminders ?? [],
       replaceReminders: payload.replaceReminders ?? false,
       isArchived: typeof payload.isArchived === 'boolean' ? payload.isArchived : null,
@@ -6505,6 +6626,20 @@ export function getCalendarGraph(eventId: string) {
   });
 }
 
+export function getCalendarGraphs(calendarId: string) {
+  return request<Array<{
+    graphId: string;
+    sourceEventId: string;
+    titlePublic: string;
+    templateKey: string;
+    status: string;
+    version: number;
+    updatedUtc: string;
+  }>>(`/calendar/calendars/${calendarId}/graphs`, {
+    method: 'GET'
+  });
+}
+
 export function upsertCalendarGraph(eventId: string, payload: {
   templateKey: string;
   templateConfigJson?: string | null;
@@ -6579,6 +6714,31 @@ export function getCalendarGraphExecutions(eventId: string, take?: number) {
   });
 }
 
+export function linkCalendarEventGraph(eventId: string, graphId: string) {
+  return request<CalendarGraphLinkResponse>(`/calendar/events/${eventId}/graph/link`, {
+    method: 'POST',
+    body: JSON.stringify({ graphId })
+  });
+}
+
+export function upsertCalendarViewer(eventId: string, payload: CalendarViewerScopeRequest) {
+  return request<CalendarEventRoleScopeResponse[]>(`/calendar/events/${eventId}/viewers`, {
+    method: 'POST',
+    body: JSON.stringify({
+      roleId: payload.roleId,
+      canSeeTitle: payload.canSeeTitle ?? true,
+      canSeeGraph: payload.canSeeGraph ?? false
+    })
+  });
+}
+
+export function removeCalendarViewer(eventId: string, roleId: string) {
+  return request<{ revoked: boolean }>(`/calendar/events/${eventId}/viewers/${roleId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
 export function completeCalendarTask(eventId: string, payload?: {
   completionProofJson?: string | null;
   taskState?: string | null;
@@ -6623,6 +6783,111 @@ export function createCalendarShare(eventId: string, payload?: { label?: string 
   });
 }
 
+export function listCalendarEventGroups(calendarId: string, payload?: { includeArchived?: boolean }) {
+  const params = new URLSearchParams();
+  if (typeof payload?.includeArchived === 'boolean') params.set('includeArchived', String(payload.includeArchived));
+  return request<CalendarEventGroupResponse[]>(`/calendar/calendars/${calendarId}/event-groups${params.toString() ? `?${params.toString()}` : ''}`, {
+    method: 'GET'
+  });
+}
+
+export function createCalendarEventGroup(calendarId: string, payload: {
+  name: string;
+  ownerRoleId: string;
+  description?: string | null;
+  category?: string | null;
+}) {
+  return request<CalendarEventGroupResponse>(`/calendar/calendars/${calendarId}/event-groups`, {
+    method: 'POST',
+    body: JSON.stringify({
+      name: payload.name,
+      ownerRoleId: payload.ownerRoleId,
+      description: payload.description ?? null,
+      category: payload.category ?? null
+    })
+  });
+}
+
+export function updateCalendarEventGroup(eventGroupId: string, payload: {
+  name?: string | null;
+  description?: string | null;
+  category?: string | null;
+  isArchived?: boolean;
+}) {
+  return request<CalendarEventGroupResponse>(`/calendar/event-groups/${eventGroupId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      name: payload.name ?? null,
+      description: payload.description ?? null,
+      category: payload.category ?? null,
+      isArchived: typeof payload.isArchived === 'boolean' ? payload.isArchived : null
+    })
+  });
+}
+
+export function createWeeklyCalendarSeries(eventGroupId: string, payload: {
+  ownerRoleId: string;
+  titlePublic: string;
+  summaryPublic?: string | null;
+  locationPublic?: string | null;
+  visibility: 'private' | 'role' | 'public';
+  firstStartUtc: string;
+  firstEndUtc: string;
+  untilUtc: string;
+  intervalWeeks?: number;
+  scopedRoleIds?: string[];
+  viewerScopes?: CalendarViewerScopeRequest[];
+  graphId?: string | null;
+  allowConflicts?: boolean;
+}) {
+  return request<{ eventGroupId: string; createdCount: number; eventIds: string[] }>(`/calendar/event-groups/${eventGroupId}/series/weekly`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ownerRoleId: payload.ownerRoleId,
+      titlePublic: payload.titlePublic,
+      summaryPublic: payload.summaryPublic ?? null,
+      locationPublic: payload.locationPublic ?? null,
+      visibility: payload.visibility,
+      firstStartUtc: payload.firstStartUtc,
+      firstEndUtc: payload.firstEndUtc,
+      untilUtc: payload.untilUtc,
+      intervalWeeks: payload.intervalWeeks ?? 1,
+      scopedRoleIds: payload.scopedRoleIds ?? [],
+      viewerScopes: (payload.viewerScopes ?? []).map((viewer) => ({
+        roleId: viewer.roleId,
+        canSeeTitle: viewer.canSeeTitle ?? true,
+        canSeeGraph: viewer.canSeeGraph ?? false
+      })),
+      graphId: payload.graphId ?? null,
+      allowConflicts: payload.allowConflicts ?? false
+    })
+  });
+}
+
+export function createCalendarEventGroupShare(eventGroupId: string, payload?: { label?: string | null; expiresInHours?: number | null; mode?: 'readonly' }) {
+  return request<CalendarEventGroupShareResponse>(`/calendar/event-groups/${eventGroupId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({
+      label: payload?.label ?? null,
+      expiresInHours: typeof payload?.expiresInHours === 'number' ? payload.expiresInHours : null,
+      mode: payload?.mode ?? 'readonly'
+    })
+  });
+}
+
+export function listCalendarEventGroupShares(eventGroupId: string) {
+  return request<CalendarEventGroupShareResponse[]>(`/calendar/event-groups/${eventGroupId}/shares`, {
+    method: 'GET'
+  });
+}
+
+export function revokeCalendarEventGroupShare(eventGroupId: string, linkId: string) {
+  return request<{ revoked: boolean }>(`/calendar/event-groups/${eventGroupId}/shares/${linkId}`, {
+    method: 'DELETE',
+    body: JSON.stringify({})
+  });
+}
+
 export function listCalendarShares(eventId: string) {
   return request<CalendarEventShare[]>(`/calendar/events/${eventId}/shares`, {
     method: 'GET'
@@ -6657,6 +6922,12 @@ export function getPublicCalendarEvents(calendarId: string, payload?: { view?: s
 
 export function getPublicSharedCalendarItem(code: string) {
   return request<CalendarPublicEventResponse>(`/calendar/public/shared/${encodeURIComponent(code)}`, {
+    method: 'GET'
+  });
+}
+
+export function getPublicSharedCalendarGroup(code: string) {
+  return request<CalendarPublicGroupResponse>(`/calendar/public/group-shared/${encodeURIComponent(code)}`, {
     method: 'GET'
   });
 }

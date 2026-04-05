@@ -696,7 +696,8 @@ export const en: Copy = {
         source: 'Source',
         question: 'Question',
         quote: 'Quote',
-        computed: 'Computed'
+        computed: 'Computed',
+        python: 'Python challenge'
       },
       connectionTypes: {
         wordLanguage: 'Word - language',

@@ -11,29 +11,40 @@ import {
   bindCalendarRole,
   completeCalendarTask,
   completeCalendarTaskAndRunGraph,
+  createCalendarEventGroup,
+  createCalendarEventGroupShare,
   createCalendarItem,
   createCalendarShare,
+  createWeeklyCalendarSeries,
   executeCalendarGraph,
   getCalendar,
   getCalendarEvents,
   getCalendarGraph,
+  getCalendarGraphs,
   getCalendarGraphExecutions,
   getCalendarGraphTemplates,
   getCalendarItem,
   getCalendars,
+  getPublicSharedCalendarGroup,
   getPublicSharedCalendarItem,
   getRoles,
+  listCalendarEventGroups,
+  listCalendarEventGroupShares,
   listCalendarShares,
+  linkCalendarEventGraph,
+  revokeCalendarEventGroupShare,
   revokeCalendarShare,
   unbindCalendarRole,
   upsertCalendarGraph,
   type CalendarConflictResponse,
   type CalendarEventResponse,
+  type CalendarEventGroupShareResponse,
   type CalendarEventShare,
   type CalendarGraphExecution,
   type CalendarGraphTemplate,
   type CalendarOccurrenceResponse,
   type CalendarPublicEventResponse,
+  type CalendarPublicGroupResponse,
   type CalendarRoleBindingResponse,
   type RoleResponse
 } from '../../lib/api';
@@ -43,10 +54,24 @@ type ViewMode = 'month' | 'week' | 'day' | 'list';
 const VIEW_MODES: ViewMode[] = ['month', 'week', 'day', 'list'];
 type CalendarAccessType = 'viewer' | 'editor' | 'manager';
 
-function parseShareCode(pathname: string): string | null {
+type ShareRoute = {
+  kind: 'item' | 'group';
+  code: string;
+};
+
+function parseShareRoute(pathname: string): ShareRoute | null {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments.length >= 3 && segments[0] === 'calendar' && (segments[1] === 'shared' || segments[1] === 'public')) {
-    return decodeURIComponent(segments[2]);
+  if (segments.length < 3 || segments[0] !== 'calendar') {
+    return null;
+  }
+
+  const code = decodeURIComponent(segments[2]);
+  if (segments[1] === 'shared' || segments[1] === 'public') {
+    return { kind: 'item', code };
+  }
+
+  if (segments[1] === 'group-shared') {
+    return { kind: 'group', code };
   }
 
   return null;
@@ -155,14 +180,16 @@ export function CalendarPage({
   onLanguageChange: (language: 'pl' | 'en' | 'de') => void;
 }) {
   const location = useLocation();
-  const shareCode = useMemo(() => parseShareCode(location.pathname), [location.pathname]);
+  const shareRoute = useMemo(() => parseShareRoute(location.pathname), [location.pathname]);
 
   const [error, setError] = useState<string | null>(null);
   const [publicItem, setPublicItem] = useState<CalendarPublicEventResponse | null>(null);
+  const [publicGroup, setPublicGroup] = useState<CalendarPublicGroupResponse | null>(null);
   const [calendars, setCalendars] = useState<Array<{ id: string; name: string }>>([]);
   const [roles, setRoles] = useState<RoleResponse[]>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [calendarRoleBindings, setCalendarRoleBindings] = useState<CalendarRoleBindingResponse[]>([]);
+  const [eventGroups, setEventGroups] = useState<Array<{ eventGroupId: string; name: string }>>([]);
   const [ownerRoleId, setOwnerRoleId] = useState<string | null>(null);
   const [selectedPersonRoleId, setSelectedPersonRoleId] = useState('');
   const [selectedGroupRoleId, setSelectedGroupRoleId] = useState('');
@@ -175,14 +202,26 @@ export function CalendarPage({
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventResponse | null>(null);
   const [shares, setShares] = useState<CalendarEventShare[]>([]);
+  const [groupShares, setGroupShares] = useState<CalendarEventGroupShareResponse[]>([]);
   const [latestShareCode, setLatestShareCode] = useState<string | null>(null);
+  const [latestGroupShareCode, setLatestGroupShareCode] = useState<string | null>(null);
   const [templates, setTemplates] = useState<CalendarGraphTemplate[]>([]);
+  const [calendarGraphs, setCalendarGraphs] = useState<Array<{
+    graphId: string;
+    sourceEventId: string;
+    titlePublic: string;
+    templateKey: string;
+    status: string;
+    version: number;
+    updatedUtc: string;
+  }>>([]);
   const [executions, setExecutions] = useState<CalendarGraphExecution[]>([]);
   const [graphTemplateKey, setGraphTemplateKey] = useState('');
   const [graphStatus, setGraphStatus] = useState<'draft' | 'active' | 'archived'>('active');
   const [graphConfigJson, setGraphConfigJson] = useState('{}');
   const [graphNodesJson, setGraphNodesJson] = useState('[]');
   const [graphEdgesJson, setGraphEdgesJson] = useState('[]');
+  const [selectedReusableGraphId, setSelectedReusableGraphId] = useState('');
 
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -194,6 +233,15 @@ export function CalendarPage({
   const [visibilityFilter, setVisibilityFilter] = useState('');
   const [itemTypeFilter, setItemTypeFilter] = useState<'appointment' | 'task' | ''>('');
   const [taskStateFilter, setTaskStateFilter] = useState('');
+  const [createAsWeeklySeries, setCreateAsWeeklySeries] = useState(false);
+  const [seriesIntervalWeeks, setSeriesIntervalWeeks] = useState(1);
+  const [seriesUntilUtcLocal, setSeriesUntilUtcLocal] = useState(new Date(Date.now() + 1000 * 60 * 60 * 24 * 56).toISOString().slice(0, 16));
+  const [selectedEventGroupId, setSelectedEventGroupId] = useState('');
+  const [newEventGroupName, setNewEventGroupName] = useState('');
+  const [viewerRoleId, setViewerRoleId] = useState('');
+  const [viewerCanSeeTitle, setViewerCanSeeTitle] = useState(true);
+  const [viewerCanSeeGraph, setViewerCanSeeGraph] = useState(false);
+  const [viewerScopes, setViewerScopes] = useState<Array<{ roleId: string; label: string; canSeeTitle: boolean; canSeeGraph: boolean }>>([]);
 
   const range = useMemo(() => rangeFromView(anchor, view), [anchor, view]);
   const shareUrl = useMemo(() => {
@@ -201,6 +249,11 @@ export function CalendarPage({
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return origin + '/#/calendar/shared/' + encodeURIComponent(latestShareCode);
   }, [latestShareCode]);
+  const groupShareUrl = useMemo(() => {
+    if (!latestGroupShareCode) return null;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return origin + '/#/calendar/group-shared/' + encodeURIComponent(latestGroupShareCode);
+  }, [latestGroupShareCode]);
 
   const groupedByDay = useMemo(() => {
     const map = new Map<string, CalendarOccurrenceResponse[]>();
@@ -237,6 +290,14 @@ export function CalendarPage({
     [roles]
   );
 
+  const viewerRoleOptions = useMemo(
+    () => roles
+      .map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [roles]
+  );
+  const ownerRoleOptions = viewerRoleOptions;
+
   const linkedPersonBindings = useMemo(
     () => calendarRoleBindings.filter((binding) => isPersonRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
     [calendarRoleBindings, rolesById]
@@ -246,23 +307,38 @@ export function CalendarPage({
     () => calendarRoleBindings.filter((binding) => isGroupRoleKind(rolesById.get(binding.roleId)?.roleKind ?? '')),
     [calendarRoleBindings, rolesById]
   );
+  const effectiveCalendarId = calendarId ?? calendars[0]?.id ?? null;
+  const effectiveOwnerRoleId = ownerRoleId ?? ownerRoleOptions[0]?.roleId ?? null;
 
   useEffect(() => {
-    if (!shareCode) {
+    if (!shareRoute) {
       setPublicItem(null);
+      setPublicGroup(null);
       return;
     }
 
-    getPublicSharedCalendarItem(shareCode)
-      .then((item) => {
-        setPublicItem(item);
+    if (shareRoute.kind === 'item') {
+      getPublicSharedCalendarItem(shareRoute.code)
+        .then((item) => {
+          setPublicItem(item);
+          setPublicGroup(null);
+          setError(null);
+        })
+        .catch((err) => setError(readError(err)));
+      return;
+    }
+
+    getPublicSharedCalendarGroup(shareRoute.code)
+      .then((group) => {
+        setPublicGroup(group);
+        setPublicItem(null);
         setError(null);
       })
       .catch((err) => setError(readError(err)));
-  }, [shareCode]);
+  }, [shareRoute]);
 
   useEffect(() => {
-    if (!showProfileMenu || shareCode) return;
+    if (!showProfileMenu || shareRoute) return;
 
     Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()])
       .then(([calendarList, roleList, templateList]) => {
@@ -283,10 +359,10 @@ export function CalendarPage({
         }
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareCode, graphTemplateKey]);
+  }, [showProfileMenu, shareRoute, graphTemplateKey]);
 
   useEffect(() => {
-    if (!showProfileMenu || !calendarId || shareCode) {
+    if (!showProfileMenu || !calendarId || shareRoute) {
       setCalendarRoleBindings([]);
       return;
     }
@@ -294,10 +370,36 @@ export function CalendarPage({
     getCalendar(calendarId)
       .then((calendar) => setCalendarRoleBindings(calendar.roleBindings ?? []))
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareCode, calendarId]);
+  }, [showProfileMenu, shareRoute, calendarId]);
 
   useEffect(() => {
-    if (!showProfileMenu || !calendarId || shareCode) return;
+    if (!showProfileMenu || !calendarId || shareRoute) {
+      setEventGroups([]);
+      setSelectedEventGroupId('');
+      return;
+    }
+
+    listCalendarEventGroups(calendarId)
+      .then((items) => {
+        setEventGroups(items.map((item) => ({ eventGroupId: item.eventGroupId, name: item.name })));
+      })
+      .catch((err) => setError(readError(err)));
+  }, [showProfileMenu, shareRoute, calendarId]);
+
+  useEffect(() => {
+    if (!showProfileMenu || !calendarId || shareRoute) {
+      setCalendarGraphs([]);
+      setSelectedReusableGraphId('');
+      return;
+    }
+
+    getCalendarGraphs(calendarId)
+      .then((graphs) => setCalendarGraphs(graphs))
+      .catch((err) => setError(readError(err)));
+  }, [showProfileMenu, shareRoute, calendarId]);
+
+  useEffect(() => {
+    if (!showProfileMenu || !calendarId || shareRoute) return;
 
     getCalendarEvents({
       calendarId,
@@ -316,10 +418,10 @@ export function CalendarPage({
         setSelectedEventId((current) => current ?? (bundle.occurrences[0]?.eventId ?? null));
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareCode, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, itemTypeFilter, taskStateFilter]);
+  }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, itemTypeFilter, taskStateFilter]);
 
   useEffect(() => {
-    if (!selectedEventId || shareCode || !showProfileMenu) {
+    if (!selectedEventId || shareRoute || !showProfileMenu) {
       setSelectedEvent(null);
       return;
     }
@@ -342,7 +444,28 @@ export function CalendarPage({
         setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
       }
     });
-  }, [selectedEventId, shareCode, showProfileMenu]);
+  }, [selectedEventId, shareRoute, showProfileMenu]);
+
+  useEffect(() => {
+    if (!showProfileMenu || shareRoute || !selectedEventGroupId) {
+      setGroupShares([]);
+      return;
+    }
+
+    listCalendarEventGroupShares(selectedEventGroupId)
+      .then((items) => setGroupShares(items))
+      .catch((err) => setError(readError(err)));
+  }, [showProfileMenu, shareRoute, selectedEventGroupId]);
+
+  useEffect(() => {
+    setLatestGroupShareCode(null);
+  }, [selectedEventGroupId]);
+
+  useEffect(() => {
+    if (itemType !== 'appointment') {
+      setCreateAsWeeklySeries(false);
+    }
+  }, [itemType]);
 
   const applyTemplate = (templateKey: string) => {
     const template = templates.find((entry) => entry.templateKey === templateKey);
@@ -375,37 +498,137 @@ export function CalendarPage({
   };
 
   const createItem = async () => {
-    if (!calendarId || !ownerRoleId) {
+    const activeCalendarId = effectiveCalendarId;
+    const activeOwnerRoleId = effectiveOwnerRoleId;
+    if (!activeCalendarId || !activeOwnerRoleId) {
       setError('No calendar or owner role available.');
       return;
+    }
+    if (!calendarId && activeCalendarId) {
+      setCalendarId(activeCalendarId);
+    }
+    if (!ownerRoleId && activeOwnerRoleId) {
+      setOwnerRoleId(activeOwnerRoleId);
     }
 
     try {
       const parsedNodes = JSON.parse(graphNodesJson || '[]');
       const parsedEdges = JSON.parse(graphEdgesJson || '[]');
-      await createCalendarItem({
-        calendarId,
-        ownerRoleId,
-        titlePublic: title,
-        summaryPublic: summary,
-        visibility,
-        status: 'planned',
-        startUtc: new Date(startUtcLocal).toISOString(),
-        endUtc: new Date(endUtcLocal).toISOString(),
-        itemType,
-        taskState: itemType === 'task' ? 'todo' : null,
-        taskProgressPercent: itemType === 'task' ? 0 : null,
-        graph: {
-          templateKey: graphTemplateKey || 'daily',
-          status: 'active',
-          templateConfigJson: graphConfigJson,
-          nodes: parsedNodes,
-          edges: parsedEdges
+      const shouldReuseGraph = !!selectedReusableGraphId;
+      const startUtc = new Date(startUtcLocal).toISOString();
+      const endUtc = new Date(endUtcLocal).toISOString();
+
+      if (createAsWeeklySeries && itemType === 'appointment') {
+        if (!selectedEventGroupId) {
+          setError('Weekly series requires an event group.');
+          return;
         }
-      });
+
+        await createWeeklyCalendarSeries(selectedEventGroupId, {
+          ownerRoleId: activeOwnerRoleId,
+          titlePublic: title,
+          summaryPublic: summary || null,
+          visibility,
+          firstStartUtc: startUtc,
+          firstEndUtc: endUtc,
+          untilUtc: new Date(seriesUntilUtcLocal).toISOString(),
+          intervalWeeks: Math.max(1, seriesIntervalWeeks),
+          scopedRoleIds: [],
+          viewerScopes: viewerScopes.map((viewer) => ({
+            roleId: viewer.roleId,
+            canSeeTitle: viewer.canSeeTitle,
+            canSeeGraph: viewer.canSeeGraph
+          })),
+          graphId: shouldReuseGraph ? selectedReusableGraphId : null,
+          allowConflicts: false
+        });
+      } else {
+        const createdItem = await createCalendarItem({
+          calendarId: activeCalendarId,
+          eventGroupId: selectedEventGroupId || null,
+          ownerRoleId: activeOwnerRoleId,
+          titlePublic: title,
+          summaryPublic: summary,
+          visibility,
+          status: 'planned',
+          startUtc,
+          endUtc,
+          itemType,
+          taskState: itemType === 'task' ? 'todo' : null,
+          taskProgressPercent: itemType === 'task' ? 0 : null,
+          viewerScopes: viewerScopes.map((viewer) => ({
+            roleId: viewer.roleId,
+            canSeeTitle: viewer.canSeeTitle,
+            canSeeGraph: viewer.canSeeGraph
+          })),
+          graph: shouldReuseGraph
+            ? null
+            : {
+                templateKey: graphTemplateKey || 'daily',
+                status: 'active',
+                templateConfigJson: graphConfigJson,
+                nodes: parsedNodes,
+                edges: parsedEdges
+              }
+        });
+        if (shouldReuseGraph) {
+          await linkCalendarEventGraph(createdItem.eventId, selectedReusableGraphId);
+        }
+      }
+
       setTitle('');
       setSummary('');
+      setViewerScopes([]);
+      setSelectedReusableGraphId('');
       refresh();
+      if (activeCalendarId) {
+        void getCalendarGraphs(activeCalendarId).then((graphs) => setCalendarGraphs(graphs)).catch(() => {});
+      }
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const createEventGroupNow = async () => {
+    const activeCalendarId = effectiveCalendarId;
+    const activeOwnerRoleId = effectiveOwnerRoleId;
+    if (!activeCalendarId || !activeOwnerRoleId) {
+      setError('Select calendar and owner role first.');
+      return;
+    }
+
+    const name = newEventGroupName.trim();
+    if (!name) {
+      setError('Group name is required.');
+      return;
+    }
+
+    try {
+      const created = await createCalendarEventGroup(activeCalendarId, {
+        name,
+        ownerRoleId: activeOwnerRoleId
+      });
+      setEventGroups((prev) => [{ eventGroupId: created.eventGroupId, name: created.name }, ...prev]);
+      setSelectedEventGroupId(created.eventGroupId);
+      setNewEventGroupName('');
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const createGroupShareNow = async () => {
+    if (!selectedEventGroupId) {
+      setError('Select an event group first.');
+      return;
+    }
+
+    try {
+      const share = await createCalendarEventGroupShare(selectedEventGroupId, { mode: 'readonly', expiresInHours: 72 });
+      setLatestGroupShareCode(share.code);
+      const updated = await listCalendarEventGroupShares(selectedEventGroupId);
+      setGroupShares(updated);
+      setError(null);
     } catch (err) {
       setError(readError(err));
     }
@@ -441,6 +664,26 @@ export function CalendarPage({
     }
   };
 
+  const addViewerScope = () => {
+    if (!viewerRoleId) {
+      setError('Select a viewer role first.');
+      return;
+    }
+
+    const label = rolesById.get(viewerRoleId)?.label ?? viewerRoleId;
+    setViewerScopes((current) => {
+      const next = current.filter((entry) => entry.roleId !== viewerRoleId);
+      next.push({
+        roleId: viewerRoleId,
+        label,
+        canSeeTitle: viewerCanSeeTitle,
+        canSeeGraph: viewerCanSeeGraph
+      });
+      return next;
+    });
+    setError(null);
+  };
+
   const header = (
     <header className="calendar-header">
       <a href="/#/section-1" className="calendar-brand" onClick={() => onNavigate('home')}>REcreatio</a>
@@ -467,22 +710,36 @@ export function CalendarPage({
     </header>
   );
 
-  if (shareCode) {
+  if (shareRoute) {
     return (
       <div className="calendar-page">
         {header}
         <main className="calendar-main calendar-main-public">
           <section className="calendar-panel">
-            <h1>Shared Calendar Item</h1>
-            <p>Code: {shareCode}</p>
+            <h1>{shareRoute.kind === 'group' ? 'Shared Calendar Group' : 'Shared Calendar Item'}</h1>
+            <p>Code: {shareRoute.code}</p>
             {error && <p className="calendar-error">{error}</p>}
-            {publicItem && (
+            {shareRoute.kind === 'item' && publicItem && (
               <div className="calendar-public-card">
                 <h2>{publicItem.titlePublic}</h2>
                 <p>{publicItem.summaryPublic ?? 'No summary'}</p>
                 <p>{formatUtc(publicItem.startUtc)} - {formatUtc(publicItem.endUtc)}</p>
                 <p>Type: {publicItem.itemType}</p>
                 <p>Status: {publicItem.status}</p>
+              </div>
+            )}
+            {shareRoute.kind === 'group' && publicGroup && (
+              <div className="calendar-public-card">
+                <h2>{publicGroup.name}</h2>
+                <p>{publicGroup.description ?? 'No description'}</p>
+                <p>Items: {publicGroup.items.length}</p>
+                <ul>
+                  {publicGroup.items.slice(0, 100).map((item) => (
+                    <li key={item.eventId + item.startUtc}>
+                      {item.titlePublic}: {formatUtc(item.startUtc)} - {formatUtc(item.endUtc)}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </section>
@@ -607,35 +864,6 @@ export function CalendarPage({
             <label>Task state filter</label>
             <input value={taskStateFilter} onChange={(event) => setTaskStateFilter(event.target.value)} />
           </div>
-          <div className="calendar-create-form">
-            <h2>Create item</h2>
-            <div className="calendar-field-row">
-              <label>Owner role</label>
-              <select value={ownerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
-                {(personRoles.length > 0 ? personRoles : roles.map((role) => ({ roleId: role.roleId, label: getRoleLabel(role) }))).map((role) => (
-                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
-                ))}
-              </select>
-            </div>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
-            <textarea rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Summary" />
-            <div className="calendar-inline-grid">
-              <select value={itemType} onChange={(event) => setItemType(event.target.value as 'appointment' | 'task')}>
-                <option value="appointment">appointment</option>
-                <option value="task">task</option>
-              </select>
-              <select value={visibility} onChange={(event) => setVisibility(event.target.value as 'private' | 'role' | 'public')}>
-                <option value="private">private</option>
-                <option value="role">role</option>
-                <option value="public">public</option>
-              </select>
-            </div>
-            <div className="calendar-inline-grid">
-              <input type="datetime-local" value={startUtcLocal} onChange={(event) => setStartUtcLocal(event.target.value)} />
-              <input type="datetime-local" value={endUtcLocal} onChange={(event) => setEndUtcLocal(event.target.value)} />
-            </div>
-            <button type="button" className="cta" onClick={() => void createItem()}>Create</button>
-          </div>
           {error && <p className="calendar-error">{error}</p>}
         </aside>
 
@@ -684,6 +912,127 @@ export function CalendarPage({
         </section>
 
         <section className="calendar-detail-panel">
+          <div className="calendar-create-form">
+            <h2>Create item</h2>
+            <div className="calendar-field-row">
+              <label>Owner role</label>
+              <select value={ownerRoleId ?? ''} onChange={(event) => setOwnerRoleId(event.target.value || null)}>
+                {ownerRoleOptions.map((role) => (
+                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-field-row">
+              <label>Event group</label>
+              <select value={selectedEventGroupId} onChange={(event) => setSelectedEventGroupId(event.target.value)}>
+                <option value="">none</option>
+                {eventGroups.map((group) => (
+                  <option key={group.eventGroupId} value={group.eventGroupId}>{group.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-inline-grid">
+              <input value={newEventGroupName} onChange={(event) => setNewEventGroupName(event.target.value)} placeholder="New group name" />
+              <button type="button" onClick={() => void createEventGroupNow()}>Create group</button>
+            </div>
+            <div className="calendar-share-panel">
+              <h3>Group access view</h3>
+              <button type="button" disabled={!selectedEventGroupId} onClick={() => void createGroupShareNow()}>Create group share</button>
+              {groupShareUrl && (
+                <div className="calendar-qr-block">
+                  <p>{groupShareUrl}</p>
+                  <QRCodeSVG value={groupShareUrl} size={128} />
+                </div>
+              )}
+              {groupShares.length > 0 && (
+                <ul>
+                  {groupShares.map((share) => (
+                    <li key={share.linkId}>
+                      <span>{share.label} ({share.isActive ? 'active' : 'revoked'})</span>
+                      {share.isActive && selectedEventGroupId && (
+                        <button
+                          type="button"
+                          onClick={() => void revokeCalendarEventGroupShare(selectedEventGroupId, share.linkId)
+                            .then(() => listCalendarEventGroupShares(selectedEventGroupId))
+                            .then(setGroupShares)
+                            .catch((err) => setError(readError(err)))}
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
+            <textarea rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Summary" />
+            <div className="calendar-inline-grid">
+              <select value={itemType} onChange={(event) => setItemType(event.target.value as 'appointment' | 'task')}>
+                <option value="appointment">appointment</option>
+                <option value="task">task</option>
+              </select>
+              <select value={visibility} onChange={(event) => setVisibility(event.target.value as 'private' | 'role' | 'public')}>
+                <option value="private">private</option>
+                <option value="role">role</option>
+                <option value="public">public</option>
+              </select>
+            </div>
+            <div className="calendar-inline-grid">
+              <input type="datetime-local" value={startUtcLocal} onChange={(event) => setStartUtcLocal(event.target.value)} />
+              <input type="datetime-local" value={endUtcLocal} onChange={(event) => setEndUtcLocal(event.target.value)} />
+            </div>
+            {itemType === 'appointment' && (
+              <>
+                <label><input type="checkbox" checked={createAsWeeklySeries} onChange={(event) => setCreateAsWeeklySeries(event.target.checked)} /> weekly series in group</label>
+                {createAsWeeklySeries && (
+                  <div className="calendar-inline-grid">
+                    <input type="number" min={1} max={52} value={seriesIntervalWeeks} onChange={(event) => setSeriesIntervalWeeks(Number(event.target.value) || 1)} placeholder="interval weeks" />
+                    <input type="datetime-local" value={seriesUntilUtcLocal} onChange={(event) => setSeriesUntilUtcLocal(event.target.value)} />
+                  </div>
+                )}
+              </>
+            )}
+            <div className="calendar-field-row">
+              <label>Reusable graph</label>
+              <select value={selectedReusableGraphId} onChange={(event) => setSelectedReusableGraphId(event.target.value)}>
+                <option value="">new graph from editor</option>
+                {calendarGraphs.map((graph) => (
+                  <option key={graph.graphId} value={graph.graphId}>{graph.titlePublic} ({graph.templateKey})</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-field-row">
+              <label>Viewer role</label>
+              <select value={viewerRoleId} onChange={(event) => setViewerRoleId(event.target.value)}>
+                <option value="">select viewer role</option>
+                {viewerRoleOptions.map((role) => (
+                  <option key={role.roleId} value={role.roleId}>{role.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="calendar-inline-grid">
+              <label><input type="checkbox" checked={viewerCanSeeTitle} onChange={(event) => setViewerCanSeeTitle(event.target.checked)} /> title</label>
+              <label><input type="checkbox" checked={viewerCanSeeGraph} onChange={(event) => setViewerCanSeeGraph(event.target.checked)} /> graph</label>
+            </div>
+            <button type="button" onClick={addViewerScope}>Add viewer</button>
+            {viewerScopes.length > 0 && (
+              <ul className="calendar-viewer-list">
+                {viewerScopes.map((viewer) => (
+                  <li key={viewer.roleId}>
+                    <span>{viewer.label} ({viewer.canSeeTitle ? 'title' : 'appointment-only'}{viewer.canSeeGraph ? ', graph' : ''})</span>
+                    <button type="button" onClick={() => setViewerScopes((current) => current.filter((entry) => entry.roleId !== viewer.roleId))}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" className="cta" onClick={() => void createItem()}>
+              {createAsWeeklySeries && itemType === 'appointment' ? 'Create weekly series' : 'Create'}
+            </button>
+            {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
+              <p className="calendar-error">Calendar and owner role must be available before creating items.</p>
+            )}
+          </div>
           <h2>Item Detail</h2>
           {!selectedEvent && <p>Select an item from the board.</p>}
           {selectedEvent && (

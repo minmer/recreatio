@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  evaluateCogitaPublicStoryboardPythonNotion,
+  evaluateCogitaPythonNotion,
   downloadCogitaPublicStoryboardFile,
   downloadDataItemFile,
   getCogitaCreationProjects,
@@ -12,7 +14,8 @@ import {
   getCogitaPublicStoryboardInfoDetail,
   getCogitaPublicStoryboardShare,
   type CogitaCardSearchResult,
-  type CogitaCreationProject
+  type CogitaCreationProject,
+  type CogitaPythonEvaluateResponse
 } from '../../lib/api';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
@@ -123,7 +126,7 @@ type RuntimeState = {
 
 type RuntimeCardState = {
   nodeKey: string;
-  status: 'loading' | 'ready' | 'error' | 'evaluated';
+  status: 'loading' | 'ready' | 'submitting' | 'error' | 'evaluated';
   promptText: string;
   promptModel: CheckcardPromptModel;
   expectedModel: CheckcardExpectedModel;
@@ -132,6 +135,7 @@ type RuntimeCardState = {
   cardType: string | null;
   checkType: string | null;
   isCorrect: boolean | null;
+  pythonEvaluation?: CogitaPythonEvaluateResponse | null;
 };
 
 type LoadedCardRuntime = {
@@ -307,6 +311,33 @@ function buildStoryboardQuestionRuntime(
   };
 }
 
+function parsePythonDefinitionFromPayload(value: unknown): { starterSource: string } | null {
+  const source =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  if (!source) return null;
+  const definition =
+    source.definition && typeof source.definition === 'object' && !Array.isArray(source.definition)
+      ? (source.definition as Record<string, unknown>)
+      : source;
+  const starterSource = typeof definition.starterSource === 'string' ? definition.starterSource.trim() : '';
+  if (!starterSource) return null;
+  return { starterSource };
+}
+
+function formatDiagnosticJson(raw: string | null | undefined) {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = JSON.parse(trimmed);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return trimmed;
+  }
+}
+
 function pickNodeCard(
   node: StoryboardNodeRecord,
   cards: CogitaCardSearchResult[],
@@ -427,7 +458,8 @@ function buildLivePrompt(payload: {
   return {
     kind: 'text',
     prompt: promptText,
-    inputType: promptModel.inputType ?? 'text'
+    inputType: promptModel.inputType ?? 'text',
+    multiLine: Boolean(promptModel.multiLine)
   } as const;
 }
 
@@ -1110,24 +1142,29 @@ export function CogitaStoryboardRuntimePage({
 
     if ((isSharedRuntime || runtimeLibraryId) && notionId) {
       try {
-        const [cardsBundle, detail] = await Promise.all([
-          isSharedRuntime
-            ? getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
-            : getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId }),
-          (isSharedRuntime
-            ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
-            : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
-          ).catch(() => null)
-        ]);
+        const cardsBundle = isSharedRuntime
+          ? await getCogitaPublicStoryboardInfoCheckcards({ shareCode: shareCode!, infoId: notionId })
+          : await getCogitaInfoCheckcards({ libraryId: runtimeLibraryId!, infoId: notionId });
+        const initialQuestionPayload =
+          cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+          null;
         const preferredQuestionCheckType =
           node.cardCheckType.trim().toLowerCase() === 'question'
             ? toQuestionCheckTypeFromPayload(
-                detail?.payload ??
-                  cardsBundle.items.find((card) => (card.checkType ?? '').trim().toLowerCase().startsWith('question-'))?.payload ??
+                initialQuestionPayload ??
                   null
               )
             : null;
         const selectedCard = pickNodeCard(node, cardsBundle.items, preferredQuestionCheckType);
+        const selectedCheckType = (selectedCard?.checkType ?? node.cardCheckType ?? '').trim().toLowerCase();
+        const selectedInfoType = (selectedCard?.infoType ?? '').trim().toLowerCase();
+        const isPythonCard = selectedCheckType === 'python' || selectedInfoType === 'python';
+        const detail = isPythonCard
+          ? null
+          : await (isSharedRuntime
+            ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
+            : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
+          ).catch(() => null);
         let vocabProjection: Record<string, unknown> | null = null;
         if (detail?.infoType === 'translation') {
           try {
@@ -1160,6 +1197,21 @@ export function CogitaStoryboardRuntimePage({
         prompt = built.prompt;
         expected = built.expected;
 
+        const pythonDefinition = isPythonCard
+          ? parsePythonDefinitionFromPayload(
+              selectedCard?.payload ??
+              publicNotionPayload ??
+              null
+            )
+          : null;
+        if (pythonDefinition) {
+          notionType = 'python';
+          checkType = 'python';
+          promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+          expectedModel = '';
+          answerModel = { text: pythonDefinition.starterSource };
+          prompt = prompt || (node.description.trim() || node.title);
+        } else {
         const questionRuntime =
           (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
             ? buildStoryboardQuestionRuntime(
@@ -1181,9 +1233,17 @@ export function CogitaStoryboardRuntimePage({
           expectedModel = expected;
           answerModel = { text: '' };
         }
+        }
       } catch {
         const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-        if (sharedQuestionRuntime) {
+        const sharedPythonDefinition = parsePythonDefinitionFromPayload(publicNotionPayload ?? null);
+        if (sharedPythonDefinition) {
+          notionType = 'python';
+          checkType = 'python';
+          promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+          expectedModel = '';
+          answerModel = { text: sharedPythonDefinition.starterSource };
+        } else if (sharedQuestionRuntime) {
           notionType = 'question';
           checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
           prompt = sharedQuestionRuntime.promptText || prompt;
@@ -1198,7 +1258,14 @@ export function CogitaStoryboardRuntimePage({
       }
     } else {
       const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-      if (sharedQuestionRuntime) {
+      const sharedPythonDefinition = parsePythonDefinitionFromPayload(publicNotionPayload ?? null);
+      if (sharedPythonDefinition) {
+        notionType = 'python';
+        checkType = 'python';
+        promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+        expectedModel = '';
+        answerModel = { text: sharedPythonDefinition.starterSource };
+      } else if (sharedQuestionRuntime) {
         notionType = 'question';
         checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
         prompt = sharedQuestionRuntime.promptText || prompt;
@@ -1272,7 +1339,8 @@ export function CogitaStoryboardRuntimePage({
       setCardState({
         ...cached,
         status: 'ready',
-        isCorrect: null
+        isCorrect: null,
+        pythonEvaluation: null
       });
       return;
     }
@@ -1287,7 +1355,8 @@ export function CogitaStoryboardRuntimePage({
       notionType: null,
       cardType: null,
       checkType: null,
-      isCorrect: null
+      isCorrect: null,
+      pythonEvaluation: null
     });
 
     let cancelled = false;
@@ -1305,14 +1374,16 @@ export function CogitaStoryboardRuntimePage({
           notionType: null,
           cardType: null,
           checkType: currentNode.cardCheckType.trim() || null,
-          isCorrect: null
+          isCorrect: null,
+          pythonEvaluation: null
         });
         return;
       }
       setCardState({
         ...loaded,
         status: 'ready',
-        isCorrect: null
+        isCorrect: null,
+        pythonEvaluation: null
       });
     };
 
@@ -1569,9 +1640,80 @@ export function CogitaStoryboardRuntimePage({
     setStatus(null);
   };
 
-  const submitCardAnswer = () => {
+  const submitCardAnswer = async () => {
     if (!cardState || cardState.status !== 'ready' || !runtime || !currentNode || currentNode.kind !== 'card') return;
     const normalizedAnswerModel = normalizeCheckcardAnswer(cardState.promptModel, cardState.answerModel);
+    const normalizedCheckType = (cardState.checkType ?? currentNode?.cardCheckType ?? '').trim().toLowerCase();
+
+    if (normalizedCheckType === 'python') {
+      const notionId = currentNode.notionId.trim();
+      if (!notionId) {
+        setStatus(runtimeCopy.noCardOutcomeLink);
+        return;
+      }
+
+      setCardState((current) => {
+        if (!current || current.nodeKey !== cardState.nodeKey) return current;
+        return {
+          ...current,
+          status: 'submitting',
+          answerModel: normalizedAnswerModel,
+          pythonEvaluation: null
+        };
+      });
+
+      let pythonEvaluation: CogitaPythonEvaluateResponse;
+      try {
+        if (shareCode) {
+          pythonEvaluation = await evaluateCogitaPublicStoryboardPythonNotion({
+            shareCode,
+            infoId: notionId,
+            submissionSource: normalizedAnswerModel.text ?? ''
+          });
+        } else if (runtimeLibraryId) {
+          pythonEvaluation = await evaluateCogitaPythonNotion({
+            libraryId: runtimeLibraryId,
+            infoId: notionId,
+            submissionSource: normalizedAnswerModel.text ?? ''
+          });
+        } else {
+          pythonEvaluation = {
+            passed: false,
+            status: 'runner_unavailable',
+            casesExecuted: 0,
+            errorMessage: 'Library context is missing.'
+          };
+        }
+      } catch (error) {
+        pythonEvaluation = {
+          passed: false,
+          status: 'sandbox_error',
+          casesExecuted: 0,
+          errorMessage: error instanceof Error ? error.message : 'Python evaluation failed.'
+        };
+      }
+
+      const isCorrect = Boolean(pythonEvaluation.passed);
+      setCardState((current) => {
+        if (!current) return current;
+        if (current.nodeKey !== cardState.nodeKey) return current;
+        return {
+          ...current,
+          status: 'evaluated',
+          answerModel: normalizedAnswerModel,
+          isCorrect,
+          pythonEvaluation
+        };
+      });
+
+      const outcomeEdge =
+        (isCorrect ? cardRightEdge : cardWrongEdge) ??
+        cardPathEdge ??
+        resolveCardOutcomeEdge(runtime, currentNode, isCorrect);
+      setStatus(outcomeEdge ? null : runtimeCopy.noCardOutcomeLink);
+      return;
+    }
+
     const evaluation = evaluateCheckcardDetailed({
       prompt: cardState.promptModel,
       expected: cardState.expectedModel,
@@ -1579,7 +1721,7 @@ export function CogitaStoryboardRuntimePage({
       context: {
         notionType: cardState.notionType,
         cardType: cardState.cardType,
-        checkType: cardState.checkType ?? currentNode?.cardCheckType ?? null
+        checkType: normalizedCheckType || null
       }
     });
     const isCorrect = evaluation.isCorrect;
@@ -1591,7 +1733,8 @@ export function CogitaStoryboardRuntimePage({
         ...current,
         status: 'evaluated',
         answerModel: normalizedAnswerModel,
-        isCorrect
+        isCorrect,
+        pythonEvaluation: null
       };
     });
 
@@ -1705,8 +1848,10 @@ export function CogitaStoryboardRuntimePage({
             {currentNode?.kind === 'card' && !runtime.finished ? (
               <article className="cogita-library-detail" style={{ margin: 0 }}>
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
-                  {cardState?.status === 'loading' ? (
-                    <p className="cogita-help" style={{ margin: 0 }}>{runtimeCopy.cardLoading}</p>
+                  {cardState?.status === 'loading' || cardState?.status === 'submitting' ? (
+                    <p className="cogita-help" style={{ margin: 0 }}>
+                      {cardState.status === 'submitting' ? `${runtimeCopy.cardSubmitAction}...` : runtimeCopy.cardLoading}
+                    </p>
                   ) : null}
                   {cardState && cardState.status !== 'loading' ? (
                     <>
@@ -1727,7 +1872,7 @@ export function CogitaStoryboardRuntimePage({
                         revealExpected={revealExpected}
                         revealedAnswer={revealedAnswer}
                         surfaceState={cardState.status === 'evaluated' ? (cardState.isCorrect ? 'correct' : 'incorrect') : 'idle'}
-                        mode={cardState.status === 'evaluated' ? 'readonly' : 'interactive'}
+                        mode={cardState.status === 'evaluated' || cardState.status === 'submitting' ? 'readonly' : 'interactive'}
                         labels={{
                           answerLabel: runtimeCopy.cardAnswerLabel,
                           correctAnswerLabel: runtimeCopy.cardRevealLabel,
@@ -1870,6 +2015,28 @@ export function CogitaStoryboardRuntimePage({
                           <p className={cardState.isCorrect ? 'cogita-help' : 'cogita-form-error'} style={{ margin: 0 }}>
                             {cardState.isCorrect ? runtimeCopy.rightAction : runtimeCopy.wrongAction}
                           </p>
+                          {!cardState.isCorrect && (cardState.checkType ?? '').trim().toLowerCase() === 'python' ? (
+                            <div className="cogita-share-list" style={{ gap: '0.5rem' }}>
+                              {cardState.pythonEvaluation?.failingInputJson ? (
+                                <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>Failing input</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(cardState.pythonEvaluation.failingInputJson)}</pre>
+                                </div>
+                              ) : null}
+                              {cardState.pythonEvaluation?.userOutputJson ? (
+                                <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>User output</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(cardState.pythonEvaluation.userOutputJson)}</pre>
+                                </div>
+                              ) : null}
+                              {cardState.pythonEvaluation?.errorMessage ? (
+                                <div className="cogita-share-row" data-state="incorrect" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>Error</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{cardState.pythonEvaluation.errorMessage}</pre>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                           {evaluatedOutcomeEdge ? (
                             <div className="cogita-card-actions">
                               <button

@@ -3,6 +3,7 @@ import type { CogitaInfoPayloadFieldSpec } from '../../../../../../lib/api';
 import type { CogitaInfoOption } from '../../../types';
 import type { CogitaInfoType } from '../../../types';
 import { NotionComputedEditor, type NotionComputedEditorProps } from './notionComputed';
+import { NotionPythonEditor, type NotionPythonEditorProps } from './notionPython';
 import { NotionQuestionEditor, type NotionQuestionEditorProps } from './notionQuestion';
 
 export type ReferenceSourceForm = {
@@ -178,6 +179,7 @@ export type NotionTypePayloadShellProps = {
   onValueChange: (value: string) => void;
   questionEditor?: Omit<NotionQuestionEditorProps, 'copy'>;
   computedEditor?: Omit<NotionComputedEditorProps, 'copy'>;
+  pythonEditor?: Omit<NotionPythonEditorProps, 'copy'>;
 };
 
 export function NotionTypePayloadShell({
@@ -187,7 +189,8 @@ export function NotionTypePayloadShell({
   value,
   onValueChange,
   questionEditor,
-  computedEditor
+  computedEditor,
+  pythonEditor
 }: NotionTypePayloadShellProps) {
   if (infoType === 'question' && field.key === 'definition' && field.inputType === 'json' && questionEditor) {
     return (
@@ -202,6 +205,14 @@ export function NotionTypePayloadShell({
       <div className="cogita-field full">
         <span>{field.label}</span>
         <NotionComputedEditor copy={copy} {...computedEditor} />
+      </div>
+    );
+  }
+  if (infoType === 'python' && field.key === 'definition' && field.inputType === 'json' && pythonEditor) {
+    return (
+      <div className="cogita-field full">
+        <span>{field.label}</span>
+        <NotionPythonEditor copy={copy} {...pythonEditor} />
       </div>
     );
   }

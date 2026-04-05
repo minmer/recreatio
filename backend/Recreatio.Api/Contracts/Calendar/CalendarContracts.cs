@@ -49,8 +49,14 @@ public sealed record CalendarReminderRequest(
     Guid? TargetUserId,
     string? ChannelConfigJson = null);
 
+public sealed record CalendarViewerScopeRequest(
+    Guid RoleId,
+    bool CanSeeTitle = true,
+    bool CanSeeGraph = false);
+
 public sealed record CalendarEventCreateRequest(
     Guid CalendarId,
+    Guid? EventGroupId,
     Guid OwnerRoleId,
     string TitlePublic,
     string? SummaryPublic,
@@ -75,6 +81,7 @@ public sealed record CalendarEventCreateRequest(
     string? SourceFieldEnd,
     string? ConflictScopeMode,
     IReadOnlyList<Guid>? ScopedRoleIds,
+    IReadOnlyList<CalendarViewerScopeRequest>? ViewerScopes,
     IReadOnlyList<CalendarReminderRequest>? Reminders,
     bool AllowConflicts,
     string ItemType = "appointment",
@@ -106,11 +113,14 @@ public sealed record CalendarEventUpdateRequest(
     string? LinkedModule,
     string? LinkedEntityType,
     Guid? LinkedEntityId,
+    Guid? EventGroupId,
     string? SourceFieldStart,
     string? SourceFieldEnd,
     string? ConflictScopeMode,
     IReadOnlyList<Guid>? ScopedRoleIds,
     bool ReplaceRoleScopes,
+    IReadOnlyList<CalendarViewerScopeRequest>? ViewerScopes,
+    bool ReplaceViewerScopes,
     IReadOnlyList<CalendarReminderRequest>? Reminders,
     bool ReplaceReminders,
     bool? IsArchived,
@@ -139,12 +149,16 @@ public sealed record CalendarEventRoleScopeResponse(
     Guid ScopeId,
     Guid RoleId,
     string ScopeType,
+    bool CanSeeTitle,
+    bool CanSeeGraph,
     DateTimeOffset CreatedUtc,
     DateTimeOffset? RevokedUtc);
 
 public sealed record CalendarEventResponse(
     Guid EventId,
     Guid CalendarId,
+    Guid? EventGroupId,
+    string? EventGroupName,
     Guid OwnerRoleId,
     string TitlePublic,
     string? SummaryPublic,
@@ -361,6 +375,81 @@ public sealed record CalendarTaskCompletionResponse(
     string TaskState,
     DateTimeOffset? CompletedUtc,
     CalendarGraphExecutionResponse? GraphExecution);
+
+public sealed record CalendarGraphLinkRequest(
+    Guid GraphId);
+
+public sealed record CalendarGraphLinkResponse(
+    Guid LinkId,
+    Guid EventId,
+    Guid GraphId,
+    bool IsPrimary,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? RevokedUtc);
+
+public sealed record CalendarEventGroupCreateRequest(
+    string Name,
+    string? Description,
+    string? Category,
+    Guid OwnerRoleId);
+
+public sealed record CalendarEventGroupUpdateRequest(
+    string? Name,
+    string? Description,
+    string? Category,
+    bool? IsArchived);
+
+public sealed record CalendarEventGroupResponse(
+    Guid EventGroupId,
+    Guid CalendarId,
+    Guid OwnerRoleId,
+    string Name,
+    string? Description,
+    string? Category,
+    bool IsArchived,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    int ItemCount);
+
+public sealed record CalendarEventGroupShareCreateRequest(
+    string? Label,
+    int? ExpiresInHours,
+    string Mode = "readonly");
+
+public sealed record CalendarEventGroupShareResponse(
+    Guid LinkId,
+    string Code,
+    string Label,
+    string Mode,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset? ExpiresUtc,
+    bool IsActive,
+    Guid SharedViewId);
+
+public sealed record CalendarWeeklySeriesCreateRequest(
+    Guid OwnerRoleId,
+    string TitlePublic,
+    string? SummaryPublic,
+    string? LocationPublic,
+    string Visibility,
+    DateTimeOffset FirstStartUtc,
+    DateTimeOffset FirstEndUtc,
+    DateTimeOffset UntilUtc,
+    int IntervalWeeks,
+    IReadOnlyList<Guid>? ScopedRoleIds,
+    IReadOnlyList<CalendarViewerScopeRequest>? ViewerScopes,
+    Guid? GraphId,
+    bool AllowConflicts);
+
+public sealed record CalendarPublicGroupResponse(
+    Guid EventGroupId,
+    Guid CalendarId,
+    string Name,
+    string? Description,
+    string? Category,
+    DateTimeOffset CreatedUtc,
+    DateTimeOffset UpdatedUtc,
+    IReadOnlyList<CalendarPublicEventResponse> Items);
 
 public sealed record CalendarReminderDispatchResponse(
     Guid DispatchId,

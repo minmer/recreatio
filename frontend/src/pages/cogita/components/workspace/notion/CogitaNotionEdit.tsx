@@ -34,6 +34,12 @@ import {
   type ComputedDefinition
 } from './types/notionComputed';
 import {
+  createDefaultPythonDefinition,
+  parsePythonDefinitionFromPayload,
+  serializePythonDefinition,
+  type PythonDefinition
+} from './types/notionPython';
+import {
   createDefaultQuestionDefinition,
   normalizeQuestionDefinition,
   parseQuestionDefinitionFromPayload,
@@ -743,6 +749,7 @@ export function CogitaNotionEdit({
   const [inlineReferenceStatus, setInlineReferenceStatus] = useState<Record<string, string | null>>({});
   const [inlineReferenceSavingField, setInlineReferenceSavingField] = useState<string | null>(null);
   const [computedDefinition, setComputedDefinition] = useState<ComputedDefinition>(createDefaultComputedDefinition);
+  const [pythonDefinition, setPythonDefinition] = useState<PythonDefinition>(createDefaultPythonDefinition);
   const [questionDefinition, setQuestionDefinition] = useState<QuestionDefinition>(() =>
     normalizeQuestionDefinition(JSON.parse(QUESTION_DEFINITION_TEMPLATE)) ?? createDefaultQuestionDefinition()
   );
@@ -806,6 +813,8 @@ export function CogitaNotionEdit({
         payload[field.key] = QUESTION_DEFINITION_TEMPLATE;
       } else if (currentSpec.infoType === 'computed' && field.key === 'definition' && field.inputType === 'json') {
         payload[field.key] = serializeComputedDefinition(createDefaultComputedDefinition());
+      } else if (currentSpec.infoType === 'python' && field.key === 'definition' && field.inputType === 'json') {
+        payload[field.key] = serializePythonDefinition(createDefaultPythonDefinition());
       } else {
         payload[field.key] = '';
       }
@@ -855,6 +864,20 @@ export function CogitaNotionEdit({
       return;
     }
     setComputedDefinition(normalized);
+  }, [payloadValues.definition, selectedInfoType]);
+
+  useEffect(() => {
+    if (selectedInfoType !== 'python') return;
+    const normalized = parsePythonDefinitionFromPayload(payloadValues.definition);
+    if (!normalized) {
+      const fallback = createDefaultPythonDefinition();
+      setPythonDefinition(fallback);
+      if (!String(payloadValues.definition ?? '').trim()) {
+        setPayloadValues((prev) => ({ ...prev, definition: serializePythonDefinition(fallback) }));
+      }
+      return;
+    }
+    setPythonDefinition(normalized);
   }, [payloadValues.definition, selectedInfoType]);
 
   useEffect(() => {
@@ -1302,6 +1325,17 @@ export function CogitaNotionEdit({
                 onDefinitionChange: (next) => {
                   setComputedDefinition(next);
                   setPayloadValues((prev) => ({ ...prev, definition: serializeComputedDefinition(next) }));
+                }
+              }
+            : undefined
+        }
+        pythonEditor={
+          selectedInfoType === 'python'
+            ? {
+                definition: pythonDefinition,
+                onDefinitionChange: (next) => {
+                  setPythonDefinition(next);
+                  setPayloadValues((prev) => ({ ...prev, definition: serializePythonDefinition(next) }));
                 }
               }
             : undefined

@@ -56,10 +56,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
 
     public async Task<CalendarGraphResponse?> GetGraphAsync(Guid eventId, CancellationToken ct)
     {
-        var graph = await _dbContext.CalendarScheduleGraphs.AsNoTracking()
-            .Where(entry => entry.EventId == eventId)
-            .OrderByDescending(entry => entry.Version)
-            .FirstOrDefaultAsync(ct);
+        var graph = await ResolveGraphForEventAsync(eventId, activeOnly: false, asNoTracking: true, ct);
         if (graph is null)
         {
             return null;
@@ -127,6 +124,30 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
             graph.Status = status;
             graph.Version += 1;
             graph.UpdatedUtc = now;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+
+        var activeLinks = await _dbContext.CalendarEventGraphLinks
+            .Where(entry => entry.EventId == eventId && entry.RevokedUtc == null)
+            .ToListAsync(ct);
+        foreach (var link in activeLinks.Where(link => link.GraphId != graph.Id))
+        {
+            link.RevokedUtc = now;
+        }
+
+        if (activeLinks.All(link => link.GraphId != graph.Id))
+        {
+            _dbContext.CalendarEventGraphLinks.Add(new CalendarEventGraphLink
+            {
+                Id = Guid.NewGuid(),
+                EventId = eventId,
+                GraphId = graph.Id,
+                IsPrimary = true,
+                CreatedByUserId = actorUserId,
+                CreatedUtc = now,
+                RevokedUtc = null
+            });
         }
 
         await _dbContext.SaveChangesAsync(ct);
@@ -247,10 +268,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
             throw new InvalidOperationException("Calendar item does not exist.");
         }
 
-        var graph = await _dbContext.CalendarScheduleGraphs
-            .Where(entry => entry.EventId == eventId && entry.Status == "active")
-            .OrderByDescending(entry => entry.Version)
-            .FirstOrDefaultAsync(ct);
+        var graph = await ResolveGraphForEventAsync(eventId, activeOnly: true, asNoTracking: false, ct);
         if (graph is null)
         {
             throw new InvalidOperationException("No active graph attached to this item.");
@@ -297,15 +315,14 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
             var edges = await _dbContext.CalendarScheduleGraphEdges.AsNoTracking()
                 .Where(entry => entry.GraphId == graph.Id)
                 .ToListAsync(ct);
-            var scopeRoleIds = await _dbContext.CalendarEventRoleScopes.AsNoTracking()
+            var scopes = await _dbContext.CalendarEventRoleScopes.AsNoTracking()
                 .Where(entry => entry.EventId == item.Id && entry.RevokedUtc == null)
-                .Select(entry => entry.RoleId)
                 .ToListAsync(ct);
 
             var creationPlan = BuildCreationPlan(item, graph, nodes, edges, triggerType, completionAction);
             foreach (var action in creationPlan)
             {
-                var created = await CreateDerivedItemAsync(item, scopeRoleIds, action, actorUserId, ct);
+                var created = await CreateDerivedItemAsync(item, scopes, action, actorUserId, ct);
                 createdItems.Add(created.Id);
             }
 
@@ -368,10 +385,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
 
     public async Task<IReadOnlyList<CalendarOccurrenceRuntime>> ExpandOccurrencesAsync(CalendarEvent item, DateTimeOffset fromUtc, DateTimeOffset toUtc, CancellationToken ct)
     {
-        var graph = await _dbContext.CalendarScheduleGraphs.AsNoTracking()
-            .Where(entry => entry.EventId == item.Id && entry.Status == "active")
-            .OrderByDescending(entry => entry.Version)
-            .FirstOrDefaultAsync(ct);
+        var graph = await ResolveGraphForEventAsync(item.Id, activeOnly: true, asNoTracking: true, ct);
 
         if (graph is not null)
         {
@@ -389,9 +403,47 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
             .ToList();
     }
 
+    private async Task<CalendarScheduleGraph?> ResolveGraphForEventAsync(Guid eventId, bool activeOnly, bool asNoTracking, CancellationToken ct)
+    {
+        var linkedGraphId = await _dbContext.CalendarEventGraphLinks
+            .Where(entry => entry.EventId == eventId && entry.RevokedUtc == null)
+            .OrderByDescending(entry => entry.IsPrimary)
+            .ThenByDescending(entry => entry.CreatedUtc)
+            .Select(entry => (Guid?)entry.GraphId)
+            .FirstOrDefaultAsync(ct);
+
+        if (linkedGraphId is not null)
+        {
+            var linkedQuery = _dbContext.CalendarScheduleGraphs.AsQueryable();
+            if (asNoTracking)
+            {
+                linkedQuery = linkedQuery.AsNoTracking();
+            }
+
+            var linked = await linkedQuery.FirstOrDefaultAsync(
+                entry => entry.Id == linkedGraphId.Value && (!activeOnly || entry.Status == "active"),
+                ct);
+            if (linked is not null)
+            {
+                return linked;
+            }
+        }
+
+        var query = _dbContext.CalendarScheduleGraphs.AsQueryable();
+        if (asNoTracking)
+        {
+            query = query.AsNoTracking();
+        }
+
+        return await query
+            .Where(entry => entry.EventId == eventId && (!activeOnly || entry.Status == "active"))
+            .OrderByDescending(entry => entry.Version)
+            .FirstOrDefaultAsync(ct);
+    }
+
     private async Task<CalendarEvent> CreateDerivedItemAsync(
         CalendarEvent source,
-        IReadOnlyList<Guid> sourceScopeRoleIds,
+        IReadOnlyList<CalendarEventRoleScope> sourceScopes,
         CalendarItemCreationAction action,
         Guid actorUserId,
         CancellationToken ct)
@@ -401,6 +453,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
         {
             Id = Guid.NewGuid(),
             CalendarId = source.CalendarId,
+            EventGroupId = source.EventGroupId,
             OwnerRoleId = source.OwnerRoleId,
             TitlePublic = action.Title,
             SummaryPublic = action.Summary,
@@ -440,14 +493,18 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
         };
 
         _dbContext.CalendarEvents.Add(created);
-        foreach (var roleId in sourceScopeRoleIds.Distinct())
+        foreach (var scope in sourceScopes
+                     .GroupBy(entry => (entry.RoleId, entry.ScopeType))
+                     .Select(grouping => grouping.First()))
         {
             _dbContext.CalendarEventRoleScopes.Add(new CalendarEventRoleScope
             {
                 Id = Guid.NewGuid(),
                 EventId = created.Id,
-                RoleId = roleId,
-                ScopeType = roleId == created.OwnerRoleId ? "owner" : "participant",
+                RoleId = scope.RoleId,
+                ScopeType = scope.ScopeType,
+                ViewerCanSeeTitle = scope.ViewerCanSeeTitle,
+                ViewerCanSeeGraph = scope.ViewerCanSeeGraph,
                 CreatedUtc = now,
                 RevokedUtc = null
             });

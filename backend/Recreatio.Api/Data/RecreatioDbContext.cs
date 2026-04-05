@@ -101,6 +101,7 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Cogita.CogitaQuote> CogitaQuotes => Set<Data.Cogita.CogitaQuote>();
     public DbSet<Data.Cogita.CogitaQuestion> CogitaQuestions => Set<Data.Cogita.CogitaQuestion>();
     public DbSet<Data.Cogita.CogitaComputedInfo> CogitaComputedInfos => Set<Data.Cogita.CogitaComputedInfo>();
+    public DbSet<Data.Cogita.CogitaPythonInfo> CogitaPythonInfos => Set<Data.Cogita.CogitaPythonInfo>();
     public DbSet<Data.Cogita.CogitaCollection> CogitaCollections => Set<Data.Cogita.CogitaCollection>();
     public DbSet<Data.Cogita.CogitaCollectionItem> CogitaCollectionItems => Set<Data.Cogita.CogitaCollectionItem>();
     public DbSet<Data.Cogita.CogitaCollectionDependency> CogitaCollectionDependencies => Set<Data.Cogita.CogitaCollectionDependency>();
@@ -169,7 +170,10 @@ public sealed class RecreatioDbContext : DbContext
     public DbSet<Data.Chat.ChatPublicLink> ChatPublicLinks => Set<Data.Chat.ChatPublicLink>();
     public DbSet<Data.Calendar.CalendarContainer> CalendarContainers => Set<Data.Calendar.CalendarContainer>();
     public DbSet<Data.Calendar.CalendarRoleBinding> CalendarRoleBindings => Set<Data.Calendar.CalendarRoleBinding>();
+    public DbSet<Data.Calendar.CalendarEventGroup> CalendarEventGroups => Set<Data.Calendar.CalendarEventGroup>();
+    public DbSet<Data.Calendar.CalendarEventGroupShareLink> CalendarEventGroupShareLinks => Set<Data.Calendar.CalendarEventGroupShareLink>();
     public DbSet<Data.Calendar.CalendarEvent> CalendarEvents => Set<Data.Calendar.CalendarEvent>();
+    public DbSet<Data.Calendar.CalendarEventGraphLink> CalendarEventGraphLinks => Set<Data.Calendar.CalendarEventGraphLink>();
     public DbSet<Data.Calendar.CalendarEventRoleScope> CalendarEventRoleScopes => Set<Data.Calendar.CalendarEventRoleScope>();
     public DbSet<Data.Calendar.CalendarEventReminder> CalendarEventReminders => Set<Data.Calendar.CalendarEventReminder>();
     public DbSet<Data.Calendar.CalendarEventShareLink> CalendarEventShareLinks => Set<Data.Calendar.CalendarEventShareLink>();
@@ -652,12 +656,28 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.CalendarId);
 
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroup>()
+            .HasIndex(x => new { x.CalendarId, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroup>()
+            .HasIndex(x => new { x.CalendarId, x.IsArchived, x.UpdatedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroup>()
+            .HasOne<Data.Calendar.CalendarContainer>()
+            .WithMany()
+            .HasForeignKey(x => x.CalendarId);
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroup>()
+            .HasOne<Role>()
+            .WithMany()
+            .HasForeignKey(x => x.OwnerRoleId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasIndex(x => new { x.CalendarId, x.StartUtc });
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasIndex(x => new { x.CalendarId, x.Status, x.StartUtc });
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasIndex(x => new { x.CalendarId, x.LinkedModule, x.LinkedEntityType, x.LinkedEntityId });
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasIndex(x => new { x.EventGroupId, x.StartUtc });
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasIndex(x => new { x.CalendarId, x.ItemType, x.StartUtc });
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
@@ -668,6 +688,11 @@ public sealed class RecreatioDbContext : DbContext
             .HasOne<Data.Calendar.CalendarContainer>()
             .WithMany()
             .HasForeignKey(x => x.CalendarId);
+        modelBuilder.Entity<Data.Calendar.CalendarEvent>()
+            .HasOne<Data.Calendar.CalendarEventGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.EventGroupId)
+            .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Data.Calendar.CalendarEvent>()
             .HasOne<Role>()
             .WithMany()
@@ -720,6 +745,23 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.EventId);
 
+        modelBuilder.Entity<Data.Calendar.CalendarEventGraphLink>()
+            .HasIndex(x => new { x.EventId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEventGraphLink>()
+            .HasIndex(x => new { x.GraphId, x.RevokedUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEventGraphLink>()
+            .HasIndex(x => new { x.EventId, x.GraphId })
+            .IsUnique()
+            .HasFilter("[RevokedUtc] IS NULL");
+        modelBuilder.Entity<Data.Calendar.CalendarEventGraphLink>()
+            .HasOne<Data.Calendar.CalendarEvent>()
+            .WithMany()
+            .HasForeignKey(x => x.EventId);
+        modelBuilder.Entity<Data.Calendar.CalendarEventGraphLink>()
+            .HasOne<Data.Calendar.CalendarScheduleGraph>()
+            .WithMany()
+            .HasForeignKey(x => x.GraphId);
+
         modelBuilder.Entity<Data.Calendar.CalendarScheduleGraphNode>()
             .HasIndex(x => new { x.GraphId, x.NodeKey })
             .IsUnique();
@@ -761,6 +803,20 @@ public sealed class RecreatioDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.EventId);
         modelBuilder.Entity<Data.Calendar.CalendarSharedViewLink>()
+            .HasOne<SharedView>()
+            .WithMany()
+            .HasForeignKey(x => x.SharedViewId);
+
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroupShareLink>()
+            .HasIndex(x => new { x.EventGroupId, x.IsActive, x.RevokedUtc, x.ExpiresUtc });
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroupShareLink>()
+            .HasIndex(x => x.SharedViewId)
+            .IsUnique();
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroupShareLink>()
+            .HasOne<Data.Calendar.CalendarEventGroup>()
+            .WithMany()
+            .HasForeignKey(x => x.EventGroupId);
+        modelBuilder.Entity<Data.Calendar.CalendarEventGroupShareLink>()
             .HasOne<SharedView>()
             .WithMany()
             .HasForeignKey(x => x.SharedViewId);

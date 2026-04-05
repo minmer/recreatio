@@ -11,6 +11,8 @@ public sealed class CalendarEvent
 
     public Guid CalendarId { get; set; }
 
+    public Guid? EventGroupId { get; set; }
+
     public Guid OwnerRoleId { get; set; }
 
     [MaxLength(200)]

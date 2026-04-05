@@ -387,6 +387,7 @@ export type Copy = {
         question: string;
         quote: string;
         computed: string;
+        python: string;
       };
       connectionTypes: {
         wordLanguage: string;

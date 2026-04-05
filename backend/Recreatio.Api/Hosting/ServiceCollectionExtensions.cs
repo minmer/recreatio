@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.Configure<CsrfOptions>(configuration.GetSection("Csrf"));
         services.Configure<BlobStorageOptions>(configuration.GetSection("BlobStorage"));
         services.Configure<CalendarOptions>(configuration.GetSection("Calendar"));
+        services.Configure<PythonSandboxOptions>(configuration.GetSection("PythonSandbox"));
 
         services.AddDbContext<RecreatioDbContext>(options =>
             options.UseSqlServer(
@@ -234,6 +235,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<CalendarReminderDispatcherHostedService>();
         services.AddHostedService<GameRetentionCleanupHostedService>();
         services.AddSingleton<IEncryptedBlobStore, EncryptedBlobStore>();
+        services.AddHttpClient<IPythonSandboxClient, PythonSandboxClient>();
 
         return services;
     }
