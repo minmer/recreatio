@@ -311,7 +311,7 @@ function buildStoryboardQuestionRuntime(
   };
 }
 
-function parsePythonDefinitionFromPayload(value: unknown): { starterSource: string } | null {
+function parsePythonDefinitionFromPayload(value: unknown): { starterSource: string; taskText: string } | null {
   const source =
     value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -323,7 +323,11 @@ function parsePythonDefinitionFromPayload(value: unknown): { starterSource: stri
       : source;
   const starterSource = typeof definition.starterSource === 'string' ? definition.starterSource.trim() : '';
   if (!starterSource) return null;
-  return { starterSource };
+  const taskText =
+    typeof definition.taskText === 'string'
+      ? definition.taskText.replace(/\r\n/g, '\n').trim()
+      : '';
+  return { starterSource, taskText };
 }
 
 function formatDiagnosticJson(raw: string | null | undefined) {
@@ -1210,7 +1214,7 @@ export function CogitaStoryboardRuntimePage({
           promptModel = { kind: 'text', inputType: 'text', multiLine: true };
           expectedModel = '';
           answerModel = { text: pythonDefinition.starterSource };
-          prompt = prompt || (node.description.trim() || node.title);
+          prompt = pythonDefinition.taskText || prompt || (node.description.trim() || node.title);
         } else {
         const questionRuntime =
           (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
@@ -1243,6 +1247,7 @@ export function CogitaStoryboardRuntimePage({
           promptModel = { kind: 'text', inputType: 'text', multiLine: true };
           expectedModel = '';
           answerModel = { text: sharedPythonDefinition.starterSource };
+          prompt = sharedPythonDefinition.taskText || prompt;
         } else if (sharedQuestionRuntime) {
           notionType = 'question';
           checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
@@ -1265,6 +1270,7 @@ export function CogitaStoryboardRuntimePage({
         promptModel = { kind: 'text', inputType: 'text', multiLine: true };
         expectedModel = '';
         answerModel = { text: sharedPythonDefinition.starterSource };
+        prompt = sharedPythonDefinition.taskText || prompt;
       } else if (sharedQuestionRuntime) {
         notionType = 'question';
         checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;

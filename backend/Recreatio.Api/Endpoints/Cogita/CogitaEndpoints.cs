@@ -15368,7 +15368,8 @@ public static class CogitaEndpoints
             }
             else if (node.ContainsKey("createInputSource") ||
                      node.ContainsKey("referenceSource") ||
-                     node.ContainsKey("starterSource"))
+                     node.ContainsKey("starterSource") ||
+                     node.ContainsKey("taskText"))
             {
                 definition = new JsonObject
                 {
@@ -15385,6 +15386,10 @@ public static class CogitaEndpoints
                 if (node.TryGetPropertyValue("starterSource", out var starterNode))
                 {
                     definition["starterSource"] = starterNode?.DeepClone();
+                }
+                if (node.TryGetPropertyValue("taskText", out var taskTextNode))
+                {
+                    definition["taskText"] = taskTextNode?.DeepClone();
                 }
                 if (node.TryGetPropertyValue("caseCount", out var caseCountNode))
                 {
@@ -15405,6 +15410,7 @@ public static class CogitaEndpoints
             var starterSource = NormalizePythonSource(
                 TryReadNodeString(definition["starterSource"]),
                 GetDefaultStarterSource());
+            var taskText = NormalizePythonTaskText(TryReadNodeString(definition["taskText"]));
 
             var requestedCaseCount = DefaultPythonCaseCount;
             if (TryReadNodeInt(definition["caseCount"], out var parsedCaseCount))
@@ -15420,6 +15426,7 @@ public static class CogitaEndpoints
                 ["createInputSource"] = createInputSource,
                 ["referenceSource"] = referenceSource,
                 ["starterSource"] = starterSource,
+                ["taskText"] = taskText,
                 ["caseCount"] = requestedCaseCount
             };
 
@@ -15427,6 +15434,7 @@ public static class CogitaEndpoints
             node.Remove("createInputSource");
             node.Remove("referenceSource");
             node.Remove("starterSource");
+            node.Remove("taskText");
             node.Remove("caseCount");
 
             return JsonSerializer.SerializeToElement(node);
@@ -15804,6 +15812,11 @@ public static class CogitaEndpoints
         }
 
         return normalized;
+    }
+
+    private static string NormalizePythonTaskText(string? value)
+    {
+        return (value ?? string.Empty).Replace("\r\n", "\n").Trim();
     }
 
     private static string GetDefaultCreateInputSource()

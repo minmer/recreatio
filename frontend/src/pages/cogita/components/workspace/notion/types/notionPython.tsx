@@ -5,6 +5,7 @@ export type PythonDefinition = {
   createInputSource: string;
   referenceSource: string;
   starterSource: string;
+  taskText: string;
   caseCount: number;
 };
 
@@ -33,12 +34,18 @@ function normalizeCaseCount(value: unknown) {
   return Math.max(1, Math.min(200, Math.round(parsed)));
 }
 
+function normalizeTaskText(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\r\n/g, '\n').trim();
+}
+
 export function createDefaultPythonDefinition(): PythonDefinition {
   return {
     type: 'python_transform_v1',
     createInputSource: DEFAULT_CREATE_INPUT_SOURCE,
     referenceSource: DEFAULT_REFERENCE_SOURCE,
     starterSource: DEFAULT_STARTER_SOURCE,
+    taskText: '',
     caseCount: 5
   };
 }
@@ -52,6 +59,7 @@ export function normalizePythonDefinition(value: unknown): PythonDefinition | nu
     createInputSource: normalizeSource(node.createInputSource, DEFAULT_CREATE_INPUT_SOURCE),
     referenceSource: normalizeSource(node.referenceSource, DEFAULT_REFERENCE_SOURCE),
     starterSource: normalizeSource(node.starterSource, DEFAULT_STARTER_SOURCE),
+    taskText: normalizeTaskText(node.taskText),
     caseCount: normalizeCaseCount(node.caseCount)
   };
 }
@@ -86,6 +94,7 @@ export function serializePythonDefinition(definition: PythonDefinition) {
       createInputSource: definition.createInputSource,
       referenceSource: definition.referenceSource,
       starterSource: definition.starterSource,
+      taskText: normalizeTaskText(definition.taskText),
       caseCount: normalizeCaseCount(definition.caseCount)
     },
     null,
@@ -122,6 +131,12 @@ export function NotionPythonEditor({ copy: _copy, definition, onDefinitionChange
     onDefinitionChange({
       ...definition,
       starterSource: value
+    });
+  };
+  const setTaskText = (value: string) => {
+    onDefinitionChange({
+      ...definition,
+      taskText: value
     });
   };
 
@@ -164,6 +179,16 @@ export function NotionPythonEditor({ copy: _copy, definition, onDefinitionChange
           rows={8}
           value={definition.starterSource}
           onChange={(event) => setStarterSource(event.target.value)}
+          spellCheck={false}
+        />
+      </label>
+
+      <label className="cogita-field full">
+        <span>Task text (shown to learner)</span>
+        <textarea
+          rows={5}
+          value={definition.taskText}
+          onChange={(event) => setTaskText(event.target.value)}
           spellCheck={false}
         />
       </label>
