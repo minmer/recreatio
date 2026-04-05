@@ -3,7 +3,13 @@ import type { CogitaInfoPayloadFieldSpec } from '../../../../../../lib/api';
 import type { CogitaInfoOption } from '../../../types';
 import type { CogitaInfoType } from '../../../types';
 import { NotionComputedEditor, type NotionComputedEditorProps } from './notionComputed';
-import { NotionPythonEditor, type NotionPythonEditorProps } from './notionPython';
+import {
+  NotionPythonEditor,
+  createDefaultPythonDefinition,
+  parsePythonDefinitionFromPayload,
+  serializePythonDefinition,
+  type NotionPythonEditorProps
+} from './notionPython';
 import { NotionQuestionEditor, type NotionQuestionEditorProps } from './notionQuestion';
 
 export type ReferenceSourceForm = {
@@ -208,11 +214,22 @@ export function NotionTypePayloadShell({
       </div>
     );
   }
-  if (infoType === 'python' && field.key === 'definition' && field.inputType === 'json' && pythonEditor) {
+  if (infoType === 'python' && field.key === 'definition' && field.inputType === 'json') {
+    const definition =
+      pythonEditor?.definition ??
+      parsePythonDefinitionFromPayload(value) ??
+      createDefaultPythonDefinition();
+    const onDefinitionChange =
+      pythonEditor?.onDefinitionChange ??
+      ((next: typeof definition) => onValueChange(serializePythonDefinition(next)));
     return (
       <div className="cogita-field full">
         <span>{field.label}</span>
-        <NotionPythonEditor copy={copy} {...pythonEditor} />
+        <NotionPythonEditor
+          copy={copy}
+          definition={definition}
+          onDefinitionChange={onDefinitionChange}
+        />
       </div>
     );
   }
