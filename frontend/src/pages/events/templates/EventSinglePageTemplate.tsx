@@ -24,6 +24,10 @@ export type EventTemplateSlide = {
   tone?: 'tone-1' | 'tone-2' | 'tone-3' | 'tone-4' | 'tone-5';
 };
 
+const SNAP_IDLE_MS = 110;
+const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
+const SCROLL_SENSITIVITY = 1.16;
+
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
   if (value > max) return max;
@@ -67,6 +71,7 @@ export function EventSinglePageTemplate({
   const touchYRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
+  const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -105,6 +110,38 @@ export function EventSinglePageTemplate({
     points.add(maxScroll);
     return Array.from(points).sort((left, right) => left - right);
   }, [maxScroll, slideHeights, slideStarts, viewportHeight]);
+
+  const resolveSnapTarget = useCallback((current: number, direction: -1 | 0 | 1): number => {
+    if (snapPoints.length === 0) {
+      return current;
+    }
+    if (direction === 0) {
+      return nearest(snapPoints, current);
+    }
+
+    let lower = snapPoints[0];
+    let upper = snapPoints[snapPoints.length - 1];
+    for (let index = 0; index < snapPoints.length; index += 1) {
+      const point = snapPoints[index];
+      if (point <= current) {
+        lower = point;
+      }
+      if (point >= current) {
+        upper = point;
+        break;
+      }
+    }
+
+    if (upper === lower) {
+      return upper;
+    }
+
+    const progress = clamp((current - lower) / (upper - lower), 0, 1);
+    if (direction > 0) {
+      return progress >= SNAP_DIRECTIONAL_THRESHOLD ? upper : lower;
+    }
+    return progress <= 1 - SNAP_DIRECTIONAL_THRESHOLD ? lower : upper;
+  }, [snapPoints]);
 
   const activeSlideIndex = useMemo(() => {
     const center = position + viewportHeight * 0.5;
@@ -156,9 +193,10 @@ export function EventSinglePageTemplate({
   }, [animateToTarget, maxScroll]);
 
   const snapToNearest = useCallback(() => {
-    const snap = nearest(snapPoints, targetRef.current);
+    const snap = resolveSnapTarget(targetRef.current, lastInputDirectionRef.current);
     setTarget(snap);
-  }, [setTarget, snapPoints]);
+    lastInputDirectionRef.current = 0;
+  }, [resolveSnapTarget, setTarget]);
 
   const scheduleSnap = useCallback(() => {
     if (snapTimerRef.current !== null) {
@@ -167,19 +205,21 @@ export function EventSinglePageTemplate({
     snapTimerRef.current = window.setTimeout(() => {
       snapTimerRef.current = null;
       snapToNearest();
-    }, 140);
+    }, SNAP_IDLE_MS);
   }, [snapToNearest]);
 
   const applyDelta = useCallback((delta: number) => {
     if (!Number.isFinite(delta) || delta === 0) {
       return;
     }
-    setTarget(targetRef.current + delta);
+    lastInputDirectionRef.current = delta > 0 ? 1 : -1;
+    setTarget(targetRef.current + (delta * SCROLL_SENSITIVITY));
     scheduleSnap();
   }, [scheduleSnap, setTarget]);
 
   const jumpToSlide = useCallback((index: number) => {
     const point = slideStarts[index] ?? 0;
+    lastInputDirectionRef.current = 0;
     setTarget(point);
     scheduleSnap();
     setMenuOpen(false);
