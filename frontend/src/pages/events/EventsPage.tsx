@@ -3,10 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LanguageSelect } from '../../components/LanguageSelect';
 import { AuthAction } from '../../components/AuthAction';
 import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
-import { WarsztatyEventPage } from './WarsztatyEventPage';
-import { Kal26EventPage } from './Kal26EventPage';
-import { Edk26EventPage } from './Edk26EventPage';
-import { LimanowaEventPage } from './LimanowaEventPage';
+import { WarsztatyEventPage } from './instances/warsztaty26/WarsztatyEventPage';
+import { Kal26EventPage } from './instances/kal26/Kal26EventPage';
+import { Edk26EventPage } from './instances/edk26/Edk26EventPage';
+import { LimanowaEventPage } from './instances/limanowa/LimanowaEventPage';
+import { TheaterProjectEventPage } from './instances/teatr26/TheaterProjectEventPage';
 import '../../styles/events.css';
 
 const EVENTS: EventDefinition[] = [
@@ -65,6 +66,14 @@ const EVENTS: EventDefinition[] = [
       { slug: 'uczestnik', title: 'Strefa uczestnika' },
       { slug: 'organizator', title: 'Panel organizatora' }
     ]
+  },
+  {
+    slug: 'teatr26',
+    title: 'Teatr Drogi 2026',
+    summary: 'Nowy projekt teatralny: proces twórczy, zespoły produkcyjne i finałowy spektakl.',
+    date: '10.10.2026-30.05.2027',
+    location: 'Kraków',
+    pages: [{ slug: 'start', title: 'Start' }]
   }
 ];
 
@@ -107,7 +116,8 @@ const EVENT_PAGE_RENDERERS: Record<
   warsztaty26: WarsztatyEventPage,
   kal26: Kal26EventPage,
   edk26: Edk26EventPage,
-  limanowa: LimanowaEventPage
+  limanowa: LimanowaEventPage,
+  teatr26: TheaterProjectEventPage
 };
 
 export function EventsPage(props: SharedEventPageProps) {

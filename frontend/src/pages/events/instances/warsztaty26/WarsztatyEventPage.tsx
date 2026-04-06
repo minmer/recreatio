@@ -1,6 +1,6 @@
-import { LanguageSelect } from '../../components/LanguageSelect';
-import { AuthAction } from '../../components/AuthAction';
-import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
+import { LanguageSelect } from '../../../../components/LanguageSelect';
+import { AuthAction } from '../../../../components/AuthAction';
+import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 
 function WarsztatyBody({ pageSlug }: { pageSlug: string }) {
   if (pageSlug === 'program') {

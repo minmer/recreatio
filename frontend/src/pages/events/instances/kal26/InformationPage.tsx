@@ -1,4 +1,4 @@
-import '../../styles/information-page.css';
+import '../../../../styles/information-page.css';
 
 export function InformationPage({ eventSlug }: { eventSlug: string }) {
   const quickInfo = [

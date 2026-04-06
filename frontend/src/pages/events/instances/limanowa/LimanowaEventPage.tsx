@@ -34,10 +34,10 @@ import {
   type LimanowaParticipant,
   type LimanowaParticipantZone,
   type LimanowaQuestionThread
-} from '../../lib/api';
-import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
+} from '../../../../lib/api';
+import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 import { LimanowaPointCloud } from './LimanowaPointCloud';
-import '../../styles/limanowa-event.css';
+import '../../../../styles/limanowa-event.css';
 
 const LIMANOWA_SLUG = 'limanowa';
 const GROUP_STATUSES = [

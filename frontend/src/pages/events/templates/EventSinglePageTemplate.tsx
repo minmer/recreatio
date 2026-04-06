@@ -1,0 +1,458 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { LanguageSelect } from '../../../components/LanguageSelect';
+import { AuthAction } from '../../../components/AuthAction';
+import type { EventDefinition, SharedEventPageProps } from '../eventTypes';
+import '../../../styles/event-single-page-template.css';
+
+export type EventTemplateSlideAction = {
+  label: string;
+  href?: string;
+  targetSlideId?: string;
+  onClick?: () => void;
+  variant?: 'primary' | 'ghost';
+};
+
+export type EventTemplateSlide = {
+  id: string;
+  menuLabel: string;
+  title: string;
+  kicker?: string;
+  description?: string;
+  body?: ReactNode;
+  actions?: EventTemplateSlideAction[];
+  heightMode?: 'screen' | 'content';
+  tone?: 'tone-1' | 'tone-2' | 'tone-3' | 'tone-4' | 'tone-5';
+};
+
+function clamp(value: number, min: number, max: number): number {
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
+function nearest(values: number[], target: number): number {
+  if (values.length === 0) return target;
+  let winner = values[0];
+  let best = Math.abs(values[0] - target);
+  for (let index = 1; index < values.length; index += 1) {
+    const delta = Math.abs(values[index] - target);
+    if (delta < best) {
+      best = delta;
+      winner = values[index];
+    }
+  }
+  return winner;
+}
+
+export function EventSinglePageTemplate({
+  copy,
+  language,
+  onLanguageChange,
+  onAuthAction,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  event,
+  slides
+}: SharedEventPageProps & {
+  event: EventDefinition;
+  slides: EventTemplateSlide[];
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const contentRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const touchYRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const snapTimerRef = useRef<number | null>(null);
+  const positionRef = useRef(0);
+  const targetRef = useRef(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(1);
+  const [position, setPosition] = useState(0);
+  const [slideHeights, setSlideHeights] = useState<number[]>(() => slides.map(() => 1));
+
+  const slideStarts = useMemo(() => {
+    const starts: number[] = [];
+    let total = 0;
+    for (const height of slideHeights) {
+      starts.push(total);
+      total += height;
+    }
+    return starts;
+  }, [slideHeights]);
+
+  const totalHeight = useMemo(() => slideHeights.reduce((sum, value) => sum + value, 0), [slideHeights]);
+  const maxScroll = Math.max(0, totalHeight - viewportHeight);
+  const slideIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    slides.forEach((slide, index) => map.set(slide.id, index));
+    return map;
+  }, [slides]);
+
+  const snapPoints = useMemo(() => {
+    const points = new Set<number>();
+    for (let index = 0; index < slideHeights.length; index += 1) {
+      const start = slideStarts[index] ?? 0;
+      points.add(start);
+      const withinSlide = Math.max(0, slideHeights[index] - viewportHeight);
+      if (withinSlide > 0) {
+        points.add(start + withinSlide);
+      }
+    }
+    points.add(maxScroll);
+    return Array.from(points).sort((left, right) => left - right);
+  }, [maxScroll, slideHeights, slideStarts, viewportHeight]);
+
+  const activeSlideIndex = useMemo(() => {
+    const center = position + viewportHeight * 0.5;
+    for (let index = 0; index < slideHeights.length; index += 1) {
+      const start = slideStarts[index] ?? 0;
+      const end = start + slideHeights[index];
+      if (center >= start && center < end) {
+        return index;
+      }
+    }
+    return Math.max(0, slideHeights.length - 1);
+  }, [position, slideHeights, slideStarts, viewportHeight]);
+
+  const stopAnimation = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }, []);
+
+  const animateToTarget = useCallback(() => {
+    if (rafRef.current !== null) {
+      return;
+    }
+    const tick = () => {
+      const current = positionRef.current;
+      const target = targetRef.current;
+      const delta = target - current;
+
+      if (Math.abs(delta) < 0.25) {
+        positionRef.current = target;
+        setPosition(target);
+        rafRef.current = null;
+        return;
+      }
+
+      const next = current + delta * 0.18;
+      positionRef.current = next;
+      setPosition(next);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  const setTarget = useCallback((value: number) => {
+    targetRef.current = clamp(value, 0, maxScroll);
+    animateToTarget();
+  }, [animateToTarget, maxScroll]);
+
+  const snapToNearest = useCallback(() => {
+    const snap = nearest(snapPoints, targetRef.current);
+    setTarget(snap);
+  }, [setTarget, snapPoints]);
+
+  const scheduleSnap = useCallback(() => {
+    if (snapTimerRef.current !== null) {
+      window.clearTimeout(snapTimerRef.current);
+    }
+    snapTimerRef.current = window.setTimeout(() => {
+      snapTimerRef.current = null;
+      snapToNearest();
+    }, 140);
+  }, [snapToNearest]);
+
+  const applyDelta = useCallback((delta: number) => {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return;
+    }
+    setTarget(targetRef.current + delta);
+    scheduleSnap();
+  }, [scheduleSnap, setTarget]);
+
+  const jumpToSlide = useCallback((index: number) => {
+    const point = slideStarts[index] ?? 0;
+    setTarget(point);
+    scheduleSnap();
+    setMenuOpen(false);
+  }, [scheduleSnap, setTarget, slideStarts]);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+      const nextViewportHeight = Math.max(1, viewport.clientHeight);
+      setViewportHeight(nextViewportHeight);
+
+      const nextHeights = slides.map((slide, index) => {
+        const contentHeight = contentRefs.current[index]?.scrollHeight ?? nextViewportHeight;
+        if (slide.heightMode === 'content') {
+          return Math.max(nextViewportHeight, contentHeight + 64);
+        }
+        return nextViewportHeight;
+      });
+
+      setSlideHeights((previous) => {
+        if (previous.length === nextHeights.length && previous.every((value, index) => Math.abs(value - nextHeights[index]) < 0.5)) {
+          return previous;
+        }
+        return nextHeights;
+      });
+    };
+
+    measure();
+    const frame = requestAnimationFrame(measure);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', measure);
+    };
+  }, [slides]);
+
+  useEffect(() => {
+    const clamped = clamp(positionRef.current, 0, maxScroll);
+    if (Math.abs(clamped - positionRef.current) < 0.25 && Math.abs(targetRef.current - clamped) < 0.25) {
+      return;
+    }
+    positionRef.current = clamped;
+    targetRef.current = clamp(targetRef.current, 0, maxScroll);
+    setPosition(clamped);
+    animateToTarget();
+  }, [animateToTarget, maxScroll]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      applyDelta(event.deltaY);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length === 0) {
+        return;
+      }
+      touchYRef.current = event.touches[0].clientY;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length === 0 || touchYRef.current === null) {
+        return;
+      }
+      const nextY = event.touches[0].clientY;
+      const delta = touchYRef.current - nextY;
+      touchYRef.current = nextY;
+      event.preventDefault();
+      applyDelta(delta * 1.2);
+    };
+
+    const onTouchEnd = () => {
+      touchYRef.current = null;
+      scheduleSnap();
+    };
+
+    viewport.addEventListener('wheel', onWheel, { passive: false });
+    viewport.addEventListener('touchstart', onTouchStart, { passive: true });
+    viewport.addEventListener('touchmove', onTouchMove, { passive: false });
+    viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      viewport.removeEventListener('wheel', onWheel);
+      viewport.removeEventListener('touchstart', onTouchStart);
+      viewport.removeEventListener('touchmove', onTouchMove);
+      viewport.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [applyDelta, scheduleSnap]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+      if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
+        event.preventDefault();
+        applyDelta(viewportHeight * 0.72);
+      }
+      if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+        event.preventDefault();
+        applyDelta(-viewportHeight * 0.72);
+      }
+      if (event.key === 'Home') {
+        event.preventDefault();
+        setTarget(0);
+        scheduleSnap();
+      }
+      if (event.key === 'End') {
+        event.preventDefault();
+        setTarget(maxScroll);
+        scheduleSnap();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [applyDelta, maxScroll, scheduleSnap, setTarget, viewportHeight]);
+
+  useEffect(() => () => {
+    stopAnimation();
+    if (snapTimerRef.current !== null) {
+      window.clearTimeout(snapTimerRef.current);
+    }
+  }, [stopAnimation]);
+
+  return (
+    <div className="event-template" data-slide={activeSlideIndex + 1}>
+      <header className="event-template-header">
+        <a className="event-template-brand" href="/#/event">
+          <img src="/logo_new.svg" alt="REcreatio" />
+        </a>
+
+        <button
+          type="button"
+          className="event-template-menu-toggle"
+          onClick={() => setMenuOpen((current) => !current)}
+          aria-expanded={menuOpen}
+          aria-label="Menu"
+        >
+          Menu
+        </button>
+
+        <nav className={`event-template-nav ${menuOpen ? 'open' : ''}`}>
+          {slides.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              className={activeSlideIndex === index ? 'active' : ''}
+              onClick={() => jumpToSlide(index)}
+            >
+              {slide.menuLabel}
+            </button>
+          ))}
+        </nav>
+
+        <div className="event-template-tools">
+          <LanguageSelect value={language} onChange={onLanguageChange} />
+          <AuthAction
+            copy={copy}
+            label={authLabel}
+            isAuthenticated={showProfileMenu}
+            secureMode={secureMode}
+            onLogin={onAuthAction}
+            onProfileNavigate={onProfileNavigate}
+            onToggleSecureMode={onToggleSecureMode}
+            onLogout={onLogout}
+            variant="ghost"
+          />
+        </div>
+      </header>
+
+      <main ref={viewportRef} className="event-template-viewport" aria-label={event.title}>
+        <div
+          className="event-template-track"
+          style={{ transform: `translate3d(0, ${-position}px, 0)` }}
+        >
+          {slides.map((slide, index) => (
+            <section
+              key={slide.id}
+              id={slide.id}
+              className={`event-template-slide ${slide.tone ?? 'tone-1'} ${activeSlideIndex === index ? 'is-active' : ''}`}
+              style={{ height: `${slideHeights[index] ?? viewportHeight}px` }}
+            >
+              <div
+                ref={(node) => {
+                  contentRefs.current[index] = node;
+                }}
+                className="event-template-slide-inner"
+              >
+                {slide.kicker ? <p className="event-template-kicker">{slide.kicker}</p> : null}
+                <h1 className="event-template-title">{slide.title}</h1>
+                {slide.description ? <p className="event-template-description">{slide.description}</p> : null}
+                {slide.body ? <div className="event-template-body">{slide.body}</div> : null}
+                {slide.actions?.length ? (
+                  <div className="event-template-actions">
+                    {slide.actions.map((action) => {
+                      if (action.href) {
+                        return (
+                          <a
+                            key={`${slide.id}-${action.label}`}
+                            className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                            href={action.href}
+                          >
+                            {action.label}
+                          </a>
+                        );
+                      }
+                      if (action.targetSlideId) {
+                        return (
+                          <button
+                            key={`${slide.id}-${action.label}`}
+                            type="button"
+                            className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                            onClick={() => {
+                              const nextIndex = slideIndexById.get(action.targetSlideId ?? '');
+                              if (typeof nextIndex === 'number') {
+                                jumpToSlide(nextIndex);
+                              }
+                            }}
+                          >
+                            {action.label}
+                          </button>
+                        );
+                      }
+                      return (
+                        <button
+                          key={`${slide.id}-${action.label}`}
+                          type="button"
+                          className={`cta ${action.variant === 'ghost' ? 'ghost' : ''}`}
+                          onClick={action.onClick}
+                        >
+                          {action.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ))}
+        </div>
+      </main>
+
+      <aside className="event-template-dots" aria-hidden="true">
+        {slides.map((slide, index) => (
+          <button
+            key={slide.id}
+            type="button"
+            className={activeSlideIndex === index ? 'active' : ''}
+            onClick={() => jumpToSlide(index)}
+            aria-label={slide.title}
+          />
+        ))}
+      </aside>
+
+      <footer className="portal-footer cogita-footer event-template-footer">
+        <a className="portal-brand portal-footer-brand" href="/#/">
+          <img src="/logo_inv.svg" alt="Recreatio" />
+        </a>
+        <span>{copy.footer.headline}</span>
+        <a className="ghost events-footer-home" href="/#/section-1" onClick={() => onNavigate('home')}>
+          {copy.nav.home}
+        </a>
+      </footer>
+    </div>
+  );
+}

@@ -9,9 +9,9 @@ import {
   type EdkOrganizerDashboard,
   type EdkRoutePoint,
   type EdkSite
-} from '../../lib/api';
-import { normalizePolishPhone } from '../../lib/phone';
-import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
+} from '../../../../lib/api';
+import { normalizePolishPhone } from '../../../../lib/phone';
+import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 
 type ParticipantStatusValue =
   | 'adult'

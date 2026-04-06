@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LanguageSelect } from '../../components/LanguageSelect';
-import { AuthAction } from '../../components/AuthAction';
+import { LanguageSelect } from '../../../../components/LanguageSelect';
+import { AuthAction } from '../../../../components/AuthAction';
 import {
   ApiError,
   createPilgrimageAnnouncement,
@@ -28,10 +28,10 @@ import {
   type PilgrimageParticipantZone,
   type PilgrimageSection,
   type PilgrimageSite
-} from '../../lib/api';
-import { normalizePolishPhone } from '../../lib/phone';
+} from '../../../../lib/api';
+import { normalizePolishPhone } from '../../../../lib/phone';
 import { PILGRIMAGE_START_SVG } from './pilgrimageStartSvg';
-import type { EventDefinition, EventInnerPage, SharedEventPageProps } from './eventTypes';
+import type { EventDefinition, EventInnerPage, SharedEventPageProps } from '../../eventTypes';
 import { InformationPage } from './InformationPage';
 type RegistrationFormState = {
   fullName: string;
