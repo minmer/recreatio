@@ -28,6 +28,7 @@ const SNAP_IDLE_MS = 110;
 const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
 const SCROLL_SENSITIVITY = 1.16;
 const INPUT_SESSION_GAP_MS = 260;
+const TRACK_INTERPOLATION = 0.14;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -75,6 +76,7 @@ export function EventSinglePageTemplate({
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
   const lastInputAtRef = useRef(0);
   const burstTransitionUsedRef = useRef(false);
+  const burstTransitionDirectionRef = useRef<-1 | 0 | 1>(0);
   const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1 } | null>(null);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
@@ -187,7 +189,7 @@ export function EventSinglePageTemplate({
         return;
       }
 
-      const next = current + delta * 0.18;
+      const next = current + delta * TRACK_INTERPOLATION;
       positionRef.current = next;
       setPosition(next);
       rafRef.current = requestAnimationFrame(tick);
@@ -221,13 +223,31 @@ export function EventSinglePageTemplate({
     if (!Number.isFinite(delta) || delta === 0) {
       return;
     }
+    if (snapTimerRef.current !== null) {
+      window.clearTimeout(snapTimerRef.current);
+      snapTimerRef.current = null;
+    }
+
     const now = performance.now();
     const isNewBurst = now - lastInputAtRef.current > INPUT_SESSION_GAP_MS;
     if (isNewBurst) {
       burstTransitionUsedRef.current = false;
+      burstTransitionDirectionRef.current = 0;
     }
     lastInputAtRef.current = now;
     const direction: -1 | 1 = delta > 0 ? 1 : -1;
+    if (
+      !isNewBurst
+      && burstTransitionUsedRef.current
+      && burstTransitionDirectionRef.current !== 0
+      && direction !== burstTransitionDirectionRef.current
+    ) {
+      // Allow immediate "return" in the same gesture burst when user reverses direction.
+      burstTransitionUsedRef.current = false;
+      burstTransitionDirectionRef.current = 0;
+      boundaryGateRef.current = null;
+    }
+
     const scaled = delta * SCROLL_SENSITIVITY;
     const current = targetRef.current;
     const slideIndex = getSlideIndexForPosition(current);
@@ -246,7 +266,6 @@ export function EventSinglePageTemplate({
           boundaryGateRef.current = null;
         }
         lastInputDirectionRef.current = direction;
-        scheduleSnap();
         return;
       }
 
@@ -264,6 +283,7 @@ export function EventSinglePageTemplate({
       }
 
       burstTransitionUsedRef.current = true;
+      burstTransitionDirectionRef.current = direction;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
@@ -281,7 +301,6 @@ export function EventSinglePageTemplate({
           boundaryGateRef.current = null;
         }
         lastInputDirectionRef.current = direction;
-        scheduleSnap();
         return;
       }
 
@@ -299,6 +318,7 @@ export function EventSinglePageTemplate({
       }
 
       burstTransitionUsedRef.current = true;
+      burstTransitionDirectionRef.current = direction;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
@@ -314,6 +334,7 @@ export function EventSinglePageTemplate({
     }
 
     burstTransitionUsedRef.current = true;
+    burstTransitionDirectionRef.current = direction;
     boundaryGateRef.current = null;
     lastInputDirectionRef.current = direction;
     const nextIndex = clamp(slideIndex + direction, 0, slides.length - 1);
@@ -334,6 +355,7 @@ export function EventSinglePageTemplate({
     lastInputDirectionRef.current = 0;
     lastInputAtRef.current = 0;
     burstTransitionUsedRef.current = false;
+    burstTransitionDirectionRef.current = 0;
     boundaryGateRef.current = null;
     setTarget(point);
     scheduleSnap();
