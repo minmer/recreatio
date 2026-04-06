@@ -29,7 +29,7 @@ const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
 const SCROLL_SENSITIVITY = 1.16;
 const INPUT_SESSION_GAP_MS = 260;
 const INTERNAL_TRACK_INTERPOLATION = 0.2;
-const SLIDE_TRANSITION_INTERPOLATION = 0.12;
+const SLIDE_TRANSITION_INTERPOLATION = 0.01;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
