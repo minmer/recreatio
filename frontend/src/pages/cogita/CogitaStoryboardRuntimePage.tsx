@@ -881,20 +881,23 @@ function buildStoryboardOutlineLinear(payload: {
       depth
     };
 
-    if (node.kind === 'group' && node.groupGraph) {
-      const groupOutline = buildStoryboardOutlineLinear({
-        graph: node.groupGraph,
-        graphPath: [...graphPath, node.nodeId],
-        nodeId: node.groupGraph.startNodeId,
-        depth: depth + 1,
-        seen: new Set<string>(),
-        labels,
-        includeOrphans: true
-      });
-      item.children = groupOutline.items;
-    }
+    const includeInOutline = node.kind !== 'start' && node.kind !== 'end';
+    if (includeInOutline) {
+      if (node.kind === 'group' && node.groupGraph) {
+        const groupOutline = buildStoryboardOutlineLinear({
+          graph: node.groupGraph,
+          graphPath: [...graphPath, node.nodeId],
+          nodeId: node.groupGraph.startNodeId,
+          depth: depth + 1,
+          seen: new Set<string>(),
+          labels,
+          includeOrphans: true
+        });
+        item.children = groupOutline.items;
+      }
 
-    items.push(item);
+      items.push(item);
+    }
 
     const outgoing = getOutlineOutgoingEdges(graph, node);
     const nextIds = Array.from(new Set(outgoing.map((edge) => edge.toNodeId)));
@@ -918,6 +921,7 @@ function buildStoryboardOutlineLinear(payload: {
       });
 
     orphanNodes.forEach((node, index) => {
+      if (node.kind === 'start' || node.kind === 'end') return;
       const nodeKey = buildNodeKey(graphPath, node.nodeId);
       if (seenNodeKeys.has(nodeKey)) return;
       seenNodeKeys.add(nodeKey);

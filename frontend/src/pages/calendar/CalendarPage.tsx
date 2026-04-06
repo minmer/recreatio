@@ -50,10 +50,11 @@ import {
   type RoleResponse
 } from '../../lib/api';
 
-type ViewMode = 'month' | 'week' | 'day' | 'list';
+type ViewMode = 'month' | 'week' | 'day' | 'list' | 'timeline' | 'year';
 
-const VIEW_MODES: ViewMode[] = ['month', 'week', 'day', 'list'];
+const VIEW_MODES: ViewMode[] = ['day', 'week', 'month', 'timeline', 'year', 'list'];
 type CalendarAccessType = 'viewer' | 'editor' | 'manager';
+const CALENDAR_PERSON_PREF_KEY = 'recreatio.calendar.personRoleId';
 
 type ShareRoute = {
   kind: 'item' | 'group';
@@ -89,6 +90,39 @@ function formatUtc(value: string): string {
   return year + '-' + month + '-' + day + ' ' + hour + ':' + minute + ' UTC';
 }
 
+function formatLocalDay(value: Date): string {
+  return value.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function colorForKey(key: string): string {
+  const colors = ['#2e86ab', '#55a630', '#9d4edd', '#f77f00', '#ef476f', '#1f8a70', '#3a86ff', '#8f5db7', '#ff6b6b', '#f4a261'];
+  let hash = 0;
+  for (let index = 0; index < key.length; index += 1) {
+    hash = ((hash << 5) - hash + key.charCodeAt(index)) | 0;
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function localDayKey(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildMonthMatrix(anchor: Date): Date[] {
+  const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 0, 0, 0, 0);
+  const weekday = monthStart.getDay();
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(gridStart.getDate() + mondayOffset);
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+}
+
 function rangeFromView(anchor: Date, view: ViewMode): { fromUtc: string; toUtc: string } {
   const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate(), 0, 0, 0, 0));
   const end = new Date(start);
@@ -105,6 +139,12 @@ function rangeFromView(anchor: Date, view: ViewMode): { fromUtc: string; toUtc: 
     start.setUTCDate(1);
     end.setTime(start.getTime());
     end.setUTCMonth(end.getUTCMonth() + 1);
+  } else if (view === 'timeline') {
+    end.setUTCDate(end.getUTCDate() + 42);
+  } else if (view === 'year') {
+    start.setUTCMonth(0, 1);
+    end.setTime(start.getTime());
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
   } else {
     end.setUTCDate(end.getUTCDate() + 30);
   }
@@ -117,6 +157,8 @@ function shiftAnchor(anchor: Date, view: ViewMode, direction: -1 | 1): Date {
   if (view === 'day') next.setUTCDate(next.getUTCDate() + direction);
   else if (view === 'week') next.setUTCDate(next.getUTCDate() + direction * 7);
   else if (view === 'month') next.setUTCMonth(next.getUTCMonth() + direction);
+  else if (view === 'timeline') next.setUTCDate(next.getUTCDate() + direction * 42);
+  else if (view === 'year') next.setUTCFullYear(next.getUTCFullYear() + direction);
   else next.setUTCDate(next.getUTCDate() + direction * 30);
   return next;
 }
@@ -192,6 +234,7 @@ export function CalendarPage({
   const [calendarRoleBindings, setCalendarRoleBindings] = useState<CalendarRoleBindingResponse[]>([]);
   const [eventGroups, setEventGroups] = useState<Array<{ eventGroupId: string; name: string }>>([]);
   const [ownerRoleId, setOwnerRoleId] = useState<string | null>(null);
+  const [calendarPersonRoleId, setCalendarPersonRoleId] = useState('');
   const [selectedPersonRoleId, setSelectedPersonRoleId] = useState('');
   const [selectedGroupRoleId, setSelectedGroupRoleId] = useState('');
   const [personAccessType, setPersonAccessType] = useState<CalendarAccessType>('editor');
@@ -234,6 +277,8 @@ export function CalendarPage({
   const [visibilityFilter, setVisibilityFilter] = useState('');
   const [itemTypeFilter, setItemTypeFilter] = useState<'appointment' | 'task' | ''>('');
   const [taskStateFilter, setTaskStateFilter] = useState('');
+  const [simpleKeywordFilter, setSimpleKeywordFilter] = useState('');
+  const [simpleSubCalendarFilter, setSimpleSubCalendarFilter] = useState<'all' | string>('all');
   const [createAsWeeklySeries, setCreateAsWeeklySeries] = useState(false);
   const [seriesIntervalWeeks, setSeriesIntervalWeeks] = useState(1);
   const [seriesUntilUtcLocal, setSeriesUntilUtcLocal] = useState(new Date(Date.now() + 1000 * 60 * 60 * 24 * 56).toISOString().slice(0, 16));
@@ -256,17 +301,6 @@ export function CalendarPage({
     return origin + '/#/calendar/group-shared/' + encodeURIComponent(latestGroupShareCode);
   }, [latestGroupShareCode]);
 
-  const groupedByDay = useMemo(() => {
-    const map = new Map<string, CalendarOccurrenceResponse[]>();
-    for (const row of occurrences) {
-      const day = row.occurrenceStartUtc.slice(0, 10);
-      const list = map.get(day) ?? [];
-      list.push(row);
-      map.set(day, list);
-    }
-    return map;
-  }, [occurrences]);
-
   const rolesById = useMemo(() => {
     const map = new Map<string, { roleKind: string; label: string }>();
     for (const role of roles) {
@@ -274,6 +308,112 @@ export function CalendarPage({
     }
     return map;
   }, [roles]);
+
+  const personScopedOccurrences = useMemo(() => {
+    if (!calendarPersonRoleId) return occurrences;
+    return occurrences.filter((row) => row.event.ownerRoleId === calendarPersonRoleId);
+  }, [occurrences, calendarPersonRoleId]);
+
+  const personEventIds = useMemo(() => new Set(personScopedOccurrences.map((row) => row.eventId)), [personScopedOccurrences]);
+
+  const personScopedConflicts = useMemo(
+    () => conflicts.filter((conflict) => personEventIds.has(conflict.eventId)),
+    [conflicts, personEventIds]
+  );
+
+  const groupedByDay = useMemo(() => {
+    const map = new Map<string, CalendarOccurrenceResponse[]>();
+    for (const row of personScopedOccurrences) {
+      const day = row.occurrenceStartUtc.slice(0, 10);
+      const list = map.get(day) ?? [];
+      list.push(row);
+      map.set(day, list);
+    }
+    return map;
+  }, [personScopedOccurrences]);
+  const queryView: 'month' | 'week' | 'day' | 'list' = view === 'timeline' || view === 'year' ? 'month' : view;
+
+  const simpleSubCalendars = useMemo(() => {
+    const map = new Map<string, { id: string; label: string; color: string }>();
+    for (const row of personScopedOccurrences) {
+      const roleId = row.event.ownerRoleId;
+      if (map.has(roleId)) continue;
+      const label = rolesById.get(roleId)?.label ?? row.event.eventGroupName ?? 'Default';
+      map.set(roleId, { id: roleId, label, color: colorForKey(roleId) });
+    }
+    return Array.from(map.values()).sort((left, right) => left.label.localeCompare(right.label));
+  }, [personScopedOccurrences, rolesById]);
+
+  const simpleFilteredOccurrences = useMemo(() => {
+    const keyword = simpleKeywordFilter.trim().toLowerCase();
+    return personScopedOccurrences.filter((row) => {
+      if (simpleSubCalendarFilter !== 'all' && row.event.ownerRoleId !== simpleSubCalendarFilter) {
+        return false;
+      }
+      if (!keyword) return true;
+      const haystack = `${row.event.titlePublic} ${row.event.summaryPublic ?? ''}`.toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [personScopedOccurrences, simpleKeywordFilter, simpleSubCalendarFilter]);
+
+  const miniMonthDays = useMemo(() => buildMonthMatrix(anchor), [anchor]);
+
+  const schedulerDays = useMemo(() => {
+    const start = new Date(range.fromUtc);
+    const count = view === 'day' ? 1 : 7;
+    return Array.from({ length: count }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [range.fromUtc, view]);
+
+  const hourSlots = useMemo(() => Array.from({ length: 16 }, (_, index) => index + 6), []);
+
+  const simpleGroupedByLocalDay = useMemo(() => {
+    const map = new Map<string, CalendarOccurrenceResponse[]>();
+    for (const row of simpleFilteredOccurrences) {
+      const day = localDayKey(new Date(row.occurrenceStartUtc));
+      const list = map.get(day) ?? [];
+      list.push(row);
+      map.set(day, list);
+    }
+    return map;
+  }, [simpleFilteredOccurrences]);
+
+  const schedulerEventsByDay = useMemo(() => {
+    return schedulerDays.map((day) => {
+      const dayKey = localDayKey(day);
+      const rows = simpleGroupedByLocalDay.get(dayKey) ?? [];
+      return rows
+        .map((row) => {
+          const start = new Date(row.occurrenceStartUtc);
+          const end = new Date(row.occurrenceEndUtc);
+          const startMinutes = start.getHours() * 60 + start.getMinutes();
+          const endMinutes = end.getHours() * 60 + end.getMinutes();
+          const baseStart = 6 * 60;
+          const baseEnd = 22 * 60;
+          const topPct = Math.max(0, Math.min(100, ((startMinutes - baseStart) / (baseEnd - baseStart)) * 100));
+          const rawHeight = ((Math.max(startMinutes + 15, endMinutes) - startMinutes) / (baseEnd - baseStart)) * 100;
+          const heightPct = Math.max(4, Math.min(100 - topPct, rawHeight));
+          return { row, topPct, heightPct };
+        })
+        .sort((left, right) => left.row.occurrenceStartUtc.localeCompare(right.row.occurrenceStartUtc));
+    });
+  }, [schedulerDays, simpleGroupedByLocalDay]);
+
+  const timelineRows = useMemo(() => {
+    const source = simpleSubCalendars.length > 0
+      ? simpleSubCalendars
+      : [{ id: 'default', label: 'Default', color: '#2e86ab' }];
+    return source.map((subCalendar) => {
+      const items = simpleFilteredOccurrences.filter((row) => {
+        if (subCalendar.id === 'default') return true;
+        return row.event.ownerRoleId === subCalendar.id;
+      });
+      return { subCalendar, items };
+    });
+  }, [simpleSubCalendars, simpleFilteredOccurrences]);
 
   const personRoles = useMemo(
     () => roles
@@ -313,6 +453,8 @@ export function CalendarPage({
     [calendarRoleBindings, rolesById]
   );
   const simpleMode = !location.search.includes('calendarAdvanced=1');
+  const queryItemType = simpleMode ? undefined : (itemTypeFilter || undefined);
+  const queryTaskState = simpleMode ? undefined : (taskStateFilter || undefined);
   const effectiveCalendarId = calendarId ?? calendars[0]?.id ?? null;
   const effectiveOwnerRoleId = ownerRoleId ?? ownerRoleOptions[0]?.roleId ?? null;
 
@@ -448,13 +590,13 @@ export function CalendarPage({
 
     getCalendarEvents({
       calendarId,
-      view,
+      view: queryView,
       fromUtc: range.fromUtc,
       toUtc: range.toUtc,
       status: statusFilter || undefined,
       visibility: visibilityFilter || undefined,
-      itemType: 'appointment',
-      taskState: undefined,
+      itemType: queryItemType,
+      taskState: queryTaskState,
       includeProtected: true
     })
       .then((bundle) => {
@@ -463,7 +605,7 @@ export function CalendarPage({
         setSelectedEventId((current) => current ?? (bundle.occurrences[0]?.eventId ?? null));
       })
       .catch((err) => setError(readError(err)));
-  }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, itemTypeFilter, taskStateFilter]);
+  }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, queryItemType, queryTaskState]);
 
   useEffect(() => {
     if (simpleMode || !selectedEventId || shareRoute || !showProfileMenu) {
@@ -527,13 +669,13 @@ export function CalendarPage({
     if (!activeCalendarId) return;
     getCalendarEvents({
       calendarId: activeCalendarId,
-      view,
+      view: queryView,
       fromUtc: range.fromUtc,
       toUtc: range.toUtc,
       status: statusFilter || undefined,
       visibility: visibilityFilter || undefined,
-      itemType: 'appointment',
-      taskState: undefined,
+      itemType: queryItemType,
+      taskState: queryTaskState,
       includeProtected: true
     })
       .then((bundle) => {
@@ -581,9 +723,9 @@ export function CalendarPage({
         status: 'planned',
         startUtc: start.toISOString(),
         endUtc: end.toISOString(),
-        itemType: 'appointment',
-        taskState: null,
-        taskProgressPercent: null,
+        itemType,
+        taskState: itemType === 'task' ? 'todo' : null,
+        taskProgressPercent: itemType === 'task' ? 0 : null,
         viewerScopes: [],
         graph: null
       });
@@ -862,63 +1004,271 @@ export function CalendarPage({
   }
 
   if (simpleMode) {
+    const rangeStart = new Date(range.fromUtc);
+    const rangeEnd = new Date(range.toUtc);
+    const timelineStartMs = rangeStart.getTime();
+    const timelineSpanMs = Math.max(1, rangeEnd.getTime() - timelineStartMs);
+    const monthDays = miniMonthDays;
+    const anchorDayKey = localDayKey(anchor);
+    const monthGridDays = buildMonthMatrix(anchor);
+    const monthGridLabel = anchor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const yearValue = anchor.getFullYear();
+
     return (
       <div className="calendar-page">
         {header}
-        <main className="calendar-main calendar-main-simple">
-          <section className="calendar-panel">
-            <h1>{copy.calendar.title}</h1>
-            {calendars.length > 1 && (
-              <div className="calendar-field-row">
-                <label>Calendar</label>
-                <select value={effectiveCalendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
-                  {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
-                </select>
+        <main className="calendar-main calendar-main-teamup">
+          <aside className="calendar-shell-sidebar">
+            <div className="calendar-panel">
+              <h1>{copy.calendar.title}</h1>
+              {calendars.length > 1 && (
+                <div className="calendar-field-row">
+                  <label>Calendar</label>
+                  <select value={effectiveCalendarId ?? ''} onChange={(event) => setCalendarId(event.target.value || null)}>
+                    {calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="calendar-mini-month">
+                <div className="calendar-mini-month-header">
+                  <strong>{monthGridLabel}</strong>
+                </div>
+                <div className="calendar-mini-month-grid">
+                  {monthDays.map((day) => {
+                    const dayKey = localDayKey(day);
+                    const isActive = dayKey === anchorDayKey;
+                    const isOutside = day.getMonth() !== anchor.getMonth();
+                    return (
+                      <button
+                        key={dayKey}
+                        type="button"
+                        className={`calendar-mini-day${isActive ? ' is-active' : ''}${isOutside ? ' is-outside' : ''}`}
+                        onClick={() => setAnchor(day)}
+                      >
+                        {day.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-            <div className="calendar-inline-grid">
-              <div className="calendar-field-row">
-                <label>Period</label>
-                <select value={view} onChange={(event) => setView(event.target.value as ViewMode)}>
-                  <option value="day">day</option>
-                  <option value="week">week</option>
-                  <option value="month">month</option>
-                  <option value="list">list</option>
-                </select>
+
+              <h2 className="calendar-sidebar-title">Calendars</h2>
+              <div className="calendar-sidebar-chips">
+                <button
+                  type="button"
+                  className={`calendar-side-chip${simpleSubCalendarFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setSimpleSubCalendarFilter('all')}
+                >
+                  All
+                </button>
+                {simpleSubCalendars.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className={`calendar-side-chip${simpleSubCalendarFilter === entry.id ? ' is-active' : ''}`}
+                    style={{ borderColor: entry.color }}
+                    onClick={() => setSimpleSubCalendarFilter(entry.id)}
+                  >
+                    <span className="calendar-side-chip-dot" style={{ backgroundColor: entry.color }} />
+                    {entry.label}
+                  </button>
+                ))}
               </div>
+
+              <div className="calendar-field-row">
+                <label>Filter</label>
+                <input value={simpleKeywordFilter} onChange={(event) => setSimpleKeywordFilter(event.target.value)} placeholder="by keyword" />
+              </div>
+
+              <a href="/#/calendar?calendarAdvanced=1" className="calendar-advanced-link">Open advanced tools</a>
+            </div>
+          </aside>
+
+          <section className="calendar-shell-main calendar-panel">
+            <div className="calendar-shell-toolbar">
               <div className="calendar-range-nav">
                 <button type="button" onClick={() => setAnchor((current) => shiftAnchor(current, view, -1))}>Previous</button>
                 <button type="button" onClick={() => setAnchor(new Date())}>Today</button>
                 <button type="button" onClick={() => setAnchor((current) => shiftAnchor(current, view, 1))}>Next</button>
               </div>
+              <p className="calendar-shell-range">{formatUtc(range.fromUtc)} - {formatUtc(range.toUtc)}</p>
+              <div className="calendar-view-switch calendar-view-switch-shell">
+                {VIEW_MODES.map((mode) => (
+                  <button key={mode} type="button" className={view === mode ? 'is-active' : ''} onClick={() => setView(mode)}>
+                    {mode}
+                  </button>
+                ))}
+              </div>
             </div>
-            <p>{formatUtc(range.fromUtc)} - {formatUtc(range.toUtc)}</p>
-            <div className="calendar-create-form">
-              <h2>Add appointment</h2>
-              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
-              <input type="datetime-local" value={startUtcLocal} onChange={(event) => setStartUtcLocal(event.target.value)} />
-              <button type="button" className="cta" onClick={() => void createQuickAppointment()}>Add appointment</button>
-              {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
-                <p className="calendar-error">Calendar and owner role must be available.</p>
-              )}
-            </div>
+
+            {view === 'day' || view === 'week' ? (
+              <div className="calendar-scheduler-grid">
+                <div className="calendar-time-column">
+                  {hourSlots.map((hour) => (
+                    <div key={hour} className="calendar-time-cell">{String(hour).padStart(2, '0')}:00</div>
+                  ))}
+                </div>
+                <div className="calendar-scheduler-days" style={{ gridTemplateColumns: `repeat(${schedulerDays.length}, minmax(140px, 1fr))` }}>
+                  {schedulerDays.map((day, index) => (
+                    <div key={localDayKey(day)} className="calendar-scheduler-day">
+                      <div className="calendar-scheduler-day-header">{formatLocalDay(day)}</div>
+                      <div className="calendar-scheduler-day-body">
+                        {hourSlots.map((hour) => (
+                          <div key={hour} className="calendar-scheduler-hour-line" />
+                        ))}
+                        {schedulerEventsByDay[index]?.map((entry) => (
+                          <button
+                            key={entry.row.eventId + entry.row.occurrenceStartUtc}
+                            type="button"
+                            className="calendar-scheduler-event"
+                            style={{
+                              top: `${entry.topPct}%`,
+                              height: `${entry.heightPct}%`,
+                              backgroundColor: colorForKey(entry.row.event.ownerRoleId)
+                            }}
+                            onClick={() => setSelectedEventId(entry.row.eventId)}
+                          >
+                            <strong>{entry.row.event.titlePublic}</strong>
+                            <span>{new Date(entry.row.occurrenceStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {view === 'month' ? (
+              <div className="calendar-month-grid calendar-month-grid-shell">
+                {monthGridDays.map((day) => {
+                  const key = localDayKey(day);
+                  const rows = simpleGroupedByLocalDay.get(key) ?? [];
+                  const isOutside = day.getMonth() !== anchor.getMonth();
+                  return (
+                    <article key={key} className={`calendar-day-card${isOutside ? ' is-outside' : ''}`}>
+                      <h3>{day.getDate()}</h3>
+                      <ul>
+                        {rows.slice(0, 4).map((row) => (
+                          <li key={row.eventId + row.occurrenceStartUtc}>
+                            <button type="button" onClick={() => setSelectedEventId(row.eventId)}>{row.event.titlePublic}</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {view === 'timeline' ? (
+              <div className="calendar-timeline">
+                {timelineRows.map((row) => (
+                  <div key={row.subCalendar.id} className="calendar-timeline-row">
+                    <div className="calendar-timeline-label">{row.subCalendar.label}</div>
+                    <div className="calendar-timeline-track">
+                      {row.items.map((item) => {
+                        const startMs = Math.max(new Date(item.occurrenceStartUtc).getTime(), timelineStartMs);
+                        const endMs = Math.min(new Date(item.occurrenceEndUtc).getTime(), rangeEnd.getTime());
+                        if (endMs <= timelineStartMs || startMs >= rangeEnd.getTime()) return null;
+                        const left = ((startMs - timelineStartMs) / timelineSpanMs) * 100;
+                        const width = Math.max(1.5, ((endMs - startMs) / timelineSpanMs) * 100);
+                        return (
+                          <button
+                            key={item.eventId + item.occurrenceStartUtc}
+                            type="button"
+                            className="calendar-timeline-event"
+                            style={{ left: `${left}%`, width: `${width}%`, backgroundColor: row.subCalendar.color }}
+                            onClick={() => setSelectedEventId(item.eventId)}
+                          >
+                            {item.event.titlePublic}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {view === 'year' ? (
+              <div className="calendar-year-grid">
+                {Array.from({ length: 12 }, (_, monthIndex) => {
+                  const monthStart = new Date(yearValue, monthIndex, 1, 0, 0, 0, 0);
+                  const monthEnd = new Date(yearValue, monthIndex + 1, 1, 0, 0, 0, 0);
+                  const spanMs = Math.max(1, monthEnd.getTime() - monthStart.getTime());
+                  const monthItems = simpleFilteredOccurrences.filter((row) => {
+                    const startMs = new Date(row.occurrenceStartUtc).getTime();
+                    const endMs = new Date(row.occurrenceEndUtc).getTime();
+                    return endMs > monthStart.getTime() && startMs < monthEnd.getTime();
+                  });
+                  return (
+                    <div key={monthIndex} className="calendar-year-row">
+                      <div className="calendar-year-label">{monthStart.toLocaleDateString(undefined, { month: 'long' })}</div>
+                      <div className="calendar-year-track">
+                        {monthItems.map((item) => {
+                          const startMs = Math.max(new Date(item.occurrenceStartUtc).getTime(), monthStart.getTime());
+                          const endMs = Math.min(new Date(item.occurrenceEndUtc).getTime(), monthEnd.getTime());
+                          const left = ((startMs - monthStart.getTime()) / spanMs) * 100;
+                          const width = Math.max(1, ((endMs - startMs) / spanMs) * 100);
+                          return (
+                            <button
+                              key={item.eventId + item.occurrenceStartUtc}
+                              type="button"
+                              className="calendar-year-event"
+                              style={{ left: `${left}%`, width: `${width}%`, backgroundColor: colorForKey(item.event.ownerRoleId) }}
+                              onClick={() => setSelectedEventId(item.eventId)}
+                            >
+                              {item.event.titlePublic}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {view === 'list' ? (
+              <div className="calendar-occurrence-list">
+                {simpleFilteredOccurrences.map((row) => (
+                  <article key={row.eventId + row.occurrenceStartUtc} className="calendar-occurrence-row">
+                    <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
+                      <strong>{row.event.titlePublic}</strong>
+                      <span>{formatUtc(row.occurrenceStartUtc)} - {formatUtc(row.occurrenceEndUtc)}</span>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
             {error && <p className="calendar-error">{error}</p>}
           </section>
 
-          <section className="calendar-panel">
-            <h2>Appointments ({occurrences.length})</h2>
-            {occurrences.length === 0 && <p>No appointments in this period.</p>}
-            <div className="calendar-occurrence-list">
-              {occurrences.map((row) => (
-                <article key={row.eventId + '-' + row.occurrenceStartUtc} className="calendar-occurrence-row">
-                  <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
-                    <strong>{row.event.titlePublic}</strong>
-                    <span>{formatUtc(row.occurrenceStartUtc)} - {formatUtc(row.occurrenceEndUtc)}</span>
-                  </button>
-                </article>
-              ))}
-            </div>
-          </section>
+          <aside className="calendar-shell-right">
+            <section className="calendar-panel calendar-create-form">
+              <h2>Add item</h2>
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Title" />
+              <input type="datetime-local" value={startUtcLocal} onChange={(event) => setStartUtcLocal(event.target.value)} />
+              <select value={itemType} onChange={(event) => setItemType(event.target.value as 'appointment' | 'task')}>
+                <option value="appointment">appointment</option>
+                <option value="task">task</option>
+              </select>
+              <button type="button" className="cta" onClick={() => void createQuickAppointment()}>
+                Add
+              </button>
+              {(!effectiveCalendarId || !effectiveOwnerRoleId) && (
+                <p className="calendar-error">Calendar and owner role must be available.</p>
+              )}
+            </section>
+            <section className="calendar-panel calendar-shell-meta">
+              <h3>Visible items</h3>
+              <p>{simpleFilteredOccurrences.length}</p>
+              <h3>Conflicts</h3>
+              <p>{conflicts.length}</p>
+            </section>
+          </aside>
         </main>
       </div>
     );
