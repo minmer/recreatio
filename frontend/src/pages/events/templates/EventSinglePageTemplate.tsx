@@ -51,6 +51,16 @@ function nearest(values: number[], target: number): number {
   return winner;
 }
 
+function normalizeWheelDelta(event: WheelEvent): number {
+  let delta = event.deltaY;
+  if (event.deltaMode === 1) {
+    delta *= 16;
+  } else if (event.deltaMode === 2) {
+    delta *= Math.max(480, window.innerHeight * 0.85);
+  }
+  return clamp(delta, -180, 180);
+}
+
 export function EventSinglePageTemplate({
   copy,
   language,
@@ -250,13 +260,6 @@ export function EventSinglePageTemplate({
       burstTransitionDirectionRef.current = 0;
       boundaryGateRef.current = null;
     }
-    if (burstTransitionUsedRef.current) {
-      // Keep one cross-slide transition deterministic within a burst.
-      // Additional wheel/touch events in the same direction should not
-      // retarget to boundary anchors (which caused alternating speeds).
-      lastInputDirectionRef.current = direction;
-      return;
-    }
 
     const scaled = delta * SCROLL_SENSITIVITY;
     const current = targetRef.current;
@@ -336,6 +339,14 @@ export function EventSinglePageTemplate({
       return;
     }
 
+    if (burstTransitionUsedRef.current && !isNewBurst) {
+      // For viewport-sized slides: keep a single jump per burst.
+      const lockPoint = slideStarts[slideIndex] ?? 0;
+      setTarget(lockPoint, SLIDE_TRANSITION_INTERPOLATION);
+      lastInputDirectionRef.current = direction;
+      return;
+    }
+
     burstTransitionUsedRef.current = true;
     burstTransitionDirectionRef.current = direction;
     boundaryGateRef.current = null;
@@ -345,7 +356,6 @@ export function EventSinglePageTemplate({
   }, [
     getSlideIndexForPosition,
     maxScroll,
-    scheduleSnap,
     setTarget,
     slideHeights,
     slideStarts,
@@ -418,8 +428,15 @@ export function EventSinglePageTemplate({
     }
 
     const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        return;
+      }
+      const normalizedDelta = normalizeWheelDelta(event);
+      if (Math.abs(normalizedDelta) < 0.01) {
+        return;
+      }
       event.preventDefault();
-      applyDelta(event.deltaY);
+      applyDelta(normalizedDelta);
     };
 
     const onTouchStart = (event: TouchEvent) => {
