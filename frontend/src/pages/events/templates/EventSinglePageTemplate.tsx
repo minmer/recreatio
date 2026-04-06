@@ -197,6 +197,8 @@ export function EventSinglePageTemplate({
       if (Math.abs(delta) < 0.25) {
         positionRef.current = target;
         setPosition(target);
+        burstTransitionUsedRef.current = false;
+        burstTransitionDirectionRef.current = 0;
         rafRef.current = null;
         return;
       }
@@ -259,6 +261,21 @@ export function EventSinglePageTemplate({
       burstTransitionUsedRef.current = false;
       burstTransitionDirectionRef.current = 0;
       boundaryGateRef.current = null;
+    }
+    const animatedFromIndex = getSlideIndexForPosition(positionRef.current);
+    const animatedToIndex = getSlideIndexForPosition(targetRef.current);
+    const isCrossSlideAnimationActive =
+      rafRef.current !== null && animatedFromIndex !== animatedToIndex;
+    if (
+      !isNewBurst
+      && isCrossSlideAnimationActive
+      && burstTransitionDirectionRef.current !== 0
+      && direction === burstTransitionDirectionRef.current
+    ) {
+      // Ignore same-direction momentum while snapping between slides.
+      // This keeps touchpad bursts from perturbing active snap motion.
+      lastInputDirectionRef.current = direction;
+      return;
     }
 
     const scaled = delta * SCROLL_SENSITIVITY;
@@ -336,14 +353,6 @@ export function EventSinglePageTemplate({
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
       setTarget(slideStarts[previousIndex] ?? 0, SLIDE_TRANSITION_INTERPOLATION);
-      return;
-    }
-
-    if (burstTransitionUsedRef.current && !isNewBurst) {
-      // For viewport-sized slides: keep a single jump per burst.
-      const lockPoint = slideStarts[slideIndex] ?? 0;
-      setTarget(lockPoint, SLIDE_TRANSITION_INTERPOLATION);
-      lastInputDirectionRef.current = direction;
       return;
     }
 
