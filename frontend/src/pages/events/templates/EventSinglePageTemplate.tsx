@@ -30,8 +30,10 @@ const SCROLL_SENSITIVITY = 1.16;
 const INPUT_SESSION_GAP_MS = 260;
 const INTERNAL_TRACK_INTERPOLATION = 0.2;
 const SLIDE_TRANSITION_INTERPOLATION = 0.08;
-const SLIDE_JUMP_THRESHOLD = 88;
-const BOUNDARY_JUMP_THRESHOLD = 54;
+const WHEEL_SLIDE_JUMP_THRESHOLD = 88;
+const WHEEL_BOUNDARY_JUMP_THRESHOLD = 54;
+const TOUCH_SLIDE_JUMP_THRESHOLD = 44;
+const TOUCH_BOUNDARY_JUMP_THRESHOLD = 28;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -235,7 +237,7 @@ export function EventSinglePageTemplate({
     }, SNAP_IDLE_MS);
   }, [snapToNearest]);
 
-  const applyDelta = useCallback((delta: number) => {
+  const applyDelta = useCallback((delta: number, inputType: 'wheel' | 'touch' = 'wheel') => {
     if (!Number.isFinite(delta) || delta === 0) {
       return;
     }
@@ -283,6 +285,12 @@ export function EventSinglePageTemplate({
 
     const scaled = delta * SCROLL_SENSITIVITY;
     burstAccumulatedDeltaRef.current += scaled;
+    const boundaryJumpThreshold = inputType === 'touch'
+      ? TOUCH_BOUNDARY_JUMP_THRESHOLD
+      : WHEEL_BOUNDARY_JUMP_THRESHOLD;
+    const slideJumpThreshold = inputType === 'touch'
+      ? TOUCH_SLIDE_JUMP_THRESHOLD
+      : WHEEL_SLIDE_JUMP_THRESHOLD;
     const current = targetRef.current;
     const slideIndex = getSlideIndexForPosition(current);
     const slideStart = slideStarts[slideIndex] ?? 0;
@@ -315,7 +323,7 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (Math.abs(burstAccumulatedDeltaRef.current) < BOUNDARY_JUMP_THRESHOLD) {
+      if (Math.abs(burstAccumulatedDeltaRef.current) < boundaryJumpThreshold) {
         setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
@@ -356,7 +364,7 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (Math.abs(burstAccumulatedDeltaRef.current) < BOUNDARY_JUMP_THRESHOLD) {
+      if (Math.abs(burstAccumulatedDeltaRef.current) < boundaryJumpThreshold) {
         setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
         lastInputDirectionRef.current = direction;
         return;
@@ -376,7 +384,7 @@ export function EventSinglePageTemplate({
       lastInputDirectionRef.current = direction;
       return;
     }
-    if (Math.abs(burstAccumulatedDeltaRef.current) < SLIDE_JUMP_THRESHOLD) {
+    if (Math.abs(burstAccumulatedDeltaRef.current) < slideJumpThreshold) {
       lastInputDirectionRef.current = direction;
       return;
     }
@@ -480,6 +488,11 @@ export function EventSinglePageTemplate({
         return;
       }
       touchYRef.current = event.touches[0].clientY;
+      lastInputAtRef.current = 0;
+      burstTransitionUsedRef.current = false;
+      burstTransitionDirectionRef.current = 0;
+      burstAccumulatedDeltaRef.current = 0;
+      boundaryGateRef.current = null;
     };
 
     const onTouchMove = (event: TouchEvent) => {
@@ -490,7 +503,7 @@ export function EventSinglePageTemplate({
       const delta = touchYRef.current - nextY;
       touchYRef.current = nextY;
       event.preventDefault();
-      applyDelta(delta * 1.2);
+      applyDelta(delta * 1.35, 'touch');
     };
 
     const onTouchEnd = () => {
