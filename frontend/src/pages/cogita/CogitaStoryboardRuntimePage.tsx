@@ -842,8 +842,8 @@ function buildStoryboardOutline(
   graph: StoryboardGraph,
   graphPath: string[],
   labels: OutlineLabels
-): StoryboardOutlineItem {
-  return buildStoryboardOutlineNode({
+): StoryboardOutlineItem[] {
+  return buildStoryboardOutlineSequence({
     graph,
     graphPath,
     nodeId: graph.startNodeId,
@@ -853,7 +853,7 @@ function buildStoryboardOutline(
   });
 }
 
-function buildStoryboardOutlineNode(payload: {
+function buildStoryboardOutlineSequence(payload: {
   graph: StoryboardGraph;
   graphPath: string[];
   nodeId: string;
@@ -861,211 +861,216 @@ function buildStoryboardOutlineNode(payload: {
   seen: Set<string>;
   labels: OutlineLabels;
   stopAtNodeId?: string;
-}): StoryboardOutlineItem {
-  const { graph, graphPath, nodeId, depth, seen, labels, stopAtNodeId } = payload;
+}): StoryboardOutlineItem[] {
+  const { graph, graphPath, depth, labels, stopAtNodeId } = payload;
+  const items: StoryboardOutlineItem[] = [];
+  const localSeen = new Set(payload.seen);
+  let currentNodeId = payload.nodeId;
+  let guard = 0;
 
-  if (stopAtNodeId && nodeId === stopAtNodeId) {
-    return {
-      key: `merge:${buildNodeKey(graphPath, nodeId)}:${depth}`,
-      kind: 'merge',
-      label: labels.mergeLabel,
-      graphPath,
-      nodeId,
-      nodeKey: buildNodeKey(graphPath, nodeId),
-      children: [],
-      depth
-    };
-  }
+  while (guard < 400) {
+    guard += 1;
 
-  const node = findNode(graph, nodeId);
-  if (!node) {
-    return {
-      key: `missing:${buildNodeKey(graphPath, nodeId)}:${depth}`,
-      kind: 'note',
-      label: `${labels.missingNodeLabel}: ${nodeId}`,
-      graphPath,
-      nodeId,
-      children: [],
-      depth
-    };
-  }
-
-  const nodeKey = buildNodeKey(graphPath, node.nodeId);
-  const reused = seen.has(nodeKey);
-  const item: StoryboardOutlineItem = {
-    key: `node:${nodeKey}:${depth}`,
-    kind: 'node',
-    label: reused ? `${getOutlineNodeLabel(node, labels)} ${labels.reusedSuffix}` : getOutlineNodeLabel(node, labels),
-    graphPath,
-    nodeId: node.nodeId,
-    nodeKind: node.kind,
-    nodeKey,
-    children: [],
-    depth,
-    reused
-  };
-
-  if (reused) {
-    return item;
-  }
-
-  const nextSeen = new Set(seen);
-  nextSeen.add(nodeKey);
-
-  if (node.kind === 'group' && node.groupGraph) {
-    item.children.push(
-      buildStoryboardOutlineNode({
-        graph: node.groupGraph,
-        graphPath: [...graphPath, node.nodeId],
-        nodeId: node.groupGraph.startNodeId,
-        depth: depth + 1,
-        seen: new Set<string>(),
-        labels
-      })
-    );
-  }
-
-  if (node.kind === 'separator') {
-    const chapterEdges = graph.edges
-      .filter((edge) => edge.fromNodeId === node.nodeId && edge.sourcePort === 'out-path')
-      .sort((left, right) => left.label.trim().localeCompare(right.label.trim()));
-    const joinNodeId = findJoinNodeIdForSeparator(graph, node.nodeId);
-
-    if (chapterEdges.length > 1) {
-      const parallelItem: StoryboardOutlineItem = {
-        key: `parallel:${nodeKey}:${depth + 1}`,
-        kind: 'parallel',
-        label: labels.parallelLabel,
+    if (stopAtNodeId && currentNodeId === stopAtNodeId) {
+      items.push({
+        key: `merge:${buildNodeKey(graphPath, currentNodeId)}:${depth}:${guard}`,
+        kind: 'merge',
+        label: labels.mergeLabel,
         graphPath,
+        nodeId: currentNodeId,
+        nodeKey: buildNodeKey(graphPath, currentNodeId),
         children: [],
-        depth: depth + 1
-      };
+        depth
+      });
+      break;
+    }
 
-      chapterEdges.forEach((edge, index) => {
-        const branchKey = `branch:${nodeKey}:${index}:${edge.toNodeId}`;
-        const branchItem: StoryboardOutlineItem = {
-          key: branchKey,
-          kind: 'branch',
-          label: getOutlineBranchLabel(edge, index, labels),
+    const node = findNode(graph, currentNodeId);
+    if (!node) {
+      items.push({
+        key: `missing:${buildNodeKey(graphPath, currentNodeId)}:${depth}:${guard}`,
+        kind: 'note',
+        label: `${labels.missingNodeLabel}: ${currentNodeId}`,
+        graphPath,
+        nodeId: currentNodeId,
+        children: [],
+        depth
+      });
+      break;
+    }
+
+    const nodeKey = buildNodeKey(graphPath, node.nodeId);
+    const reused = localSeen.has(nodeKey);
+    const item: StoryboardOutlineItem = {
+      key: `node:${nodeKey}:${depth}:${guard}`,
+      kind: 'node',
+      label: reused ? `${getOutlineNodeLabel(node, labels)} ${labels.reusedSuffix}` : getOutlineNodeLabel(node, labels),
+      graphPath,
+      nodeId: node.nodeId,
+      nodeKind: node.kind,
+      nodeKey,
+      children: [],
+      depth,
+      reused
+    };
+    items.push(item);
+
+    if (reused) {
+      break;
+    }
+    localSeen.add(nodeKey);
+
+    if (node.kind === 'group' && node.groupGraph) {
+      item.children.push(
+        ...buildStoryboardOutlineSequence({
+          graph: node.groupGraph,
+          graphPath: [...graphPath, node.nodeId],
+          nodeId: node.groupGraph.startNodeId,
+          depth: depth + 1,
+          seen: new Set<string>(),
+          labels
+        })
+      );
+    }
+
+    if (node.kind === 'separator') {
+      const chapterEdges = graph.edges
+        .filter((edge) => edge.fromNodeId === node.nodeId && edge.sourcePort === 'out-path')
+        .sort((left, right) => left.label.trim().localeCompare(right.label.trim()));
+      const joinNodeId = findJoinNodeIdForSeparator(graph, node.nodeId);
+
+      if (chapterEdges.length > 1) {
+        const parallelItem: StoryboardOutlineItem = {
+          key: `parallel:${nodeKey}:${depth + 1}`,
+          kind: 'parallel',
+          label: labels.parallelLabel,
           graphPath,
-          nodeId: edge.toNodeId,
           children: [],
-          depth: depth + 2
+          depth: depth + 1
         };
-        branchItem.children.push(
-          buildStoryboardOutlineNode({
-            graph,
+
+        chapterEdges.forEach((edge, index) => {
+          const branchItem: StoryboardOutlineItem = {
+            key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
+            kind: 'branch',
+            label: getOutlineBranchLabel(edge, index, labels),
             graphPath,
             nodeId: edge.toNodeId,
-            depth: depth + 3,
-            seen: new Set(nextSeen),
-            labels,
-            stopAtNodeId: joinNodeId ?? undefined
-          })
-        );
-        parallelItem.children.push(branchItem);
-      });
-
-      item.children.push(parallelItem);
-
-      if (joinNodeId) {
-        const joinNode = findNode(graph, joinNodeId);
-        if (joinNode) {
-          const continuationEdges = getOutlineOutgoingEdges(graph, joinNode).filter(
-            (edge) => !(edge.sourcePort === 'out-wrong' && edge.toNodeId === node.nodeId)
-          );
-          if (continuationEdges.length > 0) {
-            const continuationItem: StoryboardOutlineItem = {
-              key: `continuation:${nodeKey}:${depth + 1}`,
-              kind: 'branch',
-              label: labels.continuationLabel,
+            children: [],
+            depth: depth + 2
+          };
+          branchItem.children.push(
+            ...buildStoryboardOutlineSequence({
+              graph,
               graphPath,
-              nodeId: joinNodeId,
-              children: [],
-              depth: depth + 1
-            };
+              nodeId: edge.toNodeId,
+              depth: depth + 3,
+              seen: new Set(localSeen),
+              labels,
+              stopAtNodeId: joinNodeId ?? undefined
+            })
+          );
+          parallelItem.children.push(branchItem);
+        });
+        item.children.push(parallelItem);
 
-            if (continuationEdges.length === 1) {
-              continuationItem.children.push(
-                buildStoryboardOutlineNode({
-                  graph,
-                  graphPath,
-                  nodeId: continuationEdges[0].toNodeId,
-                  depth: depth + 2,
-                  seen: new Set(nextSeen),
-                  labels
-                })
-              );
-            } else {
-              continuationEdges.forEach((edge, index) => {
-                const branchItem: StoryboardOutlineItem = {
-                  key: `continuation-branch:${nodeKey}:${index}:${edge.toNodeId}`,
-                  kind: 'branch',
-                  label: getOutlineBranchLabel(edge, index, labels),
-                  graphPath,
-                  nodeId: edge.toNodeId,
-                  children: [
-                    buildStoryboardOutlineNode({
+        if (joinNodeId) {
+          const joinNode = findNode(graph, joinNodeId);
+          if (joinNode) {
+            const continuationEdges = getOutlineOutgoingEdges(graph, joinNode).filter(
+              (edge) => !(edge.sourcePort === 'out-wrong' && edge.toNodeId === node.nodeId)
+            );
+            if (continuationEdges.length > 0) {
+              const continuationItem: StoryboardOutlineItem = {
+                key: `continuation:${nodeKey}:${depth + 1}`,
+                kind: 'branch',
+                label: labels.continuationLabel,
+                graphPath,
+                nodeId: joinNodeId,
+                children: [],
+                depth: depth + 1
+              };
+
+              if (continuationEdges.length === 1) {
+                continuationItem.children.push(
+                  ...buildStoryboardOutlineSequence({
+                    graph,
+                    graphPath,
+                    nodeId: continuationEdges[0].toNodeId,
+                    depth: depth + 2,
+                    seen: new Set(localSeen),
+                    labels
+                  })
+                );
+              } else {
+                continuationEdges.forEach((edge, index) => {
+                  const branchItem: StoryboardOutlineItem = {
+                    key: `continuation-branch:${nodeKey}:${index}:${edge.toNodeId}`,
+                    kind: 'branch',
+                    label: getOutlineBranchLabel(edge, index, labels),
+                    graphPath,
+                    nodeId: edge.toNodeId,
+                    children: buildStoryboardOutlineSequence({
                       graph,
                       graphPath,
                       nodeId: edge.toNodeId,
                       depth: depth + 3,
-                      seen: new Set(nextSeen),
+                      seen: new Set(localSeen),
                       labels
-                    })
-                  ],
-                  depth: depth + 2
-                };
-                continuationItem.children.push(branchItem);
-              });
+                    }),
+                    depth: depth + 2
+                  };
+                  continuationItem.children.push(branchItem);
+                });
+              }
+              item.children.push(continuationItem);
             }
-
-            item.children.push(continuationItem);
           }
         }
+        break;
       }
 
-      return item;
-    }
-  }
+      if (chapterEdges.length === 1) {
+        currentNodeId = chapterEdges[0].toNodeId;
+        continue;
+      }
 
-  const outgoing = getOutlineOutgoingEdges(graph, node);
-  if (outgoing.length === 1) {
-    item.children.push(
-      buildStoryboardOutlineNode({
-        graph,
-        graphPath,
-        nodeId: outgoing[0].toNodeId,
-        depth: depth + 1,
-        seen: nextSeen,
-        labels
-      })
-    );
-  } else if (outgoing.length > 1) {
-    outgoing.forEach((edge, index) => {
-      const branchItem: StoryboardOutlineItem = {
-        key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
-        kind: 'branch',
-        label: getOutlineBranchLabel(edge, index, labels),
-        graphPath,
-        nodeId: edge.toNodeId,
-        children: [
-          buildStoryboardOutlineNode({
+      break;
+    }
+
+    const outgoing = getOutlineOutgoingEdges(graph, node);
+    if (outgoing.length === 1) {
+      currentNodeId = outgoing[0].toNodeId;
+      continue;
+    }
+
+    if (outgoing.length > 1) {
+      outgoing.forEach((edge, index) => {
+        const branchItem: StoryboardOutlineItem = {
+          key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
+          kind: 'branch',
+          label: getOutlineBranchLabel(edge, index, labels),
+          graphPath,
+          nodeId: edge.toNodeId,
+          children: buildStoryboardOutlineSequence({
             graph,
             graphPath,
             nodeId: edge.toNodeId,
             depth: depth + 2,
-            seen: new Set(nextSeen),
+            seen: new Set(localSeen),
             labels
-          })
-        ],
-        depth: depth + 1
-      };
-      item.children.push(branchItem);
-    });
+          }),
+          depth: depth + 1
+        };
+        item.children.push(branchItem);
+      });
+      break;
+    }
+
+    break;
   }
 
-  return item;
+  return items;
 }
 
 function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): RuntimeBlock {
@@ -1761,7 +1766,7 @@ export function CogitaStoryboardRuntimePage({
   );
 
   const runtimeOutline = useMemo(() => {
-    if (!documentState) return null;
+    if (!documentState) return [] as StoryboardOutlineItem[];
     return buildStoryboardOutline(documentState.rootGraph, [], outlineLabels);
   }, [documentState, outlineLabels]);
 
@@ -2649,9 +2654,9 @@ export function CogitaStoryboardRuntimePage({
                   </button>
                 </div>
               </div>
-              {runtimeOutline ? (
+              {runtimeOutline.length > 0 ? (
                 <ul style={{ margin: 0, paddingLeft: '1rem', display: 'grid', gap: '0.35rem' }}>
-                  {renderOutlineItem(runtimeOutline)}
+                  {runtimeOutline.map((item) => renderOutlineItem(item))}
                 </ul>
               ) : (
                 <p className="cogita-help" style={{ margin: 0 }}>
