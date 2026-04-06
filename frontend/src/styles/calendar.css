@@ -216,6 +216,11 @@
   text-align: left;
 }
 
+.calendar-day-card button.is-selected {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+}
+
 .calendar-occurrence-list {
   display: grid;
   gap: 8px;
@@ -269,6 +274,60 @@
   border-radius: 12px;
   padding: 10px;
   background: rgba(248, 250, 252, 0.85);
+}
+
+.calendar-main-selected-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.calendar-main-selected-panel h3,
+.calendar-main-selected-panel h4,
+.calendar-main-selected-panel p {
+  margin: 0;
+}
+
+.calendar-selected-content {
+  display: grid;
+  gap: 10px;
+}
+
+.calendar-graph-node-list,
+.calendar-graph-edge-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.calendar-graph-node-list li {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.calendar-graph-node-list textarea {
+  width: 100%;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  background: #fff;
+}
+
+.calendar-graph-edge-list li {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .calendar-role-link-panel {
@@ -550,6 +609,10 @@
   font-size: 11px;
 }
 
+.calendar-scheduler-event.is-selected {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(15, 118, 110, 0.7);
+}
+
 .calendar-month-grid-shell {
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
@@ -609,6 +672,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.calendar-timeline-event.is-selected,
+.calendar-year-event.is-selected {
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.8);
 }
 
 .calendar-page-guest .calendar-guest-main {

@@ -43,6 +43,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
         _ = ct;
         var templates = new List<CalendarGraphTemplateResponse>
         {
+            BuildTemplateCustom(),
             BuildTemplateDaily(),
             BuildTemplateWeekly(),
             BuildTemplateMonthly(),
@@ -922,6 +923,7 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
         {
+            "custom" => "custom",
             "daily" => "daily",
             "weekly" => "weekly",
             "monthly" => "monthly",
@@ -1032,6 +1034,20 @@ public sealed class CalendarGraphRuntimeService : ICalendarGraphRuntimeService
 
         var trimmed = value.Trim();
         return trimmed.Length <= maxLength ? trimmed : null;
+    }
+
+    private static CalendarGraphTemplateResponse BuildTemplateCustom()
+    {
+        var nodes = new List<CalendarGraphNodeResponse>
+        {
+            new(Guid.Parse("00000000-0000-0000-0000-000000000001"), "trigger", "input", "{}", 0, 0),
+            new(Guid.Parse("00000000-0000-0000-0000-000000000002"), "noop", "pass", "{}", 240, 0)
+        };
+        var edges = new List<CalendarGraphEdgeResponse>
+        {
+            new(Guid.Parse("00000000-0000-0000-0000-000000000003"), nodes[0].NodeId, null, nodes[1].NodeId, null, "flow", null)
+        };
+        return new CalendarGraphTemplateResponse("custom", "Custom node graph", "Uses only node-edge actions without template defaults.", "custom", "{}", nodes, edges);
     }
 
     private static CalendarGraphTemplateResponse BuildTemplateDaily()

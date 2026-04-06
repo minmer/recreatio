@@ -43,6 +43,8 @@ import {
   type CalendarEventGroupShareResponse,
   type CalendarEventShare,
   type CalendarGraphExecution,
+  type CalendarGraphNode,
+  type CalendarGraphEdge,
   type CalendarGraphTemplate,
   type CalendarOccurrenceResponse,
   type CalendarPublicEventResponse,
@@ -147,6 +149,56 @@ function buildEventBackground(color: string, orientation: 'vertical' | 'horizont
     return `linear-gradient(180deg, ${color} 0%, ${color} 68%, ${hexToRgba(color, 0)} 100%)`;
   }
   return `linear-gradient(90deg, ${color} 0%, ${color} 70%, ${hexToRgba(color, 0)} 100%)`;
+}
+
+function makeGraphId(prefix: string): string {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  return `${prefix}-${random}`;
+}
+
+function parseGraphNodesJson(value: string): CalendarGraphNode[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        const raw = item as Record<string, unknown>;
+        const nodeId = typeof raw.nodeId === 'string' && raw.nodeId.trim() ? raw.nodeId.trim() : makeGraphId('node');
+        const nodeType = typeof raw.nodeType === 'string' && raw.nodeType.trim() ? raw.nodeType.trim() : 'noop';
+        const nodeKey = typeof raw.nodeKey === 'string' && raw.nodeKey.trim() ? raw.nodeKey.trim() : nodeType;
+        const configJson = typeof raw.configJson === 'string' ? raw.configJson : '{}';
+        const positionX = typeof raw.positionX === 'number' ? raw.positionX : 0;
+        const positionY = typeof raw.positionY === 'number' ? raw.positionY : 0;
+        return { nodeId, nodeType, nodeKey, configJson, positionX, positionY } as CalendarGraphNode;
+      });
+  } catch {
+    return [];
+  }
+}
+
+function parseGraphEdgesJson(value: string): CalendarGraphEdge[] {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        const raw = item as Record<string, unknown>;
+        const edgeId = typeof raw.edgeId === 'string' && raw.edgeId.trim() ? raw.edgeId.trim() : makeGraphId('edge');
+        const fromNodeId = typeof raw.fromNodeId === 'string' ? raw.fromNodeId.trim() : '';
+        const toNodeId = typeof raw.toNodeId === 'string' ? raw.toNodeId.trim() : '';
+        if (!fromNodeId || !toNodeId) return null;
+        const fromPort = typeof raw.fromPort === 'string' ? raw.fromPort : null;
+        const toPort = typeof raw.toPort === 'string' ? raw.toPort : null;
+        const edgeType = typeof raw.edgeType === 'string' ? raw.edgeType : 'flow';
+        const conditionJson = typeof raw.conditionJson === 'string' ? raw.conditionJson : null;
+        return { edgeId, fromNodeId, toNodeId, fromPort, toPort, edgeType, conditionJson } as CalendarGraphEdge;
+      })
+      .filter((item): item is CalendarGraphEdge => item !== null);
+  } catch {
+    return [];
+  }
 }
 
 function localDayKey(value: Date): string {
@@ -325,6 +377,7 @@ export function CalendarPage({
   const [taskStateFilter, setTaskStateFilter] = useState('');
   const [simpleKeywordFilter, setSimpleKeywordFilter] = useState('');
   const [simpleSubCalendarFilter, setSimpleSubCalendarFilter] = useState<'all' | string>('all');
+  const [createWithGraph, setCreateWithGraph] = useState(false);
   const [createAsWeeklySeries, setCreateAsWeeklySeries] = useState(false);
   const [seriesIntervalWeeks, setSeriesIntervalWeeks] = useState(1);
   const [seriesUntilUtcLocal, setSeriesUntilUtcLocal] = useState(formatDateTimeLocalInput(new Date(Date.now() + 1000 * 60 * 60 * 24 * 56)));
@@ -339,6 +392,11 @@ export function CalendarPage({
   const [editStartUtcLocal, setEditStartUtcLocal] = useState('');
   const [editEndUtcLocal, setEditEndUtcLocal] = useState('');
   const [editStatus, setEditStatus] = useState('planned');
+  const [nodeEditorType, setNodeEditorType] = useState<'trigger' | 'delay' | 'create_task' | 'create_appointment' | 'condition' | 'noop'>('delay');
+  const [nodeEditorKey, setNodeEditorKey] = useState('');
+  const [nodeEditorConfigJson, setNodeEditorConfigJson] = useState('{}');
+  const [edgeEditorFromNodeId, setEdgeEditorFromNodeId] = useState('');
+  const [edgeEditorToNodeId, setEdgeEditorToNodeId] = useState('');
 
   const range = useMemo(() => rangeFromView(anchor, view), [anchor, view]);
   const shareUrl = useMemo(() => {
@@ -469,6 +527,19 @@ export function CalendarPage({
     });
   }, [simpleSubCalendars, simpleFilteredOccurrences]);
 
+  const graphNodes = useMemo(() => parseGraphNodesJson(graphNodesJson), [graphNodesJson]);
+  const graphEdges = useMemo(() => parseGraphEdgesJson(graphEdgesJson), [graphEdgesJson]);
+  const graphTemplateOptions = useMemo(() => {
+    if (!selectedEvent) return templates;
+    if (selectedEvent.itemType === 'appointment') {
+      return templates.filter((template) => template.category === 'recurrence' || template.category === 'custom');
+    }
+    return templates.filter((template) => template.category === 'task' || template.category === 'followup' || template.category === 'custom');
+  }, [templates, selectedEvent]);
+  const graphPurposeLabel = selectedEvent?.itemType === 'appointment'
+    ? 'Appointment recurrence graph (optional)'
+    : 'Completion automation graph (optional)';
+
   const personRoles = useMemo(
     () => roles
       .filter((role) => isPersonRoleKind(getRoleKind(role)))
@@ -540,9 +611,8 @@ export function CalendarPage({
   useEffect(() => {
     if (!showProfileMenu || shareRoute) return;
 
-    const loadPromise = simpleMode
-      ? Promise.all([getCalendars(), getRoles()]).then(([calendarList, roleList]) => ({ calendarList, roleList, templateList: [] as CalendarGraphTemplate[] }))
-      : Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()]).then(([calendarList, roleList, templateList]) => ({ calendarList, roleList, templateList }));
+    const loadPromise = Promise.all([getCalendars(), getRoles(), getCalendarGraphTemplates()])
+      .then(([calendarList, roleList, templateList]) => ({ calendarList, roleList, templateList }));
 
     loadPromise
       .then(async ({ calendarList, roleList, templateList }) => {
@@ -617,9 +687,9 @@ export function CalendarPage({
         if (templateList.length > 0) {
           setTemplates(templateList);
           setGraphTemplateKey((current) => current || templateList[0].templateKey);
-          setGraphConfigJson((current) => (current && current !== '{}' ? current : (templateList[0].defaultConfigJson || '{}')));
-          setGraphNodesJson((current) => (current && current !== '[]' ? current : JSON.stringify(templateList[0].nodes, null, 2)));
-          setGraphEdgesJson((current) => (current && current !== '[]' ? current : JSON.stringify(templateList[0].edges, null, 2)));
+          setGraphConfigJson((current) => (current && current !== '{}' ? current : '{}'));
+          setGraphNodesJson((current) => (current && current !== '[]' ? current : '[]'));
+          setGraphEdgesJson((current) => (current && current !== '[]' ? current : '[]'));
         }
       })
       .catch((err) => setError(readError(err)));
@@ -743,11 +813,32 @@ export function CalendarPage({
     }
 
     if (simpleMode) {
-      getCalendarItem(selectedEventId, true)
-        .then((item) => {
-          setSelectedEvent(item);
-        })
-        .catch((err) => setError(readError(err)));
+      Promise.allSettled([
+        getCalendarItem(selectedEventId, true),
+        getCalendarGraph(selectedEventId),
+        getCalendarGraphExecutions(selectedEventId, 20)
+      ]).then((results) => {
+        if (results[0].status === 'fulfilled') {
+          setSelectedEvent(results[0].value);
+        }
+        if (results[1].status === 'fulfilled') {
+          const graph = results[1].value;
+          setGraphTemplateKey(graph.templateKey);
+          setGraphStatus(graph.status === 'draft' || graph.status === 'archived' ? graph.status : 'active');
+          setGraphConfigJson(graph.templateConfigJson || '{}');
+          setGraphNodesJson(JSON.stringify(graph.nodes, null, 2));
+          setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
+        } else {
+          setGraphTemplateKey(templates[0]?.templateKey ?? 'custom');
+          setGraphStatus('draft');
+          setGraphConfigJson('{}');
+          setGraphNodesJson('[]');
+          setGraphEdgesJson('[]');
+        }
+        if (results[2].status === 'fulfilled') {
+          setExecutions(results[2].value);
+        }
+      }).catch((err) => setError(readError(err)));
       return;
     }
 
@@ -767,9 +858,15 @@ export function CalendarPage({
         setGraphConfigJson(graph.templateConfigJson || '{}');
         setGraphNodesJson(JSON.stringify(graph.nodes, null, 2));
         setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
+      } else {
+        setGraphTemplateKey(templates[0]?.templateKey ?? 'custom');
+        setGraphStatus('draft');
+        setGraphConfigJson('{}');
+        setGraphNodesJson('[]');
+        setGraphEdgesJson('[]');
       }
     });
-  }, [selectedEventId, shareRoute, showProfileMenu, simpleMode]);
+  }, [selectedEventId, shareRoute, showProfileMenu, simpleMode, templates]);
 
   useEffect(() => {
     if (simpleMode || !showProfileMenu || shareRoute || !selectedEventGroupId) {
@@ -902,9 +999,15 @@ export function CalendarPage({
     }
 
     try {
-      const parsedNodes = JSON.parse(graphNodesJson || '[]');
-      const parsedEdges = JSON.parse(graphEdgesJson || '[]');
       const shouldReuseGraph = !!selectedReusableGraphId;
+      const shouldAttachGraph = createWithGraph || shouldReuseGraph;
+      const needsInlineGraph = shouldAttachGraph && !shouldReuseGraph;
+      let parsedNodes: any[] = [];
+      let parsedEdges: any[] = [];
+      if (needsInlineGraph) {
+        parsedNodes = JSON.parse(graphNodesJson || '[]');
+        parsedEdges = JSON.parse(graphEdgesJson || '[]');
+      }
       const startUtc = new Date(startUtcLocal).toISOString();
       const endUtc = new Date(endUtcLocal).toISOString();
 
@@ -930,7 +1033,7 @@ export function CalendarPage({
             canSeeTitle: viewer.canSeeTitle,
             canSeeGraph: viewer.canSeeGraph
           })),
-          graphId: shouldReuseGraph ? selectedReusableGraphId : null,
+          graphId: shouldAttachGraph && shouldReuseGraph ? selectedReusableGraphId : null,
           allowConflicts: false
         });
         createdEventId = series.eventIds[0] ?? null;
@@ -953,10 +1056,10 @@ export function CalendarPage({
             canSeeTitle: viewer.canSeeTitle,
             canSeeGraph: viewer.canSeeGraph
           })),
-          graph: shouldReuseGraph
+          graph: !needsInlineGraph
             ? null
             : {
-                templateKey: graphTemplateKey || 'daily',
+                templateKey: graphTemplateKey || (itemType === 'appointment' ? 'weekly' : 'custom'),
                 status: 'active',
                 templateConfigJson: graphConfigJson,
                 nodes: parsedNodes,
@@ -964,7 +1067,7 @@ export function CalendarPage({
               }
         });
         createdEventId = createdItem.eventId;
-        if (shouldReuseGraph) {
+        if (shouldAttachGraph && shouldReuseGraph) {
           await linkCalendarEventGraph(createdItem.eventId, selectedReusableGraphId);
         }
       }
@@ -973,6 +1076,7 @@ export function CalendarPage({
       setSummary('');
       setViewerScopes([]);
       setSelectedReusableGraphId('');
+      setCreateWithGraph(false);
       setAnchor(new Date(startUtc));
       if (createdEventId) {
         setSelectedEventId(createdEventId);
@@ -1137,6 +1241,408 @@ export function CalendarPage({
     });
     setError(null);
   };
+
+  const persistGraphDraft = (nodes: CalendarGraphNode[], edges: CalendarGraphEdge[]) => {
+    setGraphNodesJson(JSON.stringify(nodes, null, 2));
+    setGraphEdgesJson(JSON.stringify(edges, null, 2));
+  };
+
+  const addGraphNode = () => {
+    const config = nodeEditorConfigJson.trim() || '{}';
+    try {
+      JSON.parse(config);
+    } catch {
+      setError('Node config JSON is invalid.');
+      return;
+    }
+
+    const nodeId = makeGraphId('node');
+    const nextNode: CalendarGraphNode = {
+      nodeId,
+      nodeType: nodeEditorType,
+      nodeKey: nodeEditorKey.trim() || `${nodeEditorType}_${graphNodes.length + 1}`,
+      configJson: config,
+      positionX: graphNodes.length * 220,
+      positionY: (graphNodes.length % 4) * 90
+    };
+
+    const nextNodes = [...graphNodes, nextNode];
+    persistGraphDraft(nextNodes, graphEdges);
+    if (!edgeEditorFromNodeId) setEdgeEditorFromNodeId(nodeId);
+    if (!edgeEditorToNodeId) setEdgeEditorToNodeId(nodeId);
+    setError(null);
+  };
+
+  const removeGraphNode = (nodeId: string) => {
+    const nextNodes = graphNodes.filter((node) => node.nodeId !== nodeId);
+    const nextEdges = graphEdges.filter((edge) => edge.fromNodeId !== nodeId && edge.toNodeId !== nodeId);
+    persistGraphDraft(nextNodes, nextEdges);
+    if (edgeEditorFromNodeId === nodeId) setEdgeEditorFromNodeId(nextNodes[0]?.nodeId ?? '');
+    if (edgeEditorToNodeId === nodeId) setEdgeEditorToNodeId(nextNodes[0]?.nodeId ?? '');
+  };
+
+  const updateGraphNodeConfig = (nodeId: string, configJson: string) => {
+    const nextNodes = graphNodes.map((node) => (node.nodeId === nodeId ? { ...node, configJson } : node));
+    persistGraphDraft(nextNodes, graphEdges);
+  };
+
+  const addGraphEdge = () => {
+    if (!edgeEditorFromNodeId || !edgeEditorToNodeId) {
+      setError('Select source and target nodes.');
+      return;
+    }
+
+    const exists = graphEdges.some((edge) => edge.fromNodeId === edgeEditorFromNodeId && edge.toNodeId === edgeEditorToNodeId);
+    if (exists) {
+      setError('Edge already exists.');
+      return;
+    }
+
+    const nextEdges = [...graphEdges, {
+      edgeId: makeGraphId('edge'),
+      fromNodeId: edgeEditorFromNodeId,
+      toNodeId: edgeEditorToNodeId,
+      fromPort: null,
+      toPort: null,
+      edgeType: 'flow',
+      conditionJson: null
+    }];
+    persistGraphDraft(graphNodes, nextEdges);
+    setError(null);
+  };
+
+  const removeGraphEdge = (edgeId: string) => {
+    persistGraphDraft(graphNodes, graphEdges.filter((edge) => edge.edgeId !== edgeId));
+  };
+
+  const applyCustomTaskGraphPreset = (outputType: 'task' | 'appointment') => {
+    const triggerNodeId = makeGraphId('node');
+    const delayNodeId = makeGraphId('node');
+    const outputNodeId = makeGraphId('node');
+
+    const nextNodes: CalendarGraphNode[] = [
+      {
+        nodeId: triggerNodeId,
+        nodeType: 'trigger',
+        nodeKey: 'input_task_payload',
+        configJson: '{}',
+        positionX: 0,
+        positionY: 0
+      },
+      {
+        nodeId: delayNodeId,
+        nodeType: 'delay',
+        nodeKey: 'start_plus_1_day',
+        configJson: '{"days":1}',
+        positionX: 220,
+        positionY: 0
+      },
+      {
+        nodeId: outputNodeId,
+        nodeType: outputType === 'task' ? 'create_task' : 'create_appointment',
+        nodeKey: outputType === 'task' ? 'output_task' : 'output_appointment',
+        configJson: outputType === 'task'
+          ? '{"title":"Recreated task","durationMinutes":60}'
+          : '{"title":"Follow-up appointment","durationMinutes":60}',
+        positionX: 460,
+        positionY: 0
+      }
+    ];
+
+    const nextEdges: CalendarGraphEdge[] = [
+      {
+        edgeId: makeGraphId('edge'),
+        fromNodeId: triggerNodeId,
+        toNodeId: delayNodeId,
+        fromPort: null,
+        toPort: null,
+        edgeType: 'flow',
+        conditionJson: null
+      },
+      {
+        edgeId: makeGraphId('edge'),
+        fromNodeId: delayNodeId,
+        toNodeId: outputNodeId,
+        fromPort: null,
+        toPort: null,
+        edgeType: 'flow',
+        conditionJson: null
+      }
+    ];
+
+    setGraphTemplateKey('custom');
+    setGraphConfigJson('{}');
+    setGraphStatus('active');
+    persistGraphDraft(nextNodes, nextEdges);
+    setError(null);
+  };
+
+  const applyCustomAppointmentGraphPreset = () => {
+    const triggerNodeId = makeGraphId('node');
+    const delayNodeId = makeGraphId('node');
+    const outputNodeId = makeGraphId('node');
+
+    const nextNodes: CalendarGraphNode[] = [
+      {
+        nodeId: triggerNodeId,
+        nodeType: 'trigger',
+        nodeKey: 'input_appointment_payload',
+        configJson: '{}',
+        positionX: 0,
+        positionY: 0
+      },
+      {
+        nodeId: delayNodeId,
+        nodeType: 'delay',
+        nodeKey: 'start_plus_1_day',
+        configJson: '{"days":1}',
+        positionX: 220,
+        positionY: 0
+      },
+      {
+        nodeId: outputNodeId,
+        nodeType: 'create_appointment',
+        nodeKey: 'output_appointment',
+        configJson: '{"title":"Next appointment","durationMinutes":60}',
+        positionX: 460,
+        positionY: 0
+      }
+    ];
+
+    const nextEdges: CalendarGraphEdge[] = [
+      {
+        edgeId: makeGraphId('edge'),
+        fromNodeId: triggerNodeId,
+        toNodeId: delayNodeId,
+        fromPort: null,
+        toPort: null,
+        edgeType: 'flow',
+        conditionJson: null
+      },
+      {
+        edgeId: makeGraphId('edge'),
+        fromNodeId: delayNodeId,
+        toNodeId: outputNodeId,
+        fromPort: null,
+        toPort: null,
+        edgeType: 'flow',
+        conditionJson: null
+      }
+    ];
+
+    setGraphTemplateKey('custom');
+    setGraphConfigJson('{}');
+    setGraphStatus('active');
+    persistGraphDraft(nextNodes, nextEdges);
+    setError(null);
+  };
+
+  const saveGraphDraft = async () => {
+    if (!selectedEvent) {
+      setError('Select an item first.');
+      return;
+    }
+
+    const selectedTemplateKey = graphTemplateKey || (graphTemplateOptions[0]?.templateKey ?? 'custom');
+    try {
+      const saved = await upsertCalendarGraph(selectedEvent.eventId, {
+        templateKey: selectedTemplateKey,
+        templateConfigJson: graphConfigJson,
+        status: graphStatus,
+        nodes: graphNodes,
+        edges: graphEdges
+      });
+      setGraphTemplateKey(saved.templateKey);
+      setGraphStatus(saved.status === 'draft' || saved.status === 'archived' ? saved.status : 'active');
+      setGraphConfigJson(saved.templateConfigJson || '{}');
+      setGraphNodesJson(JSON.stringify(saved.nodes, null, 2));
+      setGraphEdgesJson(JSON.stringify(saved.edges, null, 2));
+      const history = await getCalendarGraphExecutions(selectedEvent.eventId, 20);
+      setExecutions(history);
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const runTaskCompletionAction = async (outcome: 'fulfilled' | 'dismissed', runGraph: boolean) => {
+    if (!selectedEvent || selectedEvent.itemType !== 'task') {
+      setError('Select a task first.');
+      return;
+    }
+
+    const mappedTaskState = outcome === 'fulfilled' ? 'done' : 'cancelled';
+    try {
+      if (runGraph && mappedTaskState === 'done') {
+        await completeCalendarTaskAndRunGraph(selectedEvent.eventId, {});
+      } else {
+        await completeCalendarTask(selectedEvent.eventId, { taskState: mappedTaskState });
+        if (runGraph) {
+          try {
+            await executeCalendarGraph(selectedEvent.eventId, { triggerType: 'completion', completionAction: 'run_graph' });
+          } catch (err) {
+            const message = readError(err).toLowerCase();
+            if (!message.includes('no active graph')) {
+              throw err;
+            }
+          }
+        }
+      }
+
+      const [item, history] = await Promise.all([
+        getCalendarItem(selectedEvent.eventId, true),
+        getCalendarGraphExecutions(selectedEvent.eventId, 20)
+      ]);
+      setSelectedEvent(item);
+      setExecutions(history);
+      refresh(selectedEvent.eventId);
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const runSelectedGraphManual = async () => {
+    if (!selectedEvent) {
+      setError('Select an item first.');
+      return;
+    }
+
+    try {
+      await executeCalendarGraph(selectedEvent.eventId, { triggerType: 'manual' });
+      const [item, history] = await Promise.all([
+        getCalendarItem(selectedEvent.eventId, true),
+        getCalendarGraphExecutions(selectedEvent.eventId, 20)
+      ]);
+      setSelectedEvent(item);
+      setExecutions(history);
+      refresh(selectedEvent.eventId);
+      setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const selectedMainInspector = (
+    <section className="calendar-panel calendar-main-selected-panel">
+      <h3>Selected item</h3>
+      {!selectedEvent && <p>Select an appointment or task to edit details and automation.</p>}
+      {selectedEvent && (
+        <div className="calendar-selected-content">
+          <div className="calendar-field-row">
+            <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} placeholder="Title" />
+            <textarea rows={2} value={editSummary} onChange={(event) => setEditSummary(event.target.value)} placeholder="Summary" />
+            <div className="calendar-inline-grid">
+              <input type="datetime-local" value={editStartUtcLocal} onChange={(event) => setEditStartUtcLocal(event.target.value)} />
+              <input type="datetime-local" value={editEndUtcLocal} onChange={(event) => setEditEndUtcLocal(event.target.value)} />
+            </div>
+            <select value={editStatus} onChange={(event) => setEditStatus(event.target.value)}>
+              <option value="planned">planned</option>
+              <option value="confirmed">confirmed</option>
+              <option value="cancelled">cancelled</option>
+              <option value="completed">completed</option>
+            </select>
+            <div className="calendar-detail-actions">
+              <button type="button" onClick={() => void saveSelectedItem()}>Save</button>
+              <button type="button" onClick={() => void removeSelectedItem()}>Remove</button>
+              <button type="button" onClick={() => void runSelectedGraphManual()}>Run graph</button>
+            </div>
+          </div>
+
+          {selectedEvent.itemType === 'task' && (
+            <div className="calendar-share-panel">
+              <h4>Task completion</h4>
+              <div className="calendar-detail-actions">
+                <button type="button" onClick={() => void runTaskCompletionAction('fulfilled', false)}>Fulfill</button>
+                <button type="button" onClick={() => void runTaskCompletionAction('fulfilled', true)}>Fulfill + run graph</button>
+                <button type="button" onClick={() => void runTaskCompletionAction('dismissed', false)}>Dismiss</button>
+                <button type="button" onClick={() => void runTaskCompletionAction('dismissed', true)}>Dismiss + run graph</button>
+              </div>
+            </div>
+          )}
+
+          <div className="calendar-share-panel">
+            <h4>{graphPurposeLabel}</h4>
+            <p>Input node carries selected item data. Add transform nodes (for example delay +1 day) and connect to output create nodes.</p>
+            <div className="calendar-inline-grid">
+              <select value={graphTemplateKey} onChange={(event) => applyTemplate(event.target.value)}>
+                <option value="">template</option>
+                {graphTemplateOptions.map((template) => (
+                  <option key={template.templateKey} value={template.templateKey}>{template.name}</option>
+                ))}
+              </select>
+              <select value={graphStatus} onChange={(event) => setGraphStatus(event.target.value as 'draft' | 'active' | 'archived')}>
+                <option value="draft">draft</option>
+                <option value="active">active</option>
+                <option value="archived">archived</option>
+              </select>
+            </div>
+            <textarea rows={3} value={graphConfigJson} onChange={(event) => setGraphConfigJson(event.target.value)} placeholder="Graph config JSON" />
+            {selectedEvent.itemType === 'task' ? (
+              <div className="calendar-detail-actions">
+                <button type="button" onClick={() => applyCustomTaskGraphPreset('task')}>Preset: recreate task +1 day</button>
+                <button type="button" onClick={() => applyCustomTaskGraphPreset('appointment')}>Preset: follow-up appointment +1 day</button>
+              </div>
+            ) : (
+              <div className="calendar-detail-actions">
+                <button type="button" onClick={() => applyTemplate('daily')}>Daily recurrence</button>
+                <button type="button" onClick={() => applyTemplate('weekly')}>Weekly recurrence</button>
+                <button type="button" onClick={() => applyTemplate('monthly')}>Monthly recurrence</button>
+                <button type="button" onClick={applyCustomAppointmentGraphPreset}>Custom +1 day recreate</button>
+              </div>
+            )}
+            <div className="calendar-inline-grid">
+              <select value={nodeEditorType} onChange={(event) => setNodeEditorType(event.target.value as 'trigger' | 'delay' | 'create_task' | 'create_appointment' | 'condition' | 'noop')}>
+                <option value="trigger">trigger</option>
+                <option value="delay">delay</option>
+                <option value="create_task">create_task</option>
+                <option value="create_appointment">create_appointment</option>
+                <option value="condition">condition</option>
+                <option value="noop">noop</option>
+              </select>
+              <input value={nodeEditorKey} onChange={(event) => setNodeEditorKey(event.target.value)} placeholder="node key" />
+            </div>
+            <textarea rows={2} value={nodeEditorConfigJson} onChange={(event) => setNodeEditorConfigJson(event.target.value)} placeholder="node config JSON" />
+            <button type="button" onClick={addGraphNode}>Add node</button>
+            <ul className="calendar-graph-node-list">
+              {graphNodes.map((node) => (
+                <li key={node.nodeId}>
+                  <strong>{node.nodeType}</strong>
+                  <span>{node.nodeKey}</span>
+                  <textarea rows={2} value={node.configJson} onChange={(event) => updateGraphNodeConfig(node.nodeId, event.target.value)} />
+                  <button type="button" onClick={() => removeGraphNode(node.nodeId)}>Remove node</button>
+                </li>
+              ))}
+              {graphNodes.length === 0 && <li>No nodes configured.</li>}
+            </ul>
+            <div className="calendar-inline-grid">
+              <select value={edgeEditorFromNodeId} onChange={(event) => setEdgeEditorFromNodeId(event.target.value)}>
+                <option value="">from node</option>
+                {graphNodes.map((node) => <option key={node.nodeId} value={node.nodeId}>{node.nodeKey}</option>)}
+              </select>
+              <select value={edgeEditorToNodeId} onChange={(event) => setEdgeEditorToNodeId(event.target.value)}>
+                <option value="">to node</option>
+                {graphNodes.map((node) => <option key={node.nodeId} value={node.nodeId}>{node.nodeKey}</option>)}
+              </select>
+            </div>
+            <button type="button" onClick={addGraphEdge}>Add edge</button>
+            <ul className="calendar-graph-edge-list">
+              {graphEdges.map((edge) => (
+                <li key={edge.edgeId}>
+                  <span>{edge.fromNodeId} {'->'} {edge.toNodeId}</span>
+                  <button type="button" onClick={() => removeGraphEdge(edge.edgeId)}>Remove edge</button>
+                </li>
+              ))}
+              {graphEdges.length === 0 && <li>No edges configured.</li>}
+            </ul>
+            <div className="calendar-detail-actions">
+              <button type="button" onClick={() => void saveGraphDraft()}>Save graph</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 
   const header = (
     <header className="calendar-header">
@@ -1327,6 +1833,8 @@ export function CalendarPage({
               </div>
             </div>
 
+            {selectedMainInspector}
+
             {view === 'day' || view === 'week' ? (
               <div className="calendar-scheduler-grid">
                 <div className="calendar-time-column">
@@ -1338,33 +1846,34 @@ export function CalendarPage({
                   {schedulerDays.map((day, index) => (
                     <div key={localDayKey(day)} className="calendar-scheduler-day">
                       <div className="calendar-scheduler-day-header">{formatLocalDay(day)}</div>
-                      <div className="calendar-scheduler-day-body">
-                        {hourSlots.map((hour) => (
-                          <div key={hour} className="calendar-scheduler-hour-line" />
-                        ))}
-                        {schedulerEventsByDay[index]?.map((entry) => {
-                          const color = colorForKey(entry.row.event.ownerRoleId);
-                          return (
-                            <button
-                              key={entry.row.eventId + entry.row.occurrenceStartUtc}
-                              type="button"
-                              className={`calendar-scheduler-event${entry.isOpenEnded ? ' is-open-ended' : ''}`}
-                              style={{
-                                top: `${entry.topPct}%`,
-                                height: `${entry.heightPct}%`,
-                                background: buildEventBackground(color, 'vertical', entry.isOpenEnded)
-                              }}
-                              onClick={() => setSelectedEventId(entry.row.eventId)}
-                            >
-                              <strong>{entry.row.event.titlePublic}</strong>
-                              <span>{new Date(entry.row.occurrenceStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </button>
-                          );
-                        })}
+                        <div className="calendar-scheduler-day-body">
+                          {hourSlots.map((hour) => (
+                            <div key={hour} className="calendar-scheduler-hour-line" />
+                          ))}
+                          {schedulerEventsByDay[index]?.map((entry) => {
+                            const color = colorForKey(entry.row.event.ownerRoleId);
+                            const isSelected = selectedEventId === entry.row.eventId;
+                            return (
+                              <button
+                                key={entry.row.eventId + entry.row.occurrenceStartUtc}
+                                type="button"
+                                className={`calendar-scheduler-event${entry.isOpenEnded ? ' is-open-ended' : ''}${isSelected ? ' is-selected' : ''}`}
+                                style={{
+                                  top: `${entry.topPct}%`,
+                                  height: `${entry.heightPct}%`,
+                                  background: buildEventBackground(color, 'vertical', entry.isOpenEnded)
+                                }}
+                                onClick={() => setSelectedEventId(entry.row.eventId)}
+                              >
+                                <strong>{entry.row.event.titlePublic}</strong>
+                                <span>{new Date(entry.row.occurrenceStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
               </div>
             ) : null}
 
@@ -1373,21 +1882,27 @@ export function CalendarPage({
                 {monthGridDays.map((day) => {
                   const key = localDayKey(day);
                   const rows = simpleGroupedByLocalDay.get(key) ?? [];
-                  const isOutside = day.getMonth() !== anchor.getMonth();
-                  return (
-                    <article key={key} className={`calendar-day-card${isOutside ? ' is-outside' : ''}`}>
-                      <h3>{day.getDate()}</h3>
-                      <ul>
-                        {rows.slice(0, 4).map((row) => (
-                          <li key={row.eventId + row.occurrenceStartUtc}>
-                            <button type="button" onClick={() => setSelectedEventId(row.eventId)}>{row.event.titlePublic}</button>
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  );
-                })}
-              </div>
+                    const isOutside = day.getMonth() !== anchor.getMonth();
+                    return (
+                      <article key={key} className={`calendar-day-card${isOutside ? ' is-outside' : ''}`}>
+                        <h3>{day.getDate()}</h3>
+                        <ul>
+                          {rows.slice(0, 4).map((row) => (
+                            <li key={row.eventId + row.occurrenceStartUtc}>
+                              <button
+                                type="button"
+                                className={selectedEventId === row.eventId ? 'is-selected' : ''}
+                                onClick={() => setSelectedEventId(row.eventId)}
+                              >
+                                {row.event.titlePublic}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </article>
+                    );
+                  })}
+                </div>
             ) : null}
 
             {view === 'timeline' ? (
@@ -1404,27 +1919,27 @@ export function CalendarPage({
                         if (!Number.isFinite(resolvedEndMs)) return null;
                         const startMs = Math.max(rawStartMs, timelineStartMs);
                         const endMs = Math.min(resolvedEndMs, rangeEnd.getTime());
-                        if (endMs <= timelineStartMs || startMs >= rangeEnd.getTime()) return null;
-                        const left = ((startMs - timelineStartMs) / timelineSpanMs) * 100;
-                        const width = Math.max(1.5, ((endMs - startMs) / timelineSpanMs) * 100);
-                        return (
-                          <button
-                            key={item.eventId + item.occurrenceStartUtc}
-                            type="button"
-                            className={`calendar-timeline-event${openEnded ? ' is-open-ended' : ''}`}
-                            style={{
-                              left: `${left}%`,
-                              width: `${width}%`,
-                              background: buildEventBackground(row.subCalendar.color, 'horizontal', openEnded)
-                            }}
-                            onClick={() => setSelectedEventId(item.eventId)}
-                          >
-                            {item.event.titlePublic}
-                          </button>
-                        );
-                      })}
+                          if (endMs <= timelineStartMs || startMs >= rangeEnd.getTime()) return null;
+                          const left = ((startMs - timelineStartMs) / timelineSpanMs) * 100;
+                          const width = Math.max(1.5, ((endMs - startMs) / timelineSpanMs) * 100);
+                          return (
+                            <button
+                              key={item.eventId + item.occurrenceStartUtc}
+                              type="button"
+                              className={`calendar-timeline-event${openEnded ? ' is-open-ended' : ''}${selectedEventId === item.eventId ? ' is-selected' : ''}`}
+                              style={{
+                                left: `${left}%`,
+                                width: `${width}%`,
+                                background: buildEventBackground(row.subCalendar.color, 'horizontal', openEnded)
+                              }}
+                              onClick={() => setSelectedEventId(item.eventId)}
+                            >
+                              {item.event.titlePublic}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
                 ))}
               </div>
             ) : null}
@@ -1451,44 +1966,44 @@ export function CalendarPage({
                           const resolvedEndMs = openEnded ? monthEnd.getTime() : new Date(item.occurrenceEndUtc).getTime();
                           if (!Number.isFinite(resolvedEndMs)) return null;
                           const startMs = Math.max(rawStartMs, monthStart.getTime());
-                          const endMs = Math.min(resolvedEndMs, monthEnd.getTime());
-                          const left = ((startMs - monthStart.getTime()) / spanMs) * 100;
-                          const width = Math.max(1, ((endMs - startMs) / spanMs) * 100);
-                          return (
-                            <button
-                              key={item.eventId + item.occurrenceStartUtc}
-                              type="button"
-                              className={`calendar-year-event${openEnded ? ' is-open-ended' : ''}`}
-                              style={{
-                                left: `${left}%`,
-                                width: `${width}%`,
-                                background: buildEventBackground(colorForKey(item.event.ownerRoleId), 'horizontal', openEnded)
-                              }}
-                              onClick={() => setSelectedEventId(item.eventId)}
-                            >
-                              {item.event.titlePublic}
-                            </button>
-                          );
-                        })}
+                            const endMs = Math.min(resolvedEndMs, monthEnd.getTime());
+                            const left = ((startMs - monthStart.getTime()) / spanMs) * 100;
+                            const width = Math.max(1, ((endMs - startMs) / spanMs) * 100);
+                            return (
+                              <button
+                                key={item.eventId + item.occurrenceStartUtc}
+                                type="button"
+                                className={`calendar-year-event${openEnded ? ' is-open-ended' : ''}${selectedEventId === item.eventId ? ' is-selected' : ''}`}
+                                style={{
+                                  left: `${left}%`,
+                                  width: `${width}%`,
+                                  background: buildEventBackground(colorForKey(item.event.ownerRoleId), 'horizontal', openEnded)
+                                }}
+                                onClick={() => setSelectedEventId(item.eventId)}
+                              >
+                                {item.event.titlePublic}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
                   );
                 })}
               </div>
             ) : null}
 
-            {view === 'list' ? (
-              <div className="calendar-occurrence-list">
-                {simpleFilteredOccurrences.map((row) => (
-                  <article key={row.eventId + row.occurrenceStartUtc} className="calendar-occurrence-row">
-                    <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
-                      <strong>{row.event.titlePublic}</strong>
-                      <span>{formatUtc(row.occurrenceStartUtc)} - {formatUtc(row.occurrenceEndUtc)}</span>
-                    </button>
-                  </article>
-                ))}
-              </div>
-            ) : null}
+              {view === 'list' ? (
+                <div className="calendar-occurrence-list">
+                  {simpleFilteredOccurrences.map((row) => (
+                    <article key={row.eventId + row.occurrenceStartUtc} className={'calendar-occurrence-row' + (selectedEventId === row.eventId ? ' is-selected' : '')}>
+                      <button type="button" onClick={() => setSelectedEventId(row.eventId)}>
+                        <strong>{row.event.titlePublic}</strong>
+                        <span>{formatUtc(row.occurrenceStartUtc)} - {formatUtc(row.occurrenceEndUtc)}</span>
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
 
             {error && <p className="calendar-error">{error}</p>}
           </section>
@@ -1668,22 +2183,29 @@ export function CalendarPage({
             <h2>{view.toUpperCase()} VIEW</h2>
             <p>{formatUtc(range.fromUtc)} - {formatUtc(range.toUtc)}</p>
           </div>
-          {view === 'month' && (
-            <div className="calendar-month-grid">
-              {Array.from(groupedByDay.keys()).sort().map((day) => (
-                <article key={day} className="calendar-day-card">
-                  <h3>{day}</h3>
-                  <ul>
-                    {(groupedByDay.get(day) ?? []).slice(0, 6).map((row) => (
-                      <li key={row.eventId + '-' + row.occurrenceStartUtc}>
-                        <button type="button" onClick={() => setSelectedEventId(row.eventId)}>{row.event.titlePublic} ({row.event.itemType})</button>
-                      </li>
-                    ))}
-                  </ul>
-                </article>
-              ))}
-            </div>
-          )}
+          {selectedMainInspector}
+            {view === 'month' && (
+              <div className="calendar-month-grid">
+                {Array.from(groupedByDay.keys()).sort().map((day) => (
+                  <article key={day} className="calendar-day-card">
+                    <h3>{day}</h3>
+                    <ul>
+                      {(groupedByDay.get(day) ?? []).slice(0, 6).map((row) => (
+                        <li key={row.eventId + '-' + row.occurrenceStartUtc}>
+                          <button
+                            type="button"
+                            className={selectedEventId === row.eventId ? 'is-selected' : ''}
+                            onClick={() => setSelectedEventId(row.eventId)}
+                          >
+                            {row.event.titlePublic} ({row.event.itemType})
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+            )}
           {view !== 'month' && (
             <div className="calendar-occurrence-list">
               {personScopedOccurrences.map((row) => (
@@ -1795,6 +2317,7 @@ export function CalendarPage({
                 )}
               </>
             )}
+            <label><input type="checkbox" checked={createWithGraph} onChange={(event) => setCreateWithGraph(event.target.checked)} /> attach graph (optional)</label>
             <div className="calendar-field-row">
               <label>Reusable graph</label>
               <select value={selectedReusableGraphId} onChange={(event) => setSelectedReusableGraphId(event.target.value)}>
@@ -1860,11 +2383,13 @@ export function CalendarPage({
                 <button type="button" onClick={() => void saveSelectedItem()}>Save</button>
                 {selectedEvent.itemType === 'task' && (
                   <>
-                    <button type="button" onClick={() => void completeCalendarTask(selectedEvent.eventId, { taskState: 'done' }).then(refresh).catch((err) => setError(readError(err)))}>Complete</button>
-                    <button type="button" onClick={() => void completeCalendarTaskAndRunGraph(selectedEvent.eventId).then(refresh).catch((err) => setError(readError(err)))}>Complete + Run Graph</button>
+                    <button type="button" onClick={() => void runTaskCompletionAction('fulfilled', false)}>Fulfill</button>
+                    <button type="button" onClick={() => void runTaskCompletionAction('fulfilled', true)}>Fulfill + run graph</button>
+                    <button type="button" onClick={() => void runTaskCompletionAction('dismissed', false)}>Dismiss</button>
+                    <button type="button" onClick={() => void runTaskCompletionAction('dismissed', true)}>Dismiss + run graph</button>
                   </>
                 )}
-                <button type="button" onClick={() => void executeCalendarGraph(selectedEvent.eventId, { triggerType: 'manual' }).then(refresh).catch((err) => setError(readError(err)))}>Run Graph</button>
+                <button type="button" onClick={() => void runSelectedGraphManual()}>Run graph</button>
                 <button type="button" onClick={() => void removeSelectedItem()}>Remove</button>
               </div>
               <div className="calendar-share-panel">
@@ -1872,7 +2397,7 @@ export function CalendarPage({
                 <div className="calendar-inline-grid">
                   <select value={graphTemplateKey} onChange={(event) => applyTemplate(event.target.value)}>
                     <option value="">template</option>
-                    {templates.map((template) => (
+                    {graphTemplateOptions.map((template) => (
                       <option key={template.templateKey} value={template.templateKey}>{template.name}</option>
                     ))}
                   </select>
@@ -1887,25 +2412,7 @@ export function CalendarPage({
                 <textarea rows={6} value={graphEdgesJson} onChange={(event) => setGraphEdgesJson(event.target.value)} placeholder="Edges JSON" />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!selectedEvent) return;
-                    try {
-                      const nodes = JSON.parse(graphNodesJson);
-                      const edges = JSON.parse(graphEdgesJson);
-                      void upsertCalendarGraph(selectedEvent.eventId, {
-                        templateKey: graphTemplateKey || 'daily',
-                        templateConfigJson: graphConfigJson,
-                        status: graphStatus,
-                        nodes,
-                        edges
-                      })
-                        .then(() => getCalendarGraphExecutions(selectedEvent.eventId, 20))
-                        .then((history) => setExecutions(history))
-                        .catch((err) => setError(readError(err)));
-                    } catch (err) {
-                      setError(readError(err));
-                    }
-                  }}
+                  onClick={() => void saveGraphDraft()}
                 >
                   Save graph
                 </button>
