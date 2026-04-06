@@ -30,6 +30,8 @@ const SCROLL_SENSITIVITY = 1.16;
 const INPUT_SESSION_GAP_MS = 260;
 const INTERNAL_TRACK_INTERPOLATION = 0.2;
 const SLIDE_TRANSITION_INTERPOLATION = 0.08;
+const SLIDE_JUMP_THRESHOLD = 88;
+const BOUNDARY_JUMP_THRESHOLD = 54;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -88,6 +90,7 @@ export function EventSinglePageTemplate({
   const lastInputAtRef = useRef(0);
   const burstTransitionUsedRef = useRef(false);
   const burstTransitionDirectionRef = useRef<-1 | 0 | 1>(0);
+  const burstAccumulatedDeltaRef = useRef(0);
   const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1 } | null>(null);
   const interpolationRef = useRef(INTERNAL_TRACK_INTERPOLATION);
   const positionRef = useRef(0);
@@ -197,8 +200,6 @@ export function EventSinglePageTemplate({
       if (Math.abs(delta) < 0.25) {
         positionRef.current = target;
         setPosition(target);
-        burstTransitionUsedRef.current = false;
-        burstTransitionDirectionRef.current = 0;
         rafRef.current = null;
         return;
       }
@@ -248,6 +249,7 @@ export function EventSinglePageTemplate({
     if (isNewBurst) {
       burstTransitionUsedRef.current = false;
       burstTransitionDirectionRef.current = 0;
+      burstAccumulatedDeltaRef.current = 0;
     }
     lastInputAtRef.current = now;
     const direction: -1 | 1 = delta > 0 ? 1 : -1;
@@ -260,6 +262,7 @@ export function EventSinglePageTemplate({
       // Allow immediate "return" in the same gesture burst when user reverses direction.
       burstTransitionUsedRef.current = false;
       burstTransitionDirectionRef.current = 0;
+      burstAccumulatedDeltaRef.current = 0;
       boundaryGateRef.current = null;
     }
     const animatedFromIndex = getSlideIndexForPosition(positionRef.current);
@@ -279,6 +282,7 @@ export function EventSinglePageTemplate({
     }
 
     const scaled = delta * SCROLL_SENSITIVITY;
+    burstAccumulatedDeltaRef.current += scaled;
     const current = targetRef.current;
     const slideIndex = getSlideIndexForPosition(current);
     const slideStart = slideStarts[slideIndex] ?? 0;
@@ -311,9 +315,15 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
+      if (Math.abs(burstAccumulatedDeltaRef.current) < BOUNDARY_JUMP_THRESHOLD) {
+        setTarget(slideInnerEnd, INTERNAL_TRACK_INTERPOLATION);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
 
       burstTransitionUsedRef.current = true;
       burstTransitionDirectionRef.current = direction;
+      burstAccumulatedDeltaRef.current = 0;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
@@ -346,9 +356,15 @@ export function EventSinglePageTemplate({
         lastInputDirectionRef.current = direction;
         return;
       }
+      if (Math.abs(burstAccumulatedDeltaRef.current) < BOUNDARY_JUMP_THRESHOLD) {
+        setTarget(slideStart, INTERNAL_TRACK_INTERPOLATION);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
 
       burstTransitionUsedRef.current = true;
       burstTransitionDirectionRef.current = direction;
+      burstAccumulatedDeltaRef.current = 0;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
@@ -356,8 +372,18 @@ export function EventSinglePageTemplate({
       return;
     }
 
+    if (burstTransitionUsedRef.current && !isNewBurst) {
+      lastInputDirectionRef.current = direction;
+      return;
+    }
+    if (Math.abs(burstAccumulatedDeltaRef.current) < SLIDE_JUMP_THRESHOLD) {
+      lastInputDirectionRef.current = direction;
+      return;
+    }
+
     burstTransitionUsedRef.current = true;
     burstTransitionDirectionRef.current = direction;
+    burstAccumulatedDeltaRef.current = 0;
     boundaryGateRef.current = null;
     lastInputDirectionRef.current = direction;
     const nextIndex = clamp(slideIndex + direction, 0, slides.length - 1);
@@ -378,6 +404,7 @@ export function EventSinglePageTemplate({
     lastInputAtRef.current = 0;
     burstTransitionUsedRef.current = false;
     burstTransitionDirectionRef.current = 0;
+    burstAccumulatedDeltaRef.current = 0;
     boundaryGateRef.current = null;
     setTarget(point, SLIDE_TRANSITION_INTERPOLATION);
     scheduleSnap();
