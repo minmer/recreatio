@@ -1735,152 +1735,159 @@ public static partial class CalendarEndpoints
             ICalendarGraphRuntimeService graphRuntimeService,
             CancellationToken ct) =>
         {
-            var access = await ResolveCalendarAccessAsync(calendarId, context, dbContext, keyRingService, ct);
-            if (access.Error is not null)
+            try
             {
-                return access.Error;
-            }
-
-            if (!access.Context!.CanRead)
-            {
-                return Results.Forbid();
-            }
-
-            var range = ResolveRange(view, fromUtc, toUtc);
-            var normalizedStatus = NormalizeStatusFilter(status);
-            if (status is not null && normalizedStatus is null)
-            {
-                return Results.BadRequest(new { error = "Status filter is invalid." });
-            }
-
-            var normalizedVisibility = NormalizeVisibilityFilter(visibility);
-            if (visibility is not null && normalizedVisibility is null)
-            {
-                return Results.BadRequest(new { error = "Visibility filter is invalid." });
-            }
-
-            var normalizedItemType = NormalizeItemTypeFilter(itemType);
-            if (itemType is not null && normalizedItemType is null)
-            {
-                return Results.BadRequest(new { error = "ItemType filter is invalid." });
-            }
-
-            var normalizedTaskState = NormalizeTaskStateFilter(taskState);
-            if (taskState is not null && normalizedTaskState is null)
-            {
-                return Results.BadRequest(new { error = "TaskState filter is invalid." });
-            }
-
-            var normalizedModule = NormalizeNullable(linkedModule, MaxLinkedModuleLength)?.ToLowerInvariant();
-            if (linkedModule is not null && normalizedModule is null)
-            {
-                return Results.BadRequest(new { error = "linkedModule filter is too long." });
-            }
-
-            var query = dbContext.CalendarEvents.AsNoTracking()
-                .Where(item =>
-                    item.CalendarId == calendarId &&
-                    item.StartUtc < range.ToUtc &&
-                    (item.EndUtc > range.FromUtc ||
-                     item.RecurrenceType != "none" ||
-                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
-                     dbContext.CalendarEventGraphLinks.Any(link =>
-                         link.EventId == item.Id &&
-                         link.RevokedUtc == null &&
-                         dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
-
-            if (!(includeArchived ?? false))
-            {
-                query = query.Where(item => !item.IsArchived);
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedStatus))
-            {
-                query = query.Where(item => item.Status == normalizedStatus);
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedVisibility))
-            {
-                query = query.Where(item => item.Visibility == normalizedVisibility);
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedItemType))
-            {
-                query = query.Where(item => item.ItemType == normalizedItemType);
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedTaskState))
-            {
-                query = query.Where(item => item.TaskState == normalizedTaskState);
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedModule))
-            {
-                query = query.Where(item => item.LinkedModule == normalizedModule);
-            }
-
-            if (linkedEntityId is not null && linkedEntityId != Guid.Empty)
-            {
-                query = query.Where(item => item.LinkedEntityId == linkedEntityId);
-            }
-
-            var items = await query
-                .OrderBy(item => item.StartUtc)
-                .Take(1000)
-                .ToListAsync(ct);
-
-            if (items.Count == 0)
-            {
-                return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, Array.Empty<CalendarEventOccurrenceResponse>(), Array.Empty<CalendarConflictResponse>()));
-            }
-
-            var eventIds = items.Select(item => item.Id).ToList();
-            var scopes = await dbContext.CalendarEventRoleScopes.AsNoTracking()
-                .Where(scope => eventIds.Contains(scope.EventId) && scope.RevokedUtc == null)
-                .ToListAsync(ct);
-            var scopeByEvent = scopes.GroupBy(scope => scope.EventId)
-                .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
-            var conflictScopeByEvent = scopes
-                .Where(scope => scope.ScopeType != "viewer")
-                .GroupBy(scope => scope.EventId)
-                .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
-
-            var visibleItems = items.Where(item =>
-                CanReadEventByVisibility(
-                    item,
-                    scopeByEvent.GetValueOrDefault(item.Id, new HashSet<Guid>()),
-                    access.Context.User.ReadRoleIds)).ToList();
-            if (visibleItems.Count == 0)
-            {
-                return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, Array.Empty<CalendarEventOccurrenceResponse>(), Array.Empty<CalendarConflictResponse>()));
-            }
-
-            var responses = new List<CalendarEventOccurrenceResponse>();
-            foreach (var item in visibleItems)
-            {
-                var eventResponse = await BuildEventResponseAsync(item, access.Context.User, dbContext, keyRingService, includeProtected ?? false, ct);
-                var occurrences = await graphRuntimeService.ExpandOccurrencesAsync(item, range.FromUtc, range.ToUtc, ct);
-                foreach (var occurrence in occurrences)
+                var access = await ResolveCalendarAccessAsync(calendarId, context, dbContext, keyRingService, ct);
+                if (access.Error is not null)
                 {
-                    responses.Add(new CalendarEventOccurrenceResponse(
-                        item.Id,
-                        occurrence.StartUtc,
-                        occurrence.EndUtc,
-                        occurrence.IsRecurringInstance,
-                        eventResponse,
-                        occurrence.ExecutionId,
-                        occurrence.Source));
+                    return access.Error;
                 }
+
+                if (!access.Context!.CanRead)
+                {
+                    return Results.Forbid();
+                }
+
+                var range = ResolveRange(view, fromUtc, toUtc);
+                var normalizedStatus = NormalizeStatusFilter(status);
+                if (status is not null && normalizedStatus is null)
+                {
+                    return Results.BadRequest(new { error = "Status filter is invalid." });
+                }
+
+                var normalizedVisibility = NormalizeVisibilityFilter(visibility);
+                if (visibility is not null && normalizedVisibility is null)
+                {
+                    return Results.BadRequest(new { error = "Visibility filter is invalid." });
+                }
+
+                var normalizedItemType = NormalizeItemTypeFilter(itemType);
+                if (itemType is not null && normalizedItemType is null)
+                {
+                    return Results.BadRequest(new { error = "ItemType filter is invalid." });
+                }
+
+                var normalizedTaskState = NormalizeTaskStateFilter(taskState);
+                if (taskState is not null && normalizedTaskState is null)
+                {
+                    return Results.BadRequest(new { error = "TaskState filter is invalid." });
+                }
+
+                var normalizedModule = NormalizeNullable(linkedModule, MaxLinkedModuleLength)?.ToLowerInvariant();
+                if (linkedModule is not null && normalizedModule is null)
+                {
+                    return Results.BadRequest(new { error = "linkedModule filter is too long." });
+                }
+
+                var query = dbContext.CalendarEvents.AsNoTracking()
+                    .Where(item =>
+                        item.CalendarId == calendarId &&
+                        item.StartUtc < range.ToUtc &&
+                        (item.EndUtc > range.FromUtc ||
+                         item.RecurrenceType != "none" ||
+                         dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
+                         dbContext.CalendarEventGraphLinks.Any(link =>
+                             link.EventId == item.Id &&
+                             link.RevokedUtc == null &&
+                             dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
+
+                if (!(includeArchived ?? false))
+                {
+                    query = query.Where(item => !item.IsArchived);
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                {
+                    query = query.Where(item => item.Status == normalizedStatus);
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedVisibility))
+                {
+                    query = query.Where(item => item.Visibility == normalizedVisibility);
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedItemType))
+                {
+                    query = query.Where(item => item.ItemType == normalizedItemType);
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedTaskState))
+                {
+                    query = query.Where(item => item.TaskState == normalizedTaskState);
+                }
+
+                if (!string.IsNullOrWhiteSpace(normalizedModule))
+                {
+                    query = query.Where(item => item.LinkedModule == normalizedModule);
+                }
+
+                if (linkedEntityId is not null && linkedEntityId != Guid.Empty)
+                {
+                    query = query.Where(item => item.LinkedEntityId == linkedEntityId);
+                }
+
+                var items = await query
+                    .OrderBy(item => item.StartUtc)
+                    .Take(1000)
+                    .ToListAsync(ct);
+
+                if (items.Count == 0)
+                {
+                    return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, Array.Empty<CalendarEventOccurrenceResponse>(), Array.Empty<CalendarConflictResponse>()));
+                }
+
+                var eventIds = items.Select(item => item.Id).ToList();
+                var scopes = await dbContext.CalendarEventRoleScopes.AsNoTracking()
+                    .Where(scope => eventIds.Contains(scope.EventId) && scope.RevokedUtc == null)
+                    .ToListAsync(ct);
+                var scopeByEvent = scopes.GroupBy(scope => scope.EventId)
+                    .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
+                var conflictScopeByEvent = scopes
+                    .Where(scope => scope.ScopeType != "viewer")
+                    .GroupBy(scope => scope.EventId)
+                    .ToDictionary(grouping => grouping.Key, grouping => grouping.Select(scope => scope.RoleId).ToHashSet());
+
+                var visibleItems = items.Where(item =>
+                    CanReadEventByVisibility(
+                        item,
+                        scopeByEvent.GetValueOrDefault(item.Id, new HashSet<Guid>()),
+                        access.Context.User.ReadRoleIds)).ToList();
+                if (visibleItems.Count == 0)
+                {
+                    return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, Array.Empty<CalendarEventOccurrenceResponse>(), Array.Empty<CalendarConflictResponse>()));
+                }
+
+                var responses = new List<CalendarEventOccurrenceResponse>();
+                foreach (var item in visibleItems)
+                {
+                    var eventResponse = await BuildEventResponseAsync(item, access.Context.User, dbContext, keyRingService, includeProtected ?? false, ct);
+                    var occurrences = await graphRuntimeService.ExpandOccurrencesAsync(item, range.FromUtc, range.ToUtc, ct);
+                    foreach (var occurrence in occurrences)
+                    {
+                        responses.Add(new CalendarEventOccurrenceResponse(
+                            item.Id,
+                            occurrence.StartUtc,
+                            occurrence.EndUtc,
+                            occurrence.IsRecurringInstance,
+                            eventResponse,
+                            occurrence.ExecutionId,
+                            occurrence.Source));
+                    }
+                }
+
+                responses = responses
+                    .OrderBy(occurrence => occurrence.OccurrenceStartUtc)
+                    .ThenBy(occurrence => occurrence.Event.TitlePublic)
+                    .Take(3000)
+                    .ToList();
+
+                var conflicts = BuildOccurrenceConflicts(responses, conflictScopeByEvent);
+                return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, responses, conflicts));
             }
-
-            responses = responses
-                .OrderBy(occurrence => occurrence.OccurrenceStartUtc)
-                .ThenBy(occurrence => occurrence.Event.TitlePublic)
-                .Take(3000)
-                .ToList();
-
-            var conflicts = BuildOccurrenceConflicts(responses, conflictScopeByEvent);
-            return Results.Ok(new CalendarEventsQueryResponse(range.View, range.FromUtc, range.ToUtc, responses, conflicts));
+            catch (Exception ex) when (IsCalendarSchemaMismatchException(ex))
+            {
+                return CalendarSchemaOutdatedResult();
+            }
         });
 
         auth.MapPost("/calendars/conflicts", async (
@@ -2025,39 +2032,46 @@ public static partial class CalendarEndpoints
             RecreatioDbContext dbContext,
             CancellationToken ct) =>
         {
-            var range = ResolveRange(view, fromUtc, toUtc);
-            var normalizedStatus = NormalizeStatusFilter(status);
-            if (status is not null && normalizedStatus is null)
+            try
             {
-                return Results.BadRequest(new { error = "Status filter is invalid." });
+                var range = ResolveRange(view, fromUtc, toUtc);
+                var normalizedStatus = NormalizeStatusFilter(status);
+                if (status is not null && normalizedStatus is null)
+                {
+                    return Results.BadRequest(new { error = "Status filter is invalid." });
+                }
+
+                var query = dbContext.CalendarEvents.AsNoTracking()
+                    .Where(item =>
+                        item.CalendarId == calendarId &&
+                        !item.IsArchived &&
+                        item.Visibility == "public" &&
+                        item.StartUtc < range.ToUtc &&
+                        (item.EndUtc > range.FromUtc ||
+                         item.RecurrenceType != "none" ||
+                         dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
+                         dbContext.CalendarEventGraphLinks.Any(link =>
+                             link.EventId == item.Id &&
+                             link.RevokedUtc == null &&
+                             dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
+
+                if (!string.IsNullOrWhiteSpace(normalizedStatus))
+                {
+                    query = query.Where(item => item.Status == normalizedStatus);
+                }
+
+                var events = await query
+                    .OrderBy(item => item.StartUtc)
+                    .Take(1000)
+                    .ToListAsync(ct);
+
+                var response = events.Select(ToPublicResponse).ToList();
+                return Results.Ok(response);
             }
-
-            var query = dbContext.CalendarEvents.AsNoTracking()
-                .Where(item =>
-                    item.CalendarId == calendarId &&
-                    !item.IsArchived &&
-                    item.Visibility == "public" &&
-                    item.StartUtc < range.ToUtc &&
-                    (item.EndUtc > range.FromUtc ||
-                     item.RecurrenceType != "none" ||
-                     dbContext.CalendarScheduleGraphs.Any(graph => graph.EventId == item.Id && graph.Status == "active") ||
-                     dbContext.CalendarEventGraphLinks.Any(link =>
-                         link.EventId == item.Id &&
-                         link.RevokedUtc == null &&
-                         dbContext.CalendarScheduleGraphs.Any(graph => graph.Id == link.GraphId && graph.Status == "active"))));
-
-            if (!string.IsNullOrWhiteSpace(normalizedStatus))
+            catch (Exception ex) when (IsCalendarSchemaMismatchException(ex))
             {
-                query = query.Where(item => item.Status == normalizedStatus);
+                return CalendarSchemaOutdatedResult();
             }
-
-            var events = await query
-                .OrderBy(item => item.StartUtc)
-                .Take(1000)
-                .ToListAsync(ct);
-
-            var response = events.Select(ToPublicResponse).ToList();
-            return Results.Ok(response);
         });
 
         group.MapGet("/public/events/{code}", async (
@@ -2548,6 +2562,38 @@ public static partial class CalendarEndpoints
             .ToList();
 
         return (deduped, null);
+    }
+
+    private static bool IsCalendarSchemaMismatchException(Exception exception)
+    {
+        Exception? current = exception;
+        while (current is not null)
+        {
+            var message = current.Message;
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                if (message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) ||
+                    message.Contains("Invalid column name", StringComparison.OrdinalIgnoreCase) ||
+                    message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||
+                    (message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) &&
+                     message.Contains("calendar", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            current = current.InnerException;
+        }
+
+        return false;
+    }
+
+    private static IResult CalendarSchemaOutdatedResult()
+    {
+        return Results.Problem(
+            title: "Calendar schema is outdated",
+            detail: "Apply backend/Recreatio.Api/Sql/patch_calendar_schema.sql to the database and redeploy the API.",
+            statusCode: 503);
     }
 
     private static async Task<List<CalendarConflictResponse>> FindConflictsAsync(

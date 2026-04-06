@@ -15447,31 +15447,7 @@ public static class CogitaEndpoints
 
     private static JsonElement BuildPythonLearnerPayload(JsonElement payload)
     {
-        if (payload.ValueKind != JsonValueKind.Object)
-        {
-            return payload;
-        }
-
-        try
-        {
-            var node = JsonNode.Parse(payload.GetRawText()) as JsonObject;
-            if (node is null)
-            {
-                return payload;
-            }
-
-            if (node["definition"] is JsonObject definition)
-            {
-                definition.Remove("referenceSource");
-            }
-
-            node.Remove("referenceSource");
-            return JsonSerializer.SerializeToElement(node);
-        }
-        catch
-        {
-            return payload;
-        }
+        return payload;
     }
 
     private static async Task<CogitaPythonEvaluateResponse> EvaluatePythonNotionAsync(
@@ -15486,7 +15462,7 @@ public static class CogitaEndpoints
         PythonSandboxOptions pythonSandboxOptions,
         CancellationToken ct)
     {
-        if (!pythonSandboxOptions.Enabled)
+        if (!pythonSandboxOptions.Enabled && !pythonSandboxOptions.BuiltInEnabled)
         {
             return new CogitaPythonEvaluateResponse(
                 false,

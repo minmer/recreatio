@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  evaluateCogitaPublicStoryboardPythonNotion,
-  evaluateCogitaPythonNotion,
   downloadCogitaPublicStoryboardFile,
   downloadDataItemFile,
   getCogitaCreationProjects,
@@ -14,8 +12,7 @@ import {
   getCogitaPublicStoryboardInfoDetail,
   getCogitaPublicStoryboardShare,
   type CogitaCardSearchResult,
-  type CogitaCreationProject,
-  type CogitaPythonEvaluateResponse
+  type CogitaCreationProject
 } from '../../lib/api';
 import type { Copy } from '../../content/types';
 import type { RouteKey } from '../../types/navigation';
@@ -23,6 +20,7 @@ import { CogitaShell } from './CogitaShell';
 import { CogitaLivePromptCard } from './live/components/CogitaLivePromptCard';
 import { buildRevisionQuestionRuntime } from './components/runtime/revision/RevisionRuntimeShell';
 import { parseQuestionDefinitionFromPayload } from './components/workspace/notion/types/notionQuestion';
+import { parsePythonDefinitionFromPayload as parsePythonDefinitionPayload } from './components/workspace/notion/types/notionPython';
 import {
   evaluateCheckcardDetailed,
   normalizeCheckcardAnswer,
@@ -30,6 +28,11 @@ import {
   type CheckcardExpectedModel,
   type CheckcardPromptModel
 } from './components/runtime/revision/primitives/RevisionCheckcardShell';
+import {
+  BrowserPythonRunnerClient,
+  type BrowserPythonEvaluateResult,
+  type BrowserPythonProgress
+} from './python/pythonRunnerClient';
 
 type StoryboardNodeKind = 'start' | 'end' | 'static' | 'card' | 'group' | 'separator' | 'join';
 type StoryboardStaticType = 'text' | 'video' | 'audio' | 'image' | 'other';
@@ -124,6 +127,21 @@ type RuntimeState = {
   finished: boolean;
 };
 
+type OutlineItemKind = 'node' | 'branch' | 'parallel' | 'merge' | 'note';
+
+type StoryboardOutlineItem = {
+  key: string;
+  kind: OutlineItemKind;
+  label: string;
+  graphPath: string[];
+  nodeId?: string;
+  nodeKind?: StoryboardNodeKind;
+  nodeKey?: string;
+  children: StoryboardOutlineItem[];
+  depth: number;
+  reused?: boolean;
+};
+
 type RuntimeCardState = {
   nodeKey: string;
   status: 'loading' | 'ready' | 'submitting' | 'error' | 'evaluated';
@@ -135,7 +153,9 @@ type RuntimeCardState = {
   cardType: string | null;
   checkType: string | null;
   isCorrect: boolean | null;
-  pythonEvaluation?: CogitaPythonEvaluateResponse | null;
+  pythonDefinition?: PythonRuntimeDefinition | null;
+  pythonEvaluation?: PythonRuntimeEvaluation | null;
+  pythonProgress?: BrowserPythonProgress | null;
 };
 
 type LoadedCardRuntime = {
@@ -147,6 +167,32 @@ type LoadedCardRuntime = {
   notionType: string | null;
   cardType: string | null;
   checkType: string | null;
+  pythonDefinition?: PythonRuntimeDefinition | null;
+};
+
+type PythonRuntimeDefinition = {
+  createInputSource: string;
+  referenceSource: string;
+  starterSource: string;
+  taskText: string;
+  caseCount: number;
+  seed: number;
+};
+
+type PythonRuntimeEvaluation = BrowserPythonEvaluateResult & {
+  passed: boolean;
+};
+
+type ResolvedCardEntry = {
+  nodeKey: string;
+  title: string;
+  promptText: string;
+  promptModel: CheckcardPromptModel;
+  expectedModel: CheckcardExpectedModel;
+  answerModel: CheckcardAnswerModel;
+  isCorrect: boolean;
+  checkType: string | null;
+  pythonEvaluation: PythonRuntimeEvaluation | null;
 };
 
 function toString(value: unknown) {
@@ -311,23 +357,72 @@ function buildStoryboardQuestionRuntime(
   };
 }
 
-function parsePythonDefinitionFromPayload(value: unknown): { starterSource: string; taskText: string } | null {
-  const source =
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-  if (!source) return null;
-  const definition =
-    source.definition && typeof source.definition === 'object' && !Array.isArray(source.definition)
-      ? (source.definition as Record<string, unknown>)
-      : source;
-  const starterSource = typeof definition.starterSource === 'string' ? definition.starterSource.trim() : '';
-  if (!starterSource) return null;
-  const taskText =
-    typeof definition.taskText === 'string'
-      ? definition.taskText.replace(/\r\n/g, '\n').trim()
-      : '';
-  return { starterSource, taskText };
+function createDeterministicSeed(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const normalized = hash >>> 0;
+  return normalized === 0 ? 1 : normalized;
+}
+
+function toPythonDefinitionNode(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const source = value as Record<string, unknown>;
+    if (source.definition && typeof source.definition === 'object' && !Array.isArray(source.definition)) {
+      return source.definition as Record<string, unknown>;
+    }
+    return source;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    return toPythonDefinitionNode(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function parsePythonRuntimeDefinition(payload: unknown, seedSource: string): PythonRuntimeDefinition | null {
+  const definitionNode = toPythonDefinitionNode(payload);
+  if (!definitionNode) return null;
+  const rawCreateInputSource = typeof definitionNode.createInputSource === 'string' ? definitionNode.createInputSource.trim() : '';
+  const rawReferenceSource = typeof definitionNode.referenceSource === 'string' ? definitionNode.referenceSource.trim() : '';
+  const rawStarterSource = typeof definitionNode.starterSource === 'string' ? definitionNode.starterSource.trim() : '';
+  if (!rawCreateInputSource || !rawReferenceSource || !rawStarterSource) {
+    return null;
+  }
+
+  const parsed = parsePythonDefinitionPayload(payload);
+  if (!parsed) return null;
+
+  return {
+    createInputSource: parsed.createInputSource,
+    referenceSource: parsed.referenceSource,
+    starterSource: parsed.starterSource,
+    taskText: parsed.taskText,
+    caseCount: parsed.caseCount,
+    seed: createDeterministicSeed(seedSource)
+  };
+}
+
+function toPythonRuntimeEvaluation(result: BrowserPythonEvaluateResult): PythonRuntimeEvaluation {
+  const status = (result.status ?? 'sandbox_error').trim().toLowerCase();
+  return {
+    ...result,
+    status: status as PythonRuntimeEvaluation['status'],
+    passed: status === 'passed'
+  };
 }
 
 function formatDiagnosticJson(raw: string | null | undefined) {
@@ -679,6 +774,300 @@ function buildNodeKey(graphPath: string[], nodeId: string) {
   return `${graphPath.join('/') || 'root'}::${nodeId}`;
 }
 
+type OutlineLabels = {
+  startLabel: string;
+  endLabel: string;
+  checkcardPrefix: string;
+  chapterPrefix: string;
+  subchapterPrefix: string;
+  parallelLabel: string;
+  continuationLabel: string;
+  mergeLabel: string;
+  correctBranchLabel: string;
+  wrongBranchLabel: string;
+  genericBranchLabel: string;
+  reusedSuffix: string;
+  missingNodeLabel: string;
+};
+
+function getOutlineNodeLabel(node: StoryboardNodeRecord, labels: OutlineLabels) {
+  const title = node.title.trim() || 'Untitled';
+  if (node.kind === 'start') return labels.startLabel;
+  if (node.kind === 'end') return labels.endLabel;
+  if (node.kind === 'card') return `${labels.checkcardPrefix}: ${title}`;
+  if (node.kind === 'separator') return `${labels.chapterPrefix}: ${title}`;
+  if (node.kind === 'group') return `${labels.subchapterPrefix}: ${title}`;
+  return title;
+}
+
+function getOutlineEdgeRank(sourcePort: StoryboardSourcePort, sourceKind: StoryboardNodeKind) {
+  if (sourceKind === 'card' || sourceKind === 'join') {
+    if (sourcePort === 'out-right') return 0;
+    if (sourcePort === 'out-wrong') return 1;
+    if (sourcePort === 'out-path') return 2;
+    return 3;
+  }
+  if (sourcePort === 'out-path') return 0;
+  if (sourcePort === 'out-right') return 1;
+  if (sourcePort === 'out-wrong') return 2;
+  return 3;
+}
+
+function getOutlineOutgoingEdges(graph: StoryboardGraph, node: StoryboardNodeRecord) {
+  const allowedPorts: StoryboardSourcePort[] =
+    node.kind === 'card' || node.kind === 'join'
+      ? ['out-right', 'out-wrong', 'out-path']
+      : ['out-path'];
+
+  return graph.edges
+    .filter((edge) => edge.fromNodeId === node.nodeId && allowedPorts.includes(edge.sourcePort))
+    .sort((left, right) => {
+      const rankDiff = getOutlineEdgeRank(left.sourcePort, node.kind) - getOutlineEdgeRank(right.sourcePort, node.kind);
+      if (rankDiff !== 0) return rankDiff;
+      const leftLabel = left.label.trim().toLowerCase();
+      const rightLabel = right.label.trim().toLowerCase();
+      return leftLabel.localeCompare(rightLabel);
+    });
+}
+
+function getOutlineBranchLabel(edge: StoryboardGraphEdge, branchIndex: number, labels: OutlineLabels) {
+  const custom = edge.label.trim();
+  if (custom) return custom;
+  if (edge.sourcePort === 'out-right') return labels.correctBranchLabel;
+  if (edge.sourcePort === 'out-wrong') return labels.wrongBranchLabel;
+  return `${labels.genericBranchLabel} ${branchIndex + 1}`;
+}
+
+function buildStoryboardOutline(
+  graph: StoryboardGraph,
+  graphPath: string[],
+  labels: OutlineLabels
+): StoryboardOutlineItem {
+  return buildStoryboardOutlineNode({
+    graph,
+    graphPath,
+    nodeId: graph.startNodeId,
+    depth: 0,
+    seen: new Set<string>(),
+    labels
+  });
+}
+
+function buildStoryboardOutlineNode(payload: {
+  graph: StoryboardGraph;
+  graphPath: string[];
+  nodeId: string;
+  depth: number;
+  seen: Set<string>;
+  labels: OutlineLabels;
+  stopAtNodeId?: string;
+}): StoryboardOutlineItem {
+  const { graph, graphPath, nodeId, depth, seen, labels, stopAtNodeId } = payload;
+
+  if (stopAtNodeId && nodeId === stopAtNodeId) {
+    return {
+      key: `merge:${buildNodeKey(graphPath, nodeId)}:${depth}`,
+      kind: 'merge',
+      label: labels.mergeLabel,
+      graphPath,
+      nodeId,
+      nodeKey: buildNodeKey(graphPath, nodeId),
+      children: [],
+      depth
+    };
+  }
+
+  const node = findNode(graph, nodeId);
+  if (!node) {
+    return {
+      key: `missing:${buildNodeKey(graphPath, nodeId)}:${depth}`,
+      kind: 'note',
+      label: `${labels.missingNodeLabel}: ${nodeId}`,
+      graphPath,
+      nodeId,
+      children: [],
+      depth
+    };
+  }
+
+  const nodeKey = buildNodeKey(graphPath, node.nodeId);
+  const reused = seen.has(nodeKey);
+  const item: StoryboardOutlineItem = {
+    key: `node:${nodeKey}:${depth}`,
+    kind: 'node',
+    label: reused ? `${getOutlineNodeLabel(node, labels)} ${labels.reusedSuffix}` : getOutlineNodeLabel(node, labels),
+    graphPath,
+    nodeId: node.nodeId,
+    nodeKind: node.kind,
+    nodeKey,
+    children: [],
+    depth,
+    reused
+  };
+
+  if (reused) {
+    return item;
+  }
+
+  const nextSeen = new Set(seen);
+  nextSeen.add(nodeKey);
+
+  if (node.kind === 'group' && node.groupGraph) {
+    item.children.push(
+      buildStoryboardOutlineNode({
+        graph: node.groupGraph,
+        graphPath: [...graphPath, node.nodeId],
+        nodeId: node.groupGraph.startNodeId,
+        depth: depth + 1,
+        seen: new Set<string>(),
+        labels
+      })
+    );
+  }
+
+  if (node.kind === 'separator') {
+    const chapterEdges = graph.edges
+      .filter((edge) => edge.fromNodeId === node.nodeId && edge.sourcePort === 'out-path')
+      .sort((left, right) => left.label.trim().localeCompare(right.label.trim()));
+    const joinNodeId = findJoinNodeIdForSeparator(graph, node.nodeId);
+
+    if (chapterEdges.length > 1) {
+      const parallelItem: StoryboardOutlineItem = {
+        key: `parallel:${nodeKey}:${depth + 1}`,
+        kind: 'parallel',
+        label: labels.parallelLabel,
+        graphPath,
+        children: [],
+        depth: depth + 1
+      };
+
+      chapterEdges.forEach((edge, index) => {
+        const branchKey = `branch:${nodeKey}:${index}:${edge.toNodeId}`;
+        const branchItem: StoryboardOutlineItem = {
+          key: branchKey,
+          kind: 'branch',
+          label: getOutlineBranchLabel(edge, index, labels),
+          graphPath,
+          nodeId: edge.toNodeId,
+          children: [],
+          depth: depth + 2
+        };
+        branchItem.children.push(
+          buildStoryboardOutlineNode({
+            graph,
+            graphPath,
+            nodeId: edge.toNodeId,
+            depth: depth + 3,
+            seen: new Set(nextSeen),
+            labels,
+            stopAtNodeId: joinNodeId ?? undefined
+          })
+        );
+        parallelItem.children.push(branchItem);
+      });
+
+      item.children.push(parallelItem);
+
+      if (joinNodeId) {
+        const joinNode = findNode(graph, joinNodeId);
+        if (joinNode) {
+          const continuationEdges = getOutlineOutgoingEdges(graph, joinNode).filter(
+            (edge) => !(edge.sourcePort === 'out-wrong' && edge.toNodeId === node.nodeId)
+          );
+          if (continuationEdges.length > 0) {
+            const continuationItem: StoryboardOutlineItem = {
+              key: `continuation:${nodeKey}:${depth + 1}`,
+              kind: 'branch',
+              label: labels.continuationLabel,
+              graphPath,
+              nodeId: joinNodeId,
+              children: [],
+              depth: depth + 1
+            };
+
+            if (continuationEdges.length === 1) {
+              continuationItem.children.push(
+                buildStoryboardOutlineNode({
+                  graph,
+                  graphPath,
+                  nodeId: continuationEdges[0].toNodeId,
+                  depth: depth + 2,
+                  seen: new Set(nextSeen),
+                  labels
+                })
+              );
+            } else {
+              continuationEdges.forEach((edge, index) => {
+                const branchItem: StoryboardOutlineItem = {
+                  key: `continuation-branch:${nodeKey}:${index}:${edge.toNodeId}`,
+                  kind: 'branch',
+                  label: getOutlineBranchLabel(edge, index, labels),
+                  graphPath,
+                  nodeId: edge.toNodeId,
+                  children: [
+                    buildStoryboardOutlineNode({
+                      graph,
+                      graphPath,
+                      nodeId: edge.toNodeId,
+                      depth: depth + 3,
+                      seen: new Set(nextSeen),
+                      labels
+                    })
+                  ],
+                  depth: depth + 2
+                };
+                continuationItem.children.push(branchItem);
+              });
+            }
+
+            item.children.push(continuationItem);
+          }
+        }
+      }
+
+      return item;
+    }
+  }
+
+  const outgoing = getOutlineOutgoingEdges(graph, node);
+  if (outgoing.length === 1) {
+    item.children.push(
+      buildStoryboardOutlineNode({
+        graph,
+        graphPath,
+        nodeId: outgoing[0].toNodeId,
+        depth: depth + 1,
+        seen: nextSeen,
+        labels
+      })
+    );
+  } else if (outgoing.length > 1) {
+    outgoing.forEach((edge, index) => {
+      const branchItem: StoryboardOutlineItem = {
+        key: `branch:${nodeKey}:${index}:${edge.toNodeId}`,
+        kind: 'branch',
+        label: getOutlineBranchLabel(edge, index, labels),
+        graphPath,
+        nodeId: edge.toNodeId,
+        children: [
+          buildStoryboardOutlineNode({
+            graph,
+            graphPath,
+            nodeId: edge.toNodeId,
+            depth: depth + 2,
+            seen: new Set(nextSeen),
+            labels
+          })
+        ],
+        depth: depth + 1
+      };
+      item.children.push(branchItem);
+    });
+  }
+
+  return item;
+}
+
 function buildRuntimeBlock(graphPath: string[], node: StoryboardNodeRecord): RuntimeBlock {
   return {
     key: buildNodeKey(graphPath, node.nodeId),
@@ -1024,6 +1413,8 @@ export function CogitaStoryboardRuntimePage({
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [cardState, setCardState] = useState<RuntimeCardState | null>(null);
+  const [resolvedCards, setResolvedCards] = useState<ResolvedCardEntry[]>([]);
+  const [expandedResolvedCards, setExpandedResolvedCards] = useState<Record<string, boolean>>({});
   const [mediaObjectUrls, setMediaObjectUrls] = useState<Record<string, string>>({});
   const cardTransitionTimer = useRef<number | null>(null);
   const mediaObjectUrlsRef = useRef<Record<string, string>>({});
@@ -1032,6 +1423,83 @@ export function CogitaStoryboardRuntimePage({
   const previousRuntimeSignatureRef = useRef('');
   const cardRuntimeCacheRef = useRef<Record<string, LoadedCardRuntime>>({});
   const cardRuntimeInFlightRef = useRef<Record<string, Promise<LoadedCardRuntime | null>>>({});
+  const pythonRunnerRef = useRef<BrowserPythonRunnerClient | null>(null);
+  const runtimeHistoryRef = useRef<RuntimeState[]>([]);
+  const runtimeHistoryIndexRef = useRef(-1);
+  const [runtimeHistoryVersion, setRuntimeHistoryVersion] = useState(0);
+  const [canNavigateBack, setCanNavigateBack] = useState(false);
+  const [canNavigateForward, setCanNavigateForward] = useState(false);
+
+  const refreshRuntimeNavigation = useCallback(() => {
+    const stack = runtimeHistoryRef.current;
+    const index = runtimeHistoryIndexRef.current;
+    setCanNavigateBack(index > 0);
+    setCanNavigateForward(index >= 0 && index < stack.length - 1);
+    setRuntimeHistoryVersion((value) => value + 1);
+  }, []);
+
+  const setInitialRuntimeState = useCallback(
+    (nextRuntime: RuntimeState | null) => {
+      setRuntime(nextRuntime);
+      setResolvedCards([]);
+      setExpandedResolvedCards({});
+      if (nextRuntime) {
+        runtimeHistoryRef.current = [nextRuntime];
+        runtimeHistoryIndexRef.current = 0;
+      } else {
+        runtimeHistoryRef.current = [];
+        runtimeHistoryIndexRef.current = -1;
+      }
+      refreshRuntimeNavigation();
+    },
+    [refreshRuntimeNavigation]
+  );
+
+  const pushRuntimeSnapshot = useCallback(
+    (nextRuntime: RuntimeState) => {
+      setRuntime(nextRuntime);
+      const currentIndex = runtimeHistoryIndexRef.current;
+      const base =
+        currentIndex >= 0
+          ? runtimeHistoryRef.current.slice(0, currentIndex + 1)
+          : [];
+      base.push(nextRuntime);
+      runtimeHistoryRef.current = base;
+      runtimeHistoryIndexRef.current = base.length - 1;
+      refreshRuntimeNavigation();
+    },
+    [refreshRuntimeNavigation]
+  );
+
+  const applyRuntimeTransition = useCallback(
+    (updater: (current: RuntimeState) => RuntimeState) => {
+      if (!runtime) return;
+      const nextRuntime = updater(runtime);
+      pushRuntimeSnapshot(nextRuntime);
+    },
+    [pushRuntimeSnapshot, runtime]
+  );
+
+  const navigateRuntimeBack = useCallback(() => {
+    const currentIndex = runtimeHistoryIndexRef.current;
+    if (currentIndex <= 0) return;
+    const nextIndex = currentIndex - 1;
+    const snapshot = runtimeHistoryRef.current[nextIndex];
+    if (!snapshot) return;
+    runtimeHistoryIndexRef.current = nextIndex;
+    setRuntime(snapshot);
+    refreshRuntimeNavigation();
+  }, [refreshRuntimeNavigation]);
+
+  const navigateRuntimeForward = useCallback(() => {
+    const currentIndex = runtimeHistoryIndexRef.current;
+    const nextIndex = currentIndex + 1;
+    const snapshot = runtimeHistoryRef.current[nextIndex];
+    if (!snapshot) return;
+    runtimeHistoryIndexRef.current = nextIndex;
+    setRuntime(snapshot);
+    refreshRuntimeNavigation();
+  }, [refreshRuntimeNavigation]);
 
   useEffect(() => {
     cardRuntimeCacheRef.current = {};
@@ -1059,7 +1527,7 @@ export function CogitaStoryboardRuntimePage({
             updatedUtc: share.createdUtc
           });
           setDocumentState(normalized);
-          setRuntime(createInitialRuntime(normalized.rootGraph));
+          setInitialRuntimeState(createInitialRuntime(normalized.rootGraph));
           setLoading(false);
         })
         .catch((err) => {
@@ -1067,7 +1535,7 @@ export function CogitaStoryboardRuntimePage({
           setStatus(err instanceof Error ? err.message : runtimeCopy.statusLoadSharedFailed);
           setProject(null);
           setDocumentState(null);
-          setRuntime(null);
+          setInitialRuntimeState(null);
           setLoading(false);
         });
 
@@ -1080,6 +1548,9 @@ export function CogitaStoryboardRuntimePage({
       setLoading(false);
       setStatus(runtimeCopy.statusMissingParams);
       setRuntimeLibraryId(undefined);
+      setProject(null);
+      setDocumentState(null);
+      setInitialRuntimeState(null);
       return;
     }
 
@@ -1095,7 +1566,7 @@ export function CogitaStoryboardRuntimePage({
         if (!found) {
           setProject(null);
           setDocumentState(null);
-          setRuntime(null);
+          setInitialRuntimeState(null);
           setStatus(runtimeCopy.statusNotFound);
           setLoading(false);
           return;
@@ -1104,7 +1575,7 @@ export function CogitaStoryboardRuntimePage({
         const normalized = normalizeDocument(found.content);
         setProject(found);
         setDocumentState(normalized);
-        setRuntime(createInitialRuntime(normalized.rootGraph));
+        setInitialRuntimeState(createInitialRuntime(normalized.rootGraph));
         setLoading(false);
       })
       .catch((err) => {
@@ -1112,14 +1583,14 @@ export function CogitaStoryboardRuntimePage({
         setStatus(err instanceof Error ? err.message : runtimeCopy.statusLoadFailed);
         setProject(null);
         setDocumentState(null);
-        setRuntime(null);
+        setInitialRuntimeState(null);
         setLoading(false);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [libraryId, storyboardId, shareCode]);
+  }, [libraryId, storyboardId, setInitialRuntimeState, shareCode, runtimeCopy.statusLoadFailed, runtimeCopy.statusLoadSharedFailed, runtimeCopy.statusNotFound]);
 
   useEffect(() => {
     return () => {
@@ -1141,6 +1612,197 @@ export function CogitaStoryboardRuntimePage({
     };
   }, []);
 
+  useEffect(() => {
+    pythonRunnerRef.current = new BrowserPythonRunnerClient();
+    return () => {
+      pythonRunnerRef.current?.dispose();
+      pythonRunnerRef.current = null;
+    };
+  }, []);
+
+  const outlineLabels = useMemo<OutlineLabels>(() => {
+    if (language === 'pl') {
+      return {
+        startLabel: 'Start',
+        endLabel: 'Koniec',
+        checkcardPrefix: 'Karta',
+        chapterPrefix: 'Rozdział',
+        subchapterPrefix: 'Podrozdział',
+        parallelLabel: 'Ścieżki równoległe',
+        continuationLabel: 'Dalej po połączeniu',
+        mergeLabel: 'Punkt połączenia',
+        correctBranchLabel: 'Ścieżka poprawna',
+        wrongBranchLabel: 'Ścieżka błędna',
+        genericBranchLabel: 'Ścieżka',
+        reusedSuffix: '(odwołanie)',
+        missingNodeLabel: 'Brakujący węzeł'
+      };
+    }
+    if (language === 'de') {
+      return {
+        startLabel: 'Start',
+        endLabel: 'Ende',
+        checkcardPrefix: 'Karte',
+        chapterPrefix: 'Kapitel',
+        subchapterPrefix: 'Unterkapitel',
+        parallelLabel: 'Parallele Pfade',
+        continuationLabel: 'Fortsetzung nach Zusammenführung',
+        mergeLabel: 'Zusammenführungspunkt',
+        correctBranchLabel: 'Richtiger Pfad',
+        wrongBranchLabel: 'Falscher Pfad',
+        genericBranchLabel: 'Pfad',
+        reusedSuffix: '(Verweis)',
+        missingNodeLabel: 'Fehlender Knoten'
+      };
+    }
+    return {
+      startLabel: 'Start',
+      endLabel: 'End',
+      checkcardPrefix: 'Card',
+      chapterPrefix: 'Chapter',
+      subchapterPrefix: 'Subchapter',
+      parallelLabel: 'Parallel paths',
+      continuationLabel: 'Continuation after merge',
+      mergeLabel: 'Merge point',
+      correctBranchLabel: 'Correct path',
+      wrongBranchLabel: 'Wrong path',
+      genericBranchLabel: 'Path',
+      reusedSuffix: '(reference)',
+      missingNodeLabel: 'Missing node'
+    };
+  }, [language]);
+
+  const runtimeHistoryCopy = useMemo(() => {
+    if (language === 'pl') {
+      return {
+        title: 'Konspekt',
+        back: 'Wstecz',
+        forward: 'Dalej',
+        noOutline: 'Brak konspektu storyboardu.'
+      };
+    }
+    if (language === 'de') {
+      return {
+        title: 'Gliederung',
+        back: 'Zurück',
+        forward: 'Vor',
+        noOutline: 'Keine Storyboard-Gliederung verfügbar.'
+      };
+    }
+    return {
+      title: 'Outline',
+      back: 'Back',
+      forward: 'Forward',
+      noOutline: 'No storyboard outline available.'
+    };
+  }, [language]);
+
+  const resolvedCardsCopy = useMemo(() => {
+    if (language === 'pl') {
+      return {
+        title: 'Rozwiązane pytania',
+        show: 'Pokaż pytanie',
+        hide: 'Ukryj pytanie'
+      };
+    }
+    if (language === 'de') {
+      return {
+        title: 'Beantwortete Fragen',
+        show: 'Frage anzeigen',
+        hide: 'Frage ausblenden'
+      };
+    }
+    return {
+      title: 'Answered Questions',
+      show: 'Show question',
+      hide: 'Hide question'
+    };
+  }, [language]);
+
+  const currentRuntimeNodeKey = useMemo(() => {
+    if (!runtime) return null;
+    return buildNodeKey(runtime.graphPath, runtime.currentNodeId);
+  }, [runtime]);
+
+  const runtimeNodeHistoryKeys = useMemo(() => {
+    if (runtimeHistoryVersion < 0) return [] as string[];
+    return runtimeHistoryRef.current.map((entry) => buildNodeKey(entry.graphPath, entry.currentNodeId));
+  }, [runtimeHistoryVersion]);
+
+  const runtimeNodeHistoryKeySet = useMemo(() => {
+    return new Set(runtimeNodeHistoryKeys);
+  }, [runtimeNodeHistoryKeys]);
+
+  const jumpToOutlineNode = useCallback(
+    (nodeKey: string | undefined) => {
+      if (!nodeKey) return;
+      const history = runtimeHistoryRef.current;
+      const currentIndex = runtimeHistoryIndexRef.current;
+      if (history.length === 0 || currentIndex < 0) return;
+
+      let targetIndex = -1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < history.length; index += 1) {
+        const key = buildNodeKey(history[index].graphPath, history[index].currentNodeId);
+        if (key !== nodeKey) continue;
+        const distance = Math.abs(index - currentIndex);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          targetIndex = index;
+        }
+      }
+
+      if (targetIndex < 0 || targetIndex === currentIndex) return;
+      runtimeHistoryIndexRef.current = targetIndex;
+      setRuntime(history[targetIndex]);
+      refreshRuntimeNavigation();
+    },
+    [refreshRuntimeNavigation]
+  );
+
+  const runtimeOutline = useMemo(() => {
+    if (!documentState) return null;
+    return buildStoryboardOutline(documentState.rootGraph, [], outlineLabels);
+  }, [documentState, outlineLabels]);
+
+  const renderOutlineItem = useCallback(
+    (item: StoryboardOutlineItem): JSX.Element => {
+      const isActive = Boolean(item.nodeKey && item.nodeKey === currentRuntimeNodeKey);
+      const isVisited = Boolean(item.nodeKey && runtime?.visited[item.nodeKey]);
+      const isInHistory = Boolean(item.nodeKey && runtimeNodeHistoryKeySet.has(item.nodeKey));
+      const canJump = Boolean(item.nodeKey && isInHistory);
+
+      return (
+        <li key={item.key} style={{ display: 'grid', gap: '0.35rem' }}>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => jumpToOutlineNode(item.nodeKey)}
+            disabled={!canJump}
+            style={{
+              justifyContent: 'flex-start',
+              opacity: canJump ? 1 : 0.65,
+              borderColor: isActive ? 'rgba(111, 214, 255, 0.55)' : undefined,
+              background: isActive
+                ? 'linear-gradient(120deg, rgba(111, 214, 255, 0.18), rgba(111, 214, 255, 0.06))'
+                : isVisited
+                  ? 'rgba(111, 214, 255, 0.05)'
+                  : 'transparent'
+            }}
+          >
+            {item.label}
+          </button>
+          {item.children.length > 0 ? (
+            <ul style={{ margin: 0, paddingLeft: '1rem', display: 'grid', gap: '0.35rem' }}>
+              {item.children.map((child) => renderOutlineItem(child))}
+            </ul>
+          ) : null}
+        </li>
+      );
+    },
+    [currentRuntimeNodeKey, jumpToOutlineNode, runtime?.visited, runtimeNodeHistoryKeySet]
+  );
+
   const currentNode = useMemo(() => {
     if (!runtime) return null;
     return findNode(runtime.graph, runtime.currentNodeId);
@@ -1155,6 +1817,7 @@ export function CogitaStoryboardRuntimePage({
     let notionType: string | null = null;
     let cardType: string | null = null;
     let checkType: string | null = node.cardCheckType.trim() || null;
+    let pythonDefinition: PythonRuntimeDefinition | null = null;
     const isSharedRuntime = Boolean(shareCode);
     const notionId = node.notionId.trim();
     const publicNotionPayload =
@@ -1181,12 +1844,10 @@ export function CogitaStoryboardRuntimePage({
         const selectedCheckType = (selectedCard?.checkType ?? node.cardCheckType ?? '').trim().toLowerCase();
         const selectedInfoType = (selectedCard?.infoType ?? '').trim().toLowerCase();
         const isPythonCard = selectedCheckType === 'python' || selectedInfoType === 'python';
-        const detail = isPythonCard
-          ? null
-          : await (isSharedRuntime
-            ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
-            : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
-          ).catch(() => null);
+        const detail = await (isSharedRuntime
+          ? getCogitaPublicStoryboardInfoDetail({ shareCode: shareCode!, infoId: notionId })
+          : getCogitaInfoDetail({ libraryId: runtimeLibraryId!, infoId: notionId })
+        ).catch(() => null);
         let vocabProjection: Record<string, unknown> | null = null;
         if (detail?.infoType === 'translation') {
           try {
@@ -1219,20 +1880,37 @@ export function CogitaStoryboardRuntimePage({
         prompt = built.prompt;
         expected = built.expected;
 
-        const pythonDefinition = isPythonCard
-          ? parsePythonDefinitionFromPayload(
-              selectedCard?.payload ??
-              publicNotionPayload ??
-              null
+        const parsedPythonDefinition = isPythonCard
+          ? parsePythonRuntimeDefinition(
+              detail?.payload ??
+                selectedCard?.payload ??
+                publicNotionPayload ??
+                null,
+              `${notionId}|${buildNodeKey(graphPath, node.nodeId)}`
             )
           : null;
-        if (pythonDefinition) {
+        if (parsedPythonDefinition) {
           notionType = 'python';
           checkType = 'python';
           promptModel = { kind: 'text', inputType: 'text', multiLine: true };
           expectedModel = '';
-          answerModel = { text: pythonDefinition.starterSource };
-          prompt = pythonDefinition.taskText || prompt || (node.description.trim() || node.title);
+          answerModel = { text: parsedPythonDefinition.starterSource };
+          prompt = parsedPythonDefinition.taskText || prompt || (node.description.trim() || node.title);
+          pythonDefinition = parsedPythonDefinition;
+        } else if (isPythonCard) {
+          const fallbackPythonDefinition = parsePythonDefinitionPayload(
+            detail?.payload ??
+              selectedCard?.payload ??
+              publicNotionPayload ??
+              null
+          );
+          notionType = 'python';
+          checkType = 'python';
+          promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+          expectedModel = '';
+          answerModel = { text: fallbackPythonDefinition?.starterSource ?? '' };
+          prompt = fallbackPythonDefinition?.taskText || prompt || (node.description.trim() || node.title);
+          pythonDefinition = null;
         } else {
         const questionRuntime =
           (detail?.infoType === 'question' || selectedCard?.infoType === 'question')
@@ -1257,8 +1935,12 @@ export function CogitaStoryboardRuntimePage({
         }
         }
       } catch {
+        const wantsPython = node.cardCheckType.trim().toLowerCase() === 'python';
         const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-        const sharedPythonDefinition = parsePythonDefinitionFromPayload(publicNotionPayload ?? null);
+        const sharedPythonDefinition = parsePythonRuntimeDefinition(
+          publicNotionPayload ?? null,
+          `${notionId}|${buildNodeKey(graphPath, node.nodeId)}`
+        );
         if (sharedPythonDefinition) {
           notionType = 'python';
           checkType = 'python';
@@ -1266,6 +1948,16 @@ export function CogitaStoryboardRuntimePage({
           expectedModel = '';
           answerModel = { text: sharedPythonDefinition.starterSource };
           prompt = sharedPythonDefinition.taskText || prompt;
+          pythonDefinition = sharedPythonDefinition;
+        } else if (wantsPython) {
+          const fallbackPythonDefinition = parsePythonDefinitionPayload(publicNotionPayload ?? null);
+          notionType = 'python';
+          checkType = 'python';
+          promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+          expectedModel = '';
+          answerModel = { text: fallbackPythonDefinition?.starterSource ?? '' };
+          prompt = fallbackPythonDefinition?.taskText || prompt;
+          pythonDefinition = null;
         } else if (sharedQuestionRuntime) {
           notionType = 'question';
           checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
@@ -1280,8 +1972,12 @@ export function CogitaStoryboardRuntimePage({
         }
       }
     } else {
+      const wantsPython = node.cardCheckType.trim().toLowerCase() === 'python';
       const sharedQuestionRuntime = buildStoryboardQuestionRuntime(publicNotionPayload ?? null, prompt);
-      const sharedPythonDefinition = parsePythonDefinitionFromPayload(publicNotionPayload ?? null);
+      const sharedPythonDefinition = parsePythonRuntimeDefinition(
+        publicNotionPayload ?? null,
+        `${notionId}|${buildNodeKey(graphPath, node.nodeId)}`
+      );
       if (sharedPythonDefinition) {
         notionType = 'python';
         checkType = 'python';
@@ -1289,6 +1985,16 @@ export function CogitaStoryboardRuntimePage({
         expectedModel = '';
         answerModel = { text: sharedPythonDefinition.starterSource };
         prompt = sharedPythonDefinition.taskText || prompt;
+        pythonDefinition = sharedPythonDefinition;
+      } else if (wantsPython) {
+        const fallbackPythonDefinition = parsePythonDefinitionPayload(publicNotionPayload ?? null);
+        notionType = 'python';
+        checkType = 'python';
+        promptModel = { kind: 'text', inputType: 'text', multiLine: true };
+        expectedModel = '';
+        answerModel = { text: fallbackPythonDefinition?.starterSource ?? '' };
+        prompt = fallbackPythonDefinition?.taskText || prompt;
+        pythonDefinition = null;
       } else if (sharedQuestionRuntime) {
         notionType = 'question';
         checkType = toQuestionCheckTypeFromPayload(publicNotionPayload ?? null) ?? checkType;
@@ -1309,7 +2015,8 @@ export function CogitaStoryboardRuntimePage({
       answerModel,
       notionType,
       cardType,
-      checkType
+      checkType,
+      pythonDefinition
     };
   }, [documentState, runtimeLibraryId, shareCode]);
 
@@ -1364,7 +2071,8 @@ export function CogitaStoryboardRuntimePage({
         ...cached,
         status: 'ready',
         isCorrect: null,
-        pythonEvaluation: null
+        pythonEvaluation: null,
+        pythonProgress: null
       });
       return;
     }
@@ -1380,7 +2088,9 @@ export function CogitaStoryboardRuntimePage({
       cardType: null,
       checkType: null,
       isCorrect: null,
-      pythonEvaluation: null
+      pythonDefinition: null,
+      pythonEvaluation: null,
+      pythonProgress: null
     });
 
     let cancelled = false;
@@ -1399,7 +2109,9 @@ export function CogitaStoryboardRuntimePage({
           cardType: null,
           checkType: currentNode.cardCheckType.trim() || null,
           isCorrect: null,
-          pythonEvaluation: null
+          pythonDefinition: null,
+          pythonEvaluation: null,
+          pythonProgress: null
         });
         return;
       }
@@ -1407,7 +2119,8 @@ export function CogitaStoryboardRuntimePage({
         ...loaded,
         status: 'ready',
         isCorrect: null,
-        pythonEvaluation: null
+        pythonEvaluation: null,
+        pythonProgress: null
       });
     };
 
@@ -1554,8 +2267,7 @@ export function CogitaStoryboardRuntimePage({
   }, [currentNode, runtime]);
 
   const chooseEdge = (edge: StoryboardGraphEdge) => {
-    setRuntime((current) => {
-      if (!current) return current;
+    applyRuntimeTransition((current) => {
       const currentNodeRecord = findNode(current.graph, current.currentNodeId);
       if (currentNodeRecord?.kind !== 'separator') {
         return advanceRuntime(current, edge.toNodeId, edge.displayMode);
@@ -1569,8 +2281,7 @@ export function CogitaStoryboardRuntimePage({
   };
 
   const restartChapter = () => {
-    setRuntime((current) => {
-      if (!current) return current;
+    applyRuntimeTransition((current) => {
       const graphPathKey = buildGraphPathKey(current.graphPath);
       const chapterStartNodeId = current.activeChapterStartByGraphPath[graphPathKey];
       if (!chapterStartNodeId) return current;
@@ -1579,8 +2290,7 @@ export function CogitaStoryboardRuntimePage({
   };
 
   const goToChapterEnd = () => {
-    setRuntime((current) => {
-      if (!current) return current;
+    applyRuntimeTransition((current) => {
       const graphPathKey = buildGraphPathKey(current.graphPath);
       const separatorNodeId = current.activeSeparatorByGraphPath[graphPathKey];
       if (!separatorNodeId) return current;
@@ -1645,10 +2355,39 @@ export function CogitaStoryboardRuntimePage({
     return resolveCardOutcomeEdge(runtime, currentNode, cardState.isCorrect);
   }, [cardState, currentNode, resolveCardOutcomeEdge, runtime]);
 
+  const archiveCurrentCard = useCallback(() => {
+    if (!cardState || cardState.status !== 'evaluated') return;
+    if (!currentNode || currentNode.kind !== 'card') return;
+    if (typeof cardState.isCorrect !== 'boolean') return;
+
+    const entry: ResolvedCardEntry = {
+      nodeKey: cardState.nodeKey,
+      title: currentNode.title.trim() || cardState.promptText || runtimeCopy.choiceFallback,
+      promptText: cardState.promptText,
+      promptModel: cardState.promptModel,
+      expectedModel: cardState.expectedModel,
+      answerModel: normalizeCheckcardAnswer(cardState.promptModel, cardState.answerModel),
+      isCorrect: cardState.isCorrect,
+      checkType: cardState.checkType,
+      pythonEvaluation: cardState.pythonEvaluation ?? null
+    };
+
+    setResolvedCards((previous) => {
+      const index = previous.findIndex((item) => item.nodeKey === entry.nodeKey);
+      if (index < 0) return [...previous, entry];
+      const next = [...previous];
+      next[index] = entry;
+      return next;
+    });
+  }, [cardState, currentNode, runtimeCopy.choiceFallback]);
+
+  const toggleResolvedCard = useCallback((nodeKey: string) => {
+    setExpandedResolvedCards((previous) => ({ ...previous, [nodeKey]: !previous[nodeKey] }));
+  }, []);
+
   const chooseCardOutcome = (edge: StoryboardGraphEdge | null) => {
     if (!edge) return;
-    setRuntime((current) => {
-      if (!current) return current;
+    applyRuntimeTransition((current) => {
       return advanceRuntime(current, edge.toNodeId, edge.displayMode);
     });
   };
@@ -1659,7 +2398,7 @@ export function CogitaStoryboardRuntimePage({
       window.clearTimeout(cardTransitionTimer.current);
       cardTransitionTimer.current = null;
     }
-    setRuntime(createInitialRuntime(documentState.rootGraph));
+    setInitialRuntimeState(createInitialRuntime(documentState.rootGraph));
     setCardState(null);
     setStatus(null);
   };
@@ -1670,9 +2409,27 @@ export function CogitaStoryboardRuntimePage({
     const normalizedCheckType = (cardState.checkType ?? currentNode?.cardCheckType ?? '').trim().toLowerCase();
 
     if (normalizedCheckType === 'python') {
-      const notionId = currentNode.notionId.trim();
-      if (!notionId) {
-        setStatus(runtimeCopy.noCardOutcomeLink);
+      const pythonDefinition = cardState.pythonDefinition;
+      if (!pythonDefinition) {
+        const pythonEvaluation = toPythonRuntimeEvaluation({
+          status: 'runner_unavailable',
+          casesExecuted: 0,
+          errorMessage: 'Python definition is unavailable for this card.',
+          failingInputJson: null,
+          userOutputJson: null
+        });
+        setCardState((current) => {
+          if (!current || current.nodeKey !== cardState.nodeKey) return current;
+          return {
+            ...current,
+            status: 'ready',
+            answerModel: normalizedAnswerModel,
+            isCorrect: null,
+            pythonEvaluation,
+            pythonProgress: null
+          };
+        });
+        setStatus(null);
         return;
       }
 
@@ -1682,39 +2439,49 @@ export function CogitaStoryboardRuntimePage({
           ...current,
           status: 'submitting',
           answerModel: normalizedAnswerModel,
-          pythonEvaluation: null
+          pythonEvaluation: null,
+          pythonProgress: { phase: 'loading_pyodide', casesExecuted: 0, caseCount: pythonDefinition.caseCount }
         };
       });
 
-      let pythonEvaluation: CogitaPythonEvaluateResponse;
+      let pythonEvaluation: PythonRuntimeEvaluation;
       try {
-        if (shareCode) {
-          pythonEvaluation = await evaluateCogitaPublicStoryboardPythonNotion({
-            shareCode,
-            infoId: notionId,
-            submissionSource: normalizedAnswerModel.text ?? ''
-          });
-        } else if (runtimeLibraryId) {
-          pythonEvaluation = await evaluateCogitaPythonNotion({
-            libraryId: runtimeLibraryId,
-            infoId: notionId,
-            submissionSource: normalizedAnswerModel.text ?? ''
-          });
-        } else {
-          pythonEvaluation = {
-            passed: false,
-            status: 'runner_unavailable',
-            casesExecuted: 0,
-            errorMessage: 'Library context is missing.'
-          };
+        if (!pythonRunnerRef.current) {
+          pythonRunnerRef.current = new BrowserPythonRunnerClient();
         }
+        const rawEvaluation = await pythonRunnerRef.current.evaluate(
+          {
+            createInputSource: pythonDefinition.createInputSource,
+            referenceSource: pythonDefinition.referenceSource,
+            starterSource: pythonDefinition.starterSource,
+            learnerSource: normalizedAnswerModel.text ?? '',
+            caseCount: pythonDefinition.caseCount,
+            seed: pythonDefinition.seed
+          },
+          {
+            timeoutMs: 15000,
+            onProgress: (progress) => {
+              setCardState((current) => {
+                if (!current || current.nodeKey !== cardState.nodeKey || current.status !== 'submitting') {
+                  return current;
+                }
+                return {
+                  ...current,
+                  pythonProgress: progress
+                };
+              });
+            }
+          }
+        );
+        pythonEvaluation = toPythonRuntimeEvaluation(rawEvaluation);
       } catch (error) {
-        pythonEvaluation = {
-          passed: false,
+        pythonEvaluation = toPythonRuntimeEvaluation({
           status: 'sandbox_error',
           casesExecuted: 0,
-          errorMessage: error instanceof Error ? error.message : 'Python evaluation failed.'
-        };
+          errorMessage: error instanceof Error ? error.message : 'Python evaluation failed.',
+          failingInputJson: null,
+          userOutputJson: null
+        });
       }
 
       const isCorrect = Boolean(pythonEvaluation.passed);
@@ -1727,7 +2494,8 @@ export function CogitaStoryboardRuntimePage({
             status: 'evaluated',
             answerModel: normalizedAnswerModel,
             isCorrect: true,
-            pythonEvaluation
+            pythonEvaluation,
+            pythonProgress: null
           };
         });
 
@@ -1747,7 +2515,8 @@ export function CogitaStoryboardRuntimePage({
           status: 'ready',
           answerModel: normalizedAnswerModel,
           isCorrect: null,
-          pythonEvaluation
+          pythonEvaluation,
+          pythonProgress: null
         };
       });
       setStatus(null);
@@ -1774,7 +2543,8 @@ export function CogitaStoryboardRuntimePage({
         status: 'evaluated',
         answerModel: normalizedAnswerModel,
         isCorrect,
-        pythonEvaluation: null
+        pythonEvaluation: null,
+        pythonProgress: null
       };
     });
 
@@ -1797,7 +2567,8 @@ export function CogitaStoryboardRuntimePage({
         ...current,
         status: 'evaluated',
         answerModel: normalizedAnswerModel,
-        isCorrect: false
+        isCorrect: false,
+        pythonProgress: null
       };
     });
 
@@ -1857,6 +2628,135 @@ export function CogitaStoryboardRuntimePage({
         {status ? <p className="cogita-form-error">{status}</p> : null}
 
         {!loading && runtime ? (
+          <article className="cogita-library-detail" style={{ marginBottom: '1rem' }}>
+            <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.65rem' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <strong>{runtimeHistoryCopy.title}</strong>
+                <div className="cogita-card-actions">
+                  <button type="button" className="ghost" onClick={navigateRuntimeBack} disabled={!canNavigateBack}>
+                    {runtimeHistoryCopy.back}
+                  </button>
+                  <button type="button" className="ghost" onClick={navigateRuntimeForward} disabled={!canNavigateForward}>
+                    {runtimeHistoryCopy.forward}
+                  </button>
+                </div>
+              </div>
+              {runtimeOutline ? (
+                <ul style={{ margin: 0, paddingLeft: '1rem', display: 'grid', gap: '0.35rem' }}>
+                  {renderOutlineItem(runtimeOutline)}
+                </ul>
+              ) : (
+                <p className="cogita-help" style={{ margin: 0 }}>
+                  {runtimeHistoryCopy.noOutline}
+                </p>
+              )}
+            </div>
+          </article>
+        ) : null}
+
+        {!loading && resolvedCards.length > 0 ? (
+          <article className="cogita-library-detail" style={{ marginBottom: '1rem' }}>
+            <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.65rem' }}>
+              <strong>{resolvedCardsCopy.title}</strong>
+              <div style={{ display: 'grid', gap: '0.65rem' }}>
+                {resolvedCards.map((entry) => {
+                  const expanded = Boolean(expandedResolvedCards[entry.nodeKey]);
+                  const isPythonCheckcard = (entry.checkType ?? '').trim().toLowerCase() === 'python';
+                  const livePrompt = buildLivePrompt({
+                    promptText: entry.promptText,
+                    promptModel: entry.promptModel
+                  });
+                  const revealExpected = isPythonCheckcard ? undefined : entry.expectedModel;
+                  const revealedAnswer = isPythonCheckcard
+                    ? undefined
+                    : toRevealedAnswer(entry.promptModel, entry.answerModel);
+
+                  return (
+                    <div key={entry.nodeKey} style={{ display: 'grid', gap: '0.45rem' }}>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => toggleResolvedCard(entry.nodeKey)}
+                        style={{ justifyContent: 'space-between' }}
+                      >
+                        <span>{`${entry.isCorrect ? runtimeCopy.rightAction : runtimeCopy.wrongAction}: ${entry.title}`}</span>
+                        <span>{expanded ? resolvedCardsCopy.hide : resolvedCardsCopy.show}</span>
+                      </button>
+                      {expanded ? (
+                        <div style={{ display: 'grid', gap: '0.55rem' }}>
+                          <CogitaLivePromptCard
+                            prompt={livePrompt}
+                            revealExpected={revealExpected}
+                            revealedAnswer={revealedAnswer}
+                            surfaceState={entry.isCorrect ? 'correct' : 'incorrect'}
+                            mode="readonly"
+                            labels={{
+                              answerLabel: runtimeCopy.cardAnswerLabel,
+                              correctAnswerLabel: runtimeCopy.cardRevealLabel,
+                              participantAnswerPlaceholder: runtimeCopy.cardAnswerPlaceholder,
+                              trueLabel: runtimeCopy.rightAction,
+                              falseLabel: runtimeCopy.wrongAction,
+                              fragmentLabel: runtimeCopy.cardPromptLabel,
+                              correctFragmentLabel: runtimeCopy.cardRevealLabel,
+                              unsupportedPromptType: runtimeCopy.cardLoading,
+                              waitingForReveal: '',
+                              selectedPaths: '',
+                              removePath: '',
+                              columnPrefix: ''
+                            }}
+                            answers={{
+                              text: entry.answerModel.text ?? '',
+                              selection: entry.answerModel.selection ?? [],
+                              booleanAnswer: typeof entry.answerModel.booleanAnswer === 'boolean' ? entry.answerModel.booleanAnswer : null,
+                              ordering:
+                                (entry.answerModel.ordering?.length ?? 0) > 0
+                                  ? (entry.answerModel.ordering ?? [])
+                                  : (entry.promptModel.kind === 'ordering' ? (entry.promptModel.options ?? []) : []),
+                              matchingRows: entry.answerModel.matchingPaths ?? [],
+                              matchingSelection: entry.answerModel.matchingSelection ?? []
+                            }}
+                          />
+                          {isPythonCheckcard ? (
+                            <div className="cogita-share-list" style={{ gap: '0.5rem' }}>
+                              {entry.pythonEvaluation?.failingInputJson ? (
+                                <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>Failing input</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(entry.pythonEvaluation.failingInputJson)}</pre>
+                                </div>
+                              ) : null}
+                              {entry.pythonEvaluation?.userOutputJson ? (
+                                <div className="cogita-share-row" data-state="idle" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>User output</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{formatDiagnosticJson(entry.pythonEvaluation.userOutputJson)}</pre>
+                                </div>
+                              ) : null}
+                              {entry.pythonEvaluation?.errorMessage ? (
+                                <div className="cogita-share-row" data-state="incorrect" style={{ display: 'grid', gap: '0.35rem' }}>
+                                  <span>Error</span>
+                                  <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{entry.pythonEvaluation.errorMessage}</pre>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </article>
+        ) : null}
+
+        {!loading && runtime ? (
           <div className="cogita-pane" style={{ display: 'grid', gap: '1rem' }}>
             {runtime.displayedBlocks
               .filter((block) => block.kind !== 'card')
@@ -1913,7 +2813,22 @@ export function CogitaStoryboardRuntimePage({
                 <div className="cogita-detail-body" style={{ display: 'grid', gap: '0.55rem' }}>
                   {cardState?.status === 'loading' || cardState?.status === 'submitting' ? (
                     <p className="cogita-help" style={{ margin: 0 }}>
-                      {cardState.status === 'submitting' ? `${runtimeCopy.cardSubmitAction}...` : runtimeCopy.cardLoading}
+                      {cardState.status === 'submitting'
+                        ? (() => {
+                            const isPythonCheckcard = (cardState.checkType ?? '').trim().toLowerCase() === 'python';
+                            if (!isPythonCheckcard) {
+                              return `${runtimeCopy.cardSubmitAction}...`;
+                            }
+                            const progress = cardState.pythonProgress;
+                            if (!progress) {
+                              return `${runtimeCopy.cardSubmitAction}...`;
+                            }
+                            if (progress.phase === 'loading_pyodide') {
+                              return 'Loading Python runtime...';
+                            }
+                            return `Running Python checks ${Math.max(0, progress.casesExecuted)}/${Math.max(1, progress.caseCount)}...`;
+                          })()
+                        : runtimeCopy.cardLoading}
                     </p>
                   ) : null}
                   {cardState && cardState.status !== 'loading' ? (
@@ -2148,6 +3063,7 @@ export function CogitaStoryboardRuntimePage({
                                 className="cta"
                                 onClick={() => {
                                   setStatus(null);
+                                  archiveCurrentCard();
                                   chooseCardOutcome(evaluatedOutcomeEdge);
                                 }}
                               >

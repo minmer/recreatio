@@ -293,33 +293,40 @@ public static partial class CalendarEndpoints
             IKeyRingService keyRingService,
             CancellationToken ct) =>
         {
-            var access = await ResolveCalendarAccessAsync(calendarId, context, dbContext, keyRingService, ct);
-            if (access.Error is not null)
+            try
             {
-                return access.Error;
-            }
+                var access = await ResolveCalendarAccessAsync(calendarId, context, dbContext, keyRingService, ct);
+                if (access.Error is not null)
+                {
+                    return access.Error;
+                }
 
-            var groupsQuery = dbContext.CalendarEventGroups.AsNoTracking()
-                .Where(entry => entry.CalendarId == calendarId);
-            if (!(includeArchived ?? false))
+                var groupsQuery = dbContext.CalendarEventGroups.AsNoTracking()
+                    .Where(entry => entry.CalendarId == calendarId);
+                if (!(includeArchived ?? false))
+                {
+                    groupsQuery = groupsQuery.Where(entry => !entry.IsArchived);
+                }
+
+                var groups = await groupsQuery
+                    .OrderByDescending(entry => entry.UpdatedUtc)
+                    .Take(1000)
+                    .ToListAsync(ct);
+
+                var groupIds = groups.Select(entry => entry.Id).ToList();
+                var counts = groupIds.Count == 0
+                    ? new Dictionary<Guid, int>()
+                    : await dbContext.CalendarEvents.AsNoTracking()
+                        .Where(entry => entry.EventGroupId != null && groupIds.Contains(entry.EventGroupId.Value) && !entry.IsArchived)
+                        .GroupBy(entry => entry.EventGroupId!.Value)
+                        .ToDictionaryAsync(grouping => grouping.Key, grouping => grouping.Count(), ct);
+
+                return Results.Ok(groups.Select(entry => ToEventGroupResponse(entry, counts.GetValueOrDefault(entry.Id))).ToList());
+            }
+            catch (Exception ex) when (IsCalendarSchemaMismatchException(ex))
             {
-                groupsQuery = groupsQuery.Where(entry => !entry.IsArchived);
+                return CalendarSchemaOutdatedResult();
             }
-
-            var groups = await groupsQuery
-                .OrderByDescending(entry => entry.UpdatedUtc)
-                .Take(1000)
-                .ToListAsync(ct);
-
-            var groupIds = groups.Select(entry => entry.Id).ToList();
-            var counts = groupIds.Count == 0
-                ? new Dictionary<Guid, int>()
-                : await dbContext.CalendarEvents.AsNoTracking()
-                    .Where(entry => entry.EventGroupId != null && groupIds.Contains(entry.EventGroupId.Value) && !entry.IsArchived)
-                    .GroupBy(entry => entry.EventGroupId!.Value)
-                    .ToDictionaryAsync(grouping => grouping.Key, grouping => grouping.Count(), ct);
-
-            return Results.Ok(groups.Select(entry => ToEventGroupResponse(entry, counts.GetValueOrDefault(entry.Id))).ToList());
         });
 
         auth.MapPost("/calendars/{calendarId:guid}/event-groups", async (
