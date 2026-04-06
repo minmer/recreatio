@@ -1346,21 +1346,7 @@ function createInitialRuntime(rootGraph: StoryboardGraph): RuntimeState {
   return advanceRuntime(base, rootGraph.startNodeId, 'new_screen');
 }
 
-export function CogitaStoryboardRuntimePage({
-  copy,
-  authLabel,
-  showProfileMenu,
-  onProfileNavigate,
-  onToggleSecureMode,
-  onLogout,
-  secureMode,
-  onNavigate,
-  language,
-  onLanguageChange,
-  libraryId,
-  storyboardId,
-  shareCode
-}: {
+export type CogitaStoryboardRuntimeProps = {
   copy: Copy;
   authLabel: string;
   showProfileMenu: boolean;
@@ -1374,7 +1360,23 @@ export function CogitaStoryboardRuntimePage({
   libraryId?: string;
   storyboardId?: string;
   shareCode?: string;
-}) {
+};
+
+export function CogitaStoryboardRuntime({
+  copy,
+  authLabel,
+  showProfileMenu,
+  onProfileNavigate,
+  onToggleSecureMode,
+  onLogout,
+  secureMode,
+  onNavigate,
+  language,
+  onLanguageChange,
+  libraryId,
+  storyboardId,
+  shareCode
+}: CogitaStoryboardRuntimeProps) {
   const navigate = useNavigate();
   const runtimeCopy = copy.cogita.library.modules.storyboardsRuntime;
   const pythonRuntimeCopy = useMemo(

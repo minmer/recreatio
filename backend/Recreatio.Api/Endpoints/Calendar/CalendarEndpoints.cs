@@ -1052,6 +1052,7 @@ public static partial class CalendarEndpoints
             }
 
             var changed = false;
+            var scheduleOrScopeChanged = false;
             if (request.TitlePublic is not null)
             {
                 var title = request.TitlePublic.Trim();
@@ -1177,14 +1178,22 @@ public static partial class CalendarEndpoints
 
             if (request.StartUtc is not null)
             {
-                item.StartUtc = request.StartUtc.Value;
-                changed = true;
+                if (item.StartUtc != request.StartUtc.Value)
+                {
+                    item.StartUtc = request.StartUtc.Value;
+                    changed = true;
+                    scheduleOrScopeChanged = true;
+                }
             }
 
             if (request.EndUtc is not null)
             {
-                item.EndUtc = request.EndUtc.Value;
-                changed = true;
+                if (item.EndUtc != request.EndUtc.Value)
+                {
+                    item.EndUtc = request.EndUtc.Value;
+                    changed = true;
+                    scheduleOrScopeChanged = true;
+                }
             }
 
             if (item.EndUtc <= item.StartUtc)
@@ -1385,8 +1394,12 @@ public static partial class CalendarEndpoints
                     return Results.BadRequest(new { error = "ConflictScopeMode is invalid." });
                 }
 
-                item.ConflictScopeMode = scopeMode;
-                changed = true;
+                if (!string.Equals(item.ConflictScopeMode, scopeMode, StringComparison.Ordinal))
+                {
+                    item.ConflictScopeMode = scopeMode;
+                    changed = true;
+                    scheduleOrScopeChanged = true;
+                }
             }
 
             if (request.IsArchived is not null)
@@ -1486,6 +1499,7 @@ public static partial class CalendarEndpoints
                     RevokedUtc = null
                 }));
                 changed = true;
+                scheduleOrScopeChanged = true;
             }
 
             var normalizedViewerScopes = NormalizeViewerScopeRequests(request.ViewerScopes);
@@ -1605,14 +1619,19 @@ public static partial class CalendarEndpoints
                 scopesForConflict.Add(item.OwnerRoleId);
             }
 
-            var conflicts = await FindConflictsAsync(
-                dbContext,
-                item.CalendarId,
-                item.StartUtc,
-                item.EndUtc,
-                scopesForConflict,
-                item.Id,
-                ct);
+            var conflicts = new List<CalendarConflictResponse>();
+            if (scheduleOrScopeChanged)
+            {
+                conflicts = await FindConflictsAsync(
+                    dbContext,
+                    item.CalendarId,
+                    item.StartUtc,
+                    item.EndUtc,
+                    scopesForConflict,
+                    item.Id,
+                    ct);
+            }
+
             if (!request.AllowConflicts && conflicts.Count > 0)
             {
                 return Results.Conflict(new CalendarEventsQueryResponse("list", item.StartUtc, item.EndUtc, Array.Empty<CalendarEventOccurrenceResponse>(), conflicts));
