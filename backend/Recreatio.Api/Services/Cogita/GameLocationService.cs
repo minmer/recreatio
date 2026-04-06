@@ -273,12 +273,13 @@ public sealed class GameLocationService : IGameLocationService
 
         participant.SpoofRiskScore = Math.Max(0m, Math.Min(100m, spoofRisk));
         participant.LastSeenUtc = now;
-        var roundedLat = priorLocation.HasValue
-            ? (double?)Math.Round(priorLocation.Value.Latitude, 3, MidpointRounding.AwayFromZero)
-            : null;
-        var roundedLon = priorLocation.HasValue
-            ? (double?)Math.Round(priorLocation.Value.Longitude, 3, MidpointRounding.AwayFromZero)
-            : null;
+        double? roundedLat = null;
+        double? roundedLon = null;
+        if (priorLocation.HasValue)
+        {
+            roundedLat = Math.Round(priorLocation.Value.Latitude, 3, MidpointRounding.AwayFromZero);
+            roundedLon = Math.Round(priorLocation.Value.Longitude, 3, MidpointRounding.AwayFromZero);
+        }
         participant.LastLocationMetaJson = JsonSerializer.Serialize(new
         {
             lat = roundedLat,

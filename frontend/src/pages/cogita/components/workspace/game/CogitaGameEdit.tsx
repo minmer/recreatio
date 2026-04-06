@@ -1,6 +1,7 @@
 type GameEditDetails = {
   name: string;
-  description: string;
+  mode: string;
+  settingsText: string;
 };
 
 type CogitaGameEditCreateProps = {
@@ -40,12 +41,24 @@ export function CogitaGameEdit(props: CogitaGameEditCreateProps | CogitaGameEdit
           />
         </label>
         <label className="cogita-field full">
-          <span>Description</span>
+          <span>Mode</span>
+          <select
+            value={details.mode}
+            onChange={(event) => props.onDetailsChange({ ...details, mode: event.target.value })}
+          >
+            <option value="solo">Solo</option>
+            <option value="group">Group</option>
+            <option value="mixed">Mixed</option>
+          </select>
+        </label>
+        <label className="cogita-field full">
+          <span>Settings JSON</span>
           <textarea
-            value={details.description}
-            onChange={(event) => props.onDetailsChange({ ...details, description: event.target.value })}
-            placeholder="Short game description"
-            rows={5}
+            value={details.settingsText}
+            onChange={(event) => props.onDetailsChange({ ...details, settingsText: event.target.value })}
+            placeholder='{"participants":{"mode":"groups"}}'
+            rows={8}
+            style={{ fontFamily: 'monospace' }}
           />
         </label>
       </div>

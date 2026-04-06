@@ -36,6 +36,7 @@ import {
   revokeCalendarEventGroupShare,
   revokeCalendarShare,
   unbindCalendarRole,
+  updateCalendarItem,
   upsertCalendarGraph,
   type CalendarConflictResponse,
   type CalendarEventResponse,
@@ -82,12 +83,21 @@ function parseShareRoute(pathname: string): ShareRoute | null {
 function formatUtc(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
-  const hour = String(date.getUTCHours()).padStart(2, '0');
-  const minute = String(date.getUTCMinutes()).padStart(2, '0');
-  return year + '-' + month + '-' + day + ' ' + hour + ':' + minute + ' UTC';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return year + '-' + month + '-' + day + ' ' + hour + ':' + minute;
+}
+
+function formatDateTimeLocalInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  const hour = String(value.getHours()).padStart(2, '0');
+  const minute = String(value.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
 function formatLocalDay(value: Date): string {
@@ -101,6 +111,42 @@ function colorForKey(key: string): string {
     hash = ((hash << 5) - hash + key.charCodeAt(index)) | 0;
   }
   return colors[Math.abs(hash) % colors.length];
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '');
+  if (normalized.length !== 3 && normalized.length !== 6) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+  const full = normalized.length === 3
+    ? normalized.split('').map((char) => char + char).join('')
+    : normalized;
+  const r = Number.parseInt(full.slice(0, 2), 16);
+  const g = Number.parseInt(full.slice(2, 4), 16);
+  const b = Number.parseInt(full.slice(4, 6), 16);
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+    return `rgba(15, 23, 42, ${alpha})`;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function hasOpenEndedOccurrence(row: CalendarOccurrenceResponse): boolean {
+  const eventEndUtc = `${(row.event as { endUtc?: string | null }).endUtc ?? ''}`.trim();
+  if (!eventEndUtc) return true;
+  const occurrenceEndUtc = `${row.occurrenceEndUtc ?? ''}`.trim();
+  if (!occurrenceEndUtc) return true;
+  const startMs = Date.parse(row.occurrenceStartUtc);
+  const endMs = Date.parse(occurrenceEndUtc);
+  if (!Number.isFinite(endMs)) return true;
+  return Number.isFinite(startMs) && endMs <= startMs;
+}
+
+function buildEventBackground(color: string, orientation: 'vertical' | 'horizontal', isOpenEnded: boolean): string {
+  if (!isOpenEnded) return color;
+  if (orientation === 'vertical') {
+    return `linear-gradient(180deg, ${color} 0%, ${color} 68%, ${hexToRgba(color, 0)} 100%)`;
+  }
+  return `linear-gradient(90deg, ${color} 0%, ${color} 70%, ${hexToRgba(color, 0)} 100%)`;
 }
 
 function localDayKey(value: Date): string {
@@ -124,29 +170,29 @@ function buildMonthMatrix(anchor: Date): Date[] {
 }
 
 function rangeFromView(anchor: Date, view: ViewMode): { fromUtc: string; toUtc: string } {
-  const start = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate(), 0, 0, 0, 0));
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate(), 0, 0, 0, 0);
   const end = new Date(start);
 
   if (view === 'day') {
-    end.setUTCDate(end.getUTCDate() + 1);
+    end.setDate(end.getDate() + 1);
   } else if (view === 'week') {
-    const dayOfWeek = start.getUTCDay();
+    const dayOfWeek = start.getDay();
     const mondayShift = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    start.setUTCDate(start.getUTCDate() + mondayShift);
+    start.setDate(start.getDate() + mondayShift);
     end.setTime(start.getTime());
-    end.setUTCDate(end.getUTCDate() + 7);
+    end.setDate(end.getDate() + 7);
   } else if (view === 'month') {
-    start.setUTCDate(1);
+    start.setDate(1);
     end.setTime(start.getTime());
-    end.setUTCMonth(end.getUTCMonth() + 1);
+    end.setMonth(end.getMonth() + 1);
   } else if (view === 'timeline') {
-    end.setUTCDate(end.getUTCDate() + 42);
+    end.setDate(end.getDate() + 42);
   } else if (view === 'year') {
-    start.setUTCMonth(0, 1);
+    start.setMonth(0, 1);
     end.setTime(start.getTime());
-    end.setUTCFullYear(end.getUTCFullYear() + 1);
+    end.setFullYear(end.getFullYear() + 1);
   } else {
-    end.setUTCDate(end.getUTCDate() + 30);
+    end.setDate(end.getDate() + 30);
   }
 
   return { fromUtc: start.toISOString(), toUtc: end.toISOString() };
@@ -154,12 +200,12 @@ function rangeFromView(anchor: Date, view: ViewMode): { fromUtc: string; toUtc: 
 
 function shiftAnchor(anchor: Date, view: ViewMode, direction: -1 | 1): Date {
   const next = new Date(anchor);
-  if (view === 'day') next.setUTCDate(next.getUTCDate() + direction);
-  else if (view === 'week') next.setUTCDate(next.getUTCDate() + direction * 7);
-  else if (view === 'month') next.setUTCMonth(next.getUTCMonth() + direction);
-  else if (view === 'timeline') next.setUTCDate(next.getUTCDate() + direction * 42);
-  else if (view === 'year') next.setUTCFullYear(next.getUTCFullYear() + direction);
-  else next.setUTCDate(next.getUTCDate() + direction * 30);
+  if (view === 'day') next.setDate(next.getDate() + direction);
+  else if (view === 'week') next.setDate(next.getDate() + direction * 7);
+  else if (view === 'month') next.setMonth(next.getMonth() + direction);
+  else if (view === 'timeline') next.setDate(next.getDate() + direction * 42);
+  else if (view === 'year') next.setFullYear(next.getFullYear() + direction);
+  else next.setDate(next.getDate() + direction * 30);
   return next;
 }
 
@@ -271,8 +317,8 @@ export function CalendarPage({
   const [summary, setSummary] = useState('');
   const [itemType, setItemType] = useState<'appointment' | 'task'>('appointment');
   const [visibility, setVisibility] = useState<'private' | 'role' | 'public'>('private');
-  const [startUtcLocal, setStartUtcLocal] = useState(new Date().toISOString().slice(0, 16));
-  const [endUtcLocal, setEndUtcLocal] = useState(new Date(Date.now() + 3600000).toISOString().slice(0, 16));
+  const [startUtcLocal, setStartUtcLocal] = useState(formatDateTimeLocalInput(new Date()));
+  const [endUtcLocal, setEndUtcLocal] = useState(formatDateTimeLocalInput(new Date(Date.now() + 3600000)));
   const [statusFilter, setStatusFilter] = useState('');
   const [visibilityFilter, setVisibilityFilter] = useState('');
   const [itemTypeFilter, setItemTypeFilter] = useState<'appointment' | 'task' | ''>('');
@@ -281,13 +327,18 @@ export function CalendarPage({
   const [simpleSubCalendarFilter, setSimpleSubCalendarFilter] = useState<'all' | string>('all');
   const [createAsWeeklySeries, setCreateAsWeeklySeries] = useState(false);
   const [seriesIntervalWeeks, setSeriesIntervalWeeks] = useState(1);
-  const [seriesUntilUtcLocal, setSeriesUntilUtcLocal] = useState(new Date(Date.now() + 1000 * 60 * 60 * 24 * 56).toISOString().slice(0, 16));
+  const [seriesUntilUtcLocal, setSeriesUntilUtcLocal] = useState(formatDateTimeLocalInput(new Date(Date.now() + 1000 * 60 * 60 * 24 * 56)));
   const [selectedEventGroupId, setSelectedEventGroupId] = useState('');
   const [newEventGroupName, setNewEventGroupName] = useState('');
   const [viewerRoleId, setViewerRoleId] = useState('');
   const [viewerCanSeeTitle, setViewerCanSeeTitle] = useState(true);
   const [viewerCanSeeGraph, setViewerCanSeeGraph] = useState(false);
   const [viewerScopes, setViewerScopes] = useState<Array<{ roleId: string; label: string; canSeeTitle: boolean; canSeeGraph: boolean }>>([]);
+  const [editTitle, setEditTitle] = useState('');
+  const [editSummary, setEditSummary] = useState('');
+  const [editStartUtcLocal, setEditStartUtcLocal] = useState('');
+  const [editEndUtcLocal, setEditEndUtcLocal] = useState('');
+  const [editStatus, setEditStatus] = useState('planned');
 
   const range = useMemo(() => rangeFromView(anchor, view), [anchor, view]);
   const shareUrl = useMemo(() => {
@@ -388,16 +439,19 @@ export function CalendarPage({
       return rows
         .map((row) => {
           const start = new Date(row.occurrenceStartUtc);
-          const end = new Date(row.occurrenceEndUtc);
+          if (Number.isNaN(start.getTime())) return null;
+          const isOpenEnded = hasOpenEndedOccurrence(row);
+          const end = isOpenEnded ? null : new Date(row.occurrenceEndUtc);
           const startMinutes = start.getHours() * 60 + start.getMinutes();
-          const endMinutes = end.getHours() * 60 + end.getMinutes();
+          const endMinutes = end ? end.getHours() * 60 + end.getMinutes() : 22 * 60;
           const baseStart = 6 * 60;
           const baseEnd = 22 * 60;
           const topPct = Math.max(0, Math.min(100, ((startMinutes - baseStart) / (baseEnd - baseStart)) * 100));
           const rawHeight = ((Math.max(startMinutes + 15, endMinutes) - startMinutes) / (baseEnd - baseStart)) * 100;
           const heightPct = Math.max(4, Math.min(100 - topPct, rawHeight));
-          return { row, topPct, heightPct };
+          return { row, topPct, heightPct, isOpenEnded };
         })
+        .filter((entry): entry is { row: CalendarOccurrenceResponse; topPct: number; heightPct: number; isOpenEnded: boolean } => entry !== null)
         .sort((left, right) => left.row.occurrenceStartUtc.localeCompare(right.row.occurrenceStartUtc));
     });
   }, [schedulerDays, simpleGroupedByLocalDay]);
@@ -606,6 +660,25 @@ export function CalendarPage({
   }, [personScopedOccurrences]);
 
   useEffect(() => {
+    if (!selectedEvent) {
+      setEditTitle('');
+      setEditSummary('');
+      setEditStartUtcLocal('');
+      setEditEndUtcLocal('');
+      setEditStatus('planned');
+      return;
+    }
+
+    const start = new Date(selectedEvent.startUtc);
+    const end = new Date(selectedEvent.endUtc);
+    setEditTitle(selectedEvent.titlePublic ?? '');
+    setEditSummary(selectedEvent.summaryPublic ?? '');
+    setEditStartUtcLocal(Number.isNaN(start.getTime()) ? '' : formatDateTimeLocalInput(start));
+    setEditEndUtcLocal(Number.isNaN(end.getTime()) ? '' : formatDateTimeLocalInput(end));
+    setEditStatus(selectedEvent.status ?? 'planned');
+  }, [selectedEvent]);
+
+  useEffect(() => {
     if (simpleMode || !showProfileMenu || !calendarId || shareRoute) {
       setCalendarRoleBindings([]);
       return;
@@ -664,8 +737,17 @@ export function CalendarPage({
   }, [showProfileMenu, shareRoute, calendarId, range.fromUtc, range.toUtc, view, statusFilter, visibilityFilter, queryItemType, queryTaskState]);
 
   useEffect(() => {
-    if (simpleMode || !selectedEventId || shareRoute || !showProfileMenu) {
+    if (!selectedEventId || shareRoute || !showProfileMenu) {
       setSelectedEvent(null);
+      return;
+    }
+
+    if (simpleMode) {
+      getCalendarItem(selectedEventId, true)
+        .then((item) => {
+          setSelectedEvent(item);
+        })
+        .catch((err) => setError(readError(err)));
       return;
     }
 
@@ -687,7 +769,7 @@ export function CalendarPage({
         setGraphEdgesJson(JSON.stringify(graph.edges, null, 2));
       }
     });
-  }, [selectedEventId, shareRoute, showProfileMenu]);
+  }, [selectedEventId, shareRoute, showProfileMenu, simpleMode]);
 
   useEffect(() => {
     if (simpleMode || !showProfileMenu || shareRoute || !selectedEventGroupId) {
@@ -720,7 +802,7 @@ export function CalendarPage({
     setGraphStatus('active');
   };
 
-  const refresh = () => {
+  const refresh = (preferredEventId?: string | null) => {
     const activeCalendarId = calendarId ?? effectiveCalendarId;
     if (!activeCalendarId) return;
     getCalendarEvents({
@@ -737,6 +819,12 @@ export function CalendarPage({
       .then((bundle) => {
         setOccurrences(bundle.occurrences);
         setConflicts(bundle.conflicts);
+        if (preferredEventId) {
+          const hasPreferred = bundle.occurrences.some((row) => row.eventId === preferredEventId);
+          if (hasPreferred) {
+            setSelectedEventId(preferredEventId);
+          }
+        }
       })
       .catch((err) => setError(readError(err)));
   };
@@ -770,7 +858,7 @@ export function CalendarPage({
       }
 
       const end = new Date(start.getTime() + 60 * 60 * 1000);
-      await createCalendarItem({
+      const created = await createCalendarItem({
         calendarId: activeCalendarId,
         ownerRoleId: activeOwnerRoleId,
         titlePublic: normalizedTitle,
@@ -787,9 +875,13 @@ export function CalendarPage({
       });
 
       setTitle('');
-      setStartUtcLocal(new Date().toISOString().slice(0, 16));
+      setStartUtcLocal(formatDateTimeLocalInput(new Date()));
+      setEndUtcLocal(formatDateTimeLocalInput(new Date(Date.now() + 3600000)));
+      setAnchor(start);
+      setSelectedEventId(created.eventId);
+      void getCalendarItem(created.eventId, true).then(setSelectedEvent).catch(() => {});
       setError(null);
-      refresh();
+      refresh(created.eventId);
     } catch (err) {
       setError(readError(err));
     }
@@ -816,13 +908,14 @@ export function CalendarPage({
       const startUtc = new Date(startUtcLocal).toISOString();
       const endUtc = new Date(endUtcLocal).toISOString();
 
+      let createdEventId: string | null = null;
       if (createAsWeeklySeries && itemType === 'appointment') {
         if (!selectedEventGroupId) {
           setError('Weekly series requires an event group.');
           return;
         }
 
-        await createWeeklyCalendarSeries(selectedEventGroupId, {
+        const series = await createWeeklyCalendarSeries(selectedEventGroupId, {
           ownerRoleId: activeOwnerRoleId,
           titlePublic: title,
           summaryPublic: summary || null,
@@ -840,6 +933,7 @@ export function CalendarPage({
           graphId: shouldReuseGraph ? selectedReusableGraphId : null,
           allowConflicts: false
         });
+        createdEventId = series.eventIds[0] ?? null;
       } else {
         const createdItem = await createCalendarItem({
           calendarId: activeCalendarId,
@@ -869,6 +963,7 @@ export function CalendarPage({
                 edges: parsedEdges
               }
         });
+        createdEventId = createdItem.eventId;
         if (shouldReuseGraph) {
           await linkCalendarEventGraph(createdItem.eventId, selectedReusableGraphId);
         }
@@ -878,7 +973,12 @@ export function CalendarPage({
       setSummary('');
       setViewerScopes([]);
       setSelectedReusableGraphId('');
-      refresh();
+      setAnchor(new Date(startUtc));
+      if (createdEventId) {
+        setSelectedEventId(createdEventId);
+        void getCalendarItem(createdEventId, true).then(setSelectedEvent).catch(() => {});
+      }
+      refresh(createdEventId);
       if (activeCalendarId) {
         void getCalendarGraphs(activeCalendarId).then((graphs) => setCalendarGraphs(graphs)).catch(() => {});
       }
@@ -910,6 +1010,62 @@ export function CalendarPage({
       setSelectedEventGroupId(created.eventGroupId);
       setNewEventGroupName('');
       setError(null);
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const saveSelectedItem = async () => {
+    if (!selectedEvent) {
+      setError('Select an item first.');
+      return;
+    }
+
+    const normalizedTitle = editTitle.trim();
+    if (!normalizedTitle) {
+      setError('Title is required.');
+      return;
+    }
+
+    const start = new Date(editStartUtcLocal);
+    const end = new Date(editEndUtcLocal);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setError('Start or end time is invalid.');
+      return;
+    }
+    if (end.getTime() <= start.getTime()) {
+      setError('End time must be after start time.');
+      return;
+    }
+
+    try {
+      const updated = await updateCalendarItem(selectedEvent.eventId, {
+        titlePublic: normalizedTitle,
+        summaryPublic: editSummary.trim() || null,
+        startUtc: start.toISOString(),
+        endUtc: end.toISOString(),
+        status: editStatus as 'planned' | 'confirmed' | 'cancelled' | 'completed'
+      });
+      setSelectedEvent(updated);
+      setError(null);
+      refresh();
+    } catch (err) {
+      setError(readError(err));
+    }
+  };
+
+  const removeSelectedItem = async () => {
+    if (!selectedEventId) {
+      setError('Select an item first.');
+      return;
+    }
+
+    try {
+      await archiveCalendarItem(selectedEventId);
+      setSelectedEvent(null);
+      setSelectedEventId(null);
+      setError(null);
+      refresh();
     } catch (err) {
       setError(readError(err));
     }
@@ -1186,22 +1342,25 @@ export function CalendarPage({
                         {hourSlots.map((hour) => (
                           <div key={hour} className="calendar-scheduler-hour-line" />
                         ))}
-                        {schedulerEventsByDay[index]?.map((entry) => (
-                          <button
-                            key={entry.row.eventId + entry.row.occurrenceStartUtc}
-                            type="button"
-                            className="calendar-scheduler-event"
-                            style={{
-                              top: `${entry.topPct}%`,
-                              height: `${entry.heightPct}%`,
-                              backgroundColor: colorForKey(entry.row.event.ownerRoleId)
-                            }}
-                            onClick={() => setSelectedEventId(entry.row.eventId)}
-                          >
-                            <strong>{entry.row.event.titlePublic}</strong>
-                            <span>{new Date(entry.row.occurrenceStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          </button>
-                        ))}
+                        {schedulerEventsByDay[index]?.map((entry) => {
+                          const color = colorForKey(entry.row.event.ownerRoleId);
+                          return (
+                            <button
+                              key={entry.row.eventId + entry.row.occurrenceStartUtc}
+                              type="button"
+                              className={`calendar-scheduler-event${entry.isOpenEnded ? ' is-open-ended' : ''}`}
+                              style={{
+                                top: `${entry.topPct}%`,
+                                height: `${entry.heightPct}%`,
+                                background: buildEventBackground(color, 'vertical', entry.isOpenEnded)
+                              }}
+                              onClick={() => setSelectedEventId(entry.row.eventId)}
+                            >
+                              <strong>{entry.row.event.titlePublic}</strong>
+                              <span>{new Date(entry.row.occurrenceStartUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
@@ -1238,8 +1397,13 @@ export function CalendarPage({
                     <div className="calendar-timeline-label">{row.subCalendar.label}</div>
                     <div className="calendar-timeline-track">
                       {row.items.map((item) => {
-                        const startMs = Math.max(new Date(item.occurrenceStartUtc).getTime(), timelineStartMs);
-                        const endMs = Math.min(new Date(item.occurrenceEndUtc).getTime(), rangeEnd.getTime());
+                        const rawStartMs = new Date(item.occurrenceStartUtc).getTime();
+                        if (!Number.isFinite(rawStartMs)) return null;
+                        const openEnded = hasOpenEndedOccurrence(item);
+                        const resolvedEndMs = openEnded ? rangeEnd.getTime() : new Date(item.occurrenceEndUtc).getTime();
+                        if (!Number.isFinite(resolvedEndMs)) return null;
+                        const startMs = Math.max(rawStartMs, timelineStartMs);
+                        const endMs = Math.min(resolvedEndMs, rangeEnd.getTime());
                         if (endMs <= timelineStartMs || startMs >= rangeEnd.getTime()) return null;
                         const left = ((startMs - timelineStartMs) / timelineSpanMs) * 100;
                         const width = Math.max(1.5, ((endMs - startMs) / timelineSpanMs) * 100);
@@ -1247,8 +1411,12 @@ export function CalendarPage({
                           <button
                             key={item.eventId + item.occurrenceStartUtc}
                             type="button"
-                            className="calendar-timeline-event"
-                            style={{ left: `${left}%`, width: `${width}%`, backgroundColor: row.subCalendar.color }}
+                            className={`calendar-timeline-event${openEnded ? ' is-open-ended' : ''}`}
+                            style={{
+                              left: `${left}%`,
+                              width: `${width}%`,
+                              background: buildEventBackground(row.subCalendar.color, 'horizontal', openEnded)
+                            }}
                             onClick={() => setSelectedEventId(item.eventId)}
                           >
                             {item.event.titlePublic}
@@ -1269,7 +1437,7 @@ export function CalendarPage({
                   const spanMs = Math.max(1, monthEnd.getTime() - monthStart.getTime());
                   const monthItems = simpleFilteredOccurrences.filter((row) => {
                     const startMs = new Date(row.occurrenceStartUtc).getTime();
-                    const endMs = new Date(row.occurrenceEndUtc).getTime();
+                    const endMs = hasOpenEndedOccurrence(row) ? monthEnd.getTime() : new Date(row.occurrenceEndUtc).getTime();
                     return endMs > monthStart.getTime() && startMs < monthEnd.getTime();
                   });
                   return (
@@ -1277,16 +1445,25 @@ export function CalendarPage({
                       <div className="calendar-year-label">{monthStart.toLocaleDateString(undefined, { month: 'long' })}</div>
                       <div className="calendar-year-track">
                         {monthItems.map((item) => {
-                          const startMs = Math.max(new Date(item.occurrenceStartUtc).getTime(), monthStart.getTime());
-                          const endMs = Math.min(new Date(item.occurrenceEndUtc).getTime(), monthEnd.getTime());
+                          const rawStartMs = new Date(item.occurrenceStartUtc).getTime();
+                          if (!Number.isFinite(rawStartMs)) return null;
+                          const openEnded = hasOpenEndedOccurrence(item);
+                          const resolvedEndMs = openEnded ? monthEnd.getTime() : new Date(item.occurrenceEndUtc).getTime();
+                          if (!Number.isFinite(resolvedEndMs)) return null;
+                          const startMs = Math.max(rawStartMs, monthStart.getTime());
+                          const endMs = Math.min(resolvedEndMs, monthEnd.getTime());
                           const left = ((startMs - monthStart.getTime()) / spanMs) * 100;
                           const width = Math.max(1, ((endMs - startMs) / spanMs) * 100);
                           return (
                             <button
                               key={item.eventId + item.occurrenceStartUtc}
                               type="button"
-                              className="calendar-year-event"
-                              style={{ left: `${left}%`, width: `${width}%`, backgroundColor: colorForKey(item.event.ownerRoleId) }}
+                              className={`calendar-year-event${openEnded ? ' is-open-ended' : ''}`}
+                              style={{
+                                left: `${left}%`,
+                                width: `${width}%`,
+                                background: buildEventBackground(colorForKey(item.event.ownerRoleId), 'horizontal', openEnded)
+                              }}
                               onClick={() => setSelectedEventId(item.eventId)}
                             >
                               {item.event.titlePublic}
@@ -1337,6 +1514,28 @@ export function CalendarPage({
               <p>{simpleFilteredOccurrences.length}</p>
               <h3>Conflicts</h3>
               <p>{personScopedConflicts.length}</p>
+            </section>
+            <section className="calendar-panel">
+              <h3>Edit selected</h3>
+              {!selectedEvent && <p>Select an appointment or task on the calendar.</p>}
+              {selectedEvent && (
+                <div className="calendar-field-row">
+                  <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} placeholder="Title" />
+                  <textarea rows={3} value={editSummary} onChange={(event) => setEditSummary(event.target.value)} placeholder="Summary" />
+                  <input type="datetime-local" value={editStartUtcLocal} onChange={(event) => setEditStartUtcLocal(event.target.value)} />
+                  <input type="datetime-local" value={editEndUtcLocal} onChange={(event) => setEditEndUtcLocal(event.target.value)} />
+                  <select value={editStatus} onChange={(event) => setEditStatus(event.target.value)}>
+                    <option value="planned">planned</option>
+                    <option value="confirmed">confirmed</option>
+                    <option value="cancelled">cancelled</option>
+                    <option value="completed">completed</option>
+                  </select>
+                  <div className="calendar-detail-actions">
+                    <button type="button" onClick={() => void saveSelectedItem()}>Save</button>
+                    <button type="button" onClick={() => void removeSelectedItem()}>Remove</button>
+                  </div>
+                </div>
+              )}
             </section>
           </aside>
         </main>
@@ -1640,13 +1839,25 @@ export function CalendarPage({
           {!selectedEvent && <p>Select an item from the board.</p>}
           {selectedEvent && (
             <>
-              <h3>{selectedEvent.titlePublic}</h3>
-              <p>{selectedEvent.summaryPublic ?? 'No summary'}</p>
-              <p>{formatUtc(selectedEvent.startUtc)} - {formatUtc(selectedEvent.endUtc)}</p>
+              <h3>Edit item</h3>
+              <div className="calendar-field-row">
+                <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} placeholder="Title" />
+                <textarea rows={3} value={editSummary} onChange={(event) => setEditSummary(event.target.value)} placeholder="Summary" />
+                <div className="calendar-inline-grid">
+                  <input type="datetime-local" value={editStartUtcLocal} onChange={(event) => setEditStartUtcLocal(event.target.value)} />
+                  <input type="datetime-local" value={editEndUtcLocal} onChange={(event) => setEditEndUtcLocal(event.target.value)} />
+                </div>
+                <select value={editStatus} onChange={(event) => setEditStatus(event.target.value)}>
+                  <option value="planned">planned</option>
+                  <option value="confirmed">confirmed</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="completed">completed</option>
+                </select>
+              </div>
               <p>Type: {selectedEvent.itemType}</p>
-              <p>Status: {selectedEvent.status}</p>
               {selectedEvent.taskState && <p>Task state: {selectedEvent.taskState}</p>}
               <div className="calendar-detail-actions">
+                <button type="button" onClick={() => void saveSelectedItem()}>Save</button>
                 {selectedEvent.itemType === 'task' && (
                   <>
                     <button type="button" onClick={() => void completeCalendarTask(selectedEvent.eventId, { taskState: 'done' }).then(refresh).catch((err) => setError(readError(err)))}>Complete</button>
@@ -1654,7 +1865,7 @@ export function CalendarPage({
                   </>
                 )}
                 <button type="button" onClick={() => void executeCalendarGraph(selectedEvent.eventId, { triggerType: 'manual' }).then(refresh).catch((err) => setError(readError(err)))}>Run Graph</button>
-                <button type="button" onClick={() => void archiveCalendarItem(selectedEvent.eventId).then(refresh).catch((err) => setError(readError(err)))}>Archive</button>
+                <button type="button" onClick={() => void removeSelectedItem()}>Remove</button>
               </div>
               <div className="calendar-share-panel">
                 <h3>Graph editor</h3>

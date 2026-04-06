@@ -219,6 +219,57 @@ function parseJsonObject<T>(raw: string, fallback: T): T {
   }
 }
 
+function readFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function deriveZonesFromActionNodes(actionNodesText: string): Array<{
+  zoneKey: string;
+  latitude: number;
+  longitude: number;
+  triggerRadiusM: number;
+  sourceType?: string;
+}> {
+  const nodes = parseJsonObject<Array<Record<string, unknown>>>(actionNodesText, []);
+  const derived: Array<{
+    zoneKey: string;
+    latitude: number;
+    longitude: number;
+    triggerRadiusM: number;
+    sourceType?: string;
+  }> = [];
+
+  for (const node of nodes) {
+    if (typeof node.nodeType !== 'string' || node.nodeType !== 'trigger.onEnterZone') {
+      continue;
+    }
+    const config = node.config && typeof node.config === 'object'
+      ? (node.config as Record<string, unknown>)
+      : {};
+    const zoneKey = typeof config.zoneKey === 'string' ? config.zoneKey.trim() : '';
+    const latitude = readFiniteNumber(config.latitude);
+    const longitude = readFiniteNumber(config.longitude);
+    const radius = readFiniteNumber(config.radiusM) ?? readFiniteNumber(config.triggerRadiusM) ?? 120;
+    if (!zoneKey || latitude === null || longitude === null) {
+      continue;
+    }
+    derived.push({
+      zoneKey,
+      latitude,
+      longitude,
+      triggerRadiusM: radius,
+      sourceType: 'action_graph'
+    });
+  }
+
+  return derived;
+}
+
 function toErrorText(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
     return error.message || fallback;
@@ -234,12 +285,6 @@ function normalizeLayoutRoleType(value: string | undefined | null): 'host' | 'gr
   if (normalized === 'host') return 'host';
   if (normalized === 'groupleader' || normalized === 'group_leader' || normalized === 'group-leader') return 'groupLeader';
   return 'participant';
-}
-
-function readGameDescription(settings: Record<string, unknown> | null | undefined): string {
-  if (!settings) return '';
-  const candidate = settings.description;
-  return typeof candidate === 'string' ? candidate : '';
 }
 
 function CogitaGameTargetSection({
@@ -260,13 +305,13 @@ function CogitaGameTargetSection({
   const [loadingGames, setLoadingGames] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const [createDetails, setCreateDetails] = useState<{ name: string; description: string }>({
+  const [createDetails, setCreateDetails] = useState<{ name: string; mode: string; settingsText: string }>({
     name: '',
-    description: ''
+    mode: 'mixed',
+    settingsText: '{}'
   });
 
-  const [details, setDetails] = useState<{ name: string; description: string } | null>(null);
-  const [gameSettings, setGameSettings] = useState<Record<string, unknown>>({});
+  const [details, setDetails] = useState<{ name: string; mode: string; settingsText: string } | null>(null);
   const [values, setValues] = useState<CogitaGameValue[]>([]);
   const [actionGraph, setActionGraph] = useState<CogitaGameActionGraph | null>(null);
   const [actionNodesText, setActionNodesText] = useState('[]');
@@ -330,7 +375,6 @@ function CogitaGameTargetSection({
   useEffect(() => {
     if (!gameId) {
       setDetails(null);
-      setGameSettings({});
       setValues([]);
       setActionGraph(null);
       setLayouts([]);
@@ -350,15 +394,11 @@ function CogitaGameTargetSection({
         ]);
         if (cancelled) return;
 
-        const settings =
-          game.settings && typeof game.settings === 'object' && !Array.isArray(game.settings)
-            ? (game.settings as Record<string, unknown>)
-            : {};
         setDetails({
           name: game.name,
-          description: readGameDescription(settings)
+          mode: game.mode,
+          settingsText: JSON.stringify(game.settings ?? {}, null, 2)
         });
-        setGameSettings(settings);
         setValues(gameValues);
         setActionGraph(graph);
         setActionNodesText(JSON.stringify(graph.nodes ?? [], null, 2));
@@ -394,18 +434,15 @@ function CogitaGameTargetSection({
     }
     setStatus(null);
     try {
-      const description = createDetails.description.trim();
-      const settings: Record<string, unknown> = {};
-      if (description.length > 0) {
-        settings.description = description;
-      }
+      const parsedSettings = parseJsonObject<Record<string, unknown>>(createDetails.settingsText, {});
       const created = await createCogitaGame({
         libraryId,
         name: normalized,
-        settings
+        mode: (createDetails.mode as 'solo' | 'group' | 'mixed') ?? 'mixed',
+        settings: parsedSettings
       });
       setGames((current) => [created, ...current]);
-      setCreateDetails({ name: '', description: '' });
+      setCreateDetails({ name: '', mode: 'mixed', settingsText: '{}' });
       onNavigate({ gameId: created.gameId, view: 'overview' });
     } catch (error) {
       setStatus(toErrorText(error, 'Failed to create game.'));
@@ -421,24 +458,18 @@ function CogitaGameTargetSection({
     }
     setStatus(null);
     try {
-      const description = details.description.trim();
-      const nextSettings: Record<string, unknown> = { ...gameSettings };
-      if (description.length > 0) {
-        nextSettings.description = description;
-      } else {
-        delete nextSettings.description;
-      }
+      const parsedSettings = parseJsonObject<Record<string, unknown>>(details.settingsText, {});
       const updated = await updateCogitaGame({
         libraryId,
         gameId,
         name: normalized,
-        settings: nextSettings
+        mode: details.mode,
+        settings: parsedSettings
       });
       setGames((current) => current.map((item) => (item.gameId === updated.gameId ? updated : item)));
-      setGameSettings(nextSettings);
-      setStatus('Game saved.');
+      setStatus('Game settings saved.');
     } catch (error) {
-      setStatus(toErrorText(error, 'Failed to save game.'));
+      setStatus(toErrorText(error, 'Failed to save game settings.'));
     }
   };
 
@@ -562,6 +593,18 @@ function CogitaGameTargetSection({
         sessionZonesText,
         []
       );
+      const derivedZones = deriveZonesFromActionNodes(actionNodesText);
+      const mergedZones = [...parsedZones];
+      const existingZoneKeys = new Set(
+        parsedZones
+          .map((zone) => (typeof zone.zoneKey === 'string' ? zone.zoneKey.trim() : ''))
+          .filter((zoneKey) => zoneKey.length > 0)
+      );
+      for (const derived of derivedZones) {
+        if (existingZoneKeys.has(derived.zoneKey)) continue;
+        mergedZones.push(derived);
+      }
+      const autoZoneCount = Math.max(0, mergedZones.length - parsedZones.length);
 
       const created = await createCogitaGameSession({
         libraryId,
@@ -569,7 +612,7 @@ function CogitaGameTargetSection({
         title: sessionTitle.trim() || null,
         sessionSettings: {},
         groups: parsedGroups,
-        zones: parsedZones
+        zones: mergedZones
       });
 
       const storageKey = `cogita.game.host.${created.sessionId}`;
@@ -591,7 +634,8 @@ function CogitaGameTargetSection({
 
       const hostLink = `/#/cogita/game/host/${encodeURIComponent(libraryId)}/${encodeURIComponent(created.sessionId)}?hostSecret=${encodeURIComponent(created.hostSecret)}&code=${encodeURIComponent(created.code)}`;
       const joinLink = `/#/cogita/game/join/${encodeURIComponent(created.code)}`;
-      setStatus(`Session created. Host: ${hostLink} Participant: ${joinLink}`);
+      const autoZoneInfo = autoZoneCount > 0 ? ` Auto zones from action graph: ${autoZoneCount}.` : '';
+      setStatus(`Session created.${autoZoneInfo} Host: ${hostLink} Participant: ${joinLink}`);
     } catch (error) {
       setStatus(toErrorText(error, 'Failed to create session.'));
     }
@@ -609,6 +653,7 @@ function CogitaGameTargetSection({
     if (normalizedView === 'overview') {
       return (
         <CogitaGameOverview
+          selectedGame={selectedGame}
           details={details}
           sessions={sessions}
           onOpenEdit={() => onNavigate({ gameId, view: 'edit' })}
@@ -636,6 +681,9 @@ function CogitaGameTargetSection({
     if (normalizedView === 'participants') {
       return (
         <CogitaGameParticipants
+          details={details}
+          onDetailsChange={setDetails}
+          onSaveGame={() => void saveGame()}
           sessionGroupsText={sessionGroupsText}
           sessionZonesText={sessionZonesText}
           onSessionGroupsTextChange={setSessionGroupsText}

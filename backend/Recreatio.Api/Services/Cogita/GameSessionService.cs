@@ -327,7 +327,7 @@ public sealed class GameSessionService : IGameSessionService
             state.Scoreboard.Count.ToString(CultureInfo.InvariantCulture),
             state.LastSeqNo.ToString(CultureInfo.InvariantCulture));
 
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint)));
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint)));
     }
 
     public async Task<int> CleanupLocationRetentionAsync(CancellationToken ct)
