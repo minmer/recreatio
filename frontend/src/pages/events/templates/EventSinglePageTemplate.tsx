@@ -27,7 +27,7 @@ export type EventTemplateSlide = {
 const SNAP_IDLE_MS = 110;
 const SNAP_DIRECTIONAL_THRESHOLD = 0.22;
 const SCROLL_SENSITIVITY = 1.16;
-const INPUT_SESSION_GAP_MS = 180;
+const INPUT_SESSION_GAP_MS = 260;
 
 function clamp(value: number, min: number, max: number): number {
   if (value < min) return min;
@@ -73,7 +73,9 @@ export function EventSinglePageTemplate({
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
-  const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1; armedAt: number } | null>(null);
+  const lastInputAtRef = useRef(0);
+  const burstTransitionUsedRef = useRef(false);
+  const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1 } | null>(null);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -220,6 +222,11 @@ export function EventSinglePageTemplate({
       return;
     }
     const now = performance.now();
+    const isNewBurst = now - lastInputAtRef.current > INPUT_SESSION_GAP_MS;
+    if (isNewBurst) {
+      burstTransitionUsedRef.current = false;
+    }
+    lastInputAtRef.current = now;
     const direction: -1 | 1 = delta > 0 ? 1 : -1;
     const scaled = delta * SCROLL_SENSITIVITY;
     const current = targetRef.current;
@@ -234,27 +241,29 @@ export function EventSinglePageTemplate({
         const next = Math.min(slideInnerEnd, current + Math.max(0, scaled));
         setTarget(next);
         if (next >= slideInnerEnd - 0.5) {
-          boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+          boundaryGateRef.current = { slideIndex, direction };
         } else {
           boundaryGateRef.current = null;
         }
         lastInputDirectionRef.current = direction;
+        scheduleSnap();
         return;
       }
 
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
-        boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+        boundaryGateRef.current = { slideIndex, direction };
         setTarget(slideInnerEnd);
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (now - gate.armedAt < INPUT_SESSION_GAP_MS) {
+      if (!isNewBurst || burstTransitionUsedRef.current) {
         setTarget(slideInnerEnd);
         lastInputDirectionRef.current = direction;
         return;
       }
 
+      burstTransitionUsedRef.current = true;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const nextIndex = Math.min(slideIndex + 1, slides.length - 1);
@@ -267,27 +276,29 @@ export function EventSinglePageTemplate({
         const next = Math.max(slideStart, current + Math.min(0, scaled));
         setTarget(next);
         if (next <= slideStart + 0.5) {
-          boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+          boundaryGateRef.current = { slideIndex, direction };
         } else {
           boundaryGateRef.current = null;
         }
         lastInputDirectionRef.current = direction;
+        scheduleSnap();
         return;
       }
 
       const gate = boundaryGateRef.current;
       if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
-        boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+        boundaryGateRef.current = { slideIndex, direction };
         setTarget(slideStart);
         lastInputDirectionRef.current = direction;
         return;
       }
-      if (now - gate.armedAt < INPUT_SESSION_GAP_MS) {
+      if (!isNewBurst || burstTransitionUsedRef.current) {
         setTarget(slideStart);
         lastInputDirectionRef.current = direction;
         return;
       }
 
+      burstTransitionUsedRef.current = true;
       boundaryGateRef.current = null;
       lastInputDirectionRef.current = direction;
       const previousIndex = Math.max(slideIndex - 1, 0);
@@ -295,10 +306,18 @@ export function EventSinglePageTemplate({
       return;
     }
 
+    if (burstTransitionUsedRef.current) {
+      const lockPoint = slideStarts[slideIndex] ?? 0;
+      setTarget(lockPoint);
+      lastInputDirectionRef.current = direction;
+      return;
+    }
+
+    burstTransitionUsedRef.current = true;
     boundaryGateRef.current = null;
     lastInputDirectionRef.current = direction;
-    setTarget(current + scaled);
-    scheduleSnap();
+    const nextIndex = clamp(slideIndex + direction, 0, slides.length - 1);
+    setTarget(slideStarts[nextIndex] ?? (direction > 0 ? maxScroll : 0));
   }, [
     getSlideIndexForPosition,
     maxScroll,
@@ -313,6 +332,8 @@ export function EventSinglePageTemplate({
   const jumpToSlide = useCallback((index: number) => {
     const point = slideStarts[index] ?? 0;
     lastInputDirectionRef.current = 0;
+    lastInputAtRef.current = 0;
+    burstTransitionUsedRef.current = false;
     boundaryGateRef.current = null;
     setTarget(point);
     scheduleSnap();
