@@ -73,9 +73,7 @@ export function EventSinglePageTemplate({
   const rafRef = useRef<number | null>(null);
   const snapTimerRef = useRef<number | null>(null);
   const lastInputDirectionRef = useRef<-1 | 0 | 1>(0);
-  const inputSessionRef = useRef(0);
-  const lastInputAtRef = useRef(0);
-  const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1; session: number } | null>(null);
+  const boundaryGateRef = useRef<{ slideIndex: number; direction: -1 | 1; armedAt: number } | null>(null);
   const positionRef = useRef(0);
   const targetRef = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -222,11 +220,6 @@ export function EventSinglePageTemplate({
       return;
     }
     const now = performance.now();
-    if (now - lastInputAtRef.current > INPUT_SESSION_GAP_MS) {
-      inputSessionRef.current += 1;
-    }
-    lastInputAtRef.current = now;
-
     const direction: -1 | 1 = delta > 0 ? 1 : -1;
     const scaled = delta * SCROLL_SENSITIVITY;
     const current = targetRef.current;
@@ -235,14 +228,13 @@ export function EventSinglePageTemplate({
     const slideHeight = slideHeights[slideIndex] ?? viewportHeight;
     const slideInnerEnd = slideStart + Math.max(0, slideHeight - viewportHeight);
     const hasInnerScroll = slideInnerEnd > slideStart + 0.5;
-    const session = inputSessionRef.current;
 
     if (hasInnerScroll && direction > 0) {
       if (current < slideInnerEnd - 0.5) {
         const next = Math.min(slideInnerEnd, current + Math.max(0, scaled));
         setTarget(next);
         if (next >= slideInnerEnd - 0.5) {
-          boundaryGateRef.current = { slideIndex, direction, session };
+          boundaryGateRef.current = { slideIndex, direction, armedAt: now };
         } else {
           boundaryGateRef.current = null;
         }
@@ -251,8 +243,13 @@ export function EventSinglePageTemplate({
       }
 
       const gate = boundaryGateRef.current;
-      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction || gate.session === session) {
-        boundaryGateRef.current = { slideIndex, direction, session };
+      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
+        boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+        setTarget(slideInnerEnd);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+      if (now - gate.armedAt < INPUT_SESSION_GAP_MS) {
         setTarget(slideInnerEnd);
         lastInputDirectionRef.current = direction;
         return;
@@ -270,7 +267,7 @@ export function EventSinglePageTemplate({
         const next = Math.max(slideStart, current + Math.min(0, scaled));
         setTarget(next);
         if (next <= slideStart + 0.5) {
-          boundaryGateRef.current = { slideIndex, direction, session };
+          boundaryGateRef.current = { slideIndex, direction, armedAt: now };
         } else {
           boundaryGateRef.current = null;
         }
@@ -279,8 +276,13 @@ export function EventSinglePageTemplate({
       }
 
       const gate = boundaryGateRef.current;
-      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction || gate.session === session) {
-        boundaryGateRef.current = { slideIndex, direction, session };
+      if (!gate || gate.slideIndex !== slideIndex || gate.direction !== direction) {
+        boundaryGateRef.current = { slideIndex, direction, armedAt: now };
+        setTarget(slideStart);
+        lastInputDirectionRef.current = direction;
+        return;
+      }
+      if (now - gate.armedAt < INPUT_SESSION_GAP_MS) {
         setTarget(slideStart);
         lastInputDirectionRef.current = direction;
         return;
